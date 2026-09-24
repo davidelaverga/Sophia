@@ -1,0 +1,102 @@
+$ git rev-parse HEAD
+b7798432b773b086ff3f47a6acce139ef530e32f
+$ node --version && pnpm --version
+v24.21.0
+11.7.0
+$ pnpm install --frozen-lockfile --store-dir <fresh empty store>
+Scope: all 3 workspace projects
+✓ Lockfile passes supply-chain policies (verified 22m ago)
+Lockfile is up to date, resolution step is skipped
+Packages: +507
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+.../.pnpm/koffi@3.3.1/node_modules/koffi install$ node ./cnoke.cjs -P . -D src/koffi --prebuild --release
+.../node_modules/node-pty install$ node scripts/prebuild.js || node-gyp rebuild
+.../node_modules/node-pty install: [32m> Checking prebuilds...[0m
+.../node_modules/node-pty install: Done
+.../node_modules/node-pty postinstall$ node scripts/post-install.js
+.../node_modules/node-pty postinstall: [32m> Cleaning release folder...[0m
+.../node_modules/node-pty postinstall: [32m> Moving conpty.dll...[0m
+.../node_modules/node-pty postinstall:   SKIPPED (not Windows)
+.../node_modules/node-pty postinstall: Done
+.../.pnpm/koffi@3.3.1/node_modules/koffi install: Done
+.../@deepseek-ai/dsh-subprocess-local postinstall$ node scripts/ensure-spawn-helper.mjs
+.../@deepseek-ai/dsh-subprocess-local postinstall: Done
+
+devDependencies:
++ yaml 2.9.1
+
+Done in 8.8s using pnpm v11.7.0
+$ pnpm check
+$ pnpm toolchain:check && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration
+$ node scripts/toolchain-check.mjs
+toolchain ok: node 24.21.0, pnpm 11.7.0
+$ pnpm --filter @sophia/dsh-bundle run typecheck
+$ tsc -p tsconfig.json --noEmit
+$ node --test "tests/unit/**/*.test.mjs"
+✔ the destination map lists paths with a state and an owning goal (1.204264ms)
+✔ built/partial paths exist and unbuilt paths are still absent (0.740232ms)
+✔ every planning.json destination path appears in the map (1.073542ms)
+✔ dump rows carry the source layer printed above them (17.389141ms)
+✔ each upstream skip/warning line is classified (0.459547ms)
+✔ health is never true at S1-01 and names composition failures separately (0.21271ms)
+✔ base ids are collected from insert lists, with !!js kept opaque (1.622965ms)
+✔ a comments-only patch is diagnosed, not treated as an empty layer (0.580019ms)
+✔ a literal [] parses as an intentionally empty layer (0.632579ms)
+✔ an empty bundle layer is rejected because the bundle would compose as absent (0.275368ms)
+✔ a wrong-row patch is diagnosed (0.722719ms)
+✔ a correct disable plus a new insert lints clean and extends the id set (1.136189ms)
+✔ re-inserting an existing id is diagnosed (0.840981ms)
+✔ non-array and malformed rows are diagnosed (2.720042ms)
+✔ every toolchain pin agrees: .node-version, .nvmrc, engines, packageManager, runtime unit (2.216099ms)
+✔ the bundle pins the same dsh version as the runtime package and the runtime unit (0.320197ms)
+✔ build facts are recorded, not left null or guessed (0.44861ms)
+✔ the digest ignores location-bound shims, install-time bookkeeping and the deploy-local lock (6.581824ms)
+✔ the digest changes with file content, exec bit and link target (5.226536ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 215.458356
+$ node scripts/build-artifacts.mjs
+match    dsh.artifacts_by_platform.linux-x64
+         built    {"digest":"sophia-tree-v1:sha256:11ccc202992d5f06c073f3f51f521f7687d096975e449df6994f52d2f471df19","entries":32094}
+match    dsh.release_integrity
+         built    {"@deepseek-ai/dsh@0.1.7-rc.1":"sha512-O1K076aCmqE+h4fB5J+mi3twNSAnh26OqHepaqvS5f1tccFnxhVyGpUmjcncVM5x1SX4niznmvsGrsRo9p733A==","@deepseek-ai/dsh-base@0.1.7-rc.1":"sha512-o8KnLPs9gSHWLrX2NMrVi8Mat9SBQmiSmNudzl+M+qB8asgjyaB3OanQRJOxmfrQ30Xnb34lnAcC2wfASMP2Mw=="}
+match    sophia_bundle.archive_sha256
+         built    "f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f"
+match    sophia_bundle.archive_integrity
+         built    "sha512-jP6AsAJXkNu8wRG+TiRPacBYq1wmEy178U+/lEk4DU+xJGhnuVYKalk6sWK3SmgCYbiXiUQwEhB8fqx9xmNmYQ=="
+match    workspace_lock_sha256
+         built    "c2347176cb30d35bbf827363a865fb2c07c1150178312e4fa05c78608f12a8bb"
+match    dsh.artifact_digest
+         built    "sophia-tree-v1:sha256:11ccc202992d5f06c073f3f51f521f7687d096975e449df6994f52d2f471df19"
+match    sophia_bundle.artifact_digest
+         built    "sha256:f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f"
+match    config/dsh/profile/pnpm-lock.yaml
+
+runtime unit sophia-runtime-s1-01: all artifact identities reproduced
+$ node --test --test-concurrency=1 "tests/integration/**/*.test.mjs"
+✔ positive: dsh-base + Sophia bundle compose cleanly, no other root loop; runtime still unhealthy until S1-03 (185.162146ms)
+✔ adverse: a missing Sophia bundle is rejected although dsh boots the base alone (151.029866ms)
+✔ adverse: an incompatible Sophia bundle (wrong dsh peer) is rejected (179.745921ms)
+✔ adverse: a comments-only bundle patch is diagnosed, not accepted as configuration (181.45328ms)
+✔ adverse: an empty [] bundle patch (silently accepted upstream) is rejected (189.793921ms)
+✔ adverse: a wrong-row patch is diagnosed, not a silent no-op (174.158418ms)
+✔ adverse: a comments-only profile patch fails the dump and the lint (145.714514ms)
+✔ adverse: another app bundle (a second root loop) in the profile is rejected (205.858848ms)
+✔ adverse: a bundle archive other than the recorded bytes is rejected (210.012157ms)
+✔ adverse: a bundle copy reachable from the runtime installation (masking the profile) is rejected (168.08286ms)
+✔ boot: the official launcher stays up with the Sophia row loaded and reports not_ready (8082.000517ms)
+✔ boot: a required-entry failure exits nonzero and its full startup diagnostics are retained (1086.965417ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14231.791044
+exit=0
