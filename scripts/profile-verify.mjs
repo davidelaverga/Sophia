@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * Run the composition gate against an already installed Harness home.
+ * Like profile:install, it first refuses the wrong toolchain or a runtime
+ * artifact / bundle archive other than the recorded ones.
  *
  *   pnpm profile:verify [--home <dir>] [--json]
  */
@@ -9,10 +11,18 @@ import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { DEFAULT_HOME_ROOT, RUNTIME_DIR, loadRuntimeUnit } from './lib/common.mjs'
 import { verifyProfile } from './lib/gate.mjs'
-import { homeLayout } from './lib/profile.mjs'
+import { assertRecordedArtifacts, homeLayout } from './lib/profile.mjs'
+import { assertToolchain } from './lib/toolchain.mjs'
 
 const { values } = parseArgs({ options: { home: { type: 'string' }, json: { type: 'boolean', default: false } } })
 const unit = loadRuntimeUnit()
+try {
+  assertToolchain()
+  assertRecordedArtifacts(unit, RUNTIME_DIR)
+} catch (error) {
+  console.error(`profile:verify refused: ${error.message}`)
+  process.exit(1)
+}
 const layout = homeLayout(resolve(values.home ?? join(DEFAULT_HOME_ROOT, unit.id)))
 const gate = verifyProfile({ unit, runtimeDir: RUNTIME_DIR, ...layout })
 

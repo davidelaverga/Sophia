@@ -10,11 +10,12 @@
  */
 
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
-import { RUNTIME_DIR, loadRuntimeUnit } from '../../scripts/lib/common.mjs'
+import { REPO_ROOT, RUNTIME_DIR, loadRuntimeUnit } from '../../scripts/lib/common.mjs'
 import { verifyProfile } from '../../scripts/lib/gate.mjs'
 import { assertRecordedArtifacts, bootProfile, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 
@@ -124,6 +125,35 @@ test('adverse: a bundle archive other than the recorded bytes is rejected', () =
   const gate = gateOf(variant((profile) => writeFileSync(join(profile, unit.sophia_bundle.archive), 'not the recorded archive')))
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('bundle_archive_mismatch'))
+})
+
+test('adverse: installed bundle files that differ from the recorded archive are rejected', () => {
+  const gate = gateOf(variant((profile) => {
+    const entry = join(bundleDir(profile), 'dist', 'index.js')
+    writeFileSync(entry, `${readFileSync(entry, 'utf8')}\n// modified after install\n`)
+  }))
+  assert.equal(gate.dump.status, 0, 'the dump only sees composition, not the bridge code')
+  assert.equal(gate.ok, false)
+  assert.ok(findingCodes(gate).includes('bundle_files_mismatch'))
+})
+
+test('adverse: a profile without the recorded archive cannot be checked and is rejected', () => {
+  const gate = gateOf(variant((profile) => rmSync(join(profile, unit.sophia_bundle.archive))))
+  assert.equal(gate.ok, false)
+  assert.ok(findingCodes(gate).includes('bundle_archive_missing'))
+})
+
+test('profile:verify refuses a runtime artifact that is not the recorded one', () => {
+  const tampered = join(RUNTIME_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
+  const original = readFileSync(tampered)
+  try {
+    writeFileSync(tampered, Buffer.concat([original, Buffer.from('\n')]))
+    const result = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts', 'profile-verify.mjs'), '--home', pristine.root], { encoding: 'utf8' })
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /profile:verify refused: runtime artifact .* is not the recorded .* artifact/)
+  } finally {
+    writeFileSync(tampered, original)
+  }
 })
 
 test('adverse: a bundle copy reachable from the runtime installation (masking the profile) is rejected', () => {

@@ -84,11 +84,13 @@ is `<tmpdir>/sophia-next/<unit id>`, outside the product tree.
 The runtime's `--dump-config` exit code is not a verdict (see
 [SOURCE_MAP §3](SOURCE_MAP.md#3-facts-learned-at-the-pin-not-in-the-pack)).
 The gate (`scripts/lib/gate.mjs`) fails unless every check below passes.
+`pnpm profile:verify` and `pnpm profile:install` first refuse the wrong
+toolchain or a runtime artifact or bundle archive other than the recorded ones.
 
 | Check | Rejects |
 |---|---|
 | `profile_manifest` | Bundles other than exactly `[@deepseek-ai/dsh-base, @sophia/dsh-bundle]`, or extra dependencies |
-| `bundle_installed` | Missing bundle, wrong name or version, a dsh peer other than the pinned version, no `dsh.bundle.patch`, or an archive whose integrity differs from the record |
+| `bundle_installed` | Missing bundle, wrong name or version, a dsh peer other than the pinned version, no `dsh.bundle.patch`, an archive missing from the profile or differing from the record, or installed files that differ from a clean extraction of that archive (the dump sees composition, not the bridge code) |
 | `patch_layers` | Empty or comments-only layers, an empty bundle layer, unmatched or duplicate rows, a non-empty profile patch, a home-level patch |
 | `no_bundle_shadowing` | Any `@sophia/dsh-bundle` reachable from the dsh installation's ancestors |
 | `dump_config` | A nonzero dump, or any stderr line (classified as `bundle_missing`, `bundle_incompatible`, `patch_comments_only`, `patch_unmatched_row`, …) |

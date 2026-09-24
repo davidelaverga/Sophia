@@ -135,6 +135,12 @@ DSH-19, DSH-20 (see [SOURCE_MAP §2](../SOURCE_MAP.md)).
   directory. The launch environment now adds exactly the directory of the
   `pnpm` found on the caller's `PATH`, which `pnpm toolchain:check`
   verifies is 11.7.0.
+- **Codex review (two findings, both fixed).**
+  - `pnpm profile:verify` now checks the toolchain and the recorded runtime
+    artifact and bundle archive before gating.
+  - The gate now compares the installed bundle files against a clean
+    extraction of the recorded archive, and rejects a profile whose archive
+    is missing. Before this, a modified `dist/index.js` passed.
 - **`TMPDIR` pinned inside the install.** dsh's spill directory had leaked
   into the shared `/tmp`.
 - **Bridge row declares no `inject` yet.** The pack's specimen lists

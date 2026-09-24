@@ -8,12 +8,13 @@
  * and the dump itself and fails every case the S1-01 adverse checks name.
  */
 
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DSH_ENTRY, runDsh, sanitizedEnv } from './common.mjs'
+import { DSH_ENTRY, runChecked, runDsh, sanitizedEnv } from './common.mjs'
 import { insertedIds, lintComposition, parseCordisYaml, parsePatch } from './patch-lint.mjs'
-import { fileIntegrity } from './tree-digest.mjs'
+import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
 const BASE = '@deepseek-ai/dsh-base'
 const BUNDLE = '@sophia/dsh-bundle'
@@ -76,6 +77,31 @@ export function classifyDumpStderr(stderr) {
     if (unmatched) return { code: 'patch_unmatched_row', layer: unmatched[1], message: line }
     return { code: 'dump_diagnostic', layer: 'dsh', message: line }
   })
+}
+
+/**
+ * Compare an installed package with a clean extraction of its archive. The
+ * dump validates composition only, so this is what ties the executable
+ * bridge code to the recorded bytes.
+ * @returns {string[]} paths that are missing, extra or different.
+ */
+export function diffAgainstArchive(archive, installedDir) {
+  const scratch = mkdtempSync(join(tmpdir(), 'sophia-bundle-extract-'))
+  try {
+    runChecked('tar', ['-xzf', archive, '-C', scratch])
+    const expected = treeDigest(join(scratch, 'package')).entries
+    const actual = treeDigest(installedDir).entries
+    const pathOf = (entry) => entry.split(' ')[1]
+    const expectedSet = new Set(expected)
+    const actualSet = new Set(actual)
+    const differing = new Set([
+      ...expected.filter((e) => !actualSet.has(e)).map(pathOf),
+      ...actual.filter((e) => !expectedSet.has(e)).map(pathOf),
+    ])
+    return [...differing].sort()
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
 }
 
 /** Directories from `start` to the filesystem root. */
@@ -141,8 +167,14 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
       findings.push({ code: 'bundle_archive_mismatch', message: `profile lock does not pin the recorded archive integrity ${unit.sophia_bundle.archive_integrity}` })
     }
     const archive = join(profileDir, unit.sophia_bundle.archive)
-    if (existsSync(archive) && fileIntegrity(archive) !== unit.sophia_bundle.archive_integrity) {
+    if (!existsSync(archive)) {
+      findings.push({ code: 'bundle_archive_missing', message: `${unit.sophia_bundle.archive} is not in the profile, so the installed files cannot be checked against the recorded bytes` })
+    } else if (fileIntegrity(archive) !== unit.sophia_bundle.archive_integrity) {
       findings.push({ code: 'bundle_archive_mismatch', message: `${unit.sophia_bundle.archive} in the profile differs from the recorded archive` })
+    } else {
+      for (const path of diffAgainstArchive(archive, bundleDir)) {
+        findings.push({ code: 'bundle_files_mismatch', message: `installed ${BUNDLE}/${path} differs from the recorded archive` })
+      }
     }
     check('bundle_installed', findings)
   }
