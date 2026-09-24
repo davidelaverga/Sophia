@@ -58,11 +58,10 @@ reason list keeps composition failures separate from
 
 1. **Separate repository; preserve the existing app.** Created locally,
    with a base commit on `main` and the work on
-   `claude/mission-1-repo-setup-yjjjn2`. **Creating the GitHub repository
-   failed:** `POST /user/repos` returned `403 Resource not accessible by
-   integration`, because the session's GitHub App cannot create
-   repositories. Nothing is pushed yet (see Remaining obligations).
-   Sophia-Agent is unchanged.
+   `claude/mission-1-repo-setup-yjjjn2`. Creating the GitHub repository from
+   the session failed: `POST /user/repos` returned `403 Resource not
+   accessible by integration`. Davide then created `davidelaverga/Sophia`
+   (see Remaining obligations). Sophia-Agent is unchanged.
 2. **dsh pin outside the tree; toolchain; lock.** The checkout of
    `46a7f68b` sits outside the product tree, and the tag
    `dsh-v0.1.7-rc.1` resolves to it
@@ -130,12 +129,14 @@ DSH-19, DSH-20 (see [SOURCE_MAP §2](../SOURCE_MAP.md)).
 
 ## Remaining obligations
 
-- **Push (human action needed).** Create an empty private
-  `davidelaverga/sophia-next` on GitHub (no README) and give the Claude
-  GitHub App access to it. Then push `main` and
-  `claude/mission-1-repo-setup-yjjjn2` and open the draft PR for Luis's
-  integration review. CI (`.github/workflows/ci.yml`) has never run on
-  GitHub, so its first run is outstanding evidence.
+- **Repository and push.** The session's GitHub App could not create
+  repositories, so Davide created
+  [`davidelaverga/Sophia`](https://github.com/davidelaverga/Sophia) with
+  its own initial commit. That commit was merged into the S1-01 branch
+  rather than rewriting history, so the hashes cited here stay valid. No
+  names inside the repository were changed. The branch goes to Luis for
+  integration review as a draft PR. CI (`.github/workflows/ci.yml`) had not
+  run on GitHub before that PR, so its first run is outstanding evidence.
 - **Other platforms.** Only linux-x64 is recorded and proven. On macOS,
   `pnpm artifacts` reports `UNRECORDED` until someone records that platform
   in a reviewed commit. The bundle archive's byte identity under macOS zlib
