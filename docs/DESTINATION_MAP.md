@@ -69,7 +69,7 @@ a path updates its row in the same commit.
 
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
-| `renderers/` | unbuilt | S1-13 | `python/` and `web/` isolated render jobs |
+| `renderers/` | unbuilt | S1-13 | `web/pdf/` and `web/deck/`: the adapted JS render kernels (v0.4 D32 removed the Python path) |
 | `db/migrations/` | unbuilt | S1-02 | New schema; no automatic old-DB migration |
 | `deploy/` | unbuilt | S1-14 | Render, execution-host and Vercel manifests |
 | `tests/unit/` | built | S1-01 | Toolchain, digest, patch-lint, dump-parse and map checks |

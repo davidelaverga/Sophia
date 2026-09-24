@@ -1,12 +1,12 @@
 # Three owner-bound engineers, a lead and real peer dialogue
 
-**Chosen integration:** pinned Omnigent native bridge, with native sessions on each owner's machine. **Sources:** OM-01/02, DSH-16, BZ-01/03, QM-01/02. The exact Omnigent endpoint inventory is a declared Part 2 deliverable; the resource and communication contracts below are settled.
+**Chosen integration:** pinned Omnigent native bridge, with native sessions on each owner's machine. **Sources:** OM-01/02, DSH-16, BZ-01/03, QM-01/02. The exact selected endpoint/principal/recovery inventory is now in [architecture 11](11_OMNIGENT_BINDINGS.md). This chapter remains the role and communication overview.
 
 ## 1. Resource registration
 
 Register three resources: `davide-codex`, `davide-claude` and `luis-claude`. Each records owner actor ID, host identity, native harness mode/version, repository root/worktree, native session ID, current availability, supported controls, permitted project operations and the owner's active grant. These display names are not credentials or native IDs.
 
-The owner launches or adopts the session through their normal vendor/Omnigent flow. Sophia verifies the binding and current visibility/control grant. It does not launch a process on Luis's host using Davide's identity. Omnigent's inspected launch resolver requires host ownership and session-owner authority; an editor grant is not an owner grant. [OM-01]
+The owner signs into the native vendor binary, links Omnigent by an owner-approved device grant, and permits the selected resource mandate. Sophia creates the controlled native session using that owner delegation; existing Omnigent-backed sessions require explicit owner selection and inspection. Sophia verifies the binding and current visibility/control grant. It does not launch a process on Luis's host using Davide's identity. Omnigent's inspected launch resolver requires host ownership and session-owner authority; an editor grant is not an owner grant. [OM-01]
 
 Use native binaries and their own owner-completed sign-in. The product does not collect Claude/ChatGPT session tokens, expose vendor credential files or move one member's usage to another silently. Account-specific support and terms must be verified for the exact commercial deployment; source inspection is not legal certification.
 
@@ -66,4 +66,4 @@ Because the owners already have broad native tool credentials, Sophia cannot abs
 
 All three resources perform actual work under the same project. A worker asks the coordinator a question before completion. The reply changes its next action without desktop screenshots. One real owner-specific request is surfaced and resolved. A controlled disconnect preserves pending mail. Stop races a delayed response without reviving work. The team receives a functioning app preview and source/check evidence.
 
-The first detailed native binding audit is S1-09; it must leave the exact Omnigent paths, request/response examples, installed versions and observed limitations before implementing the full bridge. The architecture is fixed; missing endpoint evidence is not permission to guess.
+S1-09 implements the audited paths and request/response contracts in architecture 11, then records the actual installed versions and live limitations. The architecture is fixed; missing endpoint evidence is not permission to guess.

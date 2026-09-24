@@ -1,6 +1,6 @@
 # Sophia, from an idea to a project that keeps moving
 
-**Human guide · v0.3 Part 1 · 24 September 2026**
+**Human guide · v0.4 Part 2 · 24 September 2026**
 
 ## The product we are building
 
@@ -103,6 +103,32 @@ The milestones inside each sprint are usable vertical increments. A sprint is a 
 
 ## What we keep, and what we replace
 
-We keep the useful design language, artifact knowledge, source/version lessons, voice test cases and memory guarantees of current Sophia. We replace its ordering-sensitive companion assembly and interrupt-based work semantics. Selected Python renderers can remain isolated jobs while the new product core is TypeScript. We do not carry old orchestration merely to reuse a format converter. [P-01, OLD-01–OLD-03]
+We keep the useful design language, artifact knowledge, source/version lessons, voice test cases and memory guarantees of current Sophia. We replace its ordering-sensitive companion assembly and interrupt-based work semantics. The audited format engines are JavaScript jobs: HTML-to-PDF and HTML-slide-to-PNG-to-PPTX. We reuse those kernels without the old Python agent wrappers. The PPTX export is image-based; the retained HTML is its editable source. We do not carry old orchestration merely to reuse a format converter. [P-01, OLD-01–OLD-03]
 
 This documentation installment supplies the whole system map and the deeper runtime/media/image design. The next installment completes the low-level three-engineer API bindings, database migrations and detailed UI/rendering mission specifications. That boundary is explicit so the first agents can begin real work without treating uninspected interfaces as facts.
+
+## What Part 2 makes concrete
+
+### Connecting an engineer is an owner action, not sharing a password
+
+You and Luis each connect your Omnigent account through its own consent screen. The Claude and Codex logins remain on the machines where you already use them. Sophia receives permission to direct selected work through Omnigent, then narrows that permission to the chosen project, repository and operations.
+
+Your Codex, your Claude Code and Luis’s Claude Code are three distinct resources. The technical lead can assign a coordinator and two workers, or use fewer when that suits the goal. Workers can ask each other useful questions through the software bridge. Sophia does not have to open desktop windows or invoke the lead model merely to forward each message.
+
+### “Sent,” “understood” and “done” are different
+
+A message can have reached the native bridge before a worker incorporates it. A permission can have disappeared from a native screen without the bridge reporting its exact answer. A Stop can have been requested while a deployment is still settling. Sophia shows the best available evidence rather than turning every successful API reply into a green tick.
+
+Hold retains the project, source and unfinished obligation. On external coding routes the first implementation stops the native session and starts a fresh, correctly briefed one on explicit Resume; it does not promise to freeze an in-flight model request. Stop prevents new work through that assignment. A later message or permission response is not permission to restart it.
+
+### Luis’s source changes and the team’s review refer to a real version
+
+Opening another lens is local navigation. Taking over source editing is an explicit operation on the relevant work. Saving creates a new candidate against an expected base; a late worker result cannot quietly overwrite that draft. The old usable preview remains available until the new one passes its checks.
+
+For the first complete app, the engineers return a source-linked preview configured to be shown inside Sophia. The team reviews it, specifies what must change and what must remain, and the lead turns that into the right worker amendment. General enforced component editing follows in Sprint 2 on the same source records.
+
+### The next build does not begin with another architecture debate
+
+The pack now names the native routes, database records, API operations, production component destinations and renderer files. It includes local executable examples for several control and recovery rules. It also says exactly what has not been run: the new product, native account integration, real voice/image calls, SQL migrations and hosted deployment.
+
+Read [the Part 2 change record](04_PART2_CHANGELOG.md) for the engineering refinements, or [the implementation status](05_IMPLEMENTATION_STATUS.md) for the boundary between specified, tested reference logic and actual product work. The first connected build follows [the Sprint 1 binding sessions](delivery/sessions/S1_BINDING_SESSIONS.md).

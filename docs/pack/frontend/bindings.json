@@ -1,0 +1,298 @@
+{
+  "reference": "references/Sophia_Studio_V1_Evolved_V2_R1.html",
+  "sha256": "f3879d9e3d43bdfe5f14fc1472908614b0d17d054a8ae013a80a63166f1ddc23",
+  "bindingType": "source_anchor_to_proposed_production_component",
+  "bindings": [
+    {
+      "referenceAnchor": "renderRoom",
+      "referenceLine": 251,
+      "component": "apps/studio/src/features/studio/StudioShell.tsx",
+      "operationIds": [
+        "getProjectSnapshot",
+        "followProjectEvents"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2LensBar",
+      "referenceLine": 539,
+      "component": "apps/studio/src/features/studio/LensSwitcher.tsx",
+      "operationIds": [],
+      "stateOwner": "local_viewer",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2Converse",
+      "referenceLine": 541,
+      "component": "apps/studio/src/features/discussion/ProjectThread.tsx",
+      "operationIds": [
+        "submitContribution"
+      ],
+      "stateOwner": "project_and_local_draft",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "contextPanel",
+      "referenceLine": 249,
+      "component": "apps/studio/src/features/discussion/ContextPanel.tsx",
+      "operationIds": [
+        "submitContribution"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "renderConversations",
+      "referenceLine": 178,
+      "component": "apps/studio/src/features/discussion/ConversationHistory.tsx",
+      "operationIds": [
+        "getProjectSnapshot"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2Explore",
+      "referenceLine": 546,
+      "component": "apps/studio/src/features/explore/ExplorePane.tsx",
+      "operationIds": [
+        "startImageJob"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2Directions",
+      "referenceLine": 544,
+      "component": "apps/studio/src/features/explore/DirectionGallery.tsx",
+      "operationIds": [
+        "startImageJob"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2Preview",
+      "referenceLine": 542,
+      "component": "apps/studio/src/features/explore/PreviewStage.tsx",
+      "operationIds": [
+        "getSourceContent"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2Build",
+      "referenceLine": 548,
+      "component": "apps/studio/src/features/source-editor/SourceWorkspace.tsx",
+      "operationIds": [
+        "startSourceBuild"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2SourceInspector",
+      "referenceLine": 547,
+      "component": "apps/studio/src/features/source-editor/SourceEditor.tsx",
+      "operationIds": [
+        "submitSourcePatch",
+        "startSourceBuild"
+      ],
+      "stateOwner": "local_draft_plus_versioned_source",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2DownloadBundle",
+      "referenceLine": 557,
+      "component": "apps/studio/src/features/source-editor/ExportSource.tsx",
+      "operationIds": [
+        "getSourceContent"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "renderPulse",
+      "referenceLine": 250,
+      "component": "apps/studio/src/features/work/WorkPulse.tsx",
+      "operationIds": [
+        "getProjectSnapshot",
+        "followProjectEvents"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2WorkSummary",
+      "referenceLine": 540,
+      "component": "apps/studio/src/features/work/WorkDetails.tsx",
+      "operationIds": [
+        "getResourceStatus",
+        "requestProgressReview"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2RequestBody",
+      "referenceLine": 552,
+      "component": "apps/studio/src/features/attention/HumanActionCard.tsx",
+      "operationIds": [
+        "getHumanAction",
+        "respondToHumanAction"
+      ],
+      "stateOwner": "owner_action",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "requiredBridges",
+      "referenceLine": 439,
+      "component": "apps/studio/src/features/attention/NeedsYou.tsx",
+      "operationIds": [
+        "getHumanAction"
+      ],
+      "stateOwner": "owner_action",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2AmendmentBody",
+      "referenceLine": 553,
+      "component": "apps/studio/src/features/review/ReviewIntentComposer.tsx",
+      "operationIds": [
+        "submitReviewIntent",
+        "getCommandStatus"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "v2ChecksBody",
+      "referenceLine": 554,
+      "component": "apps/studio/src/features/review/CandidateChecks.tsx",
+      "operationIds": [
+        "listArtifactVersions"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "optionalBridge",
+      "referenceLine": 440,
+      "component": "apps/studio/src/features/attention/CooperationCard.tsx",
+      "operationIds": [
+        "getProjectSnapshot"
+      ],
+      "stateOwner": "project_opportunity_plus_local_attention",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "captureGuide",
+      "referenceLine": 791,
+      "component": "apps/studio/src/features/studio/SharedFocus.tsx",
+      "operationIds": [
+        "getProjectSnapshot"
+      ],
+      "stateOwner": "shared_focus",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "renderKnowledge",
+      "referenceLine": 231,
+      "component": "apps/studio/src/features/knowledge/ProjectBrief.tsx",
+      "operationIds": [
+        "getProjectSnapshot",
+        "getSourceContent"
+      ],
+      "stateOwner": "project",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "source.import",
+      "referenceLine": 464,
+      "component": "apps/studio/src/features/source-editor/SourceConflict.tsx",
+      "operationIds": [
+        "createSourceImport"
+      ],
+      "stateOwner": "source_version",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "human.stale",
+      "referenceLine": 486,
+      "component": "apps/studio/src/features/attention/HumanActionCard.tsx",
+      "operationIds": [
+        "respondToHumanAction"
+      ],
+      "stateOwner": "owner_action",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "work.stop",
+      "referenceLine": 506,
+      "component": "apps/studio/src/features/work/WorkControls.tsx",
+      "operationIds": [
+        "admitGoalCommand"
+      ],
+      "stateOwner": "project_control",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "work.observation_stale",
+      "referenceLine": 502,
+      "component": "apps/studio/src/features/work/ObservationGap.tsx",
+      "operationIds": [
+        "getResourceStatus"
+      ],
+      "stateOwner": "project_observation",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "asset.fail",
+      "referenceLine": 460,
+      "component": "apps/studio/src/features/studio/AssetCandidate.tsx",
+      "operationIds": [
+        "getJob"
+      ],
+      "stateOwner": "project_candidate",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    },
+    {
+      "referenceAnchor": "candidate.accept",
+      "referenceLine": 499,
+      "component": "apps/studio/src/features/review/AcceptancePanel.tsx",
+      "operationIds": [
+        "publishArtifactCandidate"
+      ],
+      "stateOwner": "project_candidate",
+      "implementationStatus": "not_started",
+      "referenceOutcome": "fixture_not_live"
+    }
+  ]
+}

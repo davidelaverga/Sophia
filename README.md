@@ -4,7 +4,7 @@ The space where the project of your dreams becomes reality.
 
 This is Sophia's new product repository: a shared creation and engineering
 workspace built on the official DeepSeek Harness (`dsh`) launcher and a Sophia
-profile bundle. The v0.3 implementation pack calls it `sophia-next`. It is a
+profile bundle. The implementation pack calls it `sophia-next`. It is a
 separate repository from
 [Sophia-Agent](https://github.com/davidelaverga/Sophia-Agent), which stays the
 live application. That repository and its outstanding obligations are not
@@ -18,7 +18,7 @@ until the S1-03 control bridge reports ready.
 ## Read first
 
 - [AGENTS.md](AGENTS.md): the coding-agent contract.
-- [docs/pack/00_START_HERE.md](docs/pack/00_START_HERE.md): the v0.3
+- [docs/pack/00_START_HERE.md](docs/pack/00_START_HERE.md): the v0.4
   implementation pack, the design source of truth.
 - [docs/pack/delivery/GOAL_INDEX.md](docs/pack/delivery/GOAL_INDEX.md): the
   goals. S1-02 is next.
@@ -73,7 +73,7 @@ config/dsh/profile/          sophia-runtime profile manifest, lock and literal [
 config/{models,roles,supervision}.json   design specimens from the pack (not installed)
 scripts/                     toolchain, artifact, profile and gate tooling
 tests/unit, tests/integration
-docs/pack/                   v0.3 Part 1 implementation pack (byte-identical import)
+docs/pack/                   v0.4 Part 2 implementation pack (byte-identical import)
 docs/evidence/S1-01/         evidence retained from actual runs
 docs/handoffs/               session handoffs per goal attempt
 ```

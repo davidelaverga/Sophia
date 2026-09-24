@@ -4,7 +4,7 @@ Read [00_START_HERE](docs/pack/00_START_HERE.md), [decisions](docs/pack/02_DECIS
 
 ## Direction and precedence
 
-The latest user choices and the active v0.3 decisions control. v0.2 supplies the retained product scope. Older Claude plans and research ledgers supply evidence and alternatives, not authority to reinstate late voice, a Claude-SDK root, mandatory assumption scoring, or a dashboard-first interface.
+The latest user choices and the active v0.4 decisions control. v0.2 supplies the retained product scope. Older Claude plans and research ledgers supply evidence and alternatives, not authority to reinstate late voice, a Claude-SDK root, mandatory assumption scoring, or a dashboard-first interface.
 
 Build on the selected dsh profile and Cordis bundle. Use public native Agent/tool APIs. Keep Sophia's project decisions and permissions in the application layer. Do not create a second generic agent loop, a shadow scheduler advancing the same worker, or a copy of the old companion middleware chain.
 
@@ -36,12 +36,20 @@ Before merging, run the package's ordinary checks and the specific integration c
 
 ## Documentation state
 
-This pack's `design_ready` is not deployed. `binding_audit_pending` identifies exact remaining source work. All goals initially have `implementation_status: not_started`. Update evidence only from actual execution. Keep sensitive runtime records outside Git and disclose no credentials in traces, screenshots or handoffs.
+This pack's `design_ready` is not deployed. `source_bound_live_probe_required` identifies a selected audited path whose installed behavior remains untested. All goals initially have `implementation_status: not_started`. Update evidence only from actual execution. Keep sensitive runtime records outside Git and disclose no credentials in traces, screenshots or handoffs.
+
+## Part 2 integration rules
+
+Read architecture 11 before native account/session work, 12 before data/API work, 13 before Studio/source work and 14 before format extraction. The generated OpenAPI/types and route bindings are one contract; regenerate types after a schema change. Use the canonical code destinations in 03_REPOSITORY_MAP; do not create parallel dsh/media packages because an earlier draft used a different spelling.
+
+A successful reference unit test is not a passed live acceptance case. Do not mark SQL tests passed without running PostgreSQL. Do not turn an upstream permission denial into a new-account retry. Native Stop acknowledgement is not settlement; pending native input is not restart durability. Owner device delegation is Omnigent access, never vendor credential custody.
+
+When completing a session, update the goal's real implementation record and evidence, including unknown effects. Keep the human end-to-end guide understandable; technical details belong in the linked bindings, not a new dashboard-first product description.
 
 
 ## This repository (added at S1-01)
 
-The contract above is imported verbatim from the v0.3 pack (links point into `docs/pack/`). The rules below apply to this repository specifically.
+The contract above is imported verbatim from the v0.4 pack (links point into `docs/pack/`). The rules below apply to this repository specifically.
 
 - **Toolchain is exact.** Node `24.21.0` and pnpm `11.7.0`. `pnpm toolchain:check` fails on anything else. Install only with `pnpm install --frozen-lockfile`. Change a dependency only in a reviewed commit that also carries its lock change.
 - **Runtime identity is recorded, not asserted.** `config/runtime-unit.json` holds the dsh pin and the recorded digests. `pnpm artifacts` must reproduce them. If you change the bundle, the lock or the runtime package, run `pnpm artifacts:record` and commit the identity diff along with the change.
