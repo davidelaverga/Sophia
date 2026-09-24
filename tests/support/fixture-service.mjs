@@ -20,7 +20,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const waiters = new Set()
   let seq = 0
   let polls = 0
-  const state = { bindings: [...bindings], refuseReady: false }
+  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
 
@@ -59,6 +59,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       return reply(204)
     }
     if (req.method === 'POST' && url.pathname === '/v1/runtime/observations') {
+      if (state.refuseObservations) return reply(503, { error: 'fixture refuses observations' })
       observations.push(...json.observations)
       notify()
       return reply(204)
@@ -99,6 +100,8 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     setBindings: (next) => { state.bindings = [...next] },
     /** Make `POST ready` fail (adverse tests). */
     refuseReady: (value = true) => { state.refuseReady = value },
+    /** Make `POST observations` fail, as during a network outage (adverse tests). */
+    refuseObservations: (value = true) => { state.refuseObservations = value },
     /** How many command polls the runtime has made. */
     get polls() { return polls },
     /** Enqueue a command exactly as S1-02's outbox would (same object may be enqueued twice). */

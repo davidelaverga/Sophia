@@ -154,13 +154,23 @@ export class RuntimeSupervisor {
     }
   }
 
-  /** Acquire the lease, launch, and resolve once the bridge reports ready. */
+  /**
+   * Acquire the lease, launch, and resolve once the bridge reports ready. A
+   * failed first start is terminal: nothing restarts it, and the lease is
+   * released before the error is thrown.
+   */
   async start(): Promise<void> {
-    if (this.state !== 'idle' && this.state !== 'stopped') throw new Error(`cannot start from state ${this.state}`)
+    if (this.state !== 'idle' && this.state !== 'stopped' && this.state !== 'failed') throw new Error(`cannot start from state ${this.state}`)
     this.acquireLease()
     this.stopping = false
     this.restarts = []
-    await this.launch('starting')
+    try {
+      await this.launch('starting')
+    } catch (error) {
+      this.setState('failed', (error as Error).message)
+      this.releaseLease()
+      throw error
+    }
   }
 
   private launch(state: 'starting' | 'restarting'): Promise<void> {
@@ -174,13 +184,15 @@ export class RuntimeSupervisor {
     this.child = child
     return new Promise<void>((resolve, reject) => {
       let settled = false
+      // Set when this generation failed to start: its exit is expected and is not a crash to recover.
+      let abandoned = false
       const timer = setTimeout(() => finish(new Error(`bridge did not report ready within ${this.options.readyTimeoutMs ?? 60_000} ms`)), this.options.readyTimeoutMs ?? 60_000)
       const finish = (error?: Error) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
         if (error) {
-          this.setState('failed', error.message)
+          abandoned = true
           child.kill('SIGKILL')
           reject(error)
         } else {
@@ -200,7 +212,7 @@ export class RuntimeSupervisor {
         if (generation !== this.generation) return
         this.child = null
         if (!settled) return finish(new Error(`runtime exited before ready (code ${code}, signal ${signal})`))
-        if (!this.stopping) void this.recover()
+        if (!abandoned && !this.stopping) void this.recover()
       })
     })
   }
@@ -219,7 +231,14 @@ export class RuntimeSupervisor {
     const backoff = Math.min(250 * 2 ** (this.restarts.length - 1), 5000)
     await new Promise((resolve) => setTimeout(resolve, backoff))
     if (this.stopping) return
-    await this.launch('restarting').catch(() => undefined)
+    try {
+      await this.launch('restarting')
+    } catch (error) {
+      // A restart that never became ready counts against the same budget.
+      if (this.stopping) return
+      this.setState('restarting', `restart failed: ${(error as Error).message}`)
+      await this.recover()
+    }
   }
 
   /** SIGTERM (dsh disposes its root), then SIGKILL after the stop timeout. */

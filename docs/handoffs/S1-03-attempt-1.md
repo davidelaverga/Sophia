@@ -49,7 +49,11 @@ run a host tool, directly or through a `workflow` (PTC) child agent.
 | Hold retains pending context without permitting a native wake or goal driver to execute it before an explicit valid Resume | `bridge.test.mjs` "adverse: Hold retains pending context…": the context is retained in the inbox or stash, no model call is made while held, new input is refused as `held`, and after Resume the context reaches the model | **met** |
 
 Also covered: malformed, foreign-unit and stale-epoch commands are rejected
-without effect. A service that refuses the ready report leaves the bridge
+without effect, and an accepted newer epoch retires the older one at once.
+The crash windows between the journal and dsh's flush are covered: a lost
+command is re-executed, a held command is not sent twice, and lost
+redelivered held input returns. Observations survive an outage and a
+restart. A service that refuses the ready report leaves the bridge
 `not_ready` and polling nothing. A session whose recorded role the unit no longer defines
 refuses to resume. A second supervisor on the same project home is refused.
 An exhausted restart budget is a terminal `failed`. The launch environment
@@ -59,11 +63,11 @@ carries only named credentials.
 
 Final `pnpm check` on this commit's tree: [check.log](../evidence/S1-03/check.log).
 It shows every identity `match`, the unit tests and the integration tests
-(profile gate, bridge, roles, supervisor, live-steer rehearsal) passing.
+(profile gate, bridge, recovery, roles, supervisor, live-steer rehearsal) passing: 30 unit and 46 integration tests.
 
 ```text
 pnpm install --frozen-lockfile
-pnpm artifacts:record        # bundle archive re-recorded after each bridge change (now sha256 9fd17ec0…a8f4)
+pnpm artifacts:record        # bundle archive re-recorded after each bridge change (now sha256 4c25bb75…7116)
 pnpm check                   # toolchain → build → typecheck → unit → artifacts → integration
 node --test --test-concurrency=1 --test-timeout=180000 tests/integration/<suite>.test.mjs   # per-suite during work
 pnpm live:steer              # exit 2: OPENAI_API_KEY is not set in this environment
@@ -118,6 +122,25 @@ The facts learned at the pin are SOURCE_MAP §3 items 6–11.
 - **Live check made testable.** `scripts/live-steer.mjs` passes only if the
   steer lands before the first turn ends and is incorporated after delivery.
   Its `--rehearse` mode is an integration test and never writes evidence.
+- **Codex review of `36dd709` (seven findings, all fixed, each with a test in
+  `tests/integration/recovery.test.mjs`, `supervisor.test.mjs` or
+  `tests/unit/bridge-core.test.mjs`):**
+  - The fence on restart is the stronger of the service binding's and the
+    journal's, applied before dsh loads the session. A Hold the service
+    admitted but the journal never saw now holds.
+  - Only a *settled* command is answered from the journal. An unsettled one
+    is re-executed on redelivery without resending a message dsh already
+    holds. Held input a Resume redelivered is journaled by its new ids first,
+    and anything dsh never received goes back to the stash.
+  - Every accepted command advances the in-memory authority epoch.
+  - Receipts and observations are retained and retried until acknowledged.
+    The acknowledged observation cursor is journaled, and a restart replays
+    the rest.
+  - A torn journal tail is cut before the next append.
+  - A failed first supervisor start is terminal and releases the lease. A
+    child killed on purpose no longer triggers recovery.
+  - A binding that cannot be restored is named in the ready report
+    (`unrecovered`), and its commands are refused until a Resume succeeds.
 
 No new authorization was needed, and nothing outside this repository was
 affected.

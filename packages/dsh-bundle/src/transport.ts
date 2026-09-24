@@ -11,7 +11,7 @@
  *   GET  {base}/v1/runtime/commands?after=<cursor>&waitMs=<ms> -> { commands: [{ seq, command }], cursor }
  *   POST {base}/v1/runtime/receipts       <- { receipts: RuntimeReceipt[] }
  *   POST {base}/v1/runtime/observations   <- { observations: Observation[] }
- *   POST {base}/v1/runtime/ready          <- { state, reason }
+ *   POST {base}/v1/runtime/ready          <- { state, reason, unrecovered: [{ attemptId, reason }] }
  *
  * Every request carries `Authorization: Bearer <token>` plus the runtime unit
  * and bridge instance headers. The token is bound server-side to the runtime
@@ -47,6 +47,12 @@ export interface Observation {
   readonly type: string
   readonly durable: true
   readonly data: unknown
+}
+
+/** A binding reconciliation could not restore; its commands are refused until a Resume succeeds. */
+export interface UnrecoveredBinding {
+  readonly attemptId: string
+  readonly reason: string
 }
 
 /** Where and how to reach the service; resolved from environment references. */
@@ -107,7 +113,7 @@ export class ServiceTransport {
     return this.request('POST', '/v1/runtime/observations', { observations })
   }
 
-  ready(state: 'ready' | 'not_ready', reason: string | null): Promise<void> {
-    return this.request('POST', '/v1/runtime/ready', { state, reason })
+  ready(state: 'ready' | 'not_ready', reason: string | null, unrecovered: readonly UnrecoveredBinding[] = []): Promise<void> {
+    return this.request('POST', '/v1/runtime/ready', { state, reason, unrecovered })
   }
 }

@@ -10,11 +10,13 @@
  * Sophia event in the dsh log therefore made the session unloadable after a
  * restart (observed in tests/integration/bridge.test.mjs). The journal keeps
  * the same log-first ordering — record, fsync, then act natively — and
- * reconciliation reads it together with the native history.
+ * reconciliation reads it together with the native history: a record says
+ * what was intended, and only the native history (or a `sophia/settled`
+ * record written after dsh flushed) says it happened.
  * @module @sophia/dsh-bundle/session-events
  */
 
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
+import { closeSync, existsSync, fsyncSync, ftruncateSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
@@ -53,10 +55,16 @@ export interface JournalRecordMap {
   'sophia/fence': { attemptId: string; authorityEpoch: number; state: FenceState; commandId: string }
   /** Input claimed by a step while held; kept here, not in the live inbox, until Resume. */
   'sophia/stash': { attemptId: string; messages: StashedMessage[] }
-  /** Held input redelivered by Resume. */
-  'sophia/unstash': { attemptId: string; commandId: string; messageIds: string[] }
+  /**
+   * Held input redelivered by Resume, written before it is sent: `messageIds`
+   * leave the stash, and `messages` are the native messages sent in their
+   * place. Reconciliation puts back any of those dsh never received.
+   */
+  'sophia/unstash': { attemptId: string; commandId: string; messageIds: string[]; messages?: StashedMessage[] }
   /** The native seq at which a command's effect became durable (after dsh flushed). */
   'sophia/settled': { commandId: string; nativeSeq: number | null }
+  /** The service acknowledged this session's observations up to `nativeSeq`. */
+  'sophia/observed': { nativeSeq: number }
 }
 
 /** One journal line. */
@@ -77,23 +85,44 @@ export class Journal {
     return join(this.dir, `${sessionId}.jsonl`)
   }
 
-  /** @returns every record for the session, in order (empty when none). */
+  /**
+   * @returns every record for the session, in order (empty when none). A
+   * torn final line (a crash mid-write) is cut from the file here, before any
+   * further append could be concatenated onto it; a newline-terminated line
+   * that does not parse is corruption.
+   */
   read(sessionId: string): JournalRecord[] {
     const file = this.path(sessionId)
     if (!existsSync(file)) return []
-    const lines = readFileSync(file, 'utf8').split('\n')
+    const bytes = readFileSync(file)
+    const lines = bytes.toString('utf8').split('\n')
     const records: JournalRecord[] = []
     for (const [index, line] of lines.entries()) {
       if (line.length === 0) continue
+      const last = index === lines.length - 1
       try {
         records.push(JSON.parse(line) as JournalRecord)
+        // A complete record whose newline was cut: terminate it.
+        if (last) this.repairTail(file, bytes.length, '\n')
       } catch (error) {
-        // Only a torn final line (crash mid-write) is tolerated.
-        if (index < lines.length - 2) throw new Error(`journal ${file} is corrupt at line ${index + 1}: ${(error as Error).message}`)
+        if (!last) throw new Error(`journal ${file} is corrupt at line ${index + 1}: ${(error as Error).message}`)
+        this.repairTail(file, bytes.length - Buffer.byteLength(line), '')
       }
     }
     this.next.set(sessionId, (records.at(-1)?.seq ?? -1) + 1)
     return records
+  }
+
+  /** Cut the file to `length` bytes, append `suffix`, and fsync. */
+  private repairTail(file: string, length: number, suffix: string): void {
+    const fd = openSync(file, 'r+')
+    try {
+      ftruncateSync(fd, length)
+      if (suffix) writeSync(fd, suffix, length)
+      fsyncSync(fd)
+    } finally {
+      closeSync(fd)
+    }
   }
 
   /** Append one record and fsync before returning. */
@@ -113,6 +142,22 @@ export class Journal {
   }
 }
 
+/** One journaled command, as reconstructed. */
+export interface CommandEntry {
+  readonly seq: number
+  readonly kind: RuntimeCommandKind
+  readonly messageId: string | null
+  readonly target: DeliveryTarget | null
+  readonly content: readonly ContentBlock[] | null
+  readonly nativeSeq: number | null
+  /**
+   * True once dsh flushed the command's native effect (`sophia/settled`). An
+   * unsettled command was journaled, but a restart may have cut it short
+   * before the effect was durable, so it is re-executed, not answered.
+   */
+  readonly settled: boolean
+}
+
 /** Reconstructed bridge state for one session. */
 export interface LoggedState {
   readonly attemptId: string | null
@@ -121,11 +166,22 @@ export interface LoggedState {
   readonly authorityEpoch: number
   readonly fence: FenceState
   /** Command id -> its journal record and the message it produced. */
-  readonly commands: ReadonlyMap<string, { seq: number; kind: RuntimeCommandKind; messageId: string | null; nativeSeq: number | null }>
+  readonly commands: ReadonlyMap<string, CommandEntry>
   /** Held messages not yet redelivered. */
   readonly stash: readonly StashedMessage[]
+  /** Native messages a Resume sent in place of held ones; dsh must confirm each. */
+  readonly unstashed: readonly StashedMessage[]
   /** Ids of messages that entered a native step (`user/message` events). */
   readonly incorporated: ReadonlySet<string>
+  /** Highest native seq whose observation the service acknowledged (-1: none). */
+  readonly observedSeq: number
+}
+
+const FENCE_RANK: Readonly<Record<FenceState, number>> = { active: 0, held: 1, stopped: 2 }
+
+/** The more restrictive of two fences. */
+export function strongestFence(a: FenceState, b: FenceState): FenceState {
+  return FENCE_RANK[a] >= FENCE_RANK[b] ? a : b
 }
 
 /**
@@ -139,8 +195,10 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   let role: string | null = null
   let authorityEpoch = 0
   let fence: FenceState = 'active'
-  const commands = new Map<string, { seq: number; kind: RuntimeCommandKind; messageId: string | null; nativeSeq: number | null }>()
+  const commands = new Map<string, CommandEntry>()
   let stash: StashedMessage[] = []
+  let unstashed: StashedMessage[] = []
+  let observedSeq = -1
   for (const record of journal) {
     switch (record.type) {
       case 'sophia/command': {
@@ -148,7 +206,10 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
         attemptId = data.attemptId
         role ??= data.role ?? null
         authorityEpoch = Math.max(authorityEpoch, data.authorityEpoch)
-        if (!commands.has(data.commandId)) commands.set(data.commandId, { seq: record.seq, kind: data.kind, messageId: data.messageId, nativeSeq: data.nativeSeq })
+        // A re-execution of an unsettled command replaces its first record.
+        if (!commands.get(data.commandId)?.settled) {
+          commands.set(data.commandId, { seq: record.seq, kind: data.kind, messageId: data.messageId, target: data.target, content: data.content, nativeSeq: data.nativeSeq, settled: false })
+        }
         break
       }
       case 'sophia/fence':
@@ -156,24 +217,31 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
         authorityEpoch = Math.max(authorityEpoch, record.data.authorityEpoch)
         if (fence !== 'stopped') fence = record.data.state
         break
-      case 'sophia/stash':
+      case 'sophia/stash': {
+        const again = new Set(record.data.messages.map((m) => m.messageId))
         stash = [...stash, ...record.data.messages]
+        unstashed = unstashed.filter((m) => !again.has(m.messageId))
         break
+      }
       case 'sophia/unstash': {
         const done = new Set(record.data.messageIds)
         stash = stash.filter((m) => !done.has(m.messageId))
+        unstashed = [...unstashed, ...(record.data.messages ?? [])]
         break
       }
       case 'sophia/settled': {
         const entry = commands.get(record.data.commandId)
-        if (entry) commands.set(record.data.commandId, { ...entry, nativeSeq: record.data.nativeSeq })
+        if (entry) commands.set(record.data.commandId, { ...entry, nativeSeq: record.data.nativeSeq, settled: true })
         break
       }
+      case 'sophia/observed':
+        observedSeq = Math.max(observedSeq, record.data.nativeSeq)
+        break
     }
   }
   const incorporated = new Set<string>()
   for (const event of events) {
     if (event.type === 'user/message') incorporated.add((event.data as { id: string }).id)
   }
-  return { attemptId, role, authorityEpoch, fence, commands, stash, incorporated }
+  return { attemptId, role, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq }
 }

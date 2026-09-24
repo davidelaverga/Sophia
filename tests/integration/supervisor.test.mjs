@@ -137,3 +137,17 @@ test('adverse: an exhausted restart budget is a terminal failure, not a restart 
   assert.match(s.events.findLast((e) => e.type === 'state').reason, /restart budget exhausted/)
   assert.equal(existsSync(join(s.root, 'supervisor.lease')), false, 'a failed supervisor releases the project')
 })
+
+test('adverse: a failed first start is terminal, restarts nothing and releases the project', async (t) => {
+  const s = await setup(t, { bridge: { url: 'http://127.0.0.1:9', token: 'unreachable' }, readyTimeoutMs: 4000 })
+  await assert.rejects(s.supervisor.start(), /did not report ready/)
+  assert.equal(s.supervisor.state, 'failed')
+  assert.equal(existsSync(join(s.root, 'supervisor.lease')), false, 'the lease is released')
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+  assert.equal(s.events.filter((e) => e.type === 'state' && e.state === 'restarting').length, 0, 'the killed child is not restarted')
+  assert.equal(s.events.filter((e) => e.type === 'exit').length, 1)
+  const next = s.make({ bridge: { url: s.service.url, token: s.service.token }, readyTimeoutMs: 30_000 })
+  t.after(() => next.stop().catch(() => {}))
+  await next.start()
+  assert.equal(next.state, 'ready', 'a replacement supervisor can take the project')
+})
