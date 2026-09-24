@@ -11,9 +11,10 @@ const SOURCES = { repo: 'db', pack: 'docs/pack/db' } as const
 const { values } = parseArgs({
   options: { source: { type: 'string', default: 'repo' }, 'allow-empty': { type: 'boolean', default: false } },
 })
-const source = values.source as keyof typeof SOURCES
-const base = SOURCES[source] as string | undefined
-if (!base) fail(`unknown --source ${values.source} (use repo or pack)`)
+const isSource = (s: string): s is keyof typeof SOURCES => Object.hasOwn(SOURCES, s)
+if (!isSource(values.source)) fail(`unknown --source ${values.source} (use repo or pack)`)
+const source = values.source
+const base = SOURCES[source]
 
 const sqlFiles = (dir: string) =>
   existsSync(dir)

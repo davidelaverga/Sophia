@@ -1,6 +1,7 @@
 // Parsing of the Sophia event stream (followProjectEvents), shared by the Studio and tests.
 // Browser-safe: no Node imports (published as "@sophia/contracts/sse").
 import type { CursorAdvance, Event } from './generated-types.ts'
+import { parseFrame } from './validate.ts'
 
 export type Frame = Event | CursorAdvance
 
@@ -20,7 +21,8 @@ function dataOf(block: string): string | null {
 
 /**
  * Split buffered SSE text into complete frames. Comments (`: ping`), `id:` and `retry:` lines carry
- * no frame. The server emits one JSON Event or CursorAdvance per block.
+ * no frame. The server emits one JSON Event or CursorAdvance per block; a frame that breaks the
+ * contract throws ContractViolation (the caller reconnects from its last applied cursor).
  */
 export function parseSse(buffer: string): SseParse {
   const blocks = buffer.split('\n\n')
@@ -30,7 +32,7 @@ export function parseSse(buffer: string): SseParse {
   for (const block of blocks) {
     const data = dataOf(block)
     if (data === null) continue
-    frames.push(JSON.parse(data) as Frame)
+    frames.push(parseFrame(JSON.parse(data)))
     ids.push(/^id: (.*)$/m.exec(block)?.[1] ?? null)
   }
   return { frames, ids, rest }

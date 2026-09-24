@@ -25,9 +25,18 @@ const RULES: readonly Rule[] = [
 /** Connection-level failures: the database is unreachable or refusing new sessions. */
 const isUnavailable = (sqlstate: string) => sqlstate.startsWith('08') || sqlstate === '57P01' || sqlstate === '53300'
 
+/** The SQLSTATE and message of a driver error; empty strings for anything else. */
+export function pgError(err: unknown): { code: string; message: string } {
+  if (typeof err !== 'object' || err === null) return { code: '', message: '' }
+  return {
+    code: 'code' in err && typeof err.code === 'string' ? err.code : '',
+    message: 'message' in err && typeof err.message === 'string' ? err.message : '',
+  }
+}
+
 /** Map a PostgreSQL error to a domain error. Unknown failures never leak their message. */
 export function classifyDbError(err: unknown): DomainError {
-  const { code = '', message = '' } = (err ?? {}) as { code?: string; message?: string }
+  const { code, message } = pgError(err)
   const rule = RULES.find((r) => r.sqlstate === code && (r.when?.(message) ?? true))
   if (rule) return new DomainError(rule.code, rule.publicMessage ?? message, { cause: err })
   return new DomainError('unavailable', isUnavailable(code) ? 'Database unavailable' : 'Unexpected database error', {

@@ -10,10 +10,21 @@ export interface Identity {
 
 const KEY = 'sophia.dev.identity'
 
+const isIdentity = (v: unknown): v is Identity =>
+  typeof v === 'object' &&
+  v !== null &&
+  'name' in v &&
+  typeof v.name === 'string' &&
+  'role' in v &&
+  typeof v.role === 'string' &&
+  'token' in v &&
+  typeof v.token === 'string'
+
 export const devIdentities: Identity[] = (() => {
   if (!import.meta.env.DEV) return []
   try {
-    return JSON.parse(import.meta.env.VITE_DEV_IDENTITIES ?? '[]') as Identity[]
+    const parsed: unknown = JSON.parse(import.meta.env.VITE_DEV_IDENTITIES ?? '[]')
+    return Array.isArray(parsed) ? parsed.filter(isIdentity) : []
   } catch {
     return []
   }

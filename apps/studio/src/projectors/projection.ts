@@ -2,8 +2,8 @@
 // implementation/src/projections.ts: sequences stay decimal strings/BigInt, duplicates are
 // ignored, a gap asks for a new snapshot, and cursor.advanced accounts for hidden events.
 // No network calls; it never accepts or completes work.
-import type { Event } from '@sophia/contracts'
 import type { Frame } from '@sophia/contracts/sse'
+import { isCursorAdvance } from '@sophia/contracts/validate'
 
 export type { Frame }
 
@@ -32,14 +32,13 @@ export function applyFrame(s: Feed, f: Frame): Feed {
   const old = seq(s.cursor)
   const next = seq(f.sequence)
   if (next <= old) return s
-  if (f.type === 'cursor.advanced') {
+  if (isCursorAdvance(f)) {
     return { ...s, cursor: f.sequence, recent: [f, ...s.recent].slice(0, RECENT_LIMIT) }
   }
   if (next !== old + 1n) return { ...s, needsSnapshot: true }
-  const event = f as Event
-  if (s.seen.has(event.eventId)) return { ...s, cursor: f.sequence }
-  const seen = new Set(s.seen).add(event.eventId)
-  return { cursor: f.sequence, needsSnapshot: false, seen, recent: [event, ...s.recent].slice(0, RECENT_LIMIT) }
+  if (s.seen.has(f.eventId)) return { ...s, cursor: f.sequence }
+  const seen = new Set(s.seen).add(f.eventId)
+  return { cursor: f.sequence, needsSnapshot: false, seen, recent: [f, ...s.recent].slice(0, RECENT_LIMIT) }
 }
 
 /** After a resnapshot: continue from the snapshot cursor, keep what was already shown. */

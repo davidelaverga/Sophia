@@ -62,6 +62,7 @@ function syntheticBackend(): Backend {
     env: { ...process.env, SOPHIA_DISPOSABLE_DATABASE_URL: server.url },
   })
   if (seeded.status !== 0) throw new Error(`dev-db failed: ${seeded.stderr}`)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the last line apps/api/scripts/dev-db.ts prints
   const dev = JSON.parse(seeded.stdout.trim().split('\n').at(-1) ?? '{}') as {
     api: Record<string, string>
     project: { projectId: string }

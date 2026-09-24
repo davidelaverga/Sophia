@@ -116,7 +116,7 @@ Source-register ids: P-01, P-02 (the goal's `source_ids`), plus the pack's
   Vercel/Render deploy of Studio and API against the hosted project).
   Davide signs in once and Luis runs `add-member`. With both founders in one
   project, S1-02's first acceptance line is met live.
-- **Luis:** runtime validation of API responses in the Studio (replace the
-  JSON casts), then the invitation handler.
+- **Luis:** the invitation handler (replacing `add-member`). Runtime
+  validation of API replies is done (see the evidence addendum).
 - **S1-03** (Davide) can build on `packages/persistence/src/outbox.ts`
   (`claim_outbox`, `record_dispatch_result`) for the dispatcher.

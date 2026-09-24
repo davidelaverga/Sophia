@@ -7,7 +7,7 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { Receipt, Snapshot } from '@sophia/contracts'
+import { asErrorBody, parseProjectCreated, parseReceipt, parseSnapshot } from '@sophia/contracts/validate'
 import { parseSse, type Frame, type SseParse } from '@sophia/contracts/sse'
 import { createPool } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type SeededProject, type TestDatabase } from '@sophia/test-support'
@@ -202,7 +202,7 @@ describe('two members see the same project; a third account cannot', () => {
     const unknown = await call(A, 'GET', `/api/v1/projects/${randomUUID()}/snapshot`)
     assert.equal(a.status, 200)
     assert.deepEqual(b.json, a.json)
-    assert.equal((a.json as Snapshot).goals[0]?.id, seed.goalId)
+    assert.equal(parseSnapshot(a.json).goals[0]?.id, seed.goalId) // the reply meets the contract
     assert.equal(c.status, 403)
     assert.equal(unknown.status, 403)
   })
@@ -218,10 +218,10 @@ describe('command admission', () => {
       'idempotency-key': key,
     })
     assert.equal(first.status, 202)
-    assert.equal((first.json as Receipt).stage, 'admitted')
+    assert.equal(parseReceipt(first.json).stage, 'admitted')
     assert.deepEqual(again, first)
     assert.equal(other.status, 409)
-    assert.equal(other.json.code, 'idempotency_conflict')
+    assert.equal(asErrorBody(other.json)?.code, 'idempotency_conflict') // a contract Error body
     assert.equal(await countCommands(key), 1)
   })
 
@@ -243,10 +243,19 @@ describe('command admission', () => {
     const stale = await call(A, 'POST', path, command({ expectedGoalRevision: 9 }), {
       'idempotency-key': randomUUID(),
     })
-    assert.deepEqual([stale.status, stale.json.code], [409, 'stale_revision'])
-    assert.equal((await call(V, 'POST', path, command(), { 'idempotency-key': randomUUID() })).status, 403)
-    assert.equal((await call(C, 'POST', path, command(), { 'idempotency-key': randomUUID() })).status, 403)
-    assert.equal((await call(A, 'POST', path, command())).status, 422) // no Idempotency-Key
+    assert.deepEqual([stale.status, asErrorBody(stale.json)?.code], [409, 'stale_revision'])
+    const viewer = await call(V, 'POST', path, command(), { 'idempotency-key': randomUUID() })
+    const outsider = await call(C, 'POST', path, command(), { 'idempotency-key': randomUUID() })
+    const keyless = await call(A, 'POST', path, command())
+    // Every refusal carries a contract Error body, not only a status.
+    assert.deepEqual(
+      [viewer, outsider, keyless].map((r) => [r.status, asErrorBody(r.json)?.retry]),
+      [
+        [403, 'never'],
+        [403, 'never'],
+        [422, 'never'],
+      ],
+    )
     assert.equal(
       (await call(A, 'POST', path, { ...command(), actorId: B }, { 'idempotency-key': randomUUID() })).status,
       422,
@@ -258,7 +267,7 @@ describe('command admission', () => {
       { ...command(), kind: 'delete_everything' },
       { 'idempotency-key': randomUUID() },
     )
-    assert.deepEqual([res.status, res.json.retry], [422, 'never'])
+    assert.deepEqual([res.status, asErrorBody(res.json)?.retry], [422, 'never'])
   })
 })
 
@@ -275,9 +284,10 @@ describe('createProject', () => {
       { 'idempotency-key': randomUUID() },
     )
     assert.equal(created.status, 201)
-    assert.equal(created.json.cursor, '0')
+    assert.equal(parseProjectCreated(created.json).cursor, '0')
     const mine = await call(A, 'GET', `/api/v1/projects/${created.json.projectId}/snapshot`)
-    assert.deepEqual([mine.status, mine.json.title, mine.json.goals], [200, 'Founder project', []])
+    assert.equal(mine.status, 200)
+    assert.deepEqual([parseSnapshot(mine.json).title, parseSnapshot(mine.json).goals], ['Founder project', []])
     assert.equal((await call(B, 'GET', `/api/v1/projects/${created.json.projectId}/snapshot`)).status, 403)
   })
 
@@ -330,14 +340,16 @@ describe('createProject', () => {
 
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
-    const snap = (await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json as Snapshot
+    const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)
     const live = await follow(A, seed.projectId, snap.cursor, (f) => f.some((x) => x.type === 'command.admitted'))
     assert.equal(live.status, 200)
-    const receipt = (
-      await call(B, 'POST', `/api/v1/projects/${seed.projectId}/commands`, command(), {
-        'idempotency-key': randomUUID(),
-      })
-    ).json as Receipt
+    const receipt = parseReceipt(
+      (
+        await call(B, 'POST', `/api/v1/projects/${seed.projectId}/commands`, command(), {
+          'idempotency-key': randomUUID(),
+        })
+      ).json,
+    )
     await live.done
     const got = live.frames.find((f) => f.type === 'command.admitted')
     assert.equal(got?.sequence, receipt.cursor)
@@ -363,7 +375,7 @@ describe('snapshot + SSE replay', () => {
     assert.equal(outsider.status, 403)
 
     const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B] })
-    const snap = (await call(B, 'GET', `/api/v1/projects/${fresh.projectId}/snapshot`)).json as Snapshot
+    const snap = parseSnapshot((await call(B, 'GET', `/api/v1/projects/${fresh.projectId}/snapshot`)).json)
     const stream = await follow(B, fresh.projectId, snap.cursor, () => false, 4000)
     const owner = new pg.Client({ connectionString: db.ownerUrl })
     await owner.connect()

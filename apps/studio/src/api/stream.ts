@@ -1,7 +1,7 @@
 // followProjectEvents over fetch streaming. EventSource cannot send an Authorization header, and a
 // bearer token must never travel in a URL.
 import { parseSse, type Frame } from '@sophia/contracts/sse'
-import { ApiError } from './client.ts'
+import { toError } from './client.ts'
 
 /**
  * The API sends a `: ping` comment every 10 s. A stream silent for longer than this is treated as
@@ -56,11 +56,6 @@ class StallWatch {
   }
 }
 
-async function streamError(res: Response): Promise<ApiError> {
-  const body = (await res.json().catch(() => null)) as { code?: string; message?: string } | null
-  return new ApiError(res.status, body?.code ?? `http_${res.status}`, body?.message ?? res.statusText, 'never')
-}
-
 async function readFrames(body: NonNullable<Response['body']>, watch: StallWatch, onFrame: (f: Frame) => void) {
   const reader = body.pipeThrough(new TextDecoderStream()).getReader()
   let rest = ''
@@ -74,7 +69,7 @@ async function readFrames(body: NonNullable<Response['body']>, watch: StallWatch
   }
 }
 
-/** Resolves when the server ends the stream; throws ApiError, StreamStalled or an abort. */
+/** Resolves when the server ends the stream; throws ApiError, StreamStalled, ContractViolation or an abort. */
 export async function followEvents(opts: FollowOptions): Promise<void> {
   const watch = new StallWatch(opts.signal, opts.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS)
   try {
@@ -82,7 +77,7 @@ export async function followEvents(opts: FollowOptions): Promise<void> {
       headers: { authorization: `Bearer ${opts.token}`, accept: 'text/event-stream' },
       signal: watch.signal,
     })
-    if (!res.ok || !res.body) throw await streamError(res)
+    if (!res.ok || !res.body) throw await toError(res)
     opts.onOpen()
     watch.alive()
     await readFrames(res.body, watch, opts.onFrame)
