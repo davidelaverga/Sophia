@@ -1,0 +1,37 @@
+# @sophia/dsh-bundle — the second bundle layer of the `sophia-runtime` profile,
+# applied after @deepseek-ai/dsh-base (pin 46a7f68b / 0.1.7-rc.1).
+#
+# Every `id:` row below targets a row that dsh-base inserts at the pin
+# [DSH-04]. scripts/lib/patch-lint.mjs fails the build when a target is
+# missing, because upstream only prints a warning for an unmatched row and
+# boots anyway. It also fails an empty or comments-only file.
+#
+# A replacement `config` replaces the WHOLE row config (no deep merge). Any
+# future config replacement on a base row must restate the complete config.
+
+# Outbound DeepSeek session-log upload, plugin inventory and OTel feedback
+# export are distinct from model input, so they are disabled here, not by a
+# prompt rule (02_DSH_BOOTSTRAP §6). The launcher also receives
+# DSH_TELEMETRY_DISABLED=1; any non-empty value opts out.
+- id: session-log-deepseek
+  disabled: true
+
+- id: plugin-package-inventory-deepseek
+  disabled: true
+
+- id: session-telemetry-otel
+  disabled: true
+
+# No live reload in the shipped profile. Upgrades happen at a runtime-unit
+# boundary.
+- id: hmr
+  disabled: true
+
+# Sophia's control-bridge row. At S1-01 the plugin validates its row config
+# and reports `not_ready`. The public Agent bridge and its service injections
+# land in S1-03, so this row deliberately declares no `inject` list yet.
+- insert:
+    - id: sophia-control-bridge
+      name: '@sophia/dsh-bundle'
+      config:
+        protocolVersion: 1

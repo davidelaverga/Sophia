@@ -1,0 +1,28 @@
+{
+  "name": "sophia-next",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sophia: shared creation and engineering workspace on the pinned DeepSeek Harness runtime",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "24.21.0",
+    "pnpm": "11.7.0"
+  },
+  "scripts": {
+    "toolchain:check": "node scripts/toolchain-check.mjs",
+    "build": "pnpm --filter @sophia/dsh-bundle run build",
+    "typecheck": "pnpm --filter @sophia/dsh-bundle run typecheck",
+    "test": "node --test \"tests/unit/**/*.test.mjs\"",
+    "test:integration": "node --test --test-concurrency=1 \"tests/integration/**/*.test.mjs\"",
+    "dsh:source": "node scripts/dsh-source.mjs",
+    "artifacts": "node scripts/build-artifacts.mjs",
+    "artifacts:record": "node scripts/build-artifacts.mjs --record",
+    "profile:install": "node scripts/profile-install.mjs",
+    "profile:verify": "node scripts/profile-verify.mjs",
+    "check": "pnpm toolchain:check && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration"
+  },
+  "devDependencies": {
+    "yaml": "2.9.1"
+  }
+}

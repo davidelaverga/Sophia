@@ -1,0 +1,845 @@
+{
+  "version": "0.3-part1",
+  "goals": [
+    {
+      "id": "S1-01",
+      "title": "Create the new repository and reproducible runtime source unit",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [],
+      "source_ids": [
+        "DSH-01",
+        "DSH-02",
+        "DSH-03",
+        "DSH-19",
+        "DSH-20"
+      ],
+      "chapters": [
+        "02_DSH_BOOTSTRAP",
+        "10_OPERATIONS_AND_TESTS"
+      ],
+      "destination_paths": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "config/runtime-unit.json",
+        "packages/dsh-bundle/",
+        "docs/"
+      ],
+      "result": "A new repository has a repeatable toolchain and an identifiable dsh artifact; a developer can start the first product slice without guessing versions.",
+      "steps": [
+        "Create sophia-next as a separate repository; preserve the existing app and outstanding obligations.",
+        "Check out the exact dsh pin outside the product tree. Record Node 24 exact version and pnpm 11.7.0; resolve and commit ordinary application dependencies.",
+        "Create the workspace packages and bundle exports. Produce a pinned runtime artifact and bundle archive; record their digests.",
+        "Install the named profile manifest from the verified declaration types. Run the trusted configuration dump and retain startup diagnostics."
+      ],
+      "acceptance": [
+        "A clean second checkout resolves the same lock and artifact identities.",
+        "The profile includes dsh-base and the Sophia bundle, not another root loop.",
+        "The document source map and code destination map are committed, with unbuilt paths still labelled."
+      ],
+      "adverse_checks": [
+        "A missing/incompatible Sophia bundle does not become a healthy runtime.",
+        "A comments-only or wrong-row patch is diagnosed rather than silently accepted as the intended configuration."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-02",
+      "title": "Admit a project command and replay its state in the UI",
+      "sprint": 1,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-01"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "chapters": [
+        "03_BACKEND",
+        "04_FRONTEND",
+        "09_MEMORY_AND_CONTEXT"
+      ],
+      "destination_paths": [
+        "packages/contracts/",
+        "packages/domain/",
+        "packages/persistence/",
+        "apps/api/",
+        "db/migrations/"
+      ],
+      "result": "Two authenticated members see the same project and a durable admitted action; reconnect does not duplicate or lose it.",
+      "steps": [
+        "Implement the first schema slice: project/member, command, event and job/outbox records. Write explicit migrations and access tests before wiring clients.",
+        "Implement authentication, server-derived actor identity, expected-revision admission and transactional outbox.",
+        "Implement a current snapshot plus sequence-based SSE replay; render the admitted work in a minimal real Studio view.",
+        "Use the contract examples as fixtures, not native evidence. Extend typed schemas into generated clients as the implementation lands."
+      ],
+      "acceptance": [
+        "Both real member sessions can access the shared project; a different account cannot.",
+        "Same request/payload returns the same command; different payload under the same key conflicts.",
+        "A disconnect between commit and acknowledgement recovers the existing result."
+      ],
+      "adverse_checks": [
+        "A stale expected revision cannot overwrite a newer accepted change.",
+        "A UI render or notification click cannot manufacture work completion."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-03",
+      "title": "Run, steer, stop and recover a native dsh worker",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-02"
+      ],
+      "source_ids": [
+        "DSH-02",
+        "DSH-03",
+        "DSH-04",
+        "DSH-08",
+        "DSH-09",
+        "DSH-10",
+        "DSH-11",
+        "DSH-12",
+        "DSH-13",
+        "DSH-18"
+      ],
+      "chapters": [
+        "02_DSH_BOOTSTRAP",
+        "03_BACKEND",
+        "10_OPERATIONS_AND_TESTS"
+      ],
+      "destination_paths": [
+        "apps/execution-host/src/runtime-supervisor.ts",
+        "packages/dsh-bundle/src/control-bridge.ts",
+        "packages/dsh-bundle/src/role-registry.ts",
+        "packages/dsh-bundle/src/tools/"
+      ],
+      "result": "A real dsh task can be launched and redirected from Sophia, stopped correctly and recovered without losing its accepted goal.",
+      "steps": [
+        "Boot the official profile in an isolated project container/home with outbound authenticated control and explicit readiness.",
+        "Bind public Agent create/resume and scoped setup to the command contract. Persist external correlation as a session extension event and reconcile it with native inbox/history.",
+        "Bridge durable session events separately from transient assistant chunks. Flush through the native checkpoint seam before durable-delivery receipts.",
+        "Implement Hold/Stop as domain fencing plus native cancellation and associated job settlement. Test role allowlists through ordinary tools and PTC."
+      ],
+      "acceptance": [
+        "A live worker receives a mid-work steer at a supported boundary; later evidence distinguishes delivery from incorporation.",
+        "A controlled restart reconstructs command/native correlation and outstanding work.",
+        "A real Stop prevents new dispatch and candidate publication under the stopped epoch."
+      ],
+      "adverse_checks": [
+        "Duplicate delivery does not repeat an admitted domain effect.",
+        "A late peer message cannot revive a stopped task.",
+        "A forbidden host tool remains forbidden inside a PTC program.",
+        "Hold retains pending context without permitting a native wake or goal driver to execute it before an explicit valid Resume."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-04",
+      "title": "Build the shared Studio shell and real room transport",
+      "sprint": 1,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-02"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02",
+        "LK-01",
+        "LK-02",
+        "LK-03"
+      ],
+      "chapters": [
+        "04_FRONTEND",
+        "06_VOICE_AND_VISION"
+      ],
+      "destination_paths": [
+        "apps/studio/src/app/",
+        "apps/studio/src/features/studio/",
+        "apps/studio/src/features/voice/",
+        "packages/ui/"
+      ],
+      "result": "Davide and Luis enter a real shared project, use independent lenses and hear one another while keeping one clear Sophia surface.",
+      "steps": [
+        "Implement the custom React/Vite shell from the recovered Studio reference tokens and semantic map.",
+        "Implement current local lens/focus/drafts separately from shared project state. Preserve them during unrelated updates.",
+        "Issue scoped LiveKit room grants from the API; join from two independently authenticated clients.",
+        "Add explicit input-floor, invocation, end-exchange and room-leave controls; expose missing voice service honestly until S1-05."
+      ],
+      "acceptance": [
+        "Changing Luis\u2019s local view does not move Davide\u2019s view or retask work.",
+        "Two actual participants can talk, see membership and pass the input role.",
+        "Required actions and persistent work controls remain accessible on narrow screens."
+      ],
+      "adverse_checks": [
+        "Losing the UI connection does not cancel admitted background work.",
+        "An unauthorized participant cannot reuse a room token for a different project."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-05",
+      "title": "Connect Gemini 3.8 Live to real work and selected vision",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-03",
+        "S1-04"
+      ],
+      "source_ids": [
+        "G-01",
+        "G-02",
+        "G-03",
+        "G-04",
+        "G-05",
+        "G-06",
+        "GG-01",
+        "LK-01",
+        "LK-02",
+        "LK-03"
+      ],
+      "chapters": [
+        "06_VOICE_AND_VISION",
+        "03_BACKEND"
+      ],
+      "destination_paths": [
+        "apps/media-bridge/src/",
+        "apps/studio/src/features/voice/",
+        "apps/api/src/routes/voice/"
+      ],
+      "result": "Both founders converse with Gemini 3.8 Live, launch real asynchronous work and review a selected visual target without losing conversation or duplicating jobs.",
+      "steps": [
+        "Implement raw RTC subscription/publishing and Google SDK connection with explicit audio format conversion and bounded buffers.",
+        "Bind each admitted utterance/tool request to the authenticated input-floor epoch. Settle the current exchange generation before switching speakers.",
+        "Configure tools as NON_BLOCKING and place scheduling/willContinue at the actual FunctionResponse top level. Return admitted job identity, not fictional completion.",
+        "Add selected-frame input, exact source lookups, Stop Looking, playback epoch suppression, GoAway/warm resume and cold context recovery."
+      ],
+      "acceptance": [
+        "Each founder takes the floor and receives a coherent audible response; both hear the same Sophia.",
+        "A real dsh job continues while conversation continues, then yields one appropriate result notice.",
+        "Selected visual context and exact source identity agree.",
+        "A provider reconnect does not duplicate an admitted effect."
+      ],
+      "adverse_checks": [
+        "Barge-in flushes old output; stale frames/audio are dropped.",
+        "Late tool results are not attributed to a new speaker.",
+        "Ending speech or observation does not stop an unrelated authorized build."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-06",
+      "title": "Generate, compare and retain Google/OpenAI image assets",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-02"
+      ],
+      "source_ids": [
+        "G-01",
+        "G-07",
+        "G-08",
+        "OA-01",
+        "OA-02",
+        "OA-03"
+      ],
+      "chapters": [
+        "07_IMAGE_GENERATION",
+        "03_BACKEND"
+      ],
+      "destination_paths": [
+        "packages/creative/src/images/",
+        "packages/creative/src/assets.ts",
+        "apps/worker/src/jobs/images/",
+        "apps/studio/src/features/studio/"
+      ],
+      "result": "The team generates actual image alternatives through both chosen vendors, selects an asset and reuses the same bytes in later source work.",
+      "steps": [
+        "Implement the durable image-job lifecycle and private asset storage with source/consent provenance.",
+        "Implement Google Interactions generation/edit using response_format and model_output image parsing; store:false is explicit.",
+        "Implement OpenAI direct Images generation and multipart edit using the dated Sunburst snapshot. Make Google Pro and Flare selectable comparators.",
+        "Expose an intentional comparison and selection flow. Record actual request configuration, outcome, usage and human feedback without declaring a global winner."
+      ],
+      "acceptance": [
+        "At least one real Google and one real OpenAI generation are stored and viewable.",
+        "An image edit uses the selected source image and produces a new candidate.",
+        "Selecting an image does not discard alternatives or trigger more paid generations."
+      ],
+      "adverse_checks": [
+        "Refusal, no image output or timeout produces a truthful failed/uncertain result.",
+        "A retry after ambiguous acceptance is not blindly charged as another identical job.",
+        "Unrelated source edits preserve the selected asset reference."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-07",
+      "title": "Produce runnable UI source that Luis can edit",
+      "sprint": 1,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-03",
+        "S1-06"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02",
+        "DSH-12",
+        "DSH-18",
+        "IM-01"
+      ],
+      "chapters": [
+        "08_CREATION_AND_REVIEW",
+        "04_FRONTEND",
+        "10_OPERATIONS_AND_TESTS"
+      ],
+      "destination_paths": [
+        "packages/creative/src/prototype-bundle.ts",
+        "apps/execution-host/src/workspace-supervisor.ts",
+        "apps/execution-host/src/artifact-gateway.ts",
+        "apps/studio/src/features/source-editor/"
+      ],
+      "result": "Sophia transforms the selected direction into a real interactive frontend, and Luis edits its source inside the workspace.",
+      "steps": [
+        "Implement a supported React/TypeScript/Vite source bundle with retained tokens/assets and declared mock-to-real boundaries.",
+        "Use no-secret task containers for install/build/run; mount only the candidate workspace and limited result path.",
+        "Add Preview/Source/Diff using a bounded code editor, source version checks and explicit candidate rebuilding.",
+        "Compile the actual source, dependency lock, assets, behavior states and integration map into the handoff, rather than screenshots alone."
+      ],
+      "acceptance": [
+        "The exported source builds in a fresh environment and matches the shown prototype.",
+        "Luis changes source and obtains a new preview without overwriting a newer accepted version.",
+        "Normal and failure/empty states have real local interaction and truthful simulation labels."
+      ],
+      "adverse_checks": [
+        "Build failure leaves the last useful preview visible.",
+        "A user build script cannot access API/native login secrets or other project files.",
+        "A stack mismatch is recorded in the handoff, not hidden by a promise of zero rework."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-08",
+      "title": "Import existing context and compile the next useful brief",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-02"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02",
+        "QM-03"
+      ],
+      "chapters": [
+        "09_MEMORY_AND_CONTEXT",
+        "03_BACKEND"
+      ],
+      "destination_paths": [
+        "packages/context/",
+        "apps/worker/src/jobs/import/",
+        "apps/studio/src/features/knowledge/"
+      ],
+      "result": "A project continues from selected ChatGPT/Claude material and source files; the next task uses current accepted decisions and relevant lessons.",
+      "steps": [
+        "Implement selective import with an inclusion/omission preview and explicit project release; retain source provenance.",
+        "Separate accepted project records from imported advice/history and derived wiki pages.",
+        "Implement direct current-state reads, scoped source search/read and a bounded ContextPacket with exact revisions.",
+        "Implement correction/Forget influence fencing and one cycle-close learning that actually enters a later relevant brief."
+      ],
+      "acceptance": [
+        "The team corrects an imported project summary before making it accepted context.",
+        "A next-session brief uses an earlier accepted decision or lesson with its source.",
+        "Private material remains excluded until its owner releases the exact contribution."
+      ],
+      "adverse_checks": [
+        "An old model answer cannot override a newer project decision.",
+        "Revoked content cannot re-enter through a cached packet, offloaded page or resumed worker.",
+        "Missing export attachments are reported, not reconstructed as facts."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-09",
+      "title": "Connect the three owner-operated engineering resources",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-02"
+      ],
+      "source_ids": [
+        "OM-01",
+        "OM-02",
+        "P-02",
+        "QM-02"
+      ],
+      "chapters": [
+        "05_EXECUTION_TEAMS",
+        "03_BACKEND",
+        "10_OPERATIONS_AND_TESTS"
+      ],
+      "destination_paths": [
+        "packages/execution-adapters/src/omnigent/",
+        "apps/api/src/routes/resources/",
+        "apps/studio/src/features/work/"
+      ],
+      "result": "Davide\u2019s Codex, Davide\u2019s Claude Code and Luis\u2019s Claude Code each perform real work and expose their actual status and owner-specific native requests.",
+      "steps": [
+        "Complete the named Part 2 binding audit: exact current OpenAPI/session/feed/control/elicitation operations and owner authorization at the pinned Omnigent source.",
+        "Have each owner authorize launch/adoption of the selected native sessions and repo/worktree scope; keep vendor authentication native.",
+        "Implement capability-aware observations, amendment delivery and result collection through the narrow adapter.",
+        "Surface required native action with its exact resource/session/owner and reconcile resolution performed outside Sophia."
+      ],
+      "acceptance": [
+        "All three actual resources are registered and each returns a useful bounded task result.",
+        "A real permission request appears for the correct owner and resolves from native evidence.",
+        "A locked but awake host does not require screenshot/click automation for supported programmatic operations."
+      ],
+      "adverse_checks": [
+        "An edit grant does not permit arbitrary cross-owner host launch.",
+        "A sleeping/offline host is reported, not treated as still progressing.",
+        "Subscription or permission failure does not silently route through another person\u2019s credentials."
+      ],
+      "design_status": "binding_audit_pending",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-10",
+      "title": "Enable goal-scoped peer messages and responsive handbacks",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-03",
+        "S1-09"
+      ],
+      "source_ids": [
+        "DSH-16",
+        "QM-01",
+        "BZ-01",
+        "OM-02"
+      ],
+      "chapters": [
+        "05_EXECUTION_TEAMS",
+        "03_BACKEND"
+      ],
+      "destination_paths": [
+        "packages/execution-adapters/src/mailbox/",
+        "packages/execution-adapters/src/native-team/",
+        "packages/dsh-bundle/src/tools/peer.ts"
+      ],
+      "result": "A worker asks its coordinator a useful question during execution, gets an answer and continues without a human copying prompts or a lead model relaying each message.",
+      "steps": [
+        "Implement the durable cross-runtime envelope and recipient assignment checks; native dsh peers use their existing team machinery.",
+        "Deliver through the actual native adapter boundary; wake an idle recipient through a supported command, not a perpetual model polling loop.",
+        "Track persisted, delivered, incorporated and acted-on states separately. Coalesce routine receipts and suppress acknowledgement-only exchanges.",
+        "Separate per-worker source areas and the shared deployment/database operation owner."
+      ],
+      "acceptance": [
+        "A real Codex/Claude peer question and answer changes or confirms the ongoing approach before final completion.",
+        "A second Claude resource performs independent useful work or review under the same goal arrangement.",
+        "The technical lead sees relevant outcomes without paraphrasing each peer packet."
+      ],
+      "adverse_checks": [
+        "Redelivered mail is deduplicated.",
+        "A stale assignment/epoch cannot receive new instructions.",
+        "Messages cannot expand permissions or race the designated shared-effect owner."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-11",
+      "title": "Make the technical lead plan, review and steer the project",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-03",
+        "S1-08",
+        "S1-10"
+      ],
+      "source_ids": [
+        "P-01",
+        "DSH-08",
+        "DSH-14",
+        "QM-01"
+      ],
+      "chapters": [
+        "05_EXECUTION_TEAMS",
+        "09_MEMORY_AND_CONTEXT",
+        "03_BACKEND"
+      ],
+      "destination_paths": [
+        "packages/dsh-bundle/prompts/",
+        "apps/worker/src/jobs/lead-review/",
+        "apps/api/src/services/goals/",
+        "apps/studio/src/features/work/"
+      ],
+      "result": "Sophia proposes an actionable roadmap, allocates the available team and visibly reviews progress every five minutes or on request.",
+      "steps": [
+        "Implement brief/roadmap/goal proposals and explicit acceptance with definitions of done.",
+        "Implement one coalesced active-project heartbeat plus event/manual triggers and a review lease.",
+        "Give the lead fresh bounded evidence, prior interventions and outstanding decisions; exclude known waits from automatic stagnation claims.",
+        "Implement continue, inspect, steer, fresh alignment, independent review, hold/replan and ask-human outcomes within the current mandate."
+      ],
+      "acceptance": [
+        "Review work progress wakes the lead immediately and returns an evidence-linked decision.",
+        "One periodic review examines the project\u2019s three resources without triple context duplication.",
+        "A meaningful change/preservation instruction reaches the proper goal coordinator/worker and is visible to the team."
+      ],
+      "adverse_checks": [
+        "Two coincident triggers do not create duplicate lead turns.",
+        "A single ordinary test failure does not force a mission pivot.",
+        "A no-change review updates status without an unnecessary spoken interruption."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-12",
+      "title": "Review and steer the complete application from Sophia",
+      "sprint": 1,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-05",
+        "S1-07",
+        "S1-09",
+        "S1-11"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02",
+        "G-02",
+        "TEST-01"
+      ],
+      "chapters": [
+        "08_CREATION_AND_REVIEW",
+        "04_FRONTEND",
+        "06_VOICE_AND_VISION"
+      ],
+      "destination_paths": [
+        "apps/studio/src/features/review/",
+        "apps/execution-host/src/artifact-gateway.ts",
+        "packages/domain/src/review/"
+      ],
+      "result": "The team opens a real integrated application, discusses an exact preview and sends a change/preserve brief to the engineering team.",
+      "steps": [
+        "Bind the preview to source revision, environment and declared real/mocked services.",
+        "Implement separate Interact and Select-for-discussion modes with frame/target capture and exact source context.",
+        "Admit a clear authorized review intent; let the lead reconcile it with the current work and brief revision.",
+        "Show returned candidate, changed/preserved areas, tests and remaining uncertainty; retain the stable preview."
+      ],
+      "acceptance": [
+        "A complete working application preview is usable inside the supported preview boundary.",
+        "An ambiguous target is clarified; an unambiguous authorized edit does not require redundant ceremony.",
+        "The team sees the actual worker amendment and checks its resulting candidate."
+      ],
+      "adverse_checks": [
+        "A stale comment stays on the old preview unless deliberately retargeted.",
+        "An unembeddable external site gets an explicit supported review route rather than bypassed headers.",
+        "S1 does not label instruction-based preservation as guaranteed surgical editing."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-13",
+      "title": "Deliver useful reports, PDFs and decks through isolated render jobs",
+      "sprint": 1,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-03",
+        "S1-06"
+      ],
+      "source_ids": [
+        "OLD-01",
+        "OLD-02",
+        "OLD-03",
+        "P-01"
+      ],
+      "chapters": [
+        "08_CREATION_AND_REVIEW",
+        "10_OPERATIONS_AND_TESTS"
+      ],
+      "destination_paths": [
+        "renderers/python/",
+        "renderers/web/",
+        "apps/worker/src/jobs/render/",
+        "packages/creative/"
+      ],
+      "result": "Sophia produces a meaningful sourced report and presentation, with retained images/source and actual usable exports.",
+      "steps": [
+        "Finish the Part 2 renderer closure audit beginning at the verified legacy tool entry points; locate the real rich HTML-to-PDF and deck compilation functions and their dependencies.",
+        "Extract format-specific code into isolated jobs with explicit source inputs/results; replace ToolRuntime/thread path injection at the adapter boundary.",
+        "Integrate selected image assets and source manifests. Preserve source versus rasterized export distinctions.",
+        "Validate actual PDF/PPTX files and their visual rendering; register candidates through the ordinary artifact path."
+      ],
+      "acceptance": [
+        "One substantive report and one deck are generated from retained source and readable in the app.",
+        "The files open correctly and include the intended images and sources.",
+        "The normal memory/authority route works; no special bypass admission is used."
+      ],
+      "adverse_checks": [
+        "A renderer failure preserves prior output and returns diagnostic evidence.",
+        "The small legacy PDF smoke wrapper is not presented as a complete rich renderer.",
+        "An editable-source claim is not made for flattened raster output."
+      ],
+      "design_status": "binding_audit_pending",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S1-14",
+      "title": "Complete the founder project episode and release Sprint 1",
+      "sprint": 1,
+      "owner": "Davide and Luis",
+      "dependencies": [
+        "S1-03",
+        "S1-04",
+        "S1-05",
+        "S1-06",
+        "S1-07",
+        "S1-08",
+        "S1-09",
+        "S1-10",
+        "S1-11",
+        "S1-12",
+        "S1-13"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "chapters": [
+        "01_SYSTEM",
+        "10_OPERATIONS_AND_TESTS"
+      ],
+      "destination_paths": [
+        "tests/integration/",
+        "tests/e2e/",
+        "docs/releases/",
+        "deploy/"
+      ],
+      "result": "The first release is used end to end by both founders to create, coordinate, review and steer a real project.",
+      "steps": [
+        "Run the actual episode from selected project import through voice/design/prototype, three-resource work, permission wait and integrated preview.",
+        "Exercise a manual/periodic review and one mid-work correction with explicit preservation.",
+        "Reconnect a UI and a provider connection; stop work with pending input; check the next-session context.",
+        "Publish the release unit, evidence, measured usage/latency, limitations and recovery instructions. Keep unmigrated legacy obligations assigned."
+      ],
+      "acceptance": [
+        "Both humans and all three engineers contribute useful work on the intended path.",
+        "The native prototype source is integrated rather than recreated from a screenshot.",
+        "The application is reviewed from Sophia; the team knows what happened, what needs action and which version was checked.",
+        "A relevant accepted lesson appears in a later brief."
+      ],
+      "adverse_checks": [
+        "No release claim depends on fixture-only account, media or deployment success.",
+        "Stop prevents stale publication/revival.",
+        "Known missing capability, uncertain cost or unresolved external effect remains visible."
+      ],
+      "design_status": "design_ready",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S2-01",
+      "title": "Semantic attention and milestone cooperation",
+      "sprint": 2,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-14"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Use the heartbeat and actual artifact milestones to create source-bound opportunities; retain separate required actions, quiet progress and controls.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S2-02",
+      "title": "Exact source-backed artifact revision",
+      "sprint": 2,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-14"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Integrate expected-base and component-scoped mutations, preserved-sibling checks and atomic candidate publication for supported artifacts.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S2-03",
+      "title": "Scenarios and executable application review",
+      "sprint": 2,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-14"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Add Storybook/MSW scenario fixtures and Playwright assertions/traces; distinguish simulation, recorded replay and live application evidence.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S2-04",
+      "title": "In-app native requests and mobile control",
+      "sprint": 2,
+      "owner": "Davide",
+      "dependencies": [
+        "S1-14"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Answer supported native permission requests from authenticated Sophia mobile/desktop; retain exact native handoff for unsupported login/OS actions.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S2-05",
+      "title": "Consented discussion-following and richer voice",
+      "sprint": 2,
+      "owner": "Davide and Luis",
+      "dependencies": [
+        "S1-14"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Add per-track transcription, consented following, attributed context and a single speak/silent/card policy; test English, Italian and Spanish.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S2-06",
+      "title": "Scoped project connectors and between-session continuity",
+      "sprint": 2,
+      "owner": "Luis",
+      "dependencies": [
+        "S1-14"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Add selected Notion, Supabase and Vercel management workflows, one notification channel and source-linked return briefs; existing engineer deployments remain usable.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S3-01",
+      "title": "Authorized multi-week project continuity",
+      "sprint": 3,
+      "owner": "Davide",
+      "dependencies": [
+        "S2-01",
+        "S2-02",
+        "S2-03",
+        "S2-04",
+        "S2-05",
+        "S2-06"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Continue dependent goals, reconcile unavailable hosts and uncertain effects, and preserve the mandate across idle periods and runtime restarts.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S3-02",
+      "title": "A useful Sophia-native application implementer",
+      "sprint": 3,
+      "owner": "Davide",
+      "dependencies": [
+        "S3-01"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Deliver an actual end-to-end feature in the supported application stack using the same source, evidence, deployment and review contract as external engineers.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S3-03",
+      "title": "Adaptive execution and procedure improvement",
+      "sprint": 3,
+      "owner": "Davide and Luis",
+      "dependencies": [
+        "S3-01"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Select and adjust approved model/effort/tool/team profiles from evidence; evaluate versioned procedure changes with rollback and current context eligibility.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    },
+    {
+      "id": "S3-04",
+      "title": "Repeated external-team use and clean migration",
+      "sprint": 3,
+      "owner": "Davide and Luis",
+      "dependencies": [
+        "S3-02",
+        "S3-03"
+      ],
+      "source_ids": [
+        "P-01",
+        "P-02"
+      ],
+      "result": "Onboard a small team with a nontechnical contributor, observe repeated real work and willingness to pay, and retire old routes only after their obligations are discharged.",
+      "design_status": "outcome_mapped_details_next_installment",
+      "implementation_status": "not_started",
+      "sessions": []
+    }
+  ],
+  "calendar_dates": null,
+  "note": "Product-release sprints, not a six-week commitment. Native session IDs are supplied by actual execution."
+}

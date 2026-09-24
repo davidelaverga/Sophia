@@ -1,0 +1,32 @@
+# One lock for the whole product tree (S1-01). Unbuilt destinations from
+# docs/DESTINATION_MAP.md (apps/*, the remaining packages/*) join this list
+# when their goal creates them.
+packages:
+  - packages/*
+  - runtime/*
+
+# Dependency install scripts are denied unless listed. Allowed: the pinned
+# runtime's native prebuild fetchers and dsh's own spawn-helper fix-up.
+# Denied: a no-op preinstall and a version-notice postinstall.
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local': true
+  '@google/genai': false
+  koffi: true
+  node-pty: true
+  protobufjs: false
+
+# Reproducibility: exact specifiers, the pinned engines, and the lock as
+# written. `pnpm install --frozen-lockfile` is the only install CI uses.
+engineStrict: true
+saveExact: true
+
+# Never expose workspace packages through pnpm's hidden hoist directory. dsh
+# resolves plugins installation-first, so a hoisted in-tree
+# @sophia/dsh-bundle would mask the profile's installed bundle and hide a
+# missing or incompatible install (S1-01 adverse check). Launches use the
+# deployed runtime artifact outside this tree anyway (scripts/build-artifacts.mjs).
+hoistWorkspacePackages: false
+
+# `pnpm deploy` (the runtime artifact) deploys from the lock with injected
+# workspace packages, the pnpm 10+ default deploy mode.
+injectWorkspacePackages: true

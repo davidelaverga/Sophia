@@ -1,0 +1,19 @@
+# Source-grounded composition specimen; not a complete security policy.
+# Requires the compiled @sophia/dsh-bundle and its role/tool guards.
+- id: session-log-deepseek
+  disabled: true
+- id: plugin-package-inventory-deepseek
+  disabled: true
+- id: session-telemetry-otel
+  disabled: true
+- id: hmr
+  disabled: true
+- insert:
+    - id: sophia-control-bridge
+      name: '@sophia/dsh-bundle'
+      inject: [agents, sessions, tools]
+      config:
+        protocolVersion: 1
+# Scope/model/prompt configuration is installed by the Sophia bundle.
+# It must reject readiness without its domain guards and role configuration.
+# Any replacement config on a base row must restate the entire intended config.

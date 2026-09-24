@@ -1,0 +1,25 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@sophia/dsh-bundle':
+        specifier: file:./sophia-dsh-bundle-0.1.0.tgz
+        version: file:sophia-dsh-bundle-0.1.0.tgz
+
+packages:
+
+  '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz':
+    resolution: {integrity: sha512-jP6AsAJXkNu8wRG+TiRPacBYq1wmEy178U+/lEk4DU+xJGhnuVYKalk6sWK3SmgCYbiXiUQwEhB8fqx9xmNmYQ==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
+    version: 0.1.0
+    peerDependencies:
+      '@deepseek-ai/dsh': 0.1.7-rc.1
+
+snapshots:
+
+  '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz': {}

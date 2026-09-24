@@ -1,0 +1,103 @@
+{
+  "schema": "sophia.role-presets.v1",
+  "status": "design_specimen",
+  "roles": [
+    {
+      "id": "sophia-guide-v1",
+      "model_route": "native-work",
+      "effort": "low",
+      "tool_allowlist": [
+        "project_read",
+        "sources_search",
+        "source_read",
+        "creative_start",
+        "work_status",
+        "work_review",
+        "work_steer"
+      ],
+      "goal_continuation": false,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "current authorized project and assignment"
+    },
+    {
+      "id": "sophia-lead-v1",
+      "model_route": "native-work",
+      "effort": "high",
+      "tool_allowlist": [
+        "project_read",
+        "sources_search",
+        "source_read",
+        "roadmap_propose",
+        "goal_dispatch",
+        "work_status",
+        "work_review",
+        "work_steer",
+        "peer_send",
+        "peer_read"
+      ],
+      "goal_continuation": false,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "current authorized project and assignment"
+    },
+    {
+      "id": "sophia-research-v1",
+      "model_route": "native-work",
+      "effort": "low",
+      "tool_allowlist": [
+        "sources_search",
+        "source_read",
+        "workspace_read",
+        "workspace_patch",
+        "peer_send",
+        "peer_read"
+      ],
+      "goal_continuation": true,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "current authorized project and assignment"
+    },
+    {
+      "id": "sophia-prototype-v1",
+      "model_route": "native-work",
+      "effort": "high",
+      "tool_allowlist": [
+        "project_read",
+        "source_read",
+        "workspace_read",
+        "workspace_patch",
+        "workspace_run",
+        "creative_start",
+        "peer_send",
+        "peer_read"
+      ],
+      "goal_continuation": true,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "current authorized project and assignment"
+    },
+    {
+      "id": "sophia-review-v1",
+      "model_route": "native-work",
+      "effort": "high",
+      "tool_allowlist": [
+        "project_read",
+        "source_read",
+        "workspace_read",
+        "evidence_read",
+        "review_record"
+      ],
+      "goal_continuation": false,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "current authorized project and assignment"
+    }
+  ],
+  "note": "Names are Sophia domain tools to implement; native tool guards enforce the allowlist including PTC. Model policy alone is not confinement."
+}

@@ -1,0 +1,53 @@
+{
+  "schema": "sophia.runtime-unit.v1",
+  "id": "sophia-next-initial-design",
+  "status": "not_built",
+  "dsh": {
+    "repository": "deepseek-ai/deepseek-harness",
+    "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+    "package_version": "0.1.7-rc.1",
+    "launcher": "dsh",
+    "profile": "sophia-runtime",
+    "artifact_digest": null
+  },
+  "toolchain": {
+    "node_major": 24,
+    "pnpm": "11.7.0",
+    "node_exact_version": null
+  },
+  "google_sdk": {
+    "package": "@google/genai",
+    "version": "2.24.0",
+    "repository_commit": "b12dad09079feee92bc843be0965543baa1ec88d"
+  },
+  "livekit_rtc": {
+    "package": "@livekit/rtc-node",
+    "version": "1.1.0",
+    "repository_commit": "550308a9f45ea15d6bced481b66fa6ab3b846ffa"
+  },
+  "omnigent": {
+    "repository": "omnigent-ai/omnigent",
+    "commit": "7496d36bde584d0a7d11c1d92a6d126f128bc1cd",
+    "binding_status": "binding_audit_pending",
+    "image_digest": null
+  },
+  "sophia_bundle": {
+    "name": "@sophia/dsh-bundle",
+    "version": "0.1.0",
+    "source_commit": null,
+    "artifact_digest": null
+  },
+  "schema_revision": null,
+  "role_revision": "v1",
+  "model_catalog": "models.json",
+  "deployment_images": {},
+  "required_before_deploy": [
+    "exact Node version",
+    "committed package lock",
+    "built dsh and Sophia bundle digests",
+    "schema revision",
+    "container image digests",
+    "required-service startup check",
+    "affected live acceptance evidence"
+  ]
+}

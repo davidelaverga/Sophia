@@ -1,0 +1,10 @@
+{
+  "name": "@sophia/dsh-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The pinned dsh launcher release for the sophia-runtime profile (tag dsh-v0.1.7-rc.1 = 46a7f68b0922371ce7144b668b90e377d8e799f4). Installed only from the committed lock.",
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.1"
+  }
+}
