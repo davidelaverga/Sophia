@@ -41,10 +41,11 @@ export function suite(prefix) {
       llm,
       layout,
       attemptId: `att-${counter}`,
-      async start() {
+      /** Boot the runtime; unless `waitReady` is false, resolve once the service has the bridge's ready report. */
+      async start({ waitReady = true } = {}) {
         runtime = launchRuntime({ unit, runtimeDir: RUNTIME_DIR, layout, bridge: service, overlays: [mockRouteOverlay(llm.baseURL)], extraEnv: { MOCK_LLM_KEY: 'mock' } })
         boots += 1
-        await service.waitFor(() => service.readiness.filter((r) => r.state === 'ready').length >= boots, 30000, 'bridge readiness')
+        if (waitReady) await service.waitFor(() => service.readiness.filter((r) => r.state === 'ready').length >= boots, 30000, 'bridge readiness')
       },
       async stop() {
         const exit = await runtime.stop()

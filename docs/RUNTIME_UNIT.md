@@ -64,6 +64,43 @@ against the record (`model_route_invalid`):
 - the route must reference the recorded credential and carry no literal key;
 - the model must offer that effort.
 
+## Control bridge (S1-03)
+
+The `sophia-control-bridge` row (`packages/dsh-bundle`) adapts Sophia
+commands to the public dsh Agent API. It is a transport adapter, not a second
+loop.
+
+| Contract | What it is |
+|---|---|
+| Environment | `SOPHIA_BRIDGE_URL`, `SOPHIA_BRIDGE_TOKEN`, `SOPHIA_RUNTIME_UNIT`, `SOPHIA_WORKSPACE` (the row config names them). The execution-host supervisor sets them. |
+| Wire | Outbound only: `POST hello`, then long-poll `GET commands?after=`, `POST receipts`, `POST observations`, `POST ready` (`src/transport.ts`). Until S1-02, tests use the **labelled** fixture service (`tests/support/fixture-service.mjs`). |
+| Readiness | `ready` only after the fences and observers are installed, the service accepted `hello`, the bindings are reconciled, and the service was told. With no service binding it stays `not_ready`. |
+| Commands | `create` (requires `payload.role`), `resume`, `input` (next turn), `steer` (next step), `hold`, `stop`, `inspect`. Commands run serially per attempt. Session ids are deterministic per attempt (`sophia-<attemptId>`). Every Agent gets the recorded default model selection. |
+| Receipts | `delivered` comes after the inbox splice is flushed. `incorporation_observed` comes when the message's `user/message` enters a native step. Hold and Stop report `checked` once the driver is idle (`outcome_unknown` if it does not settle). Anything else is `rejected` with a reason: stale epoch, stopped, held, foreign unit, or malformed. |
+| Durability | A fsynced journal per session in `$DSH_HOME/sophia-bridge/`. Each command is journaled *before* any native action, and its native seq after dsh flushes. Duplicates and redelivery after restart are answered from it (see [SOURCE_MAP §3](SOURCE_MAP.md#3-facts-learned-at-the-pin-not-in-the-pack) for why this is not a dsh session event). Cross-store exactly-once is not claimed. |
+| Hold / Stop | Set the fence *before* native cancellation. Hold cancels with `keepInbox`, and input claimed by a step while held is journaled and held back until Resume. Stop cancels, settles and disposes, and a stopped attempt is never resumed, including after a restart with a stale binding. |
+| Roles | `src/role-registry.ts`: five versioned presets with a narrow native-tool policy. Visibility is enforced by agent-scoped `restrict`. Execution is enforced by one monotonic guard that also covers `workflow` (PTC) child agents. A role the unit no longer defines refuses to resume. |
+
+`apps/execution-host/src/runtime-supervisor.ts` launches the official `dsh`
+per project home under a single-writer lease and the explicit environment
+above. It reports ready only on the bridge's `readiness=ready`, and it
+restarts a crashed runtime with bounded backoff. An exhausted restart budget
+is a terminal `failed` state.
+
+Live check, which needs the route's key and makes real, billable model calls:
+
+```bash
+OPENAI_API_KEY=... pnpm live:steer --evidence docs/evidence/S1-03/live-steer.json
+```
+
+It passes only if the steer is delivered before the first turn ends, is
+incorporated after delivery, and the turn completes. `pnpm live:steer
+--rehearse` runs the same steps against the keyless mock (it is an
+integration test). Its report says `live: false`, and it refuses
+`--evidence`: a rehearsal is never live evidence. Once a live run passes,
+record `model_route.live_verified: true` with the evidence in the same
+commit.
+
 ## Commands
 
 ```bash

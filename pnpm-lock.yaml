@@ -13,6 +13,15 @@ importers:
         specifier: 2.9.1
         version: 2.9.1
 
+  apps/execution-host:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   packages/dsh-bundle:
     dependencies:
       '@deepseek-ai/dsh':

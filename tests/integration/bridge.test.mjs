@@ -17,7 +17,8 @@ test('bridge: reports ready only after hello, and create delivers then incorpora
   const w = await world(t)
   await w.start()
   assert.equal(w.service.hellos.length, 1)
-  assert.match(w.stderr(), /readiness=ready/)
+  // The service is told first; the local log line follows it.
+  await w.service.waitFor(() => /readiness=ready/.test(w.stderr()), 5000, 'the readiness log line')
   const create = w.send(w.cmd('create', { text: 'Say hello.' }))
   const delivered = await w.service.waitForReceipt(create.commandId, 'delivered')
   assert.equal(delivered.nativeSessionId, `sophia-${w.attemptId}`)
@@ -26,6 +27,20 @@ test('bridge: reports ready only after hello, and create delivers then incorpora
   await w.service.waitFor(() => w.turnEnds().length >= 1, 20000, 'turn/end')
   assert.equal(w.turnEnds()[0].data.reason.kind, 'completed')
   assert.equal(w.llm.requests.length, 1, 'one model call: no extra session-title request')
+})
+
+test('adverse: a service that refuses the ready report leaves the bridge not_ready and polling nothing', async (t) => {
+  const w = await world(t)
+  w.service.refuseReady()
+  await w.start({ waitReady: false })
+  await w.service.waitFor(() => /readiness=not_ready reason="Sophia service did not accept the ready report/.test(w.stderr()), 30000, 'the not_ready line')
+  assert.equal(w.service.hellos.length, 1)
+  assert.doesNotMatch(w.stderr(), /readiness=ready/)
+  const create = w.send(w.cmd('create', { text: 'Never runs.' }))
+  await sleep(1500)
+  assert.equal(w.service.polls, 0, 'no command poll without readiness')
+  assert.equal(w.service.receiptsFor(create.commandId).length, 0)
+  assert.equal(w.llm.requests.length, 0)
 })
 
 test('acceptance: a live worker receives a mid-work steer; delivery and incorporation are distinct evidence', async (t) => {

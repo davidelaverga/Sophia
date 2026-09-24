@@ -1,7 +1,7 @@
 # One lock for the whole product tree (S1-01). Unbuilt destinations from
-# docs/DESTINATION_MAP.md (apps/*, the remaining packages/*) join this list
-# when their goal creates them.
+# docs/DESTINATION_MAP.md join as their goal creates them.
 packages:
+  - apps/*
   - packages/*
   - runtime/*
 

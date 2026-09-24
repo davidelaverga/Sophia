@@ -11,16 +11,17 @@
   },
   "scripts": {
     "toolchain:check": "node scripts/toolchain-check.mjs",
-    "build": "pnpm --filter @sophia/dsh-bundle run build",
-    "typecheck": "pnpm --filter @sophia/dsh-bundle run typecheck",
+    "build": "pnpm --filter @sophia/dsh-bundle --filter @sophia/execution-host run build",
+    "typecheck": "pnpm --filter @sophia/dsh-bundle --filter @sophia/execution-host run typecheck",
     "test": "node --test \"tests/unit/**/*.test.mjs\"",
-    "test:integration": "node --test --test-concurrency=1 \"tests/integration/**/*.test.mjs\"",
+    "test:integration": "node --test --test-concurrency=1 --test-timeout=180000 \"tests/integration/**/*.test.mjs\"",
     "dsh:source": "node scripts/dsh-source.mjs",
     "artifacts": "node scripts/build-artifacts.mjs",
     "artifacts:record": "node scripts/build-artifacts.mjs --record",
     "profile:install": "node scripts/profile-install.mjs",
     "profile:verify": "node scripts/profile-verify.mjs",
-    "check": "pnpm toolchain:check && pnpm build && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration"
+    "check": "pnpm toolchain:check && pnpm build && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration",
+    "live:steer": "node scripts/live-steer.mjs"
   },
   "devDependencies": {
     "yaml": "2.9.1"

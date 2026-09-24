@@ -19,7 +19,8 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const readiness = []
   const waiters = new Set()
   let seq = 0
-  const state = { bindings: [...bindings] }
+  let polls = 0
+  const state = { bindings: [...bindings], refuseReady: false }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
 
@@ -39,6 +40,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       return reply(200, { projectId: 'proj-fixture', leaseId: `lease-${hellos.length}`, authorityEpoch: 1, bindings: state.bindings, cursor: 0 })
     }
     if (req.method === 'GET' && url.pathname === '/v1/runtime/commands') {
+      polls += 1
       const after = Number(url.searchParams.get('after') ?? 0)
       const waitMs = Math.min(Number(url.searchParams.get('waitMs') ?? 0), 2000)
       const pending = () => outbox.filter((c) => c.seq > after)
@@ -62,6 +64,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       return reply(204)
     }
     if (req.method === 'POST' && url.pathname === '/v1/runtime/ready') {
+      if (state.refuseReady) return reply(503, { error: 'fixture refuses the ready report' })
       readiness.push(json)
       notify()
       return reply(204)
@@ -94,6 +97,10 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     hellos,
     readiness,
     setBindings: (next) => { state.bindings = [...next] },
+    /** Make `POST ready` fail (adverse tests). */
+    refuseReady: (value = true) => { state.refuseReady = value },
+    /** How many command polls the runtime has made. */
+    get polls() { return polls },
     /** Enqueue a command exactly as S1-02's outbox would (same object may be enqueued twice). */
     enqueue(command) {
       seq += 1

@@ -151,8 +151,15 @@ export class ControlBridge {
     }
     this.cursor = hello.cursor
     for (const binding of hello.bindings) await this.reconcile(binding)
+    // Tell the service first, so the startup line a supervisor keys on
+    // implies the service has heard it too. A refused report is not ready.
+    try {
+      await this.transport.ready('ready', null)
+    } catch (error) {
+      this.setReadiness({ state: 'not_ready', reason: `Sophia service did not accept the ready report: ${(error as Error).message}` })
+      return
+    }
     this.setReadiness({ state: 'ready' })
-    await this.transport.ready('ready', null).catch((error: Error) => this.settings.log(`ready report failed: ${error.message}`))
     await this.pollLoop()
   }
 

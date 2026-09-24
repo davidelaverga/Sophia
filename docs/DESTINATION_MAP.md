@@ -62,7 +62,10 @@ a path updates its row in the same commit.
 | `apps/api/` | unbuilt | S1-02, S1-05, S1-09, S1-11 | Fastify HTTP, auth, command admission, SSE |
 | `apps/studio/` | unbuilt | S1-04 … S1-12 | React/Vite Studio (Vercel) |
 | `apps/worker/` | unbuilt | S1-06, S1-08, S1-11, S1-13 | SQL job/outbox consumers and scheduler |
-| `apps/execution-host/` | unbuilt | S1-03, S1-07, S1-12 | Private VM supervisor: runtime, workspace, artifact gateway |
+| `apps/execution-host/` | partial | S1-03, S1-07, S1-12 | Private VM supervisor. Built: the runtime supervisor. The workspace supervisor and artifact gateway are S1-07 |
+| `apps/execution-host/src/runtime-supervisor.ts` | partial | S1-03 | Built: launches the official dsh per project home under a single-writer lease and a sanitized env. Ready only from the bridge. Bounded crash restarts. Container isolation and the deployed host are still to do |
+| `apps/execution-host/src/workspace-supervisor.ts` | unbuilt | S1-07 | No-secret task containers, build processes |
+| `apps/execution-host/src/artifact-gateway.ts` | unbuilt | S1-07, S1-12 | Authenticated preview routing and snapshots |
 | `apps/media-bridge/` | unbuilt | S1-05 | Raw LiveKit RTC ↔ Google Live |
 
 ## Other roots
@@ -73,7 +76,7 @@ a path updates its row in the same commit.
 | `db/migrations/` | unbuilt | S1-02 | New schema; no automatic old-DB migration |
 | `deploy/` | unbuilt | S1-14 | Render, execution-host and Vercel manifests |
 | `tests/unit/` | built | S1-01 | Toolchain, digest, patch-lint, dump-parse and map checks |
-| `tests/integration/` | partial | S1-01, S1-14 | Built: profile gate against the real pinned dsh. S1-14 adds the release crossings |
+| `tests/integration/` | partial | S1-01, S1-03, S1-14 | Built: profile gate, control bridge, roles, runtime supervisor and the live-steer rehearsal, all against the real pinned dsh. S1-14 adds the release crossings |
 | `tests/contracts/` | unbuilt | S1-02 | Contract fixtures |
 | `tests/e2e/` | unbuilt | S1-14 | Browser E2E |
 | `tests/fixtures/` | unbuilt | S1-02 | Synthetic fixtures |
