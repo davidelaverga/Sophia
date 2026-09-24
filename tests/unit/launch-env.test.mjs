@@ -25,7 +25,7 @@ test('the launch environment is explicit: no inherited variables beyond the fixe
   const root = mkdtempSync(join(tmpdir(), 'launch-env-'))
   try {
     const env = sanitizedEnv({ dshHome: join(root, 'dsh-home'), home: join(root, 'home') })
-    assert.deepEqual(Object.keys(env).sort(), ['DSH_HOME', 'DSH_TELEMETRY_DISABLED', 'HOME', 'LANG', 'PATH', 'TMPDIR'])
+    assert.deepEqual(Object.keys(env).toSorted(), ['DSH_HOME', 'DSH_TELEMETRY_DISABLED', 'HOME', 'LANG', 'PATH', 'TMPDIR'])
     const path = env.PATH.split(':')
     assert.equal(path[0], dirname(process.execPath))
     assert.ok(path.includes(pnpmBinDir()))

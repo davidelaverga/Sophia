@@ -1,0 +1,114 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // Clean-code gate (CONTRIBUTING.md). Type-aware rules follow the pinned dsh repository's strict set;
+  // size/complexity limits keep functions reviewable. `pnpm lint` runs with --type-aware.
+  "plugins": ["typescript", "unicorn", "oxc", "import", "react", "react-hooks", "node"],
+  "categories": { "correctness": "error", "suspicious": "error" },
+  "options": { "reportUnusedDisableDirectives": "error", "typeAware": true },
+  "ignorePatterns": ["docs/**", "**/dist/**", "**/node_modules/**", "**/*.config.ts"],
+  "rules": {
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "no-else-return": "error",
+    "no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }
+    ],
+    "max-depth": ["error", 3],
+    "max-params": ["error", 5],
+    "max-nested-callbacks": ["error", 4],
+    "max-lines-per-function": ["error", { "max": 60, "skipBlankLines": true, "skipComments": true }],
+    "complexity": ["error", 12],
+    "import/no-cycle": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unnecessary-condition": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/require-await": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "error",
+    // React 19 JSX transform: no React import in scope.
+    "react/react-in-jsx-scope": "off",
+    // pg and other CommonJS packages are used as `import pg from "pg"; pg.Pool`.
+    "import/no-named-as-default-member": "off",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css", "@fontsource*/**", "@fontsource-variable/**"] }],
+    // JSON crossing a boundary is cast to contract types today; runtime validators replace the casts
+    // (docs/pack/api/README "runtime validation obligations").
+    "typescript/no-unsafe-type-assertion": "off",
+    // Fastify awaits async handlers; this rule targets Express.
+    "oxc/no-async-endpoint-handlers": "off",
+    "no-void": "off"
+  },
+  "overrides": [
+    {
+      // Tests: long scenario functions and assertions on known-present values are fine.
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "max-lines-per-function": "off",
+        "max-nested-callbacks": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unnecessary-condition": "off",
+        "typescript/no-floating-promises": [
+          "error",
+          // node:test's describe/it return promises the runner itself awaits.
+          {
+            "allowForKnownSafeCalls": [
+              { "from": "package", "package": "node:test", "name": ["describe", "it", "test"] }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Plain JavaScript with JSDoc (the S1-01 scripts and tests) has no program types, so the
+      // type-aware "unsafe" rules would only report `error` types. Every other rule applies.
+      "files": ["**/*.mjs"],
+      "rules": {
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/no-floating-promises": "off",
+        "typescript/no-misused-promises": "off",
+        "typescript/restrict-template-expressions": "off",
+        "typescript/no-base-to-string": "off",
+        "typescript/no-unnecessary-condition": "off",
+        "typescript/no-unnecessary-type-assertion": "off",
+        "typescript/require-await": "off"
+      }
+    },
+    {
+      // S1-01 code written before this gate. Whether to split the composition gate is its owner's
+      // call; these exceptions go when the files are next changed. New code gets no exceptions.
+      "files": ["scripts/lib/gate.mjs", "scripts/lib/patch-lint.mjs", "scripts/lib/tree-digest.mjs"],
+      "rules": {
+        "max-lines-per-function": "off",
+        "complexity": "off",
+        "max-depth": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-sort": "off",
+        "typescript/require-array-sort-compare": "off"
+      }
+    }
+  ]
+}

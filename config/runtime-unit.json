@@ -47,7 +47,7 @@
     "pnpm": "11.7.0",
     "typescript": "6.0.3"
   },
-  "workspace_lock_sha256": "3669b63abbed1444ec7e2ec4cfb3b3b1a6d89de6f83a7526f0d4facea55a2afd",
+  "workspace_lock_sha256": "d696ae842f34f90ede82ec509d70a92caad8f1a75e8d4436a4704711188b035f",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",

@@ -147,7 +147,7 @@ export function runDsh(runtimeDir, args, { env, cwd, timeoutMs }) {
  */
 export function normalizePaths(text, placeholders) {
   let out = text
-  const entries = Object.entries(placeholders).filter(([path]) => path).sort((a, b) => b[0].length - a[0].length)
+  const entries = Object.entries(placeholders).filter(([path]) => path).toSorted((a, b) => b[0].length - a[0].length)
   for (const [path, placeholder] of entries) out = out.split(path).join(placeholder)
   return out
 }

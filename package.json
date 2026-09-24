@@ -23,16 +23,22 @@
     "artifacts:record": "node scripts/build-artifacts.mjs --record",
     "profile:install": "node scripts/profile-install.mjs",
     "profile:verify": "node scripts/profile-verify.mjs",
-    "check": "pnpm toolchain:check && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration",
+    "check": "pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration",
     "contracts:check": "pnpm --filter @sophia/contracts run generate:check",
     "db:migrate": "node packages/persistence/scripts/migrate.ts",
     "supabase:local": "node scripts/supabase-local.ts",
-    "dev": "node scripts/dev-stack.ts"
+    "dev": "node scripts/dev-stack.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "oxlint --type-aware ."
   },
   "devDependencies": {
     "@types/node": "24.13.6",
     "@types/pg": "8.23.1",
+    "oxlint": "1.76.0",
+    "oxlint-tsgolint": "7.0.2001",
     "pg": "8.23.0",
+    "prettier": "3.9.9",
     "typescript": "6.0.3",
     "yaml": "2.9.1"
   }
