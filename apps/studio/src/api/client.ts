@@ -9,6 +9,7 @@ import {
   parseReceipt,
   parseSnapshot,
 } from '@sophia/contracts/validate'
+import { apiUrl } from './base.ts'
 
 export class ApiError extends Error {
   readonly status: number
@@ -47,7 +48,7 @@ async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: A
 const auth = (token: string) => ({ authorization: `Bearer ${token}` })
 
 export async function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
-  const res = await fetch(`/api/v1/projects/${projectId}/snapshot`, {
+  const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), {
     headers: auth(token),
     ...(signal ? { signal } : {}),
   })
@@ -63,7 +64,7 @@ export async function admitGoalCommand(
 ): Promise<Receipt> {
   let res: Response
   try {
-    res = await fetch(`/api/v1/projects/${projectId}/commands`, {
+    res = await fetch(apiUrl(`/api/v1/projects/${projectId}/commands`), {
       method: 'POST',
       headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
       body: JSON.stringify(cmd),
@@ -80,7 +81,7 @@ export async function admitGoalCommand(
 export async function createProject(token: string, idempotencyKey: string, title: string): Promise<ProjectCreated> {
   let res: Response
   try {
-    res = await fetch(`/api/v1/projects`, {
+    res = await fetch(apiUrl('/api/v1/projects'), {
       method: 'POST',
       headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
       body: JSON.stringify({ title }),

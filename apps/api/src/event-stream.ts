@@ -1,6 +1,6 @@
 // One SSE follower of a project (architecture 12 §7): writes authorized frames, re-reads after each
 // committed-event notification or heartbeat, and closes on revocation, failure or disconnect.
-import type { ServerResponse } from 'node:http'
+import type { OutgoingHttpHeaders, ServerResponse } from 'node:http'
 import type { FastifyBaseLogger } from 'fastify'
 import type { EventFrame, EventPage } from '@sophia/persistence'
 import type { ProjectEventHub } from './event-hub.ts'
@@ -15,6 +15,8 @@ export interface EventStreamOptions {
   hub: ProjectEventHub
   heartbeatMs: number
   log: FastifyBaseLogger
+  /** Headers already set by hooks (CORS); the hijacked response writes them with its own. */
+  headers?: OutgoingHttpHeaders
 }
 
 const HEADERS = {
@@ -40,7 +42,7 @@ export class ProjectEventStream {
   constructor(opts: EventStreamOptions) {
     this.opts = opts
     this.cursor = BigInt(opts.first.cursor)
-    opts.res.writeHead(200, HEADERS)
+    opts.res.writeHead(200, { ...opts.headers, ...HEADERS })
     opts.res.write('retry: 3000\n\n')
     this.write(opts.first.frames)
     this.unfollow = opts.hub.follow(opts.projectId, () => this.wake())
