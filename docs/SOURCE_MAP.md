@@ -87,9 +87,11 @@ do not rediscover them.
    profile changed nothing. Fixed by `hoistWorkspacePackages: false`, by
    launching only from the deployed runtime artifact, and by the gate's
    `no_bundle_shadowing` check.
-3. **pnpm `.bin` shims embed the absolute install path.** They are excluded
-   from the runtime tree digest, and the launcher runs as
-   `node <artifact>/node_modules/@deepseek-ai/dsh/lib/bin.js`.
+3. **Some deploy output depends on location.** pnpm `.bin` shims embed the
+   absolute install path. The lock that `pnpm deploy` writes embeds the
+   source checkout's absolute `file:` URLs. The clean second checkout caught
+   the latter. Both are excluded from the runtime tree digest, and the
+   launcher runs as `node <artifact>/node_modules/@deepseek-ai/dsh/lib/bin.js`.
 4. **The npm release matches the pin.** Across 267 `@deepseek-ai`
    package entries at 0.1.7-rc.1 in the runtime artifact, all 846 shipped
    files that are also tracked in the source checkout are byte-identical

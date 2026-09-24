@@ -17,7 +17,7 @@ page explains what each identity means and how a second checkout proves it.
 |---|---|---|---|
 | Workspace lock | `workspace_lock_sha256` | `pnpm install` (committed) | The exact resolution of every workspace dependency, including the dsh closure with sha512 integrity per package |
 | dsh release | `dsh.release_integrity` | npm registry, via the lock | sha512 of `@deepseek-ai/dsh@0.1.7-rc.1` and `@deepseek-ai/dsh-base@0.1.7-rc.1`. The same values the registry serves for tag `dsh-v0.1.7-rc.1` = `46a7f68b` |
-| Runtime artifact | `dsh.artifact_digest` (`sophia-tree-v1:sha256:…`) | `pnpm deploy --prod` of `runtime/dsh` into `.artifacts/runtime` | Content digest of the deployed launcher tree. It excludes `.bin` shims (they embed the install path) and pnpm install-time bookkeeping, so it is location-independent |
+| Runtime artifact | `dsh.artifact_digest` (`sophia-tree-v1:sha256:…`) | `pnpm deploy --prod` of `runtime/dsh` into `.artifacts/runtime` | Content digest of the deployed launcher tree. It excludes `.bin` shims (they embed the install path), pnpm install-time bookkeeping and the deploy-local `pnpm-lock.yaml` (it embeds the source checkout's absolute `file:` URLs), so it is location-independent |
 | Bundle archive | `sophia_bundle.archive_sha256`, `archive_integrity`, `artifact_digest` | `pnpm pack` of `packages/dsh-bundle` | Byte-reproducible tarball: fixed mtime, uid 0, the pinned Node zlib |
 | Profile lock | `config/dsh/profile/pnpm-lock.yaml` | `pnpm install --lockfile-only` over the committed profile manifest | Pins the bundle archive's sha512, so `--frozen-lockfile` rejects other bytes at install time |
 

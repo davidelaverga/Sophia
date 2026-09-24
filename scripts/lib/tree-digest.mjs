@@ -4,7 +4,7 @@
  * Every regular file, symlink and directory under `root` becomes one line
  * `<type> <relpath> <x|-> <sha256|link-target>`; lines are sorted bytewise
  * and the digest is the SHA-256 of the joined listing. Timestamps, owners and
- * pnpm bookkeeping that records install time are excluded, and so are
+ * pnpm bookkeeping that records install time or the checkout location are excluded, and so are
  * package-manager `.bin` shims, which embed the absolute install location.
  * Two installs from the same lock, at any location, produce the same digest.
  * Launchers therefore run the package's declared bin file directly
@@ -18,8 +18,13 @@ import { join, relative, sep } from 'node:path'
 /** Scheme prefix recorded in config/runtime-unit.json. */
 export const TREE_DIGEST_SCHEME = 'sophia-tree-v1'
 
-/** pnpm bookkeeping that records install time or the invoking store path. */
+/**
+ * pnpm bookkeeping that records install time, the store path, or (for the
+ * lock `pnpm deploy` writes) absolute file: URLs of the source checkout.
+ * None of it is read at runtime; the installed tree it describes is covered.
+ */
 export const VOLATILE_PATHS = new Set([
+  'pnpm-lock.yaml',
   'node_modules/.modules.yaml',
   'node_modules/.pnpm-workspace-state-v1.json',
   'node_modules/.pnpm/lock.yaml',
