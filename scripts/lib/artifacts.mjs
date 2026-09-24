@@ -14,7 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync 
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { parse } from 'yaml'
-import { ARTIFACTS_DIR, PROFILE_SOURCE_DIR, REPO_ROOT, RUNTIME_DIR, bundleArchivePath, runChecked } from './common.mjs'
+import { ARTIFACTS_DIR, PROFILE_SOURCE_DIR, REPO_ROOT, RUNTIME_DIR, bundleArchivePath, platformKey, runChecked } from './common.mjs'
 import { baseBundleDir } from './gate.mjs'
 import { lintComposition } from './patch-lint.mjs'
 import { fileDigest, fileIntegrity, treeDigest } from './tree-digest.mjs'
@@ -88,8 +88,7 @@ export function buildArtifacts(unit) {
   })
 
   const facts = {
-    'dsh.artifact_digest': digest,
-    'dsh.artifact_entries': entries.length,
+    [`dsh.artifacts_by_platform.${platformKey()}`]: { digest, entries: entries.length },
     'dsh.release_integrity': {
       [`@deepseek-ai/dsh@${unit.dsh.package_version}`]: lockedIntegrity('@deepseek-ai/dsh', unit.dsh.package_version),
       [`@deepseek-ai/dsh-base@${unit.dsh.package_version}`]: lockedIntegrity('@deepseek-ai/dsh-base', unit.dsh.package_version),
@@ -98,6 +97,7 @@ export function buildArtifacts(unit) {
     'sophia_bundle.archive_integrity': fileIntegrity(archive),
     'workspace_lock_sha256': fileDigest(join(REPO_ROOT, 'pnpm-lock.yaml'), 'sha256'),
   }
+  if (platformKey() === unit.dsh.artifact_primary_platform) facts['dsh.artifact_digest'] = digest
   return { facts, profileLock: resolveProfileLock(archive), lintFindings }
 }
 

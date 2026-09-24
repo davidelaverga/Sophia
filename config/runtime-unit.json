@@ -16,9 +16,15 @@
       "@sophia/dsh-bundle"
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
+    "artifact_primary_platform": "linux-x64",
     "artifact_digest": "sophia-tree-v1:sha256:11ccc202992d5f06c073f3f51f521f7687d096975e449df6994f52d2f471df19",
+    "artifacts_by_platform": {
+      "linux-x64": {
+        "digest": "sophia-tree-v1:sha256:11ccc202992d5f06c073f3f51f521f7687d096975e449df6994f52d2f471df19",
+        "entries": 32094
+      }
+    },
     "artifact_digest_scheme": "sophia-tree-v1: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines; excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
-    "artifact_entries": 32094,
     "release_integrity": {
       "@deepseek-ai/dsh@0.1.7-rc.1": "sha512-O1K076aCmqE+h4fB5J+mi3twNSAnh26OqHepaqvS5f1tccFnxhVyGpUmjcncVM5x1SX4niznmvsGrsRo9p733A==",
       "@deepseek-ai/dsh-base@0.1.7-rc.1": "sha512-o8KnLPs9gSHWLrX2NMrVi8Mat9SBQmiSmNudzl+M+qB8asgjyaB3OanQRJOxmfrQ30Xnb34lnAcC2wfASMP2Mw=="
@@ -84,6 +90,7 @@
     "launch_env": [
       "DSH_HOME=<per project/runtime unit>",
       "HOME=<throwaway>",
+      "TMPDIR=<inside the install; dsh spill-local writes here>",
       "DSH_TELEMETRY_DISABLED=1",
       "PATH=<node toolchain>:/usr/bin:/bin"
     ]

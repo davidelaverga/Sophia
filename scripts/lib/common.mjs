@@ -27,6 +27,15 @@ export const RUNTIME_DIR = join(ARTIFACTS_DIR, 'runtime')
 /** Launcher entry inside a runtime artifact: the package's declared `dsh` bin. */
 export const DSH_ENTRY = 'node_modules/@deepseek-ai/dsh/lib/bin.js'
 
+/**
+ * Platform key for platform-specific identities. The runtime artifact holds
+ * native prebuilds (koffi, node-pty) and platform-optional packages, so its
+ * digest is recorded per platform; the execution host is linux-x64.
+ */
+export function platformKey() {
+  return `${process.platform}-${process.arch}`
+}
+
 /** Default Harness home root for local profile installs, outside the product tree. */
 export const DEFAULT_HOME_ROOT = join(tmpdir(), 'sophia-next')
 
@@ -80,15 +89,19 @@ export function runChecked(command, args, options = {}) {
 
 /**
  * The launch environment for dsh: an explicit Harness home, a throwaway
- * process HOME, no inherited personal home, no credentials, telemetry off.
+ * process HOME and TMPDIR, no inherited personal home, no credentials,
+ * telemetry off.
  * Only the Node toolchain directory is on PATH (pnpm lives beside node).
  * @param {{ dshHome: string, home: string }} homes - absolute directories.
  * @returns {Record<string, string>} the complete child environment.
  */
 export function sanitizedEnv({ dshHome, home }) {
-  mkdirSync(home, { recursive: true })
+  // dsh's spill-local plugin writes under the process temp dir; keep it inside this install.
+  const tmp = join(home, 'tmp')
+  mkdirSync(tmp, { recursive: true })
   return {
     HOME: home,
+    TMPDIR: tmp,
     DSH_HOME: dshHome,
     PATH: [dirname(process.execPath), '/usr/bin', '/bin'].join(':'),
     DSH_TELEMETRY_DISABLED: '1',

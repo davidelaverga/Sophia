@@ -5,7 +5,7 @@
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { PROFILE_SOURCE_DIR, bundleArchivePath, runDsh, sanitizedEnv } from './common.mjs'
+import { PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
 import { PROFILE_FILES } from './artifacts.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
@@ -26,10 +26,11 @@ export function assertRecordedArtifacts(unit, runtimeDir) {
   if (integrity !== unit.sophia_bundle.archive_integrity) {
     throw new Error(`bundle archive ${integrity} is not the recorded ${unit.sophia_bundle.archive_integrity}`)
   }
+  const platform = platformKey()
+  const recorded = unit.dsh.artifacts_by_platform?.[platform]?.digest
+  if (!recorded) throw new Error(`no runtime artifact is recorded for ${platform}; run \`pnpm artifacts:record\` on ${platform} and commit it`)
   const { digest } = treeDigest(runtimeDir)
-  if (digest !== unit.dsh.artifact_digest) {
-    throw new Error(`runtime artifact ${digest} is not the recorded ${unit.dsh.artifact_digest}`)
-  }
+  if (digest !== recorded) throw new Error(`runtime artifact ${digest} is not the recorded ${platform} artifact ${recorded}`)
 }
 
 /**

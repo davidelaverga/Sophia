@@ -42,6 +42,11 @@ if (record) {
 let mismatches = 0
 for (const [path, value] of Object.entries(facts)) {
   const recorded = getPath(unit, path)
+  if (recorded === undefined) {
+    mismatches += 1
+    console.log(`UNRECORDED ${path}\n         built    ${JSON.stringify(value)}\n         nothing is recorded for this platform yet (primary: ${unit.dsh.artifact_primary_platform}); record it with \`pnpm artifacts:record\` in a reviewed commit`)
+    continue
+  }
   const same = JSON.stringify(recorded) === JSON.stringify(value)
   if (!same) mismatches += 1
   console.log(`${same ? 'match   ' : 'MISMATCH'} ${path}\n         built    ${JSON.stringify(value)}${same ? '' : `\n         recorded ${JSON.stringify(recorded)}`}`)

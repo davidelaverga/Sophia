@@ -28,6 +28,9 @@ test('the bundle pins the same dsh version as the runtime package and the runtim
 test('build facts are recorded, not left null or guessed', () => {
   const unit = JSON.parse(readFileSync(join(REPO_ROOT, 'config', 'runtime-unit.json'), 'utf8'))
   assert.match(unit.dsh.artifact_digest, /^sophia-tree-v1:sha256:[0-9a-f]{64}$/)
+  const primary = unit.dsh.artifacts_by_platform[unit.dsh.artifact_primary_platform]
+  assert.equal(primary.digest, unit.dsh.artifact_digest, 'artifact_digest is the primary platform digest')
+  assert.ok(primary.entries > 0)
   assert.match(unit.sophia_bundle.archive_sha256, /^[0-9a-f]{64}$/)
   assert.match(unit.sophia_bundle.archive_integrity, /^sha512-/)
   assert.match(unit.workspace_lock_sha256, /^[0-9a-f]{64}$/)
