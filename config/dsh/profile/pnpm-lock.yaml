@@ -15,7 +15,7 @@ importers:
 packages:
 
   '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz':
-    resolution: {integrity: sha512-jP6AsAJXkNu8wRG+TiRPacBYq1wmEy178U+/lEk4DU+xJGhnuVYKalk6sWK3SmgCYbiXiUQwEhB8fqx9xmNmYQ==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
+    resolution: {integrity: sha512-pmnUX+ZljWdQt5XhcJGWgxQ/kgVHWMNMAi5oxvuWH3Sa1TM6ijd8Bk7oVzFhjAP/DJe83bKgd1NnNzXG/MIi8g==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       '@deepseek-ai/dsh': 0.1.7-rc.1

@@ -60,6 +60,7 @@ All at `deepseek-ai/deepseek-harness@46a7f68b0922371ce7144b668b90e377d8e799f4`
 | DSH-05 | `packages/bundle/sdk-app/cordis.patch.yml` | Row `disabled: true` and `insert` syntax precedent | `packages/dsh-bundle/cordis.patch.yml` |
 | DSH-19 | `packages/util/package-manifest/src/types.ts` | `dsh.profile.bundles`, `dsh.bundle.patch`, `manifestVersion` | `config/dsh/profile/package.json`, `packages/dsh-bundle/package.json` |
 | DSH-20 | `packages/bundle/sdk-app/package.json` | Packaged bundle manifest shape (`exports` of `./cordis.patch.yml`, `files`) | `packages/dsh-bundle/package.json` |
+| DSH-15 | `packages/llm/llm-pi-ai/README.md`, and `docs/config-catalog.md` (`dsh-llm-pi-ai`, `dsh-agent-default-model`, `dsh-agent-loop`) | Provider routes, `apiKeyEnv` references, a `models` list declaring a model newer than the catalog, `reasoningEfforts`; default-model `{provider, model, reasoningEffort}`; the agent loop requires the `agents`, `sessions`, `llm`, `tools`, `systemPrompt` and `sessionProjections` services | `packages/dsh-bundle/cordis.patch.yml` (development model route), `scripts/lib/gate.mjs` (`checkModelRoute`) |
 | — | `apps/cli/README.md`, `apps/cli/reference/README.md` | `dsh plugin --profile … <pnpm args>`, dump flags, startup diagnostics under `$DSH_HOME/logs/` | `scripts/lib/profile.mjs` |
 
 Also consulted: the `dsh plugin` output at the pin. A non-shipped profile

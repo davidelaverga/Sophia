@@ -137,6 +137,16 @@ test('adverse: installed bundle files that differ from the recorded archive are 
   assert.ok(findingCodes(gate).includes('bundle_files_mismatch'))
 })
 
+test('adverse: a bundle selecting a model route other than the recorded one is rejected', () => {
+  const gate = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    writeFileSync(file, readFileSync(file, 'utf8').replace('    model: gpt-6-luna\n', '    model: gpt-6-astra\n'))
+  }))
+  assert.equal(gate.dump.status, 0, 'upstream composes any route without complaint')
+  assert.equal(gate.ok, false)
+  assert.ok(findingCodes(gate).includes('model_route_invalid'))
+})
+
 test('adverse: a profile without the recorded archive cannot be checked and is rejected', () => {
   const gate = gateOf(variant((profile) => rmSync(join(profile, unit.sophia_bundle.archive))))
   assert.equal(gate.ok, false)

@@ -36,6 +36,34 @@ cannot contain its own hash. The release tag records it, and
 `pnpm artifacts` proves that any checkout reproduces the recorded archive
 bytes.
 
+## Model route
+
+`config/runtime-unit.json#model_route` records the route every Agent starts
+on. Two rows of the Sophia bundle patch set it:
+
+- `llm-pi-ai` declares the provider route;
+- `agent-default-model` selects it.
+
+| Field | Value |
+|---|---|
+| Status | **development route**, the owner's choice on 2026-09-24 ("OpenAI with GPT-6 Luna, high reasoning, for now") |
+| Adapter / provider / model | `@deepseek-ai/dsh-llm-pi-ai` / `openai` / `gpt-6-luna` |
+| Reasoning effort | `high` |
+| Credential | `OPENAI_API_KEY`, as a reference only. dsh resolves it per request. The launch environment passes it only when a caller names it, and a missing key fails the request with `MISSING_CREDENTIAL` |
+| Model entry | Declared in the patch. The pinned pi-ai (0.85.1) catalog predates `gpt-6-luna`, so the capacities and effort levels are copied from the pi-ai 0.87.1 catalog |
+| Release baseline | Decision D13 (`deepseek-official` / `deepseek-flash`) is unchanged. Returning to it means changing these two rows and recording a new unit |
+| Live verification | not yet: no `OPENAI_API_KEY` in the S1-03 build environment |
+
+At the pin, pi-ai keeps an unserviceable route as a silent editable
+diagnostic, and boot prints nothing. So the gate checks the composed rows
+against the record (`model_route_invalid`):
+
+- the Sophia bundle must set both rows;
+- the default model must select exactly the recorded provider, model and
+  effort;
+- the route must reference the recorded credential and carry no literal key;
+- the model must offer that effort.
+
 ## Commands
 
 ```bash

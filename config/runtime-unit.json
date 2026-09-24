@@ -1,8 +1,8 @@
 {
   "schema": "sophia.runtime-unit.v1",
-  "id": "sophia-runtime-s1-01",
+  "id": "sophia-runtime-s1-03-dev",
   "status": "built_not_ready",
-  "status_note": "Artifacts are built and identified; the control bridge reports not_ready until S1-03, so no runtime from this unit is healthy or deployable.",
+  "status_note": "Artifacts are built and identified. The bundle carries the development model route (openai/gpt-6-luna, high) and the control bridge still reports not_ready, so no runtime from this unit is healthy or deployable. Previous unit: sophia-runtime-s1-01.",
   "dsh": {
     "repository": "deepseek-ai/deepseek-harness",
     "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
@@ -47,6 +47,18 @@
     "pnpm": "11.7.0",
     "typescript": "6.0.3"
   },
+  "model_route": {
+    "status": "development_route",
+    "decided": "2026-09-24 by Davide (owner): use the OpenAI API with GPT-6 Luna at high reasoning for now",
+    "adapter": "@deepseek-ai/dsh-llm-pi-ai",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "reasoningEffort": "high",
+    "credential_ref": "OPENAI_API_KEY",
+    "model_entry_source": "pi-ai 0.87.1 catalog entry (the pinned pi-ai 0.85.1 predates gpt-6-luna), declared in the Sophia bundle patch",
+    "release_baseline": "D13: deepseek-official / deepseek-flash (unchanged; switching back is a bundle-patch change and a new recorded unit)",
+    "live_verified": false
+  },
   "workspace_lock_sha256": "c2347176cb30d35bbf827363a865fb2c07c1150178312e4fa05c78608f12a8bb",
   "google_sdk": {
     "package": "@google/genai",
@@ -75,9 +87,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f",
-    "archive_integrity": "sha512-jP6AsAJXkNu8wRG+TiRPacBYq1wmEy178U+/lEk4DU+xJGhnuVYKalk6sWK3SmgCYbiXiUQwEhB8fqx9xmNmYQ==",
-    "artifact_digest": "sha256:f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f",
+    "archive_sha256": "bd51fc9433166844a5f9b82be00b4ab38de74a182155bedfc67e1b210528fd1e",
+    "archive_integrity": "sha512-pmnUX+ZljWdQt5XhcJGWgxQ/kgVHWMNMAi5oxvuWH3Sa1TM6ijd8Bk7oVzFhjAP/DJe83bKgd1NnNzXG/MIi8g==",
+    "artifact_digest": "sha256:bd51fc9433166844a5f9b82be00b4ab38de74a182155bedfc67e1b210528fd1e",
     "bridge_protocol_version": 1,
     "bridge_readiness": "not_ready (control bridge is S1-03)"
   },

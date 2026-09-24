@@ -27,6 +27,44 @@
 - id: hmr
   disabled: true
 
+# Development model route (owner choice, 2026-09-24): OpenAI GPT-6 Luna at
+# high reasoning through the pi-ai adapter [DSH-15]. Decision D13's release
+# baseline (deepseek-official / deepseek-flash) is unchanged; switching back is
+# a change to these two rows plus a new recorded runtime unit.
+#
+# pi-ai 0.85.1 at the pin predates gpt-6-luna, so the route's `models` list
+# declares it. The values are copied from the pi-ai 0.87.1 catalog entry. The
+# key is a reference: dsh resolves OPENAI_API_KEY per request and the value
+# never enters configuration. Without it, a request fails with
+# MISSING_CREDENTIAL instead of silently switching provider.
+- id: llm-pi-ai
+  config:
+    providers:
+      openai:
+        apiKeyEnv: OPENAI_API_KEY
+        api: openai-responses
+        defaultMaxTokens: 128000
+        models:
+          - id: gpt-6-luna
+            name: GPT-6 Luna
+            contextWindow: 272000
+            input: [text, image]
+            reasoningEfforts:
+              off: none
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+
+# Every Agent the bridge creates starts on that route. This restates the row's
+# whole config, including the reasoning effort.
+- id: agent-default-model
+  config:
+    provider: openai
+    model: gpt-6-luna
+    reasoningEffort: high
+
 # Sophia's control-bridge row. At S1-01 the plugin validates its row config
 # and reports `not_ready`. The public Agent bridge and its service injections
 # land in S1-03, so this row deliberately declares no `inject` list yet.

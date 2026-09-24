@@ -104,6 +104,49 @@ export function diffAgainstArchive(archive, installedDir) {
   }
 }
 
+/**
+ * The model route is part of the runtime unit. At the pin, pi-ai keeps an
+ * unserviceable route as a silent editable diagnostic, and the boot prints
+ * nothing, so the composed rows are checked against the recorded route: the
+ * default model selects it, the Sophia bundle set both rows, the credential is
+ * a reference, and the chosen effort is one the model offers.
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ provider: string, model: string, reasoningEffort: string, credential_ref: string }} route - the recorded route.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkModelRoute(rows, route) {
+  const findings = []
+  const fail = (message) => findings.push({ code: 'model_route_invalid', message })
+  const row = (id) => rows.find((r) => r.id === id)
+  const selection = row('agent-default-model')
+  if (!selection || !selection.patchedBy.includes(BUNDLE)) {
+    fail(`agent-default-model must be set by ${BUNDLE}`)
+  } else {
+    const { provider, model, reasoningEffort } = selection.config ?? {}
+    if (provider !== route.provider || model !== route.model || reasoningEffort !== route.reasoningEffort) {
+      fail(`agent-default-model selects ${JSON.stringify({ provider, model, reasoningEffort })}, the unit records ${JSON.stringify({ provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort })}`)
+    }
+  }
+  const adapter = row('llm-pi-ai')
+  const profile = adapter?.config?.providers?.[route.provider]
+  if (!adapter || !adapter.patchedBy.includes(BUNDLE) || !profile) {
+    fail(`llm-pi-ai must declare the "${route.provider}" route in ${BUNDLE}`)
+    return findings
+  }
+  if (profile.apiKeyEnv !== route.credential_ref) {
+    fail(`route "${route.provider}" must reference ${route.credential_ref} through apiKeyEnv, found ${JSON.stringify(profile.apiKeyEnv)}`)
+  }
+  const literal = JSON.stringify(adapter.config).match(/"(apiKey|key|token|secret)"\s*:/i)
+  if (literal) fail(`llm-pi-ai config carries a literal credential field "${literal[1]}"; only apiKeyEnv references are allowed`)
+  const entry = (profile.models ?? []).find((m) => m.id === route.model)
+  if (!entry) {
+    fail(`route "${route.provider}" does not list model "${route.model}"`)
+  } else if (!entry.reasoningEfforts || !(route.reasoningEffort in entry.reasoningEfforts)) {
+    fail(`model "${route.model}" does not offer reasoning effort "${route.reasoningEffort}"`)
+  }
+  return findings
+}
+
 /** Directories from `start` to the filesystem root. */
 function ancestors(start) {
   const out = []
@@ -238,6 +281,7 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
         findings.push({ code: 'required_disable_missing', message: `${id} must be disabled by ${BUNDLE}` })
       }
     }
+    if (unit.model_route) findings.push(...checkModelRoute(rows, unit.model_route))
     const loops = byId.get('agent-loop') ?? []
     if (loops.length !== 1 || loops[0].origin !== BASE) {
       findings.push({ code: 'agent_loop_not_single', message: `expected exactly one agent-loop row from ${BASE}, found ${loops.length}` })
