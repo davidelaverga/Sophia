@@ -1,8 +1,11 @@
-# sophia-next
+# Sophia
 
-Sophia's new product repository: a shared creation and engineering workspace
-built on the official DeepSeek Harness (`dsh`) launcher and a Sophia profile
-bundle. It is a separate repository from
+The space where the project of your dreams becomes reality.
+
+This is Sophia's new product repository: a shared creation and engineering
+workspace built on the official DeepSeek Harness (`dsh`) launcher and a Sophia
+profile bundle. The v0.3 implementation pack calls it `sophia-next`. It is a
+separate repository from
 [Sophia-Agent](https://github.com/davidelaverga/Sophia-Agent), which stays the
 live application. That repository and its outstanding obligations are not
 modified by this one.
