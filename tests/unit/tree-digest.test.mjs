@@ -24,9 +24,20 @@ test('the digest ignores location-bound shims, install-time bookkeeping and the 
   const b = fixture('#!/bin/sh\nexport NODE_PATH=/another/place\n', 'prunedAt: Tue\n', "x@file:///second/checkout: {}\n")
   try {
     assert.equal(treeDigest(a).digest, treeDigest(b).digest)
-    assert.match(treeDigest(a).digest, /^sophia-tree-v1:sha256:[0-9a-f]{64}$/)
+    assert.match(treeDigest(a).digest, /^sophia-tree-v2:sha256:[0-9a-f]{64}$/)
   } finally {
     rmSync(a, { recursive: true }); rmSync(b, { recursive: true })
+  }
+})
+
+test('empty scratch directories left by install scripts do not change the digest', () => {
+  const root = fixture('', '')
+  try {
+    const before = treeDigest(root).digest
+    mkdirSync(join(root, 'node_modules', 'pkg', 'node_modules', '.tmp'), { recursive: true })
+    assert.equal(treeDigest(root).digest, before)
+  } finally {
+    rmSync(root, { recursive: true })
   }
 })
 

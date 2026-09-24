@@ -17,14 +17,14 @@
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
     "artifact_primary_platform": "linux-x64",
-    "artifact_digest": "sophia-tree-v1:sha256:11ccc202992d5f06c073f3f51f521f7687d096975e449df6994f52d2f471df19",
+    "artifact_digest": "sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771",
     "artifacts_by_platform": {
       "linux-x64": {
-        "digest": "sophia-tree-v1:sha256:11ccc202992d5f06c073f3f51f521f7687d096975e449df6994f52d2f471df19",
-        "entries": 32094
+        "digest": "sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771",
+        "entries": 27209
       }
     },
-    "artifact_digest_scheme": "sophia-tree-v1: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines; excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
+    "artifact_digest_scheme": "sophia-tree-v2: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines for files and symlinks only (directories are implied; empty ones are install-script scratch); excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
     "release_integrity": {
       "@deepseek-ai/dsh@0.1.7-rc.1": "sha512-O1K076aCmqE+h4fB5J+mi3twNSAnh26OqHepaqvS5f1tccFnxhVyGpUmjcncVM5x1SX4niznmvsGrsRo9p733A==",
       "@deepseek-ai/dsh-base@0.1.7-rc.1": "sha512-o8KnLPs9gSHWLrX2NMrVi8Mat9SBQmiSmNudzl+M+qB8asgjyaB3OanQRJOxmfrQ30Xnb34lnAcC2wfASMP2Mw=="

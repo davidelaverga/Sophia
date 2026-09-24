@@ -73,7 +73,8 @@ reason list keeps composition failures separate from
 3. **Workspace packages, bundle exports, artifacts, digests.**
    `@sophia/dsh-bundle` (manifest `dsh.bundle.patch`, `cordis.patch.yml`,
    plugin entry) and `@sophia/dsh-runtime`. Recorded:
-   - runtime artifact `sophia-tree-v1:sha256:11ccc202…df19` (linux-x64);
+   - runtime artifact `sophia-tree-v2:sha256:0b6991d1…7771` (linux-x64);
+     it was `sophia-tree-v1:sha256:11ccc202…df19` at `b779843` (see below)
    - bundle archive sha256 `f0698952…4b0f`;
    - dsh / dsh-base release sha512 integrities, matching the registry.
 4. **Profile install, trusted dump, startup diagnostics.**
@@ -118,6 +119,16 @@ DSH-19, DSH-20 (see [SOURCE_MAP §2](../SOURCE_MAP.md)).
   deploy-local lock embeds absolute paths. Fixed in `94f0e5f` and re-proven.
   The digest is keyed by platform because native prebuilds differ by
   platform.
+- **Tree digest v2 after the first GitHub CI run.** On the ubuntu-24.04
+  runner, everything reproduced except the runtime digest: 32089 entries
+  against 32094 recorded. The runner's tree was exactly this environment's
+  tree deployed with `--ignore-scripts`. The dependency install scripts
+  change no file content here; they only leave five empty scratch
+  directories (`node_modules`, `node_modules/.tmp`) on some hosts.
+  `sophia-tree-v2` digests files and symlinks only, which makes the scripted
+  and unscripted trees identical. The earlier second-checkout evidence
+  (`second-checkout.log`) is the v1 result at `b779843`. The GitHub CI run
+  on this PR is the cross-host reproduction for v2.
 - **`TMPDIR` pinned inside the install.** dsh's spill directory had leaked
   into the shared `/tmp`.
 - **Bridge row declares no `inject` yet.** The pack's specimen lists
