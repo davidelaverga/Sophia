@@ -68,7 +68,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `apps/api/` | partial | S1-02, S1-05, S1-09, S1-11 | Built: Fastify HTTP, Supabase JWT auth (JWKS), project creation, command admission, snapshot, SSE |
-| `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in, project start, the S1-02 work view (snapshot + live feed + goal commands) |
+| `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in, project start, the project shell with view routes (`/p/<project>/<view>`), per-viewer lenses and drafts, the work view (snapshot + live feed + goal commands). S1-04 continues with the room and voice dock |
 | `apps/worker/` | unbuilt | S1-06, S1-08, S1-11, S1-13 | SQL job/outbox consumers and scheduler |
 | `apps/execution-host/` | unbuilt | S1-03, S1-07, S1-12 | Private VM supervisor: runtime, workspace, artifact gateway |
 | `apps/media-bridge/` | unbuilt | S1-05 | Raw LiveKit RTC ↔ Google Live |
