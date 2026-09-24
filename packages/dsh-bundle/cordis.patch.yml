@@ -27,6 +27,12 @@
 - id: hmr
   disabled: true
 
+# No extra model call per session to title it. Worker sessions need no title,
+# and the call would send the first prompt to the provider a second time. The
+# dsh SDK bundle disables the same row.
+- id: session-title-llm
+  disabled: true
+
 # Development model route (owner choice, 2026-09-24): OpenAI GPT-6 Luna at
 # high reasoning through the pi-ai adapter [DSH-15]. Decision D13's release
 # baseline (deepseek-official / deepseek-flash) is unchanged; switching back is
@@ -65,11 +71,16 @@
     model: gpt-6-luna
     reasoningEffort: high
 
-# Sophia's control-bridge row. At S1-01 the plugin validates its row config
-# and reports `not_ready`. The public Agent bridge and its service injections
-# land in S1-03, so this row deliberately declares no `inject` list yet.
+# Sophia's control bridge (S1-03). The plugin itself declares its service
+# injections (agents, sessions, tools). The config names environment
+# variables the execution-host supervisor sets. It holds no URL or secret:
+# without a service binding the bridge stays `not_ready`.
 - insert:
     - id: sophia-control-bridge
       name: '@sophia/dsh-bundle'
       config:
         protocolVersion: 1
+        serviceUrlEnv: SOPHIA_BRIDGE_URL
+        tokenEnv: SOPHIA_BRIDGE_TOKEN
+        runtimeUnitEnv: SOPHIA_RUNTIME_UNIT
+        workspaceEnv: SOPHIA_WORKSPACE

@@ -50,9 +50,9 @@ test('each upstream skip/warning line is classified', () => {
   assert.deepEqual(classifyDumpStderr(''), [])
 })
 
-test('health is never true at S1-01 and names composition failures separately', () => {
+test('the static gate never claims health and names composition failures separately', () => {
   assert.deepEqual(healthOf([{ id: 'composition', ok: true, findings: [] }]), {
-    healthy: false, reasons: ['bridge_not_ready: control bridge not implemented (S1-03)'],
+    healthy: false, reasons: ['bridge_readiness_unobserved: readiness is reported by the running bridge, not by files'],
   })
   assert.equal(healthOf([{ id: 'bundle_installed', ok: false, findings: [{}] }]).reasons[0], 'composition:bundle_installed')
 })

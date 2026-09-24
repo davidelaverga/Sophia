@@ -20,8 +20,8 @@ const BASE = '@deepseek-ai/dsh-base'
 const BUNDLE = '@sophia/dsh-bundle'
 const BRIDGE_ROW = 'sophia-control-bridge'
 
-/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6). */
-export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr']
+/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6, plus the per-session title model call since S1-03). */
+export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr', 'session-title-llm']
 
 /** App-surface rows that bring their own root loop or endpoint; none belong in sophia-runtime. */
 export const FOREIGN_ROOT_ROWS = ['webserver', 'modules', 'connection', 'headless-runner', 'acp', 'sdk-jsonrpc-server']
@@ -311,12 +311,14 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
 }
 
 /**
- * Health needs a verified composition AND a bridge that reports ready. The
- * S1-01 bridge never reports ready, so every S1-01 runtime is unhealthy; a
- * composition failure adds its own reasons so the two causes stay distinct.
+ * Health needs a verified composition AND a running bridge that reported
+ * `ready` to the Sophia service. This gate checks composition statically, so
+ * its verdict is never `healthy`: readiness is observed at runtime by the
+ * service (and the execution-host supervisor), never inferred from files.
+ * Composition failures keep their own reasons so the two causes stay distinct.
  */
 export function healthOf(checks) {
   const reasons = checks.filter((c) => !c.ok).map((c) => `composition:${c.id}`)
-  reasons.push('bridge_not_ready: control bridge not implemented (S1-03)')
+  reasons.push('bridge_readiness_unobserved: readiness is reported by the running bridge, not by files')
   return { healthy: false, reasons }
 }

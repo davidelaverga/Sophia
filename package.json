@@ -20,7 +20,7 @@
     "artifacts:record": "node scripts/build-artifacts.mjs --record",
     "profile:install": "node scripts/profile-install.mjs",
     "profile:verify": "node scripts/profile-verify.mjs",
-    "check": "pnpm toolchain:check && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration"
+    "check": "pnpm toolchain:check && pnpm build && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration"
   },
   "devDependencies": {
     "yaml": "2.9.1"
