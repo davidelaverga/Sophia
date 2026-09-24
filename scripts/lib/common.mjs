@@ -72,7 +72,13 @@ export function run(command, args, options = {}) {
   // A deliberate deadline (bounded boot) reports ETIMEDOUT with the kill signal set.
   const timedOut = options.timeout !== undefined && result.error?.code === 'ETIMEDOUT'
   if (result.error && !timedOut) throw result.error
-  return { status: result.status, signal: result.signal, timedOut, stdout: result.stdout ?? '', stderr: result.stderr ?? '' }
+  return {
+    status: result.status,
+    signal: result.signal,
+    timedOut,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  }
 }
 
 /**
@@ -82,7 +88,9 @@ export function run(command, args, options = {}) {
 export function runChecked(command, args, options = {}) {
   const result = run(command, args, options)
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} exited ${result.status ?? result.signal}\n${result.stdout}\n${result.stderr}`)
+    throw new Error(
+      `${command} ${args.join(' ')} exited ${result.status ?? result.signal}\n${result.stdout}\n${result.stderr}`,
+    )
   }
   return result.stdout
 }
@@ -147,7 +155,9 @@ export function runDsh(runtimeDir, args, { env, cwd, timeoutMs }) {
  */
 export function normalizePaths(text, placeholders) {
   let out = text
-  const entries = Object.entries(placeholders).filter(([path]) => path).toSorted((a, b) => b[0].length - a[0].length)
+  const entries = Object.entries(placeholders)
+    .filter(([path]) => path)
+    .toSorted((a, b) => b[0].length - a[0].length)
   for (const [path, placeholder] of entries) out = out.split(path).join(placeholder)
   return out
 }

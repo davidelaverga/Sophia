@@ -25,12 +25,15 @@ const DUMP = `# == @deepseek-ai/dsh-base
 
 test('dump rows carry the source layer printed above them', () => {
   const rows = parseDump(DUMP)
-  assert.deepEqual(rows.map((r) => [r.id, r.origin, r.patchedBy]), [
-    ['timer', '@deepseek-ai/dsh-base', []],
-    ['hmr', '@deepseek-ai/dsh-base', ['@sophia/dsh-bundle']],
-    ['plugin-manager', '@deepseek-ai/dsh-base', []],
-    ['sophia-control-bridge', '@sophia/dsh-bundle', []],
-  ])
+  assert.deepEqual(
+    rows.map((r) => [r.id, r.origin, r.patchedBy]),
+    [
+      ['timer', '@deepseek-ai/dsh-base', []],
+      ['hmr', '@deepseek-ai/dsh-base', ['@sophia/dsh-bundle']],
+      ['plugin-manager', '@deepseek-ai/dsh-base', []],
+      ['sophia-control-bridge', '@sophia/dsh-bundle', []],
+    ],
+  )
   assert.equal(rows[1].disabled, true)
   assert.deepEqual(rows[2].disabled, { $js: "!ctx.get('profileContext')" })
 })
@@ -44,15 +47,20 @@ test('each upstream skip/warning line is classified', () => {
     'something else entirely',
     '',
   ].join('\n')
-  assert.deepEqual(classifyDumpStderr(stderr).map((f) => f.code), [
-    'bundle_missing', 'bundle_incompatible', 'patch_comments_only', 'patch_unmatched_row', 'dump_diagnostic',
-  ])
+  assert.deepEqual(
+    classifyDumpStderr(stderr).map((f) => f.code),
+    ['bundle_missing', 'bundle_incompatible', 'patch_comments_only', 'patch_unmatched_row', 'dump_diagnostic'],
+  )
   assert.deepEqual(classifyDumpStderr(''), [])
 })
 
 test('health is never true at S1-01 and names composition failures separately', () => {
   assert.deepEqual(healthOf([{ id: 'composition', ok: true, findings: [] }]), {
-    healthy: false, reasons: ['bridge_not_ready: control bridge not implemented (S1-03)'],
+    healthy: false,
+    reasons: ['bridge_not_ready: control bridge not implemented (S1-03)'],
   })
-  assert.equal(healthOf([{ id: 'bundle_installed', ok: false, findings: [{}] }]).reasons[0], 'composition:bundle_installed')
+  assert.equal(
+    healthOf([{ id: 'bundle_installed', ok: false, findings: [{}] }]).reasons[0],
+    'composition:bundle_installed',
+  )
 })

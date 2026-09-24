@@ -38,17 +38,35 @@ export function parsePatch(text, layer) {
     return { rows: null, findings: [{ code: 'patch_unparsable', layer, message: String(error.message ?? error) }] }
   }
   if (value === null || value === undefined) {
-    return { rows: null, findings: [{ code: 'patch_comments_only', layer, message: 'empty or comments-only patch; write a literal [] for an intentionally empty layer' }] }
+    return {
+      rows: null,
+      findings: [
+        {
+          code: 'patch_comments_only',
+          layer,
+          message: 'empty or comments-only patch; write a literal [] for an intentionally empty layer',
+        },
+      ],
+    }
   }
   if (!Array.isArray(value)) {
-    return { rows: null, findings: [{ code: 'patch_not_array', layer, message: 'a patch must be a top-level YAML array of loader patch entries' }] }
+    return {
+      rows: null,
+      findings: [
+        { code: 'patch_not_array', layer, message: 'a patch must be a top-level YAML array of loader patch entries' },
+      ],
+    }
   }
   const findings = []
   value.forEach((row, index) => {
     const hasId = row !== null && typeof row === 'object' && typeof row.id === 'string'
     const hasInsert = row !== null && typeof row === 'object' && Array.isArray(row.insert)
     if (hasId === hasInsert) {
-      findings.push({ code: 'patch_row_invalid', layer, message: `row ${index} must have exactly one of \`id\` (patch) or \`insert\` (list)` })
+      findings.push({
+        code: 'patch_row_invalid',
+        layer,
+        message: `row ${index} must have exactly one of \`id\` (patch) or \`insert\` (list)`,
+      })
     }
   })
   return { rows: value, findings }
@@ -79,16 +97,29 @@ export function lintLayer(rows, knownIds, { layer, requireRows }) {
   const findings = []
   const ids = new Set(knownIds)
   if (requireRows && rows.length === 0) {
-    findings.push({ code: 'patch_no_rows', layer, message: 'layer contributes no rows; the bundle would compose as if absent' })
+    findings.push({
+      code: 'patch_no_rows',
+      layer,
+      message: 'layer contributes no rows; the bundle would compose as if absent',
+    })
   }
   for (const row of rows) {
     if (typeof row?.id === 'string' && !Array.isArray(row.insert)) {
       if (!ids.has(row.id)) {
-        findings.push({ code: 'patch_unmatched_row', layer, message: `patch targets "${row.id}", which no lower layer defines` })
+        findings.push({
+          code: 'patch_unmatched_row',
+          layer,
+          message: `patch targets "${row.id}", which no lower layer defines`,
+        })
       }
     } else if (Array.isArray(row?.insert)) {
       for (const id of insertedIds([row])) {
-        if (ids.has(id)) findings.push({ code: 'patch_duplicate_insert', layer, message: `inserts "${id}", which a lower layer already defines` })
+        if (ids.has(id))
+          findings.push({
+            code: 'patch_duplicate_insert',
+            layer,
+            message: `inserts "${id}", which a lower layer already defines`,
+          })
         ids.add(id)
       }
     }
@@ -118,7 +149,8 @@ export function lintComposition({ basePatch, bundlePatch, profilePatch }) {
   if (profilePatch !== undefined) {
     const profile = parsePatch(readFileSync(profilePatch, 'utf8'), 'profile cordis.patch.yml')
     findings.push(...profile.findings)
-    if (profile.rows !== null) findings.push(...lintLayer(profile.rows, ids, { layer: 'profile cordis.patch.yml', requireRows: false }).findings)
+    if (profile.rows !== null)
+      findings.push(...lintLayer(profile.rows, ids, { layer: 'profile cordis.patch.yml', requireRows: false }).findings)
   }
   return findings
 }

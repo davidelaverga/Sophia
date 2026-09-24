@@ -60,12 +60,14 @@ test('adverse: a missing Sophia bundle is rejected although dsh boots the base a
 })
 
 test('adverse: an incompatible Sophia bundle (wrong dsh peer) is rejected', () => {
-  const gate = gateOf(variant((profile) => {
-    const manifest = join(bundleDir(profile), 'package.json')
-    const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
-    pkg.peerDependencies['@deepseek-ai/dsh'] = '0.2.0'
-    writeFileSync(manifest, JSON.stringify(pkg, null, 2))
-  }))
+  const gate = gateOf(
+    variant((profile) => {
+      const manifest = join(bundleDir(profile), 'package.json')
+      const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
+      pkg.peerDependencies['@deepseek-ai/dsh'] = '0.2.0'
+      writeFileSync(manifest, JSON.stringify(pkg, null, 2))
+    }),
+  )
   assert.equal(gate.dump.status, 0, 'upstream skips the bundle and continues')
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('bundle_incompatible'))
@@ -73,7 +75,9 @@ test('adverse: an incompatible Sophia bundle (wrong dsh peer) is rejected', () =
 })
 
 test('adverse: a comments-only bundle patch is diagnosed, not accepted as configuration', () => {
-  const gate = gateOf(variant((profile) => writeFileSync(join(bundleDir(profile), 'cordis.patch.yml'), '# rows removed\n')))
+  const gate = gateOf(
+    variant((profile) => writeFileSync(join(bundleDir(profile), 'cordis.patch.yml'), '# rows removed\n')),
+  )
   assert.equal(gate.dump.status, 0)
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('patch_comments_only'))
@@ -89,10 +93,15 @@ test('adverse: an empty [] bundle patch (silently accepted upstream) is rejected
 })
 
 test('adverse: a wrong-row patch is diagnosed, not a silent no-op', () => {
-  const gate = gateOf(variant((profile) => {
-    const file = join(bundleDir(profile), 'cordis.patch.yml')
-    writeFileSync(file, readFileSync(file, 'utf8').replace('- id: session-log-deepseek\n', '- id: session-log-deepseek-typo\n'))
-  }))
+  const gate = gateOf(
+    variant((profile) => {
+      const file = join(bundleDir(profile), 'cordis.patch.yml')
+      writeFileSync(
+        file,
+        readFileSync(file, 'utf8').replace('- id: session-log-deepseek\n', '- id: session-log-deepseek-typo\n'),
+      )
+    }),
+  )
   assert.equal(gate.dump.status, 0, 'upstream only warns about an unmatched row')
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('patch_unmatched_row'))
@@ -108,12 +117,14 @@ test('adverse: a comments-only profile patch fails the dump and the lint', () =>
 })
 
 test('adverse: another app bundle (a second root loop) in the profile is rejected', () => {
-  const gate = gateOf(variant((profile) => {
-    const manifest = join(profile, 'package.json')
-    const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
-    pkg.dsh.profile.bundles.push('@deepseek-ai/dsh-headless')
-    writeFileSync(manifest, JSON.stringify(pkg, null, 2))
-  }))
+  const gate = gateOf(
+    variant((profile) => {
+      const manifest = join(profile, 'package.json')
+      const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
+      pkg.dsh.profile.bundles.push('@deepseek-ai/dsh-headless')
+      writeFileSync(manifest, JSON.stringify(pkg, null, 2))
+    }),
+  )
   assert.equal(gate.ok, false)
   assert.equal(gate.dump.status, 0, 'upstream composes the headless runner without complaint')
   assert.ok(findingCodes(gate).includes('profile_bundles_mismatch'))
@@ -122,16 +133,20 @@ test('adverse: another app bundle (a second root loop) in the profile is rejecte
 })
 
 test('adverse: a bundle archive other than the recorded bytes is rejected', () => {
-  const gate = gateOf(variant((profile) => writeFileSync(join(profile, unit.sophia_bundle.archive), 'not the recorded archive')))
+  const gate = gateOf(
+    variant((profile) => writeFileSync(join(profile, unit.sophia_bundle.archive), 'not the recorded archive')),
+  )
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('bundle_archive_mismatch'))
 })
 
 test('adverse: installed bundle files that differ from the recorded archive are rejected', () => {
-  const gate = gateOf(variant((profile) => {
-    const entry = join(bundleDir(profile), 'dist', 'index.js')
-    writeFileSync(entry, `${readFileSync(entry, 'utf8')}\n// modified after install\n`)
-  }))
+  const gate = gateOf(
+    variant((profile) => {
+      const entry = join(bundleDir(profile), 'dist', 'index.js')
+      writeFileSync(entry, `${readFileSync(entry, 'utf8')}\n// modified after install\n`)
+    }),
+  )
   assert.equal(gate.dump.status, 0, 'the dump only sees composition, not the bridge code')
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('bundle_files_mismatch'))
@@ -148,7 +163,11 @@ test('profile:verify refuses a runtime artifact that is not the recorded one', (
   const original = readFileSync(tampered)
   try {
     writeFileSync(tampered, Buffer.concat([original, Buffer.from('\n')]))
-    const result = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts', 'profile-verify.mjs'), '--home', pristine.root], { encoding: 'utf8' })
+    const result = spawnSync(
+      process.execPath,
+      [join(REPO_ROOT, 'scripts', 'profile-verify.mjs'), '--home', pristine.root],
+      { encoding: 'utf8' },
+    )
     assert.equal(result.status, 1)
     assert.match(result.stderr, /profile:verify refused: runtime artifact .* is not the recorded .* artifact/)
   } finally {
@@ -179,7 +198,9 @@ test('boot: the official launcher stays up with the Sophia row loaded and report
 })
 
 test('boot: a required-entry failure exits nonzero and its full startup diagnostics are retained', () => {
-  const layout = variant((profile) => writeFileSync(join(profile, 'cordis.patch.yml'), '- id: agent-loop\n  config:\n    agents: 5\n'))
+  const layout = variant((profile) =>
+    writeFileSync(join(profile, 'cordis.patch.yml'), '- id: agent-loop\n  config:\n    agents: 5\n'),
+  )
   const boot = bootProfile({ unit, runtimeDir: RUNTIME_DIR, layout, seconds: 30 })
   assert.equal(boot.timedOut, false)
   assert.equal(boot.status, 1)

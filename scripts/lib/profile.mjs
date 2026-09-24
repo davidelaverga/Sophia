@@ -28,9 +28,13 @@ export function assertRecordedArtifacts(unit, runtimeDir) {
   }
   const platform = platformKey()
   const recorded = unit.dsh.artifacts_by_platform?.[platform]?.digest
-  if (!recorded) throw new Error(`no runtime artifact is recorded for ${platform}; run \`pnpm artifacts:record\` on ${platform} and commit it`)
+  if (!recorded)
+    throw new Error(
+      `no runtime artifact is recorded for ${platform}; run \`pnpm artifacts:record\` on ${platform} and commit it`,
+    )
   const { digest } = treeDigest(runtimeDir)
-  if (digest !== recorded) throw new Error(`runtime artifact ${digest} is not the recorded ${platform} artifact ${recorded}`)
+  if (digest !== recorded)
+    throw new Error(`runtime artifact ${digest} is not the recorded ${platform} artifact ${recorded}`)
 }
 
 /**
@@ -46,13 +50,19 @@ export function installProfile({ unit, runtimeDir, layout, force = false }) {
   }
   mkdirSync(profileDir, { recursive: true })
   mkdirSync(layout.cwd, { recursive: true })
-  for (const file of [...PROFILE_FILES, 'pnpm-lock.yaml']) copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
+  for (const file of [...PROFILE_FILES, 'pnpm-lock.yaml'])
+    copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
   copyFileSync(bundleArchivePath(unit), join(profileDir, unit.sophia_bundle.archive))
-  const result = runDsh(runtimeDir, ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline'], {
-    env: sanitizedEnv(layout),
-    cwd: layout.cwd,
-  })
-  if (result.status !== 0) throw new Error(`dsh plugin install exited ${result.status}\n${result.stdout}\n${result.stderr}`)
+  const result = runDsh(
+    runtimeDir,
+    ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline'],
+    {
+      env: sanitizedEnv(layout),
+      cwd: layout.cwd,
+    },
+  )
+  if (result.status !== 0)
+    throw new Error(`dsh plugin install exited ${result.status}\n${result.stdout}\n${result.stderr}`)
   return result
 }
 
@@ -67,8 +77,13 @@ export function bootProfile({ unit, runtimeDir, layout, seconds }) {
     cwd: layout.cwd,
     timeoutMs: seconds * 1000,
   })
-  const bridgeLine = result.stderr.split('\n').find((line) => line.startsWith('[sophia-control-bridge] loaded ')) ?? null
+  const bridgeLine =
+    result.stderr.split('\n').find((line) => line.startsWith('[sophia-control-bridge] loaded ')) ?? null
   const logs = join(layout.dshHome, 'logs')
-  const diagnostics = existsSync(logs) ? readdirSync(logs).filter((f) => f.startsWith('startup-')).map((f) => join(logs, f)) : []
+  const diagnostics = existsSync(logs)
+    ? readdirSync(logs)
+        .filter((f) => f.startsWith('startup-'))
+        .map((f) => join(logs, f))
+    : []
   return { ...result, bridgeLine, diagnostics }
 }
