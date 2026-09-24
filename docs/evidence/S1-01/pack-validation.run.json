@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "scope": "documentation_integrity_only",
+  "checked_at_utc": "2026-09-24T20:41:34.109046+00:00",
+  "counts": {
+    "files": 60,
+    "sources": 56,
+    "goals": 24,
+    "detailed_sprint1_goals": 14,
+    "local_links_checked": 113,
+    "source_mentions_checked": 282
+  },
+  "contract_specimen_schema_validation": "passed",
+  "not_tested": [
+    "external link availability",
+    "installed provider capability",
+    "TypeScript compilation",
+    "dsh boot",
+    "live audio or images",
+    "native engineering sessions",
+    "SQL migrations",
+    "application deployment",
+    "runtime configuration-schema acceptance"
+  ],
+  "errors": [],
+  "warnings": []
+}

@@ -1,0 +1,49 @@
+{
+  "repository": "deepseek-ai/deepseek-harness",
+  "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+  "tag": "dsh-v0.1.7-rc.1",
+  "package_version": "0.1.7-rc.1",
+  "checkout": "<outside product tree>",
+  "checks": [
+    {
+      "id": "head_is_pin",
+      "ok": true,
+      "detail": "46a7f68b0922371ce7144b668b90e377d8e799f4"
+    },
+    {
+      "id": "tracked_files_unmodified",
+      "ok": true,
+      "detail": "clean"
+    },
+    {
+      "id": "root_version",
+      "ok": true,
+      "detail": "@deepseek-ai/dsh-root@0.1.7-rc.1"
+    },
+    {
+      "id": "package_manager",
+      "ok": true,
+      "detail": "pnpm@11.7.0"
+    },
+    {
+      "id": "node_engine_admits_24",
+      "ok": true,
+      "detail": "^22.19.0 || >=24.0.0"
+    },
+    {
+      "id": "tag_points_at_pin",
+      "ok": true,
+      "detail": "dsh-v0.1.7-rc.1 -> 46a7f68b0922371ce7144b668b90e377d8e799f4"
+    },
+    {
+      "id": "release_matches_source",
+      "ok": true,
+      "detail": "267 @deepseek-ai package entries at 0.1.7-rc.1; 846 shipped files byte-identical to the pin; 0 differing"
+    }
+  ],
+  "release": {
+    "packages": 267,
+    "identical_files": 846,
+    "differing": []
+  }
+}

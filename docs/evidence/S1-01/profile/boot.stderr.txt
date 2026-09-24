@@ -1,0 +1,1 @@
+[sophia-control-bridge] loaded @sophia/dsh-bundle@0.1.0 protocolVersion=1 readiness=not_ready reason="control bridge not implemented (S1-03)"

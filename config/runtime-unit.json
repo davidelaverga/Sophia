@@ -1,0 +1,125 @@
+{
+  "schema": "sophia.runtime-unit.v1",
+  "id": "sophia-runtime-s1-01",
+  "status": "built_not_ready",
+  "status_note": "Artifacts are built and identified; the control bridge reports not_ready until S1-03, so no runtime from this unit is healthy or deployable.",
+  "dsh": {
+    "repository": "deepseek-ai/deepseek-harness",
+    "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+    "tag": "dsh-v0.1.7-rc.1",
+    "package_version": "0.1.7-rc.1",
+    "launcher": "dsh",
+    "launcher_entry": "node_modules/@deepseek-ai/dsh/lib/bin.js",
+    "profile": "sophia-runtime",
+    "profile_bundles": [
+      "@deepseek-ai/dsh-base",
+      "@sophia/dsh-bundle"
+    ],
+    "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
+    "artifact_digest": "sophia-tree-v1:sha256:275648ebe7ec4f1c543f7bbc17a880ba0e0875dcecbc02d79ce62b6cf6bee791",
+    "artifact_digest_scheme": "sophia-tree-v1: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines; excludes node_modules/.bin shims and pnpm install-time bookkeeping (scripts/lib/tree-digest.mjs)",
+    "artifact_entries": 32095,
+    "release_integrity": {
+      "@deepseek-ai/dsh@0.1.7-rc.1": "sha512-O1K076aCmqE+h4fB5J+mi3twNSAnh26OqHepaqvS5f1tccFnxhVyGpUmjcncVM5x1SX4niznmvsGrsRo9p733A==",
+      "@deepseek-ai/dsh-base@0.1.7-rc.1": "sha512-o8KnLPs9gSHWLrX2NMrVi8Mat9SBQmiSmNudzl+M+qB8asgjyaB3OanQRJOxmfrQ30Xnb34lnAcC2wfASMP2Mw=="
+    },
+    "release_source": "npm registry release published from tag dsh-v0.1.7-rc.1; shipped static files are checked byte-for-byte against the pinned source checkout by scripts/dsh-source.mjs --verify-release",
+    "source_build": {
+      "status": "blocked_in_s1_01_environment",
+      "reason": "the upstream frozen lock fetches xlsx from cdn.sheetjs.com, which the S1-01 build environment's egress policy denied (HTTP 403 on CONNECT); the full upstream source build was not completed"
+    }
+  },
+  "toolchain": {
+    "node_major": 24,
+    "node_exact_version": "24.21.0",
+    "node_dist_sha256": {
+      "node-v24.21.0-linux-x64.tar.xz": "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6",
+      "node-v24.21.0-linux-arm64.tar.xz": "6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2",
+      "node-v24.21.0-darwin-arm64.tar.xz": "6239d4cf92d864487ec8cd3615038f7b67e7f58b77b21cd2f09ea9fbd68065fe",
+      "node-v24.21.0-darwin-x64.tar.xz": "0ae5a24c24bb7d015cd816c5036b3f90f2945aa872fcf54e58da054753b3a299"
+    },
+    "pnpm": "11.7.0",
+    "typescript": "6.0.3"
+  },
+  "workspace_lock_sha256": "c2347176cb30d35bbf827363a865fb2c07c1150178312e4fa05c78608f12a8bb",
+  "google_sdk": {
+    "package": "@google/genai",
+    "version": "2.24.0",
+    "repository_commit": "b12dad09079feee92bc843be0965543baa1ec88d",
+    "installed": false,
+    "note": "design pin; installed by S1-05"
+  },
+  "livekit_rtc": {
+    "package": "@livekit/rtc-node",
+    "version": "1.1.0",
+    "repository_commit": "550308a9f45ea15d6bced481b66fa6ab3b846ffa",
+    "installed": false,
+    "note": "design pin; installed by S1-04/S1-05"
+  },
+  "omnigent": {
+    "repository": "omnigent-ai/omnigent",
+    "commit": "7496d36bde584d0a7d11c1d92a6d126f128bc1cd",
+    "binding_status": "binding_audit_pending",
+    "image_digest": null
+  },
+  "sophia_bundle": {
+    "name": "@sophia/dsh-bundle",
+    "version": "0.1.0",
+    "source": "packages/dsh-bundle",
+    "source_commit": null,
+    "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
+    "archive": "sophia-dsh-bundle-0.1.0.tgz",
+    "archive_sha256": "f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f",
+    "archive_integrity": "sha512-jP6AsAJXkNu8wRG+TiRPacBYq1wmEy178U+/lEk4DU+xJGhnuVYKalk6sWK3SmgCYbiXiUQwEhB8fqx9xmNmYQ==",
+    "artifact_digest": "sha256:f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f",
+    "bridge_protocol_version": 1,
+    "bridge_readiness": "not_ready (control bridge is S1-03)"
+  },
+  "profile_install": {
+    "manifest": "config/dsh/profile/package.json",
+    "workspace": "config/dsh/profile/pnpm-workspace.yaml",
+    "lock": "config/dsh/profile/pnpm-lock.yaml",
+    "user_patch": "config/dsh/profile/cordis.patch.yml (literal [])",
+    "command": "dsh plugin --profile sophia-runtime install --frozen-lockfile --offline",
+    "launch_env": [
+      "DSH_HOME=<per project/runtime unit>",
+      "HOME=<throwaway>",
+      "DSH_TELEMETRY_DISABLED=1",
+      "PATH=<node toolchain>:/usr/bin:/bin"
+    ]
+  },
+  "schema_revision": null,
+  "role_revision": "v1",
+  "model_catalog": "models.json",
+  "deployment_images": {},
+  "required_before_deploy": [
+    {
+      "item": "exact Node version",
+      "status": "done"
+    },
+    {
+      "item": "committed package lock",
+      "status": "done"
+    },
+    {
+      "item": "built dsh and Sophia bundle digests",
+      "status": "done"
+    },
+    {
+      "item": "schema revision",
+      "status": "pending (S1-02)"
+    },
+    {
+      "item": "container image digests",
+      "status": "pending (S1-03 execution host)"
+    },
+    {
+      "item": "required-service startup check",
+      "status": "pending (S1-03 bridge readiness)"
+    },
+    {
+      "item": "affected live acceptance evidence",
+      "status": "pending"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "sophia.supervision-policy.v1",
+  "status": "initial_product_default",
+  "periodic_review_seconds": 300,
+  "scope": "one coalesced project review",
+  "manual_review": true,
+  "event_triggers": [
+    "human_action_required",
+    "candidate_ready",
+    "goal_terminal_claim",
+    "peer_escalation",
+    "resource_unavailable",
+    "review_requested"
+  ],
+  "unchanged_confirmed_wait": "update status without repeating deep review",
+  "repeated_review_during_active_review": "coalesce reasons and process after current review",
+  "peer_delivery_waits_for_heartbeat": false,
+  "decisions": [
+    "continue",
+    "inspect_evidence",
+    "steer",
+    "fresh_alignment",
+    "request_review",
+    "hold_for_replan",
+    "ask_human"
+  ],
+  "silent_default_for_no_change": true
+}

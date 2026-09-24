@@ -1,0 +1,508 @@
+{
+  "version": "0.3-part1",
+  "checked_at": "2026-09-24",
+  "sources": [
+    {
+      "id": "DSH-01",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "package.json",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/package.json",
+      "coverage": "root manifest",
+      "use": "Node/pnpm and package version; not evidence that all artifacts are published to npm"
+    },
+    {
+      "id": "DSH-02",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "docs/architecture.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/docs/architecture.md",
+      "coverage": "lines 1\u2013245; opening and turn flow reread",
+      "use": "official launcher, profiles, bundles, services, durable vs live events"
+    },
+    {
+      "id": "DSH-03",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/boot/app-boot/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/boot/app-boot/README.md",
+      "coverage": "lines 1\u2013220",
+      "use": "profile installation, bundle order, config and failed plugin readiness"
+    },
+    {
+      "id": "DSH-04",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/bundle/base/cordis.patch.yml",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/bundle/base/cordis.patch.yml",
+      "coverage": "complete patch in three ranges",
+      "use": "precise base plugin IDs and defaults to retain/change"
+    },
+    {
+      "id": "DSH-05",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/bundle/sdk-app/cordis.patch.yml",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/bundle/sdk-app/cordis.patch.yml",
+      "coverage": "complete",
+      "use": "valid row replacement and insertion syntax; SDK carrier distinction"
+    },
+    {
+      "id": "DSH-06",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/sdk/client/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/sdk/client/README.md",
+      "coverage": "lines 1\u2013210",
+      "use": "SDK lifecycle limitations, not product Stop support"
+    },
+    {
+      "id": "DSH-07",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/sdk/protocol/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/sdk/protocol/README.md",
+      "coverage": "lines 1\u2013190",
+      "use": "initialize/session-prompt/shutdown protocol; no mid-turn cancel or session-close; session/prompt returns durable enqueue identity"
+    },
+    {
+      "id": "DSH-08",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "docs/subsystems/core.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/docs/subsystems/core.md",
+      "coverage": "lines 1\u2013220",
+      "use": "Agent create/resume/send/steer/inject/cancel/maintenance"
+    },
+    {
+      "id": "DSH-09",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/core/agent/src/types.ts",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/core/agent/src/types.ts",
+      "coverage": "lines 1\u2013165",
+      "use": "create/setup/role attachment contract"
+    },
+    {
+      "id": "DSH-10",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/core/agent/src/index.ts",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/core/agent/src/index.ts",
+      "coverage": "lines 1\u2013235",
+      "use": "public AgentService creation and ownership"
+    },
+    {
+      "id": "DSH-11",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/session/session-checkpoint-policy/src/index.ts",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/session/session-checkpoint-policy/src/index.ts",
+      "coverage": "lines 1\u2013170",
+      "use": "checkpoint before model/tool boundaries"
+    },
+    {
+      "id": "DSH-12",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "docs/cookbook/adding-a-tool.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/docs/cookbook/adding-a-tool.md",
+      "coverage": "lines 1\u2013190",
+      "use": "defineTool, execute context, guards and structured results"
+    },
+    {
+      "id": "DSH-13",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/preset/agent-preset-registry/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/preset/agent-preset-registry/README.md",
+      "coverage": "lines 1\u2013170",
+      "use": "named presets, current definitions on resume"
+    },
+    {
+      "id": "DSH-14",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/llm/llm-deepseek/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/llm/llm-deepseek/README.md",
+      "coverage": "lines 1\u2013145",
+      "use": "Messages API, deepseek-flash, output_config.effort, telemetry and files defaults"
+    },
+    {
+      "id": "DSH-15",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/llm/llm-pi-ai/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/llm/llm-pi-ai/README.md",
+      "coverage": "lines 1\u2013145; config reread",
+      "use": "provider map, credential references, catalog replacement, version-specific capabilities"
+    },
+    {
+      "id": "DSH-16",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "docs/subsystems/agent-team.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/docs/subsystems/agent-team.md",
+      "coverage": "identity/mailbox/task projection and API sections",
+      "use": "native team message durability and step-boundary delivery"
+    },
+    {
+      "id": "DSH-17",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/test-support/llm-replay/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/test-support/llm-replay/README.md",
+      "coverage": "main usage and limitation sections",
+      "use": "keyless recorded model output; concurrency binding limit"
+    },
+    {
+      "id": "DSH-18",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/ptc-runtime/ptc-runtime-node/README.md",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/ptc-runtime/ptc-runtime-node/README.md",
+      "coverage": "lines 1\u2013130",
+      "use": "fresh sandboxed Node process, binding calls, cancellation, no kernel persistence"
+    },
+    {
+      "id": "OM-01",
+      "kind": "repository",
+      "repository": "omnigent-ai/omnigent",
+      "path": "omnigent/server/routes/_host_launch.py",
+      "commit": "7496d36bde584d0a7d11c1d92a6d126f128bc1cd",
+      "url": "https://github.com/omnigent-ai/omnigent/blob/7496d36bde584d0a7d11c1d92a6d126f128bc1cd/omnigent/server/routes/_host_launch.py",
+      "coverage": "resolve_host_launch; prior v0.2 audit",
+      "use": "host owner and session owner launch checks"
+    },
+    {
+      "id": "OM-02",
+      "kind": "repository",
+      "repository": "omnigent-ai/omnigent",
+      "path": "docs/QUEUE_STEER_DESIGN.md",
+      "commit": "7496d36bde584d0a7d11c1d92a6d126f128bc1cd",
+      "url": "https://github.com/omnigent-ai/omnigent/blob/7496d36bde584d0a7d11c1d92a6d126f128bc1cd/docs/QUEUE_STEER_DESIGN.md",
+      "coverage": "complete; prior v0.2 audit",
+      "use": "Codex RPC versus Claude managed terminal timing; draft vs sent semantics"
+    },
+    {
+      "id": "BZ-01",
+      "kind": "repository",
+      "repository": "block/buzz",
+      "path": "crates/buzz-acp/src/base_prompt.md",
+      "commit": "d01e5f82058463709a22e93bb4cd795da5f53e10",
+      "url": "https://github.com/block/buzz/blob/d01e5f82058463709a22e93bb4cd795da5f53e10/crates/buzz-acp/src/base_prompt.md",
+      "coverage": "communication rules; prior v0.2 audit",
+      "use": "recipient identity, result callbacks, no acknowledgement loops"
+    },
+    {
+      "id": "BZ-02",
+      "kind": "repository",
+      "repository": "block/buzz",
+      "path": "desktop/src-tauri/src/huddle/human_floor.rs",
+      "commit": "d01e5f82058463709a22e93bb4cd795da5f53e10",
+      "url": "https://github.com/block/buzz/blob/d01e5f82058463709a22e93bb4cd795da5f53e10/desktop/src-tauri/src/huddle/human_floor.rs",
+      "coverage": "complete; prior v0.2 audit",
+      "use": "human floor and generation/authorization check pattern"
+    },
+    {
+      "id": "BZ-03",
+      "kind": "repository",
+      "repository": "block/buzz",
+      "path": "crates/buzz-acp/src/acp.rs",
+      "commit": "d01e5f82058463709a22e93bb4cd795da5f53e10",
+      "url": "https://github.com/block/buzz/blob/d01e5f82058463709a22e93bb4cd795da5f53e10/crates/buzz-acp/src/acp.rs",
+      "coverage": "permission bookkeeping; prior v0.2 audit",
+      "use": "pending permission identity and prevent double answers"
+    },
+    {
+      "id": "QM-01",
+      "kind": "repository",
+      "repository": "yc-software/qm",
+      "path": "docs/persistent-subagent-sessions.md",
+      "commit": "861af65d75a1896418f8e1c7542b2ed34506324d",
+      "url": "https://github.com/yc-software/qm/blob/861af65d75a1896418f8e1c7542b2ed34506324d/docs/persistent-subagent-sessions.md",
+      "coverage": "complete; prior v0.2 audit",
+      "use": "durable message vs follow-up wake; completion return reconciliation"
+    },
+    {
+      "id": "QM-02",
+      "kind": "repository",
+      "repository": "yc-software/qm",
+      "path": "src/harness/harness.ts",
+      "commit": "861af65d75a1896418f8e1c7542b2ed34506324d",
+      "url": "https://github.com/yc-software/qm/blob/861af65d75a1896418f8e1c7542b2ed34506324d/src/harness/harness.ts",
+      "coverage": "turn/result/profile contracts; prior v0.2 audit",
+      "use": "typed capabilities, silent result, pending approvals, scope"
+    },
+    {
+      "id": "QM-03",
+      "kind": "repository",
+      "repository": "yc-software/qm",
+      "path": "src/resolution/sharing-access.ts",
+      "commit": "861af65d75a1896418f8e1c7542b2ed34506324d",
+      "url": "https://github.com/yc-software/qm/blob/861af65d75a1896418f8e1c7542b2ed34506324d/src/resolution/sharing-access.ts",
+      "coverage": "complete; prior v0.2 audit",
+      "use": "audience and source scope conditions; do not copy open private carry"
+    },
+    {
+      "id": "LK-01",
+      "kind": "repository",
+      "repository": "livekit/node-sdks",
+      "path": "packages/livekit-rtc/src/audio_source.ts",
+      "commit": "550308a9f45ea15d6bced481b66fa6ab3b846ffa",
+      "url": "https://github.com/livekit/node-sdks/blob/550308a9f45ea15d6bced481b66fa6ab3b846ffa/packages/livekit-rtc/src/audio_source.ts",
+      "coverage": "lines 1\u2013180",
+      "use": "AudioSource queue, clearQueue, captureFrame and close"
+    },
+    {
+      "id": "LK-02",
+      "kind": "repository",
+      "repository": "livekit/node-sdks",
+      "path": "packages/livekit-rtc/package.json",
+      "commit": "550308a9f45ea15d6bced481b66fa6ab3b846ffa",
+      "url": "https://github.com/livekit/node-sdks/blob/550308a9f45ea15d6bced481b66fa6ab3b846ffa/packages/livekit-rtc/package.json",
+      "coverage": "lines 1\u201380",
+      "use": "@livekit/rtc-node 1.1.0, ESM exports and native binding dependency"
+    },
+    {
+      "id": "LK-03",
+      "kind": "repository_blob",
+      "repository": "livekit/node-sdks",
+      "path": "examples/publish-wav/index.ts",
+      "blob_sha": "d23d30c11e0465f7f79d6cacbbb9e9544e4c39a1",
+      "url": "https://github.com/livekit/node-sdks/blob/main/examples/publish-wav/index.ts",
+      "coverage": "complete on main",
+      "use": "raw RTC room/publish lifecycle; no AgentSession dependency"
+    },
+    {
+      "id": "LK-04",
+      "kind": "repository_blob",
+      "repository": "livekit/node-sdks",
+      "path": "README.md",
+      "blob_sha": "4ecd60a0ad971922e2e51c2ad5446f9f0e747d95",
+      "url": "https://github.com/livekit/node-sdks/blob/main/README.md",
+      "coverage": "lines 1\u2013210",
+      "use": "raw SDK vs Agents distinction"
+    },
+    {
+      "id": "GG-01",
+      "kind": "repository",
+      "repository": "googleapis/js-genai",
+      "path": "package.json",
+      "commit": "b12dad09079feee92bc843be0965543baa1ec88d",
+      "url": "https://github.com/googleapis/js-genai/blob/b12dad09079feee92bc843be0965543baa1ec88d/package.json",
+      "coverage": "lines 1\u201390",
+      "use": "@google/genai 2.24.0 package pin"
+    },
+    {
+      "id": "OLD-01",
+      "kind": "repository",
+      "repository": "davidelaverga/Sophia-Agent",
+      "path": "backend/packages/harness/deerflow/sophia/tools/create_pdf_artifact.py",
+      "commit": "d467ab97464908b4e7c7752701eee9d24db7faf6",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/d467ab97464908b4e7c7752701eee9d24db7faf6/backend/packages/harness/deerflow/sophia/tools/create_pdf_artifact.py",
+      "coverage": "lines 1\u2013120",
+      "use": "modest PDF wrapper has ToolRuntime/thread coupling; not the rich universal renderer"
+    },
+    {
+      "id": "OLD-02",
+      "kind": "repository",
+      "repository": "davidelaverga/Sophia-Agent",
+      "path": "backend/packages/harness/deerflow/sophia/build_mutation.py",
+      "commit": "d467ab97464908b4e7c7752701eee9d24db7faf6",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/d467ab97464908b4e7c7752701eee9d24db7faf6/backend/packages/harness/deerflow/sophia/build_mutation.py",
+      "coverage": "prior migration analysis plus path/blob re-established this pass",
+      "use": "S2 transaction donor; full transplant dependency audit remains Part 2"
+    },
+    {
+      "id": "OLD-03",
+      "kind": "repository_path_verified",
+      "repository": "davidelaverga/Sophia-Agent",
+      "path": "backend/packages/harness/deerflow/sophia/tools/build_deck_from_slides.py",
+      "commit": "d467ab97464908b4e7c7752701eee9d24db7faf6",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/d467ab97464908b4e7c7752701eee9d24db7faf6/backend/packages/harness/deerflow/sophia/tools/build_deck_from_slides.py",
+      "coverage": "directory metadata; blob 74b460f110081e7b57eec8ffbc698d25d47e0e48",
+      "use": "exact deck extraction entry point; executable closure audit not completed in this installment"
+    },
+    {
+      "id": "G-01",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/models",
+      "use": "model IDs; normal Live and Extended Thinking are separate",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-02",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/live-api/get-started",
+      "use": "Live connection and media API",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-03",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/live-api/tools",
+      "use": "NON_BLOCKING tools; defaults must not substitute explicit settings",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-04",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/live-api/session-management",
+      "use": "compression, resumable handles, GoAway; generic page contains older model examples",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-05",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/live-api/best-practices",
+      "use": "3.8 proactive audio is permanent; bounded context practice",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-06",
+      "kind": "official_documentation",
+      "url": "https://googleapis.github.io/js-genai/release_docs/classes/types.FunctionResponse.html",
+      "use": "scheduling and willContinue are top-level response properties; willContinue not supported by Vertex",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-07",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/image-generation",
+      "use": "Interactions API, response_format image_size/aspect_ratio, output step parsing, reference image input",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-08",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/interactions",
+      "use": "store:false; no stored previous interaction chain in Sophia image jobs",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-09",
+      "kind": "official_documentation",
+      "url": "https://ai.google.dev/gemini-api/docs/thinking",
+      "use": "gemini-3.8-flash low/medium/high; output caps can truncate thinking",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "G-10",
+      "kind": "official_documentation",
+      "url": "https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-8-live-gemini-3-8-live-extended-thinking/",
+      "use": "September 15 Live launch and separate product roles",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "OA-01",
+      "kind": "official_documentation",
+      "url": "https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst",
+      "use": "dated snapshot, image generation/edit, no model streaming promise",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "OA-02",
+      "kind": "official_documentation",
+      "url": "https://developers.openai.com/api/docs/models/gpt-image-2.5-flare",
+      "use": "dated snapshot and second comparison model",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "OA-03",
+      "kind": "official_documentation",
+      "url": "https://developers.openai.com/api/docs/guides/image-generation",
+      "use": "direct Images API generation/edit versus Responses tool",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "DS-01",
+      "kind": "official_documentation",
+      "url": "https://api-docs.deepseek.com/news/news260910/",
+      "use": "API ID deepseek-flash currently names V4.1 Flash",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "DS-02",
+      "kind": "official_documentation",
+      "url": "https://api-docs.deepseek.com/updates/",
+      "use": "current change log; V4-Pro statement conflicts with release article, so no Pro dependency",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "IM-01",
+      "kind": "prior_documentation_audit",
+      "url": "https://github.com/pbakaus/impeccable",
+      "use": "prior v0.2 README audit: design guidance; skill implementation extraction remains Part 2",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "TEST-01",
+      "kind": "prior_documentation_audit",
+      "url": "https://playwright.dev/docs/trace-viewer",
+      "use": "browser evidence reference from v0.2; exact project test implementation is new Sophia work",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "TEST-02",
+      "kind": "prior_documentation_audit",
+      "url": "https://storybook.js.org/docs/writing-tests/interaction-testing",
+      "use": "S2 UI scenario test reference; not dsh replay",
+      "checked_at": "2026-09-24"
+    },
+    {
+      "id": "P-01",
+      "kind": "provided_document",
+      "path": "references/Sophia_DeepSeek_Harness_Three_Sprint_Product_Plan_Draft_v0.2_2026-09-24.md",
+      "sha256": "2e26a6deed7ff07ce0c6a324b2ff0e5ac9f0b2c501aa42370818a4a0b1aefd60",
+      "coverage": "complete Files read this turn",
+      "use": "latest scope and donor review; newer user media decisions take precedence"
+    },
+    {
+      "id": "P-02",
+      "kind": "provided_document",
+      "path": "references/Sophia_Project_Bridges_Donor_Review_and_Plan_Changes_v0.2_2026-09-24.md",
+      "sha256": "e467217e4ce18a93b5377022b50f3aef7390b6e365fc94202734961b521dd3d2",
+      "coverage": "complete Files read this turn",
+      "use": "latest scope and donor review; newer user media decisions take precedence"
+    },
+    {
+      "id": "DSH-19",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/util/package-manifest/src/types.ts",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/util/package-manifest/src/types.ts",
+      "coverage": "lines 1\u2013155",
+      "use": "exact dsh.profile.bundles and dsh.bundle.patch declaration types"
+    },
+    {
+      "id": "DSH-20",
+      "kind": "repository",
+      "repository": "deepseek-ai/deepseek-harness",
+      "path": "packages/bundle/sdk-app/package.json",
+      "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/bundle/sdk-app/package.json",
+      "coverage": "complete",
+      "use": "packaged bundle manifest and exported patch precedent"
+    }
+  ]
+}

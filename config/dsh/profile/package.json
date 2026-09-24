@@ -1,0 +1,15 @@
+{
+  "name": "dsh-profile-sophia-runtime",
+  "private": true,
+  "dependencies": {
+    "@sophia/dsh-bundle": "file:./sophia-dsh-bundle-0.1.0.tgz"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@sophia/dsh-bundle"
+      ]
+    }
+  }
+}

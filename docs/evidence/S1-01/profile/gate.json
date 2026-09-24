@@ -1,0 +1,42 @@
+{
+  "ok": true,
+  "health": {
+    "healthy": false,
+    "reasons": [
+      "bridge_not_ready: control bridge not implemented (S1-03)"
+    ]
+  },
+  "checks": [
+    {
+      "id": "profile_manifest",
+      "ok": true,
+      "findings": []
+    },
+    {
+      "id": "bundle_installed",
+      "ok": true,
+      "findings": []
+    },
+    {
+      "id": "patch_layers",
+      "ok": true,
+      "findings": []
+    },
+    {
+      "id": "no_bundle_shadowing",
+      "ok": true,
+      "findings": []
+    },
+    {
+      "id": "dump_config",
+      "ok": true,
+      "findings": []
+    },
+    {
+      "id": "composition",
+      "ok": true,
+      "findings": []
+    }
+  ],
+  "dump_status": 0
+}
