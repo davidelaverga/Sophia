@@ -1,7 +1,8 @@
-# One lock for the whole product tree (S1-01). Unbuilt destinations from
-# docs/DESTINATION_MAP.md (apps/*, the remaining packages/*) join this list
-# when their goal creates them.
+# One lock for the whole product tree (S1-01). apps/* joined at S1-02; the
+# remaining unbuilt destinations in docs/DESTINATION_MAP.md join when their
+# goal creates them.
 packages:
+  - apps/*
   - packages/*
   - runtime/*
 
@@ -30,3 +31,8 @@ hoistWorkspacePackages: false
 # `pnpm deploy` (the runtime artifact) deploys from the lock with injected
 # workspace packages, the pnpm 10+ default deploy mode.
 injectWorkspacePackages: true
+
+# pnpm 11 holds back releases younger than a day. vite 8.3.1 is the exact
+# version S1-02 was built and tested with.
+minimumReleaseAgeExclude:
+  - vite@8.3.1

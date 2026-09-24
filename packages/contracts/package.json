@@ -1,0 +1,15 @@
+{
+  "name": "@sophia/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sse": "./src/sse.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "generate": "node scripts/generate-types.ts",
+    "generate:check": "node scripts/generate-types.ts --check"
+  }
+}
