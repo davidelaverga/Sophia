@@ -42,7 +42,7 @@ a path updates its row in the same commit.
 |---|---|---|---|
 | `packages/dsh-bundle/` | partial | S1-01, S1-03 | Built: manifest (`dsh.bundle.patch`), `cordis.patch.yml` (including the development model route), plugin entry, control bridge |
 | `packages/dsh-bundle/src/control-bridge.ts` | partial | S1-03, S1-02 | Built: application command ↔ public Agent operations, a fenced Hold/Stop, a journal-backed dedupe, and restart reconciliation. Runs against the labelled fixture service until S1-02's real admission lands |
-| `packages/dsh-bundle/src/role-registry.ts` | unbuilt | S1-03 | guide/lead/research/prototype/review presets |
+| `packages/dsh-bundle/src/role-registry.ts` | partial | S1-03, S1-02+ | Built: the five versioned role presets with the S1-03 native-tool policy, enforced by agent-scoped visibility and a monotonic guard that also covers workflow child agents. Sophia domain tools join as later goals build them |
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |
 | `packages/dsh-bundle/skills/` | unbuilt | S1-03 | Procedural task knowledge |

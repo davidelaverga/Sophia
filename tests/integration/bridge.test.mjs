@@ -6,71 +6,12 @@
  */
 
 import assert from 'node:assert/strict'
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { after, before, test } from 'node:test'
-import { RUNTIME_DIR, loadRuntimeUnit } from '../../scripts/lib/common.mjs'
-import { assertRecordedArtifacts, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
-import { launchRuntime } from '../../scripts/lib/runtime.mjs'
-import { command, startFixtureService } from '../support/fixture-service.mjs'
-import { mockRouteOverlay, startMockLlm } from '../support/mock-llm.mjs'
+import { after, test } from 'node:test'
+import { command } from '../support/fixture-service.mjs'
+import { sleep, suite, unit, userTexts } from '../support/harness.mjs'
 
-const unit = loadRuntimeUnit()
-const scratch = mkdtempSync(join(tmpdir(), 'sophia-bridge-'))
-const pristine = homeLayout(join(scratch, 'pristine'))
-let counter = 0
-
-before(() => {
-  assertRecordedArtifacts(unit, RUNTIME_DIR)
-  installProfile({ unit, runtimeDir: RUNTIME_DIR, layout: pristine })
-})
-after(() => rmSync(scratch, { recursive: true, force: true }))
-
-/** A fresh install, fixture service and mock model; `start()` boots (or reboots) the runtime. */
-async function world(t) {
-  const layout = homeLayout(join(scratch, `case-${counter++}`))
-  cpSync(pristine.root, layout.root, { recursive: true, verbatimSymlinks: true })
-  const service = await startFixtureService({ runtimeUnitId: unit.id })
-  const llm = await startMockLlm()
-  let runtime = null
-  let boots = 0
-  const w = {
-    service,
-    llm,
-    attemptId: `att-${counter}`,
-    async start() {
-      runtime = launchRuntime({ unit, runtimeDir: RUNTIME_DIR, layout, bridge: service, overlays: [mockRouteOverlay(llm.baseURL)], extraEnv: { MOCK_LLM_KEY: 'mock' } })
-      boots += 1
-      await service.waitFor(() => service.readiness.filter((r) => r.state === 'ready').length >= boots, 30000, 'bridge readiness')
-    },
-    async stop() {
-      const exit = await runtime.stop()
-      return exit
-    },
-    stderr: () => runtime?.stderr() ?? '',
-    cmd: (kind, options = {}) => command(kind, { attemptId: w.attemptId, runtimeUnitId: unit.id, ...options }),
-    send(cmd) {
-      service.enqueue(cmd)
-      return cmd
-    },
-    turnEnds: () => service.observations.filter((o) => o.type === 'turn/end' && o.attemptId === w.attemptId),
-    journal() {
-      const file = join(layout.dshHome, 'sophia-bridge', `sophia-${w.attemptId}.jsonl`)
-      return existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').map((line) => JSON.parse(line)) : []
-    },
-    sessionEvents: (type) => service.observations.filter((o) => o.type === type && o.attemptId === w.attemptId),
-  }
-  t.after(async () => {
-    if (runtime) await runtime.stop()
-    await service.close()
-    await llm.close()
-  })
-  return w
-}
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const userTexts = (request) => request.messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))
+const { world, cleanup } = suite('sophia-bridge')
+after(cleanup)
 
 test('bridge: reports ready only after hello, and create delivers then incorporates a prompt', async (t) => {
   const w = await world(t)

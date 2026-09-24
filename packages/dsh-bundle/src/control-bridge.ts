@@ -20,7 +20,7 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent, AgentHandle, AgentOptions } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentHandle, AgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
 // Type-only: brings the `ctx.agentDefaultModel` Context augmentation into scope.
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -31,6 +31,8 @@ import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
+import { roleOf } from './role-registry.js'
+import type { RolePreset } from './role-registry.js'
 import { foldLog, Journal } from './session-events.js'
 import type { DeliveryTarget, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport } from './transport.js'
@@ -59,6 +61,8 @@ interface AttemptState {
   readonly attemptId: string
   readonly sessionId: SessionId
   handle: AgentHandle | null
+  /** Role preset the attempt runs under; fixed at create. */
+  role: RolePreset | null
   epoch: number
   fence: FenceState
   /** Command id -> the receipt already sent for it. */
@@ -110,13 +114,18 @@ export class ControlBridge {
       }
       return { kind: 'reject' }
     })
-    const fenceGuard: ToolGuard = () => {
-      const initiator = ctx.agents.currentInitiator()
-      const attempt = initiator ? this.bySession.get(initiator.id) : undefined
-      if (attempt && attempt.fence !== 'active') return `Sophia work is ${attempt.fence}; no tool may run until an explicit Resume.`
+    // Monotonic: evaluated for every root and nested execution, including tools
+    // run by child agents a `workflow` program spawns. Those resolve to the
+    // attempt that owns them, so a role cannot be escaped through a child.
+    const attemptGuard: ToolGuard = (execution) => {
+      const attempt = this.attemptFor(execution.agent ?? ctx.agents.currentInitiator())
+      if (!attempt) return undefined
+      if (attempt.fence !== 'active') return `Sophia work is ${attempt.fence}; no tool may run until an explicit Resume.`
+      if (!attempt.role) return 'This Sophia attempt has no role; no native tool may run.'
+      if (!attempt.role.nativeTools.has(execution.name)) return `Tool "${execution.name}" is not permitted for role ${attempt.role.id}.`
       return undefined
     }
-    const offGuard = ctx.tools.guard(fenceGuard)
+    const offGuard = ctx.tools.guard(attemptGuard)
     const offEvent = ctx.on('session/event', (session: Session, event: SessionEvent) => this.observe(session, event))
     void this.connect()
     return async () => {
@@ -169,6 +178,34 @@ export class ControlBridge {
         this.dispatch(command)
       }
       this.cursor = Math.max(this.cursor, batch.cursor)
+    }
+  }
+
+  /**
+   * The bound attempt an Agent works for: itself, or the attempt whose Agent
+   * (transitively) owns it at runtime, as for workflow/subagent children.
+   */
+  private attemptFor(agent: Agent | undefined): AttemptState | undefined {
+    let current = agent
+    for (let depth = 0; current && depth < 32; depth += 1) {
+      const attempt = this.bySession.get(current.id)
+      if (attempt) return attempt
+      const child: Agent = current
+      current = this.ctx.agents.list().find((candidate) => candidate.id !== child.id && this.ctx.agents.isOwnedBy(child.id, candidate))
+    }
+    return undefined
+  }
+
+  /**
+   * Create-time scoped setup: hide every visible native tool the role does
+   * not allow. The guard enforces the same set at execution; visibility only
+   * keeps the model from being offered what it may not run.
+   */
+  private setupFor(role: RolePreset): AgentSetup {
+    return (agentCtx) => {
+      const visible = this.ctx.tools.schemas().map((schema) => schema.name)
+      const deny = visible.filter((name) => !role.nativeTools.has(name))
+      if (deny.length > 0) agentCtx.tools.restrict({ deny })
     }
   }
 
@@ -260,6 +297,7 @@ export class ControlBridge {
       attemptId,
       sessionId: this.sessionIdFor(attemptId),
       handle: null,
+      role: null,
       epoch,
       fence: 'active',
       receipts: new Map(),
@@ -277,6 +315,21 @@ export class ControlBridge {
     const agent = attempt.handle?.agent ?? this.ctx.agents.get(attempt.sessionId)
     if (!agent) throw new ProtocolError('the attempt has no live native session; send `resume` first')
     return agent
+  }
+
+  /**
+   * Resume a persisted session under the role its create recorded. A bundle
+   * that no longer defines that role refuses: a historical session never
+   * silently resumes under a different permission composition.
+   */
+  private async resumeNative(attempt: AttemptState): Promise<AgentHandle> {
+    const recorded = foldLog(this.journal.read(attempt.sessionId)).role
+    const role = roleOf(recorded)
+    if (!role) throw new ProtocolError(`the attempt's recorded role ${JSON.stringify(recorded)} is not defined in this runtime unit; refusing to resume`)
+    attempt.role = role
+    const handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions(), setup: this.setupFor(role) })
+    this.adopt(attempt, handle.agent)
+    return handle
   }
 
   /** Restore bridge state from the journal and the session's native history. */
@@ -308,6 +361,7 @@ export class ControlBridge {
       target,
       content: message ? [...message.content] : null,
       nativeSeq: null,
+      role: command.kind === 'create' ? attempt.role?.id ?? null : null,
     }).seq
   }
 
@@ -331,17 +385,20 @@ export class ControlBridge {
     if (existing) {
       return [this.receipt(attemptId, command.commandId, 'rejected', existing.sessionId, null, 'the attempt already has a native session; use `resume`')]
     }
+    const role = roleOf(command.payload.role)
+    if (!role) throw new ProtocolError(`create requires payload.role, one of this bundle's role presets; got ${JSON.stringify(command.payload.role)}`)
     const attempt = this.newAttempt(attemptId, authorityEpoch)
+    attempt.role = role
     const live = this.ctx.agents.get(attempt.sessionId)
     if (live) {
       this.adopt(attempt, live)
     } else {
       try {
-        attempt.handle = await this.ctx.agents.create({ sessionId: attempt.sessionId, meta: { cwd: this.settings.workspace }, agentOptions: this.agentOptions() })
+        attempt.handle = await this.ctx.agents.create({ sessionId: attempt.sessionId, meta: { cwd: this.settings.workspace }, agentOptions: this.agentOptions(), setup: this.setupFor(role) })
       } catch (error) {
         // A persisted session with this deterministic id means an earlier
         // create reached dsh before a crash: resume it instead of forking work.
-        attempt.handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions() }).catch(() => { throw error })
+        attempt.handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions(), setup: this.setupFor(role) }).catch(() => { throw error })
         this.adopt(attempt, attempt.handle.agent)
       }
     }
@@ -367,8 +424,7 @@ export class ControlBridge {
       }
     }
     if (!attempt.handle && !this.ctx.agents.get(attempt.sessionId)) {
-      attempt.handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions() })
-      this.adopt(attempt, attempt.handle.agent)
+      attempt.handle = await this.resumeNative(attempt)
     }
     const agent = this.agentOf(attempt)
     if (attempt.fence === 'stopped') throw new ProtocolError('the attempt is stopped; a stopped native session is never resumed')
@@ -482,6 +538,7 @@ export class ControlBridge {
     const agent = attempt.handle?.agent ?? this.ctx.agents.get(attempt.sessionId)
     const summary = {
       fence: attempt.fence,
+      role: attempt.role?.id ?? null,
       epoch: attempt.epoch,
       live: Boolean(agent),
       status: agent?.status ?? null,
@@ -522,8 +579,7 @@ export class ControlBridge {
       if (live) {
         this.adopt(attempt, live)
       } else {
-        attempt.handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions() })
-        this.adopt(attempt, attempt.handle.agent)
+        attempt.handle = await this.resumeNative(attempt)
       }
       if (attempt.fence === 'stopped' && attempt.handle) {
         // The durable log outranks a stale service binding: a stopped session

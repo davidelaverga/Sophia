@@ -46,6 +46,8 @@ export interface JournalRecordMap {
     content: ContentBlock[] | null
     /** Native seq at which the command's effect became durable, once known. */
     nativeSeq: number | null
+    /** Role the attempt was created under (create only). */
+    role: string | null
   }
   /** The attempt's work fence changed. */
   'sophia/fence': { attemptId: string; authorityEpoch: number; state: FenceState; commandId: string }
@@ -114,6 +116,8 @@ export class Journal {
 /** Reconstructed bridge state for one session. */
 export interface LoggedState {
   readonly attemptId: string | null
+  /** Role recorded by the attempt's create command. */
+  readonly role: string | null
   readonly authorityEpoch: number
   readonly fence: FenceState
   /** Command id -> its journal record and the message it produced. */
@@ -132,6 +136,7 @@ export interface LoggedState {
  */
 export function foldLog(journal: readonly JournalRecord[], events: readonly SessionEvent[] = []): LoggedState {
   let attemptId: string | null = null
+  let role: string | null = null
   let authorityEpoch = 0
   let fence: FenceState = 'active'
   const commands = new Map<string, { seq: number; kind: RuntimeCommandKind; messageId: string | null; nativeSeq: number | null }>()
@@ -141,6 +146,7 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
       case 'sophia/command': {
         const data = record.data
         attemptId = data.attemptId
+        role ??= data.role ?? null
         authorityEpoch = Math.max(authorityEpoch, data.authorityEpoch)
         if (!commands.has(data.commandId)) commands.set(data.commandId, { seq: record.seq, kind: data.kind, messageId: data.messageId, nativeSeq: data.nativeSeq })
         break
@@ -169,5 +175,5 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   for (const event of events) {
     if (event.type === 'user/message') incorporated.add((event.data as { id: string }).id)
   }
-  return { attemptId, authorityEpoch, fence, commands, stash, incorporated }
+  return { attemptId, role, authorityEpoch, fence, commands, stash, incorporated }
 }
