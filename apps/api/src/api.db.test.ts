@@ -39,6 +39,7 @@ async function token(sub: string, over: { iss?: string; role?: string; exp?: str
 }
 
 // Response shapes vary per endpoint and assertions read their fields directly.
+// oxlint-disable-next-line typescript/no-explicit-any -- test helper over heterogeneous response bodies
 type ResponseBody = any
 
 async function call(
@@ -129,12 +130,12 @@ async function readSse(
 async function follow(
   actor: string,
   projectId: string,
-  after: string,
+  cursor: string,
   until: (frames: Frame[]) => boolean,
   timeoutMs = 5000,
 ): Promise<FollowedStream> {
   const ctrl = new AbortController()
-  const res = await fetch(`${base}/api/v1/projects/${projectId}/events?after=${after}`, {
+  const res = await fetch(`${base}/api/v1/projects/${projectId}/events?after=${cursor}`, {
     headers: { authorization: `Bearer ${await token(actor)}` },
     signal: ctrl.signal,
   })

@@ -214,15 +214,15 @@ describe('lease expiry during an actual HTTP call', () => {
       const call = fetch(url, { method: 'POST' }) // the real HTTP call outlives the 5 s lease
       await sleep(5500)
       assert.ok((await expireDispatchLeases(worker)) >= 1)
-      assert.equal(await stateOf(s.projectId, row!.id), 'outcome_unknown')
+      assert.equal(await stateOf(s.projectId, row.id), 'outcome_unknown')
       assert.deepEqual(await claimedFor(s.projectId), []) // no blind retry of an unknown effect
 
       assert.equal((await call).status, 200) // the native side may well have acted…
       assert.equal(
-        await codeOf(recordDispatchResult(worker, s.projectId, row!.id, row!.lease_token!, 'acknowledged')),
+        await codeOf(recordDispatchResult(worker, s.projectId, row.id, row.lease_token!, 'acknowledged')),
         'invalid_state',
       )
-      assert.equal(await stateOf(s.projectId, row!.id), 'outcome_unknown') // …so it stays unknown until reconciled
+      assert.equal(await stateOf(s.projectId, row.id), 'outcome_unknown') // …so it stays unknown until reconciled
     },
   )
 

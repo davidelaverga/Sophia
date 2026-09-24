@@ -26,7 +26,8 @@ describe('@sophia/contracts', () => {
     const ids = new Set(schemas.map((s) => s.$id))
     assert.equal(ids.size, Object.keys(openapi.components.schemas).length)
     for (const s of schemas) {
-      for (const [, ref] of JSON.stringify(s).matchAll(/"\$ref":"(\w+)#"/g)) assert.ok(ref !== undefined && ids.has(ref), `unresolved $ref ${ref}`)
+      for (const [, ref] of JSON.stringify(s).matchAll(/"\$ref":"(\w+)#"/g))
+        assert.ok(ref !== undefined && ids.has(ref), `unresolved $ref ${ref}`)
     }
   })
 })

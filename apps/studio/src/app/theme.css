@@ -16,9 +16,9 @@
   --solid: #e9e4f6;
   --ink: #1a1524;
   --line: rgba(207, 197, 230, 0.13);
-  --sans: "Instrument Sans Variable", "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --serif: "Cormorant Garamond", Georgia, serif;
-  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --sans: 'Instrument Sans Variable', 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --rim: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 0 0 1px rgba(255, 255, 255, 0.035);
   --radius: 11px;
   color-scheme: dark;
@@ -229,7 +229,7 @@ select {
     0 0 19px #bea3e721;
 }
 .orb::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: -1px;
   border-radius: 50%;
