@@ -230,7 +230,7 @@ describe('command admission', () => {
     const path = `/api/v1/projects/${seed.projectId}/commands`
     await assert.rejects(
       call(A, 'POST', path, command(), { 'idempotency-key': key, 'x-test-drop-reply': '1' }),
-      /fetch\ failed/,
+      /fetch failed/,
     )
     assert.equal(await countCommands(key), 1) // it committed; the client just never heard
     const retry = await call(A, 'POST', path, command(), { 'idempotency-key': key })
@@ -291,7 +291,7 @@ describe('createProject', () => {
         { title: 'Lost reply' },
         { 'idempotency-key': key, 'x-test-drop-reply': '1' },
       ),
-      /fetch\ failed/,
+      /fetch failed/,
     )
     assert.equal(await projectsForKey(key), 1) // committed; the client never heard
     const retry = await call(A, 'POST', '/api/v1/projects', { title: 'Lost reply' }, { 'idempotency-key': key })
