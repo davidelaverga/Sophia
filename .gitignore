@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# Build outputs: produced by `pnpm artifacts`, identified by digest in
+# config/runtime-unit.json, never committed.
+/.artifacts/
+# Local runtime homes and dsh logs are runtime data, not source.
+/.dsh-home/
+/.runtime/
+.env
+.env.*
+!.env.example
