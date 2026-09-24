@@ -72,7 +72,8 @@ The launch environment is fully explicit (`scripts/lib/common.mjs` →
   under the process temp dir, which would otherwise be the shared system
   `/tmp`;
 - `DSH_TELEMETRY_DISABLED=1`;
-- `PATH` set to the Node toolchain plus `/usr/bin:/bin`.
+- `PATH` set to the node directory, the directory of the pinned `pnpm`
+  (found on the caller's `PATH`; `dsh plugin` needs it), and `/usr/bin:/bin`.
 
 It carries no credentials and no proxy variables, and runs in an empty
 working directory, so no invoking-directory `.env` is read. The default home

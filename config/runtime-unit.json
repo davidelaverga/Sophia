@@ -92,7 +92,7 @@
       "HOME=<throwaway>",
       "TMPDIR=<inside the install; dsh spill-local writes here>",
       "DSH_TELEMETRY_DISABLED=1",
-      "PATH=<node toolchain>:/usr/bin:/bin"
+      "PATH=<node dir>:<pinned pnpm dir>:/usr/bin:/bin"
     ]
   },
   "schema_revision": null,

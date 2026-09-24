@@ -129,6 +129,12 @@ DSH-19, DSH-20 (see [SOURCE_MAP §2](../SOURCE_MAP.md)).
   and unscripted trees identical. The earlier second-checkout evidence
   (`second-checkout.log`) is the v1 result at `b779843`. The GitHub CI run
   on this PR is the cross-host reproduction for v2.
+- **pnpm on the launch `PATH`.** The second CI run reproduced every
+  identity. It then failed the integration tests because `dsh plugin` could
+  not find pnpm: `pnpm/action-setup` installs pnpm outside node's
+  directory. The launch environment now adds exactly the directory of the
+  `pnpm` found on the caller's `PATH`, which `pnpm toolchain:check`
+  verifies is 11.7.0.
 - **`TMPDIR` pinned inside the install.** dsh's spill directory had leaked
   into the shared `/tmp`.
 - **Bridge row declares no `inject` yet.** The pack's specimen lists

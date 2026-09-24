@@ -4,9 +4,9 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** Repository root (the directory holding pnpm-workspace.yaml). */
@@ -88,10 +88,28 @@ export function runChecked(command, args, options = {}) {
 }
 
 /**
+ * `dsh plugin` forwards to pnpm, which need not live beside node (CI's
+ * pnpm/action-setup installs it elsewhere). Only this one directory from the
+ * caller's PATH enters the launch environment; `pnpm toolchain:check`
+ * verifies it is the pinned version.
+ * @returns {string} directory of the first executable `pnpm` on the caller's PATH.
+ */
+export function pnpmBinDir(pathValue = process.env.PATH ?? '') {
+  for (const dir of pathValue.split(delimiter)) {
+    if (!dir) continue
+    try {
+      accessSync(join(dir, 'pnpm'), constants.X_OK)
+      return dir
+    } catch {}
+  }
+  throw new Error('pnpm is not on PATH; dsh plugin management requires the pinned pnpm')
+}
+
+/**
  * The launch environment for dsh: an explicit Harness home, a throwaway
  * process HOME and TMPDIR, no inherited personal home, no credentials,
  * telemetry off.
- * Only the Node toolchain directory is on PATH (pnpm lives beside node).
+ * PATH holds only the node directory, the pinned pnpm directory and /usr/bin:/bin.
  * @param {{ dshHome: string, home: string }} homes - absolute directories.
  * @returns {Record<string, string>} the complete child environment.
  */
@@ -103,7 +121,7 @@ export function sanitizedEnv({ dshHome, home }) {
     HOME: home,
     TMPDIR: tmp,
     DSH_HOME: dshHome,
-    PATH: [dirname(process.execPath), '/usr/bin', '/bin'].join(':'),
+    PATH: [...new Set([dirname(process.execPath), pnpmBinDir(), '/usr/bin', '/bin'])].join(':'),
     DSH_TELEMETRY_DISABLED: '1',
     LANG: 'C.UTF-8',
   }
