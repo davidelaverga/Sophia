@@ -1,11 +1,12 @@
 // ProjectShell (architecture 04 §3): project header, view navigation, the one project feed every view
 // shares, and the room connection, which outlives view changes: joining in Studio and reading Goals
 // keeps you in the room. Views change the address, never the project.
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { canInvite, useMembership } from '../access/useAccess.ts'
@@ -39,6 +40,22 @@ function blockedBy(error: Error | null): Blocked | null {
   return 'unreachable'
 }
 
+/** The home screen lists what this device opened; a project that closed its door leaves the list. */
+function useRecentProject(
+  identity: string,
+  projectId: string,
+  snapshot: Snapshot | undefined,
+  blocked: Blocked | null,
+) {
+  const title = snapshot?.title
+  useEffect(() => {
+    if (title) rememberProject(identity, { id: projectId, title, openedAt: Date.now() })
+  }, [identity, projectId, title])
+  useEffect(() => {
+    if (blocked === 'denied') forgetProject(identity, projectId)
+  }, [identity, projectId, blocked])
+}
+
 interface Props {
   projectId: string
   view: View
@@ -54,6 +71,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
   const membership = useMembership(projectId, identity.name, identity.token).data
   const [inviting, setInviting] = useState(false)
   const blocked = blockedBy(snapshot.error)
+  useRecentProject(identity.name, projectId, snapshot.data, blocked)
   useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
@@ -117,10 +135,10 @@ interface HeaderProps {
 function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
   return (
     <header className="topbar">
-      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="All projects">
+      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="Home">
         <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
         <span className="mark-word">Sophia</span>
-        <Tip label="All projects" side="bottom" />
+        <Tip label="Home" side="bottom" />
       </button>
       <span className="crumb-sep" aria-hidden>
         /

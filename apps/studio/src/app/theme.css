@@ -867,6 +867,49 @@ button.mark:hover {
 .outcome:empty {
   display: none;
 }
+/* The way back in: the projects this device opened, as quiet rows. The home scrolls if they need room. */
+.home {
+  overflow-y: auto;
+}
+.recent {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+}
+.recent h2 {
+  padding: 0 10px;
+}
+.recent ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recent button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  text-align: left;
+  transition: background var(--fast) var(--ease);
+}
+.recent button:hover {
+  background: rgba(236, 235, 241, 0.06);
+}
+.recent-title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 /* The room stage: Sophia's light holds the room, people sit around her, one floating dock. */
 .room-stage {

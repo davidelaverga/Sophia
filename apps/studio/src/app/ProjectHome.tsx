@@ -1,5 +1,6 @@
-// Entry without a project: start one (createProject, idempotent) or open a shared link. There is no
-// project list operation in the contract yet, so a link or ID is the way in. Sophia's light rests above.
+// Entry without a project: start one (createProject, idempotent), reopen one this device opened before, or
+// open a shared link. There is no project list operation in the contract yet, so the recent list is local.
+// Sophia's light rests above.
 import { useState } from 'react'
 import type { ProjectCreated } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
@@ -7,6 +8,7 @@ import { createProject } from '../api/client.ts'
 import { useAdmission } from '../api/useAdmission.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import type { Identity } from './dev-identity.ts'
+import { openedLabel, readRecent } from './recent-projects.ts'
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
@@ -29,9 +31,33 @@ export function ProjectHome({ identity, identityControl, onOpen }: Props) {
       </header>
       <div className="screen-body">
         <CreateProjectForm token={identity.token} onCreated={onOpen} />
+        <RecentProjects identity={identity.name} onOpen={onOpen} />
         <OpenProjectForm onOpen={onOpen} />
       </div>
     </main>
+  )
+}
+
+function RecentProjects({ identity, onOpen }: { identity: string; onOpen: (projectId: string) => void }) {
+  const [recent] = useState(() => readRecent(identity))
+  const [now] = useState(() => Date.now())
+  if (recent.length === 0) return null
+  return (
+    <section className="recent" aria-labelledby="recent-title">
+      <h2 id="recent-title" className="field-label">
+        Recent on this device
+      </h2>
+      <ul>
+        {recent.map((p) => (
+          <li key={p.id}>
+            <button type="button" onClick={() => onOpen(p.id)}>
+              <span className="recent-title">{p.title}</span>
+              <span className="mono">{openedLabel(p.openedAt, now)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
