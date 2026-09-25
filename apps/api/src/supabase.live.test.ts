@@ -77,7 +77,7 @@ async function call(
 }
 
 before(async () => {
-  pool = createPool(env('SOPHIA_API_DATABASE_URL'), 4)
+  pool = createPool(env('SOPHIA_API_DATABASE_URL'), { max: 4 })
   app = buildApp({
     pool,
     verifyActor: createActorVerifier({

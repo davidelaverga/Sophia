@@ -4,6 +4,12 @@ Every rule below is enforced by a tool (`pnpm check`, CI) or by review.
 None is a matter of taste. [AGENTS.md](AGENTS.md) holds the repository
 contract; this file holds the code rules.
 
+- **Scope.** The gate covers the product code (`apps/api`, `apps/studio`,
+  `packages/contracts`, `domain`, `persistence`, `test-support`, `ui`) and the
+  TypeScript scripts. The runtime-unit areas (the S1-01 scripts and tests, the
+  S1-03 bridge in `packages/dsh-bundle` and `apps/execution-host`) are outside
+  it until their owner opts them in: remove their lines from `.prettierignore`
+  and `ignorePatterns`, then fix what the tools report.
 - **Formatting is Prettier's** (`pnpm format`; `.prettierrc.json`: no
   semicolons, single quotes, 120 columns). It is never discussed in review.
   Recorded identities are excluded (`.prettierignore`): `docs/`, `config/`,
@@ -15,8 +21,7 @@ contract; this file holds the code rules.
 - **Small, named pieces.** Functions ≤ 60 lines, complexity ≤ 12, nesting ≤ 3,
   parameters ≤ 5. When something grows, split it by responsibility and name
   each piece for what it does (`readSnapshot` → `readGoals`,
-  `readResources`…). The S1-01 composition gate predates the limits and is
-  listed as an exception in `.oxlintrc.json`; new code gets none.
+  `readResources`…).
 - **Types tell the truth.** No `any` (use `unknown` and narrow), no non-null
   `!` where narrowing can do it, `catch (err: unknown)`, and no type
   assertions (`typescript/no-unsafe-type-assertion`). JSON from the wire goes

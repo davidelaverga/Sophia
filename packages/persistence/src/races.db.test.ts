@@ -112,8 +112,8 @@ async function blockedFor<T>(p: Promise<T>, ms = 300): Promise<{ wasBlocked: boo
 
 before(async () => {
   db = await createTestDatabase()
-  api = createPool(db.apiUrl, 6)
-  worker = createPool(db.workerUrl, 3)
+  api = createPool(db.apiUrl, { max: 6 })
+  worker = createPool(db.workerUrl, { max: 3 })
 })
 after(async () => {
   await api?.end()
@@ -234,6 +234,11 @@ describe('lease expiry during an actual HTTP call', () => {
       await codeOf(recordDispatchResult(worker, s.projectId, row!.id, randomUUID(), 'acknowledged')),
       'invalid_state',
     )
+    assert.equal(
+      await recordDispatchResult(worker, s.projectId, row!.id, row!.lease_token!, 'acknowledged'),
+      'acknowledged',
+    )
+    // The holder's retry after a lost reply (same token, same result) gets the stored answer (0008).
     assert.equal(
       await recordDispatchResult(worker, s.projectId, row!.id, row!.lease_token!, 'acknowledged'),
       'acknowledged',

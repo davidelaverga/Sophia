@@ -62,9 +62,7 @@ export function treeDigest(root, options = {}) {
   }
   walk(root)
   entries.sort()
-  const digest = createHash('sha256')
-    .update(entries.join('\n') + '\n')
-    .digest('hex')
+  const digest = createHash('sha256').update(entries.join('\n') + '\n').digest('hex')
   return { digest: `${TREE_DIGEST_SCHEME}:sha256:${digest}`, entries }
 }
 

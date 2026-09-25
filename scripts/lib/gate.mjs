@@ -20,13 +20,8 @@ const BASE = '@deepseek-ai/dsh-base'
 const BUNDLE = '@sophia/dsh-bundle'
 const BRIDGE_ROW = 'sophia-control-bridge'
 
-/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6). */
-export const REQUIRED_DISABLED = [
-  'session-log-deepseek',
-  'plugin-package-inventory-deepseek',
-  'session-telemetry-otel',
-  'hmr',
-]
+/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6, plus the per-session title model call since S1-03). */
+export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr', 'session-title-llm']
 
 /** App-surface rows that bring their own root loop or endpoint; none belong in sophia-runtime. */
 export const FOREIGN_ROOT_ROWS = ['webserver', 'modules', 'connection', 'headless-runner', 'acp', 'sdk-jsonrpc-server']
@@ -68,27 +63,20 @@ export function parseDump(text) {
  * composition prints nothing there.
  */
 export function classifyDumpStderr(stderr) {
-  return stderr
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const skipped = /skipping profile bundle "([^"]+)": (.*)$/.exec(line)
-      if (skipped) {
-        const cause = skipped[2]
-        const code = /cannot resolve profile bundle/.test(cause)
-          ? 'bundle_missing'
-          : /is incompatible with dsh/.test(cause)
-            ? 'bundle_incompatible'
-            : /top-level YAML array/.test(cause)
-              ? 'patch_comments_only'
-              : 'bundle_skipped'
-        return { code, layer: skipped[1], message: line }
-      }
-      const unmatched = /\[([^\]]+)\] patch: entry "([^"]+)" not found/.exec(line)
-      if (unmatched) return { code: 'patch_unmatched_row', layer: unmatched[1], message: line }
-      return { code: 'dump_diagnostic', layer: 'dsh', message: line }
-    })
+  return stderr.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const skipped = /skipping profile bundle "([^"]+)": (.*)$/.exec(line)
+    if (skipped) {
+      const cause = skipped[2]
+      const code = /cannot resolve profile bundle/.test(cause) ? 'bundle_missing'
+        : /is incompatible with dsh/.test(cause) ? 'bundle_incompatible'
+        : /top-level YAML array/.test(cause) ? 'patch_comments_only'
+        : 'bundle_skipped'
+      return { code, layer: skipped[1], message: line }
+    }
+    const unmatched = /\[([^\]]+)\] patch: entry "([^"]+)" not found/.exec(line)
+    if (unmatched) return { code: 'patch_unmatched_row', layer: unmatched[1], message: line }
+    return { code: 'dump_diagnostic', layer: 'dsh', message: line }
+  })
 }
 
 /**
@@ -116,6 +104,49 @@ export function diffAgainstArchive(archive, installedDir) {
   }
 }
 
+/**
+ * The model route is part of the runtime unit. At the pin, pi-ai keeps an
+ * unserviceable route as a silent editable diagnostic, and the boot prints
+ * nothing, so the composed rows are checked against the recorded route: the
+ * default model selects it, the Sophia bundle set both rows, the credential is
+ * a reference, and the chosen effort is one the model offers.
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ provider: string, model: string, reasoningEffort: string, credential_ref: string }} route - the recorded route.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkModelRoute(rows, route) {
+  const findings = []
+  const fail = (message) => findings.push({ code: 'model_route_invalid', message })
+  const row = (id) => rows.find((r) => r.id === id)
+  const selection = row('agent-default-model')
+  if (!selection || !selection.patchedBy.includes(BUNDLE)) {
+    fail(`agent-default-model must be set by ${BUNDLE}`)
+  } else {
+    const { provider, model, reasoningEffort } = selection.config ?? {}
+    if (provider !== route.provider || model !== route.model || reasoningEffort !== route.reasoningEffort) {
+      fail(`agent-default-model selects ${JSON.stringify({ provider, model, reasoningEffort })}, the unit records ${JSON.stringify({ provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort })}`)
+    }
+  }
+  const adapter = row('llm-pi-ai')
+  const profile = adapter?.config?.providers?.[route.provider]
+  if (!adapter || !adapter.patchedBy.includes(BUNDLE) || !profile) {
+    fail(`llm-pi-ai must declare the "${route.provider}" route in ${BUNDLE}`)
+    return findings
+  }
+  if (profile.apiKeyEnv !== route.credential_ref) {
+    fail(`route "${route.provider}" must reference ${route.credential_ref} through apiKeyEnv, found ${JSON.stringify(profile.apiKeyEnv)}`)
+  }
+  const literal = JSON.stringify(adapter.config).match(/"(apiKey|key|token|secret)"\s*:/i)
+  if (literal) fail(`llm-pi-ai config carries a literal credential field "${literal[1]}"; only apiKeyEnv references are allowed`)
+  const entry = (profile.models ?? []).find((m) => m.id === route.model)
+  if (!entry) {
+    fail(`route "${route.provider}" does not list model "${route.model}"`)
+  } else if (!entry.reasoningEfforts || !(route.reasoningEffort in entry.reasoningEfforts)) {
+    fail(`model "${route.model}" does not offer reasoning effort "${route.reasoningEffort}"`)
+  }
+  return findings
+}
+
 /** Directories from `start` to the filesystem root. */
 function ancestors(start) {
   const out = []
@@ -134,9 +165,7 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
   const profileName = unit.dsh.profile
   const profileDir = join(dshHome, 'profiles', profileName)
   const checks = []
-  const check = (id, findings) => {
-    checks.push({ id, ok: findings.length === 0, findings })
-  }
+  const check = (id, findings) => { checks.push({ id, ok: findings.length === 0, findings }) }
   const fail = (code, message) => [{ code, message }]
 
   // 1. The manifest names exactly dsh-base then the Sophia bundle.
@@ -148,17 +177,11 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     const bundles = manifest.dsh?.profile?.bundles
     const findings = []
     if (JSON.stringify(bundles) !== JSON.stringify(unit.dsh.profile_bundles)) {
-      findings.push({
-        code: 'profile_bundles_mismatch',
-        message: `dsh.profile.bundles is ${JSON.stringify(bundles)}, expected ${JSON.stringify(unit.dsh.profile_bundles)}`,
-      })
+      findings.push({ code: 'profile_bundles_mismatch', message: `dsh.profile.bundles is ${JSON.stringify(bundles)}, expected ${JSON.stringify(unit.dsh.profile_bundles)}` })
     }
     const deps = Object.keys(manifest.dependencies ?? {})
     if (JSON.stringify(deps) !== JSON.stringify([BUNDLE])) {
-      findings.push({
-        code: 'profile_dependencies_mismatch',
-        message: `profile dependencies are ${JSON.stringify(deps)}, expected ["${BUNDLE}"]`,
-      })
+      findings.push({ code: 'profile_dependencies_mismatch', message: `profile dependencies are ${JSON.stringify(deps)}, expected ["${BUNDLE}"]` })
     }
     check('profile_manifest', findings)
   }
@@ -172,17 +195,11 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     const pkg = JSON.parse(readFileSync(bundleManifestPath, 'utf8'))
     const findings = []
     if (pkg.name !== unit.sophia_bundle.name || pkg.version !== unit.sophia_bundle.version) {
-      findings.push({
-        code: 'bundle_identity_mismatch',
-        message: `installed ${pkg.name}@${pkg.version}, expected ${unit.sophia_bundle.name}@${unit.sophia_bundle.version}`,
-      })
+      findings.push({ code: 'bundle_identity_mismatch', message: `installed ${pkg.name}@${pkg.version}, expected ${unit.sophia_bundle.name}@${unit.sophia_bundle.version}` })
     }
     const peer = pkg.peerDependencies?.['@deepseek-ai/dsh']
     if (peer !== unit.dsh.package_version) {
-      findings.push({
-        code: 'bundle_incompatible',
-        message: `peerDependencies["@deepseek-ai/dsh"] is ${JSON.stringify(peer)}, runtime is ${unit.dsh.package_version}`,
-      })
+      findings.push({ code: 'bundle_incompatible', message: `peerDependencies["@deepseek-ai/dsh"] is ${JSON.stringify(peer)}, runtime is ${unit.dsh.package_version}` })
     }
     if (typeof pkg.dsh?.bundle?.patch !== 'string') {
       findings.push({ code: 'bundle_manifest_invalid', message: 'installed package declares no dsh.bundle.patch' })
@@ -190,28 +207,16 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     const lockPath = join(profileDir, 'pnpm-lock.yaml')
     const lock = existsSync(lockPath) ? readFileSync(lockPath, 'utf8') : ''
     if (!lock.includes(unit.sophia_bundle.archive_integrity)) {
-      findings.push({
-        code: 'bundle_archive_mismatch',
-        message: `profile lock does not pin the recorded archive integrity ${unit.sophia_bundle.archive_integrity}`,
-      })
+      findings.push({ code: 'bundle_archive_mismatch', message: `profile lock does not pin the recorded archive integrity ${unit.sophia_bundle.archive_integrity}` })
     }
     const archive = join(profileDir, unit.sophia_bundle.archive)
     if (!existsSync(archive)) {
-      findings.push({
-        code: 'bundle_archive_missing',
-        message: `${unit.sophia_bundle.archive} is not in the profile, so the installed files cannot be checked against the recorded bytes`,
-      })
+      findings.push({ code: 'bundle_archive_missing', message: `${unit.sophia_bundle.archive} is not in the profile, so the installed files cannot be checked against the recorded bytes` })
     } else if (fileIntegrity(archive) !== unit.sophia_bundle.archive_integrity) {
-      findings.push({
-        code: 'bundle_archive_mismatch',
-        message: `${unit.sophia_bundle.archive} in the profile differs from the recorded archive`,
-      })
+      findings.push({ code: 'bundle_archive_mismatch', message: `${unit.sophia_bundle.archive} in the profile differs from the recorded archive` })
     } else {
       for (const path of diffAgainstArchive(archive, bundleDir)) {
-        findings.push({
-          code: 'bundle_files_mismatch',
-          message: `installed ${BUNDLE}/${path} differs from the recorded archive`,
-        })
+        findings.push({ code: 'bundle_files_mismatch', message: `installed ${BUNDLE}/${path} differs from the recorded archive` })
       }
     }
     check('bundle_installed', findings)
@@ -230,19 +235,11 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     if (existsSync(profilePatch)) {
       const profile = parsePatch(readFileSync(profilePatch, 'utf8'), 'profile cordis.patch.yml')
       if (profile.rows !== null && profile.rows.length > 0) {
-        findings.push({
-          code: 'profile_patch_not_empty',
-          layer: 'profile cordis.patch.yml',
-          message: 'S1-01 installs a literal [] profile patch; configuration belongs in the bundle',
-        })
+        findings.push({ code: 'profile_patch_not_empty', layer: 'profile cordis.patch.yml', message: 'S1-01 installs a literal [] profile patch; configuration belongs in the bundle' })
       }
     }
     if (existsSync(join(dshHome, 'cordis.patch.yml'))) {
-      findings.push({
-        code: 'home_patch_present',
-        layer: '$DSH_HOME/cordis.patch.yml',
-        message: 'an unmanaged home-level patch would outrank the profile',
-      })
+      findings.push({ code: 'home_patch_present', layer: '$DSH_HOME/cordis.patch.yml', message: 'an unmanaged home-level patch would outrank the profile' })
     }
     check('patch_layers', findings)
   } else {
@@ -253,33 +250,19 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
   const shadows = ancestors(dshPackageDir(runtimeDir))
     .map((dir) => join(dir, 'node_modules', BUNDLE))
     .filter((candidate) => existsSync(candidate))
-  check(
-    'no_bundle_shadowing',
-    shadows.map((path) => ({
-      code: 'bundle_shadowed',
-      message: `${BUNDLE} resolvable from the dsh installation at ${path}`,
-    })),
-  )
+  check('no_bundle_shadowing', shadows.map((path) => ({ code: 'bundle_shadowed', message: `${BUNDLE} resolvable from the dsh installation at ${path}` })))
 
   // 5. The trusted dump composes exactly base + Sophia rows, cleanly.
-  const dump = runDsh(runtimeDir, ['--profile', profileName, '--dump-config'], {
-    env: sanitizedEnv({ dshHome, home }),
-    cwd,
-  })
+  const dump = runDsh(runtimeDir, ['--profile', profileName, '--dump-config'], { env: sanitizedEnv({ dshHome, home }), cwd })
   const dumpFindings = []
-  if (dump.status !== 0)
-    dumpFindings.push({ code: 'dump_failed', message: `dsh --dump-config exited ${dump.status ?? dump.signal}` })
+  if (dump.status !== 0) dumpFindings.push({ code: 'dump_failed', message: `dsh --dump-config exited ${dump.status ?? dump.signal}` })
   dumpFindings.push(...classifyDumpStderr(dump.stderr))
   check('dump_config', dumpFindings)
 
   if (dump.status === 0) {
     const findings = []
     let rows = []
-    try {
-      rows = parseDump(dump.stdout)
-    } catch (error) {
-      findings.push({ code: 'dump_unparsable', message: String(error.message) })
-    }
+    try { rows = parseDump(dump.stdout) } catch (error) { findings.push({ code: 'dump_unparsable', message: String(error.message) }) }
     const byId = new Map()
     for (const row of rows) byId.set(row.id, [...(byId.get(row.id) ?? []), row])
 
@@ -289,10 +272,7 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     } else {
       const [row] = bridge
       if (row.name !== BUNDLE || row.origin !== BUNDLE || row.disabled === true || row.config?.protocolVersion !== 1) {
-        findings.push({
-          code: 'bridge_row_invalid',
-          message: `${BRIDGE_ROW} is ${JSON.stringify({ name: row.name, origin: row.origin, disabled: row.disabled, config: row.config })}`,
-        })
+        findings.push({ code: 'bridge_row_invalid', message: `${BRIDGE_ROW} is ${JSON.stringify({ name: row.name, origin: row.origin, disabled: row.disabled, config: row.config })}` })
       }
     }
     for (const id of REQUIRED_DISABLED) {
@@ -301,24 +281,17 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
         findings.push({ code: 'required_disable_missing', message: `${id} must be disabled by ${BUNDLE}` })
       }
     }
+    if (unit.model_route) findings.push(...checkModelRoute(rows, unit.model_route))
     const loops = byId.get('agent-loop') ?? []
     if (loops.length !== 1 || loops[0].origin !== BASE) {
-      findings.push({
-        code: 'agent_loop_not_single',
-        message: `expected exactly one agent-loop row from ${BASE}, found ${loops.length}`,
-      })
+      findings.push({ code: 'agent_loop_not_single', message: `expected exactly one agent-loop row from ${BASE}, found ${loops.length}` })
     }
     for (const id of FOREIGN_ROOT_ROWS) {
-      if (byId.has(id))
-        findings.push({
-          code: 'foreign_root_loop',
-          message: `app-surface row "${id}" is composed (${byId.get(id)[0].origin})`,
-        })
+      if (byId.has(id)) findings.push({ code: 'foreign_root_loop', message: `app-surface row "${id}" is composed (${byId.get(id)[0].origin})` })
     }
     for (const row of rows) {
       for (const source of [row.origin, ...row.patchedBy]) {
-        if (source !== BASE && source !== BUNDLE)
-          findings.push({ code: 'foreign_layer', message: `row "${row.id}" comes from or is patched by "${source}"` })
+        if (source !== BASE && source !== BUNDLE) findings.push({ code: 'foreign_layer', message: `row "${row.id}" comes from or is patched by "${source}"` })
       }
     }
     // Rows present must be exactly base inserts + Sophia inserts.
@@ -327,12 +300,8 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
       const bundle = parsePatch(readFileSync(bundlePatch, 'utf8'), BUNDLE)
       const expected = new Set([...insertedIds(base.rows ?? []), ...insertedIds(bundle.rows ?? [])])
       const actual = new Set(rows.map((row) => row.id))
-      for (const id of expected)
-        if (!actual.has(id))
-          findings.push({ code: 'composition_mismatch', message: `expected row "${id}" is not composed` })
-      for (const id of actual)
-        if (!expected.has(id))
-          findings.push({ code: 'composition_mismatch', message: `unexpected row "${id}" is composed` })
+      for (const id of expected) if (!actual.has(id)) findings.push({ code: 'composition_mismatch', message: `expected row "${id}" is not composed` })
+      for (const id of actual) if (!expected.has(id)) findings.push({ code: 'composition_mismatch', message: `unexpected row "${id}" is composed` })
     }
     check('composition', findings)
   }
@@ -342,12 +311,14 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
 }
 
 /**
- * Health needs a verified composition AND a bridge that reports ready. The
- * S1-01 bridge never reports ready, so every S1-01 runtime is unhealthy; a
- * composition failure adds its own reasons so the two causes stay distinct.
+ * Health needs a verified composition AND a running bridge that reported
+ * `ready` to the Sophia service. This gate checks composition statically, so
+ * its verdict is never `healthy`: readiness is observed at runtime by the
+ * service (and the execution-host supervisor), never inferred from files.
+ * Composition failures keep their own reasons so the two causes stay distinct.
  */
 export function healthOf(checks) {
   const reasons = checks.filter((c) => !c.ok).map((c) => `composition:${c.id}`)
-  reasons.push('bridge_not_ready: control bridge not implemented (S1-03)')
+  reasons.push('bridge_readiness_unobserved: readiness is reported by the running bridge, not by files')
   return { healthy: false, reasons }
 }

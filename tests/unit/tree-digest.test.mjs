@@ -20,18 +20,13 @@ function fixture(binShimText, stateText, deployLockText = 'lockfileVersion: 9.0\
 
 test('the digest ignores location-bound shims, install-time bookkeeping and the deploy-local lock', () => {
   // pnpm deploy writes a lock with absolute file: URLs of the source checkout.
-  const a = fixture('#!/bin/sh\nexport NODE_PATH=/one/place\n', 'prunedAt: Mon\n', 'x@file:///one/checkout: {}\n')
-  const b = fixture(
-    '#!/bin/sh\nexport NODE_PATH=/another/place\n',
-    'prunedAt: Tue\n',
-    'x@file:///second/checkout: {}\n',
-  )
+  const a = fixture('#!/bin/sh\nexport NODE_PATH=/one/place\n', 'prunedAt: Mon\n', "x@file:///one/checkout: {}\n")
+  const b = fixture('#!/bin/sh\nexport NODE_PATH=/another/place\n', 'prunedAt: Tue\n', "x@file:///second/checkout: {}\n")
   try {
     assert.equal(treeDigest(a).digest, treeDigest(b).digest)
     assert.match(treeDigest(a).digest, /^sophia-tree-v2:sha256:[0-9a-f]{64}$/)
   } finally {
-    rmSync(a, { recursive: true })
-    rmSync(b, { recursive: true })
+    rmSync(a, { recursive: true }); rmSync(b, { recursive: true })
   }
 })
 

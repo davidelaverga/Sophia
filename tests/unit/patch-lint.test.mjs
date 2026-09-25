@@ -39,16 +39,11 @@ test('an empty bundle layer is rejected because the bundle would compose as abse
 
 test('a wrong-row patch is diagnosed', () => {
   const { rows } = parsePatch('- id: session-log-deepsek\n  disabled: true\n', 'bundle')
-  assert.deepEqual(codes(lintLayer(rows, baseIds, { layer: 'bundle', requireRows: true }).findings), [
-    'patch_unmatched_row',
-  ])
+  assert.deepEqual(codes(lintLayer(rows, baseIds, { layer: 'bundle', requireRows: true }).findings), ['patch_unmatched_row'])
 })
 
 test('a correct disable plus a new insert lints clean and extends the id set', () => {
-  const { rows } = parsePatch(
-    '- id: hmr\n  disabled: true\n- insert:\n    - id: sophia-control-bridge\n      name: "@sophia/dsh-bundle"\n',
-    'bundle',
-  )
+  const { rows } = parsePatch('- id: hmr\n  disabled: true\n- insert:\n    - id: sophia-control-bridge\n      name: "@sophia/dsh-bundle"\n', 'bundle')
   const { findings, ids } = lintLayer(rows, baseIds, { layer: 'bundle', requireRows: true })
   assert.deepEqual(findings, [])
   assert.ok(ids.has('sophia-control-bridge'))
@@ -56,9 +51,7 @@ test('a correct disable plus a new insert lints clean and extends the id set', (
 
 test('re-inserting an existing id is diagnosed', () => {
   const { rows } = parsePatch('- insert:\n    - id: agent-loop\n      name: x\n', 'bundle')
-  assert.deepEqual(codes(lintLayer(rows, baseIds, { layer: 'bundle', requireRows: true }).findings), [
-    'patch_duplicate_insert',
-  ])
+  assert.deepEqual(codes(lintLayer(rows, baseIds, { layer: 'bundle', requireRows: true }).findings), ['patch_duplicate_insert'])
 })
 
 test('non-array and malformed rows are diagnosed', () => {
