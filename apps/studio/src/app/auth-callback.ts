@@ -31,4 +31,4 @@ export function withoutAuthParams(href: string): string {
 }
 
 export const OTHER_BROWSER_NOTICE =
-  'That sign-in link was opened in a different browser than the one that asked for it. Enter the code from the email instead, or ask for a new link here.'
+  'That sign-in link was opened in a different browser than the one that asked for it. Type the code from the email in that browser, or ask for a new link here.'

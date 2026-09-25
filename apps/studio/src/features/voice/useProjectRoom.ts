@@ -3,8 +3,9 @@
 // page leaves the room; nothing here touches goals or work.
 import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
-import { issueRoomToken } from '../../api/client.ts'
+import { ApiError, issueRoomToken } from '../../api/client.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
+import { micOnJoin, rememberMic } from './mic-preference.ts'
 import { listensOnly, type DockStatus, type RoomParticipant } from './room-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
@@ -25,18 +26,32 @@ export interface ProjectRoom {
 
 type Device = 'microphone' | 'camera' | 'screen'
 
-const message = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback)
+const KEY_OF: Record<Exclude<Device, 'screen'>, string> = { microphone: 'M', camera: 'V' }
 
-/** Null when there is nothing to say: cancelling the screen picker is a choice, not an error. */
+/**
+ * What stopped a device, and what to do about it. Null when there is nothing to say: cancelling the screen
+ * picker is a choice, not an error. The note stays until the device works or the call ends.
+ */
 function mediaMessage(err: unknown, device: Device): string | null {
   const name = err instanceof Error ? err.name : ''
   if (device === 'screen') {
-    return name === 'NotAllowedError' || name === 'AbortError' ? null : message(err, 'Screen sharing could not start.')
+    return name === 'NotAllowedError' || name === 'AbortError' ? null : 'Screen sharing couldn’t start. Try again.'
   }
   const listen = device === 'microphone' ? ' You can still listen.' : ''
-  if (name === 'NotAllowedError') return `Your browser blocked the ${device}.${listen} Allow it and try again.`
+  const Device = device.charAt(0).toUpperCase() + device.slice(1)
+  if (name === 'NotAllowedError') {
+    return `${Device} blocked. Allow it from the icon in the address bar, then press ${KEY_OF[device]}.${listen}`
+  }
   if (name === 'NotFoundError') return `No ${device} found.${listen}`
-  return message(err, `The ${device} could not start.${listen}`)
+  if (name === 'NotReadableError') return `Another app is using your ${device}. Close it and try again.`
+  return `The ${device} couldn’t start. Try again.${listen}`
+}
+
+/** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
+function joinMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status > 0 && err.status < 500) return err.message
+  if (err instanceof ApiError) return 'The room isn’t available right now. Try again in a moment.'
+  return 'Couldn’t connect to the room. Check your connection and try again.'
 }
 
 interface People {
@@ -44,7 +59,6 @@ interface People {
   feeds: VideoFeed[]
 }
 const NOBODY: People = { participants: [], feeds: [] }
-const MEDIA_NOTE_MS = 8000
 
 /** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
 export type IssueToken = () => Promise<RoomToken>
@@ -56,19 +70,11 @@ async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
   return connectRoom(issued.serverUrl, issued.token, cb)
 }
 
-/** A media note is read once, then steps aside; the toggle still shows the device is off. */
-function useMediaNote(): [string | null, (note: string | null) => void] {
-  const [note, setNote] = useState<string | null>(null)
-  useEffect(() => {
-    if (!note) return undefined
-    const t = setTimeout(() => setNote(null), MEDIA_NOTE_MS)
-    return () => clearTimeout(t)
-  }, [note])
-  return [note, setNote]
-}
-
-/** A viewer's token cannot publish: they listen, and no browser prompt asks them for a microphone. */
-const speaksOnJoin = (c: RoomConnection) => !listensOnly(c.participants().find((p) => p.local))
+/**
+ * The microphone on joining: never for a viewer (their token cannot publish, so no browser prompt asks), and
+ * otherwise as this device left it last time.
+ */
+const micOnArrival = (c: RoomConnection) => !listensOnly(c.participants().find((p) => p.local)) && micOnJoin()
 
 /** A member's room: the token names this project's room and the audience revision the member saw. */
 export function useProjectRoom(projectId: string, token: string, snapshot: Snapshot | undefined): ProjectRoom {
@@ -76,19 +82,12 @@ export function useProjectRoom(projectId: string, token: string, snapshot: Snaps
   return useRoomConnection(req ? () => issueRoomToken(token, projectId, crypto.randomUUID(), req) : null)
 }
 
-/** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
-export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
-  const connection = useRef<RoomConnection | null>(null)
-  const [status, setStatus] = useState<DockStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
-  const [mediaError, setMediaError] = useMediaNote()
-  const [people, setPeople] = useState<People>(NOBODY)
-
-  useEffect(() => () => void connection.current?.leave(), [])
-
-  const refresh = () =>
-    setPeople({ participants: connection.current?.participants() ?? [], feeds: connection.current?.feeds() ?? [] })
-
+/**
+ * The call's devices: each change clears the note on success or says what stopped it. The microphone
+ * choice a person makes is remembered for their next join; the one made for them on arrival is not.
+ */
+function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
+  const [mediaError, setMediaError] = useState<string | null>(null)
   const media = (device: Device, change: (c: RoomConnection) => Promise<void>) => async () => {
     const c = connection.current
     if (!c) return
@@ -100,48 +99,75 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       refresh()
     }
   }
+  return {
+    mediaError,
+    clearNote: () => setMediaError(null),
+    arrive: media('microphone', (c) => c.setMicrophone(true)),
+    setMicrophone: (on: boolean) => {
+      rememberMic(on)
+      return media('microphone', (c) => c.setMicrophone(on))()
+    },
+    setCamera: (on: boolean) => media('camera', (c) => c.setCamera(on))(),
+    setScreenShare: (on: boolean) => media('screen', (c) => c.setScreenShare(on))(),
+  }
+}
 
-  /** Out of the call, by leaving or because it ended from the other side: nobody is shown as still here. */
-  const reset = () => {
+/** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
+export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
+  const connection = useRef<RoomConnection | null>(null)
+  /** Which call is current: an 'ended' from a call this person already left is expected, not a drop. */
+  const calls = useRef(0)
+  const [status, setStatus] = useState<DockStatus>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const [people, setPeople] = useState<People>(NOBODY)
+
+  useEffect(() => () => void connection.current?.leave(), [])
+
+  const refresh = () =>
+    setPeople({ participants: connection.current?.participants() ?? [], feeds: connection.current?.feeds() ?? [] })
+  const { clearNote, arrive, ...devices } = useDevices(connection, refresh)
+
+  /**
+   * Out of the call: nobody is shown as still here. A call that ended without this person leaving (a
+   * network drop, the room taken away) says so and offers to rejoin, instead of silently resetting.
+   */
+  const outOfCall = (dropped: boolean) => {
     connection.current = null
     setPeople(NOBODY)
-    setMediaError(null)
-    setStatus('idle')
+    clearNote()
+    setStatus(dropped ? 'failed' : 'idle')
+    setError(dropped ? 'You were disconnected from the room.' : null)
   }
 
   const join = async () => {
     if (!issue) return
+    const call = ++calls.current
     setStatus('joining')
     setError(null)
     try {
       connection.current = await openRoom(issue, {
         onChange: refresh,
-        onStatus: (s) => (s === 'ended' ? reset() : setStatus(s)),
+        onStatus: (s) => {
+          if (call !== calls.current) return
+          if (s === 'ended') outOfCall(true)
+          else setStatus(s)
+        },
       })
       setStatus('live')
       refresh()
-      if (speaksOnJoin(connection.current)) await media('microphone', (c) => c.setMicrophone(true))()
+      if (micOnArrival(connection.current)) await arrive()
     } catch (err: unknown) {
       connection.current = null
       setStatus('failed')
-      setError(message(err, 'Could not join the room.'))
+      setError(joinMessage(err))
     }
   }
 
   const leave = async () => {
+    calls.current += 1
     await connection.current?.leave()
-    reset()
+    outOfCall(false)
   }
 
-  return {
-    status,
-    error,
-    mediaError,
-    ...people,
-    join,
-    leave,
-    setMicrophone: (on) => media('microphone', (c) => c.setMicrophone(on))(),
-    setCamera: (on) => media('camera', (c) => c.setCamera(on))(),
-    setScreenShare: (on) => media('screen', (c) => c.setScreenShare(on))(),
-  }
+  return { status, error, ...people, ...devices, join, leave }
 }

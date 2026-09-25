@@ -8,6 +8,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { transferInputFloor, type ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
+import { micOnJoin } from './mic-preference.ts'
 import { listensOnly, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -46,13 +47,14 @@ function JoinButton({ room }: { room: ProjectRoom }) {
   return (
     <button
       type="button"
-      className="pill primary"
+      className="pill primary has-tip"
       disabled={room.status === 'joining'}
       onClick={() => void room.join()}
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
       <kbd aria-hidden>J</kbd>
+      <Tip label={micOnJoin() ? 'You join with your microphone on' : 'You join with your microphone off'} />
     </button>
   )
 }

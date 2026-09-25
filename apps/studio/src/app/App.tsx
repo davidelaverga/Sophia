@@ -54,6 +54,7 @@ export function App() {
           identitySwitcher={identityControl}
           onShow={show}
           onLeave={leave}
+          onSignOut={leaveSession}
         />
       ) : (
         <ProjectHome identity={identity} identityControl={identityControl} onOpen={open} />

@@ -42,9 +42,10 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
 
   return (
     <aside className="lobby arrive" aria-label="Waiting to come in">
-      <p className="lobby-title">
+      <p className="lobby-title" role="status">
         {waiting.length === 1 ? 'Someone is waiting to come in' : `${waiting.length} people are waiting to come in`}
       </p>
+      {!canDecide && <p className="lobby-note">An editor or admin can let them in.</p>}
       <ul>
         {waiting.map((e) => (
           <li key={e.id}>

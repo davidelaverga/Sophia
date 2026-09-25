@@ -169,9 +169,10 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
         attention={geometry.attention}
         working={running > 0}
       />
-      <div className="stage-top">{lensBar}</div>
       {mode === 'light' ? (
         <>
+          {/* Lenses shape what sits under the light; with video on the stage there is nothing for them to change. */}
+          <div className="stage-top">{lensBar}</div>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
           <SophiaLine line={line ?? roomLine(room.status, floor, running)} session={sessionNote(snapshot, now)} />
           <div className="stage-body">{lensBody}</div>

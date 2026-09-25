@@ -24,11 +24,12 @@ import { ViewNav } from './ViewNav.tsx'
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
 
+/** The project feed, not the call: "Live" read as a call in progress, so it says whether the view is current. */
 const CONNECTION: Record<Connection, string> = {
   connecting: 'Connecting',
-  live: 'Live',
+  live: 'Up to date',
   reconnecting: 'Reconnecting',
-  resyncing: 'Resyncing',
+  resyncing: 'Catching up',
   denied: 'No access',
 }
 
@@ -71,9 +72,11 @@ interface Props {
   identitySwitcher: React.ReactNode
   onShow: (view: View) => void
   onLeave: () => void
+  onSignOut: () => void
 }
 
-export function ProjectShell({ projectId, view, identity, identitySwitcher, onShow, onLeave }: Props) {
+export function ProjectShell(props: Props) {
+  const { projectId, view, identity, identitySwitcher, onShow, onLeave, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useMembership(projectId, identity.name, identity.token).data
@@ -112,8 +115,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
         <AccessNotice
           blocked={blocked}
           identityName={identity.name}
-          onLeave={onLeave}
-          onRetry={() => void snapshot.refetch()}
+          actions={{ leave: onLeave, retry: () => void snapshot.refetch(), signin: onSignOut }}
         />
       ) : (
         <ProjectBody
@@ -248,21 +250,25 @@ function CopyLinkButton({ projectId }: { projectId: string }) {
       // Clipboard unavailable: the address bar still has the link.
     }
   }
+  // A viewer's link opens the project only for its members: the tip says so, so nobody mistakes it for an invitation.
   return (
     <button
       type="button"
-      className="ghost copy-link"
-      aria-label={copied ? 'Link copied' : 'Copy link'}
+      className="ghost copy-link has-tip"
+      aria-label={copied ? 'Link copied' : 'Copy project link'}
       onClick={() => void copy()}
     >
       <Icon name="link" />
-      <SwapLabel value={copied ? 'copied' : 'copy'} labels={{ copy: 'Copy link', copied: 'Link copied' }} />
+      <SwapLabel value={copied ? 'copied' : 'copy'} labels={{ copy: 'Copy project link', copied: 'Link copied' }} />
+      <Tip label="For project members. To bring someone new, ask an editor to invite them." side="bottom" align="end" />
     </button>
   )
 }
 
-const NOTICE: Record<Blocked, { title: string; body: (name: string) => string; action: 'leave' | 'retry' }> = {
-  expired: { title: 'Your session ended', body: () => 'Sign in again to continue.', action: 'leave' },
+type NoticeAction = 'leave' | 'retry' | 'signin'
+
+const NOTICE: Record<Blocked, { title: string; body: (name: string) => string; action: NoticeAction }> = {
+  expired: { title: 'You’ve been signed out', body: () => 'Sign in again to continue.', action: 'signin' },
   denied: {
     title: 'No access to this project',
     body: (name) => `${name} isn’t a member. Ask a project admin to add you, or open another project.`,
@@ -275,28 +281,27 @@ const NOTICE: Record<Blocked, { title: string; body: (name: string) => string; a
   },
 }
 
+const ACTION_LABEL: Record<NoticeAction, string> = {
+  leave: 'Back to projects',
+  retry: 'Try again',
+  signin: 'Sign in again',
+}
+
 interface NoticeProps {
   blocked: Blocked
   identityName: string
-  onLeave: () => void
-  onRetry: () => void
+  actions: Record<NoticeAction, () => void>
 }
 
-function AccessNotice({ blocked, identityName, onLeave, onRetry }: NoticeProps) {
+function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
     <main className="page notice">
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
-      {notice.action === 'leave' ? (
-        <button type="button" className="pill" onClick={onLeave}>
-          Back to projects
-        </button>
-      ) : (
-        <button type="button" className="pill" onClick={onRetry}>
-          Try again
-        </button>
-      )}
+      <button type="button" className="pill" onClick={actions[notice.action]}>
+        {ACTION_LABEL[notice.action]}
+      </button>
     </main>
   )
 }

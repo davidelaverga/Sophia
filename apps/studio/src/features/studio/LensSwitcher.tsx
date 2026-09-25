@@ -25,7 +25,7 @@ export function LensSwitcher({ lens, onChange }: Props) {
   }
   return (
     <div className="lens-bar">
-      <div ref={thumb} className="segmented" role="tablist" aria-label="Your lens" onKeyDown={onKeyDown}>
+      <div ref={thumb} className="segmented" role="tablist" aria-label="Your view" onKeyDown={onKeyDown}>
         {LENSES.map((l) => (
           <button
             key={l}
@@ -46,7 +46,7 @@ export function LensSwitcher({ lens, onChange }: Props) {
           </button>
         ))}
       </div>
-      <span className="lens-note">Only you see your lens</span>
+      <span className="lens-note">Only your view changes</span>
     </div>
   )
 }

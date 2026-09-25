@@ -109,29 +109,49 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
   )
 }
 
+/** An invitation link pasted here goes where it leads (this Sophia's /join page), not nowhere. */
+function joinLink(text: string): string | null {
+  try {
+    const url = new URL(text.trim(), window.location.origin)
+    return url.origin === window.location.origin && url.pathname === '/join' && url.hash ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 function OpenProjectForm({ onOpen }: { onOpen: (projectId: string) => void }) {
   const [link, setLink] = useState('')
-  const projectId = UUID.exec(link)?.[0]
+  const invitation = joinLink(link)
+  const projectId = invitation ? undefined : UUID.exec(link)?.[0]
+  const unknown = link.trim() !== '' && !projectId && !invitation
   return (
-    <form
-      className="field quiet"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (projectId) onOpen(projectId)
-      }}
-    >
-      <label htmlFor="link" className="sr-only">
-        Project link or ID
-      </label>
-      <input
-        id="link"
-        placeholder="Or paste a shared project link"
-        value={link}
-        onChange={(e) => setLink(e.target.value)}
-      />
-      <button type="submit" className="pill" disabled={!projectId}>
-        Open
-      </button>
-    </form>
+    <>
+      <form
+        className="field quiet"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (invitation) window.location.assign(invitation)
+          else if (projectId) onOpen(projectId)
+        }}
+      >
+        <label htmlFor="link" className="sr-only">
+          Project or invitation link
+        </label>
+        <input
+          id="link"
+          placeholder="Or paste a project or invitation link"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+        />
+        <button type="submit" className="pill" disabled={!projectId && !invitation}>
+          Open
+        </button>
+      </form>
+      <p className="muted home-hint" role="status">
+        {unknown
+          ? 'That doesn’t look like a project or invitation link.'
+          : 'Opened a project on another device? Its link is in your invitation email.'}
+      </p>
+    </>
   )
 }
