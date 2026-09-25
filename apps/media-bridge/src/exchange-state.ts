@@ -117,7 +117,8 @@ export class ExchangeState {
   /** Record that holder audio was forwarded: the next model turn answers this epoch's holder. */
   forwarded(): void {
     if (!this.effectiveActor) return
-    if (!this.forwardedSinceTurn || !this.turn) this.turn = { inputEpoch: this.effectiveEpoch, actorId: this.effectiveActor }
+    if (!this.forwardedSinceTurn || !this.turn)
+      this.turn = { inputEpoch: this.effectiveEpoch, actorId: this.effectiveActor }
     this.forwardedSinceTurn = true
   }
 
