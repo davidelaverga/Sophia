@@ -3,6 +3,7 @@ import type { Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
+import { readSophia } from './exchange.ts'
 import { readDiscussion, readNativeTasks } from './native-tasks.ts'
 import { onlyRow } from './rows.ts'
 
@@ -64,6 +65,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const sessions = await readUpcomingSessions(c, projectId)
   const discussion = await readDiscussion(c, projectId)
   const work = await readNativeTasks(c, projectId)
+  const sophia = await readSophia(c, room.id)
   return {
     projectId: project.id,
     title: project.title,
@@ -81,6 +83,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
       revision: safeInt(room.revision, 'room.revision'),
       inputActorId: room.input_actor_id,
       mode: room.mode,
+      sophia,
     },
     lobby,
     sessions,

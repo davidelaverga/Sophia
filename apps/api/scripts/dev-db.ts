@@ -2,9 +2,10 @@
 // SOPHIA_DISPOSABLE_DATABASE_URL with migrations, a sophia_api login, one project with two
 // members and an outsider, an anonymous guest (as a Supabase anonymous sign-in would be), plus
 // short-lived HS256 dev tokens and a fresh invitation-link secret. S1-05A: a sophia_worker login for runtime
-// dispatch and a registered dsh runtime (its capability goes to scripts/runtime-host.mjs).
+// dispatch and a registered dsh runtime (its capability goes to scripts/runtime-host.mjs), and the media bridge's
+// capability (the API gets its SHA-256, apps/media-bridge the token).
 //   SOPHIA_DISPOSABLE_DATABASE_URL=postgres://... node apps/api/scripts/dev-db.ts [--json]
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { SignJWT } from 'jose'
 import { createTestDatabase, registerRuntime, seedProject } from '@sophia/test-support'
@@ -40,8 +41,11 @@ const token = (sub: string, email: string | null) =>
     .setExpirationTime('12h')
     .sign(new TextEncoder().encode(secret))
 
+const mediaToken = randomBytes(32).toString('base64url')
+
 const out = {
   api: {
+    SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256: createHash('sha256').update(mediaToken, 'utf8').digest('hex'),
     SOPHIA_API_DATABASE_URL: db.apiUrl,
     SUPABASE_JWT_ISSUER: issuer,
     SUPABASE_JWT_SECRET: secret,
@@ -50,6 +54,7 @@ const out = {
   },
   worker: { SOPHIA_WORKER_DATABASE_URL: db.workerUrl },
   runtime: { SOPHIA_RUNTIME_TOKEN: runtime.token },
+  media: { SOPHIA_MEDIA_BRIDGE_TOKEN: mediaToken },
   project: seed,
   identities: [
     { name: 'Luis', role: 'admin', token: await token(founders.luis, 'luis@sophia.test') },

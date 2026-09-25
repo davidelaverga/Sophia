@@ -8,11 +8,14 @@ import {
   validateError,
   validateEvent,
   validateExchangeReceipt,
+  validateExchangeState,
   validateInvitation,
   validateInvitationAccepted,
   validateInvitationList,
   validateInvitationPreview,
   validateLobbyEntry,
+  validateMediaAssignmentBatch,
+  validateMediaToolResult,
   validateMembership,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
@@ -64,6 +67,9 @@ export const parseMembership = parser('Membership', validateMembership)
 export const parseContributionReceipt = parser('ContributionReceipt', validateContributionReceipt)
 export const parseNativeTaskReceipt = parser('NativeTaskReceipt', validateNativeTaskReceipt)
 export const parseNativeTaskDetail = parser('NativeTaskDetail', validateNativeTaskDetail)
+export const parseExchangeState = parser('ExchangeState', validateExchangeState)
+export const parseMediaAssignmentBatch = parser('MediaAssignmentBatch', validateMediaAssignmentBatch)
+export const parseMediaToolResult = parser('MediaToolResult', validateMediaToolResult)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

@@ -15,6 +15,7 @@ export type ErrorCode =
   | 'outcome_unknown'
   | 'unavailable'
   | 'runtime_capability_required'
+  | 'media_capability_required'
   | 'native_capability_unavailable'
 
 export type Retry = ApiError['retry']
@@ -35,6 +36,8 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   unavailable: { status: 503, retry: 'safe_read' },
   // A /v1/runtime/* call without a recognized runtime capability (A04). Never a member identity.
   runtime_capability_required: { status: 401, retry: 'reauthorize' },
+  // A /v1/media/* call without the media bridge's capability (A06). Never a member identity.
+  media_capability_required: { status: 401, retry: 'reauthorize' },
   // The project has no registered native runtime to run the work on: admitting it would only fail later.
   native_capability_unavailable: { status: 503, retry: 'never' },
 }

@@ -64,3 +64,19 @@ export {
   type ContributionOrigin,
 } from './native-tasks.ts'
 export { claimRuntimeOutbox, dispatchRuntimeOutbox, reconcileRuntimeOutbox, type DispatchOutcome } from './dispatch.ts'
+export {
+  ackQuiesce,
+  controlExchange,
+  holderEvent,
+  mediaAssignments,
+  PRESENCE_FRESH_SECONDS,
+  quiesceAcked,
+  readSophia,
+  recordAnnounced,
+  reportPresence,
+  requestGuestQuiesce,
+  startExchange,
+  toolSpeaker,
+  type ExchangeAction,
+  type PresenceReport,
+} from './exchange.ts'

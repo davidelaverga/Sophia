@@ -1,0 +1,627 @@
+// RoomSession against LABELLED FAKES: FakeRoom stands in for LiveKit, FakeLive for Gemini Live, FakeService
+// for the API. This is bridge-logic evidence only (S1-05A cases A06, A09–A14 and §7 holder departure); it is not a live model or media
+// test and does not count toward A04/A05 acceptance.
+import type { FunctionResponse } from '@google/genai'
+import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
+import assert from 'node:assert/strict'
+import { beforeEach, describe, it } from 'node:test'
+import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
+import { SETTLE_MS } from './exchange-state.ts'
+import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
+import { HOLDER_GRACE_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
+import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
+import type { MediaService } from './service.ts'
+
+const LUIS = '11111111-1111-4111-8111-111111111111'
+const DAVIDE = '22222222-2222-4222-8222-222222222222'
+const EXCHANGE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const TASK = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const REQUEST = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+
+const assignment = (over: Partial<MediaAssignment> = {}): MediaAssignment => ({
+  exchangeId: EXCHANGE,
+  projectId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  roomId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  state: 'open',
+  pauseReason: null,
+  inputEpoch: 1,
+  inputActorId: LUIS,
+  playbackEpoch: 1,
+  observationEpoch: 1,
+  allowVision: true,
+  looking: null,
+  roomRevision: 1,
+  quiesceRequestId: null,
+  roomToken: { serverUrl: 'ws://fake-livekit', token: 'fake-token', expiresAt: '2026-09-25T00:10:00Z' },
+  results: [],
+  ...over,
+})
+
+const member = (identity: string): RoomPerson => ({ identity, standing: 'editor' })
+
+/** FAKE LiveKit room: records what the session asks of it. */
+class FakeRoom implements RoomLink {
+  events: RoomEvents
+  present: RoomPerson[]
+  played: Int16Array[] = []
+  clears = 0
+  watched: Array<LookTarget | null> = []
+  attributes: Array<Record<string, string>> = []
+  closed = false
+
+  constructor(events: RoomEvents, present: RoomPerson[]) {
+    this.events = events
+    this.present = present
+  }
+
+  people = () => this.present
+  play = async (samples: Int16Array) => {
+    await Promise.resolve()
+    this.played.push(samples)
+  }
+  clearPlayback = () => {
+    this.clears += 1
+  }
+  watch = (target: LookTarget | null) => {
+    this.watched.push(target)
+  }
+  setState = async (attributes: Record<string, string>) => {
+    await Promise.resolve()
+    this.attributes.push(attributes)
+  }
+  close = async () => {
+    await Promise.resolve()
+    this.closed = true
+  }
+
+  join(people: RoomPerson[]): void {
+    this.present = people
+    this.events.people(people)
+  }
+}
+
+/** FAKE Gemini Live connection. */
+class FakeLive implements LiveLink {
+  readonly options: LiveOptions
+  readonly events: LiveEvents
+  audio = 0
+  streamEnds = 0
+  frames = 0
+  responses: FunctionResponse[] = []
+  notices: string[] = []
+  closed = false
+
+  constructor(options: LiveOptions, events: LiveEvents) {
+    this.options = options
+    this.events = events
+  }
+
+  sendAudio = () => {
+    this.audio += 1
+  }
+  sendAudioStreamEnd = () => {
+    this.streamEnds += 1
+  }
+  sendFrame = () => {
+    this.frames += 1
+  }
+  sendToolResponses = (r: FunctionResponse[]) => {
+    this.responses.push(...r)
+  }
+  sendNotice = (text: string) => {
+    this.notices.push(text)
+  }
+  close = () => {
+    this.closed = true
+  }
+}
+
+/** FAKE API: records media calls; tool results are scripted. */
+class FakeService implements MediaService {
+  presences: Array<Parameters<MediaService['presence']>[0]> = []
+  acks: string[] = []
+  holders: Array<Parameters<MediaService['holder']>[0]> = []
+  announcedEvents: Array<Parameters<MediaService['announced']>[0]> = []
+  calls: MediaToolCall[] = []
+  result: MediaToolResult = { status: 'admitted', output: { workId: TASK } }
+
+  assignments = () => Promise.reject(new Error('not used'))
+  presence = async (r: Parameters<MediaService['presence']>[0]) => {
+    await Promise.resolve()
+    this.presences.push(r)
+  }
+  ackQuiesce = async (a: Parameters<MediaService['ackQuiesce']>[0]) => {
+    await Promise.resolve()
+    this.acks.push(a.requestId)
+  }
+  holder = async (e: Parameters<MediaService['holder']>[0]) => {
+    await Promise.resolve()
+    this.holders.push(e)
+  }
+  announced = async (e: Parameters<MediaService['announced']>[0]) => {
+    await Promise.resolve()
+    this.announcedEvents.push(e)
+  }
+  toolCall = async (c: MediaToolCall) => {
+    await Promise.resolve()
+    this.calls.push(c)
+    return this.result
+  }
+}
+
+const statusOf = (r: FunctionResponse | undefined): unknown => {
+  const output: unknown = r?.response?.output
+  return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
+}
+const flush = () => new Promise((resolve) => setImmediate(resolve))
+const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
+const speech = (frames = 2) => pcmToBase64(new Int16Array(OUTPUT_FRAME * frames).fill(300))
+const OUT = 'audio/pcm;rate=24000'
+
+let clock: number
+let service: FakeService
+let rooms: FakeRoom[]
+let lives: FakeLive[]
+let order: string[]
+
+async function open(over: Partial<MediaAssignment> = {}, people = [member(LUIS), member(DAVIDE)]) {
+  const session = new RoomSession(assignment(over), {
+    service,
+    joinRoom: async (_access, events) => {
+      await Promise.resolve()
+      order.push('room')
+      const room = new FakeRoom(events, people)
+      rooms.push(room)
+      return room
+    },
+    connectLive: async (options, events) => {
+      await Promise.resolve()
+      order.push('live')
+      const live = new FakeLive(options, events)
+      lives.push(live)
+      return live
+    },
+    apiKey: 'fake-key',
+    model: 'fake-model',
+    bridgeInstanceId: 'bridge-test',
+    now: () => clock,
+    log: () => undefined,
+    every: () => () => undefined,
+  })
+  await session.start()
+  const room = rooms.at(-1)
+  const live = lives.at(-1)
+  assert.ok(room && live)
+  return { session, room, live }
+}
+
+async function ready(over: Partial<MediaAssignment> = {}, people?: RoomPerson[]) {
+  const s = await open(over, people)
+  s.live.events.setupComplete()
+  return s
+}
+
+beforeEach(() => {
+  clock = 1_000_000
+  service = new FakeService()
+  rooms = []
+  lives = []
+  order = []
+})
+
+describe('room session: who Google hears (cases A10, A11)', () => {
+  it('joins the room before connecting Google, and forwards nothing until the provider is ready', async () => {
+    const { session, room, live } = await open()
+    assert.deepEqual(order, ['room', 'live'])
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 0)
+    assert.equal(session.observed().input, 'closed')
+    live.events.setupComplete()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 1)
+    assert.equal(session.observed().input, 'admitted')
+  })
+
+  it('forwards only the holder’s microphone', async () => {
+    const { room, live } = await ready()
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 0)
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 1)
+  })
+
+  it('a handoff ends the old holder’s stream, settles, and keeps the old speaker on a late tool call', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE }))
+    assert.equal(live.streamEnds, 1)
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1)
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 1, 'nobody is heard while the old turn settles')
+    live.events.toolCalls([{ id: 'late-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    await flush()
+    assert.equal(service.calls[0]?.actorId, LUIS)
+    assert.equal(service.calls[0]?.inputEpoch, 1)
+    live.events.turnComplete()
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 2)
+  })
+
+  it('a settle that times out while the old turn still speaks cancels that turn’s output', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.audio(speech(), OUT)
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE }))
+    session.tick()
+    clock += SETTLE_MS
+    const clears = room.clears
+    session.tick()
+    assert.equal(room.clears, clears + 1)
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(session.observed().output, 'playing', 'only what was queued before the cut played')
+    const played = room.played.length
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, played, 'the rest of the cancelled turn is dropped')
+  })
+})
+
+describe('room session: Sophia’s output (case A09)', () => {
+  it('plays at 24 kHz and reports playing only once frames reached the room', async () => {
+    const { session, room, live } = await ready()
+    live.events.audio(speech(2), OUT)
+    assert.equal(session.observed().output, 'responding')
+    await flush()
+    await flush()
+    assert.equal(room.played.length, 2)
+    assert.equal(session.observed().output, 'playing')
+    clock += 1000
+    live.events.turnComplete()
+    assert.equal(session.observed().output, 'idle')
+  })
+
+  it('refuses output that is not 24 kHz PCM rather than relabelling it', async () => {
+    const { session, room, live } = await ready()
+    live.events.audio(speech(), 'audio/pcm;rate=16000')
+    live.events.audio(speech(), 'audio/webm')
+    await flush()
+    assert.equal(room.played.length, 0)
+    assert.equal(session.observed().output, 'idle')
+  })
+
+  it('Stop Speaking clears the source and drops the rest of the turn, without touching work', async () => {
+    const { session, room, live } = await ready()
+    live.events.audio(speech(), OUT)
+    await flush()
+    const clears = room.clears
+    session.update(assignment({ playbackEpoch: 2 }))
+    assert.equal(room.clears, clears + 1)
+    const played = room.played.length
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, played, 'late audio of the stopped turn is not played')
+    live.events.turnComplete()
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > played, 'the next turn plays')
+    assert.equal(service.calls.length, 0, 'no work control was issued')
+  })
+
+  it('provider barge-in clears queued output', async () => {
+    const { room, live } = await ready()
+    live.events.audio(speech(), OUT)
+    const clears = room.clears
+    live.events.interrupted()
+    assert.equal(room.clears, clears + 1)
+  })
+})
+
+describe('room session: tools (cases A10, A13)', () => {
+  it('runs an attributed call for the holder and answers with a real work id at once', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-1', name: 'start_brief', args: { instruction: 'Draft the brief' } }])
+    await flush()
+    assert.equal(service.calls.length, 1)
+    assert.equal(service.calls[0]?.actorId, LUIS)
+    assert.equal(service.calls[0]?.callId, 'call-1')
+    assert.deepEqual(live.responses[0]?.response, { output: { status: 'admitted', workId: TASK } })
+    assert.equal(live.responses[0]?.willContinue, false)
+  })
+
+  it('an unattributed call is a question, never an action', async () => {
+    const { live } = await ready()
+    live.events.toolCalls([{ id: 'call-2', name: 'start_brief', args: { instruction: 'x' } }])
+    await flush()
+    assert.equal(service.calls.length, 0)
+    assert.equal(statusOf(live.responses[0]), 'clarify')
+  })
+
+  it('an unknown tool is refused without reaching the API', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-3', name: 'start_image_job', args: {} }])
+    await flush()
+    assert.equal(service.calls.length, 0)
+    assert.equal(statusOf(live.responses[0]), 'error')
+  })
+
+  it('a cancelled call, or one from a replaced connection, is not answered', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-4', name: 'project_status', args: {} }])
+    live.events.toolCancellations(['call-4'])
+    await flush()
+    assert.equal(live.responses.length, 0)
+    live.events.toolCalls([{ id: 'call-5', name: 'project_status', args: {} }])
+    live.events.goAway('5s')
+    await flush()
+    assert.equal(live.responses.length, 0, 'the old connection is gone; its call is never answered on a new one')
+  })
+})
+
+describe('room session: provider recovery (case A14)', () => {
+  it('a slow result for a call of the old connection is never answered on the new one', async () => {
+    const { session, room, live } = await ready()
+    let release: ((r: MediaToolResult) => void) | undefined
+    service.toolCall = async (c) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((resolve) => {
+        release = resolve
+      })
+    }
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'slow-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    await flush()
+    live.events.goAway('1s')
+    clock += 1000
+    session.tick()
+    await flush()
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    release?.({ status: 'admitted', output: { workId: TASK } })
+    await flush()
+    assert.equal(next.responses.length, 0)
+    assert.equal(live.responses.length, 0)
+  })
+
+  it('on GoAway: stale output stops, audio waits for the new connection, which resumes with the latest handle', async () => {
+    const { session, room, live } = await ready()
+    live.events.resumption('handle-2', true)
+    live.events.audio(speech(), OUT)
+    live.events.goAway('10s')
+    assert.equal(live.closed, true)
+    assert.equal(session.observed().voice, 'recovering')
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 0)
+    clock += 1000
+    session.tick()
+    await flush()
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    assert.equal(next.options.resumptionHandle, 'handle-2')
+    assert.doesNotMatch(next.options.systemInstruction, /restored without/)
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(next.audio, 0, 'not before the new connection is ready')
+    next.events.setupComplete()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(next.audio, 1)
+    live.events.audio(speech(), OUT)
+    live.events.toolCalls([{ id: 'stale', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.length, 0, 'events of the old connection are ignored')
+  })
+
+  it('a handle that keeps failing is dropped and the next connection starts cold, saying so', async () => {
+    const { session, live } = await ready()
+    live.events.resumption('bad-handle', true)
+    live.events.closed('error: 1011')
+    clock += 1000
+    session.tick()
+    await flush()
+    lives.at(-1)?.events.closed('error: resumption failed')
+    clock += 2000
+    session.tick()
+    await flush()
+    const cold = lives.at(-1)
+    assert.equal(cold?.options.resumptionHandle, null)
+    assert.match(cold?.options.systemInstruction ?? '', /restored without the earlier conversation/)
+  })
+
+  it('reports unavailable after repeated failures', async () => {
+    const { session } = await ready()
+    for (let i = 0; i < 6; i += 1) {
+      lives.at(-1)?.events.closed('error')
+      clock += 10_000
+      session.tick()
+      await flush()
+    }
+    assert.equal(session.observed().voice, 'unavailable')
+  })
+})
+
+describe('room session: guests (case A12)', () => {
+  it('a guest joining pauses input and clears output at once, before the API pause arrives', async () => {
+    const { session, room, live } = await ready()
+    live.events.audio(speech(), OUT)
+    const clears = room.clears
+    room.join([member(LUIS), { identity: 'guest-1', standing: 'guest' }])
+    assert.equal(session.observed().input, 'paused')
+    assert.equal(room.clears, clears + 1)
+    assert.equal(live.streamEnds, 1)
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 0)
+    session.tick()
+    await flush()
+    assert.deepEqual(service.presences.at(-1)?.participants, [member(LUIS), { identity: 'guest-1', standing: 'guest' }])
+  })
+
+  it('a participant of unsigned standing counts as a guest', async () => {
+    const { session, room } = await ready()
+    room.join([member(LUIS), { identity: 'who', standing: 'unknown' }])
+    assert.equal(session.observed().input, 'paused')
+  })
+
+  it('acknowledges a quiesce request only once input is closed and output cleared', async () => {
+    const { session } = await ready()
+    session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST }))
+    await flush()
+    assert.deepEqual(service.acks, [REQUEST])
+    session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST, roomRevision: 2 }))
+    await flush()
+    assert.deepEqual(service.acks, [REQUEST], 'acknowledged once')
+  })
+
+  it('never acknowledges a quiesce request while the exchange is open', async () => {
+    const { session } = await ready()
+    session.update(assignment({ quiesceRequestId: REQUEST, roomRevision: 2 }))
+    await flush()
+    assert.deepEqual(service.acks, [])
+  })
+
+  it('a fresh session for a paused exchange acknowledges before it even joins Google', async () => {
+    await open({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST })
+    await flush()
+    assert.deepEqual(service.acks, [REQUEST])
+  })
+
+  it('a room reconnect closes input locally and reports nothing until presence is known again', async () => {
+    const { session, room } = await ready()
+    session.tick()
+    await flush()
+    const reports = service.presences.length
+    room.events.connection('reconnecting', null)
+    assert.equal(session.observed().input, 'paused')
+    clock += PRESENCE_EVERY_MS
+    session.tick()
+    await flush()
+    assert.equal(service.presences.length, reports)
+    room.events.connection('connected', null)
+    assert.equal(session.observed().input, 'admitted')
+  })
+})
+
+describe('room session: holder departure (S1-05A §7)', () => {
+  it('reports left at once and gone after the grace; the floor is cleared by compare-and-set in the API', async () => {
+    const { session, room, live } = await ready()
+    room.join([member(DAVIDE)])
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => [h.event, h.actorId, h.inputEpoch]),
+      [['left', LUIS, 1]],
+    )
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    assert.equal(live.audio, 0, 'forwarding stopped immediately')
+    clock += HOLDER_GRACE_MS - 1
+    session.tick()
+    await flush()
+    assert.equal(service.holders.length, 1)
+    clock += 1
+    session.tick()
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => h.event),
+      ['left', 'gone'],
+    )
+  })
+
+  it('a holder back within the grace is not cleared (and listening does not silently reopen: the API paused it)', async () => {
+    const { session, room } = await ready()
+    room.join([member(DAVIDE)])
+    clock += 2000
+    room.join([member(LUIS), member(DAVIDE)])
+    clock += HOLDER_GRACE_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => h.event),
+      ['left'],
+    )
+  })
+})
+
+describe('room session: vision (case A11)', () => {
+  it('sends only the selected source, at most once a second, and nothing after Stop Looking', async () => {
+    const looking = { participantIdentity: LUIS, source: 'screen' as const }
+    const { session, room, live } = await ready({ looking, observationEpoch: 2 })
+    assert.deepEqual(room.watched.at(-1), looking)
+    const img = { rgba: new Uint8Array(16).fill(1), width: 2, height: 2 }
+    room.events.frame(DAVIDE, 'screen', img, clock)
+    room.events.frame(LUIS, 'camera', img, clock)
+    session.tick()
+    assert.equal(live.frames, 0)
+    room.events.frame(LUIS, 'screen', img, clock)
+    session.tick()
+    assert.equal(live.frames, 1)
+    room.events.frame(LUIS, 'screen', img, clock)
+    session.tick()
+    assert.equal(live.frames, 1, 'not twice in a second')
+    session.update(assignment({ looking: null, observationEpoch: 3 }))
+    assert.equal(room.watched.at(-1), null)
+    clock += 2000
+    room.events.frame(LUIS, 'screen', img, clock)
+    session.tick()
+    assert.equal(live.frames, 1)
+  })
+})
+
+describe('room session: finished work (case A06)', () => {
+  it('announces a finished brief once, when Sophia is idle, as an unattributed turn', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
+    const { session, room, live } = await ready({ results })
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.audio(speech(), OUT)
+    session.tick()
+    assert.equal(live.notices.length, 0, 'not while Sophia is responding')
+    live.events.turnComplete()
+    clock += 1000
+    session.tick()
+    await flush()
+    assert.equal(live.notices.length, 1)
+    assert.match(live.notices[0] ?? '', new RegExp(TASK))
+    assert.deepEqual(service.announcedEvents, [{ exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1 }])
+    live.events.toolCalls([{ id: 'after-notice', name: 'control_work', args: { taskId: TASK, action: 'stop' } }])
+    await flush()
+    assert.equal(service.calls.length, 0, 'a tool call in the notice turn is not attributed to anyone')
+    session.update(assignment({ results, roomRevision: 2 }))
+    clock += 1000
+    session.tick()
+    assert.equal(live.notices.length, 1, 'announced once')
+  })
+
+  it('does not announce while paused for a guest', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
+    const { session, room, live } = await ready({ results })
+    room.join([member(LUIS), { identity: 'guest-1', standing: 'guest' }])
+    session.tick()
+    assert.equal(live.notices.length, 0)
+  })
+})
+
+describe('room session: what the room is told', () => {
+  it('publishes observed state as attributes, without content, and reports presence', async () => {
+    const { session, room } = await ready()
+    session.tick()
+    await flush()
+    assert.deepEqual(room.attributes.at(-1), {
+      'sophia.voice': 'ready',
+      'sophia.input': 'admitted',
+      'sophia.output': 'idle',
+      'sophia.inputEpoch': '1',
+    })
+    const report = service.presences.at(-1)
+    assert.equal(report?.voice, 'ready')
+    assert.equal(report?.bridgeInstanceId, 'bridge-test')
+  })
+
+  it('closing the session leaves the room and closes Google, and touches no work', async () => {
+    const { session, room, live } = await ready()
+    await session.close()
+    assert.equal(room.closed, true)
+    assert.equal(live.closed, true)
+    assert.equal(service.calls.length, 0)
+  })
+})

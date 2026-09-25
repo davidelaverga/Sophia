@@ -37,12 +37,21 @@ function inviteMailer(): Mailer | null {
 const corsOrigins = parseOrigins(optional('STUDIO_ORIGINS'))
 const invites = inviteConfig(corsOrigins)
 const livekitUrl = optional('LIVEKIT_URL')
+/** The media bridge's capability, as its SHA-256 in hex (the bridge host alone holds the capability). */
+function mediaBridgeHash(): Buffer | undefined {
+  const hex = optional('SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256')
+  if (!hex) return undefined
+  if (!/^[0-9a-f]{64}$/.test(hex)) throw new Error('SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256 must be 64 lowercase hex digits')
+  return Buffer.from(hex, 'hex')
+}
+const mediaBridgeTokenSha256 = mediaBridgeHash()
 const app = buildApp({
   pool,
   logger: true,
   corsOrigins,
   ...(invites ? { invites } : {}),
   mailer: inviteMailer(),
+  ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }
     : {}),

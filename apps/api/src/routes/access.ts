@@ -23,22 +23,25 @@ import {
   knockRoom,
   listInvitations,
   previewRoomInvitation,
+  quiesceAcked,
   readInvitation,
   readLobbyEntry,
   readMembership,
   recordInvitationEmail,
   reissueRoomInvitation,
+  requestGuestQuiesce,
   revokeRoomInvitation,
   scheduleRoomSession,
   withActor,
   withoutActor,
+  withService,
   type InvitationRecord,
   type InvitationRequest,
   type LobbyRecord,
 } from '@sophia/persistence'
 import { inviteEmail } from '../invite-email.ts'
 import { linkFor, tokenHash, type InviteConfig } from '../invite-token.ts'
-import { issueRoomToken, removeFromRoom, type LiveKitConfig } from '../livekit.ts'
+import { issueRoomToken, removeFromRoom, roomParticipants, SOPHIA_IDENTITY, type LiveKitConfig } from '../livekit.ts'
 import type { Mailer } from '../mail.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
@@ -261,6 +264,32 @@ function joinRoutes(app: FastifyInstance, deps: AccessDeps): void {
   )
 }
 
+/** How long a guest's join waits for the bridge to confirm Sophia stopped listening and speaking (case A12). */
+const QUIESCE_WAIT_MS = 5000
+const QUIESCE_POLL_MS = 150
+
+/**
+ * Before a guest's token: the bridge confirms it closed Google input and cleared Sophia's output. Without that
+ * confirmation the guest waits, unless the LiveKit server itself says Sophia is not in the room (then nothing
+ * project-aware can reach them). An unreadable room refuses: the API never claims output is muted when it can't
+ * know.
+ */
+async function awaitQuiescence(deps: AccessDeps, requestId: string, roomId: string): Promise<void> {
+  const deadline = Date.now() + QUIESCE_WAIT_MS
+  while (Date.now() < deadline) {
+    if (await withService(deps.pool, (c) => quiesceAcked(c, requestId))) return
+    await new Promise((resolve) => setTimeout(resolve, QUIESCE_POLL_MS))
+  }
+  const livekit = deps.livekit
+  const absent = livekit
+    ? await roomParticipants(livekit, roomId).then(
+        (people) => !people.some((p) => p.identity === SOPHIA_IDENTITY),
+        () => false,
+      )
+    : false
+  if (!absent) throw new DomainError('unavailable', 'Sophia is being paused before you join. Try again in a moment.')
+}
+
 function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
   const entryParams = params('entryId')
   app.get<{ Params: { entryId: string } }>(
@@ -276,6 +305,10 @@ function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
     async (req) => {
       if (!deps.livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
       const access = await withActor(deps.pool, req.actorId, 'read', (c) => authorizeGuestJoin(c, req.params.entryId))
+      const quiesce = await withActor(deps.pool, req.actorId, 'write', (c) =>
+        requestGuestQuiesce(c, req.params.entryId),
+      )
+      if (quiesce) await awaitQuiescence(deps, quiesce, access.roomId)
       return issueRoomToken(deps.livekit, {
         roomId: access.roomId,
         identity: req.actorId,

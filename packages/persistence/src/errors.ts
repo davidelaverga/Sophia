@@ -15,7 +15,13 @@ const RULES: readonly Rule[] = [
   { sqlstate: '28000', code: 'runtime_capability_required', publicMessage: 'Runtime capability not recognized' },
   {
     sqlstate: '42501',
-    when: (m) => m.startsWith('Runtime ') || m.startsWith('Receipt names') || m.startsWith('Observation names'),
+    when: (m) =>
+      m.startsWith('Runtime ') ||
+      m.startsWith('Receipt names') ||
+      m.startsWith('Observation names') ||
+      m.startsWith('A media-bridge call') ||
+      m.startsWith('The speaker is not bound') ||
+      m.startsWith('Announcement names'),
     code: 'forbidden',
   },
   { sqlstate: '55000', when: (m) => m.startsWith('No native runtime'), code: 'native_capability_unavailable' },

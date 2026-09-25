@@ -7,6 +7,10 @@
 // With the synthetic backend, S1-05A adds the worker (runtime dispatch) and, on request, the dsh runtime:
 //   --runtime rehearse   keyless mock model: exercises the whole brief path, never live evidence
 //   --runtime live       the recorded model route with the key in YOUR environment: billable model calls
+// and the media bridge (Sophia's voice in the room):
+//   --voice rehearse     no Google call and no key: a chime stands in for her voice, never live evidence
+//   --voice live         Gemini Live with GEMINI_API_KEY from YOUR environment: billable model calls
+// SOPHIA_DEV_DATABASE_URL points the synthetic backend at a PostgreSQL 16 you already run (no container).
 // Everything is dev-only. Ctrl+C stops the API and Studio (database containers are kept).
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -27,6 +31,7 @@ interface Backend {
   /** The worker's database login and the registered runtime's capability (synthetic backend only). */
   workerEnv?: Record<string, string>
   runtimeEnv?: Record<string, string>
+  mediaEnv?: Record<string, string>
   /** Values the browser may see (public or dev-only). */
   studioEnv: Record<string, string>
   banner: string
@@ -74,7 +79,8 @@ function localSupabaseBackend(): Backend {
 }
 
 function syntheticBackend(): Backend {
-  const server = namedPostgres('sophia-dev-pg', 55440, 'dev')
+  const own = process.env.SOPHIA_DEV_DATABASE_URL
+  const server = own ? { url: own } : namedPostgres('sophia-dev-pg', 55440, 'dev')
   const seeded = spawnSync(process.execPath, ['apps/api/scripts/dev-db.ts', '--json'], {
     encoding: 'utf8',
     env: { ...process.env, SOPHIA_DISPOSABLE_DATABASE_URL: server.url },
@@ -85,6 +91,7 @@ function syntheticBackend(): Backend {
     api: Record<string, string>
     worker: Record<string, string>
     runtime: Record<string, string>
+    media: Record<string, string>
     project: { projectId: string }
     identities: unknown[]
   }
@@ -92,13 +99,19 @@ function syntheticBackend(): Backend {
     apiEnv: { ...dev.api, ...localRoomServer() },
     workerEnv: dev.worker,
     runtimeEnv: { ...dev.runtime, SOPHIA_PROJECT_ID: dev.project.projectId },
+    mediaEnv: dev.media,
     studioEnv: { VITE_DEV_PROJECT_ID: dev.project.projectId, VITE_DEV_IDENTITIES: JSON.stringify(dev.identities) },
     banner: `Synthetic dev identities · project ${dev.project.projectId}`,
   }
 }
 
 const { values: flags } = parseArgs({
-  options: { supabase: { type: 'boolean' }, hosted: { type: 'string' }, runtime: { type: 'string' } },
+  options: {
+    supabase: { type: 'boolean' },
+    hosted: { type: 'string' },
+    runtime: { type: 'string' },
+    voice: { type: 'string' },
+  },
 })
 
 function chooseBackend(): Backend {
@@ -123,6 +136,21 @@ function startRuntime(runtimeEnv: Record<string, string>, mode: string): ChildPr
   return spawn(process.execPath, args, {
     stdio: 'inherit',
     env: { ...process.env, ...runtimeEnv, SOPHIA_SERVICE_URL: 'http://127.0.0.1:8787' },
+  })
+}
+
+/** Sophia's voice in the room: the media bridge bound to this API (S1-05A); rehearsal calls no Google model. */
+function startBridge(mediaEnv: Record<string, string>, mode: string): ChildProcess {
+  if (mode !== 'rehearse' && mode !== 'live') throw new Error('--voice is rehearse or live')
+  return spawn(process.execPath, ['apps/media-bridge/src/server.ts'], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      ...mediaEnv,
+      NODE_ENV: 'production',
+      SOPHIA_SERVICE_URL: 'http://127.0.0.1:8787',
+      ...(mode === 'rehearse' ? { SOPHIA_LIVE_MODE: 'rehearse' } : {}),
+    },
   })
 }
 
@@ -167,6 +195,7 @@ const api = superviseApi({ ...inviteEnv, ...backend.apiEnv }, () => stopping)
 const studio = spawn(process.execPath, ['node_modules/vite/bin/vite.js'], { stdio: 'inherit', cwd: 'apps/studio' })
 const worker = backend.workerEnv ? startWorker(backend.workerEnv) : null
 const runtime = backend.runtimeEnv && flags.runtime ? startRuntime(backend.runtimeEnv, flags.runtime) : null
+const bridge = backend.mediaEnv && flags.voice ? startBridge(backend.mediaEnv, flags.voice) : null
 console.log(`\nSophia dev stack · ${backend.banner}\nStudio http://localhost:5173 · API http://127.0.0.1:8787\n`)
 
 const stop = () => {
@@ -175,6 +204,7 @@ const stop = () => {
   studio.kill()
   worker?.kill()
   runtime?.kill()
+  bridge?.kill()
   process.exit(0)
 }
 process.on('SIGINT', stop)

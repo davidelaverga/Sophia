@@ -2,15 +2,23 @@
 // call keeps its microphone and leave within reach while you read goals or work. What goes wrong with the
 // call (a failed join, a blocked microphone) is said here too, not only on the Studio stage.
 import { Icon, Tip } from '@sophia/ui'
-import { listensOnly } from './room-view.ts'
+import { LookingIndicator } from './SophiaControls.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
-export function MiniDock({ room, onOpen }: { room: ProjectRoom; onOpen: () => void }) {
+interface Props {
+  room: ProjectRoom
+  /** What Sophia is looking at, in words: the indicator stays visible from every view. */
+  looking: string | null
+  onOpen: () => void
+}
+
+export function MiniDock({ room, looking, onOpen }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const me = room.participants.find((p) => p.local)
   const note = room.mediaError ?? (room.status === 'failed' ? room.error : null)
   return (
     <div className="mini-dock" role="group" aria-label="Project room">
+      <LookingIndicator text={looking} />
       {note && (
         <p className="dock-note mini-note" role="alert">
           {note}
@@ -23,18 +31,16 @@ export function MiniDock({ room, onOpen }: { room: ProjectRoom; onOpen: () => vo
             In the room · {room.participants.length}
             <Tip label="Open the room" />
           </button>
-          {!listensOnly(me) && (
-            <button
-              type="button"
-              className="round has-tip"
-              aria-pressed={!!me?.micOn}
-              aria-label="Microphone"
-              onClick={() => void room.setMicrophone(!me?.micOn)}
-            >
-              <Icon name={me?.micOn ? 'mic' : 'micOff'} />
-              <Tip label="Microphone" />
-            </button>
-          )}
+          <button
+            type="button"
+            className="round has-tip"
+            aria-pressed={!!me?.micOn}
+            aria-label="Microphone"
+            onClick={() => void room.setMicrophone(!me?.micOn)}
+          >
+            <Icon name={me?.micOn ? 'mic' : 'micOff'} />
+            <Tip label="Microphone" />
+          </button>
           <button
             type="button"
             className="round leave has-tip"

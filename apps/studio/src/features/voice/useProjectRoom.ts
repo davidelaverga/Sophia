@@ -6,7 +6,8 @@ import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
-import { listensOnly, type DockStatus, type RoomParticipant } from './room-view.ts'
+import type { DockStatus, RoomParticipant } from './room-view.ts'
+import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
 
@@ -17,6 +18,10 @@ export interface ProjectRoom {
   mediaError: string | null
   participants: RoomParticipant[]
   feeds: VideoFeed[]
+  /** Sophia's participant as this browser observes it; null when she is not in the room. */
+  sophia: SophiaSignal | null
+  audioBlocked: boolean
+  startAudio: () => Promise<void>
   join: () => Promise<void>
   leave: () => Promise<void>
   setMicrophone: (on: boolean) => Promise<void>
@@ -57,8 +62,10 @@ function joinMessage(err: unknown): string {
 interface People {
   participants: RoomParticipant[]
   feeds: VideoFeed[]
+  sophia: SophiaSignal | null
+  audioBlocked: boolean
 }
-const NOBODY: People = { participants: [], feeds: [] }
+const NOBODY: People = { participants: [], feeds: [], sophia: null, audioBlocked: false }
 
 /** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
 export type IssueToken = () => Promise<RoomToken>
@@ -71,10 +78,10 @@ async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
 }
 
 /**
- * The microphone on joining: never for a viewer (their token cannot publish, so no browser prompt asks), and
- * otherwise as this device left it last time.
+ * The microphone on joining: as this device left it last time. Changed by amendment A06 (S1-05A): viewers
+ * publish too, so no one is left without a microphone.
  */
-const micOnArrival = (c: RoomConnection) => !listensOnly(c.participants().find((p) => p.local)) && micOnJoin()
+const micOnArrival = () => micOnJoin()
 
 /** A member's room: the token names this project's room and the audience revision the member saw. */
 export function useProjectRoom(projectId: string, token: string, snapshot: Snapshot | undefined): ProjectRoom {
@@ -123,8 +130,14 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
 
   useEffect(() => () => void connection.current?.leave(), [])
 
-  const refresh = () =>
-    setPeople({ participants: connection.current?.participants() ?? [], feeds: connection.current?.feeds() ?? [] })
+  const refresh = () => {
+    const c = connection.current
+    setPeople(
+      c
+        ? { participants: c.participants(), feeds: c.feeds(), sophia: c.sophia(), audioBlocked: c.audioBlocked() }
+        : NOBODY,
+    )
+  }
   const { clearNote, arrive, ...devices } = useDevices(connection, refresh)
 
   /**
@@ -155,7 +168,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       })
       setStatus('live')
       refresh()
-      if (micOnArrival(connection.current)) await arrive()
+      if (micOnArrival()) await arrive()
     } catch (err: unknown) {
       connection.current = null
       setStatus('failed')
@@ -169,5 +182,9 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     outOfCall(false)
   }
 
-  return { status, error, ...people, ...devices, join, leave }
+  const startAudio = async () => {
+    await connection.current?.startAudio()
+  }
+
+  return { status, error, ...people, ...devices, startAudio, join, leave }
 }

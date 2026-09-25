@@ -9,7 +9,9 @@
 //   playback epoch    Stop Speaking. Output of an older generation is never played.
 //   observation epoch Show Sophia this / Stop Looking. Frames of an older epoch are never sent.
 // A joined room is not evidence that Google hears anyone: `input` is `admitted` only while the provider is ready,
-// the exchange is open, the admitted holder is present and forwarding is not settling a handoff.
+// the exchange is open, the admitted holder is present and forwarding is not settling a handoff. A guest (or a
+// participant whose standing the API did not sign) in the room pauses input and output here at once, before the
+// API's pause arrives as a new assignment: the bridge never waits on a round trip to stop disclosing.
 
 /** What the API says the exchange should be (a media assignment, A06). */
 export interface Assignment {
@@ -29,7 +31,6 @@ export interface Assignment {
 
 export type ProviderState = 'connecting' | 'ready' | 'recovering' | 'unavailable'
 export type InputState = 'closed' | 'admitted' | 'paused' | 'settling'
-export type OutputState = 'idle' | 'responding' | 'playing'
 
 /** How long a handoff waits for the old holder's model turn to end before it cuts it off. */
 export const SETTLE_MS = 1500
@@ -43,9 +44,10 @@ export interface Attribution {
 export class ExchangeState {
   assignment: Assignment
   provider: ProviderState = 'connecting'
-  output: OutputState = 'idle'
   /** Identities present in the room right now (trusted: LiveKit participant identities). */
   private present = new Set<string>()
+  /** Someone without member standing is in the room: nothing project-aware goes in or out. */
+  private guestPresent = false
   /** The input epoch that is effective for forwarding; lags the assignment while a handoff settles. */
   private effectiveEpoch: number
   private effectiveActor: string | null
@@ -83,7 +85,12 @@ export class ExchangeState {
   turnEnded(): void {
     this.settleUntil = 0
     this.forwardedSinceTurn = false
-    this.output = 'idle'
+  }
+
+  /** A turn the bridge asked for (a result notice), not a person: tool calls in it are unattributed. */
+  systemTurn(): void {
+    this.turn = null
+    this.forwardedSinceTurn = false
   }
 
   /** Called on every tick and before forwarding: a settle that timed out takes effect. */
@@ -96,15 +103,20 @@ export class ExchangeState {
     this.forwardedSinceTurn = false
   }
 
-  setPresent(identities: Iterable<string>): void {
+  setPresent(identities: Iterable<string>, guestPresent: boolean): void {
     this.present = new Set(identities)
+    this.guestPresent = guestPresent
+  }
+
+  /** Open as far as the room is concerned: the API has not paused it and no guest is in the room. */
+  private isOpen(): boolean {
+    return this.assignment.state === 'open' && !this.guestPresent
   }
 
   input(now: number): InputState {
     this.settle(now)
-    const a = this.assignment
-    if (a.state !== 'open') return 'paused'
-    if (this.effectiveEpoch !== a.inputEpoch) return 'settling'
+    if (!this.isOpen()) return 'paused'
+    if (this.effectiveEpoch !== this.assignment.inputEpoch) return 'settling'
     if (this.provider !== 'ready' || !this.effectiveActor || !this.present.has(this.effectiveActor)) return 'closed'
     return 'admitted'
   }
@@ -135,19 +147,18 @@ export class ExchangeState {
   /** Provider barge-in or Stop Speaking: every queued or late chunk of the old generation is dropped. */
   bumpGeneration(): number {
     this.generation += 1
-    this.output = 'idle'
     return this.generation
   }
 
   mayPlay(generation: number): boolean {
-    return generation === this.generation && this.assignment.state === 'open'
+    return generation === this.generation && this.isOpen()
   }
 
   /** May a frame from this participant's source be sent? Only the selected one, while vision is allowed. */
   mayForwardFrame(identity: string, source: 'screen' | 'camera', observationEpoch: number): boolean {
     const a = this.assignment
     return (
-      a.state === 'open' &&
+      this.isOpen() &&
       a.allowVision &&
       a.looking !== null &&
       a.looking.participantIdentity === identity &&

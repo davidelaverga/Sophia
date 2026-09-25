@@ -40,7 +40,7 @@ export type SourceContent = { "sourceId": string; "sha256": string; "mime": stri
 export type CandidatePublish = { "expectedStableVersionId": string | null; "expectedGoalRevision": number; "expectedAuthorityEpoch": number; "verificationSourceId": string; };
 export type GrantRevocation = { "expectedRevision": number; };
 export type Empty = {  };
-export type Room = { "id": string; "revision": number; "inputActorId": string | null; "mode": "invoked" | "follow_discussion"; };
+export type Room = { "id": string; "revision": number; "inputActorId": string | null; "mode": "invoked" | "follow_discussion"; "sophia": SophiaPresence; };
 export type RoomSession = { "id": string; "title": string; "startsAt": string; "endsAt": string; "timeZone": string; };
 export type SessionCreate = { "title": string; "startsAt": string; "endsAt": string; "timeZone": string; };
 export type Invitation = { "id": string; "kind": "guest" | "member"; "role": "editor" | "viewer" | null; "email": string | null; "sessionId": string | null; "expiresAt": string; "maxUses": number; "uses": number; "revokedAt": string | null; "emailStatus": "none" | "sent" | "failed" | "not_configured"; "createdAt": string; "url": string; };
@@ -70,6 +70,18 @@ export type NativeTaskRequest = { "kind": "draft_brief"; "instruction": string; 
 export type NativeTaskReceipt = { "taskId": string; "commandId": string; "goalId": string; "attemptId": string; "projectId": string; "kind": "draft_brief"; "stage": "admitted"; "cursor": string; "goalRevision": number; "authorityEpoch": number; "contextSourceId": string; };
 export type NativeTask = { "id": string; "kind": "draft_brief"; "goalId": string; "attemptId": string; "commandId": string; "actorId": string; "state": "pending" | "running" | "succeeded" | "failed" | "cancelled" | "outcome_unknown"; "phase": "queued" | "dispatched" | "running" | "result_ready" | "holding" | "held" | "stopping" | "stopped" | "denied" | "failed" | "outcome_unknown"; "createdAt": string; "contextSourceId": string; "inputSourceIds": ReadonlyArray<string>; "resultSourceId": string | null; "reason": string | null; };
 export type NativeTaskDetail = { "task": NativeTask; "instruction": string; "result": { "sourceId": string; "sha256": string; "markdown": string; "provider": string | null; "model": string | null; "inputTokens": number | null; "outputTokens": number | null; "capturedAt": string; } | null; };
+export type SophiaPresence = { "exchangeId": string | null; "exchange": "none" | "open" | "paused"; "pauseReason": "guest" | "holder_left" | null; "voice": "not_connected" | "connecting" | "ready" | "recovering" | "unavailable"; "inputActorId": string | null; "inputEpoch": number | null; "playbackEpoch": number | null; "observationEpoch": number | null; "allowVision": boolean; "looking": { "participantIdentity": string; "source": "screen" | "camera"; } | null; "reason": string | null; "reportedAt": string | null; };
+export type LookRequest = { "source": "screen" | "camera"; };
+export type ExchangeState = { "exchangeId": string; "roomId": string; "state": "open" | "paused" | "ended"; "pauseReason": "guest" | "holder_left" | null; "inputEpoch": number; "playbackEpoch": number; "observationEpoch": number; "revision": number; };
+export type MediaRoomToken = { "serverUrl": string; "token": string; "expiresAt": string; };
+export type MediaAssignment = { "exchangeId": string; "projectId": string; "roomId": string; "state": "open" | "paused"; "pauseReason": "guest" | "holder_left" | null; "inputEpoch": number; "inputActorId": string | null; "playbackEpoch": number; "observationEpoch": number; "allowVision": boolean; "looking": { "participantIdentity": string; "source": "screen" | "camera"; } | null; "roomRevision": number; "quiesceRequestId": string | null; "roomToken": MediaRoomToken | null; "results": ReadonlyArray<{ "taskId": string; "resultRevision": number; "kind": "draft_brief"; }>; };
+export type MediaAssignmentBatch = { "assignments": ReadonlyArray<MediaAssignment>; "version": string; };
+export type MediaPresenceReport = { "roomId": string; "exchangeId": string | null; "bridgeInstanceId": string; "voice": "connecting" | "ready" | "recovering" | "unavailable"; "reason": string | null; "participants": ReadonlyArray<{ "identity": string; "standing": "admin" | "editor" | "viewer" | "guest" | "unknown"; }>; };
+export type MediaQuiesceAck = { "requestId": string; "bridgeInstanceId": string; "inputClosed": true; "outputCleared": true; };
+export type MediaHolderEvent = { "exchangeId": string; "actorId": string; "inputEpoch": number; "event": "left" | "gone"; };
+export type MediaToolCall = { "exchangeId": string; "connectionGeneration": number; "callId": string; "name": "project_status" | "read_selected_source" | "start_brief" | "control_work"; "args": {  }; "inputEpoch": number; "actorId": string; };
+export type MediaAnnounced = { "exchangeId": string; "taskId": string; "resultRevision": number; };
+export type MediaToolResult = { "status": "ok" | "admitted" | "refused" | "clarify" | "error"; "output": {  }; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
@@ -124,4 +136,15 @@ export interface Operations {
   "runtimeReady": { method: "POST"; path: "/v1/runtime/ready"; request: RuntimeReady; response: undefined; };
   "admitNativeTask": { method: "POST"; path: "/api/v1/projects/{projectId}/native-tasks"; request: NativeTaskRequest; response: NativeTaskReceipt; };
   "getNativeTask": { method: "GET"; path: "/api/v1/projects/{projectId}/native-tasks/{taskId}"; request: undefined; response: NativeTaskDetail; };
+  "endExchange": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/end"; request: undefined; response: ExchangeState; };
+  "stopSophiaSpeaking": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/stop-speaking"; request: undefined; response: ExchangeState; };
+  "showSophia": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/look"; request: LookRequest; response: ExchangeState; };
+  "stopSophiaLooking": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/stop-looking"; request: undefined; response: ExchangeState; };
+  "resumeExchange": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/resume"; request: undefined; response: ExchangeState; };
+  "mediaAssignments": { method: "GET"; path: "/v1/media/assignments"; request: undefined; response: MediaAssignmentBatch; };
+  "mediaPresence": { method: "POST"; path: "/v1/media/presence"; request: MediaPresenceReport; response: undefined; };
+  "mediaQuiesceAck": { method: "POST"; path: "/v1/media/quiesce-acks"; request: MediaQuiesceAck; response: undefined; };
+  "mediaHolderEvent": { method: "POST"; path: "/v1/media/holder"; request: MediaHolderEvent; response: undefined; };
+  "mediaAnnounced": { method: "POST"; path: "/v1/media/announced"; request: MediaAnnounced; response: undefined; };
+  "mediaToolCall": { method: "POST"; path: "/v1/media/tool-calls"; request: MediaToolCall; response: MediaToolResult; };
 }

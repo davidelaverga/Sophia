@@ -15,7 +15,7 @@ import {
   withService,
   type RuntimeCaller,
 } from '@sophia/persistence'
-import type { RuntimeCommandHub } from '../runtime-hub.ts'
+import type { NotificationHub } from '../notification-hub.ts'
 
 /** The routes a runtime capability may call, and nothing else may: checked by exact route in app.ts. */
 export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
@@ -60,7 +60,7 @@ const BATCH_BODY_LIMIT = 8 * 1024 * 1024
 
 interface Deps {
   pool: pg.Pool
-  hub: RuntimeCommandHub
+  hub: NotificationHub
 }
 
 /** The authenticated caller app.ts attached; a runtime route without one is a wiring error, not a request. */

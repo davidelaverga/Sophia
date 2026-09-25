@@ -69,7 +69,8 @@ interface DiscussionProps {
 }
 
 function Discussion({ entries, me, names, selected, onToggle }: DiscussionProps) {
-  if (entries.length === 0) return <p className="muted discussion-empty">Nothing said here yet.</p>
+  // Nothing said yet: the composer's own invitation is enough, and the room keeps its space for Sophia's line.
+  if (entries.length === 0) return null
   return (
     <ol className="discussion" aria-label="Recent discussion">
       {entries.map((entry) => (

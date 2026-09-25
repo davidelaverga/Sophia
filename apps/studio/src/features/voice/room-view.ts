@@ -33,19 +33,19 @@ export function standingOf(metadata: string | undefined): Standing {
   }
 }
 
-/** Only editors and admins can hold the input floor (migration 0009); guests and viewers listen. */
-const canHold = (p: RoomParticipant) => p.standing !== 'guest' && p.standing !== 'viewer'
-
-/** Viewers listen and watch: their token cannot publish, so the room offers them no microphone. */
-export const listensOnly = (p: RoomParticipant | undefined) => p?.standing === 'viewer'
+/**
+ * Members hold the input floor; guests never do. Changed by amendment A06 (S1-05A, for Luis's review): viewers
+ * may hold it and publish too, since talking with Sophia is not a work grant (work still needs an editor).
+ */
+const canHold = (p: RoomParticipant) => p.standing !== 'guest'
 
 export interface FloorView {
   /** Who may address Sophia; `present` says whether they are in the room right now. */
   holder: { identity: string; name: string; present: boolean } | null
   mine: boolean
   /**
-   * Offered only when the server will accept it (migration 0009): a free floor to any editor or admin in
-   * the room; a floor whose holder left, only to an admin, who alone may reclaim it.
+   * Offered only when the server will accept it (migration 0009, A06): a free floor to any member in the room;
+   * a floor whose holder left, only to an admin, who alone may reclaim it.
    */
   canTake: boolean
   /** When the floor is mine: who I can pass it to. */
@@ -110,8 +110,15 @@ export interface RoomLine {
   note: string | null
 }
 
-/** Until Sophia speaks in the call (S1-05), the room says so in the user's words. */
-export const VOICE_NOTE = 'Sophia’s voice is on its way. For now, the room carries yours.'
+/** Before anyone asks Sophia into the conversation (S1-05A), the room says how she joins. */
+export const VOICE_NOTE = 'Sophia joins the conversation when someone asks her in.'
+
+/** What the light and Sophia's line say while she is in the conversation (sophia-view.ts). */
+export interface SophiaLineView {
+  inConversation: boolean
+  label: string
+  note: string | null
+}
 
 function floorLine(floor: FloorView): string {
   if (!floor.holder) return 'The floor is open'
@@ -120,12 +127,21 @@ function floorLine(floor: FloorView): string {
   return floor.holder.present ? `${name} has the floor` : `${name} has the floor but isn’t here`
 }
 
-/** What Sophia's line says about the room right now. Only what is true: her own voice is not here yet. */
-export function roomLine(status: DockStatus, floor: FloorView, runningGoals: number): RoomLine {
+/**
+ * What Sophia's line says about the room right now. Only what is true: while she is in the conversation her
+ * line is what the bridge observes (sophia-view.ts), never inferred from the room being live.
+ */
+export function roomLine(
+  status: DockStatus,
+  floor: FloorView,
+  runningWork: number,
+  sophia: SophiaLineView | null = null,
+): RoomLine {
   const work =
-    runningGoals > 0 ? `Working on ${runningGoals} ${runningGoals === 1 ? 'goal' : 'goals'} in the background` : null
+    runningWork > 0 ? `Working on ${runningWork} ${runningWork === 1 ? 'task' : 'tasks'} in the background` : null
   if (status === 'joining') return { text: 'Joining the room…', note: null }
   if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
+  if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
   if (status === 'live') return { text: floorLine(floor), note: work }
   return { text: 'The room is ready', note: work ?? VOICE_NOTE }
 }

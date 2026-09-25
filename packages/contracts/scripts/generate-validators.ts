@@ -31,6 +31,9 @@ const EXPORTS = [
   'ContributionReceipt',
   'NativeTaskReceipt',
   'NativeTaskDetail',
+  'ExchangeState',
+  'MediaAssignmentBatch',
+  'MediaToolResult',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
