@@ -423,6 +423,66 @@ describe('the runtime service', () => {
     assert.equal(events.n, 1, 'announced once')
   })
 
+  it('captures a brief once: a later turn on the same session, such as a steer after the result, never replaces it', async () => {
+    const w = await world()
+    const { admitted, create } = await admittedAndQueued(w)
+    await withService(pool, (c) => recordRuntimeReceipts(c, w.who, [receipt(create, 'delivered')]))
+    const briefText = '## Intended outcome\nThe brief the task asked for'
+    await withService(pool, (c) =>
+      recordRuntimeObservations(c, w.who, [
+        observation(create, w.rt, 7, 'assistant/message', { text: briefText, interrupted: false }),
+        observation(create, w.rt, 8, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      ]),
+    )
+    const steerSource = await say(E, w.project.projectId, 'STEER: shorter, please.')
+    await withActor(pool, E, 'write', (c) =>
+      admitGoalCommand(c, w.project.projectId, randomUUID(), {
+        kind: 'steer',
+        goalId: admitted.goalId,
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        bodySourceId: steerSource.sourceId,
+      }),
+    )
+    assert.deepEqual(
+      (await dispatchAll(w.project.projectId)).map((o) => o.result),
+      ['enqueued'],
+    )
+    await withService(pool, (c) =>
+      recordRuntimeObservations(c, w.who, [
+        observation(create, w.rt, 10, 'assistant/message', { text: 'Noted: shorter.', interrupted: false }),
+        observation(create, w.rt, 11, 'turn/end', { turn: 2, reason: { kind: 'completed' } }),
+      ]),
+    )
+    const detail = await withActor(pool, E, 'read', (c) => readNativeTask(c, w.project.projectId, admitted.taskId))
+    assert.deepEqual([detail.task.phase, detail.result?.markdown], ['result_ready', briefText])
+    const job = await one<{ revision: number; announced: number }>(
+      `SELECT j.result_revision::int AS revision, (SELECT count(*)::int FROM sophia.project_events e
+        WHERE e.project_id=j.project_id AND e.type='native_task.result_ready') AS announced
+       FROM sophia.jobs j WHERE j.project_id=$1 AND j.kind='draft_brief'`,
+      [w.project.projectId],
+    )
+    assert.deepEqual(job, { revision: 1, announced: 1 })
+  })
+
+  it('an uncertain delivery whose turn did complete is still captured', async () => {
+    const w = await world()
+    const { admitted, create } = await admittedAndQueued(w)
+    await withService(pool, (c) =>
+      recordRuntimeReceipts(c, w.who, [receipt(create, 'delivered'), receipt(create, 'outcome_unknown')]),
+    )
+    let detail = await withActor(pool, E, 'read', (c) => readNativeTask(c, w.project.projectId, admitted.taskId))
+    assert.equal(detail.task.state, 'outcome_unknown')
+    await withService(pool, (c) =>
+      recordRuntimeObservations(c, w.who, [
+        observation(create, w.rt, 7, 'assistant/message', { text: '## Intended outcome\nIt ran', interrupted: false }),
+        observation(create, w.rt, 8, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      ]),
+    )
+    detail = await withActor(pool, E, 'read', (c) => readNativeTask(c, w.project.projectId, admitted.taskId))
+    assert.deepEqual([detail.task.phase, detail.task.state], ['result_ready', 'succeeded'])
+  })
+
   it('Stop fences the work: a completion that arrives afterwards is withheld and the goal settles stopped', async () => {
     const w = await world()
     const { admitted, create } = await admittedAndQueued(w)

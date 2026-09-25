@@ -33,6 +33,20 @@ export function base64ToPcm(data: string): Int16Array {
   return samples
 }
 
+/**
+ * RMS level (about -50 dBFS) from which forwarded input counts as sound Google may answer. A noise-suppressed quiet
+ * room sits well below it; even quiet speech sits well above it.
+ */
+export const AUDIBLE_RMS = 104
+
+/** Did this chunk carry sound (words, or anything Google might answer) rather than near-silence? */
+export function isAudible(samples: Int16Array): boolean {
+  if (samples.length === 0) return false
+  let sum = 0
+  for (const s of samples) sum += s * s
+  return Math.sqrt(sum / samples.length) >= AUDIBLE_RMS
+}
+
 /** The sample rate a `audio/pcm;rate=N` MIME type declares; anything else is not PCM we can play. */
 export function pcmRate(mimeType: string | undefined): number {
   const match = /^audio\/pcm(?:;\s*rate=(\d+))?$/i.exec(mimeType ?? '')

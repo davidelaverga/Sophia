@@ -154,7 +154,10 @@ const statusOf = (r: FunctionResponse | undefined): unknown => {
   return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve))
+/** 100 ms of the holder's microphone, just under the audible floor: a quiet room. */
 const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
+/** 100 ms of the holder saying something. */
+const voice16k = (n = 1600) => new Int16Array(n).fill(2000)
 const speech = (frames = 2) => pcmToBase64(new Int16Array(OUTPUT_FRAME * frames).fill(300))
 const OUT = 'audio/pcm;rate=24000'
 
@@ -166,6 +169,8 @@ let order: string[]
 /** Joins that fail before one succeeds (a LiveKit outage), and the tokens joins were attempted with. */
 let joinFailures: number
 let joinTokens: string[]
+/** What the session logged: event names and fields, never content. */
+let logs: Array<[string, Record<string, unknown>]>
 
 function newSession(over: Partial<MediaAssignment>, people: RoomPerson[]) {
   return new RoomSession(assignment(over), {
@@ -193,7 +198,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[]) {
     model: 'fake-model',
     bridgeInstanceId: 'bridge-test',
     now: () => clock,
-    log: () => undefined,
+    log: (event, fields) => logs.push([event, fields ?? {}]),
     every: () => () => undefined,
   })
 }
@@ -221,6 +226,7 @@ beforeEach(() => {
   order = []
   joinFailures = 0
   joinTokens = []
+  logs = []
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -318,8 +324,52 @@ describe('room session: Sophia’s output (case A09)', () => {
     assert.ok(room.played.length > 0, 'the next reply plays')
   })
 
+  it('Stop Speaking after the holder spoke, before Google transcribed a word, still silences the reply', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    session.update(assignment({ playbackEpoch: 2 }))
+    live.events.inputTranscript('what is the status', true)
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, 0, 'the reply to what was said before the stop is dropped')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'audio.reply_fenced').map(([, fields]) => fields.because),
+      ['sound'],
+      'the fence says why it was set',
+    )
+    live.events.turnComplete()
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > 0, 'the next reply plays')
+  })
+
   it('Stop Speaking with no reply pending does not silence the next one', async () => {
     const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    session.update(assignment({ playbackEpoch: 2 }))
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > 0, 'a quiet microphone asked nothing')
+  })
+
+  it('a stop while a finished reply is still playing does not fence the next one', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.audio(speech(), OUT)
+    await flush()
+    live.events.turnComplete()
+    session.update(assignment({ playbackEpoch: 2 }))
+    await flush()
+    const played = room.played.length
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > played, 'what was said had been answered in full')
+  })
+
+  it('sound the holder made long before the stop, never answered, does not fence the next reply', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    clock += 8001
     session.update(assignment({ playbackEpoch: 2 }))
     live.events.audio(speech(), OUT)
     await flush()

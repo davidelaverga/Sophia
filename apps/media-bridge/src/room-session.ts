@@ -15,7 +15,7 @@
 //    participant's attributes, so the room's light shows what is actually happening.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
 import type { MediaAssignment } from '@sophia/contracts'
-import { base64ToPcm, FormatError, InputChunker, OUTPUT_RATE, OutputFramer, pcmRate } from './audio.ts'
+import { base64ToPcm, FormatError, InputChunker, isAudible, OUTPUT_RATE, OutputFramer, pcmRate } from './audio.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { type ConnectLive, type LiveEvents, type LiveLink, systemInstruction } from './live-session.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
@@ -102,6 +102,8 @@ function statusOf(response: FunctionResponse): unknown {
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 export type OutputState = 'idle' | 'responding' | 'playing'
+/** Why a reply may still be on its way: the model is producing it, Google transcribed words, or sound was heard. */
+type PendingReply = 'responding' | 'transcript' | 'sound'
 
 /** What the room is told about Sophia (attributes on the `sophia` participant): observed state, no content. */
 export interface Observed {
@@ -150,6 +152,11 @@ export class RoomSession {
    * before its first audio chunk, and Stop Speaking must fence it too.
    */
   private awaitingReply = false
+  /**
+   * When the holder's forwarded audio last carried sound since the model's turn ended (null: not since). Google may
+   * answer it before it sends any transcript, so a stop fences that reply too.
+   */
+  private heardAt: number | null = null
   /** Stop Speaking or a pause mid-turn: until this time, the rest of that model turn is dropped, not played later. */
   private discardUntil = 0
   private playingUntil = 0
@@ -244,7 +251,7 @@ export class RoomSession {
 
   /** The API's newer view of this exchange. */
   update(next: MediaAssignment): void {
-    const midTurn = this.responding || this.awaitingReply
+    const pending = this.pendingReply(this.deps.now())
     const before = this.assignment
     const change = this.state.update(toAssignment(next), this.deps.now())
     this.assignment = next
@@ -252,7 +259,7 @@ export class RoomSession {
       this.deps.log('assignment.changed', { exchangeId: this.exchangeId, ...epochs(next), ...change })
     }
     if (change.handoff) this.handoff()
-    if (change.stopSpeaking) this.silence(midTurn)
+    if (change.stopSpeaking) this.silence(pending)
     if (change.lookChanged) {
       this.sampler.clear()
       this.room?.watch(next.looking)
@@ -323,6 +330,7 @@ export class RoomSession {
     for (let chunk = this.chunker.take(); chunk; chunk = this.chunker.take()) {
       live.sendAudio(chunk)
       this.state.forwarded()
+      if (isAudible(chunk)) this.heardAt = this.deps.now()
     }
   }
 
@@ -339,12 +347,28 @@ export class RoomSession {
     this.absence = null
   }
 
-  /** Stop Speaking (the generation already moved): clear the source and drop the rest of the current turn. */
-  private silence(midTurn: boolean): void {
+  /**
+   * Stop Speaking (the generation already moved): clear the source and drop the rest of the current turn. A reply
+   * that may still be on its way is fenced; the log says why, since a fence set on sound alone can also drop the
+   * next reply when nothing was pending (the stale reply playing after a stop would be worse).
+   */
+  private silence(pending: PendingReply | null): void {
     this.room?.clearPlayback()
     this.framer.clear()
     this.playingUntil = 0
-    if (midTurn) this.discardUntil = this.deps.now() + STOPPED_REPLY_WAIT_MS
+    if (!pending) return
+    this.discardUntil = this.deps.now() + STOPPED_REPLY_WAIT_MS
+    this.deps.log('audio.reply_fenced', { exchangeId: this.exchangeId, because: pending })
+  }
+
+  /**
+   * Whether a reply may be on its way, and why: the model is producing one, Google transcribed the holder's words,
+   * or the holder's forwarded audio carried sound recently enough that a reply to it could still start.
+   */
+  private pendingReply(now: number): PendingReply | null {
+    if (this.responding) return 'responding'
+    if (this.awaitingReply) return 'transcript'
+    return this.heardAt !== null && now - this.heardAt < STOPPED_REPLY_WAIT_MS ? 'sound' : null
   }
 
   /** Paused (by the API, or locally for a guest): input closed, output cleared, once per pause. */
@@ -360,7 +384,7 @@ export class RoomSession {
     this.sampler.clear()
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
-    this.silence(this.responding || this.awaitingReply)
+    this.silence(this.pendingReply(this.deps.now()))
   }
 
   /** A guest is waiting for their token: confirm input is closed and output cleared (case A12). */
@@ -498,7 +522,7 @@ export class RoomSession {
     if (failedBeforeReady && this.attempts >= 1) this.handle = null
     this.chunker.clear()
     this.state.bumpGeneration()
-    this.silence(false)
+    this.silence(null)
     this.endTurn()
     const delay = RECONNECT_DELAYS_MS[this.attempts]
     this.attempts += 1
@@ -511,7 +535,7 @@ export class RoomSession {
 
   private bargeIn(): void {
     this.state.bumpGeneration()
-    this.silence(false)
+    this.silence(null)
     this.endTurn()
   }
 
@@ -523,6 +547,7 @@ export class RoomSession {
     this.state.turnEnded()
     this.responding = false
     this.awaitingReply = false
+    this.heardAt = null
     this.discardUntil = 0
   }
 
@@ -638,9 +663,10 @@ export class RoomSession {
   /** A handoff that timed out while the old holder's turn was still speaking cancels that turn's output. */
   private settled(now: number): void {
     const settling = this.state.input(now) === 'settling'
-    if (this.wasSettling && !settling && (this.responding || this.awaitingReply)) {
+    const pending = this.pendingReply(now)
+    if (this.wasSettling && !settling && pending) {
       this.state.bumpGeneration()
-      this.silence(true)
+      this.silence(pending)
     }
     this.wasSettling = settling
   }

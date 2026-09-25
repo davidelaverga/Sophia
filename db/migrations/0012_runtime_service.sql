@@ -540,7 +540,9 @@ BEGIN
 END $$;
 
 -- A draft_brief result: the last complete assistant message of a completed turn, while the goal may still
--- publish (running or checking). Under Hold or Stop the result is withheld, never published.
+-- publish (running or checking). Under Hold or Stop the result is withheld, never published. A brief is
+-- captured once: a later turn on the same session (a steer after the result, say) answers another command,
+-- so it stays an observation and never replaces the brief. An uncertain delivery that did run is captured.
 CREATE FUNCTION sophia.capture_native_result(p_project uuid, p_binding uuid, p_turn_end_seq bigint, p_reason text) RETURNS void LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE b sophia.execution_bindings; g sophia.goals; j sophia.jobs; msg sophia.native_observations; c sophia.commands; src sophia.source_objects;
@@ -549,7 +551,7 @@ BEGIN
  SELECT g2.* INTO g FROM sophia.goals g2 JOIN sophia.work_attempts a ON a.project_id=g2.project_id AND a.goal_id=g2.id
   WHERE a.project_id=p_project AND a.id=b.attempt_id FOR UPDATE OF g2;
  SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND attempt_id=b.attempt_id AND kind='draft_brief' FOR UPDATE;
- IF j.id IS NULL THEN RETURN; END IF;
+ IF j.id IS NULL OR j.state NOT IN ('pending','running','outcome_unknown') THEN RETURN; END IF;
  IF p_reason IS DISTINCT FROM 'completed' THEN
   IF p_reason IN ('error','max-tokens','blocked') AND j.state IN ('pending','running') AND g.status IN ('running','checking') THEN
    UPDATE sophia.jobs SET state='failed', reason='the native turn ended: '||p_reason WHERE project_id=p_project AND id=j.id;

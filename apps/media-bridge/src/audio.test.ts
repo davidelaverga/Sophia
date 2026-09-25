@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  AUDIBLE_RMS,
   base64ToPcm,
   FormatError,
   INPUT_BACKLOG,
   INPUT_CHUNK,
   InputChunker,
+  isAudible,
   OUTPUT_BACKLOG_FRAMES,
   OUTPUT_FRAME,
   OutputFramer,
@@ -14,6 +16,8 @@ import {
 } from './audio.ts'
 
 const ramp = (n: number, from = 0) => Int16Array.from({ length: n }, (_, i) => ((from + i) % 32767) - 16000)
+/** A square wave of this amplitude: its RMS level is exactly `v`. */
+const level = (v: number) => Int16Array.from({ length: INPUT_CHUNK }, (_, i) => (i % 2 ? v : -v))
 
 describe('audio framing', () => {
   it('round-trips little-endian 16-bit PCM through base64', () => {
@@ -71,5 +75,13 @@ describe('audio framing', () => {
     assert.equal(f.dropped, 3)
     f.clear()
     assert.equal(f.next(1), undefined)
+  })
+
+  it('tells sound Google may answer from a quiet room by its RMS level', () => {
+    assert.equal(isAudible(new Int16Array(INPUT_CHUNK)), false, 'digital silence')
+    assert.equal(isAudible(level(AUDIBLE_RMS - 1)), false, 'just under the floor')
+    assert.equal(isAudible(level(AUDIBLE_RMS)), true, 'at the floor')
+    assert.equal(isAudible(ramp(INPUT_CHUNK)), true, 'speech-level signal')
+    assert.equal(isAudible(new Int16Array(0)), false)
   })
 })
