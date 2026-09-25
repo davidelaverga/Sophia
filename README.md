@@ -10,14 +10,17 @@ separate repository from
 live application. That repository and its outstanding obligations are not
 modified by this one.
 
-**Status:** S1-01 is done (merged). S1-03 is in progress on a development
-model route: the control bridge, role presets and the execution-host runtime
-supervisor are built and pass their acceptance and adverse checks against the
-real pinned dsh loop, a LABELLED fixture Sophia service and a keyless mock
-model. Real S1-02 admission and a live-model steer check are still to come
-(see [docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md#control-bridge-s1-03)).
-Without a Sophia service binding the runtime reports `readiness=not_ready` by
-design.
+**Status:** S1-01 is done (merged). S1-02 is in review: the first product
+slice (shared project, command admission, snapshot and live events, with a
+minimal Studio view) works against PostgreSQL and Supabase Auth; see its
+[handoff](docs/handoffs/S1-02-attempt-1.md). S1-03 is in progress on a
+development model route: the control bridge, role presets and the
+execution-host runtime supervisor are built and pass their acceptance and
+adverse checks against the real pinned dsh loop, a LABELLED fixture Sophia
+service and a keyless mock model. Real S1-02 admission and a live-model steer
+check are still to come (see
+[docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md#control-bridge-s1-03)). Without a
+Sophia service binding the runtime reports `readiness=not_ready` by design.
 
 ## Read first
 
@@ -40,7 +43,7 @@ design.
 | Node.js | 24.21.0 | `.node-version`, `.nvmrc`, `package.json#engines`, `config/runtime-unit.json` |
 | pnpm | 11.7.0 | `package.json#packageManager` and `#engines` (strict) |
 | dsh | 0.1.7-rc.1 = `46a7f68b0922371ce7144b668b90e377d8e799f4` (tag `dsh-v0.1.7-rc.1`) | `runtime/dsh/package.json`, `pnpm-lock.yaml`, `config/runtime-unit.json` |
-| TypeScript | 6.0.3 | `packages/dsh-bundle/package.json` |
+| TypeScript | 6.0.3 | root and `packages/dsh-bundle/package.json` |
 
 ## Reproduce the runtime unit
 
@@ -68,6 +71,24 @@ pnpm live:steer                               # real-route steer check; needs OP
 pnpm live:steer --rehearse                    # the same check against the keyless mock (never live evidence)
 ```
 
+## Product slice (S1-02)
+
+The API, Studio and packages are TypeScript run directly by Node (type
+stripping, no build step). Suites that need a database or Supabase run apart
+from `pnpm test`; with Docker they start what they need:
+
+```bash
+pnpm test:sql                 # migrations + SQL test on a throwaway postgres:16 (--source pack: the pack's own)
+pnpm test:db                  # persistence, race and HTTP suites on a throwaway postgres:16
+pnpm supabase:local           # local Supabase (Auth + Postgres) with the migrations applied
+pnpm test:supabase            # real Supabase tokens through the API
+pnpm dev                      # API :8787 + Studio :5173 with synthetic identities (--supabase, --hosted <env file>)
+```
+
+Secrets never enter the repository: env files live outside it or are
+gitignored (`.env.*`). See [.env.example](.env.example) and
+[deploy/supabase/README.md](deploy/supabase/README.md).
+
 The development model route is `openai/gpt-6-luna` at `high` reasoning
 through the pinned `@deepseek-ai/dsh-llm-pi-ai` adapter. The credential is
 passed by reference (`OPENAI_API_KEY`), never stored. The D13 release
@@ -83,10 +104,15 @@ apps/execution-host/         @sophia/execution-host: runtime supervisor (one dsh
 config/runtime-unit.json     runtime unit: pins and recorded artifact identities
 config/dsh/profile/          sophia-runtime profile manifest, lock and literal [] patch
 config/{models,roles,supervision}.json   design specimens from the pack (not installed)
-scripts/                     toolchain, artifact, profile and gate tooling
+packages/contracts, domain, persistence, test-support, ui   S1-02 packages
+apps/api/                    Fastify API: auth, projects, commands, snapshot, SSE
+apps/studio/                 React/Vite Studio: sign-in and the S1-02 work view
+db/migrations/, db/tests/    pack 0001–0004 verbatim + 0005–0007; the SQL test
+supabase/, deploy/supabase/  local Supabase config; hosted project runbook and CA
+scripts/                     toolchain, artifact, profile and gate tooling; database and dev-stack scripts
 tests/unit, tests/integration
 tests/support/               LABELLED fixture Sophia service, keyless mock model, test harness
 docs/pack/                   v0.4 Part 2 implementation pack (byte-identical import)
-docs/evidence/S1-01/         evidence retained from actual runs (S1-03 live evidence pending)
+docs/evidence/S1-01/, S1-02/ evidence retained from actual runs (S1-03 live evidence pending)
 docs/handoffs/               session handoffs per goal attempt
 ```

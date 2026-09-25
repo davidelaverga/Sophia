@@ -12,18 +12,29 @@
   "scripts": {
     "toolchain:check": "node scripts/toolchain-check.mjs",
     "build": "pnpm --filter @sophia/dsh-bundle --filter @sophia/execution-host run build",
-    "typecheck": "pnpm --filter @sophia/dsh-bundle --filter @sophia/execution-host run typecheck",
-    "test": "node --test \"tests/unit/**/*.test.mjs\"",
+    "typecheck": "pnpm -r --if-present run typecheck && tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"tests/unit/**/*.test.mjs\" \"packages/*/src/**/!(*.db|*.live).test.ts\" \"apps/*/src/**/!(*.db|*.live).test.ts\"",
     "test:integration": "node --test --test-concurrency=1 --test-timeout=180000 \"tests/integration/**/*.test.mjs\"",
+    "test:sql": "node scripts/db-test.ts",
+    "test:db": "node scripts/with-postgres.ts node --test \"packages/*/src/**/*.db.test.ts\" \"apps/*/src/**/*.db.test.ts\"",
+    "test:supabase": "node --env-file=.env.supabase.local --test \"apps/*/src/**/*.live.test.ts\"",
     "dsh:source": "node scripts/dsh-source.mjs",
     "artifacts": "node scripts/build-artifacts.mjs",
     "artifacts:record": "node scripts/build-artifacts.mjs --record",
     "profile:install": "node scripts/profile-install.mjs",
     "profile:verify": "node scripts/profile-verify.mjs",
-    "check": "pnpm toolchain:check && pnpm build && pnpm typecheck && pnpm test && pnpm artifacts && pnpm test:integration",
+    "check": "pnpm toolchain:check && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration",
+    "contracts:check": "pnpm --filter @sophia/contracts run generate:check",
+    "db:migrate": "node packages/persistence/scripts/migrate.ts",
+    "supabase:local": "node scripts/supabase-local.ts",
+    "dev": "node scripts/dev-stack.ts",
     "live:steer": "node scripts/live-steer.mjs"
   },
   "devDependencies": {
+    "@types/node": "24.13.6",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.0",
+    "typescript": "6.0.3",
     "yaml": "2.9.1"
   }
 }

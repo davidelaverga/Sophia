@@ -1,0 +1,26 @@
+{
+  "name": "@sophia/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts"
+  },
+  "dependencies": {
+    "@sophia/contracts": "workspace:*",
+    "@sophia/domain": "workspace:*",
+    "@sophia/persistence": "workspace:*",
+    "fastify": "5.12.5",
+    "jose": "6.2.12",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@sophia/test-support": "workspace:*",
+    "@types/pg": "8.23.1"
+  }
+}

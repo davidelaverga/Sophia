@@ -1,6 +1,8 @@
 # S1-01 gate: every push proves a clean checkout reproduces the recorded
 # runtime unit (lock, runtime artifact digest, bundle archive, profile lock)
 # and that the composition gate rejects each adverse case.
+# S1-02 adds the schema, persistence and HTTP suites on a real PostgreSQL 16,
+# and the auth crossing against a local Supabase stack.
 name: ci
 
 on:
@@ -24,3 +26,47 @@ jobs:
       - run: pnpm check
       - name: Pinned dsh source and release provenance
         run: pnpm dsh:source --dir "$RUNNER_TEMP/dsh-src/deepseek-harness" --verify-release
+
+  database:
+    name: SQL, persistence and API on PostgreSQL 16
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SOPHIA_DISPOSABLE_DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (reads packageManager)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # The pack's migrations and SQL test as imported, then this repository's migrations and the same test.
+      - run: pnpm test:sql --source pack
+      - run: pnpm test:sql
+      # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
+      - run: pnpm test:db
+
+  supabase-live:
+    name: Live auth on local Supabase
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (reads packageManager)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      # Supabase in Docker: ES256 signing key, db/migrations through the ledger runner, the API login.
+      - run: pnpm supabase:local
+      # Real GoTrue tokens verified through JWKS; tampered, legacy HS256 and publishable-key tokens rejected.
+      - run: pnpm test:supabase
