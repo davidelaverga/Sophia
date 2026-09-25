@@ -80,8 +80,8 @@ interface AttemptState {
   readonly unsettled: Map<string, CommandEntry>
   /** Why reconciliation could not restore this attempt; null once it is live. */
   unrecovered: string | null
-  /** Serializes command execution for this attempt. */
-  queue: Promise<void>
+  /** The service binds this attempt to a different native session: nothing may resume it here. */
+  identityMismatch: boolean
 }
 
 /**
@@ -143,6 +143,11 @@ export type BridgeReadiness = { state: 'ready' } | { state: 'not_ready'; reason:
 
 export class ControlBridge {
   private readonly attempts = new Map<string, AttemptState>()
+  /**
+   * Serializes command execution per attempt id, including the command that
+   * creates the attempt: it exists before any AttemptState does.
+   */
+  private readonly queues = new Map<string, Promise<void>>()
   private readonly bySession = new Map<string, AttemptState>()
   private readonly transport: ServiceTransport | null
   private readonly journal: Journal
@@ -159,7 +164,11 @@ export class ControlBridge {
       ? new ServiceTransport({ ...settings.service, runtimeUnitId: settings.runtimeUnitId, bridgeInstanceId: this.instanceId })
       : null
     const common = { signal: this.stopping.signal, log: settings.log }
-    this.receiptQueue = new RetainedQueue('receipt', (batch) => this.transport!.receipts(batch), { ...common, delayMs: 0 })
+    this.receiptQueue = new RetainedQueue('receipt', (batch) => this.transport!.receipts(batch), {
+      ...common,
+      delayMs: 0,
+      onAck: (batch) => this.receiptsAcknowledged(batch),
+    })
     this.observationQueue = new RetainedQueue('observation', (batch) => this.transport!.observations(batch), {
       ...common,
       delayMs: 50,
@@ -302,13 +311,12 @@ export class ControlBridge {
       }
       return
     }
-    const attempt = this.attempts.get(command.binding.attemptId)
+    const { attemptId } = command.binding
     const run = () => this.execute(command).then((receipts) => this.send(...receipts))
-    if (attempt) {
-      attempt.queue = attempt.queue.then(run, run).catch((error: Error) => this.settings.log(`command ${command.commandId} failed: ${error.stack ?? error.message}`))
-    } else {
-      void run().catch((error: Error) => this.settings.log(`command ${command.commandId} failed: ${error.stack ?? error.message}`))
-    }
+    const next = (this.queues.get(attemptId) ?? Promise.resolve())
+      .then(run)
+      .catch((error: Error) => this.settings.log(`command ${command.commandId} failed: ${error.stack ?? error.message}`))
+    this.queues.set(attemptId, next)
   }
 
   private receipt(attemptId: string, commandId: string, stage: ReceiptStage, sessionId: string | null, seq: number | null, reason: string | null, evidence: string[] = []): RuntimeReceipt {
@@ -339,7 +347,8 @@ export class ControlBridge {
       if (command.kind === 'stop') return await this.restop(attempt, command)
       return reject('the attempt is stopped; a stopped native session is never resumed')
     }
-    if (attempt?.unrecovered && command.kind !== 'resume' && command.kind !== 'inspect' && command.kind !== 'stop') {
+    const retryable = command.kind === 'resume' && !attempt?.identityMismatch
+    if (attempt?.unrecovered && !retryable && command.kind !== 'inspect' && command.kind !== 'stop') {
       return reject(`the attempt was not recovered after restart (${attempt.unrecovered}); send \`resume\``)
     }
 
@@ -389,7 +398,7 @@ export class ControlBridge {
       stash: [],
       unsettled: new Map(),
       unrecovered: null,
-      queue: Promise.resolve(),
+      identityMismatch: false,
     }
     this.attempts.set(attemptId, state)
     this.bySession.set(state.sessionId, state)
@@ -448,25 +457,28 @@ export class ControlBridge {
     const lost = logged.unstashed.filter((m) => !present.has(m.messageId))
     if (lost.length > 0) this.journal.append(attempt.sessionId, 'sophia/stash', { attemptId: attempt.attemptId, messages: lost })
     attempt.stash = [...logged.stash, ...lost]
-    const byMessage = new Map<string, string>()
+    const incorporatedAt = new Map<string, number>()
+    for (const event of events) {
+      if (event.type === 'user/message') incorporatedAt.set((event.data as { id: string }).id, event.seq)
+    }
     for (const [commandId, entry] of logged.commands) {
       if (entry.settled) {
-        attempt.receipts.set(commandId, this.receipt(attempt.attemptId, commandId, 'delivered', attempt.sessionId, entry.nativeSeq, 'reconstructed from the bridge journal', this.evidence(attempt, entry.seq, entry.nativeSeq)))
+        attempt.receipts.set(commandId, this.receipt(attempt.attemptId, commandId, entry.stage ?? 'delivered', attempt.sessionId, entry.nativeSeq, entry.reason ?? 'reconstructed from the bridge journal', this.evidence(attempt, entry.seq, entry.nativeSeq)))
       } else {
         attempt.unsettled.set(commandId, entry)
       }
       if (!entry.messageId) continue
-      byMessage.set(entry.messageId, commandId)
       attempt.targets.set(entry.messageId, entry.target ?? 'next-turn')
-      if (!logged.incorporated.has(entry.messageId) && present.has(entry.messageId)) attempt.pendingIncorporation.set(entry.messageId, commandId)
+      const seq = incorporatedAt.get(entry.messageId)
+      if (seq === undefined) {
+        if (present.has(entry.messageId)) attempt.pendingIncorporation.set(entry.messageId, commandId)
+      } else if (!logged.incorporationReceipted.has(commandId)) {
+        // Its own acknowledgement, not the observation cursor, decides a receipt's replay.
+        this.send(this.incorporationReceipt(attempt, commandId, seq))
+      }
     }
     for (const event of events) {
-      if (event.seq <= logged.observedSeq) continue
-      if (event.type === 'user/message') {
-        const commandId = byMessage.get((event.data as { id: string }).id)
-        if (commandId) this.send(this.incorporationReceipt(attempt, commandId, event.seq))
-      }
-      this.enqueueObservation(attempt, event)
+      if (event.seq > logged.observedSeq) this.enqueueObservation(attempt, event)
     }
   }
 
@@ -496,11 +508,17 @@ export class ControlBridge {
     }).seq
   }
 
-  /** Flush dsh's log, then journal the native seq the command's effect settled at. */
-  private async settled(attempt: AttemptState, agent: Agent, command: RuntimeCommand): Promise<number | null> {
-    await this.ctx.sessions.flush(agent.session)
-    const nativeSeq = agent.session.snapshotEvents().at(-1)?.seq ?? null
-    this.journal.append(attempt.sessionId, 'sophia/settled', { commandId: command.commandId, nativeSeq })
+  /**
+   * Flush dsh's log, then journal the native seq the command's effect settled
+   * at together with the receipt it earned (recovery answers with the same).
+   */
+  private async settled(attempt: AttemptState, agent: Agent | null, command: RuntimeCommand, stage: ReceiptStage = 'delivered', reason: string | null = null): Promise<number | null> {
+    let nativeSeq: number | null = null
+    if (agent) {
+      await this.ctx.sessions.flush(agent.session)
+      nativeSeq = agent.session.snapshotEvents().at(-1)?.seq ?? null
+    }
+    this.journal.append(attempt.sessionId, 'sophia/settled', { commandId: command.commandId, nativeSeq, stage, reason })
     return nativeSeq
   }
 
@@ -553,13 +571,11 @@ export class ControlBridge {
 
   private async resume(command: RuntimeCommand): Promise<RuntimeReceipt[]> {
     const { attemptId, authorityEpoch } = command.binding
-    let attempt = this.attempts.get(attemptId)
-    if (!attempt) {
-      attempt = this.newAttempt(attemptId, authorityEpoch)
-      if (command.expectedNativeSessionId && command.expectedNativeSessionId !== attempt.sessionId) {
-        throw new ProtocolError(`expected native session ${command.expectedNativeSessionId}, the attempt maps to ${attempt.sessionId}`)
-      }
+    const expected = command.expectedNativeSessionId
+    if (expected && expected !== this.sessionIdFor(attemptId)) {
+      throw new ProtocolError(`expected native session ${expected}, the attempt maps to ${this.sessionIdFor(attemptId)}`)
     }
+    const attempt = this.attempts.get(attemptId) ?? this.newAttempt(attemptId, authorityEpoch)
     if (!attempt.handle && !this.ctx.agents.get(attempt.sessionId)) {
       attempt.handle = await this.resumeNative(attempt)
     }
@@ -666,8 +682,10 @@ export class ControlBridge {
     const seq = this.append(attempt, command, null, null)
     agent.cancel({ kind: 'hook', reason: 'sophia-hold' }, { keepInbox: true })
     const idle = await this.settle(agent)
-    const nativeSeq = await this.settled(attempt, agent, command)
-    return [this.record(attempt, command, idle ? 'checked' : 'outcome_unknown', seq, nativeSeq, idle ? 'held; the native driver is idle' : 'held; cancellation did not settle in time')]
+    const stage: ReceiptStage = idle ? 'checked' : 'outcome_unknown'
+    const reason = idle ? 'held; the native driver is idle' : 'held; cancellation did not settle in time'
+    const nativeSeq = await this.settled(attempt, agent, command, stage, reason)
+    return [this.record(attempt, command, stage, seq, nativeSeq, reason)]
   }
 
   private async stop(command: RuntimeCommand): Promise<RuntimeReceipt[]> {
@@ -680,8 +698,10 @@ export class ControlBridge {
     const seq = this.append(attempt, command, null, null)
     agent.cancel({ kind: 'hook', reason: 'sophia-stop' })
     const idle = await this.settle(agent)
-    const nativeSeq = await this.settled(attempt, agent, command)
-    const receipt = this.record(attempt, command, idle ? 'checked' : 'outcome_unknown', seq, nativeSeq, idle ? 'stopped; the native driver is idle and the handle is released' : 'stopped; cancellation did not settle in time')
+    const stage: ReceiptStage = idle ? 'checked' : 'outcome_unknown'
+    const reason = idle ? 'stopped; the native driver is idle and the handle is released' : 'stopped; cancellation did not settle in time'
+    const nativeSeq = await this.settled(attempt, agent, command, stage, reason)
+    const receipt = this.record(attempt, command, stage, seq, nativeSeq, reason)
     if (attempt.handle) {
       await attempt.handle.dispose()
       attempt.handle = null
@@ -692,6 +712,11 @@ export class ControlBridge {
   private inspect(command: RuntimeCommand): RuntimeReceipt[] {
     const attempt = this.attempts.get(command.binding.attemptId)
     if (!attempt) throw new ProtocolError('unknown attempt')
+    if (command.binding.authorityEpoch > attempt.epoch) {
+      // An accepted command retires older grants even when it changes nothing else.
+      attempt.epoch = command.binding.authorityEpoch
+      this.journal.append(attempt.sessionId, 'sophia/epoch', { attemptId: attempt.attemptId, authorityEpoch: attempt.epoch })
+    }
     const agent = attempt.handle?.agent ?? this.ctx.agents.get(attempt.sessionId)
     const summary = {
       fence: attempt.fence,
@@ -717,18 +742,14 @@ export class ControlBridge {
   /** Finish a Stop on an attempt already fenced stopped (idempotent). */
   private async restop(attempt: AttemptState, command: RuntimeCommand): Promise<RuntimeReceipt[]> {
     const seq = this.append(attempt, command, null, null)
-    const agent = attempt.handle?.agent ?? this.ctx.agents.get(attempt.sessionId)
-    let nativeSeq: number | null = null
-    if (agent) {
-      nativeSeq = await this.settled(attempt, agent, command)
-    } else {
-      this.journal.append(attempt.sessionId, 'sophia/settled', { commandId: command.commandId, nativeSeq: null })
-    }
+    const agent = attempt.handle?.agent ?? this.ctx.agents.get(attempt.sessionId) ?? null
+    const reason = 'stopped; the stopped epoch stands'
+    const nativeSeq = await this.settled(attempt, agent, command, 'checked', reason)
     if (attempt.handle) {
       await attempt.handle.dispose()
       attempt.handle = null
     }
-    return [this.record(attempt, command, 'checked', seq, nativeSeq, 'stopped; the stopped epoch stands')]
+    return [this.record(attempt, command, 'checked', seq, nativeSeq, reason)]
   }
 
   /** Keep claimed input of a held attempt out of the live inbox, durably. */
@@ -749,7 +770,11 @@ export class ControlBridge {
     if (!ATTEMPT_ID.test(binding.attemptId)) return { attemptId: binding.attemptId, reason: 'attemptId must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}' }
     const attempt = this.newAttempt(binding.attemptId, binding.authorityEpoch)
     if (binding.nativeSessionId !== attempt.sessionId) {
-      this.settings.log(`binding ${binding.attemptId} names session ${binding.nativeSessionId}; this bridge maps it to ${attempt.sessionId}`)
+      // Never infer a replacement identity: resuming another session would run commands against different history.
+      attempt.identityMismatch = true
+      attempt.unrecovered = `the binding names native session ${binding.nativeSessionId}; this runtime maps the attempt to ${attempt.sessionId}`
+      this.settings.log(`reconcile ${binding.attemptId} failed: ${attempt.unrecovered}`)
+      return { attemptId: binding.attemptId, reason: attempt.unrecovered }
     }
     if (binding.state === 'stopped') {
       attempt.fence = 'stopped'
@@ -815,6 +840,15 @@ export class ControlBridge {
       durable: true,
       data: summarize(event),
     })
+  }
+
+  /** Journal acknowledged incorporation receipts, so a restart re-sends only the ones the service lacks. */
+  private receiptsAcknowledged(batch: readonly RuntimeReceipt[]): void {
+    for (const r of batch) {
+      if (r.stage === 'incorporation_observed' && r.nativeSessionId) {
+        this.journal.append(r.nativeSessionId, 'sophia/receipted', { commandId: r.commandId, stage: 'incorporation_observed' })
+      }
+    }
   }
 
   /** Journal each session's acknowledged observation cursor, so a restart replays only what the service lacks. */

@@ -20,7 +20,7 @@ import { closeSync, existsSync, fsyncSync, ftruncateSync, mkdirSync, openSync, r
 import { join } from 'node:path'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { RuntimeCommandKind } from './protocol.js'
+import type { ReceiptStage, RuntimeCommandKind } from './protocol.js'
 
 /** Where a delivered message was routed. */
 export type DeliveryTarget = 'next-turn' | 'next-step'
@@ -61,10 +61,18 @@ export interface JournalRecordMap {
    * place. Reconciliation puts back any of those dsh never received.
    */
   'sophia/unstash': { attemptId: string; commandId: string; messageIds: string[]; messages?: StashedMessage[] }
-  /** The native seq at which a command's effect became durable (after dsh flushed). */
-  'sophia/settled': { commandId: string; nativeSeq: number | null }
+  /**
+   * The native seq at which a command's effect became durable (after dsh
+   * flushed), with the receipt it earned, so recovery answers a redelivery
+   * with the same stage (a Hold's `checked`, not a generic `delivered`).
+   */
+  'sophia/settled': { commandId: string; nativeSeq: number | null; stage?: ReceiptStage; reason?: string | null }
   /** The service acknowledged this session's observations up to `nativeSeq`. */
   'sophia/observed': { nativeSeq: number }
+  /** The service acknowledged a command's `incorporation_observed` receipt. */
+  'sophia/receipted': { commandId: string; stage: 'incorporation_observed' }
+  /** An accepted command that changes no other state (inspect) raised the authority epoch. */
+  'sophia/epoch': { attemptId: string; authorityEpoch: number }
 }
 
 /** One journal line. */
@@ -150,6 +158,9 @@ export interface CommandEntry {
   readonly target: DeliveryTarget | null
   readonly content: readonly ContentBlock[] | null
   readonly nativeSeq: number | null
+  /** The receipt the settled command earned (null: before settlement, or a journal without it). */
+  readonly stage: ReceiptStage | null
+  readonly reason: string | null
   /**
    * True once dsh flushed the command's native effect (`sophia/settled`). An
    * unsettled command was journaled, but a restart may have cut it short
@@ -175,6 +186,8 @@ export interface LoggedState {
   readonly incorporated: ReadonlySet<string>
   /** Highest native seq whose observation the service acknowledged (-1: none). */
   readonly observedSeq: number
+  /** Commands whose `incorporation_observed` receipt the service acknowledged. */
+  readonly incorporationReceipted: ReadonlySet<string>
 }
 
 const FENCE_RANK: Readonly<Record<FenceState, number>> = { active: 0, held: 1, stopped: 2 }
@@ -199,6 +212,7 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   let stash: StashedMessage[] = []
   let unstashed: StashedMessage[] = []
   let observedSeq = -1
+  const incorporationReceipted = new Set<string>()
   for (const record of journal) {
     switch (record.type) {
       case 'sophia/command': {
@@ -208,7 +222,7 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
         authorityEpoch = Math.max(authorityEpoch, data.authorityEpoch)
         // A re-execution of an unsettled command replaces its first record.
         if (!commands.get(data.commandId)?.settled) {
-          commands.set(data.commandId, { seq: record.seq, kind: data.kind, messageId: data.messageId, target: data.target, content: data.content, nativeSeq: data.nativeSeq, settled: false })
+          commands.set(data.commandId, { seq: record.seq, kind: data.kind, messageId: data.messageId, target: data.target, content: data.content, nativeSeq: data.nativeSeq, stage: null, reason: null, settled: false })
         }
         break
       }
@@ -231,11 +245,18 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
       }
       case 'sophia/settled': {
         const entry = commands.get(record.data.commandId)
-        if (entry) commands.set(record.data.commandId, { ...entry, nativeSeq: record.data.nativeSeq, settled: true })
+        if (entry) commands.set(record.data.commandId, { ...entry, nativeSeq: record.data.nativeSeq, stage: record.data.stage ?? null, reason: record.data.reason ?? null, settled: true })
         break
       }
       case 'sophia/observed':
         observedSeq = Math.max(observedSeq, record.data.nativeSeq)
+        break
+      case 'sophia/receipted':
+        incorporationReceipted.add(record.data.commandId)
+        break
+      case 'sophia/epoch':
+        attemptId = record.data.attemptId
+        authorityEpoch = Math.max(authorityEpoch, record.data.authorityEpoch)
         break
     }
   }
@@ -243,5 +264,5 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
   for (const event of events) {
     if (event.type === 'user/message') incorporated.add((event.data as { id: string }).id)
   }
-  return { attemptId, role, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq }
+  return { attemptId, role, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq, incorporationReceipted }
 }

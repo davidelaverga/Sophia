@@ -14,36 +14,36 @@ apps/execution-host typecheck$ tsc -p tsconfig.json --noEmit
 apps/execution-host typecheck: Done
 packages/dsh-bundle typecheck: Done
 $ node --test "tests/unit/**/*.test.mjs"
-✔ commands are validated field by field; anything else is a ProtocolError (2.601312ms)
-✔ the journal folds commands, fences, stash and settlement; a stop is terminal (6.75336ms)
-✔ a torn final journal line (crash mid-write) is cut before the next append; earlier corruption is not tolerated (4.035331ms)
-✔ the journal separates settled from unsettled commands, tracks redelivered held input, and keeps the observation cursor (4.739925ms)
-✔ the destination map lists paths with a state and an owning goal (1.142198ms)
-✔ built/partial paths exist and unbuilt paths are still absent (1.100902ms)
-✔ every planning.json destination path appears in the map (1.557965ms)
-✔ dump rows carry the source layer printed above them (10.689433ms)
-✔ each upstream skip/warning line is classified (0.480132ms)
-✔ the static gate never claims health and names composition failures separately (0.19327ms)
-✔ the model route check accepts the recorded route and names each way it can be wrong (0.86146ms)
-✔ the pinned pnpm directory is found on PATH even when it is not beside node (2.832255ms)
-✔ the launch environment is explicit: no inherited variables beyond the fixed set (1.44832ms)
-✔ only named credential variables pass, and only when the caller has them (0.891702ms)
-✔ base ids are collected from insert lists, with !!js kept opaque (1.542944ms)
-✔ a comments-only patch is diagnosed, not treated as an empty layer (0.486123ms)
-✔ a literal [] parses as an intentionally empty layer (0.574238ms)
-✔ an empty bundle layer is rejected because the bundle would compose as absent (0.202563ms)
-✔ a wrong-row patch is diagnosed (0.592747ms)
-✔ a correct disable plus a new insert lints clean and extends the id set (1.0736ms)
-✔ re-inserting an existing id is diagnosed (0.729708ms)
-✔ non-array and malformed rows are diagnosed (1.375199ms)
-✔ bundle role presets mirror config/roles.json ids and flags (2.481782ms)
-✔ no role may run host execution, host file mutation, web, spawning or plugin tools (0.384245ms)
-✔ every toolchain pin agrees: .node-version, .nvmrc, engines, packageManager, runtime unit (2.436922ms)
-✔ the bundle pins the same dsh version as the runtime package and the runtime unit (0.342427ms)
-✔ build facts are recorded, not left null or guessed (0.503577ms)
-✔ the digest ignores location-bound shims, install-time bookkeeping and the deploy-local lock (3.561509ms)
-✔ empty scratch directories left by install scripts do not change the digest (2.363814ms)
-✔ the digest changes with file content, exec bit and link target (1.644483ms)
+✔ commands are validated field by field; anything else is a ProtocolError (5.186355ms)
+✔ the journal folds commands, fences, stash and settlement; a stop is terminal (5.165372ms)
+✔ a torn final journal line (crash mid-write) is cut before the next append; earlier corruption is not tolerated (5.370694ms)
+✔ the journal separates settled from unsettled commands, tracks redelivered held input, and keeps the observation cursor (4.099597ms)
+✔ the destination map lists paths with a state and an owning goal (1.185483ms)
+✔ built/partial paths exist and unbuilt paths are still absent (0.616769ms)
+✔ every planning.json destination path appears in the map (0.905351ms)
+✔ dump rows carry the source layer printed above them (11.007931ms)
+✔ each upstream skip/warning line is classified (0.497503ms)
+✔ the static gate never claims health and names composition failures separately (0.32269ms)
+✔ the model route check accepts the recorded route and names each way it can be wrong (0.918805ms)
+✔ the pinned pnpm directory is found on PATH even when it is not beside node (2.536388ms)
+✔ the launch environment is explicit: no inherited variables beyond the fixed set (1.37946ms)
+✔ only named credential variables pass, and only when the caller has them (0.664277ms)
+✔ base ids are collected from insert lists, with !!js kept opaque (2.944678ms)
+✔ a comments-only patch is diagnosed, not treated as an empty layer (0.462311ms)
+✔ a literal [] parses as an intentionally empty layer (0.483848ms)
+✔ an empty bundle layer is rejected because the bundle would compose as absent (0.148069ms)
+✔ a wrong-row patch is diagnosed (0.578662ms)
+✔ a correct disable plus a new insert lints clean and extends the id set (0.85205ms)
+✔ re-inserting an existing id is diagnosed (0.534515ms)
+✔ non-array and malformed rows are diagnosed (1.110812ms)
+✔ bundle role presets mirror config/roles.json ids and flags (2.563055ms)
+✔ no role may run host execution, host file mutation, web, spawning or plugin tools (0.409999ms)
+✔ every toolchain pin agrees: .node-version, .nvmrc, engines, packageManager, runtime unit (2.1887ms)
+✔ the bundle pins the same dsh version as the runtime package and the runtime unit (0.321737ms)
+✔ build facts are recorded, not left null or guessed (0.533552ms)
+✔ the digest ignores location-bound shims, install-time bookkeeping and the deploy-local lock (3.622104ms)
+✔ empty scratch directories left by install scripts do not change the digest (2.402304ms)
+✔ the digest changes with file content, exec bit and link target (1.671463ms)
 ℹ tests 30
 ℹ suites 0
 ℹ pass 30
@@ -51,78 +51,83 @@ $ node --test "tests/unit/**/*.test.mjs"
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 253.380169
+ℹ duration_ms 243.123058
 $ node scripts/build-artifacts.mjs
 match    dsh.artifacts_by_platform.linux-x64
          built    {"digest":"sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771","entries":27209}
 match    dsh.release_integrity
          built    {"@deepseek-ai/dsh@0.1.7-rc.1":"sha512-O1K076aCmqE+h4fB5J+mi3twNSAnh26OqHepaqvS5f1tccFnxhVyGpUmjcncVM5x1SX4niznmvsGrsRo9p733A==","@deepseek-ai/dsh-base@0.1.7-rc.1":"sha512-o8KnLPs9gSHWLrX2NMrVi8Mat9SBQmiSmNudzl+M+qB8asgjyaB3OanQRJOxmfrQ30Xnb34lnAcC2wfASMP2Mw=="}
 match    sophia_bundle.archive_sha256
-         built    "4c25bb759667feb27cc6781b4241b73e089cecd99bbf10960ca6d912dac37116"
+         built    "8577ffe4d5f2224828f633ec37738f3f7694ebbd556c21e3c9293224fa160712"
 match    sophia_bundle.archive_integrity
-         built    "sha512-lT1/rBgMAdJw5Z0h8Kkw5lE7jx7kRYFkp9MED+vOhLemUHKnJ2s0zNGjYq7FpJ4+o4hCR6BuIkaTBBAqXuBH/g=="
+         built    "sha512-hfQPRClUoQQLm8dzzhXWTziPD2hp1H4sX3MFe4VGmwG4XjGs1e5NZadj5dkRIYRNxUwK6EiOd3btmR6lyhL2HQ=="
 match    workspace_lock_sha256
          built    "280f695a4a3d12f77dcf38a4efc6ea79ed86b717e2c8ea71a017d065a293dd75"
 match    dsh.artifact_digest
          built    "sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771"
 match    sophia_bundle.artifact_digest
-         built    "sha256:4c25bb759667feb27cc6781b4241b73e089cecd99bbf10960ca6d912dac37116"
+         built    "sha256:8577ffe4d5f2224828f633ec37738f3f7694ebbd556c21e3c9293224fa160712"
 match    config/dsh/profile/pnpm-lock.yaml
 
 runtime unit sophia-runtime-s1-03-dev: all artifact identities reproduced
 $ node --test --test-concurrency=1 --test-timeout=180000 "tests/integration/**/*.test.mjs"
-✔ bridge: reports ready only after hello, and create delivers then incorporates a prompt (4387.634982ms)
-✔ adverse: a service that refuses the ready report leaves the bridge not_ready and polling nothing (2579.324711ms)
-✔ acceptance: a live worker receives a mid-work steer; delivery and incorporation are distinct evidence (4284.466976ms)
-✔ adverse: duplicate delivery of one command does not repeat its effect (2270.012763ms)
-✔ acceptance: a real Stop fences the epoch, aborts the work and prevents new dispatch; late input cannot revive it (2751.628974ms)
-✔ adverse: Hold retains pending context without a native wake until an explicit Resume (2761.697784ms)
-✔ acceptance: a controlled restart reconstructs command/native correlation and outstanding work (3929.701697ms)
-✔ adverse: a stopped attempt stays stopped across restart even when the service binding is stale (3286.459263ms)
-✔ adverse: malformed, foreign-unit and stale-epoch commands are rejected without effect (1631.043184ms)
-✔ live:steer without the route credential exits 2 and makes no call (568.786061ms)
-✔ live:steer --rehearse refuses to write evidence (96.916148ms)
-✔ live:steer --rehearse: the steer lands mid-work, and delivery precedes incorporation (8931.443662ms)
-✔ positive: dsh-base + Sophia bundle compose cleanly, no other root loop; runtime still unhealthy until S1-03 (195.312929ms)
-✔ adverse: a missing Sophia bundle is rejected although dsh boots the base alone (159.193219ms)
-✔ adverse: an incompatible Sophia bundle (wrong dsh peer) is rejected (205.209145ms)
-✔ adverse: a comments-only bundle patch is diagnosed, not accepted as configuration (188.235161ms)
-✔ adverse: an empty [] bundle patch (silently accepted upstream) is rejected (182.365439ms)
-✔ adverse: a wrong-row patch is diagnosed, not a silent no-op (193.399881ms)
-✔ adverse: a comments-only profile patch fails the dump and the lint (165.84957ms)
-✔ adverse: another app bundle (a second root loop) in the profile is rejected (195.495401ms)
-✔ adverse: a bundle archive other than the recorded bytes is rejected (176.119581ms)
-✔ adverse: installed bundle files that differ from the recorded archive are rejected (182.269519ms)
-✔ adverse: a bundle selecting a model route other than the recorded one is rejected (178.120236ms)
-✔ adverse: a profile without the recorded archive cannot be checked and is rejected (163.022707ms)
-✔ profile:verify refuses a runtime artifact that is not the recorded one (3044.869916ms)
-✔ adverse: a bundle copy reachable from the runtime installation (masking the profile) is rejected (173.866562ms)
-✔ boot: without a Sophia service binding the launcher stays up with the Sophia row loaded and reports not_ready (8068.461321ms)
-✔ boot: a required-entry failure exits nonzero and its full startup diagnostics are retained (1032.868018ms)
-✔ adverse: an accepted newer-epoch command retires the older epoch at once (5372.404844ms)
-✔ adverse: a binding the service holds stays held after restart, although the journal never saw the Hold (2349.959148ms)
-✔ recovery: a command journaled but never handed to dsh before a crash is re-executed on redelivery, not answered (2414.176997ms)
-✔ recovery: a command dsh already held when a crash cut its settlement short is not sent twice (3825.547501ms)
-✔ recovery: held input that a Resume sent but dsh never received goes back to the stash and is delivered after restart (2530.558678ms)
-✔ adverse: observations are kept through a service outage and arrive complete and in order (4122.542922ms)
-✔ recovery: observations the service never acknowledged are replayed after a restart (5923.964484ms)
-✔ adverse: a binding that cannot be restored is named in the ready report and its commands are refused (1213.363171ms)
-✔ visibility: each role is offered only its native tools; no role sees host execution or web tools (4591.977223ms)
-✔ adverse: a forbidden host tool named directly by the model is denied and never runs (1751.163512ms)
-✔ adverse: a forbidden host tool stays forbidden inside a workflow (PTC) program, through its child agent (2075.576904ms)
-✔ adverse: a session whose recorded role this unit no longer defines refuses to resume (2383.376936ms)
-✔ supervisor: ready comes from the bridge, and a graceful stop exits 0 and releases the lease (1086.200176ms)
-✔ supervisor: the launch environment is explicit and carries only named credentials (51.561581ms)
-✔ supervisor: a second supervisor on the same project home is refused, in or across processes (1061.563409ms)
-✔ acceptance: after a crash the supervisor restarts the runtime and the bridge recovers the outstanding work (2870.604899ms)
-✔ adverse: an exhausted restart budget is a terminal failure, not a restart loop (2482.680339ms)
-✔ adverse: a failed first start is terminal, restarts nothing and releases the project (6578.27178ms)
-ℹ tests 46
+✔ bridge: reports ready only after hello, and create delivers then incorporates a prompt (4469.20241ms)
+✔ adverse: a service that refuses the ready report leaves the bridge not_ready and polling nothing (2589.707121ms)
+✔ acceptance: a live worker receives a mid-work steer; delivery and incorporation are distinct evidence (4349.915236ms)
+✔ adverse: duplicate delivery of one command does not repeat its effect (2268.06594ms)
+✔ acceptance: a real Stop fences the epoch, aborts the work and prevents new dispatch; late input cannot revive it (2826.685976ms)
+✔ adverse: Hold retains pending context without a native wake until an explicit Resume (2879.086404ms)
+✔ acceptance: a controlled restart reconstructs command/native correlation and outstanding work (4069.800597ms)
+✔ adverse: a stopped attempt stays stopped across restart even when the service binding is stale (3385.193538ms)
+✔ adverse: malformed, foreign-unit and stale-epoch commands are rejected without effect (1675.634172ms)
+✔ live:steer without the route credential exits 2 and makes no call (578.333213ms)
+✔ live:steer --rehearse refuses to write evidence (93.456386ms)
+✔ live:steer --rehearse: the steer lands mid-work, and delivery precedes incorporation (8931.974286ms)
+✔ positive: dsh-base + Sophia bundle compose cleanly, no other root loop; runtime still unhealthy until S1-03 (197.116755ms)
+✔ adverse: a missing Sophia bundle is rejected although dsh boots the base alone (185.125738ms)
+✔ adverse: an incompatible Sophia bundle (wrong dsh peer) is rejected (231.033096ms)
+✔ adverse: a comments-only bundle patch is diagnosed, not accepted as configuration (193.924325ms)
+✔ adverse: an empty [] bundle patch (silently accepted upstream) is rejected (203.236846ms)
+✔ adverse: a wrong-row patch is diagnosed, not a silent no-op (227.248706ms)
+✔ adverse: a comments-only profile patch fails the dump and the lint (183.482186ms)
+✔ adverse: another app bundle (a second root loop) in the profile is rejected (205.30856ms)
+✔ adverse: a bundle archive other than the recorded bytes is rejected (176.695044ms)
+✔ adverse: installed bundle files that differ from the recorded archive are rejected (187.273531ms)
+✔ adverse: a bundle selecting a model route other than the recorded one is rejected (189.011396ms)
+✔ adverse: a profile without the recorded archive cannot be checked and is rejected (174.950268ms)
+✔ profile:verify refuses a runtime artifact that is not the recorded one (2895.616395ms)
+✔ adverse: a bundle copy reachable from the runtime installation (masking the profile) is rejected (165.540825ms)
+✔ boot: without a Sophia service binding the launcher stays up with the Sophia row loaded and reports not_ready (8072.141166ms)
+✔ boot: a required-entry failure exits nonzero and its full startup diagnostics are retained (1137.868804ms)
+✔ adverse: an accepted newer-epoch command retires the older epoch at once (5511.009135ms)
+✔ adverse: a binding the service holds stays held after restart, although the journal never saw the Hold (2383.294276ms)
+✔ recovery: a command journaled but never handed to dsh before a crash is re-executed on redelivery, not answered (2609.051855ms)
+✔ recovery: a command dsh already held when a crash cut its settlement short is not sent twice (3899.24212ms)
+✔ recovery: held input that a Resume sent but dsh never received goes back to the stash and is delivered after restart (2507.278367ms)
+✔ adverse: observations are kept through a service outage and arrive complete and in order (4157.915744ms)
+✔ recovery: observations the service never acknowledged are replayed after a restart (5943.784486ms)
+✔ adverse: a binding that cannot be restored is named in the ready report and its commands are refused (1149.710709ms)
+✔ adverse: commands in one poll batch keep service order, including the command that creates the attempt (1354.191786ms)
+✔ adverse: an accepted newer-epoch inspect retires the older epoch, durably (2400.078265ms)
+✔ adverse: a binding that names another native session is never resumed here (2720.125785ms)
+✔ recovery: an incorporation receipt the service never acknowledged is re-sent after a restart (2758.08566ms)
+✔ recovery: a settled Hold is answered with its real stage when its receipt was lost in a crash (2510.080194ms)
+✔ visibility: each role is offered only its native tools; no role sees host execution or web tools (4548.04418ms)
+✔ adverse: a forbidden host tool named directly by the model is denied and never runs (1754.304893ms)
+✔ adverse: a forbidden host tool stays forbidden inside a workflow (PTC) program, through its child agent (2044.447756ms)
+✔ adverse: a session whose recorded role this unit no longer defines refuses to resume (2362.094634ms)
+✔ supervisor: ready comes from the bridge, and a graceful stop exits 0 and releases the lease (1075.440597ms)
+✔ supervisor: the launch environment is explicit and carries only named credentials (53.662073ms)
+✔ supervisor: a second supervisor on the same project home is refused, in or across processes (1015.380261ms)
+✔ acceptance: after a crash the supervisor restarts the runtime and the bridge recovers the outstanding work (2741.290212ms)
+✔ adverse: an exhausted restart budget is a terminal failure, not a restart loop (2385.561097ms)
+✔ adverse: a failed first start is terminal, restarts nothing and releases the project (6545.504191ms)
+ℹ tests 51
 ℹ suites 0
-ℹ pass 46
+ℹ pass 51
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 115093.37524
+ℹ duration_ms 125887.907556
 exit=0

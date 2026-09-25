@@ -140,7 +140,10 @@ test('adverse: an exhausted restart budget is a terminal failure, not a restart 
 
 test('adverse: a failed first start is terminal, restarts nothing and releases the project', async (t) => {
   const s = await setup(t, { bridge: { url: 'http://127.0.0.1:9', token: 'unreachable' }, readyTimeoutMs: 4000 })
-  await assert.rejects(s.supervisor.start(), /did not report ready/)
+  const starting = s.supervisor.start()
+  const pid = s.supervisor.pid
+  await assert.rejects(starting, /did not report ready/)
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'the abandoned dsh is gone before the lease is released')
   assert.equal(s.supervisor.state, 'failed')
   assert.equal(existsSync(join(s.root, 'supervisor.lease')), false, 'the lease is released')
   await new Promise((resolve) => setTimeout(resolve, 1500))

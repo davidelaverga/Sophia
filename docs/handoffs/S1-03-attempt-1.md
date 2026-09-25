@@ -63,11 +63,11 @@ carries only named credentials.
 
 Final `pnpm check` on this commit's tree: [check.log](../evidence/S1-03/check.log).
 It shows every identity `match`, the unit tests and the integration tests
-(profile gate, bridge, recovery, roles, supervisor, live-steer rehearsal) passing: 30 unit and 46 integration tests.
+(profile gate, bridge, recovery, roles, supervisor, live-steer rehearsal) passing: 30 unit and 51 integration tests.
 
 ```text
 pnpm install --frozen-lockfile
-pnpm artifacts:record        # bundle archive re-recorded after each bridge change (now sha256 4c25bb75…7116)
+pnpm artifacts:record        # bundle archive re-recorded after each bridge change (now sha256 8577ffe4…0712)
 pnpm check                   # toolchain → build → typecheck → unit → artifacts → integration
 node --test --test-concurrency=1 --test-timeout=180000 tests/integration/<suite>.test.mjs   # per-suite during work
 pnpm live:steer              # exit 2: OPENAI_API_KEY is not set in this environment
@@ -141,6 +141,19 @@ The facts learned at the pin are SOURCE_MAP §3 items 6–11.
     child killed on purpose no longer triggers recovery.
   - A binding that cannot be restored is named in the ready report
     (`unrecovered`), and its commands are refused until a Resume succeeds.
+- **Codex review of `a27c019` (six findings, all fixed, each with a test that
+  fails on `a27c019`):**
+  - Commands run in service order per attempt, including the one that
+    creates it.
+  - An accepted `inspect` raises the authority epoch durably.
+  - A binding naming another native session is unrecovered and never
+    resumed here.
+  - Incorporation receipts are re-sent by their own acknowledgement, not
+    the observation cursor.
+  - Settlement journals the receipt's stage, so a redelivered Hold or Stop
+    is answered with `checked` or `outcome_unknown`.
+  - A failed first start waits for the killed child to exit before the
+    lease is released.
 
 No new authorization was needed, and nothing outside this repository was
 affected.

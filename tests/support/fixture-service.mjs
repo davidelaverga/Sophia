@@ -20,7 +20,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const waiters = new Set()
   let seq = 0
   let polls = 0
-  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false }
+  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
 
@@ -54,6 +54,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       return reply(200, { commands: pending(), cursor: Math.max(after, ...pending().map((c) => c.seq), 0) })
     }
     if (req.method === 'POST' && url.pathname === '/v1/runtime/receipts') {
+      if (state.refuseReceipts) return reply(503, { error: 'fixture refuses receipts' })
       receipts.push(...json.receipts)
       notify()
       return reply(204)
@@ -102,6 +103,8 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     refuseReady: (value = true) => { state.refuseReady = value },
     /** Make `POST observations` fail, as during a network outage (adverse tests). */
     refuseObservations: (value = true) => { state.refuseObservations = value },
+    /** Make `POST receipts` fail (adverse tests). */
+    refuseReceipts: (value = true) => { state.refuseReceipts = value },
     /** How many command polls the runtime has made. */
     get polls() { return polls },
     /** Enqueue a command exactly as S1-02's outbox would (same object may be enqueued twice). */

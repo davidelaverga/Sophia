@@ -193,8 +193,14 @@ export class RuntimeSupervisor {
         clearTimeout(timer)
         if (error) {
           abandoned = true
-          child.kill('SIGKILL')
-          reject(error)
+          // Reject only once the process is gone: the caller then releases the
+          // single-writer lease, and nothing of this generation may still write the home.
+          if (child.exitCode === null && child.signalCode === null) {
+            child.once('exit', () => reject(error))
+            child.kill('SIGKILL')
+          } else {
+            reject(error)
+          }
         } else {
           this.setState('ready')
           resolve()
