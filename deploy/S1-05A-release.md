@@ -10,7 +10,7 @@ This covers the five processes that make Sophia's room voice and her briefs work
 | Studio | Vercel `sophia-studio` | `vite build` in `apps/studio` | `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | The room page loads and the snapshot request returns 200 |
 | Worker | Always-on background process | `node apps/worker/src/server.ts` | `SOPHIA_WORKER_DATABASE_URL`, a login granted `sophia_worker`; `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Logs `[sophia-worker] runtime dispatch started` |
 | Media bridge | Always-on background process, **one instance** | `node apps/media-bridge/src/server.ts` | `SOPHIA_SERVICE_URL`, `SOPHIA_MEDIA_BRIDGE_TOKEN`, `GEMINI_API_KEY`, `SOPHIA_LIVE_MODEL` (`gemini-3.8-live`), `NODE_ENV=production`, optional `SOPHIA_BRIDGE_INSTANCE` | Logs a banner, then `session.start` per exchange. The room shows Sophia's voice state |
-| Runtime host | Always-on process with a durable disk | `pnpm artifacts`, then `node scripts/runtime-host.mjs --root <disk>/<projectId>` | `SOPHIA_SERVICE_URL`, `SOPHIA_RUNTIME_TOKEN`, `OPENAI_API_KEY` (the model route: `openai/gpt-6-luna`, high) | The Studio's runtime resource reads online. Its JSON events report ready |
+| Runtime host | Always-on process with a durable disk | `pnpm build && pnpm artifacts` (Node exactly 24.21.0), then `node scripts/runtime-host.mjs --root <disk>/<projectId>` | `SOPHIA_SERVICE_URL`, `SOPHIA_RUNTIME_TOKEN`, `OPENAI_API_KEY` (the model route: `openai/gpt-6-luna`, high) | The Studio's runtime resource reads online. Its JSON events report ready |
 
 **API settings.** Required at start:
 - `SOPHIA_API_DATABASE_URL`: a login granted `sophia_api`, over the session pooler with `verify-full`.
