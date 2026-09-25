@@ -3,22 +3,24 @@ import { spawnSync } from 'node:child_process'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { componentSchemas, openapi } from './index.ts'
+import { typesFromOpenApi, type OpenApi } from './openapi-types.ts'
 
-const body = (p: string) => readFileSync(p, 'utf8').split('\n').slice(1).join('\n')
+/** Everything but the first line, which names the generator. */
+const body = (text: string) => text.split('\n').slice(1).join('\n')
+const run = (script: string) => {
+  const r = spawnSync(process.execPath, [script, '--check'], { encoding: 'utf8' })
+  return { status: r.status, stderr: r.stderr }
+}
 
 describe('@sophia/contracts', () => {
-  it('keeps openapi.json identical to the frozen pack until an amendment changes it', () => {
-    const pack = readFileSync('docs/pack/api/openapi.json', 'utf8')
-    const ours = readFileSync('packages/contracts/openapi/openapi.json', 'utf8')
-    assert.equal(ours, pack)
+  it('equals the frozen pack contract plus the amendments, and nothing else', () => {
+    assert.deepEqual(run('packages/contracts/scripts/apply-amendments.ts'), { status: 0, stderr: '' })
   })
 
-  it("generates types equal to the pack's generator output (apart from the header line)", () => {
-    const r = spawnSync(process.execPath, ['packages/contracts/scripts/generate-types.ts', '--check'], {
-      encoding: 'utf8',
-    })
-    assert.deepEqual({ status: r.status, stderr: r.stderr }, { status: 0, stderr: '' })
-    assert.equal(body('packages/contracts/src/generated-types.ts'), body('docs/pack/api/generated-types.ts'))
+  it("generates types from the contract, and exactly the pack's types from the pack's contract", () => {
+    assert.deepEqual(run('packages/contracts/scripts/generate-types.ts'), { status: 0, stderr: '' })
+    const pack = JSON.parse(readFileSync('docs/pack/api/openapi.json', 'utf8')) as OpenApi
+    assert.equal(body(typesFromOpenApi(pack, '')), body(readFileSync('docs/pack/api/generated-types.ts', 'utf8')))
   })
 
   it('exposes every component schema with resolvable $refs', () => {

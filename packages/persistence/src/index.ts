@@ -6,6 +6,7 @@ export { migrate, readMigrations, MigrationDrift, type MigrationReport } from '.
 export { readSnapshot } from './snapshot.ts'
 export { admitGoalCommand } from './commands.ts'
 export { createProject } from './projects.ts'
+export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.ts'
 export { claimOutbox, expireDispatchLeases, recordDispatchResult, type OutboxRow } from './outbox.ts'
 export { readEventFrames, type EventFrame, type EventPage } from './events.ts'
 export { listenForProjectEvents, PROJECT_EVENTS_CHANNEL } from './listen.ts'

@@ -17,6 +17,7 @@
     "@sophia/persistence": "workspace:*",
     "fastify": "5.12.5",
     "jose": "6.2.12",
+    "livekit-server-sdk": "2.19.1",
     "pg": "8.23.0"
   },
   "devDependencies": {

@@ -12,7 +12,13 @@ export interface AuthConfig {
   secret?: string | undefined
 }
 
-export type VerifyActor = (authorization: string | undefined) => Promise<string>
+/** The verified token subject, and a display name taken from the verified token (never from the client). */
+export interface Actor {
+  id: string
+  name: string | null
+}
+
+export type VerifyActor = (authorization: string | undefined) => Promise<Actor>
 
 type VerifyToken = (token: string) => Promise<JWTPayload>
 
@@ -46,7 +52,7 @@ export function createActorVerifier(cfg: AuthConfig): VerifyActor {
       if (payload.role !== 'authenticated' || typeof payload.sub !== 'string' || !UUID.test(payload.sub)) {
         throw new Error('not an authenticated user token')
       }
-      return payload.sub.toLowerCase()
+      return { id: payload.sub.toLowerCase(), name: typeof payload.email === 'string' ? payload.email : null }
     } catch (err: unknown) {
       throw new DomainError('actor_context_required', 'Invalid or expired token', { cause: err })
     }

@@ -12,7 +12,16 @@ import standaloneCode from 'ajv/dist/standalone/index.js'
 import { componentSchemas } from '../src/index.ts'
 
 /** Component schema → exported validator. Only what a client parses from the wire. */
-const EXPORTS = ['Snapshot', 'Receipt', 'ProjectCreated', 'Error', 'Event', 'CursorAdvance'] as const
+const EXPORTS = [
+  'Snapshot',
+  'Receipt',
+  'ProjectCreated',
+  'Error',
+  'Event',
+  'CursorAdvance',
+  'RoomToken',
+  'ExchangeReceipt',
+] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const targets = { code: join(root, 'src/generated/validators.js'), types: join(root, 'src/generated/validators.d.ts') }
