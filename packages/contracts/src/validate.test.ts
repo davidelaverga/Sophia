@@ -26,6 +26,8 @@ const snapshot = {
   artifacts: [],
   sharedFocus: null,
   room: { id: G, revision: 1, inputActorId: null, mode: 'invoked' },
+  lobby: [],
+  sessions: [],
 }
 const receipt = {
   commandId: G,

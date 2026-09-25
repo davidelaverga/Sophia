@@ -7,8 +7,15 @@ import {
   validateError,
   validateEvent,
   validateExchangeReceipt,
+  validateInvitation,
+  validateInvitationAccepted,
+  validateInvitationList,
+  validateInvitationPreview,
+  validateLobbyEntry,
+  validateMembership,
   validateProjectCreated,
   validateReceipt,
+  validateRoomSession,
   validateRoomToken,
   validateSnapshot,
 } from './generated/validators.js'
@@ -44,6 +51,13 @@ export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)
 export const parseExchangeReceipt = parser('ExchangeReceipt', validateExchangeReceipt)
+export const parseInvitation = parser('Invitation', validateInvitation)
+export const parseInvitationList = parser('InvitationList', validateInvitationList)
+export const parseInvitationPreview = parser('InvitationPreview', validateInvitationPreview)
+export const parseInvitationAccepted = parser('InvitationAccepted', validateInvitationAccepted)
+export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)
+export const parseRoomSession = parser('RoomSession', validateRoomSession)
+export const parseMembership = parser('Membership', validateMembership)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

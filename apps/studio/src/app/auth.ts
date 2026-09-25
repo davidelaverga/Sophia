@@ -104,6 +104,40 @@ export async function sendMagicLink(email: string): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * A token to knock with: the signed-in person's own, else a guest's. A guest is a Supabase anonymous sign-in
+ * (the project must allow anonymous sign-ins) or, locally, the dev guest. The API lets a guest only knock,
+ * wait and join the call they were admitted to.
+ */
+export async function guestAccessToken(current: Identity | null): Promise<string> {
+  if (current) return current.token
+  if (authMode === 'dev') {
+    const guest = devIdentities.find((i) => i.role === 'guest')
+    if (!guest) throw new Error('No dev guest identity: restart the dev stack')
+    return guest.token
+  }
+  if (!supabase) throw new Error('Sign-in is not configured')
+  const { data, error } = await supabase.auth.signInAnonymously()
+  if (error) throw new Error('Guest access is not turned on for this Sophia yet')
+  if (!data.session) throw new Error('Could not start a guest session')
+  return data.session.access_token
+}
+
+/** A guest leaving the call leaves no session behind on a shared device. */
+export async function endGuestSession(): Promise<void> {
+  if (supabase) await supabase.auth.signOut()
+}
+
+/** An invited member may not have an account yet: this sign-in may create it. They type the emailed code. */
+export async function sendInvitedSignIn(email: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: `${window.location.origin}/join`, shouldCreateUser: true },
+  })
+  if (error) throw error
+}
+
 /** The code in the sign-in email: works on any device, unlike the link, which needs this browser. */
 export async function verifyEmailCode(email: string, code: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')

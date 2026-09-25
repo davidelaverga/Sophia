@@ -48,6 +48,7 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
         identity: req.actorId,
         name: req.actorName,
         canPublish: access.role !== 'viewer',
+        standing: { role: access.role },
       })
     },
   )

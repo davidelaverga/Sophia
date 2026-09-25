@@ -1,0 +1,358 @@
+// Room access (contract amendment A02, S1-04A): invitations, the lobby, room sessions and one's own
+// membership. Links are derived here (invite-token.ts) and never stored; every write goes through the
+// sophia.* functions, which re-check authority. Guests reach only knock, their lobby entry and the call.
+import { randomUUID } from 'node:crypto'
+import type { FastifyBaseLogger, FastifyInstance } from 'fastify'
+import type pg from 'pg'
+import type {
+  Invitation,
+  InvitationCreate,
+  InvitationToken,
+  Knock,
+  LobbyDecision,
+  LobbyEntry,
+  SessionCreate,
+} from '@sophia/contracts'
+import { DomainError } from '@sophia/domain'
+import {
+  acceptRoomInvitation,
+  authorizeGuestJoin,
+  cancelRoomSession,
+  createRoomInvitation,
+  decideLobbyEntry,
+  knockRoom,
+  listInvitations,
+  previewRoomInvitation,
+  readInvitation,
+  readLobbyEntry,
+  readMembership,
+  recordInvitationEmail,
+  reissueRoomInvitation,
+  revokeRoomInvitation,
+  scheduleRoomSession,
+  withActor,
+  withoutActor,
+  type InvitationRecord,
+  type InvitationRequest,
+  type LobbyRecord,
+} from '@sophia/persistence'
+import { inviteEmail } from '../invite-email.ts'
+import { linkFor, tokenHash, type InviteConfig } from '../invite-token.ts'
+import { issueRoomToken, removeFromRoom, type LiveKitConfig } from '../livekit.ts'
+import type { Mailer } from '../mail.ts'
+import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
+
+export interface AccessDeps {
+  pool: pg.Pool
+  /** Absent when no link secret is configured: invitations then say so (503), honestly. */
+  invites: InviteConfig | undefined
+  /** Null when no email is configured: invitations are still created and say "not_configured". */
+  mailer: Mailer | null
+  livekit: LiveKitConfig | undefined
+}
+
+const params = (name: string) => ({
+  type: 'object',
+  additionalProperties: false,
+  properties: { [name]: { type: 'string', pattern: UUID_PATTERN } },
+  required: [name],
+})
+const ref = (name: string) => ({ $ref: `${name}#` })
+
+const DAY_HOURS = 24
+const DEFAULTS = { guest: { hours: 7 * DAY_HOURS, uses: 50 }, member: { hours: 7 * DAY_HOURS, uses: 1 } } as const
+
+function requireInvites(deps: AccessDeps): InviteConfig {
+  if (!deps.invites) throw new DomainError('unavailable', 'Invitations are not configured on this server')
+  return deps.invites
+}
+
+/** RLS hides invitations from people who cannot manage them: an unreadable one is simply not permitted. */
+function mustRead(record: InvitationRecord | null): InvitationRecord {
+  if (!record) throw new DomainError('forbidden', 'Not permitted')
+  return record
+}
+
+function invitationRequest(body: InvitationCreate, inviterName: string | null): InvitationRequest {
+  const d = DEFAULTS[body.kind]
+  return {
+    kind: body.kind,
+    role: body.kind === 'member' ? (body.role ?? 'editor') : null,
+    email: body.email ?? null,
+    sessionId: body.sessionId ?? null,
+    expiresAt: new Date(Date.now() + (body.expiresInHours ?? d.hours) * 3_600_000).toISOString(),
+    maxUses: body.maxUses ?? d.uses,
+    inviterName,
+  }
+}
+
+const toBody = (cfg: InviteConfig, r: InvitationRecord): Invitation => ({
+  id: r.id,
+  kind: r.kind,
+  role: r.role,
+  email: r.email,
+  sessionId: r.sessionId,
+  expiresAt: r.expiresAt,
+  maxUses: r.maxUses,
+  uses: r.uses,
+  revokedAt: r.revokedAt,
+  emailStatus: r.emailStatus,
+  createdAt: r.createdAt,
+  url: linkFor(cfg, r.id, r.tokenVersion).url,
+})
+
+const lobbyBody = (e: LobbyRecord): LobbyEntry => ({
+  id: e.id,
+  displayName: e.displayName,
+  status: e.status,
+  requestedAt: e.requestedAt,
+})
+
+interface Delivery {
+  deps: AccessDeps
+  cfg: InviteConfig
+  record: InvitationRecord
+  log: FastifyBaseLogger
+}
+
+/** Email the current link once per version (the provider key makes a retried request a no-op). */
+async function sendInvitation({ deps, cfg, record, log }: Delivery): Promise<'sent' | 'failed' | 'not_configured'> {
+  const email = record.email
+  if (!deps.mailer || !email) return 'not_configured'
+  const { url, hash } = linkFor(cfg, record.id, record.tokenVersion)
+  const preview = await withoutActor(deps.pool, (c) => previewRoomInvitation(c, hash))
+  const mail = inviteEmail({ ...preview, invitationId: record.id, kind: record.kind, role: record.role, email, url })
+  const calendar = mail.ics
+    ? [{ filename: 'invitation.ics', content: Buffer.from(mail.ics).toString('base64'), contentType: 'text/calendar' }]
+    : []
+  try {
+    await deps.mailer.send({
+      ...mail,
+      to: email,
+      attachments: calendar,
+      idempotencyKey: `invitation-${record.id}-v${record.tokenVersion}`,
+    })
+    return 'sent'
+  } catch (err: unknown) {
+    // Never the link or the address in logs: the invitation id is enough to find it.
+    log.warn(
+      { invitationId: record.id, reason: err instanceof Error ? err.message : 'unknown' },
+      'invitation email failed',
+    )
+    return 'failed'
+  }
+}
+
+async function deliver(d: Delivery, actorId: string): Promise<InvitationRecord> {
+  if (!d.record.email || d.record.emailStatus !== 'none') return d.record
+  const status = await sendInvitation(d)
+  await withActor(d.deps.pool, actorId, 'write', (c) =>
+    recordInvitationEmail(c, d.record.id, d.record.tokenVersion, status),
+  )
+  return { ...d.record, emailStatus: status }
+}
+
+function invitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: InvitationCreate }>(
+    '/api/v1/projects/:projectId/invitations',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: ref('InvitationCreate'),
+        response: { 200: ref('Invitation') },
+      },
+    },
+    async (req) => {
+      const cfg = requireInvites(deps)
+      const id = randomUUID()
+      const request = invitationRequest(req.body, req.actorName)
+      const record = await withActor(deps.pool, req.actorId, 'write', async (c) => {
+        const created = await createRoomInvitation(c, {
+          projectId: req.params.projectId,
+          id,
+          request,
+          tokenSha256: linkFor(cfg, id, 1).hash,
+          idempotencyKey: req.headers['idempotency-key'],
+        })
+        return mustRead(await readInvitation(c, created))
+      })
+      return toBody(cfg, await deliver({ deps, cfg, record, log: req.log }, req.actorId))
+    },
+  )
+
+  app.get<{ Params: { projectId: string } }>(
+    '/api/v1/projects/:projectId/invitations',
+    { schema: { params: projectParams, response: { 200: ref('InvitationList') } } },
+    async (req) => {
+      const cfg = requireInvites(deps)
+      const list = await withActor(deps.pool, req.actorId, 'read', (c) => listInvitations(c, req.params.projectId))
+      return { invitations: list.map((r) => toBody(cfg, r)) }
+    },
+  )
+}
+
+/** A new link for an invitation (the old one stops working), or no link at all. */
+function manageInvitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  app.post<{ Params: { invitationId: string } }>(
+    '/api/v1/invitations/:invitationId/reissue',
+    { schema: { params: params('invitationId'), response: { 200: ref('Invitation') } } },
+    async (req) => {
+      const cfg = requireInvites(deps)
+      const record = await withActor(deps.pool, req.actorId, 'write', async (c) => {
+        const current = mustRead(await readInvitation(c, req.params.invitationId))
+        const next = linkFor(cfg, current.id, current.tokenVersion + 1)
+        await reissueRoomInvitation(c, current.id, current.tokenVersion, next.hash)
+        return mustRead(await readInvitation(c, current.id))
+      })
+      return toBody(cfg, await deliver({ deps, cfg, record, log: req.log }, req.actorId))
+    },
+  )
+
+  app.post<{ Params: { invitationId: string } }>(
+    '/api/v1/invitations/:invitationId/revoke',
+    { schema: { params: params('invitationId'), response: { 200: ref('Invitation') } } },
+    async (req) => {
+      const cfg = requireInvites(deps)
+      const id = req.params.invitationId
+      const record = await withActor(deps.pool, req.actorId, 'write', async (c) => {
+        await revokeRoomInvitation(c, id)
+        return mustRead(await readInvitation(c, id))
+      })
+      return toBody(cfg, record)
+    },
+  )
+}
+
+function joinRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  // Public: the token in the body is the capability. An unknown token is not_found and reveals nothing.
+  app.post<{ Body: InvitationToken }>(
+    '/api/v1/join/preview',
+    { schema: { body: ref('InvitationToken'), response: { 200: ref('InvitationPreview') } } },
+    async (req) => withoutActor(deps.pool, (c) => previewRoomInvitation(c, tokenHash(req.body.token))),
+  )
+
+  app.post<{ Body: Knock }>(
+    '/api/v1/join/knock',
+    { schema: { body: ref('Knock'), response: { 200: ref('LobbyEntry') } } },
+    async (req) =>
+      lobbyBody(
+        await withActor(deps.pool, req.actorId, 'write', (c) =>
+          knockRoom(c, tokenHash(req.body.token), req.body.displayName),
+        ),
+      ),
+  )
+
+  app.post<{ Body: InvitationToken }>(
+    '/api/v1/join/accept',
+    { schema: { body: ref('InvitationToken'), response: { 200: ref('InvitationAccepted') } } },
+    async (req) => {
+      const email = req.actorName
+      if (req.actorAnonymous || !email) throw new DomainError('forbidden', 'Sign in with the invited email to accept')
+      return withActor(deps.pool, req.actorId, 'write', (c) =>
+        acceptRoomInvitation(c, tokenHash(req.body.token), email),
+      )
+    },
+  )
+}
+
+function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  const entryParams = params('entryId')
+  app.get<{ Params: { entryId: string } }>(
+    '/api/v1/lobby/:entryId',
+    { schema: { params: entryParams, response: { 200: ref('LobbyEntry') } } },
+    async (req) =>
+      lobbyBody(await withActor(deps.pool, req.actorId, 'read', (c) => readLobbyEntry(c, req.params.entryId))),
+  )
+
+  app.post<{ Params: { entryId: string } }>(
+    '/api/v1/lobby/:entryId/room-token',
+    { schema: { params: entryParams, response: { 200: ref('RoomToken') } } },
+    async (req) => {
+      if (!deps.livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
+      const access = await withActor(deps.pool, req.actorId, 'read', (c) => authorizeGuestJoin(c, req.params.entryId))
+      return issueRoomToken(deps.livekit, {
+        roomId: access.roomId,
+        identity: req.actorId,
+        name: access.displayName,
+        canPublish: true,
+        standing: { guest: true },
+      })
+    },
+  )
+
+  app.post<{ Params: { entryId: string }; Body: LobbyDecision }>(
+    '/api/v1/lobby/:entryId/decision',
+    { schema: { params: entryParams, body: ref('LobbyDecision'), response: { 200: ref('LobbyEntry') } } },
+    async (req) => {
+      const entry = await withActor(deps.pool, req.actorId, 'write', (c) =>
+        decideLobbyEntry(c, req.params.entryId, req.body.decision),
+      )
+      if (entry.status === 'denied' && deps.livekit) await removeFromRoom(deps.livekit, entry.roomId, entry.actorId)
+      return lobbyBody(entry)
+    },
+  )
+}
+
+/** Intl knows every IANA zone the browser can report; anything else would break the email and calendar. */
+function checkTimeZone(timeZone: string): void {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format(0)
+  } catch {
+    throw new DomainError('invalid_request', 'Unknown time zone')
+  }
+}
+
+function sessionRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: SessionCreate }>(
+    '/api/v1/projects/:projectId/sessions',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: ref('SessionCreate'),
+        response: { 200: ref('RoomSession') },
+      },
+    },
+    async (req) => {
+      checkTimeZone(req.body.timeZone)
+      return withActor(deps.pool, req.actorId, 'write', (c) =>
+        scheduleRoomSession(c, req.params.projectId, req.body, req.headers['idempotency-key']),
+      )
+    },
+  )
+
+  app.post<{ Params: { sessionId: string } }>(
+    '/api/v1/sessions/:sessionId/cancel',
+    { schema: { params: params('sessionId'), response: { 200: ref('RoomSession') } } },
+    async (req) => withActor(deps.pool, req.actorId, 'write', (c) => cancelRoomSession(c, req.params.sessionId)),
+  )
+
+  app.get<{ Params: { projectId: string } }>(
+    '/api/v1/projects/:projectId/membership',
+    { schema: { params: projectParams, response: { 200: ref('Membership') } } },
+    async (req) => {
+      const membership = await withActor(deps.pool, req.actorId, 'read', (c) => readMembership(c, req.params.projectId))
+      if (!membership) throw new DomainError('forbidden', 'Not permitted')
+      return membership
+    },
+  )
+}
+
+export function accessRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  invitationRoutes(app, deps)
+  manageInvitationRoutes(app, deps)
+  joinRoutes(app, deps)
+  lobbyRoutes(app, deps)
+  sessionRoutes(app, deps)
+}
+
+/** Routes an anonymous guest may call; everything else is for people with an account (app.ts). */
+export const GUEST_ROUTES: ReadonlySet<string> = new Set([
+  '/api/v1/join/knock',
+  '/api/v1/lobby/:entryId',
+  '/api/v1/lobby/:entryId/room-token',
+])
+
+/** Routes anyone may call, signed in or not. */
+export const PUBLIC_ACCESS_ROUTES: readonly string[] = ['/api/v1/join/preview']

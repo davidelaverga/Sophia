@@ -59,7 +59,7 @@
     "release_baseline": "D13: deepseek-official / deepseek-flash (unchanged; switching back is a bundle-patch change and a new recorded unit)",
     "live_verified": false
   },
-  "workspace_lock_sha256": "4be1726fe3890ba7fccd6956952a3086ecd52ea30481d8505f1b28339e1715ec",
+  "workspace_lock_sha256": "bb04224dc15ac10852d7d41e4f78fa9c25848d0c4d084ec83b1d461faf18b045",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",

@@ -3,6 +3,8 @@ import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { parseOrigins } from './cors.ts'
+import type { InviteConfig } from './invite-token.ts'
+import { folderMailer, resendMailer, type Mailer } from './mail.ts'
 
 // Trimmed: a trailing CR from a CRLF env file would silently break the exact issuer check.
 const optional = (name: string): string | undefined => process.env[name]?.trim() || undefined
@@ -15,11 +17,32 @@ function required(name: string): string {
 const pool = createPool(required('SOPHIA_API_DATABASE_URL'))
 await checkRoleSafety(pool) // refuse to start as an owner, superuser or BYPASSRLS login
 
+/** Invitation links need a secret (≥ 32 characters) and the Studio address people open. */
+function inviteConfig(origins: readonly string[]): InviteConfig | undefined {
+  const secret = optional('INVITE_TOKEN_SECRET')
+  const studioUrl = optional('STUDIO_URL') ?? origins[0]
+  if (!secret || !studioUrl) return undefined
+  if (secret.length < 32) throw new Error('INVITE_TOKEN_SECRET must be at least 32 characters')
+  return { secret, studioUrl }
+}
+
+/** Resend in production (RESEND_API_KEY, INVITE_FROM); a folder of files in development (SOPHIA_MAIL_DIR). */
+function inviteMailer(): Mailer | null {
+  const resendKey = optional('RESEND_API_KEY')
+  if (resendKey) return resendMailer(resendKey, required('INVITE_FROM'))
+  const dir = optional('SOPHIA_MAIL_DIR')
+  return dir ? folderMailer(dir) : null
+}
+
+const corsOrigins = parseOrigins(optional('STUDIO_ORIGINS'))
+const invites = inviteConfig(corsOrigins)
 const livekitUrl = optional('LIVEKIT_URL')
 const app = buildApp({
   pool,
   logger: true,
-  corsOrigins: parseOrigins(optional('STUDIO_ORIGINS')),
+  corsOrigins,
+  ...(invites ? { invites } : {}),
+  mailer: inviteMailer(),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }
     : {}),

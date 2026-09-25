@@ -7,6 +7,7 @@ import {
   roomLine,
   shortName,
   stageMode,
+  standingOf,
   type RoomParticipant,
 } from './room-view.ts'
 
@@ -18,6 +19,7 @@ const person = (identity: string, name: string, local = false): RoomParticipant 
   cameraOn: false,
   screenOn: false,
   local,
+  standing: 'editor',
 })
 const luis = person('a', 'luis@sophia.test', true)
 const davide = person('b', 'davide@sophia.test')
@@ -42,6 +44,23 @@ describe('floor view', () => {
     const absent = floorView('b', [luis])
     assert.deepEqual(absent.holder, { identity: 'b', name: 'someone who isn’t in the room', present: false })
     assert.equal(absent.canTake, true)
+  })
+
+  it('never offers the floor to a guest or a viewer, and never lets them take it', () => {
+    const ana = { ...person('g', 'Ana'), standing: 'guest' as const }
+    const vera = { ...person('v', 'vera@sophia.test'), standing: 'viewer' as const }
+    assert.deepEqual(floorView('a', [luis, davide, ana, vera]).passTargets, [davide])
+    assert.equal(floorView(null, [{ ...luis, standing: 'guest' }]).canTake, false)
+  })
+
+  it('reads only the standing the API signed into the token', () => {
+    assert.deepEqual(['{"guest":true}', '{"role":"admin"}', '{"role":"owner"}', 'nope', undefined].map(standingOf), [
+      'guest',
+      'admin',
+      'unknown',
+      'unknown',
+      'unknown',
+    ])
   })
 
   it('lists yourself first, then the others by name', () => {

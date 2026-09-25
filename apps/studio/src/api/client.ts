@@ -93,6 +93,36 @@ async function postIdempotent<T>(
   return readBody(res, parse, 'same_admission_key')
 }
 
+interface CallInit {
+  /** Null for a public call (an invitation preview). */
+  token: string | null
+  method?: 'GET' | 'POST'
+  body?: unknown
+  /** An Idempotency-Key: the call is an admission, retried with the same key after no reply. */
+  key?: string
+}
+
+/** One call with an optional bearer, body and key; the reply validated as `parse`, never cast. */
+export async function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
+  const retry = init.key ? 'same_admission_key' : 'safe_read'
+  let res: Response
+  try {
+    res = await fetch(apiUrl(path), {
+      method: init.method ?? 'POST',
+      headers: {
+        ...(init.token ? auth(init.token) : {}),
+        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(init.key ? { 'idempotency-key': init.key } : {}),
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+    })
+  } catch {
+    throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
+  }
+  if (!res.ok) throw await toError(res)
+  return readBody(res, parse, retry)
+}
+
 export const admitGoalCommand = (token: string, projectId: string, key: string, cmd: GoalCommand): Promise<Receipt> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/commands`, key, cmd, parseReceipt)
 

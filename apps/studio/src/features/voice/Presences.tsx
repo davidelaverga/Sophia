@@ -14,6 +14,7 @@ const initial = (name: string) => shortName(name).charAt(0)
 function role(person: RoomParticipant, holds: boolean): string {
   if (holds) return 'has the floor'
   if (person.speaking) return 'speaking'
+  if (person.standing === 'guest') return person.micOn ? 'guest' : 'guest · muted'
   return person.micOn ? 'in the room' : 'muted'
 }
 

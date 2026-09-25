@@ -7,6 +7,9 @@ import { checkRoleSafety } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
+import type { InviteConfig } from './invite-token.ts'
+import type { Mailer } from './mail.ts'
+import { accessRoutes, GUEST_ROUTES, PUBLIC_ACCESS_ROUTES } from './routes/access.ts'
 import { commandRoutes } from './routes/commands.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
@@ -19,6 +22,8 @@ declare module 'fastify' {
     actorId: string
     /** Display name from the verified token (email), or null. Shown to others; never authority. */
     actorName: string | null
+    /** An anonymous guest: only GUEST_ROUTES are open to them. */
+    actorAnonymous: boolean
   }
 }
 
@@ -35,13 +40,18 @@ export interface AppDeps {
   livekit?: LiveKitConfig
   /** Exact Studio origins allowed to call the API from a browser (a deployed Studio); none by default. */
   corsOrigins?: readonly string[]
+  /** The secret and Studio address for invitation links; without them, invitations answer 503. */
+  invites?: InviteConfig
+  /** Sends invitation emails; without it invitations are created and report `not_configured`. */
+  mailer?: Mailer | null
 }
 
 /** Functions the API requires in the database; /ready fails if any is missing. */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
   AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
-  AND to_regprocedure('sophia.transfer_input_floor(uuid,uuid,bigint,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.transfer_input_floor(uuid,uuid,bigint,text)') IS NOT NULL
+  AND to_regprocedure('sophia.knock_room(bytea,text)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -67,12 +77,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   projectionRoutes(app, { pool: deps.pool })
   commandRoutes(app, { pool: deps.pool })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
+  accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   return app
 }
 
 /** Routes anyone may call. Everything else, matched or not, needs a verified actor. */
-const PUBLIC_ROUTES: ReadonlySet<string> = new Set(['/health', '/ready'])
+const PUBLIC_ROUTES: ReadonlySet<string> = new Set(['/health', '/ready', ...PUBLIC_ACCESS_ROUTES])
 
 /**
  * Every non-public request acts as the verified token subject; a 401 is logged with non-secret reasons.
@@ -82,15 +93,22 @@ const PUBLIC_ROUTES: ReadonlySet<string> = new Set(['/health', '/ready'])
 function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
+  app.decorateRequest('actorAnonymous', false)
   app.addHook('onRequest', async (req) => {
-    if (PUBLIC_ROUTES.has(req.routeOptions.url ?? '')) return
+    const route = req.routeOptions.url ?? ''
+    if (PUBLIC_ROUTES.has(route)) return
     try {
       const actor = await verifyActor(req.headers.authorization)
       req.actorId = actor.id
       req.actorName = actor.name
+      req.actorAnonymous = actor.anonymous
     } catch (err: unknown) {
       req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
       throw err
+    }
+    // A guest without an account can knock, wait and join the call they were admitted to; nothing else.
+    if (req.actorAnonymous && !GUEST_ROUTES.has(route)) {
+      throw new DomainError('forbidden', 'Guests can only join the room they were admitted to')
     }
   })
 }

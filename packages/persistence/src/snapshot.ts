@@ -1,6 +1,7 @@
 import type pg from 'pg'
 import type { Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
+import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
 import { onlyRow } from './rows.ts'
 
@@ -54,6 +55,8 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const goals = await readGoals(c, projectId)
   const resources = await readResources(c, projectId)
   const room = await readRoom(c, projectId)
+  const lobby = await readLobby(c, projectId)
+  const sessions = await readUpcomingSessions(c, projectId)
   return {
     projectId: project.id,
     title: project.title,
@@ -72,6 +75,8 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
       inputActorId: room.input_actor_id,
       mode: room.mode,
     },
+    lobby,
+    sessions,
   }
 }
 

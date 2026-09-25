@@ -6,8 +6,12 @@ import { createActorVerifier, describeAuthRejection } from './auth.ts'
 
 const SECRET = 'unit-test-secret-at-least-32-characters!!'
 const ISSUER = 'https://example.supabase.co/auth/v1'
-const token = (claims: { iss?: string; role?: string; sub?: string; email?: unknown } = {}) =>
-  new SignJWT({ role: claims.role ?? 'authenticated', ...(claims.email === undefined ? {} : { email: claims.email }) })
+const token = (claims: { iss?: string; role?: string; sub?: string; email?: unknown; is_anonymous?: unknown } = {}) =>
+  new SignJWT({
+    role: claims.role ?? 'authenticated',
+    ...(claims.email === undefined ? {} : { email: claims.email }),
+    ...(claims.is_anonymous === undefined ? {} : { is_anonymous: claims.is_anonymous }),
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.sub ?? randomUUID())
     .setIssuer(claims.iss ?? ISSUER)
@@ -21,7 +25,7 @@ describe('actor verification', () => {
     // Regression: ~/.sophia env written on Windows left "\r" on the issuer; every real token got 401.
     const verify = createActorVerifier({ issuer: `${ISSUER}\r`, audience: 'authenticated\r\n', secret: SECRET })
     const sub = randomUUID()
-    assert.deepEqual(await verify(`Bearer ${await token({ sub })}`), { id: sub, name: null })
+    assert.deepEqual(await verify(`Bearer ${await token({ sub })}`), { id: sub, name: null, anonymous: false })
   })
 
   it('names the actor from the verified email claim, and only from a string', async () => {
@@ -30,8 +34,16 @@ describe('actor verification', () => {
     assert.deepEqual(await verify(`Bearer ${await token({ sub, email: 'luis@sophia.test' })}`), {
       id: sub,
       name: 'luis@sophia.test',
+      anonymous: false,
     })
     assert.equal((await verify(`Bearer ${await token({ email: { admin: true } })}`)).name, null)
+  })
+
+  it('marks an anonymous sign-in as a guest only when the verified claim says so', async () => {
+    const verify = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    assert.equal((await verify(`Bearer ${await token({ is_anonymous: true, email: '' })}`)).anonymous, true)
+    assert.equal((await verify(`Bearer ${await token({ is_anonymous: true, email: '' })}`)).name, null)
+    assert.equal((await verify(`Bearer ${await token({ is_anonymous: 'true' })}`)).anonymous, false)
   })
 
   it('rejects another issuer and non-user roles', async () => {

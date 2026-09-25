@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
 import { RoomDock } from './RoomDock.tsx'
@@ -19,6 +20,26 @@ interface Props {
   identity: Identity
   lensBar: ReactNode
   lensBody: ReactNode
+  /** Sophia's line, when the room's own rules do not apply (a guest knows nothing of the floor). */
+  line?: RoomLine
+  /** Shown over the stage's top right: the lobby, for members. */
+  aside?: ReactNode
+}
+
+/** The time, again every half minute: enough for "starts in 12 min". */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+  return now
+}
+
+/** The next session on the room's calendar, in a few words, or null. */
+function sessionNote(snapshot: Snapshot | undefined, now: number): string | null {
+  const next = nextSession(snapshot?.sessions ?? [], now)
+  return next ? `${next.title} · ${sessionLabel(next, now)} · ${countdown(next, now)}` : null
 }
 
 /**
@@ -78,7 +99,7 @@ function useFloorHandoff(
   return travel
 }
 
-function SophiaLine({ line }: { line: RoomLine }) {
+function SophiaLine({ line, session }: { line: RoomLine; session: string | null }) {
   return (
     <div className="sophia-line">
       <p className="line-text" aria-live="polite">
@@ -91,6 +112,7 @@ function SophiaLine({ line }: { line: RoomLine }) {
           {line.note}
         </p>
       )}
+      {session && <p className="line-session">{session}</p>}
     </div>
   )
 }
@@ -98,8 +120,9 @@ function SophiaLine({ line }: { line: RoomLine }) {
 const runningGoals = (snapshot: Snapshot | undefined) =>
   snapshot?.goals.filter((g) => g.status === 'running' || g.status === 'checking').length ?? 0
 
-export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody }: Props) {
+export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, aside }: Props) {
   const stage = useRef<HTMLElement>(null)
+  const now = useNow()
   const light = useRef<SophiaLightHandle>(null)
   const people = orderParticipants(room.participants)
   const holder = snapshot?.room.inputActorId ?? null
@@ -126,10 +149,11 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
         working={running > 0}
       />
       <div className="stage-top">{lensBar}</div>
+      {aside}
       {mode === 'light' ? (
         <>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
-          <SophiaLine line={roomLine(room.status, floor, running)} />
+          <SophiaLine line={line ?? roomLine(room.status, floor, running)} session={sessionNote(snapshot, now)} />
           <div className="stage-body">{lensBody}</div>
         </>
       ) : (
