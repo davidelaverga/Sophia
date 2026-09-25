@@ -20,7 +20,7 @@ export function App() {
   }
 
   if (state.status === 'loading') return <Centered title="Sophia" busy />
-  if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} />
+  if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
 
   const { identity } = state
   const identityControl = (
