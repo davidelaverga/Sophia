@@ -23,8 +23,6 @@ interface Props {
   lensBody: ReactNode
   /** Sophia's line, when the room's own rules do not apply (a guest knows nothing of the floor). */
   line?: RoomLine
-  /** Shown over the stage's top right: the lobby, for members. */
-  aside?: ReactNode
 }
 
 /** The time, again every half minute: enough for "starts in 12 min". */
@@ -133,7 +131,7 @@ function useRoomKeys(room: ProjectRoom) {
 const runningGoals = (snapshot: Snapshot | undefined) =>
   snapshot?.goals.filter((g) => g.status === 'running' || g.status === 'checking').length ?? 0
 
-export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, aside }: Props) {
+export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line }: Props) {
   const stage = useRef<HTMLElement>(null)
   const now = useNow()
   const light = useRef<SophiaLightHandle>(null)
@@ -163,7 +161,6 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
         working={running > 0}
       />
       <div className="stage-top">{lensBar}</div>
-      {aside}
       {mode === 'light' ? (
         <>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />

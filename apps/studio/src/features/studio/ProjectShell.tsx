@@ -9,6 +9,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { MiniDock } from '../voice/MiniDock.tsx'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -56,6 +57,19 @@ function useRecentProject(
   }, [identity, projectId, blocked])
 }
 
+/** The tab names the project and counts who waits at its door, so a tab in the background still calls. */
+function useTabTitle(snapshot: Snapshot | undefined) {
+  const title = snapshot?.title
+  const waiting = snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0
+  useEffect(() => {
+    if (!title) return undefined
+    document.title = waiting > 0 ? `(${waiting}) ${title} · Sophia` : `${title} · Sophia`
+    return () => {
+      document.title = 'Sophia Studio'
+    }
+  }, [title, waiting])
+}
+
 interface Props {
   projectId: string
   view: View
@@ -72,6 +86,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
   const [inviting, setInviting] = useState(false)
   const blocked = blockedBy(snapshot.error)
   useRecentProject(identity.name, projectId, snapshot.data, blocked)
+  useTabTitle(snapshot.data)
   useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
@@ -178,16 +193,31 @@ interface BodyProps {
   onShow: (view: View) => void
 }
 
-/** Studio is the room itself; every other view is a page, with the room one click away in the mini dock. */
+/**
+ * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
+ * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
+ */
 function ProjectBody({ view, projectId, identity, room, membership, snapshot, pulse, onShow }: BodyProps) {
+  const lobby = (
+    <LobbyPanel
+      projectId={projectId}
+      identity={identity}
+      lobby={snapshot?.lobby ?? []}
+      canDecide={canInvite(membership)}
+    />
+  )
   if (view === 'studio') {
     return (
-      <StudioShell projectId={projectId} identity={identity} room={room} snapshot={snapshot} membership={membership} />
+      <>
+        {lobby}
+        <StudioShell projectId={projectId} identity={identity} room={room} snapshot={snapshot} />
+      </>
     )
   }
   const work = view === 'work'
   return (
     <>
+      {lobby}
       <main className={`page${work ? ' split' : ''}`}>
         {view === 'goals' || work ? (
           <GoalList snapshot={snapshot} projectId={projectId} identity={identity} controls={work} />

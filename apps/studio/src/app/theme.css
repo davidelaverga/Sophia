@@ -1499,11 +1499,12 @@ button.mark:hover {
   color: var(--text-3);
   font-size: 12.5px;
 }
+/* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
-  position: absolute;
-  top: 72px;
+  position: fixed;
+  top: calc(var(--topbar) + 24px);
   right: var(--gutter);
-  z-index: 3;
+  z-index: 15;
   width: min(300px, calc(100% - 2 * var(--gutter)));
   padding: 10px 12px 6px;
   border-radius: var(--r-4);
@@ -2119,7 +2120,7 @@ button.mark:hover {
   }
 }
 @media (max-width: 560px) {
-  /* Phones: the Invite panel rises from the bottom; the lobby sits under the lens bar. */
+  /* Phones: the Invite panel rises from the bottom; the lobby spans the width under the bar. */
   .sheet {
     top: auto;
     left: 0;
@@ -2132,9 +2133,13 @@ button.mark:hover {
     animation-name: lift;
   }
   .lobby {
-    top: 84px;
+    top: calc(var(--topbar) + 12px);
     left: var(--gutter);
     width: auto;
+  }
+  /* In the Studio it sits under the lens bar. */
+  .shell[data-view='studio'] .lobby {
+    top: calc(var(--topbar) + 84px);
   }
   .invite-label {
     display: none;
