@@ -64,25 +64,27 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
         onDeclineAll={() => decline(waiting)}
         onAdmitAll={() => void decide(waiting, 'admit')}
       />
-      <ul>
-        {waiting.map((e) => (
-          <LobbyRow
-            key={e.id}
-            entry={e}
-            now={now}
-            answer={
-              canDecide
-                ? {
-                    busy,
-                    onAdmit: () => void decide([e], 'admit'),
-                    onDecline: () => decline([e]),
-                    onBlock: () => void decide([e], 'block'),
-                  }
-                : null
-            }
-          />
-        ))}
-      </ul>
+      {waiting.length > 0 && (
+        <ul>
+          {waiting.map((e) => (
+            <LobbyRow
+              key={e.id}
+              entry={e}
+              now={now}
+              answer={
+                canDecide
+                  ? {
+                      busy,
+                      onAdmit: () => void decide([e], 'admit'),
+                      onDecline: () => decline([e]),
+                      onBlock: () => void decide([e], 'block'),
+                    }
+                  : null
+              }
+            />
+          ))}
+        </ul>
+      )}
       {declined.length > 0 && (
         <Undo
           declined={declined}

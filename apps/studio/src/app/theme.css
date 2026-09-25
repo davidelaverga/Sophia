@@ -1612,6 +1612,15 @@ button.mark:hover {
   color: var(--text-2);
   font-size: 12.5px;
 }
+.lobby-undo:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+/* While a question is asked in a row (Block, Remove), it stands alone: the other answers wait for it. */
+.lobby-actions:has(.confirm) > :not(.confirm),
+.invitation-actions:has(.confirm) > :not(.confirm) {
+  display: none;
+}
 .lobby-undo .text-button {
   font-size: 12.5px;
 }
