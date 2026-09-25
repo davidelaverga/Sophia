@@ -3,6 +3,8 @@ import { describe, it } from 'node:test'
 import {
   countdown,
   freshJoinToken,
+  invitationState,
+  linkLimits,
   nextSession,
   PENDING_JOIN_MS,
   qrPath,
@@ -21,6 +23,27 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(readJoinToken(token), token)
     assert.equal(readJoinToken('#short'), null)
     assert.equal(readJoinToken(`#${token}<script>`), null)
+  })
+
+  it('says what a room link still allows', () => {
+    assert.equal(
+      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 3, maxUses: 50 }),
+      'Works until Oct 2 · 3 of 50 uses',
+    )
+    assert.equal(
+      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 0, maxUses: 1 }),
+      'Works until Oct 2 · 0 of 1 use',
+    )
+  })
+
+  it('names an invitation’s state: what ended it first, then who it is for and the email', () => {
+    const now = at('2026-10-01T12:00:00Z')
+    const open = { role: 'editor' as const, uses: 0, revokedAt: null, expiresAt: '2026-10-08T12:00:00Z' }
+    assert.equal(invitationState({ ...open, emailStatus: 'sent' }, now), 'editor · email sent')
+    assert.equal(invitationState({ ...open, role: null, emailStatus: 'not_configured' }, now), 'not emailed')
+    assert.equal(invitationState({ ...open, uses: 1, emailStatus: 'sent' }, now), 'joined')
+    assert.equal(invitationState({ ...open, revokedAt: '2026-10-01T10:00:00Z', emailStatus: 'sent' }, now), 'cancelled')
+    assert.equal(invitationState({ ...open, expiresAt: '2026-09-30T12:00:00Z', emailStatus: 'failed' }, now), 'expired')
   })
 
   it('keeps an opened link for the sign-in round trip, then lets it go', () => {

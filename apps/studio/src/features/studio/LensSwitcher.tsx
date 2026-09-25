@@ -2,19 +2,10 @@
 // nothing to the server, so it cannot move anyone else's view or retask work.
 import { useRef } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
+import { nextInRow } from '../../app/roving.ts'
 import { LENSES, type Lens } from './viewer-state.ts'
 
 export const LENS_LABEL: Record<Lens, string> = { converse: 'Converse', explore: 'Explore', build: 'Build' }
-
-/** Arrow keys move between lenses (WAI-ARIA tabs with automatic activation). */
-function nextLens(current: Lens, key: string): Lens | null {
-  const i = LENSES.indexOf(current)
-  const step: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 }
-  if (key === 'Home') return LENSES[0]
-  if (key === 'End') return LENSES[LENSES.length - 1] ?? null
-  const delta = step[key]
-  return delta === undefined ? null : (LENSES[(i + delta + LENSES.length) % LENSES.length] ?? null)
-}
 
 interface Props {
   lens: Lens
@@ -25,7 +16,8 @@ export function LensSwitcher({ lens, onChange }: Props) {
   const tabs = useRef(new Map<Lens, HTMLButtonElement>())
   const thumb = useSlidingThumb<HTMLDivElement>(lens)
   const onKeyDown = (event: React.KeyboardEvent) => {
-    const next = nextLens(lens, event.key)
+    // Arrow keys move between lenses (WAI-ARIA tabs with automatic activation).
+    const next = nextInRow(LENSES, lens, event.key)
     if (!next) return
     event.preventDefault()
     onChange(next)
