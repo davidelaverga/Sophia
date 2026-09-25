@@ -10,6 +10,23 @@ export function readJoinToken(hash: string): string | null {
   return TOKEN.test(token) ? token : null
 }
 
+/** How long an opened invitation link waits on this device for its sign-in round trip. */
+export const PENDING_JOIN_MS = 60 * 60_000
+
+/** A token saved as `{ token, at }` when its link was opened, while it is still fresh. */
+export function freshJoinToken(raw: string | null, now: number): string | null {
+  if (!raw) return null
+  try {
+    const saved: unknown = JSON.parse(raw)
+    if (typeof saved !== 'object' || saved === null || !('token' in saved) || !('at' in saved)) return null
+    const { token, at } = saved
+    if (typeof token !== 'string' || typeof at !== 'number' || now - at > PENDING_JOIN_MS) return null
+    return readJoinToken(token)
+  } catch {
+    return null
+  }
+}
+
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 

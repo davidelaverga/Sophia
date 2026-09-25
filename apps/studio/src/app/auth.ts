@@ -1,6 +1,6 @@
 // Who is using the Studio. Supabase Auth when configured (magic link, PKCE, auto-refreshed access
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
-import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
@@ -91,6 +91,16 @@ export function useAuth(): { state: AuthState; chooseDev: (i: Identity | null) =
   }
 }
 
+/** Sophia is invite-only: an email without an account learns how to get in, not Supabase's wording. */
+function signInError(error: AuthError, email: string): Error {
+  const noAccount = error.code === 'otp_disabled' || /signups not allowed/i.test(error.message)
+  return noAccount
+    ? new Error(
+        `There’s no Sophia account for ${email}. Ask a project admin to invite you, then use the link in that email.`,
+      )
+    : error
+}
+
 /** Magic link to the current page; locally the email lands in Mailpit. New accounts only in dev. */
 export async function sendMagicLink(email: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
@@ -101,7 +111,7 @@ export async function sendMagicLink(email: string): Promise<void> {
       shouldCreateUser: import.meta.env.DEV,
     },
   })
-  if (error) throw error
+  if (error) throw signInError(error, email)
 }
 
 /**
@@ -123,6 +133,13 @@ export async function guestAccessToken(current: Identity | null): Promise<string
   return data.session.access_token
 }
 
+/** The session's token now: Supabase refreshes it in the background, so a long wait never ends on an expired one. */
+export async function currentToken(fallback: string): Promise<string> {
+  if (!supabase) return fallback
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? fallback
+}
+
 /** A guest leaving the call leaves no session behind on a shared device. */
 export async function endGuestSession(): Promise<void> {
   if (supabase) await supabase.auth.signOut()
@@ -142,5 +159,5 @@ export async function sendInvitedSignIn(email: string): Promise<void> {
 export async function verifyEmailCode(email: string, code: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
   const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
-  if (error) throw error
+  if (error) throw new Error('That code didn’t work, or it has expired. Check it, or ask for a new email.')
 }

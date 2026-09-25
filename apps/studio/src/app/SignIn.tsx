@@ -120,6 +120,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
           {state.message}
         </p>
       )}
+      {!import.meta.env.DEV && <p className="muted">New here? A project admin invites you by email.</p>}
     </Centered>
   )
 }

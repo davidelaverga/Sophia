@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { countdown, nextSession, qrPath, readJoinToken, sessionFromForm, sessionLabel } from './access-view.ts'
+import {
+  countdown,
+  freshJoinToken,
+  nextSession,
+  PENDING_JOIN_MS,
+  qrPath,
+  readJoinToken,
+  sessionFromForm,
+  sessionLabel,
+} from './access-view.ts'
 
 const at = (iso: string) => Date.parse(iso)
 const session = (id: string, startsAt: string, endsAt: string) => ({ id, title: id, startsAt, endsAt, timeZone: 'UTC' })
@@ -12,6 +21,16 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(readJoinToken(token), token)
     assert.equal(readJoinToken('#short'), null)
     assert.equal(readJoinToken(`#${token}<script>`), null)
+  })
+
+  it('keeps an opened link for the sign-in round trip, then lets it go', () => {
+    const token = 'b'.repeat(43)
+    const saved = JSON.stringify({ token, at: 1_000 })
+    assert.equal(freshJoinToken(saved, 1_000 + PENDING_JOIN_MS - 1), token)
+    assert.equal(freshJoinToken(saved, 1_000 + PENDING_JOIN_MS + 1), null)
+    assert.equal(freshJoinToken(JSON.stringify({ token: 'short', at: 1_000 }), 1_000), null)
+    assert.equal(freshJoinToken('not json', 0), null)
+    assert.equal(freshJoinToken(null, 0), null)
   })
 
   it('finds the next session that has not ended', () => {
