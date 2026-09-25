@@ -413,6 +413,53 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     const res = await call(`/api/v1/lobby/${entry.id}/room-token`, { at: voicedBase, bearer: guest, body: {} })
     assert.equal(res.status, 503)
   })
+
+  it('a guest declined while Sophia is being paused gets no token, even once she confirms', async () => {
+    // The bridge stopped in the test above, so nothing acknowledges until this test does, as that bridge.
+    const inv = parseInvitation(
+      (
+        await call(`/api/v1/projects/${seed.projectId}/invitations`, {
+          bearer: await token(E),
+          key: true,
+          body: { kind: 'guest' },
+        })
+      ).json,
+    )
+    const guest = await token(randomUUID(), { is_anonymous: true })
+    const entry = parseLobbyEntry(
+      (
+        await call('/api/v1/join/knock', {
+          bearer: guest,
+          body: { token: inv.url.split('#')[1] ?? '', displayName: 'Dora' },
+        })
+      ).json,
+    )
+    await call(`/api/v1/lobby/${entry.id}/decision`, { bearer: await token(E), body: { decision: 'admit' } })
+    const waiting = call(`/api/v1/lobby/${entry.id}/room-token`, { at: voicedBase, bearer: guest, body: {} })
+    let requestId = ''
+    await until('the quiesce request', async () => {
+      const r = await owner.query<{ id: string }>(
+        'SELECT id FROM sophia.room_quiesce_requests WHERE lobby_entry_id = $1',
+        [entry.id],
+      )
+      requestId = r.rows[0]?.id ?? ''
+      return requestId !== ''
+    })
+    const declined = await call(`/api/v1/lobby/${entry.id}/decision`, {
+      at: voicedBase,
+      bearer: await token(E),
+      body: { decision: 'deny' },
+    })
+    assert.equal(declined.status, 200)
+    await httpMediaService(voicedBase, MEDIA_TOKEN).ackQuiesce({
+      requestId,
+      bridgeInstanceId: 'bridge-crossing',
+      inputClosed: true,
+      outputCleared: true,
+    })
+    const res = await waiting
+    assert.equal(res.status, 409, 'the decision made during the wait holds')
+  })
 })
 
 describe('holder departure through the real API (S1-05A §7)', () => {

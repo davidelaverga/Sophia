@@ -510,6 +510,50 @@ describe('room session: provider recovery (case A14)', () => {
     assert.equal(service.calls.length, 0, 'events of the old connection are ignored')
   })
 
+  it('a call Google repeats on a resumed connection keeps its identity, so the API admits it once', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.resumption('handle-2', true)
+    live.events.toolCalls([{ id: 'call-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    await flush()
+    live.events.goAway('5s')
+    clock += 1000
+    session.tick()
+    await flush()
+    const resumed = lives.at(-1)
+    assert.ok(resumed && resumed !== live)
+    assert.equal(resumed.options.resumptionHandle, 'handle-2')
+    resumed.events.setupComplete()
+    resumed.events.toolCalls([{ id: 'call-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    await flush()
+    assert.equal(service.calls.length, 2)
+    const [first, repeated] = service.calls
+    assert.deepEqual(
+      [repeated?.callId, repeated?.connectionGeneration],
+      [first?.callId, first?.connectionGeneration],
+      'the same call, the same identity',
+    )
+  })
+
+  it('a cold start is a new Google session: its calls cannot collide with the old one’s', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-1', name: 'project_status', args: {} }])
+    await flush()
+    live.events.closed('network lost')
+    clock += 1000
+    session.tick()
+    await flush()
+    const cold = lives.at(-1)
+    assert.ok(cold && cold !== live)
+    assert.equal(cold.options.resumptionHandle, null)
+    cold.events.setupComplete()
+    cold.events.toolCalls([{ id: 'call-1', name: 'project_status', args: {} }])
+    await flush()
+    const [first, second] = service.calls
+    assert.notEqual(second?.connectionGeneration, first?.connectionGeneration)
+  })
+
   it('a handle that keeps failing is dropped and the next connection starts cold, saying so', async () => {
     const { session, live } = await ready()
     live.events.resumption('bad-handle', true)

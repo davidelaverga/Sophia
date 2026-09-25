@@ -103,6 +103,45 @@ async function workCount(projectId: string): Promise<number> {
   }
 }
 
+async function ownerQuery(sql: string, params: unknown[]): Promise<void> {
+  const c = new pg.Client({ connectionString: db.ownerUrl })
+  await c.connect()
+  try {
+    await c.query(sql, params)
+  } finally {
+    await c.end()
+  }
+}
+
+/** A project with a live exchange whose admitted guest asks for a room token: the quiesce request it opens. */
+async function guestAsksForToken() {
+  const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+  const { exchangeId, roomId } = await open(E, projectId)
+  const hash = randomBytes(32)
+  await withActor(pool, A, 'write', (c) =>
+    createRoomInvitation(c, {
+      projectId,
+      id: randomUUID(),
+      request: {
+        kind: 'guest',
+        role: null,
+        email: null,
+        sessionId: null,
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        maxUses: 5,
+        inviterName: null,
+      },
+      tokenSha256: hash,
+      idempotencyKey: randomUUID(),
+    }),
+  )
+  const entry = await withActor(pool, G, 'write', (c) => knockRoom(c, hash, 'Guest'))
+  await withActor(pool, E, 'write', (c) => decideLobbyEntry(c, entry.id, 'admit'))
+  const requestId = await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entry.id))
+  assert.ok(requestId)
+  return { projectId, exchangeId, roomId, requestId }
+}
+
 describe('opening and controlling the exchange', () => {
   it('opens once per room for any member, gives a free floor to the opener, and retries idempotently', async () => {
     const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
@@ -212,30 +251,7 @@ describe('guests and a project-aware Sophia (case A12)', () => {
   })
 
   it('opens a quiesce request when a guest asks for a token, and records the bridge’s acknowledgement', async () => {
-    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
-    const { exchangeId } = await open(E, projectId)
-    const hash = randomBytes(32)
-    await withActor(pool, A, 'write', (c) =>
-      createRoomInvitation(c, {
-        projectId,
-        id: randomUUID(),
-        request: {
-          kind: 'guest',
-          role: null,
-          email: null,
-          sessionId: null,
-          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-          maxUses: 5,
-          inviterName: null,
-        },
-        tokenSha256: hash,
-        idempotencyKey: randomUUID(),
-      }),
-    )
-    const entry = await withActor(pool, G, 'write', (c) => knockRoom(c, hash, 'Guest'))
-    await withActor(pool, E, 'write', (c) => decideLobbyEntry(c, entry.id, 'admit'))
-    const requestId = await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entry.id))
-    assert.ok(requestId)
+    const { projectId, exchangeId, requestId } = await guestAsksForToken()
     assert.deepEqual((await snapshotOf(A, projectId)).room.sophia.pauseReason, 'guest')
     const [assignment] = (await withService(pool, (c) => mediaAssignments(c))).filter(
       (a) => a.exchangeId === exchangeId,
@@ -243,6 +259,52 @@ describe('guests and a project-aware Sophia (case A12)', () => {
     assert.equal(assignment?.quiesceRequestId, requestId, 'the bridge sees what to confirm')
     assert.equal(await withService(pool, (c) => quiesceAcked(c, requestId)), false)
     await withService(pool, (c) => ackQuiesce(c, requestId, 'bridge-test'))
+    assert.equal(await withService(pool, (c) => quiesceAcked(c, requestId)), true)
+  })
+
+  it('during an overlap, a replacement bridge’s confirmation alone does not release the guest', async () => {
+    const { roomId, exchangeId, requestId } = await guestAsksForToken()
+    await present(roomId, exchangeId, [])
+    // A second process (a rolling restart) reports for the same room; the first is still reporting too.
+    await withService(pool, (c) =>
+      reportPresence(c, {
+        roomId,
+        exchangeId,
+        bridgeInstanceId: 'bridge-new',
+        voice: 'connecting',
+        reason: null,
+        participants: [],
+      }),
+    )
+    await withService(pool, (c) => ackQuiesce(c, requestId, 'bridge-new'))
+    assert.equal(
+      await withService(pool, (c) => quiesceAcked(c, requestId)),
+      false,
+      'the older process has not confirmed',
+    )
+    await withService(pool, (c) => ackQuiesce(c, requestId, 'bridge-test'))
+    assert.equal(await withService(pool, (c) => quiesceAcked(c, requestId)), true)
+  })
+
+  it('a bridge that stopped reporting is gone and is not waited for', async () => {
+    const { roomId, exchangeId, requestId } = await guestAsksForToken()
+    await present(roomId, exchangeId, [])
+    await withService(pool, (c) =>
+      reportPresence(c, {
+        roomId,
+        exchangeId,
+        bridgeInstanceId: 'bridge-new',
+        voice: 'connecting',
+        reason: null,
+        participants: [],
+      }),
+    )
+    await ownerQuery(
+      `UPDATE sophia.room_bridge_reports SET reported_at = now() - interval '31 seconds'
+        WHERE room_id = $1 AND bridge_instance = 'bridge-test'`,
+      [roomId],
+    )
+    await withService(pool, (c) => ackQuiesce(c, requestId, 'bridge-new'))
     assert.equal(await withService(pool, (c) => quiesceAcked(c, requestId)), true)
   })
 })

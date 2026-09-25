@@ -319,11 +319,17 @@ function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
     { schema: { params: entryParams, response: { 200: ref('RoomToken') } } },
     async (req) => {
       if (!deps.livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
-      const access = await withActor(deps.pool, req.actorId, 'read', (c) => authorizeGuestJoin(c, req.params.entryId))
+      const authorize = () =>
+        withActor(deps.pool, req.actorId, 'read', (c) => authorizeGuestJoin(c, req.params.entryId))
+      let access = await authorize()
       const quiesce = await withActor(deps.pool, req.actorId, 'write', (c) =>
         requestGuestQuiesce(c, req.params.entryId),
       )
-      if (quiesce) await awaitQuiescence(deps, quiesce, access.roomId)
+      if (quiesce) {
+        await awaitQuiescence(deps, quiesce, access.roomId)
+        // The wait can take seconds: an editor may have declined or blocked the guest meanwhile.
+        access = await authorize()
+      }
       return issueRoomToken(deps.livekit, {
         roomId: access.roomId,
         identity: req.actorId,

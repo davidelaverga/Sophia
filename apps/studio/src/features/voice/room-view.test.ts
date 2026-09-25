@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
   orderParticipants,
   presenceSlots,
   roomLine,
+  runningWork,
   shortName,
   stageMode,
   standingOf,
@@ -126,5 +128,54 @@ describe('room stage', () => {
     })
     assert.equal(roomLine('live', free, 1, sophia).note, 'Working on 1 task in the background')
     assert.equal(roomLine('live', free, 0, { ...sophia, inConversation: false }).text, 'The floor is open')
+  })
+})
+
+const goal = (id: string, status: Goal['status']): Goal => ({
+  id,
+  projectId: 'p',
+  title: 'Draft a brief',
+  revision: 1,
+  authorityEpoch: 1,
+  status,
+  outcome: '',
+  criteria: [],
+  stateRevision: 1,
+})
+const task = (goalId: string, phase: NativeTask['phase']): NativeTask => ({
+  id: `task-${goalId}`,
+  kind: 'draft_brief',
+  goalId,
+  attemptId: 'a',
+  commandId: 'c',
+  actorId: 'u',
+  state: 'running',
+  phase,
+  createdAt: '2026-09-25T00:00:00Z',
+  contextSourceId: 's',
+  inputSourceIds: [],
+  resultSourceId: null,
+  reason: null,
+})
+
+describe('work in progress', () => {
+  it('counts a brief once, although it is both a goal and a task', () => {
+    assert.equal(runningWork({ goals: [goal('g1', 'running')], work: [task('g1', 'running')] }), 1)
+    assert.equal(roomLine('live', floorView(null, []), 1).note, 'Working on 1 task in the background')
+  })
+
+  it('counts a queued brief before its goal runs, and separate goals separately', () => {
+    assert.equal(runningWork({ goals: [goal('g1', 'ready')], work: [task('g1', 'queued')] }), 1)
+    assert.equal(
+      runningWork({ goals: [goal('g1', 'running'), goal('g2', 'checking')], work: [task('g1', 'running')] }),
+      2,
+    )
+  })
+
+  it('does not count finished or held work', () => {
+    assert.equal(
+      runningWork({ goals: [goal('g1', 'held')], work: [task('g1', 'held'), task('g2', 'result_ready')] }),
+      0,
+    )
   })
 })

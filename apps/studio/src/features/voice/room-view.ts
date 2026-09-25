@@ -1,5 +1,6 @@
 // What the room shows, derived from the project's room record (the input floor) and the people and
 // video LiveKit reports. Pure, so the rules are unit-tested; React only renders the result.
+import type { NativeTask, Snapshot } from '@sophia/contracts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
@@ -127,6 +128,27 @@ function floorLine(floor: FloorView): string {
   return floor.holder.present ? `${name} has the floor` : `${name} has the floor but isn’t here`
 }
 
+const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
+  'queued',
+  'dispatched',
+  'running',
+  'holding',
+  'stopping',
+])
+
+/**
+ * Work in progress, counted once per goal: what the light's work line and Sophia's note count. A native task
+ * (a brief) has its own goal, so its goal and its task are one piece of work, not two.
+ */
+export function runningWork(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefined): number {
+  if (!snapshot) return 0
+  const active = new Set(
+    snapshot.goals.filter((g) => g.status === 'running' || g.status === 'checking').map((g) => g.id),
+  )
+  for (const task of snapshot.work) if (WORKING_PHASES.has(task.phase)) active.add(task.goalId)
+  return active.size
+}
+
 /**
  * What Sophia's line says about the room right now. Only what is true: while she is in the conversation her
  * line is what the bridge observes (sophia-view.ts), never inferred from the room being live.
@@ -134,11 +156,10 @@ function floorLine(floor: FloorView): string {
 export function roomLine(
   status: DockStatus,
   floor: FloorView,
-  runningWork: number,
+  workCount: number,
   sophia: SophiaLineView | null = null,
 ): RoomLine {
-  const work =
-    runningWork > 0 ? `Working on ${runningWork} ${runningWork === 1 ? 'task' : 'tasks'} in the background` : null
+  const work = workCount > 0 ? `Working on ${workCount} ${workCount === 1 ? 'task' : 'tasks'} in the background` : null
   if (status === 'joining') return { text: 'Joining the room…', note: null }
   if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }

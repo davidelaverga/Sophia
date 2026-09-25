@@ -158,6 +158,7 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall): Promi
     pool,
     projectId: speaker.projectId,
     actorId: call.actorId,
+    // The bridge's Google session: the same across a resumed connection, so a repeated call is the same call.
     key: `live:${call.exchangeId}:${call.connectionGeneration}:${call.callId}`,
   }
   try {

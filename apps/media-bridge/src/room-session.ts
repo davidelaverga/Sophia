@@ -131,6 +131,12 @@ export class RoomSession {
   private room: RoomLink | null = null
   private live: LiveLink | null = null
   private connection: number
+  /**
+   * The Google session tool calls belong to, sent as the call's `connectionGeneration`. A cold start opens a new
+   * one; a resumed connection continues it, so a call Google repeats after a reconnect keeps its identity (and the
+   * API's idempotency key) instead of becoming a second piece of work.
+   */
+  private providerSession: number
   private connecting = false
   private handle: string | null = null
   private everReady = false
@@ -187,8 +193,10 @@ export class RoomSession {
     this.assignment = assignment
     this.deps = deps
     this.state = new ExchangeState(toAssignment(assignment))
-    // Unique across bridge restarts: tool-call idempotency keys include it (amendment A06).
+    // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
+    // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
+    this.providerSession = this.connection
   }
 
   /** Join the room first (so guests are seen before anything is heard), then connect Google. */
@@ -447,6 +455,7 @@ export class RoomSession {
     this.connection += 1
     const connection = this.connection
     const resumed = this.handle !== null
+    if (!resumed) this.providerSession += 1
     try {
       const link = await this.deps.connectLive(
         {
@@ -605,7 +614,7 @@ export class RoomSession {
   private async runTool(call: FunctionCall, connection: number): Promise<void> {
     const id = call.id ?? ''
     const name = call.name ?? ''
-    const response = await this.toolOutcome(id, name, call.args ?? {}, connection)
+    const response = await this.toolOutcome(id, name, call.args ?? {})
     // Never answer a call the provider cancelled, or one from a connection that has since been replaced.
     if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) {
       return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, name, connection })
@@ -614,12 +623,7 @@ export class RoomSession {
     this.deps.log('tool.answered', { exchangeId: this.exchangeId, name, status: statusOf(response), connection })
   }
 
-  private async toolOutcome(
-    id: string,
-    name: string,
-    args: Record<string, unknown>,
-    connection: number,
-  ): Promise<FunctionResponse> {
+  private async toolOutcome(id: string, name: string, args: Record<string, unknown>): Promise<FunctionResponse> {
     const call = { id, name }
     if (!CALL_ID.test(id) || !isToolName(name))
       return toolResponse(call, { status: 'error', output: { reason: 'Unknown tool' } })
@@ -632,7 +636,7 @@ export class RoomSession {
     try {
       const result = await this.deps.service.toolCall({
         exchangeId: this.exchangeId,
-        connectionGeneration: connection,
+        connectionGeneration: this.providerSession,
         callId: id,
         name,
         args,

@@ -54,6 +54,19 @@ CREATE TABLE sophia.room_quiesce_requests (
  acked_at timestamptz, acked_by text
 );
 
+-- Every bridge process that reported for a room, and when: a rolling restart can overlap two of them, and each one
+-- still in the room must confirm a quiesce request, not only the newest.
+CREATE TABLE sophia.room_bridge_reports (
+ project_id uuid NOT NULL REFERENCES sophia.projects(id), room_id uuid NOT NULL REFERENCES sophia.room_state(id),
+ bridge_instance text NOT NULL, reported_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(room_id,bridge_instance)
+);
+CREATE TABLE sophia.room_quiesce_acks (
+ project_id uuid NOT NULL REFERENCES sophia.projects(id), request_id uuid NOT NULL REFERENCES sophia.room_quiesce_requests(id),
+ bridge_instance text NOT NULL, acked_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(request_id,bridge_instance)
+);
+ALTER TABLE sophia.room_bridge_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sophia.room_quiesce_acks ENABLE ROW LEVEL SECURITY;
+
 -- Background results the bridge announced in an exchange: each at most once, across reconnects and restarts.
 CREATE TABLE sophia.exchange_announcements (
  project_id uuid NOT NULL, exchange_id uuid NOT NULL REFERENCES sophia.room_exchanges(id), job_id uuid NOT NULL,
@@ -257,6 +270,8 @@ BEGIN
   coalesce(p_report->'participants','[]'),now())
  ON CONFLICT (room_id) DO UPDATE SET exchange_id=EXCLUDED.exchange_id, bridge_instance=EXCLUDED.bridge_instance, voice=EXCLUDED.voice,
   reason=EXCLUDED.reason, guests_present=EXCLUDED.guests_present, participants=EXCLUDED.participants, reported_at=now();
+ INSERT INTO sophia.room_bridge_reports(project_id,room_id,bridge_instance) VALUES(p,room,left(p_report->>'bridgeInstanceId',64))
+ ON CONFLICT (room_id,bridge_instance) DO UPDATE SET reported_at=now();
  IF guests THEN
   UPDATE sophia.room_exchanges SET state='paused', pause_reason='guest', revision=revision+1
    WHERE room_id=room AND state<>'ended' AND (state='open' OR pause_reason<>'guest') RETURNING * INTO paused;
@@ -289,13 +304,32 @@ BEGIN
  RETURN jsonb_build_object('requestId',req,'roomId',entry.room_id);
 END $$;
 
-CREATE FUNCTION sophia.quiesce_acked(p_request uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
- SELECT acked_at IS NOT NULL FROM sophia.room_quiesce_requests WHERE id=p_request $$;
+-- Settled once some bridge confirmed and every bridge process that reported for the room in the last 30 s (the
+-- window the exchange rule uses) confirmed too. One that stopped reporting is gone and is not waited for.
+CREATE FUNCTION sophia.quiesce_settled(q sophia.room_quiesce_requests) RETURNS boolean LANGUAGE sql STABLE
+SET search_path=pg_catalog,sophia AS $$
+ SELECT q.acked_at IS NOT NULL OR (
+  EXISTS(SELECT 1 FROM sophia.room_quiesce_acks a WHERE a.request_id=q.id)
+  AND NOT EXISTS(SELECT 1 FROM sophia.room_bridge_reports r WHERE r.room_id=q.room_id AND r.reported_at>now()-interval '30 seconds'
+   AND NOT EXISTS(SELECT 1 FROM sophia.room_quiesce_acks a WHERE a.request_id=q.id AND a.bridge_instance=r.bridge_instance))) $$;
+REVOKE ALL ON FUNCTION sophia.quiesce_settled(sophia.room_quiesce_requests) FROM PUBLIC;
 
+CREATE FUNCTION sophia.quiesce_acked(p_request uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT sophia.quiesce_settled(q) FROM sophia.room_quiesce_requests q WHERE q.id=p_request $$;
+
+-- One bridge process confirms. The request settles only when quiesce_settled says so; an acknowledgement from a
+-- replacement process that has not joined the room cannot release a guest's token alone.
 CREATE FUNCTION sophia.media_ack_quiesce(p_request uuid, p_bridge text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE q sophia.room_quiesce_requests;
 BEGIN
  PERFORM sophia.require_service();
- UPDATE sophia.room_quiesce_requests SET acked_at=now(), acked_by=left(p_bridge,64) WHERE id=p_request AND acked_at IS NULL;
+ SELECT * INTO q FROM sophia.room_quiesce_requests WHERE id=p_request FOR UPDATE;
+ IF NOT FOUND OR q.acked_at IS NOT NULL THEN RETURN; END IF;
+ INSERT INTO sophia.room_quiesce_acks(project_id,request_id,bridge_instance) VALUES(q.project_id,q.id,left(p_bridge,64))
+ ON CONFLICT DO NOTHING;
+ IF sophia.quiesce_settled(q) THEN
+  UPDATE sophia.room_quiesce_requests SET acked_at=now(), acked_by=left(p_bridge,64) WHERE id=q.id;
+ END IF;
 END $$;
 
 -- The holder left the room (pause input now) or stayed gone past the grace (clear the floor by compare-and-set

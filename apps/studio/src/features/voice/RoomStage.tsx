@@ -13,6 +13,7 @@ import {
   floorView,
   orderParticipants,
   roomLine,
+  runningWork,
   shortName,
   stageMode,
   type FloorView,
@@ -137,13 +138,6 @@ function useRoomKeys(room: ProjectRoom) {
     s: speaks && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
   })
 }
-
-const WORKING_PHASES: ReadonlySet<string> = new Set(['queued', 'dispatched', 'running', 'holding', 'stopping'])
-
-/** Goals and background tasks in progress: what the light's work line and Sophia's note count. */
-const runningWork = (snapshot: Snapshot | undefined) =>
-  (snapshot?.goals.filter((g) => g.status === 'running' || g.status === 'checking').length ?? 0) +
-  (snapshot?.work.filter((t) => WORKING_PHASES.has(t.phase)).length ?? 0)
 
 /** Sophia as observed (sophia-view.ts): the light's mode and her line come from this, never from `live`. */
 function observedSophia(

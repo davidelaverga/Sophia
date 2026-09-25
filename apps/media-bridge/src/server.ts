@@ -6,9 +6,12 @@
 //   GEMINI_API_KEY              Gemini API (never Vertex); only on an authorized execution host
 //   SOPHIA_LIVE_MODEL           default gemini-3.8-live
 //   SOPHIA_LIVE_MODE            `rehearse` for local development: no Google call, no key, never live evidence
-//   SOPHIA_BRIDGE_INSTANCE      an id for this process in presence reports (default: host-pid)
+//   SOPHIA_BRIDGE_INSTANCE      a name for this host in presence reports (default: the host name); each process adds
+//                               a random suffix, so two overlapping processes (a rolling restart) stay distinct and
+//                               each must confirm a guest's quiesce request (0013)
 //
 // One bridge instance serves all rooms: two instances would both join as `sophia` and replace each other.
+import { randomBytes } from 'node:crypto'
 import { hostname } from 'node:os'
 import { MediaBridge } from './bridge.ts'
 import { connectGeminiLive } from './live-session.ts'
@@ -22,9 +25,8 @@ function required(name: string): string {
   return value
 }
 
-const instance = (process.env.SOPHIA_BRIDGE_INSTANCE ?? `${hostname()}-${process.pid}`)
-  .replace(/[^A-Za-z0-9_-]/g, '-')
-  .slice(0, 64)
+const host = (process.env.SOPHIA_BRIDGE_INSTANCE ?? hostname()).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 48)
+const instance = `${host}-${randomBytes(4).toString('hex')}`
 
 const rehearse = process.env.SOPHIA_LIVE_MODE === 'rehearse'
 const model = rehearse ? 'rehearsal' : (process.env.SOPHIA_LIVE_MODEL ?? 'gemini-3.8-live')

@@ -22,7 +22,8 @@
 | `2f76776`, `833221c` | A read-only production diagnostic with an allowlisted public output (Codex finding CX-0001) |
 | `5e057b3` | Codex code review, round 1: dispatch waits for a ready runtime; a stop fences a transcribed reply before its first audio; a failed room join is retried; a brief retry resends the frozen request |
 | `27d3acf` | Codex code review, round 2: a stop also fences a reply to sound the holder made before any transcript; a brief is captured once, so a later steer's turn cannot replace it |
-| (this commit) | Codex code review, round 3: both long polls listen before the read that decides to wait; the room shows a runtime online only while dispatch would use it; a result notice counts as announced only once the room heard it; dev-stack runtime data lives under the system tmpdir |
+| `4ba339a` | Codex code review, round 3: both long polls listen before the read that decides to wait; the room shows a runtime online only while dispatch would use it; a result notice counts as announced only once the room heard it; dev-stack runtime data lives under the system tmpdir |
+| (this commit) | Codex code review, round 4: a tool call Google repeats on a resumed connection keeps its idempotency identity; a guest declined during the quiescence wait gets no token; every bridge process still reporting for the room must confirm a quiesce request; a brief counts as one piece of work in the room line |
 
 ## Evidence
 
@@ -101,7 +102,7 @@ Its inputs are already fixed by this branch:
 | Migration | SHA-256 (as the runner records it) |
 |---|---|
 | `0012_runtime_service.sql` | `0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f` |
-| `0013_room_exchange.sql` | `b04e41c227551554f6e451c84fe7ce7ffb4def50ee20ef4e5dece2047f58cb45` |
+| `0013_room_exchange.sql` | `44ac2a681e4179a2a7649d632f0382fff32b412a9d113d3d9b1db62521bad221` |
 | `0014_room_removals.sql` | `55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2` |
 
 The effects it will name, in order:
