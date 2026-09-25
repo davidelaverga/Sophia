@@ -1,124 +1,255 @@
-// S1-05A production diagnosis for the operator (Codex), returned to the implementer as sanitized evidence.
-// Read only: every database query runs in one READ ONLY transaction, and the LiveKit part only lists rooms and
-// participants. The output is JSON meant to be pasted into the coordination thread: ids shortened to 8 characters,
-// no tokens, no names or emails, no discussion or brief text, reasons cut to 200 characters.
+// S1-05A production diagnosis for the operator (Codex), returned to the implementer as evidence.
+// Read only. Each database section runs inside a READ ONLY transaction (a section that fails is rolled back and the
+// next one starts a new READ ONLY transaction); the LiveKit part only lists rooms and participants.
+// Public output is an explicit allowlist (apps/api/src/diagnostics/sanitize.ts): every column has a declared kind,
+// ids pass as 8 hex characters, free text passes only as a known system code or a `redacted:<hash8>` reference,
+// enumerations only as their values, and undeclared columns are dropped. Review the JSON before posting anyway.
 //
-//   SOPHIA_DIAGNOSE_DATABASE_URL=<a login that can read the sophia schema, e.g. the migration owner, verify-full TLS>
+//   SOPHIA_DIAGNOSE_DATABASE_URL=<a login that can read the sophia schema, verify-full TLS>
 //   [LIVEKIT_URL=… LIVEKIT_API_KEY=… LIVEKIT_API_SECRET=…]      also list LiveKit rooms and who is in them
 //   node apps/api/scripts/diagnose.ts [--project <uuid>] [--limit 20]
 import { parseArgs } from 'node:util'
 import { RoomServiceClient } from 'livekit-server-sdk'
 import pg from 'pg'
+import {
+  field,
+  identityClass,
+  type RowSchema,
+  sanitizeRow,
+  shortId,
+  sophiaAttributes,
+  standing,
+} from '../src/diagnostics/sanitize.ts'
 
 const { values } = parseArgs({ options: { project: { type: 'string' }, limit: { type: 'string' } } })
 const limit = Math.min(Math.max(Number(values.limit ?? 20) || 20, 1), 200)
 const project = values.project && /^[0-9a-f-]{36}$/.test(values.project) ? values.project : null
-
-/** Ids shortened for a public thread; enough to correlate with logs and LiveKit traces. */
-const short = (v: unknown) => (typeof v === 'string' && /^[0-9a-f-]{36}$/.test(v) ? v.slice(0, 8) : v)
-const cut = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : v)
-const ID_KEYS = new Set(['id', 'project', 'room', 'exchange', 'actor', 'runtime', 'entry', 'job', 'goal', 'holder'])
-const TEXT_KEYS = new Set(['reason', 'last_error', 'outcome_reason', 'ready_reason'])
-
-function sanitize(row: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(row).map(([k, v]) => [k, ID_KEYS.has(k) ? short(v) : TEXT_KEYS.has(k) ? cut(v) : v]),
-  )
-}
-
 const scope = (column = 'project_id') => (project ? `WHERE ${column} = $1` : 'WHERE true')
 const params = () => (project ? [project] : [])
 
-/** Each section: a name and a SELECT (sanitized per row). Nothing here writes. */
-const SECTIONS: ReadonlyArray<[string, () => string]> = [
-  [
-    'migrations',
-    () => `SELECT version, filename, sha256, applied_at FROM sophia_meta.schema_migrations ORDER BY version`,
-  ],
-  [
-    'runtimes',
-    () => `SELECT project_id AS project, id, runtime_unit_id, state, lease_epoch, bridge_instance_id, protocol_version,
-                  dsh_version, hello_at, ready_state, ready_reason, ready_at, jsonb_array_length(unrecovered) AS unrecovered,
-                  command_sequence FROM sophia.runtime_instances ${scope()} ORDER BY created_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'native_tasks',
-    () => `SELECT project_id AS project, id, goal_id AS goal, state, phase, reason, created_at, result_source_id IS NOT NULL AS has_result
-             FROM sophia.native_task_view ${scope()} ORDER BY created_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'native_outbox',
-    () => `SELECT project_id AS project, id, destination, state, attempts, outcome_reason, available_at, created_at
-             FROM sophia.outbox ${scope()} AND (destination LIKE 'native.%' OR destination = 'control.settle')
-            ORDER BY created_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'runtime_commands',
-    () => `SELECT c.project_id AS project, c.runtime_id AS runtime, c.seq, c.kind, c.answered_stage, c.created_at,
-                  (SELECT array_agg(r.stage ORDER BY r.recorded_at) FROM sophia.runtime_receipts r
-                    WHERE r.project_id = c.project_id AND r.runtime_command_id = c.id) AS receipts
-             FROM sophia.runtime_commands c ${scope('c.project_id')} ORDER BY c.created_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'exchanges',
-    () => `SELECT e.project_id AS project, e.room_id AS room, e.id, e.state, e.pause_reason, e.allow_vision, e.input_epoch,
-                  i.actor_id AS holder, e.playback_epoch, e.observation_epoch, e.look_source, e.opened_at, e.ended_at
-             FROM sophia.room_exchanges e LEFT JOIN sophia.exchange_inputs i ON i.exchange_id = e.id AND i.input_epoch = e.input_epoch
-             ${scope('e.project_id')} ORDER BY e.opened_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'presence',
-    () => `SELECT project_id AS project, room_id AS room, exchange_id AS exchange, bridge_instance, voice, reason, guests_present,
-                  (SELECT jsonb_agg(jsonb_build_object('standing', p->>'standing')) FROM jsonb_array_elements(participants) p) AS participants,
-                  reported_at, now() - reported_at AS age FROM sophia.room_ai_presence ${scope()}`,
-  ],
-  [
-    'quiesce_requests',
-    () => `SELECT project_id AS project, exchange_id AS exchange, id, requested_at, acked_at, acked_by
-             FROM sophia.room_quiesce_requests ${scope()} ORDER BY requested_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'announcements',
-    () => `SELECT project_id AS project, exchange_id AS exchange, job_id AS job, result_revision, announced_at
-             FROM sophia.exchange_announcements ${scope()} ORDER BY announced_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'removals',
-    () => `SELECT project_id AS project, room_id AS room, lobby_entry_id AS entry, reason, state, attempts, last_error,
-                  next_attempt_at, guard_until, created_at, settled_at FROM sophia.room_removals ${scope()}
-            ORDER BY created_at DESC LIMIT ${limit}`,
-  ],
-  [
-    'lobby',
-    () => `SELECT project_id AS project, status, count(*)::int AS entries FROM sophia.room_lobby ${scope()}
-            GROUP BY project_id, status ORDER BY project_id, status`,
-  ],
-  [
-    'events',
-    () => `SELECT project_id AS project, sequence, type, summary_code, occurred_at FROM sophia.project_events ${scope()}
-            ORDER BY occurred_at DESC LIMIT ${limit}`,
-  ],
+const TASK_STATES = ['pending', 'running', 'succeeded', 'failed', 'cancelled', 'outcome_unknown'] as const
+const PHASES = [
+  'queued',
+  'dispatched',
+  'running',
+  'result_ready',
+  'holding',
+  'held',
+  'stopping',
+  'stopped',
+  'denied',
+  'failed',
+  'outcome_unknown',
+] as const
+
+interface Section {
+  name: string
+  sql: () => string
+  schema: RowSchema
+}
+
+const SECTIONS: readonly Section[] = [
+  {
+    name: 'migrations',
+    sql: () => `SELECT version, filename, sha256, applied_at FROM sophia_meta.schema_migrations ORDER BY version`,
+    schema: { version: 'code', filename: 'migration', sha256: 'sha256', applied_at: 'time' },
+  },
+  {
+    name: 'runtimes',
+    sql: () => `SELECT project_id, id, runtime_unit_id, state, lease_epoch, bridge_instance_id, hello_at, ready_state,
+                       ready_reason, ready_at, seen_at, jsonb_array_length(unrecovered) AS unrecovered, command_sequence
+                  FROM sophia.runtime_instances ${scope()} ORDER BY created_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      id: 'id',
+      runtime_unit_id: 'digest',
+      state: { enum: ['active', 'revoked'] },
+      lease_epoch: 'int',
+      bridge_instance_id: 'digest',
+      hello_at: 'time',
+      ready_state: { enum: ['ready', 'not_ready'] },
+      ready_reason: 'text',
+      ready_at: 'time',
+      seen_at: 'time',
+      unrecovered: 'int',
+      command_sequence: 'int',
+    },
+  },
+  {
+    name: 'native_tasks',
+    sql: () => `SELECT project_id, id, goal_id, state, phase, reason, created_at, result_source_id IS NOT NULL AS has_result
+                  FROM sophia.native_task_view ${scope()} ORDER BY created_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      id: 'id',
+      goal_id: 'id',
+      state: { enum: TASK_STATES },
+      phase: { enum: PHASES },
+      reason: 'text',
+      created_at: 'time',
+      has_result: 'bool',
+    },
+  },
+  {
+    name: 'native_outbox',
+    sql: () => `SELECT project_id, id, destination, state, attempts, outcome_reason, available_at, created_at
+                  FROM sophia.outbox ${scope()} AND (destination LIKE 'native.%' OR destination = 'control.settle')
+                 ORDER BY created_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      id: 'id',
+      destination: 'code',
+      state: {
+        enum: ['pending', 'dispatching', 'acknowledged', 'outcome_unknown', 'settled', 'superseded', 'denied'],
+      },
+      attempts: 'int',
+      outcome_reason: 'text',
+      available_at: 'time',
+      created_at: 'time',
+    },
+  },
+  {
+    name: 'runtime_commands',
+    sql: () => `SELECT c.project_id, c.runtime_id, c.seq, c.kind, c.answered_stage, c.created_at,
+                       (SELECT string_agg(r.stage, ',' ORDER BY r.recorded_at) FROM sophia.runtime_receipts r
+                         WHERE r.project_id = c.project_id AND r.runtime_command_id = c.id) AS receipts
+                  FROM sophia.runtime_commands c ${scope('c.project_id')} ORDER BY c.created_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      runtime_id: 'id',
+      seq: 'int',
+      kind: { enum: ['create', 'resume', 'input', 'steer', 'hold', 'stop', 'inspect'] },
+      answered_stage: 'code',
+      receipts: 'code',
+      created_at: 'time',
+    },
+  },
+  {
+    name: 'exchanges',
+    sql: () => `SELECT e.project_id, e.room_id, e.id, e.state, e.pause_reason, e.allow_vision, e.input_epoch,
+                       i.actor_id AS holder, e.playback_epoch, e.observation_epoch, e.look_source, e.opened_at, e.ended_at
+                  FROM sophia.room_exchanges e
+                  LEFT JOIN sophia.exchange_inputs i ON i.exchange_id = e.id AND i.input_epoch = e.input_epoch
+                  ${scope('e.project_id')} ORDER BY e.opened_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      room_id: 'id',
+      id: 'id',
+      state: { enum: ['open', 'paused', 'ended'] },
+      pause_reason: { enum: ['guest', 'holder_left'] },
+      allow_vision: 'bool',
+      input_epoch: 'int',
+      holder: 'id',
+      playback_epoch: 'int',
+      observation_epoch: 'int',
+      look_source: { enum: ['screen', 'camera'] },
+      opened_at: 'time',
+      ended_at: 'time',
+    },
+  },
+  {
+    name: 'presence',
+    sql: () => `SELECT project_id, room_id, exchange_id, bridge_instance, voice, reason, guests_present,
+                       (SELECT count(*) FROM jsonb_array_elements(participants))::int AS participants,
+                       (SELECT count(*) FROM jsonb_array_elements(participants) p
+                         WHERE p->>'standing' IN ('guest','unknown'))::int AS guest_like,
+                       reported_at, extract(epoch FROM now() - reported_at) AS age_seconds
+                  FROM sophia.room_ai_presence ${scope()}`,
+    schema: {
+      project_id: 'id',
+      room_id: 'id',
+      exchange_id: 'id',
+      bridge_instance: 'digest',
+      voice: { enum: ['connecting', 'ready', 'recovering', 'unavailable'] },
+      reason: 'text',
+      guests_present: 'bool',
+      participants: 'int',
+      guest_like: 'int',
+      reported_at: 'time',
+      age_seconds: 'seconds',
+    },
+  },
+  {
+    name: 'quiesce_requests',
+    sql: () => `SELECT project_id, exchange_id, id, requested_at, acked_at, acked_by
+                  FROM sophia.room_quiesce_requests ${scope()} ORDER BY requested_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      exchange_id: 'id',
+      id: 'id',
+      requested_at: 'time',
+      acked_at: 'time',
+      acked_by: 'digest',
+    },
+  },
+  {
+    name: 'announcements',
+    sql: () => `SELECT project_id, exchange_id, job_id, result_revision, announced_at
+                  FROM sophia.exchange_announcements ${scope()} ORDER BY announced_at DESC LIMIT ${limit}`,
+    schema: { project_id: 'id', exchange_id: 'id', job_id: 'id', result_revision: 'int', announced_at: 'time' },
+  },
+  {
+    name: 'removals',
+    sql: () => `SELECT project_id, room_id, lobby_entry_id, reason, state, attempts, last_error, next_attempt_at,
+                       guard_until, created_at, settled_at
+                  FROM sophia.room_removals ${scope()} ORDER BY created_at DESC LIMIT ${limit}`,
+    schema: {
+      project_id: 'id',
+      room_id: 'id',
+      lobby_entry_id: 'id',
+      reason: { enum: ['denied', 'blocked'] },
+      state: { enum: ['pending', 'removed', 'absent', 'cancelled'] },
+      attempts: 'int',
+      last_error: 'text',
+      next_attempt_at: 'time',
+      guard_until: 'time',
+      created_at: 'time',
+      settled_at: 'time',
+    },
+  },
+  {
+    name: 'lobby',
+    sql: () => `SELECT project_id, status, count(*)::int AS entries FROM sophia.room_lobby ${scope()}
+                 GROUP BY project_id, status ORDER BY project_id, status`,
+    schema: {
+      project_id: 'id',
+      status: { enum: ['waiting', 'admitted', 'denied', 'left', 'blocked'] },
+      entries: 'int',
+    },
+  },
+  {
+    name: 'events',
+    sql: () => `SELECT project_id, sequence, type, summary_code, occurred_at FROM sophia.project_events ${scope()}
+                 ORDER BY occurred_at DESC LIMIT ${limit}`,
+    schema: { project_id: 'id', sequence: 'int', type: 'code', summary_code: 'code', occurred_at: 'time' },
+  },
 ]
+
+/** A failed section says only which Postgres error class it hit (e.g. 42P01: that migration is not applied). */
+const failure = (err: unknown) => ({
+  error:
+    typeof err === 'object' && err !== null && 'code' in err
+      ? field('code', `pg_${String(err.code).toLowerCase()}`)
+      : 'failed',
+})
 
 async function database(url: string): Promise<Record<string, unknown>> {
   const client = new pg.Client({ connectionString: url })
   await client.connect()
   const out: Record<string, unknown> = {}
   try {
-    await client.query('BEGIN READ ONLY')
-    for (const [name, sql] of SECTIONS) {
+    for (const section of SECTIONS) {
+      await client.query('BEGIN READ ONLY')
       try {
-        const { rows } = await client.query<Record<string, unknown>>(sql(), params())
-        out[name] = rows.map(sanitize)
+        const { rows } = await client.query<Record<string, unknown>>(section.sql(), params())
+        out[section.name] = rows.map((row) => sanitizeRow(row, section.schema))
       } catch (err: unknown) {
-        // A missing table means that migration is not applied: say so and carry on.
-        out[name] = { error: err instanceof Error ? cut(err.message) : 'query failed' }
+        out[section.name] = failure(err)
+      } finally {
         await client.query('ROLLBACK')
-        await client.query('BEGIN READ ONLY')
       }
     }
   } finally {
-    await client.query('ROLLBACK').catch(() => undefined)
     await client.end()
   }
   return out
@@ -128,20 +259,8 @@ async function database(url: string): Promise<Record<string, unknown>> {
 const PARTICIPANT_STATE = ['joining', 'joined', 'active', 'disconnected']
 const TRACK_SOURCE = ['unknown', 'camera', 'microphone', 'screen_share', 'screen_share_audio']
 const TRACK_TYPE = ['audio', 'video', 'data']
-const named = (names: readonly string[], n: number) => names[n] ?? String(n)
-
-/** Only what the room shows about standing and state: never names, metadata beyond standing, or tokens. */
-function standing(metadata: string | undefined): string {
-  try {
-    const v: unknown = JSON.parse(metadata ?? 'null')
-    if (typeof v !== 'object' || v === null) return 'unknown'
-    if ('sophia' in v && v.sophia === true) return 'sophia'
-    if ('guest' in v && v.guest === true) return 'guest'
-    return 'role' in v && typeof v.role === 'string' ? v.role : 'unknown'
-  } catch {
-    return 'unknown'
-  }
-}
+const named = (names: readonly string[], n: number) => names[n] ?? 'invalid'
+const epochTime = (seconds: bigint) => field('time', new Date(Number(seconds) * 1000))
 
 async function livekit(): Promise<unknown> {
   const url = process.env.LIVEKIT_URL
@@ -153,20 +272,21 @@ async function livekit(): Promise<unknown> {
   const rooms = await client.listRooms()
   return Promise.all(
     rooms.slice(0, limit).map(async (r) => ({
-      room: short(r.name),
-      sid: r.sid,
-      created: new Date(Number(r.creationTime) * 1000).toISOString(),
+      room: shortId(r.name),
+      // LiveKit's room session id: what its traces are looked up by. Nothing else is taken from the room.
+      sid: /^RM_[A-Za-z0-9]{1,40}$/.test(r.sid) ? r.sid : 'invalid',
+      created: epochTime(r.creationTime),
       participants: (await client.listParticipants(r.name)).map((p) => ({
-        identity: p.identity === 'sophia' ? 'sophia' : short(p.identity),
+        identity: identityClass(p.identity),
         standing: standing(p.metadata),
         state: named(PARTICIPANT_STATE, p.state),
-        joinedAt: new Date(Number(p.joinedAt) * 1000).toISOString(),
+        joinedAt: epochTime(p.joinedAt),
         tracks: p.tracks.map((t) => ({
           source: named(TRACK_SOURCE, t.source),
           type: named(TRACK_TYPE, t.type),
           muted: t.muted,
         })),
-        sophia: Object.fromEntries(Object.entries(p.attributes).filter(([k]) => k.startsWith('sophia.'))),
+        sophia: sophiaAttributes(p.attributes),
       })),
     })),
   )
@@ -175,8 +295,8 @@ async function livekit(): Promise<unknown> {
 const url = process.env.SOPHIA_DIAGNOSE_DATABASE_URL
 const report = {
   generatedAt: new Date().toISOString(),
-  scope: project ? short(project) : 'all projects',
+  scope: project ? shortId(project) : 'all projects',
   database: url ? await database(url) : 'not requested (SOPHIA_DIAGNOSE_DATABASE_URL unset)',
-  livekit: await livekit().catch((err: unknown) => ({ error: err instanceof Error ? cut(err.message) : 'failed' })),
+  livekit: await livekit().catch(() => ({ error: 'livekit_request_failed' })),
 }
-console.log(JSON.stringify(report, (_k, v: unknown) => (typeof v === 'bigint' ? Number(v) : v), 2))
+console.log(JSON.stringify(report, null, 2))
