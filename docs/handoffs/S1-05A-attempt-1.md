@@ -53,14 +53,16 @@ These cases are **open**:
 
 | Case | Why it is open |
 |---|---|
-| A01 | The hosted tuple is unknown. [S1-05A-CC-0001](../coordination/S1-05A/S1-05A-CC-0001.md) is drafted but not sent, because no coordination issue exists yet. The reported Render auto-deploy of `deploy/render-vercel` (`ff22a249`, which predates the room work) remains an unverified hazard |
+| A01 | Partial and blocked. Codex observed the Render API live at `29a570c3`; the hosted ledger, the auto-deploy switch, the Vercel source commit and the hosts for the worker, bridge and execution host are unknown ([progress A01](../progress/S1-05A.md)). The reported Render auto-deploy of `deploy/render-vercel` (`ff22a249`, which predates the room work) remains an unverified hazard |
 | A04 | A real model brief needs an owner allowance and `OPENAI_API_KEY` on the execution host |
 | A05, A06 | Two humans with real Gemini need an owner allowance, `GEMINI_API_KEY`, LiveKit and a deployed bridge |
 | A07 | The voice half of steering, on a live run |
 
 ## Operator receipts
 
-None yet. The coordination issue is [#14](https://github.com/davidelaverga/Sophia/issues/14), requested by Davide on 2026-09-25. Claude posted [S1-05A-CC-0001](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834232644) unchanged, and the read-only supplement [S1-05A-CC-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834240066). CC-0002 covers the candidate services, their settings and one run of `apps/api/scripts/diagnose.ts`, and sets the evidence contract for production debugging. Both await Codex's `result`. No deployment or production test has been authorized or performed.
+None yet. The coordination issue is [#14](https://github.com/davidelaverga/Sophia/issues/14), requested by Davide on 2026-09-25. Claude posted [S1-05A-CC-0001](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834232644) unchanged, and the read-only supplement [S1-05A-CC-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834240066). CC-0002 covers the candidate services, their settings and one run of `apps/api/scripts/diagnose.ts`, and sets the evidence contract for production debugging.
+
+Codex answered both as `blocked`: its host has no provider credentials, and it asked Davide for a read-only access path. Its review finding on the diagnostic's public output was fixed at `833221c` and answered in [S1-05A-CC-0003](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834807704). The [coordination log](../coordination/S1-05A/README.md) lists every message. No deployment or production test has been authorized or performed.
 
 ## For review (Luis)
 
@@ -79,7 +81,7 @@ None yet. The coordination issue is [#14](https://github.com/davidelaverga/Sophi
 ## To turn it on (owner decisions, then a Codex execution request)
 
 Planned operation **S1-05A-OP-0002**. It is **not requested yet**. A complete request needs:
-- the observed deployed commit and schema ledger from CC-0001;
+- the observed deployed commit and schema ledger, the auto-deploy setting, and the hosts and settings for the worker, bridge and execution host (CC-0001 and CC-0002);
 - a reviewed candidate SHA;
 - an owner-confirmed target;
 - an expiry;
@@ -106,6 +108,6 @@ Schema reversal is not authorized. The compatible code rollback is the previousl
 
 ## Next bounded action
 
-1. Codex answers CC-0001 and CC-0002 in #14. Davide wakes it with: "Read coordination message S1-05A-CC-0001 in #14 and follow your existing role."
+1. Davide decides the read-only access path Codex asked for. Codex then completes CC-0001 and CC-0002 in #14.
 2. With the observed deployment, schema and settings, Claude drafts the complete OP-0002 `execution_request` in #14, for Davide's separate approval.
 3. Luis reviews A04–A07 and the viewer change.
