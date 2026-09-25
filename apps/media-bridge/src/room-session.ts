@@ -72,6 +72,27 @@ export const toAssignment = (a: MediaAssignment): Assignment => ({
 })
 
 const isGuestLike = (p: RoomPerson) => p.standing === 'guest' || p.standing === 'unknown'
+
+/** For logs: how many people of each standing, never who. */
+function standings(people: readonly RoomPerson[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const p of people) counts[p.standing] = (counts[p.standing] ?? 0) + 1
+  return counts
+}
+
+const epochs = (a: MediaAssignment) => ({
+  state: a.state,
+  pauseReason: a.pauseReason,
+  inputEpoch: a.inputEpoch,
+  playbackEpoch: a.playbackEpoch,
+  observationEpoch: a.observationEpoch,
+})
+
+/** For logs: a tool response's status (ok, admitted, refused, clarify, error), never its output. */
+function statusOf(response: FunctionResponse): unknown {
+  const output: unknown = response.response?.output
+  return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
+}
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 export type OutputState = 'idle' | 'responding' | 'playing'
@@ -145,6 +166,11 @@ export class RoomSession {
 
   /** Join the room first (so guests are seen before anything is heard), then connect Google. */
   async start(): Promise<void> {
+    this.deps.log('session.start', {
+      exchangeId: this.exchangeId,
+      roomId: this.assignment.roomId,
+      state: this.assignment.state,
+    })
     this.stopTicking = (this.deps.every ?? everyInterval)(() => this.tick(), TICK_MS)
     this.applyPause()
     this.ackQuiesce()
@@ -162,6 +188,7 @@ export class RoomSession {
     }
     this.room.watch(this.assignment.looking)
     this.onPeople(this.room.people())
+    this.deps.log('room.joined', { exchangeId: this.exchangeId, people: standings(this.people) })
     await this.connect()
   }
 
@@ -175,8 +202,12 @@ export class RoomSession {
   /** The API's newer view of this exchange. */
   update(next: MediaAssignment): void {
     const midTurn = this.responding
+    const before = this.assignment
     const change = this.state.update(toAssignment(next), this.deps.now())
     this.assignment = next
+    if (change.handoff || change.stopSpeaking || change.lookChanged || before.state !== next.state) {
+      this.deps.log('assignment.changed', { exchangeId: this.exchangeId, ...epochs(next), ...change })
+    }
     if (change.handoff) this.handoff()
     if (change.stopSpeaking) this.silence(midTurn)
     if (change.lookChanged) {
@@ -190,6 +221,7 @@ export class RoomSession {
 
   /** The exchange ended or moved away: leave the room and close Google. Work is untouched. */
   async close(): Promise<void> {
+    this.deps.log('session.close', { exchangeId: this.exchangeId, lost: this.lost })
     this.closed = true
     this.stopTicking?.()
     this.connection += 1
@@ -401,6 +433,7 @@ export class RoomSession {
   }
 
   private ready(connection: number): void {
+    this.deps.log('provider.ready', { exchangeId: this.exchangeId, connection, resumed: this.handle !== null })
     this.state.provider = 'ready'
     this.readyConnection = connection
     this.everReady = true
@@ -489,8 +522,11 @@ export class RoomSession {
     const name = call.name ?? ''
     const response = await this.toolOutcome(id, name, call.args ?? {}, connection)
     // Never answer a call the provider cancelled, or one from a connection that has since been replaced.
-    if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) return
+    if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) {
+      return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, name, connection })
+    }
     this.live?.sendToolResponses([response])
+    this.deps.log('tool.answered', { exchangeId: this.exchangeId, name, status: statusOf(response), connection })
   }
 
   private async toolOutcome(
