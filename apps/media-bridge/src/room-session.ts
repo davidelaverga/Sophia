@@ -102,6 +102,19 @@ function statusOf(response: FunctionResponse): unknown {
   return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
 }
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
+const shortString = (value: unknown) => (typeof value === 'string' && value.length <= 64 ? value : undefined)
+
+/** The ids a tool answer carries (the work it started or controlled, a refusal's code), for the log only. */
+function idsOf(response: FunctionResponse): Record<string, string> {
+  const output: unknown = response.response?.output
+  if (typeof output !== 'object' || output === null) return {}
+  const ids: Array<[string, string | undefined]> = [
+    ['workId', 'workId' in output ? shortString(output.workId) : undefined],
+    ['commandId', 'commandId' in output ? shortString(output.commandId) : undefined],
+    ['code', 'code' in output ? shortString(output.code) : undefined],
+  ]
+  return Object.fromEntries(ids.filter((entry): entry is [string, string] => entry[1] !== undefined))
+}
 
 export type OutputState = 'idle' | 'responding' | 'playing'
 /** Why a reply may still be on its way: the model is producing it, Google transcribed words, or sound was heard. */
@@ -625,7 +638,13 @@ export class RoomSession {
       return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, name, connection })
     }
     this.live?.sendToolResponses([response])
-    this.deps.log('tool.answered', { exchangeId: this.exchangeId, name, status: statusOf(response), connection })
+    this.deps.log('tool.answered', {
+      exchangeId: this.exchangeId,
+      name,
+      status: statusOf(response),
+      connection,
+      ...idsOf(response),
+    })
   }
 
   private async toolOutcome(id: string, name: string, args: Record<string, unknown>): Promise<FunctionResponse> {

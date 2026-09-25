@@ -64,7 +64,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.lobby_may_knock_again(sophia.room_lobby)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_hello(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.admit_native_task(uuid,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.start_exchange(uuid,bigint,boolean,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.start_exchange(uuid,bigint,boolean,text)') IS NOT NULL
+  AND to_regprocedure('sophia.claim_room_removals(text,integer,integer)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -175,6 +176,9 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
 }
 
 function sendError(req: FastifyRequest, reply: FastifyReply, status: number, body: Omit<ApiError, 'requestId'>) {
+  // A refusal's code is what an operator needs to tell a stale floor from a bad capability; the request line
+  // alone carries only the status. Codes and ids only: never a body or a message built from user input.
+  if (status < 500) req.log.info({ status, code: body.code }, 'request refused')
   return reply.status(status).send({ ...body, requestId: req.id })
 }
 

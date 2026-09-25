@@ -31,6 +31,12 @@ export interface DispatcherOptions {
   log?: (line: string) => void
 }
 
+/** A dispatch outcome as one log line: the result, and the runtime command or the reason. */
+const describe = (o: DispatchOutcome): string =>
+  o.result === 'enqueued'
+    ? `enqueued as runtime command ${o.runtimeCommandId} (seq ${o.seq})`
+    : `${o.result}: ${o.reason ?? ''}`
+
 /** One pass. Safe to run concurrently from several workers: claims skip locked rows. */
 export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): Promise<PassResult> {
   const expired = await expireDispatchLeases(pool)
@@ -41,7 +47,9 @@ export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): P
   for (const row of claimed) {
     if (!row.lease_token) continue
     try {
-      outcomes.push(await dispatchRuntimeOutbox(pool, row.project_id, row.id, row.lease_token))
+      const outcome = await dispatchRuntimeOutbox(pool, row.project_id, row.id, row.lease_token)
+      outcomes.push(outcome)
+      options.log?.(`dispatch outbox ${row.id}: ${describe(outcome)}`)
     } catch (err: unknown) {
       // The lease expired or was swept meanwhile: the row is reconciled from recorded state, never resent here.
       lost += 1

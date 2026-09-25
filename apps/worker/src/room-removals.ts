@@ -88,7 +88,11 @@ export class RemovalReconciler {
     this.running = true
     try {
       const { settled } = await reconcileRemovalsOnce(this.pool, this.remove, this.workerId)
-      for (const s of settled) if (s.state === 'pending') this.log(`room removal ${s.id} still pending; retrying`)
+      for (const s of settled) {
+        this.log(
+          s.state === 'pending' ? `room removal ${s.id} still pending; retrying` : `room removal ${s.id} ${s.state}`,
+        )
+      }
     } catch (err: unknown) {
       this.log(`room removal pass failed: ${message(err)}`)
     } finally {

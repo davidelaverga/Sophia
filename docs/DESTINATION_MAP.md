@@ -84,7 +84,7 @@ a path updates its row in the same commit.
 | `db/migrations/` | built | S1-02, S1-04, S1-04A, S1-05A | Pack 0001–0004 verbatim plus 0005–0014 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results, project room and input floor, room access: invitations, lobby, sessions; lobby decline for now and block for good; runtime service, discussion and draft_brief; the room exchange, bridge presence, guest quiescence and holder departure; durable room removals); no automatic old-DB migration |
 | `db/tests/` | built | S1-02 | The pack's SQL test, run after the migrations |
 | `supabase/` | built | S1-02 | Supabase CLI config for the local stack (ES256 signing keys, Auth redirects) |
-| `deploy/` | partial | S1-02, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate). S1-14 adds Render, execution-host and Vercel manifests |
+| `deploy/` | partial | S1-02, S1-05A, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate) and `deploy/S1-05A-release.md` (the five processes, their settings, and how to debug them in production). S1-14 adds Render, execution-host and Vercel manifests |
 | `tests/unit/` | built | S1-01 | Toolchain, digest, patch-lint, dump-parse and map checks |
 | `tests/integration/` | partial | S1-01, S1-03, S1-05A, S1-14 | Built: profile gate, control bridge, roles, runtime supervisor and the live-steer rehearsal, all against the real pinned dsh; S1-05A adds the runtime service crossing (pinned dsh ↔ real API, PostgreSQL and worker). S1-14 adds the release crossings |
 | `tests/contracts/` | unbuilt | S1-02 | Contract fixtures |

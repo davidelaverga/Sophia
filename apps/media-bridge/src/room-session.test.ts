@@ -424,6 +424,13 @@ describe('room session: tools (cases A10, A13)', () => {
     assert.equal(service.calls[0]?.callId, 'call-1')
     assert.deepEqual(live.responses[0]?.response, { output: { status: 'admitted', workId: TASK } })
     assert.equal(live.responses[0]?.willContinue, false)
+    const answered = logs.find(([event]) => event === 'tool.answered')?.[1]
+    assert.deepEqual(
+      [answered?.name, answered?.status, answered?.workId],
+      ['start_brief', 'admitted', TASK],
+      'the log ties the call to the work it started, without its text',
+    )
+    assert.equal(JSON.stringify(logs).includes('Draft the brief'), false)
   })
 
   it('an unattributed call is a question, never an action', async () => {
