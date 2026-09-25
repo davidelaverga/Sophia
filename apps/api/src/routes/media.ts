@@ -82,13 +82,19 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps):
     '/v1/media/assignments',
     { schema: { querystring: pollQuery, response: { 200: { $ref: 'MediaAssignmentBatch#' } } } },
     async (req) => {
-      let current = await currentAssignments(pool)
       const waitMs = Math.min(Number(req.query.waitMs), 25_000)
-      if (req.query.after === current.version && waitMs > 0) {
-        await hub.wait(null, waitMs, closedSignal(req))
-        current = await currentAssignments(pool)
+      // Listening starts before the read, so a change committed after the read still wakes the wait at once.
+      const waiter = await hub.arm(null)
+      try {
+        let current = await currentAssignments(pool)
+        if (req.query.after === current.version && waitMs > 0) {
+          await waiter.wait(waitMs, closedSignal(req))
+          current = await currentAssignments(pool)
+        }
+        return { assignments: await withTokens(livekit, current.list), version: current.version }
+      } finally {
+        waiter.cancel()
       }
-      return { assignments: await withTokens(livekit, current.list), version: current.version }
     },
   )
 

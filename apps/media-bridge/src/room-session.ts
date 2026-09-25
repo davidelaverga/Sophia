@@ -60,6 +60,8 @@ const STOPPED_REPLY_WAIT_MS = 8000
 /** Once a stopped reply's audio pauses this long, it is over. */
 const STOPPED_TAIL_MS = 3000
 const UNAVAILABLE_RETRY_MS = 30_000
+/** A result notice whose turn ends unheard this many times is not sent again by this session. */
+const NOTICE_ATTEMPTS = 3
 const CALL_ID = /^[A-Za-z0-9_.:-]{1,64}$/
 
 export const toAssignment = (a: MediaAssignment): Assignment => ({
@@ -169,7 +171,11 @@ export class RoomSession {
   private reporting = false
   private published = ''
   private readonly acked = new Set<string>()
+  /** Results sent to Google as a notice: while one waits to be heard, and once it was heard. */
   private readonly announced = new Set<string>()
+  /** The notice sent and not yet heard: it is recorded as announced only once its audio reached the room. */
+  private notice: { key: string; event: { exchangeId: string; taskId: string; resultRevision: number } } | null = null
+  private readonly noticeAttempts = new Map<string, number>()
   private readonly cancelled = new Set<string>()
   private stopTicking: (() => void) | null = null
   private joining = false
@@ -549,6 +555,7 @@ export class RoomSession {
     this.awaitingReply = false
     this.heardAt = null
     this.discardUntil = 0
+    this.noticeUnheard()
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
@@ -586,6 +593,7 @@ export class RoomSession {
         if (!frame) break
         await room.play(frame)
         this.playingUntil = this.deps.now() + PLAYING_TAIL_MS
+        this.noticeHeard()
       }
     } catch (err: unknown) {
       this.deps.log('audio.playback_failed', { error: message(err) })
@@ -679,25 +687,57 @@ export class RoomSession {
     this.live.sendFrame(toJpeg(frame))
   }
 
-  /** A finished brief is announced once, when Sophia is idle and the room is member-only. */
+  /**
+   * A finished brief is announced once, when Sophia is idle and the room is member-only. It counts as announced
+   * (and the API stops listing it) only once the notice's reply reached the room; one lost with the provider, or
+   * interrupted before a frame played, is sent again later.
+   */
   private announce(now: number): void {
     const live = this.live
     const input = this.state.input(now)
-    const busy = this.responding || this.awaitingReply || this.playingUntil > now
-    if (!live || this.state.provider !== 'ready' || busy) return
+    if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
     if (input === 'paused' || input === 'settling') return
     const next = this.assignment.results.find((r) => !this.announced.has(`${r.taskId}:${r.resultRevision}`))
     if (!next) return
-    this.announced.add(`${next.taskId}:${next.resultRevision}`)
+    const key = `${next.taskId}:${next.resultRevision}`
+    this.announced.add(key)
+    const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
+    this.notice = { key, event }
     this.state.systemTurn()
     live.sendNotice(
       `[Sophia system notice] The brief you drafted is ready in the project (taskId ${next.taskId}). ` +
         'Tell the room in one short sentence. Read it only if someone asks (read_selected_source with that taskId).',
     )
-    const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
+  }
+
+  /**
+   * Nothing is being said, on its way or left to play, and no notice waits to be heard: the next frame the room
+   * hears belongs to whatever is sent now.
+   */
+  private silent(now: number): boolean {
+    if (this.responding || this.awaitingReply || this.notice !== null) return false
+    return this.playingUntil <= now && !this.pumping && this.framer.queued === 0
+  }
+
+  /** A frame reached the room while a notice waited: the room heard it, so it is announced, durably. */
+  private noticeHeard(): void {
+    const notice = this.notice
+    if (!notice) return
+    this.notice = null
     this.deps.service
-      .announced(event)
+      .announced(notice.event)
       .catch((err: unknown) => this.deps.log('announce.record_failed', { error: message(err) }))
+  }
+
+  /** The notice's turn ended and nothing of it is still to play: it was not heard, so it may be sent again. */
+  private noticeUnheard(): void {
+    const notice = this.notice
+    if (!notice || this.framer.queued > 0 || this.pumping) return
+    this.notice = null
+    const attempts = (this.noticeAttempts.get(notice.key) ?? 0) + 1
+    this.noticeAttempts.set(notice.key, attempts)
+    if (attempts < NOTICE_ATTEMPTS) this.announced.delete(notice.key)
+    this.deps.log('announce.not_heard', { exchangeId: this.exchangeId, taskId: notice.event.taskId, attempts })
   }
 
   /** Room attributes when they change; the API's presence when it changed or every PRESENCE_EVERY_MS. */

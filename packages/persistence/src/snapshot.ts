@@ -37,6 +37,10 @@ interface ResourceRow {
   /** A registered dsh runtime's bridge readiness (0012); null for any other resource. */
   ready_state: 'ready' | 'not_ready' | null
   ready_at: Date | null
+  /** Its last hello, ready report or command poll. */
+  seen_at: Date | null
+  /** Ready on its current lease and seen within 90 s: what dispatch requires (0012 runtime_unavailable). */
+  available: boolean | null
   running: boolean
 }
 
@@ -122,12 +126,24 @@ async function readGoals(c: pg.PoolClient, projectId: string): Promise<Goal[]> {
 
 /**
  * External resources (S1-09) have no live observation yet, so they report unknown. A dsh runtime reports what
- * its bridge last said (0012): online only while the bridge's ready report stands, running while one of its
- * bindings runs. A bridge that never said ready is unknown, not offline.
+ * its bridge last said (0012): online only while its ready report stands and it was seen within 90 s (the rule
+ * dispatch uses), running while one of its bindings runs. A ready bridge that stopped being seen, or one that
+ * said not_ready, is offline; a bridge that never said ready is unknown.
  */
+function runtimeStates(r: ResourceRow): Pick<Resource, 'hostState' | 'nativeState' | 'observedAt'> {
+  const seen = r.seen_at ?? r.ready_at
+  const observedAt = seen ? seen.toISOString() : null
+  if (r.ready_state === 'ready' && r.available) {
+    return { hostState: 'online', nativeState: r.running ? 'running' : 'idle', observedAt }
+  }
+  const offline = r.ready_state === 'ready' || (r.ready_state === 'not_ready' && r.ready_at !== null)
+  return { hostState: offline ? 'offline' : 'unknown', nativeState: 'unknown', observedAt }
+}
+
 async function readResources(c: pg.PoolClient, projectId: string): Promise<Resource[]> {
   const { rows } = await c.query<ResourceRow>(
     `SELECT r.id, r.owner_id, r.label, r.harness, r.state, r.allowed_operations, rs.ready_state, rs.ready_at,
+            rs.seen_at, rs.available,
             EXISTS (SELECT 1 FROM sophia.execution_bindings b WHERE b.project_id = r.project_id AND b.resource_id = r.id
                       AND b.state IN ('launching', 'running')) AS running
        FROM sophia.executor_resources r
@@ -141,10 +157,7 @@ async function readResources(c: pg.PoolClient, projectId: string): Promise<Resou
     ownerId: r.owner_id,
     label: r.label,
     harness: r.harness,
-    hostState:
-      r.ready_state === 'ready' ? 'online' : r.ready_state === 'not_ready' && r.ready_at ? 'offline' : 'unknown',
-    nativeState: r.ready_state !== 'ready' ? 'unknown' : r.running ? 'running' : 'idle',
-    observedAt: r.ready_at ? r.ready_at.toISOString() : null,
+    ...runtimeStates(r),
     model: null,
     effort: null,
     authorityState: r.state,

@@ -817,10 +817,14 @@ CREATE VIEW sophia.native_task_view WITH (security_barrier, security_invoker) AS
  WHERE j.kind='draft_brief';
 GRANT SELECT ON sophia.native_task_view TO sophia_api;
 
--- Runtime readiness for the snapshot's resources, without exposing the capability rows.
-CREATE FUNCTION sophia.runtime_status(p_project uuid) RETURNS TABLE(resource_id uuid, ready_state text, hello_at timestamptz, ready_at timestamptz)
+-- Runtime readiness for the snapshot's resources, without exposing the capability rows. `available` is the
+-- dispatch rule (runtime_unavailable): a ready report that stands and a heartbeat within 90 s, so a bridge that
+-- died without saying not_ready stops reading online.
+CREATE FUNCTION sophia.runtime_status(p_project uuid)
+RETURNS TABLE(resource_id uuid, ready_state text, hello_at timestamptz, ready_at timestamptz, seen_at timestamptz, available boolean)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
- SELECT r.resource_id, r.ready_state, r.hello_at, r.ready_at FROM sophia.runtime_instances r
+ SELECT r.resource_id, r.ready_state, r.hello_at, r.ready_at, r.seen_at, sophia.runtime_unavailable(r) IS NULL
+  FROM sophia.runtime_instances r
   WHERE r.project_id=p_project AND r.state='active' AND sophia.is_member(p_project) $$;
 
 REVOKE ALL ON FUNCTION

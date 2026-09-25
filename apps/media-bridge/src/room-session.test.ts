@@ -709,19 +709,59 @@ describe('room session: finished work (case A06)', () => {
     session.tick()
     assert.equal(live.notices.length, 0, 'not while Sophia is responding')
     live.events.turnComplete()
+    session.tick()
+    assert.equal(live.notices.length, 0, 'not while her last reply is still to play')
+    await flush()
+    await flush()
     clock += 1000
     session.tick()
-    await flush()
     assert.equal(live.notices.length, 1)
     assert.match(live.notices[0] ?? '', new RegExp(TASK))
+    assert.deepEqual(service.announcedEvents, [], 'sent is not heard')
+    live.events.audio(speech(), OUT)
+    await flush()
+    await flush()
     assert.deepEqual(service.announcedEvents, [{ exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1 }])
     live.events.toolCalls([{ id: 'after-notice', name: 'control_work', args: { taskId: TASK, action: 'stop' } }])
     await flush()
     assert.equal(service.calls.length, 0, 'a tool call in the notice turn is not attributed to anyone')
+    live.events.turnComplete()
     session.update(assignment({ results, roomRevision: 2 }))
     clock += 1000
     session.tick()
     assert.equal(live.notices.length, 1, 'announced once')
+  })
+
+  it('a notice lost with the provider before anyone heard it is sent again, and recorded once heard', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
+    const { session, live } = await ready({ results })
+    session.tick()
+    assert.equal(live.notices.length, 1)
+    live.events.closed('network lost')
+    assert.deepEqual(service.announcedEvents, [], 'nobody heard it')
+    clock += 1000
+    session.tick()
+    await flush()
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    session.tick()
+    assert.equal(next.notices.length, 1, 'sent again on the new connection')
+    next.events.audio(speech(), OUT)
+    await flush()
+    await flush()
+    assert.deepEqual(service.announcedEvents, [{ exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1 }])
+  })
+
+  it('a notice answered with silence three times is left for a later session, unrecorded', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
+    const { session, live } = await ready({ results })
+    for (let i = 0; i < 4; i += 1) {
+      session.tick()
+      live.events.turnComplete()
+    }
+    assert.equal(live.notices.length, 3)
+    assert.deepEqual(service.announcedEvents, [])
   })
 
   it('does not announce while paused for a guest', async () => {

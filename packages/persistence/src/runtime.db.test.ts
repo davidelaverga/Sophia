@@ -275,6 +275,12 @@ describe('dispatch waits for a ready runtime', () => {
     }
     const dueNow = () =>
       owner((c) => c.query(`UPDATE sophia.outbox SET available_at = now() WHERE project_id = $1`, [project.projectId]))
+    // What the room is shown of the runtime follows the same rule as dispatch.
+    const host = async () => {
+      const snap = await withActor(pool, E, 'read', (c) => readSnapshot(c, project.projectId))
+      const runtime = snap?.resources.find((r) => r.harness === 'dsh')
+      return [runtime?.hostState, runtime?.nativeState]
+    }
 
     assert.deepEqual(
       (await dispatchAll(project.projectId)).map((o) => o.result),
@@ -282,6 +288,7 @@ describe('dispatch waits for a ready runtime', () => {
       'registered, never connected',
     )
     assert.deepEqual(await phase(), ['queued', "waiting for Sophia's runtime to connect"])
+    assert.deepEqual(await host(), ['unknown', 'unknown'], 'never said ready: unknown, not offline')
     assert.deepEqual(await dispatchAll(project.projectId), [], 'retried after a short wait, not at once')
 
     const bridge = randomUUID()
@@ -308,6 +315,7 @@ describe('dispatch waits for a ready runtime', () => {
       'ready, but not seen for two minutes',
     )
     assert.equal((await phase())[1], "waiting for Sophia's runtime to reconnect")
+    assert.deepEqual(await host(), ['offline', 'unknown'], 'a ready report is not online once the runtime is gone')
 
     await withService(pool, (c) => runtimePoll(c, who, 0))
     await dueNow()
@@ -317,6 +325,7 @@ describe('dispatch waits for a ready runtime', () => {
       'a poll shows it is there',
     )
     assert.deepEqual(await phase(), ['dispatched', null], 'the waiting reason is cleared once it is sent')
+    assert.deepEqual(await host(), ['online', 'running'], 'seen again: online, and the sent brief is running')
   })
 })
 

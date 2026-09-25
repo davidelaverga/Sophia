@@ -89,8 +89,9 @@ export function runtimeRoutes(app: FastifyInstance, { pool, hub }: Deps): void {
     async (req) => withService(pool, (c) => runtimeHello(c, callerOf(req), req.body)),
   )
 
-  // Long poll: read, and when nothing is queued, wait for this runtime's notification (or the timeout), then
-  // read once more. The second read also covers a command committed between the first read and the wait.
+  // Long poll: read, and when nothing is queued, listen for this runtime's notification, read again (a command
+  // committed before the listening began), then wait for the notification or the timeout and read once more.
+  // Listening before the second read means a command committed at any point wakes the wait at once.
   app.get<{ Querystring: { after: string; waitMs: string } }>(
     '/v1/runtime/commands',
     {
@@ -101,9 +102,17 @@ export function runtimeRoutes(app: FastifyInstance, { pool, hub }: Deps): void {
       const { after, waitMs } = pollBounds(req.query)
       const first = await withService(pool, (c) => runtimePoll(c, who, after))
       if (first.commands.length > 0 || waitMs === 0) return { commands: first.commands, cursor: first.cursor }
-      await hub.wait(first.runtimeId, waitMs, closedSignal(req))
-      const next = await withService(pool, (c) => runtimePoll(c, who, after))
-      return { commands: next.commands, cursor: next.cursor }
+      const waiter = await hub.arm(first.runtimeId)
+      try {
+        let next = await withService(pool, (c) => runtimePoll(c, who, after))
+        if (next.commands.length === 0) {
+          await waiter.wait(waitMs, closedSignal(req))
+          next = await withService(pool, (c) => runtimePoll(c, who, after))
+        }
+        return { commands: next.commands, cursor: next.cursor }
+      } finally {
+        waiter.cancel()
+      }
     },
   )
 

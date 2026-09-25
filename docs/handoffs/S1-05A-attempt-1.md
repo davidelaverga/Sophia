@@ -21,7 +21,8 @@
 | `b126ce6` | D: durable removal of a declined guest; the handoff |
 | `2f76776`, `833221c` | A read-only production diagnostic with an allowlisted public output (Codex finding CX-0001) |
 | `5e057b3` | Codex code review, round 1: dispatch waits for a ready runtime; a stop fences a transcribed reply before its first audio; a failed room join is retried; a brief retry resends the frozen request |
-| (this commit) | Codex code review, round 2: a stop also fences a reply to sound the holder made before any transcript; a brief is captured once, so a later steer's turn cannot replace it |
+| `27d3acf` | Codex code review, round 2: a stop also fences a reply to sound the holder made before any transcript; a brief is captured once, so a later steer's turn cannot replace it |
+| (this commit) | Codex code review, round 3: both long polls listen before the read that decides to wait; the room shows a runtime online only while dispatch would use it; a result notice counts as announced only once the room heard it; dev-stack runtime data lives under the system tmpdir |
 
 ## Evidence
 
@@ -94,7 +95,7 @@ Its inputs are already fixed by this branch:
 
 | Migration | SHA-256 (as the runner records it) |
 |---|---|
-| `0012_runtime_service.sql` | `3b296dbf7d0674aa10f97e98944d043d58972c84cd42a9277bc420c2f3005b4e` |
+| `0012_runtime_service.sql` | `0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f` |
 | `0013_room_exchange.sql` | `b04e41c227551554f6e451c84fe7ce7ffb4def50ee20ef4e5dece2047f58cb45` |
 | `0014_room_removals.sql` | `55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2` |
 

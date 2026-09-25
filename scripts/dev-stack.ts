@@ -15,6 +15,8 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { readEnvFile, requireKeys } from './lib/env-file.ts'
@@ -130,10 +132,14 @@ function startWorker(workerEnv: Record<string, string>): ChildProcess {
   })
 }
 
-/** The dsh runtime under the execution-host supervisor, bound to this API; rehearsal uses the mock model. */
+/**
+ * The dsh runtime under the execution-host supervisor, bound to this API; rehearsal uses the mock model. Its home,
+ * journals and sessions are runtime data, kept outside the tree (AGENTS.md): <tmpdir>/sophia-next/dev-stack/<project>.
+ */
 function startRuntime(runtimeEnv: Record<string, string>, mode: string): ChildProcess {
   if (mode !== 'rehearse' && mode !== 'live') throw new Error('--runtime is rehearse or live')
-  const root = `.sophia-runtime/${runtimeEnv.SOPHIA_PROJECT_ID ?? 'dev'}`
+  const root = join(tmpdir(), 'sophia-next', 'dev-stack', runtimeEnv.SOPHIA_PROJECT_ID ?? 'dev')
+  console.log(`[dev-stack] runtime data: ${root}`)
   const args = ['scripts/runtime-host.mjs', '--root', root, ...(mode === 'rehearse' ? ['--rehearse'] : [])]
   return spawn(process.execPath, args, {
     stdio: 'inherit',
