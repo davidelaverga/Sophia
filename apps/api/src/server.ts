@@ -26,10 +26,15 @@ function inviteConfig(origins: readonly string[]): InviteConfig | undefined {
   return { secret, studioUrl }
 }
 
-/** Resend in production (RESEND_API_KEY, INVITE_FROM); a folder of files in development (SOPHIA_MAIL_DIR). */
+/**
+ * Resend in production (RESEND_API_KEY, INVITE_FROM); a folder of files in development (SOPHIA_MAIL_DIR).
+ * Email is optional: without a sender the API still starts, and invitations carry their link and QR.
+ */
 function inviteMailer(): Mailer | null {
   const resendKey = optional('RESEND_API_KEY')
-  if (resendKey) return resendMailer(resendKey, required('INVITE_FROM'))
+  const from = optional('INVITE_FROM')
+  if (resendKey && from) return resendMailer(resendKey, from)
+  if (resendKey) console.warn('RESEND_API_KEY is set without INVITE_FROM: invitation emails are off')
   const dir = optional('SOPHIA_MAIL_DIR')
   return dir ? folderMailer(dir) : null
 }
