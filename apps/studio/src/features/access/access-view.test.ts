@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { countdown, nextSession, qrPath, readJoinToken, sessionFromForm, sessionLabel } from './access-view.ts'
+import {
+  askAgainIn,
+  clock,
+  countdown,
+  freshJoinToken,
+  invitationState,
+  knockNote,
+  linkLimits,
+  nextSession,
+  PENDING_JOIN_MS,
+  qrPath,
+  readJoinToken,
+  sessionFromForm,
+  sessionLabel,
+} from './access-view.ts'
 
 const at = (iso: string) => Date.parse(iso)
 const session = (id: string, startsAt: string, endsAt: string) => ({ id, title: id, startsAt, endsAt, timeZone: 'UTC' })
@@ -12,6 +26,50 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(readJoinToken(token), token)
     assert.equal(readJoinToken('#short'), null)
     assert.equal(readJoinToken(`#${token}<script>`), null)
+  })
+
+  it('says what a room link still allows', () => {
+    assert.equal(
+      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 3, maxUses: 50 }),
+      'Works until Oct 2 · 3 of 50 uses',
+    )
+    assert.equal(
+      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 0, maxUses: 1 }),
+      'Works until Oct 2 · 0 of 1 use',
+    )
+  })
+
+  it('names an invitation’s state: what ended it first, then who it is for and the email', () => {
+    const now = at('2026-10-01T12:00:00Z')
+    const open = { role: 'editor' as const, uses: 0, revokedAt: null, expiresAt: '2026-10-08T12:00:00Z' }
+    assert.equal(invitationState({ ...open, emailStatus: 'sent' }, now), 'editor · email sent')
+    assert.equal(invitationState({ ...open, role: null, emailStatus: 'not_configured' }, now), 'not emailed')
+    assert.equal(invitationState({ ...open, uses: 1, emailStatus: 'sent' }, now), 'joined')
+    assert.equal(invitationState({ ...open, revokedAt: '2026-10-01T10:00:00Z', emailStatus: 'sent' }, now), 'cancelled')
+    assert.equal(invitationState({ ...open, expiresAt: '2026-09-30T12:00:00Z', emailStatus: 'failed' }, now), 'expired')
+  })
+
+  it('counts down the minute before a declined guest may ask again', () => {
+    const decided = '2026-10-01T12:00:00Z'
+    assert.equal(askAgainIn(decided, at('2026-10-01T12:00:18Z')), 42)
+    assert.equal(askAgainIn(decided, at('2026-10-01T12:01:00Z')), 0)
+    assert.equal(askAgainIn(null, 0), 0)
+    assert.equal(clock(42), '0:42')
+    assert.equal(clock(60), '1:00')
+  })
+
+  it('tells a first knock from someone who keeps asking', () => {
+    assert.deepEqual([knockNote(1), knockNote(2), knockNote(4)], ['', 'asked again', 'asked 4 times'])
+  })
+
+  it('keeps an opened link for the sign-in round trip, then lets it go', () => {
+    const token = 'b'.repeat(43)
+    const saved = JSON.stringify({ token, at: 1_000 })
+    assert.equal(freshJoinToken(saved, 1_000 + PENDING_JOIN_MS - 1), token)
+    assert.equal(freshJoinToken(saved, 1_000 + PENDING_JOIN_MS + 1), null)
+    assert.equal(freshJoinToken(JSON.stringify({ token: 'short', at: 1_000 }), 1_000), null)
+    assert.equal(freshJoinToken('not json', 0), null)
+    assert.equal(freshJoinToken(null, 0), null)
   })
 
   it('finds the next session that has not ended', () => {

@@ -1,9 +1,11 @@
-// S1-04A room access (migration 0010, contract amendment A02), level: sql-run. Same non-owner sophia_api
-// login and transaction-local actor as the API. Token hashes are random bytes here: the API derives them.
+// S1-04A room access (migrations 0010 and 0011, contract amendments A02 and A03), level: sql-run. Same
+// non-owner sophia_api login and transaction-local actor as the API. Token hashes are random bytes here: the
+// API derives them.
 import { randomBytes, randomUUID } from 'node:crypto'
-import type pg from 'pg'
+import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import type { LobbyDecision } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { createTestDatabase, seedProject, type SeededProject, type TestDatabase } from '@sophia/test-support'
 import {
@@ -81,9 +83,20 @@ const invite = (actor: string, req: InvitationRequest, hash = randomBytes(32), k
   )
 const knock = (actor: string, hash: Buffer, name: string) =>
   withActor(pool, actor, 'write', (c) => knockRoom(c, hash, name))
-const decide = (actor: string, entry: string, decision: 'admit' | 'deny') =>
+const decide = (actor: string, entry: string, decision: LobbyDecision['decision']) =>
   withActor(pool, actor, 'write', (c) => decideLobbyEntry(c, entry, decision))
 const snapshotOf = (actor: string) => withActor(pool, actor, 'read', (c) => readSnapshot(c, seed.projectId))
+
+/** Moves an entry's last decision two minutes back, as the owner: the minute before asking again has passed. */
+async function backdateDecision(entryId: string): Promise<void> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    await owner.query(`UPDATE sophia.room_lobby SET decided_at = now() - interval '2 minutes' WHERE id = $1`, [entryId])
+  } finally {
+    await owner.end()
+  }
+}
 
 describe('guest invitations and the lobby', () => {
   it('lets editors invite guests, idempotently per key; viewers and outsiders cannot', async () => {
@@ -129,17 +142,55 @@ describe('guest invitations and the lobby', () => {
   })
 
   // The lobby is one entry per person and room, so each test knocks with people new to the room.
-  it('keeps a denied guest out, counts each guest once, and stops at the use limit', async () => {
+  it('keeps a declined guest out of the call, counts each guest once, and stops at the use limit', async () => {
     const [ana, beto] = [randomUUID(), randomUUID()]
     const hash = randomBytes(32)
     await invite(E, guestRequest({ maxUses: 1 }), hash)
     const entry = await knock(ana, hash, 'Ana')
-    await decide(A, entry.id, 'deny')
-    assert.equal((await knock(ana, hash, 'Ana again')).status, 'denied')
+    const declined = await decide(A, entry.id, 'deny')
+    assert.equal(declined.status, 'denied')
+    assert.ok(declined.decidedAt)
     assert.equal(await codeOf(withActor(pool, ana, 'read', (c) => authorizeGuestJoin(c, entry.id))), 'invalid_state')
     assert.equal(await codeOf(knock(beto, hash, 'Beto')), 'invalid_state')
     const preview = await withoutActor(pool, (c) => previewRoomInvitation(c, hash))
     assert.equal(preview.state, 'used_up')
+  })
+
+  it('lets a declined guest ask again after a minute, and editors let them in meanwhile (0011)', async () => {
+    const [ana, beto] = [randomUUID(), randomUUID()]
+    const hash = randomBytes(32)
+    await invite(E, guestRequest(), hash)
+    const entry = await knock(ana, hash, 'Ana')
+    assert.equal(entry.knocks, 1)
+    await decide(E, entry.id, 'deny')
+    assert.equal(await codeOf(knock(ana, hash, 'Ana')), 'invalid_state') // within the minute
+    await backdateDecision(entry.id)
+    const again = await knock(ana, hash, 'Ana, again')
+    assert.deepEqual([again.id, again.status, again.knocks, again.displayName], [entry.id, 'waiting', 2, 'Ana, again'])
+    // A mistaken decline is answered with Let in, whatever the minute says.
+    const other = await knock(beto, hash, 'Beto')
+    await decide(E, other.id, 'deny')
+    assert.equal((await decide(E, other.id, 'admit')).status, 'admitted')
+    const lobby = (await snapshotOf(A))?.lobby ?? []
+    assert.ok(lobby.some((e) => e.id === other.id && e.status === 'admitted'))
+  })
+
+  it('keeps a blocked guest out until someone unblocks them, whatever else is clicked (0011)', async () => {
+    const cleo = randomUUID()
+    const hash = randomBytes(32)
+    await invite(E, guestRequest(), hash)
+    const entry = await knock(cleo, hash, 'Cleo')
+    await decide(E, entry.id, 'admit')
+    assert.equal((await decide(E, entry.id, 'block')).status, 'blocked')
+    await backdateDecision(entry.id)
+    assert.equal((await knock(cleo, hash, 'Cleo')).status, 'blocked') // asking again changes nothing
+    assert.equal(await codeOf(withActor(pool, cleo, 'read', (c) => authorizeGuestJoin(c, entry.id))), 'invalid_state')
+    assert.equal(await codeOf(decide(E, entry.id, 'admit')), 'invalid_state') // unblock first
+    assert.equal(await codeOf(decide(V, entry.id, 'unblock')), 'forbidden')
+    assert.ok((await snapshotOf(A))?.lobby.some((e) => e.id === entry.id && e.status === 'blocked'))
+    assert.equal((await decide(A, entry.id, 'unblock')).status, 'left')
+    const back = await knock(cleo, hash, 'Cleo')
+    assert.deepEqual([back.status, back.knocks], ['waiting', 2])
   })
 
   it('closes a revoked link and tells members who knocked', async () => {

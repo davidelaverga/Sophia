@@ -15,6 +15,7 @@ function role(person: RoomParticipant, holds: boolean): string {
   if (holds) return 'has the floor'
   if (person.speaking) return 'speaking'
   if (person.standing === 'guest') return person.micOn ? 'guest' : 'guest · muted'
+  if (person.standing === 'viewer') return 'listening'
   return person.micOn ? 'in the room' : 'muted'
 }
 

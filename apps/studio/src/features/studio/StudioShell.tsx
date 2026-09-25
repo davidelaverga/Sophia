@@ -1,26 +1,26 @@
 // renderRoom / v2StudioStage → StudioShell (frontend bindings): the shared room seen through this
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared.
-import type { Membership, Snapshot } from '@sophia/contracts'
+import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
-import { LobbyPanel } from '../access/LobbyPanel.tsx'
-import { canInvite } from '../access/useAccess.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
 
-/** What each lens will hold, and which goal brings it. Stated plainly instead of showing fake content. */
+/** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
 const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }> = {
+  // S1-06, image jobs.
   explore: {
     title: 'An idea taking shape',
-    body: 'Directions, generated images and side-by-side comparisons arrive with image jobs (S1-06).',
+    body: 'Directions, generated images and side-by-side comparisons will appear here.',
   },
+  // S1-07, runnable prototypes.
   build: {
     title: 'The work taking shape',
-    body: 'Runnable prototypes with Preview, Source and Diff arrive with S1-07.',
+    body: 'Runnable prototypes, with their preview, source and changes, will appear here.',
   },
 }
 
@@ -29,10 +29,9 @@ interface Props {
   identity: Identity
   room: ProjectRoom
   snapshot: Snapshot | undefined
-  membership: Membership | undefined
 }
 
-export function StudioShell({ projectId, identity, room, snapshot, membership }: Props) {
+export function StudioShell({ projectId, identity, room, snapshot }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   useShortcuts({ '1': () => setLens('converse'), '2': () => setLens('explore'), '3': () => setLens('build') })
   return (
@@ -42,14 +41,6 @@ export function StudioShell({ projectId, identity, room, snapshot, membership }:
       projectId={projectId}
       identity={identity}
       lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-      aside={
-        <LobbyPanel
-          projectId={projectId}
-          identity={identity}
-          lobby={snapshot?.lobby ?? []}
-          canDecide={canInvite(membership)}
-        />
-      }
       lensBody={
         <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
           {state.lens === 'converse' ? (
@@ -77,7 +68,7 @@ function Composer({ draft, onDraft }: { draft: string; onDraft: (text: string) =
         onChange={(e) => onDraft(e.target.value)}
       />
       <p className="composer-note">
-        Your draft stays on this device. Sending it to the shared conversation comes with project contributions.
+        Sending isn’t available yet. Your draft stays on this device, and only you see it.
       </p>
     </div>
   )

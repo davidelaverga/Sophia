@@ -1,5 +1,6 @@
-// Entry without a project: start one (createProject, idempotent) or open a shared link. There is no
-// project list operation in the contract yet, so a link or ID is the way in. Sophia's light rests above.
+// Entry without a project: start one (createProject, idempotent), reopen one this device opened before, or
+// open a shared link. There is no project list operation in the contract yet, so the recent list is local.
+// Sophia's light rests above.
 import { useState } from 'react'
 import type { ProjectCreated } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
@@ -7,6 +8,7 @@ import { createProject } from '../api/client.ts'
 import { useAdmission } from '../api/useAdmission.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import type { Identity } from './dev-identity.ts'
+import { openedLabel, readRecent } from './recent-projects.ts'
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
@@ -29,9 +31,33 @@ export function ProjectHome({ identity, identityControl, onOpen }: Props) {
       </header>
       <div className="screen-body">
         <CreateProjectForm token={identity.token} onCreated={onOpen} />
+        <RecentProjects identity={identity.name} onOpen={onOpen} />
         <OpenProjectForm onOpen={onOpen} />
       </div>
     </main>
+  )
+}
+
+function RecentProjects({ identity, onOpen }: { identity: string; onOpen: (projectId: string) => void }) {
+  const [recent] = useState(() => readRecent(identity))
+  const [now] = useState(() => Date.now())
+  if (recent.length === 0) return null
+  return (
+    <section className="recent" aria-labelledby="recent-title">
+      <h2 id="recent-title" className="field-label">
+        Recent on this device
+      </h2>
+      <ul>
+        {recent.map((p) => (
+          <li key={p.id}>
+            <button type="button" onClick={() => onOpen(p.id)}>
+              <span className="recent-title">{p.title}</span>
+              <span className="mono">{openedLabel(p.openedAt, now)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -63,7 +89,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         onChange={(e) => setTitle(e.target.value)}
       />
       <button type="submit" className="pill primary" disabled={status === 'sending' || !title.trim()}>
-        {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Retry same request' : 'Start the project'}
+        {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Try again' : 'Start the project'}
       </button>
       <p className="outcome" role="status" aria-live="polite">
         {admission.state.status === 'unknown' && (
@@ -83,29 +109,49 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
   )
 }
 
+/** An invitation link pasted here goes where it leads (this Sophia's /join page), not nowhere. */
+function joinLink(text: string): string | null {
+  try {
+    const url = new URL(text.trim(), window.location.origin)
+    return url.origin === window.location.origin && url.pathname === '/join' && url.hash ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 function OpenProjectForm({ onOpen }: { onOpen: (projectId: string) => void }) {
   const [link, setLink] = useState('')
-  const projectId = UUID.exec(link)?.[0]
+  const invitation = joinLink(link)
+  const projectId = invitation ? undefined : UUID.exec(link)?.[0]
+  const unknown = link.trim() !== '' && !projectId && !invitation
   return (
-    <form
-      className="field quiet"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (projectId) onOpen(projectId)
-      }}
-    >
-      <label htmlFor="link" className="sr-only">
-        Project link or ID
-      </label>
-      <input
-        id="link"
-        placeholder="Or paste a shared project link"
-        value={link}
-        onChange={(e) => setLink(e.target.value)}
-      />
-      <button type="submit" className="pill" disabled={!projectId}>
-        Open
-      </button>
-    </form>
+    <>
+      <form
+        className="field quiet"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (invitation) window.location.assign(invitation)
+          else if (projectId) onOpen(projectId)
+        }}
+      >
+        <label htmlFor="link" className="sr-only">
+          Project or invitation link
+        </label>
+        <input
+          id="link"
+          placeholder="Or paste a project or invitation link"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+        />
+        <button type="submit" className="pill" disabled={!projectId && !invitation}>
+          Open
+        </button>
+      </form>
+      <p className="muted home-hint" role="status">
+        {unknown
+          ? 'That doesn’t look like a project or invitation link.'
+          : 'Opened a project on another device? Its link is in your invitation email.'}
+      </p>
+    </>
   )
 }

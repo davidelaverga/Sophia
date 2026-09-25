@@ -23,31 +23,28 @@ export function App() {
     queryClient.clear()
     chooseDev(identity)
   }
+  const leaveSession = () => {
+    queryClient.clear()
+    void signOut()
+  }
 
   // An invitation link works before, during and after sign-in: it handles its own.
   if (isJoinPath(window.location.pathname)) {
     return (
       <QueryClientProvider client={queryClient}>
         <Suspense fallback={<Centered title="Opening the room…" busy />}>
-          <JoinFlow auth={state} onChooseDev={switchIdentity} onOpenProject={open} />
+          <JoinFlow auth={state} onChooseDev={switchIdentity} onSignOut={leaveSession} onOpenProject={open} />
         </Suspense>
       </QueryClientProvider>
     )
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
+  // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
+  if (state.identity.role === 'guest') return <SignIn onChooseDev={switchIdentity} />
 
   const { identity } = state
-  const identityControl = (
-    <IdentityControl
-      identity={identity}
-      onChooseDev={switchIdentity}
-      onSignOut={() => {
-        queryClient.clear()
-        void signOut()
-      }}
-    />
-  )
+  const identityControl = <IdentityControl identity={identity} onChooseDev={switchIdentity} onSignOut={leaveSession} />
   return (
     <QueryClientProvider client={queryClient}>
       {route.projectId ? (
@@ -59,6 +56,7 @@ export function App() {
           identitySwitcher={identityControl}
           onShow={show}
           onLeave={leave}
+          onSignOut={leaveSession}
         />
       ) : (
         <ProjectHome identity={identity} identityControl={identityControl} onOpen={open} />

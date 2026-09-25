@@ -51,7 +51,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
   AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
   AND to_regprocedure('sophia.transfer_input_floor(uuid,uuid,bigint,text)') IS NOT NULL
-  AND to_regprocedure('sophia.knock_room(bytea,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.knock_room(bytea,text)') IS NOT NULL
+  AND to_regprocedure('sophia.lobby_may_knock_again(sophia.room_lobby)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({

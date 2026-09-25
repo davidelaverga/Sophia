@@ -5,10 +5,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
-import { transferInputFloor } from '../../api/client.ts'
+import { transferInputFloor, type ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { shortName, type FloorView } from './room-view.ts'
+import { micOnJoin } from './mic-preference.ts'
+import { PassMenu } from './PassMenu.tsx'
+import { listensOnly, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 interface Props {
@@ -46,13 +48,14 @@ function JoinButton({ room }: { room: ProjectRoom }) {
   return (
     <button
       type="button"
-      className="pill primary"
+      className="pill primary has-tip"
       disabled={room.status === 'joining'}
       onClick={() => void room.join()}
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
       <kbd aria-hidden>J</kbd>
+      <Tip label={micOnJoin() ? 'You join with your microphone on' : 'You join with your microphone off'} />
     </button>
   )
 }
@@ -76,8 +79,7 @@ export function Toggle({ on, label, keys, icons, onToggle }: ToggleProps) {
   )
 }
 
-function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: Props) {
-  const me = room.participants.find((p) => p.local)
+function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
   return (
     <>
       <Toggle
@@ -97,12 +99,33 @@ function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: 
       {canShareScreen && (
         <Toggle
           on={!!me?.screenOn}
-          label="Share your screen"
+          label={me?.screenOn ? 'Stop sharing' : 'Share your screen'}
           keys="S"
           icons={['screen', 'screen']}
           onToggle={() => void room.setScreenShare(!me?.screenOn)}
         />
       )}
+    </>
+  )
+}
+
+/** A viewer in the call listens and watches: no controls that would only fail, and why, on hover. */
+function Listening() {
+  return (
+    <span className="dock-listening has-tip">
+      <Icon name="micOff" />
+      Listening
+      <span className="sr-only">. Viewers listen and watch. An admin can make you an editor so you can talk.</span>
+      <Tip label="Viewers listen and watch. An admin can make you an editor." />
+    </span>
+  )
+}
+
+function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: Props) {
+  const me = room.participants.find((p) => p.local)
+  return (
+    <>
+      {listensOnly(me) ? <Listening /> : <MediaToggles room={room} me={me} />}
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />
@@ -127,6 +150,13 @@ interface FloorProps {
   me: string
   context: { projectId: string; identity: Identity; snapshot: Snapshot }
   onPassed: (nextActorId: string) => void
+}
+
+/** A refused floor change in words: the database's "Stale room revision" means someone moved it first. */
+function floorRefusal(error: ApiError): string {
+  if (error.code === 'stale_revision') return 'The floor changed meanwhile. Try again.'
+  if (error.code === 'invalid_state') return 'Someone else has the floor now.'
+  return error.message
 }
 
 /** Who may address Sophia, and the one action this person can take on it: take it, or pass it on. */
@@ -158,7 +188,7 @@ function FloorControl({ floor, me, context, onPassed }: FloorProps) {
       <FloorAction floor={floor} me={me} busy={busy} onPass={(id) => void pass(id)} />
       {admission.state.status === 'rejected' && (
         <span className="floor-error" role="alert">
-          {admission.state.error.message}
+          {floorRefusal(admission.state.error)}
         </span>
       )}
     </div>
@@ -188,25 +218,6 @@ function FloorAction({ floor, me, busy, onPass }: ActionProps) {
       </button>
     )
   }
-  if (floor.passTargets.length > 1) {
-    return (
-      <select
-        className="pill warm"
-        aria-label="Pass the floor"
-        value=""
-        disabled={busy}
-        onChange={(e) => onPass(e.target.value)}
-      >
-        <option value="" disabled>
-          Pass to…
-        </option>
-        {floor.passTargets.map((p) => (
-          <option key={p.identity} value={p.identity}>
-            {shortName(p.name)}
-          </option>
-        ))}
-      </select>
-    )
-  }
+  if (floor.passTargets.length > 1) return <PassMenu targets={floor.passTargets} busy={busy} onPass={onPass} />
   return null
 }

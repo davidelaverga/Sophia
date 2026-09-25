@@ -54,13 +54,13 @@ a path updates its row in the same commit.
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |
 | `packages/dsh-bundle/skills/` | unbuilt | S1-03 | Procedural task knowledge |
-| `packages/contracts/` | built | S1-02, S1-04, S1-04A | OpenAPI contract = the pack plus reviewed JSON Patch amendments (A01 room, A02 room access), generated types, generated response validators (`./validate`), Ajv component schemas, SSE frame parser |
+| `packages/contracts/` | built | S1-02, S1-04, S1-04A | OpenAPI contract = the pack plus reviewed JSON Patch amendments (A01 room, A02 room access, A03 lobby decline and block), generated types, generated response validators (`./validate`), Ajv component schemas, SSE frame parser |
 | `packages/domain/` | partial | S1-02, S1-12 | Built: the domain error vocabulary (code, HTTP status, retry). S1-12 adds accepted goals, authority, versions, transitions |
 | `packages/persistence/` | built | S1-02, S1-04, S1-04A | Actor-scoped transactions (and an actor-less read for invitation previews), command admission, snapshot (with the room, lobby and sessions), event frames, LISTEN, outbox leases, migration ledger, room floor, invitations, lobby, sessions |
 | `packages/context/` | unbuilt | S1-08 | Scoped ContextPacket compiler and invalidation |
 | `packages/execution-adapters/` | unbuilt | S1-09, S1-10 | `omnigent/`, `native-team/`, `mailbox/` |
 | `packages/creative/` | unbuilt | S1-06, S1-07, S1-13 | Image adapters, assets, prototype bundle |
-| `packages/ui/` | partial | S1-02, S1-04 | Built: `Tag`, line icons (`Icon`), labels that swap in place (`SwapLabel`), hover and focus tips that name a control and its key (`Tip`) and the sliding thumb of segmented controls and navigation (`useSlidingThumb`). Later goals add common renderers |
+| `packages/ui/` | partial | S1-02, S1-04 | Built: `Tag`, line icons (`Icon`), labels that swap in place (`SwapLabel`), hover and focus tips that name a control and its key (`Tip`), in-place confirmation for actions that cut someone off (`ConfirmButton`) and the sliding thumb of segmented controls and navigation (`useSlidingThumb`). Later goals add common renderers |
 | `packages/test-support/` | built | S1-02 | Disposable migrated databases, cluster-role lock, project seeding |
 
 ## apps/
@@ -81,7 +81,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `renderers/` | unbuilt | S1-13 | `web/pdf/` and `web/deck/`: the adapted JS render kernels (v0.4 D32 removed the Python path) |
-| `db/migrations/` | built | S1-02, S1-04, S1-04A | Pack 0001–0004 verbatim plus 0005–0010 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results, project room and input floor, room access: invitations, lobby, sessions); no automatic old-DB migration |
+| `db/migrations/` | built | S1-02, S1-04, S1-04A | Pack 0001–0004 verbatim plus 0005–0011 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results, project room and input floor, room access: invitations, lobby, sessions; lobby decline for now and block for good); no automatic old-DB migration |
 | `db/tests/` | built | S1-02 | The pack's SQL test, run after the migrations |
 | `supabase/` | built | S1-02 | Supabase CLI config for the local stack (ES256 signing keys, Auth redirects) |
 | `deploy/` | partial | S1-02, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate). S1-14 adds Render, execution-host and Vercel manifests |

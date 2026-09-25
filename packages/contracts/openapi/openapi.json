@@ -3759,7 +3759,7 @@
     "/api/v1/lobby/{entryId}/decision": {
       "post": {
         "operationId": "decideLobbyEntry",
-        "summary": "An editor or admin admits or denies a guest; denying an admitted guest takes them out of the call.",
+        "summary": "An editor or admin lets a guest in, declines them for now, blocks them for good, or unblocks them; declining or blocking a guest in the call takes them out of it.",
         "tags": [
           "rooms"
         ],
@@ -6316,19 +6316,37 @@
               "waiting",
               "admitted",
               "denied",
-              "left"
+              "left",
+              "blocked"
             ]
           },
           "requestedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "knocks": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
           "id",
           "displayName",
           "status",
-          "requestedAt"
+          "requestedAt",
+          "decidedAt",
+          "knocks"
         ]
       },
       "LobbyDecision": {
@@ -6339,7 +6357,9 @@
             "type": "string",
             "enum": [
               "admit",
-              "deny"
+              "deny",
+              "block",
+              "unblock"
             ]
           }
         },

@@ -1,8 +1,8 @@
-// Room access (db/migrations/0010, contract amendment A02): invitations, the lobby and room sessions.
-// Writes go through the sophia.* functions, which re-check authority; reads run under RLS. Tokens never
-// reach this module, only their SHA-256: the API derives and hashes them.
+// Room access (db/migrations/0010 and 0011, contract amendments A02 and A03): invitations, the lobby and
+// room sessions. Writes go through the sophia.* functions, which re-check authority; reads run under RLS.
+// Tokens never reach this module, only their SHA-256: the API derives and hashes them.
 import type pg from 'pg'
-import type { InvitationPreview, LobbyEntry, Membership, RoomSession } from '@sophia/contracts'
+import type { InvitationPreview, LobbyDecision, LobbyEntry, Membership, RoomSession } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { onlyRow } from './rows.ts'
 
@@ -167,9 +167,14 @@ export interface LobbyRecord extends LobbyEntry {
 
 interface LobbyJson extends LobbyRecord {
   requestedAt: string
+  decidedAt: string | null
 }
 
-const toLobby = (e: LobbyJson): LobbyRecord => ({ ...e, requestedAt: iso(e.requestedAt) })
+const toLobby = (e: LobbyJson): LobbyRecord => ({
+  ...e,
+  requestedAt: iso(e.requestedAt),
+  decidedAt: e.decidedAt ? iso(e.decidedAt) : null,
+})
 
 async function lobbyCall(c: pg.PoolClient, sql: string, params: unknown[], statement: string): Promise<LobbyRecord> {
   const { rows } = await c.query<{ entry: LobbyJson }>(sql, params)
@@ -184,8 +189,8 @@ export const knockRoom = (c: pg.PoolClient, tokenSha256: Buffer, displayName: st
 export const readLobbyEntry = (c: pg.PoolClient, entryId: string) =>
   lobbyCall(c, `SELECT sophia.read_lobby_entry($1) AS entry`, [entryId], 'read_lobby_entry')
 
-/** Editors and admins admit or deny. */
-export const decideLobbyEntry = (c: pg.PoolClient, entryId: string, decision: 'admit' | 'deny') =>
+/** Editors and admins let in, decline for now, block for good, or unblock (migration 0011). */
+export const decideLobbyEntry = (c: pg.PoolClient, entryId: string, decision: LobbyDecision['decision']) =>
   lobbyCall(c, `SELECT sophia.decide_lobby_entry($1, $2) AS entry`, [entryId, decision], 'decide_lobby_entry')
 
 /** An admitted guest's room and name, for their room token. */
@@ -275,13 +280,20 @@ interface LobbyRow {
   display_name: string
   status: LobbyEntry['status']
   requested_at: Date
+  decided_at: Date | null
+  knocks: number
 }
 
-/** Who is waiting or admitted, oldest request first. Members only (RLS). */
+/**
+ * Who is waiting, let in or blocked, and who was declined in the last day (so a mistaken decline can still
+ * be answered with Let in), oldest request first. Members only (RLS).
+ */
 export async function readLobby(c: pg.PoolClient, projectId: string): Promise<LobbyEntry[]> {
   const { rows } = await c.query<LobbyRow>(
-    `SELECT id, display_name, status, requested_at FROM sophia.room_lobby
-      WHERE project_id = $1 AND status IN ('waiting', 'admitted') ORDER BY requested_at, id LIMIT 500`,
+    `SELECT id, display_name, status, requested_at, decided_at, knocks FROM sophia.room_lobby
+      WHERE project_id = $1
+        AND (status IN ('waiting', 'admitted', 'blocked') OR (status = 'denied' AND decided_at > now() - interval '1 day'))
+      ORDER BY requested_at, id LIMIT 500`,
     [projectId],
   )
   return rows.map((r) => ({
@@ -289,6 +301,8 @@ export async function readLobby(c: pg.PoolClient, projectId: string): Promise<Lo
     displayName: r.display_name,
     status: r.status,
     requestedAt: iso(r.requested_at),
+    decidedAt: r.decided_at ? iso(r.decided_at) : null,
+    knocks: r.knocks,
   }))
 }
 

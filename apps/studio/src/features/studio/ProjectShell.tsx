@@ -1,13 +1,16 @@
 // ProjectShell (architecture 04 §3): project header, view navigation, the one project feed every view
 // shares, and the room connection, which outlives view changes: joining in Studio and reading Goals
 // keeps you in the room. Views change the address, never the project.
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
+import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { MiniDock } from '../voice/MiniDock.tsx'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -21,11 +24,12 @@ import { ViewNav } from './ViewNav.tsx'
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
 
+/** The project feed, not the call: "Live" read as a call in progress, so it says whether the view is current. */
 const CONNECTION: Record<Connection, string> = {
   connecting: 'Connecting',
-  live: 'Live',
+  live: 'Up to date',
   reconnecting: 'Reconnecting',
-  resyncing: 'Resyncing',
+  resyncing: 'Catching up',
   denied: 'No access',
 }
 
@@ -39,6 +43,28 @@ function blockedBy(error: Error | null): Blocked | null {
   return 'unreachable'
 }
 
+/** The home screen lists what this device opened; a project that closed its door leaves the list. */
+function useRecentProject(
+  identity: string,
+  projectId: string,
+  snapshot: Snapshot | undefined,
+  blocked: Blocked | null,
+) {
+  const title = snapshot?.title
+  useEffect(() => {
+    if (title) rememberProject(identity, { id: projectId, title, openedAt: Date.now() })
+  }, [identity, projectId, title])
+  useEffect(() => {
+    if (blocked === 'denied') forgetProject(identity, projectId)
+  }, [identity, projectId, blocked])
+}
+
+/** The tab names the project and counts who waits at its door, so a tab in the background still calls. */
+function useTabTitle(snapshot: Snapshot | undefined) {
+  const waiting = snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0
+  useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
+}
+
 interface Props {
   projectId: string
   view: View
@@ -46,14 +72,18 @@ interface Props {
   identitySwitcher: React.ReactNode
   onShow: (view: View) => void
   onLeave: () => void
+  onSignOut: () => void
 }
 
-export function ProjectShell({ projectId, view, identity, identitySwitcher, onShow, onLeave }: Props) {
+export function ProjectShell(props: Props) {
+  const { projectId, view, identity, identitySwitcher, onShow, onLeave, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useMembership(projectId, identity.name, identity.token).data
   const [inviting, setInviting] = useState(false)
   const blocked = blockedBy(snapshot.error)
+  useRecentProject(identity.name, projectId, snapshot.data, blocked)
+  useTabTitle(snapshot.data)
   useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
@@ -85,8 +115,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
         <AccessNotice
           blocked={blocked}
           identityName={identity.name}
-          onLeave={onLeave}
-          onRetry={() => void snapshot.refetch()}
+          actions={{ leave: onLeave, retry: () => void snapshot.refetch(), signin: onSignOut }}
         />
       ) : (
         <ProjectBody
@@ -98,6 +127,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
           snapshot={snapshot.data}
           pulse={<WorkPulse feed={feed} connection={connection} />}
           onShow={onShow}
+          onInvite={() => setInviting(true)}
         />
       )}
     </div>
@@ -117,10 +147,10 @@ interface HeaderProps {
 function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
   return (
     <header className="topbar">
-      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="All projects">
+      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="Home">
         <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
         <span className="mark-word">Sophia</span>
-        <Tip label="All projects" side="bottom" />
+        <Tip label="Home" side="bottom" />
       </button>
       <span className="crumb-sep" aria-hidden>
         /
@@ -158,23 +188,48 @@ interface BodyProps {
   snapshot: Snapshot | undefined
   pulse: React.ReactNode
   onShow: (view: View) => void
+  onInvite: () => void
 }
 
-/** Studio is the room itself; every other view is a page, with the room one click away in the mini dock. */
-function ProjectBody({ view, projectId, identity, room, membership, snapshot, pulse, onShow }: BodyProps) {
+/**
+ * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
+ * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
+ */
+function ProjectBody(props: BodyProps) {
+  const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite } = props
+  const lobby = (
+    <LobbyPanel
+      projectId={projectId}
+      identity={identity}
+      lobby={snapshot?.lobby ?? []}
+      canDecide={canInvite(membership)}
+    />
+  )
   if (view === 'studio') {
     return (
-      <StudioShell projectId={projectId} identity={identity} room={room} snapshot={snapshot} membership={membership} />
+      <>
+        {lobby}
+        <StudioShell projectId={projectId} identity={identity} room={room} snapshot={snapshot} />
+      </>
     )
   }
   const work = view === 'work'
   return (
     <>
+      {lobby}
       <main className={`page${work ? ' split' : ''}`}>
         {view === 'goals' || work ? (
-          <GoalList snapshot={snapshot} projectId={projectId} identity={identity} controls={work} />
+          <GoalList
+            snapshot={snapshot}
+            projectId={projectId}
+            identity={identity}
+            controls={work}
+            canAct={canInvite(membership)}
+            onOpenStudio={() => onShow('studio')}
+            onInvite={onInvite}
+          />
         ) : (
-          <PendingView view={view} />
+          <PendingView view={view} onShow={onShow} />
         )}
         {work && pulse}
       </main>
@@ -195,21 +250,25 @@ function CopyLinkButton({ projectId }: { projectId: string }) {
       // Clipboard unavailable: the address bar still has the link.
     }
   }
+  // A viewer's link opens the project only for its members: the tip says so, so nobody mistakes it for an invitation.
   return (
     <button
       type="button"
-      className="ghost copy-link"
-      aria-label={copied ? 'Link copied' : 'Copy link'}
+      className="ghost copy-link has-tip"
+      aria-label={copied ? 'Link copied' : 'Copy project link'}
       onClick={() => void copy()}
     >
       <Icon name="link" />
-      <SwapLabel value={copied ? 'copied' : 'copy'} labels={{ copy: 'Copy link', copied: 'Link copied' }} />
+      <SwapLabel value={copied ? 'copied' : 'copy'} labels={{ copy: 'Copy project link', copied: 'Link copied' }} />
+      <Tip label="For project members. To bring someone new, ask an editor to invite them." side="bottom" align="end" />
     </button>
   )
 }
 
-const NOTICE: Record<Blocked, { title: string; body: (name: string) => string; action: 'leave' | 'retry' }> = {
-  expired: { title: 'Your session ended', body: () => 'Sign in again to continue.', action: 'leave' },
+type NoticeAction = 'leave' | 'retry' | 'signin'
+
+const NOTICE: Record<Blocked, { title: string; body: (name: string) => string; action: NoticeAction }> = {
+  expired: { title: 'You’ve been signed out', body: () => 'Sign in again to continue.', action: 'signin' },
   denied: {
     title: 'No access to this project',
     body: (name) => `${name} isn’t a member. Ask a project admin to add you, or open another project.`,
@@ -222,28 +281,27 @@ const NOTICE: Record<Blocked, { title: string; body: (name: string) => string; a
   },
 }
 
+const ACTION_LABEL: Record<NoticeAction, string> = {
+  leave: 'Back to projects',
+  retry: 'Try again',
+  signin: 'Sign in again',
+}
+
 interface NoticeProps {
   blocked: Blocked
   identityName: string
-  onLeave: () => void
-  onRetry: () => void
+  actions: Record<NoticeAction, () => void>
 }
 
-function AccessNotice({ blocked, identityName, onLeave, onRetry }: NoticeProps) {
+function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
     <main className="page notice">
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
-      {notice.action === 'leave' ? (
-        <button type="button" className="pill" onClick={onLeave}>
-          Back to projects
-        </button>
-      ) : (
-        <button type="button" className="pill" onClick={onRetry}>
-          Try again
-        </button>
-      )}
+      <button type="button" className="pill" onClick={actions[notice.action]}>
+        {ACTION_LABEL[notice.action]}
+      </button>
     </main>
   )
 }

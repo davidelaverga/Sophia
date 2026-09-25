@@ -1,6 +1,6 @@
 // Who is using the Studio. Supabase Auth when configured (magic link, PKCE, auto-refreshed access
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
-import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
@@ -30,9 +30,13 @@ export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length >
 export type AuthState =
   { status: 'loading' } | { status: 'signed_out'; notice?: string } | { status: 'signed_in'; identity: Identity }
 
+/** An anonymous session is a guest's (a knock at a room's door), never an account: its role says so. */
 const fromSession = (s: Session | null): AuthState =>
   s
-    ? { status: 'signed_in', identity: { name: s.user.email ?? s.user.id, role: '', token: s.access_token } }
+    ? {
+        status: 'signed_in',
+        identity: { name: s.user.email ?? s.user.id, role: s.user.is_anonymous ? 'guest' : '', token: s.access_token },
+      }
     : { status: 'signed_out' }
 
 /**
@@ -91,14 +95,49 @@ export function useAuth(): { state: AuthState; chooseDev: (i: Identity | null) =
   }
 }
 
-/** Magic link to the current page; locally the email lands in Mailpit. New accounts only in dev. */
+/** Anyone can sign up: the first link creates the account. A server with sign-ups closed says so plainly. */
+function signInError(error: AuthError, email: string): Error {
+  const closed = error.code === 'otp_disabled' || /signups not allowed/i.test(error.message)
+  return closed ? new Error(`New accounts are closed on this server, so ${email} can’t sign up yet.`) : error
+}
+
+/** Magic link to the current page; locally the email lands in Mailpit. A new email gets an account. */
 export async function sendMagicLink(email: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
-      shouldCreateUser: import.meta.env.DEV,
+      shouldCreateUser: true,
+    },
+  })
+  if (error) throw signInError(error, email)
+}
+
+/** Supabase provider ids ("azure" is Microsoft), in the order the sign-in row shows them. */
+export type OAuthProvider = 'google' | 'github' | 'azure'
+const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
+
+/**
+ * The account providers this build offers (VITE_AUTH_PROVIDERS="google,github,azure"). A provider appears only
+ * once it is enabled in Supabase Auth, so no button leads to "provider is not enabled".
+ */
+export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) =>
+  (import.meta.env.VITE_AUTH_PROVIDERS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .includes(p),
+)
+
+/** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
+export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${window.location.origin}${window.location.pathname}`,
+      // Microsoft sends no email unless asked; Supabase needs it to create the account.
+      ...(provider === 'azure' ? { scopes: 'email' } : {}),
     },
   })
   if (error) throw error
@@ -123,6 +162,13 @@ export async function guestAccessToken(current: Identity | null): Promise<string
   return data.session.access_token
 }
 
+/** The session's token now: Supabase refreshes it in the background, so a long wait never ends on an expired one. */
+export async function currentToken(fallback: string): Promise<string> {
+  if (!supabase) return fallback
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? fallback
+}
+
 /** A guest leaving the call leaves no session behind on a shared device. */
 export async function endGuestSession(): Promise<void> {
   if (supabase) await supabase.auth.signOut()
@@ -142,5 +188,5 @@ export async function sendInvitedSignIn(email: string): Promise<void> {
 export async function verifyEmailCode(email: string, code: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
   const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
-  if (error) throw error
+  if (error) throw new Error('That code didn’t work, or it has expired. Check it, or ask for a new email.')
 }

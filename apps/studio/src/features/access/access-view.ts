@@ -1,6 +1,6 @@
 // Room access in the Studio, as plain rules: invitation links, the room calendar and the QR code's shape.
 // Pure, so they are unit-tested; the components only render them.
-import type { RoomSession, SessionCreate } from '@sophia/contracts'
+import type { Invitation, RoomSession, SessionCreate } from '@sophia/contracts'
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
@@ -10,8 +10,67 @@ export function readJoinToken(hash: string): string | null {
   return TOKEN.test(token) ? token : null
 }
 
+/** How long a declined guest waits before asking again; migration 0011 holds the same minute. */
+export const ASK_AGAIN_MS = 60_000
+
+/** Seconds until a declined guest may ask again, 0 once they may. */
+export function askAgainIn(decidedAt: string | null, now: number): number {
+  if (!decidedAt) return 0
+  return Math.max(0, Math.ceil((Date.parse(decidedAt) + ASK_AGAIN_MS - now) / 1000))
+}
+
+/** "0:42": a short wait, as a clock. */
+export const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+
+/** How often a guest has asked, when it is more than once: the room sees who keeps asking. */
+export function knockNote(knocks: number): string {
+  if (knocks < 2) return ''
+  return knocks === 2 ? 'asked again' : `asked ${knocks} times`
+}
+
+/** How long an opened invitation link waits on this device for its sign-in round trip. */
+export const PENDING_JOIN_MS = 60 * 60_000
+
+/** A token saved as `{ token, at }` when its link was opened, while it is still fresh. */
+export function freshJoinToken(raw: string | null, now: number): string | null {
+  if (!raw) return null
+  try {
+    const saved: unknown = JSON.parse(raw)
+    if (typeof saved !== 'object' || saved === null || !('token' in saved) || !('at' in saved)) return null
+    const { token, at } = saved
+    if (typeof token !== 'string' || typeof at !== 'number' || now - at > PENDING_JOIN_MS) return null
+    return readJoinToken(token)
+  } catch {
+    return null
+  }
+}
+
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
+
+/** What a link still allows: "Works until Oct 2 · 3 of 50 uses". */
+export function linkLimits(i: Pick<Invitation, 'expiresAt' | 'uses' | 'maxUses'>): string {
+  const until = new Date(i.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `Works until ${until} · ${i.uses} of ${i.maxUses} ${i.maxUses === 1 ? 'use' : 'uses'}`
+}
+
+const EMAIL_WORD: Record<Invitation['emailStatus'], string> = {
+  none: 'not emailed',
+  sent: 'email sent',
+  failed: 'email failed',
+  not_configured: 'not emailed',
+}
+
+/** An invitation's state in a word or two, first what ended it, then who it is for and whether the email went. */
+export function invitationState(
+  i: Pick<Invitation, 'role' | 'uses' | 'revokedAt' | 'expiresAt' | 'emailStatus'>,
+  now: number,
+): string {
+  if (i.uses > 0) return 'joined'
+  if (i.revokedAt) return 'cancelled'
+  if (Date.parse(i.expiresAt) <= now) return 'expired'
+  return i.role ? `${i.role} · ${EMAIL_WORD[i.emailStatus]}` : EMAIL_WORD[i.emailStatus]
+}
 
 /** The first session that has not ended yet. */
 export function nextSession(sessions: readonly RoomSession[], now: number): RoomSession | null {

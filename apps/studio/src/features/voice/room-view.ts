@@ -36,13 +36,16 @@ export function standingOf(metadata: string | undefined): Standing {
 /** Only editors and admins can hold the input floor (migration 0009); guests and viewers listen. */
 const canHold = (p: RoomParticipant) => p.standing !== 'guest' && p.standing !== 'viewer'
 
+/** Viewers listen and watch: their token cannot publish, so the room offers them no microphone. */
+export const listensOnly = (p: RoomParticipant | undefined) => p?.standing === 'viewer'
+
 export interface FloorView {
   /** Who may address Sophia; `present` says whether they are in the room right now. */
   holder: { identity: string; name: string; present: boolean } | null
   mine: boolean
   /**
-   * This person is in the room and the floor is free, or its holder left the room. Taking it from an
-   * absent holder is the server's call (only a project admin may reclaim); a refusal shows its reason.
+   * Offered only when the server will accept it (migration 0009): a free floor to any editor or admin in
+   * the room; a floor whose holder left, only to an admin, who alone may reclaim it.
    */
   canTake: boolean
   /** When the floor is mine: who I can pass it to. */
@@ -56,10 +59,11 @@ export function floorView(inputActorId: string | null, participants: readonly Ro
     ? { identity: inputActorId, name: holderInRoom?.name ?? 'someone who isn’t in the room', present: !!holderInRoom }
     : null
   const mine = !!me && me.identity === inputActorId
+  const reclaimable = !holderInRoom && me?.standing === 'admin'
   return {
     holder,
     mine,
-    canTake: !!me && canHold(me) && !mine && (inputActorId === null || !holderInRoom),
+    canTake: !!me && canHold(me) && !mine && (inputActorId === null || reclaimable),
     passTargets: mine ? participants.filter((p) => !p.local && canHold(p)) : [],
   }
 }
@@ -100,13 +104,14 @@ export function presenceSlots(count: number): Slot[] {
 }
 
 export interface RoomLine {
-  /** Sophia's line under the light, in her own type. */
+  /** Sophia's line under the light. */
   text: string
   /** A quiet second line, or null. */
   note: string | null
 }
 
-const VOICE_NOTE = 'Sophia’s voice arrives with S1-05. Today the room carries yours.'
+/** Until Sophia speaks in the call (S1-05), the room says so in the user's words. */
+export const VOICE_NOTE = 'Sophia’s voice is on its way. For now, the room carries yours.'
 
 function floorLine(floor: FloorView): string {
   if (!floor.holder) return 'The floor is open'

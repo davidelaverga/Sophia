@@ -1,0 +1,60 @@
+{
+  "id": "A03",
+  "goal": "S1-04A",
+  "title": "The lobby tells declining from blocking: a declined guest may ask again after a minute, a blocked one may not until unblocked",
+  "why": [
+    "With A02 a declined guest could never ask again, and nobody inside could see or let them in: one mistaken click shut a person out for good. Luis asked for two decisions, declining for now and blocking for good.",
+    "A declined guest may knock again once a minute has passed (migration 0011), and editors can still let them in meanwhile. A blocked guest cannot knock again from that identity until someone unblocks them; unblocking returns the entry to 'left', so the next knock waits like a first one.",
+    "LobbyEntry gains decidedAt (so the guest's page can count down to asking again, and members can see recent decisions) and knocks (so the room can tell a first knock from someone who keeps asking)."
+  ],
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/components/schemas/LobbyEntry/properties/status/enum",
+      "value": ["waiting", "admitted", "denied", "left", "blocked"]
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/LobbyEntry/properties/decidedAt",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/LobbyEntry/properties/knocks",
+      "value": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/LobbyEntry/required/-",
+      "value": "decidedAt"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/LobbyEntry/required/-",
+      "value": "knocks"
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/LobbyDecision/properties/decision/enum",
+      "value": ["admit", "deny", "block", "unblock"]
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1lobby~1{entryId}~1decision/post/summary",
+      "value": "An editor or admin lets a guest in, declines them for now, blocks them for good, or unblocks them; declining or blocking a guest in the call takes them out of it."
+    }
+  ]
+}

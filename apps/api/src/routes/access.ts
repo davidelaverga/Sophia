@@ -1,5 +1,5 @@
-// Room access (contract amendment A02, S1-04A): invitations, the lobby, room sessions and one's own
-// membership. Links are derived here (invite-token.ts) and never stored; every write goes through the
+// Room access (contract amendments A02 and A03, S1-04A): invitations, the lobby (let in, decline for now,
+// block for good), room sessions and one's own membership. Links are derived here (invite-token.ts) and never stored; every write goes through the
 // sophia.* functions, which re-check authority. Guests reach only knock, their lobby entry and the call.
 import { randomUUID } from 'node:crypto'
 import type { FastifyBaseLogger, FastifyInstance } from 'fastify'
@@ -106,7 +106,12 @@ const lobbyBody = (e: LobbyRecord): LobbyEntry => ({
   displayName: e.displayName,
   status: e.status,
   requestedAt: e.requestedAt,
+  decidedAt: e.decidedAt,
+  knocks: e.knocks,
 })
+
+/** Declined or blocked while in the call: they leave it now, not when their token expires. */
+const leavesTheCall = (status: LobbyEntry['status']) => status === 'denied' || status === 'blocked'
 
 interface Delivery {
   deps: AccessDeps
@@ -288,7 +293,7 @@ function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
       const entry = await withActor(deps.pool, req.actorId, 'write', (c) =>
         decideLobbyEntry(c, req.params.entryId, req.body.decision),
       )
-      if (entry.status === 'denied' && deps.livekit) await removeFromRoom(deps.livekit, entry.roomId, entry.actorId)
+      if (leavesTheCall(entry.status) && deps.livekit) await removeFromRoom(deps.livekit, entry.roomId, entry.actorId)
       return lobbyBody(entry)
     },
   )

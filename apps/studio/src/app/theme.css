@@ -760,6 +760,60 @@ button.mark:hover {
   color: var(--text-2);
   max-width: 42ch;
 }
+/* Account providers: one row of equal squared tiles, marks only; the name lives in the tip. */
+.providers {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.provider {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  box-shadow: var(--lift);
+  color: var(--text);
+  transition:
+    border-color 140ms,
+    background 140ms,
+    transform 140ms;
+}
+.provider:hover:not(:disabled) {
+  border-color: rgba(185, 168, 255, 0.45);
+  background: rgba(185, 168, 255, 0.06);
+}
+.provider:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.provider:disabled {
+  opacity: 0.55;
+}
+.provider[aria-busy='true'] {
+  opacity: 1;
+  border-color: rgba(185, 168, 255, 0.55);
+}
+.or {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  color: var(--text-3);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.or::before,
+.or::after {
+  content: '';
+  height: 1px;
+  background: var(--line);
+}
 .field {
   display: flex;
   gap: 4px;
@@ -866,6 +920,53 @@ button.mark:hover {
 }
 .outcome:empty {
   display: none;
+}
+/* The way back in: the projects this device opened, as quiet rows. The home scrolls if they need room. */
+.home {
+  overflow-y: auto;
+}
+.recent {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+}
+.recent h2 {
+  padding: 0 10px;
+}
+.recent ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recent button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  text-align: left;
+  transition: background var(--fast) var(--ease);
+}
+.recent button:hover {
+  background: rgba(236, 235, 241, 0.06);
+}
+.home-hint {
+  margin-top: -8px;
+  font-size: 12px;
+}
+.recent-title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* The room stage: Sophia's light holds the room, people sit around her, one floating dock. */
@@ -1154,9 +1255,10 @@ button.mark:hover {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
+/* Read, not decoration: it says what the box can and cannot do yet. */
 .composer-note {
-  color: var(--text-4);
-  font-size: 11.5px;
+  color: var(--text-3);
+  font-size: 12px;
   text-align: center;
 }
 .coming {
@@ -1229,6 +1331,15 @@ button.mark:hover {
   font-size: 12.5px;
   text-align: center;
 }
+/* The same note from other views, above the mini dock. */
+.mini-note {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: min(44ch, calc(100vw - 2 * var(--gutter)));
+  text-align: left;
+}
 .floor {
   position: relative;
   display: flex;
@@ -1247,6 +1358,50 @@ button.mark:hover {
 }
 .floor-name {
   color: var(--warm);
+  font-weight: 500;
+}
+/* Pass to…: the names open above the dock, one button each. */
+.pass-menu {
+  position: relative;
+}
+.pass-list {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 5;
+  display: grid;
+  min-width: 140px;
+  padding: 4px;
+  transform: translateX(-50%);
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.pass-list button {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--warm);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+.pass-list button:hover,
+.pass-list button:focus-visible {
+  background: rgba(241, 220, 199, 0.08);
+}
+/* A viewer's place in the dock: they listen and watch. */
+.dock-listening {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text-2);
+  font-size: 13px;
   font-weight: 500;
 }
 .floor-error {
@@ -1456,11 +1611,12 @@ button.mark:hover {
   color: var(--text-3);
   font-size: 12.5px;
 }
+/* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
-  position: absolute;
-  top: 72px;
+  position: fixed;
+  top: calc(var(--topbar) + 24px);
   right: var(--gutter);
-  z-index: 3;
+  z-index: 15;
   width: min(300px, calc(100% - 2 * var(--gutter)));
   padding: 10px 12px 6px;
   border-radius: var(--r-4);
@@ -1480,6 +1636,47 @@ button.mark:hover {
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+.lobby-note {
+  padding-bottom: 6px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+/* The count, and with several waiting, one answer for all. */
+.lobby-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+}
+.lobby-all {
+  display: flex;
+  gap: 2px;
+}
+.lobby-all .ghost {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+/* A decline undone in one click, for a few seconds. */
+.lobby-undo {
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.lobby-undo:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+/* While a question is asked in a row (Block, Remove), it stands alone: the other answers wait for it. */
+.lobby-actions:has(.confirm) > :not(.confirm),
+.invitation-actions:has(.confirm) > :not(.confirm) {
+  display: none;
+}
+.lobby-undo .text-button {
+  font-size: 12.5px;
 }
 .lobby ul {
   margin: 0;
@@ -1645,6 +1842,20 @@ button.mark:hover {
 .room-link .control-row {
   justify-content: center;
 }
+/* Under the QR, a question is one centered block: what happens, then the two answers. */
+.room-link .confirm {
+  flex-basis: 100%;
+  justify-content: center;
+}
+.room-link .confirm-note {
+  flex-basis: 100%;
+  text-align: center;
+}
+.link-limits {
+  color: var(--text-3);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.02em;
+}
 .sheet-form {
   display: grid;
   gap: 8px;
@@ -1710,6 +1921,17 @@ button.mark:hover {
 .session-list .ghost {
   grid-column: 2;
   grid-row: 1 / span 2;
+}
+/* A question takes the row's full width under the name, so the name never squeezes. */
+.invitation-actions:has(.confirm),
+.session-list .confirm {
+  grid-column: 1 / -1;
+  grid-row: auto;
+  justify-content: flex-end;
+}
+.session-list .confirm .ghost {
+  grid-column: auto;
+  grid-row: auto;
 }
 
 /* Pages: goals, work and what is coming. Rows separated by hairlines, data in mono. */
@@ -1822,13 +2044,32 @@ button.mark:hover {
   height: 30px;
   padding: 0 11px;
 }
+/* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
   display: inline-flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 6px;
+}
+.confirm-note {
+  color: var(--text-2);
+  font-size: 12.5px;
 }
 .empty {
   padding: 24px 0;
   color: var(--text-3);
+}
+/* An empty list still leads somewhere: its way forward sits under the sentence. */
+div.empty {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+.view-note {
+  padding: 10px 0 2px;
+  color: var(--text-3);
+  font-size: 12.5px;
 }
 .pulse {
   position: sticky;
@@ -1870,7 +2111,7 @@ button.mark:hover {
 .event {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: baseline;
   padding: 7px 0;
@@ -2076,7 +2317,7 @@ button.mark:hover {
   }
 }
 @media (max-width: 560px) {
-  /* Phones: the Invite panel rises from the bottom; the lobby sits under the lens bar. */
+  /* Phones: the Invite panel rises from the bottom; the lobby spans the width under the bar. */
   .sheet {
     top: auto;
     left: 0;
@@ -2089,9 +2330,13 @@ button.mark:hover {
     animation-name: lift;
   }
   .lobby {
-    top: 84px;
+    top: calc(var(--topbar) + 12px);
     left: var(--gutter);
     width: auto;
+  }
+  /* In the Studio it sits under the lens bar. */
+  .shell[data-view='studio'] .lobby {
+    top: calc(var(--topbar) + 84px);
   }
   .invite-label {
     display: none;
