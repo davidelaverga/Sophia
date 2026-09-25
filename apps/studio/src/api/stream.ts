@@ -1,6 +1,7 @@
 // followProjectEvents over fetch streaming. EventSource cannot send an Authorization header, and a
 // bearer token must never travel in a URL.
 import { parseSse, type Frame } from '@sophia/contracts/sse'
+import { apiUrl } from './base.ts'
 import { toError } from './client.ts'
 
 /**
@@ -73,7 +74,7 @@ async function readFrames(body: NonNullable<Response['body']>, watch: StallWatch
 export async function followEvents(opts: FollowOptions): Promise<void> {
   const watch = new StallWatch(opts.signal, opts.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS)
   try {
-    const res = await fetch(`/api/v1/projects/${opts.projectId}/events?after=${opts.after}`, {
+    const res = await fetch(apiUrl(`/api/v1/projects/${opts.projectId}/events?after=${opts.after}`), {
       headers: { authorization: `Bearer ${opts.token}`, accept: 'text/event-stream' },
       signal: watch.signal,
     })

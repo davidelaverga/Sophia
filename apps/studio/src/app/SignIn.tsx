@@ -1,6 +1,6 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint.
 import { useState } from 'react'
-import { authMode, sendMagicLink } from './auth.ts'
+import { authMode, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
@@ -17,8 +17,14 @@ export function Centered({ title, children, busy }: { title: string; children?: 
   )
 }
 
-export function SignIn({ onChooseDev }: { onChooseDev: (identity: Identity) => void }) {
-  if (authMode === 'supabase') return <EmailSignIn />
+interface SignInProps {
+  onChooseDev: (identity: Identity) => void
+  /** Why the last sign-in link did not work, when it did not. */
+  notice?: string | undefined
+}
+
+export function SignIn({ onChooseDev, notice }: SignInProps) {
+  if (authMode === 'supabase') return <EmailSignIn notice={notice} />
   if (authMode === 'dev') return <DevIdentityPicker onChoose={onChooseDev} />
   return (
     <Centered title="Sign-in isn’t configured">
@@ -49,7 +55,7 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
 
 type Step = { step: 'idle' | 'sending' | 'sent' } | { step: 'error'; message: string }
 
-function EmailSignIn() {
+function EmailSignIn({ notice }: { notice: string | undefined }) {
   const [email, setEmail] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
 
@@ -67,6 +73,11 @@ function EmailSignIn() {
   if (state.step === 'sent') return <LinkSent email={email} onReset={() => setState({ step: 'idle' })} />
   return (
     <Centered title="Sign in to Sophia">
+      {notice && (
+        <p className="form-error" role="alert">
+          {notice}
+        </p>
+      )}
       <form className="signin" onSubmit={(e) => void submit(e)}>
         <label htmlFor="email" className="sr-only">
           Email
@@ -97,8 +108,10 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
   return (
     <Centered title="Check your email">
       <p>
-        We sent a sign-in link to <strong>{email}</strong>. Open it in this browser.
+        We sent a sign-in link and a code to <strong>{email}</strong>. Open the link in this browser, or enter the code
+        here if you read your email somewhere else.
       </p>
+      <CodeForm email={email} />
       {LOCAL_AUTH && (
         <p className="muted">
           Local stack: the email is in{' '}
@@ -112,5 +125,48 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
         Use another email
       </button>
     </Centered>
+  )
+}
+
+/** The emailed code signs in on this browser whichever device the email was read on. */
+function CodeForm({ email }: { email: string }) {
+  const [code, setCode] = useState('')
+  const [state, setState] = useState<Step>({ step: 'idle' })
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setState({ step: 'sending' })
+    try {
+      await verifyEmailCode(email, code.trim())
+      // Signed in: the auth listener replaces this screen with the project.
+    } catch (err: unknown) {
+      setState({ step: 'error', message: err instanceof Error ? err.message : 'That code did not work.' })
+    }
+  }
+  return (
+    <>
+      <form className="signin" onSubmit={(e) => void submit(e)}>
+        <label htmlFor="email-code" className="sr-only">
+          Code from the email
+        </label>
+        <input
+          id="email-code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="[0-9]{6,10}"
+          required
+          placeholder="Code from the email"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+        />
+        <button type="submit" className="primary" disabled={state.step === 'sending'}>
+          {state.step === 'sending' ? 'Checking…' : 'Sign in with code'}
+        </button>
+      </form>
+      {state.step === 'error' && (
+        <p className="form-error" role="alert">
+          {state.message}
+        </p>
+      )}
+    </>
   )
 }

@@ -2,6 +2,7 @@
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import { parseOrigins } from './cors.ts'
 
 // Trimmed: a trailing CR from a CRLF env file would silently break the exact issuer check.
 const optional = (name: string): string | undefined => process.env[name]?.trim() || undefined
@@ -17,6 +18,7 @@ await checkRoleSafety(pool) // refuse to start as an owner, superuser or BYPASSR
 const app = buildApp({
   pool,
   logger: true,
+  corsOrigins: parseOrigins(optional('STUDIO_ORIGINS')),
   verifyActor: createActorVerifier({
     issuer: required('SUPABASE_JWT_ISSUER'),
     audience: optional('SUPABASE_JWT_AUDIENCE') ?? 'authenticated',

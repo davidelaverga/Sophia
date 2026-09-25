@@ -5,6 +5,7 @@ import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { checkRoleSafety } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
+import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
 import { commandRoutes } from './routes/commands.ts'
 import { eventRoutes } from './routes/events.ts'
@@ -26,6 +27,8 @@ export interface AppDeps {
    */
   eventPollMs?: number
   logger?: boolean
+  /** Exact Studio origins allowed to call the API from a browser (a deployed Studio); none by default. */
+  corsOrigins?: readonly string[]
 }
 
 /** Functions the API requires in the database; /ready fails if any is missing. */
@@ -48,6 +51,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     await hub.close()
   })
 
+  registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor)
   app.setErrorHandler(handleError)
   registerHealth(app, deps.pool)
