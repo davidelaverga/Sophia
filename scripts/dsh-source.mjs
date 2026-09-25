@@ -27,9 +27,7 @@ const { values } = parseArgs({
 
 const unit = loadRuntimeUnit()
 const { repository, commit, tag, package_version: version } = unit.dsh
-const dir = resolve(
-  values.dir ?? process.env.SOPHIA_DSH_SRC ?? join(REPO_ROOT, '..', '.dsh-upstream', 'deepseek-harness'),
-)
+const dir = resolve(values.dir ?? process.env.SOPHIA_DSH_SRC ?? join(REPO_ROOT, '..', '.dsh-upstream', 'deepseek-harness'))
 if (!relative(REPO_ROOT, dir).startsWith('..')) {
   console.error(`refusing ${dir}: the dsh checkout must live outside the product tree ${REPO_ROOT}`)
   process.exit(1)
@@ -43,10 +41,7 @@ const check = (id, ok, detail) => {
 }
 
 if (!existsSync(join(dir, '.git'))) {
-  if (values.offline) {
-    console.error(`no checkout at ${dir} and --offline given`)
-    process.exit(1)
-  }
+  if (values.offline) { console.error(`no checkout at ${dir} and --offline given`); process.exit(1) }
   mkdirSync(dir, { recursive: true })
   git('init', '-q')
   git('remote', 'add', 'origin', `https://github.com/${repository}`)
@@ -73,13 +68,9 @@ if (!values.offline) {
 
 if (values['verify-release']) {
   const store = join(RUNTIME_DIR, 'node_modules', '.pnpm')
-  if (!existsSync(store)) {
-    console.error(`no runtime artifact at ${RUNTIME_DIR}; run \`pnpm artifacts\``)
-    process.exit(1)
-  }
+  if (!existsSync(store)) { console.error(`no runtime artifact at ${RUNTIME_DIR}; run \`pnpm artifacts\``); process.exit(1) }
   const tracked = new Set(git('ls-files').split('\n'))
-  let packages = 0,
-    identical = 0
+  let packages = 0, identical = 0
   const differing = []
   for (const entry of readdirSync(store)) {
     if (!entry.startsWith('@deepseek-ai+')) continue
@@ -99,10 +90,7 @@ if (values['verify-release']) {
     const walk = (rel) => {
       for (const child of readdirSync(join(installed, rel), { withFileTypes: true })) {
         const path = rel ? `${rel}/${child.name}` : child.name
-        if (child.isDirectory()) {
-          if (child.name !== 'node_modules') walk(path)
-          continue
-        }
+        if (child.isDirectory()) { if (child.name !== 'node_modules') walk(path); continue }
         if (path === 'package.json' || !tracked.has(`${sourceDir}/${path}`)) continue
         const same = readFileSync(join(installed, path)).equals(readFileSync(join(dir, sourceDir, path)))
         if (same) identical += 1
@@ -111,11 +99,8 @@ if (values['verify-release']) {
     }
     walk('')
   }
-  check(
-    'release_matches_source',
-    packages > 0 && differing.length === 0,
-    `${packages} @deepseek-ai package entries at ${version}; ${identical} shipped files byte-identical to the pin; ${differing.length} differing${differing.length ? `: ${differing.slice(0, 10).join(', ')}` : ''}`,
-  )
+  check('release_matches_source', packages > 0 && differing.length === 0,
+    `${packages} @deepseek-ai package entries at ${version}; ${identical} shipped files byte-identical to the pin; ${differing.length} differing${differing.length ? `: ${differing.slice(0, 10).join(', ')}` : ''}`)
   report.release = { packages, identical_files: identical, differing }
 }
 
