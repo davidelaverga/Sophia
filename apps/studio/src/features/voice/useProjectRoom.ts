@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { issueRoomToken } from '../../api/client.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
-import type { DockStatus, RoomParticipant } from './room-view.ts'
+import { listensOnly, type DockStatus, type RoomParticipant } from './room-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
 
@@ -67,6 +67,9 @@ function useMediaNote(): [string | null, (note: string | null) => void] {
   return [note, setNote]
 }
 
+/** A viewer's token cannot publish: they listen, and no browser prompt asks them for a microphone. */
+const speaksOnJoin = (c: RoomConnection) => !listensOnly(c.participants().find((p) => p.local))
+
 /** A member's room: the token names this project's room and the audience revision the member saw. */
 export function useProjectRoom(projectId: string, token: string, snapshot: Snapshot | undefined): ProjectRoom {
   const req = snapshot ? { roomId: snapshot.room.id, expectedAudienceRevision: snapshot.audienceRevision } : null
@@ -117,7 +120,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       })
       setStatus('live')
       refresh()
-      await media('microphone', (c) => c.setMicrophone(true))()
+      if (speaksOnJoin(connection.current)) await media('microphone', (c) => c.setMicrophone(true))()
     } catch (err: unknown) {
       connection.current = null
       setStatus('failed')

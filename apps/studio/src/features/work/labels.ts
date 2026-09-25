@@ -16,11 +16,45 @@ export const GOAL_STATUS: Record<Goal['status'], { label: string; tone: Tone }> 
 
 export type CommandKind = Exclude<GoalCommand['kind'], 'steer'>
 
-export const COMMAND: Record<CommandKind, { verb: string; noun: string; allowed: ReadonlyArray<Goal['status']> }> = {
-  request_review: { verb: 'Request review', noun: 'Review request', allowed: ['ready', 'running', 'checking'] },
-  hold: { verb: 'Hold', noun: 'Hold', allowed: ['running', 'checking'] },
-  resume: { verb: 'Resume', noun: 'Resume', allowed: ['held'] },
-  stop: { verb: 'Stop', noun: 'Stop', allowed: ['ready', 'running', 'checking', 'holding', 'held'] },
+interface Command {
+  verb: string
+  noun: string
+  /** What was sent, in the words of the Work pulse. */
+  requested: string
+  /** What the button does, for its tip. */
+  hint: string
+  allowed: ReadonlyArray<Goal['status']>
+}
+
+export const COMMAND: Record<CommandKind, Command> = {
+  request_review: {
+    verb: 'Request review',
+    noun: 'Review request',
+    requested: 'Review requested',
+    hint: 'Ask for a review of the progress so far',
+    allowed: ['ready', 'running', 'checking'],
+  },
+  hold: {
+    verb: 'Hold',
+    noun: 'Hold',
+    requested: 'Hold requested',
+    hint: 'Pause the work; you can resume it',
+    allowed: ['running', 'checking'],
+  },
+  resume: {
+    verb: 'Resume',
+    noun: 'Resume',
+    requested: 'Resume requested',
+    hint: 'Continue the work where it paused',
+    allowed: ['held'],
+  },
+  stop: {
+    verb: 'Stop',
+    noun: 'Stop',
+    requested: 'Stop requested',
+    hint: 'End the work for good',
+    allowed: ['ready', 'running', 'checking', 'holding', 'held'],
+  },
 }
 
 /**

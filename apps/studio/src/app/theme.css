@@ -1292,6 +1292,17 @@ button.mark:hover {
   color: var(--warm);
   font-weight: 500;
 }
+/* A viewer's place in the dock: they listen and watch. */
+.dock-listening {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
 .floor-error {
   position: absolute;
   bottom: calc(100% + 14px);
@@ -1907,6 +1918,17 @@ button.mark:hover {
   padding: 24px 0;
   color: var(--text-3);
 }
+/* An empty list still leads somewhere: its way forward sits under the sentence. */
+div.empty {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+.view-note {
+  padding: 10px 0 2px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
 .pulse {
   position: sticky;
   top: calc(var(--topbar) + 32px);
@@ -1947,7 +1969,7 @@ button.mark:hover {
 .event {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: baseline;
   padding: 7px 0;

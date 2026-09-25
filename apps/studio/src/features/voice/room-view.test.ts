@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   floorView,
+  listensOnly,
   orderParticipants,
   presenceSlots,
   roomLine,
@@ -40,10 +41,17 @@ describe('floor view', () => {
     )
   })
 
-  it('names a holder who left the room honestly, and offers to take it back', () => {
+  it('names a holder who left the room honestly, and offers it back only to an admin', () => {
     const absent = floorView('b', [luis])
     assert.deepEqual(absent.holder, { identity: 'b', name: 'someone who isn’t in the room', present: false })
-    assert.equal(absent.canTake, true)
+    assert.equal(absent.canTake, false) // an editor would be refused by the server
+    assert.equal(floorView('b', [{ ...luis, standing: 'admin' }]).canTake, true)
+  })
+
+  it('knows who only listens', () => {
+    assert.equal(listensOnly({ ...luis, standing: 'viewer' }), true)
+    assert.equal(listensOnly(luis), false)
+    assert.equal(listensOnly(undefined), false)
   })
 
   it('never offers the floor to a guest or a viewer, and never lets them take it', () => {

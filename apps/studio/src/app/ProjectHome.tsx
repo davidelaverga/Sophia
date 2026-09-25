@@ -89,7 +89,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         onChange={(e) => setTitle(e.target.value)}
       />
       <button type="submit" className="pill primary" disabled={status === 'sending' || !title.trim()}>
-        {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Retry same request' : 'Start the project'}
+        {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Try again' : 'Start the project'}
       </button>
       <p className="outcome" role="status" aria-live="polite">
         {admission.state.status === 'unknown' && (

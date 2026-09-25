@@ -8,7 +8,7 @@ interface Props {
   goal: Goal
   projectId: string
   identity: Identity
-  /** The Work view carries the controls; the Goals view reads outcomes and criteria only. */
+  /** The Work view carries the controls, for editors and admins; the Goals view reads outcomes only. */
   controls?: boolean
 }
 
@@ -18,9 +18,6 @@ export function GoalCard({ goal, projectId, identity, controls = true }: Props) 
     <li className="goal" data-status={goal.status}>
       <div className="goal-meta">
         <Tag tone={status.tone}>{status.label}</Tag>
-        <span className="mono" title="Goal revision · authority epoch">
-          rev {goal.revision} · epoch {goal.authorityEpoch}
-        </span>
       </div>
       <h3 className="goal-title">{goal.title}</h3>
       <p className="goal-outcome">{goal.outcome}</p>

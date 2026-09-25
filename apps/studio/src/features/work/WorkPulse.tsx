@@ -1,6 +1,7 @@
 // renderPulse → WorkPulse (frontend bindings): what changed in the project, from the SSE feed.
-// Quiet by design; no percent-complete, no invented progress.
+// Quiet by design; no percent-complete, no invented progress, no sequence numbers.
 import { useEffect, useState } from 'react'
+import type { Event as ProjectEvent } from '@sophia/contracts'
 import { isCursorAdvance } from '@sophia/contracts/validate'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
@@ -14,6 +15,15 @@ function ago(iso: string, now: number): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/** Nothing to show yet: say why, in the connection's own terms. */
+const QUIET: Record<Connection, string> = {
+  connecting: 'Connecting to the project…',
+  live: 'Nothing new yet.',
+  reconnecting: 'Reconnecting…',
+  resyncing: 'Catching up…',
+  denied: 'You can’t see this project’s activity.',
+}
+
 export function WorkPulse({ feed, connection }: { feed: Feed | null; connection: Connection }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -22,39 +32,32 @@ export function WorkPulse({ feed, connection }: { feed: Feed | null; connection:
   }, [])
 
   const items = feed?.recent ?? []
+  // Changes this person may not see stay private: one honest line for all of them, not a row each.
+  const events = items.filter((f): f is ProjectEvent => !isCursorAdvance(f))
+  const hidden = items.length - events.length
   return (
     <aside className="pulse" aria-labelledby="pulse-title">
       <div className="pulse-head">
         <h4 id="pulse-title">Work pulse</h4>
-        {feed && (
-          <span className="mono muted" title="Last applied event">
-            #{feed.cursor}
-          </span>
-        )}
       </div>
       {items.length === 0 ? (
-        <p className="empty">
-          {connection === 'live'
-            ? 'Quiet. New requests appear here as they’re admitted.'
-            : 'Waiting for the project stream…'}
-        </p>
+        <p className="empty">{QUIET[connection]}</p>
       ) : (
         <ol className="events">
-          {items.map((f) =>
-            isCursorAdvance(f) ? (
-              <li key={`adv-${f.sequence}`} className="event hidden-event">
-                <span className="dot" aria-hidden />
-                <span>Private update</span>
-                <span className="mono muted">#{f.sequence}</span>
-              </li>
-            ) : (
-              <li key={f.eventId} className="event">
-                <span className="dot" aria-hidden />
-                <span>{summaryLabel(f.summaryCode, f.type)}</span>
-                <span className="muted">{ago(f.occurredAt, now)}</span>
-                <span className="mono muted">#{f.sequence}</span>
-              </li>
-            ),
+          {events.map((f) => (
+            <li key={f.eventId} className="event">
+              <span className="dot" aria-hidden />
+              <span>{summaryLabel(f.summaryCode, f.type)}</span>
+              <span className="muted">{ago(f.occurredAt, now)}</span>
+            </li>
+          ))}
+          {hidden > 0 && (
+            <li className="event hidden-event">
+              <span className="dot" aria-hidden />
+              <span>
+                {hidden} {hidden === 1 ? 'change' : 'changes'} you can’t see
+              </span>
+            </li>
           )}
         </ol>
       )}

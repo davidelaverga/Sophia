@@ -125,6 +125,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
           snapshot={snapshot.data}
           pulse={<WorkPulse feed={feed} connection={connection} />}
           onShow={onShow}
+          onInvite={() => setInviting(true)}
         />
       )}
     </div>
@@ -185,13 +186,15 @@ interface BodyProps {
   snapshot: Snapshot | undefined
   pulse: React.ReactNode
   onShow: (view: View) => void
+  onInvite: () => void
 }
 
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
  */
-function ProjectBody({ view, projectId, identity, room, membership, snapshot, pulse, onShow }: BodyProps) {
+function ProjectBody(props: BodyProps) {
+  const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite } = props
   const lobby = (
     <LobbyPanel
       projectId={projectId}
@@ -214,7 +217,15 @@ function ProjectBody({ view, projectId, identity, room, membership, snapshot, pu
       {lobby}
       <main className={`page${work ? ' split' : ''}`}>
         {view === 'goals' || work ? (
-          <GoalList snapshot={snapshot} projectId={projectId} identity={identity} controls={work} />
+          <GoalList
+            snapshot={snapshot}
+            projectId={projectId}
+            identity={identity}
+            controls={work}
+            canAct={canInvite(membership)}
+            onOpenStudio={() => onShow('studio')}
+            onInvite={onInvite}
+          />
         ) : (
           <PendingView view={view} onShow={onShow} />
         )}

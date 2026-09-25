@@ -11,11 +11,14 @@ interface Props {
   confirm: string
   /** The safe answer. */
   keep?: string
+  /** The button at rest: quiet by default, a pill among other pills. */
+  className?: string
   disabled?: boolean
   onConfirm: () => void
 }
 
-export function ConfirmButton({ label, warning, confirm, keep = 'Keep', disabled = false, onConfirm }: Props) {
+export function ConfirmButton(props: Props) {
+  const { label, warning, confirm, keep = 'Keep', className = 'ghost', disabled = false, onConfirm } = props
   const [asking, setAsking] = useState(false)
   const safe = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -23,7 +26,7 @@ export function ConfirmButton({ label, warning, confirm, keep = 'Keep', disabled
   }, [asking])
   if (!asking) {
     return (
-      <button type="button" className="ghost" disabled={disabled} onClick={() => setAsking(true)}>
+      <button type="button" className={className} disabled={disabled} onClick={() => setAsking(true)}>
         {label}
       </button>
     )
