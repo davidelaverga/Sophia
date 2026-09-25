@@ -3,6 +3,7 @@
 // this proves the bridge↔API contract, speaker binding, roles, guest quiescence and holder departure. It is
 // not a live model or media test and does not count toward A04/A05 acceptance.
 import { createHash, randomUUID } from 'node:crypto'
+import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
@@ -60,8 +61,12 @@ let owner: pg.Pool
 let app: FastifyInstance
 /** LiveKit configured but unreachable: room tokens are signed locally; presence reads fail. */
 let voiced: FastifyInstance
+/** An API whose LiveKit server answers: the room is member-only (a fake of the room service's participant list). */
+let present: FastifyInstance
+let presence: Server
 let base: string
 let voicedBase: string
+let presentBase: string
 let seed: SeededProject
 
 const token = (sub: string, claims: Record<string, unknown> = {}) =>
@@ -179,10 +184,22 @@ before(async () => {
   const mediaBridgeTokenSha256 = createHash('sha256').update(MEDIA_TOKEN, 'utf8').digest()
   app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, invites: INVITES })
   voiced = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, invites: INVITES, livekit: UNREACHABLE_LIVEKIT })
+  presence = createServer((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json')
+      res.end(req.url?.endsWith('/ListParticipants') ? JSON.stringify({ participants: [] }) : '{}')
+    })
+  })
+  await new Promise<void>((resolve) => presence.listen(0, '127.0.0.1', resolve))
+  const livekit = { ...UNREACHABLE_LIVEKIT, url: `ws://127.0.0.1:${(presence.address() as AddressInfo).port}` }
+  present = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, invites: INVITES, livekit })
   await app.listen({ port: 0, host: '127.0.0.1' })
   await voiced.listen({ port: 0, host: '127.0.0.1' })
+  await present.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
   voicedBase = `http://127.0.0.1:${(voiced.server.address() as AddressInfo).port}`
+  presentBase = `http://127.0.0.1:${(present.server.address() as AddressInfo).port}`
 })
 
 after(async () => {
@@ -190,6 +207,8 @@ after(async () => {
   await running
   await app?.close()
   await voiced?.close()
+  await present?.close()
+  await new Promise((resolve) => presence?.close(resolve))
   await pool?.end()
   await owner?.end()
   await db?.drop()
@@ -205,15 +224,17 @@ describe('media routes: the bridge capability and nothing else (amendment A06)',
     assert.equal((await call(`/api/v1/projects/${seed.projectId}/snapshot`, { bearer: MEDIA_TOKEN })).status, 401)
   })
 
-  it('an exchange does not open when the room’s trusted presence cannot be read', async () => {
+  it('an exchange does not open when the room’s trusted presence cannot be read, or the room service is not set up', async () => {
     const snap = await snapshot()
-    const res = await call(`/api/v1/rooms/${snap.room.id}/exchanges`, {
-      at: voicedBase,
-      bearer: await token(E),
-      key: true,
-      body: { expectedRoomRevision: snap.room.revision, allowVision: false },
-    })
-    assert.equal(res.status, 503)
+    const open = async (at: string) =>
+      call(`/api/v1/rooms/${snap.room.id}/exchanges`, {
+        at,
+        bearer: await token(E),
+        key: true,
+        body: { expectedRoomRevision: snap.room.revision, allowVision: false },
+      })
+    assert.equal((await open(voicedBase)).status, 503, 'LiveKit unreachable')
+    assert.equal((await open(base)).status, 503, 'no LiveKit configured: nobody can say who is listening')
   })
 })
 
@@ -233,6 +254,7 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     const snap = await snapshot()
     assert.equal(snap.room.sophia.voice, 'not_connected')
     const opened = await call(`/api/v1/rooms/${snap.room.id}/exchanges`, {
+      at: presentBase,
       bearer: await token(E),
       key: true,
       body: { expectedRoomRevision: snap.room.revision, allowVision: true },
@@ -377,14 +399,22 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       const r = await owner.query<{ g: boolean }>('SELECT guests_present AS g FROM sophia.room_ai_presence')
       return r.rows[0]?.g === true
     })
-    const refused = await call(`/api/v1/exchanges/${exchangeId}/resume`, { bearer: await token(E), body: {} })
+    const refused = await call(`/api/v1/exchanges/${exchangeId}/resume`, {
+      at: presentBase,
+      bearer: await token(E),
+      body: {},
+    })
     assert.equal(refused.status, 409, 'Sophia does not resume while the guest is in the room')
     room.set(room.present.filter((p) => p.identity !== G))
     await until('member-only reported', async () => {
       const r = await owner.query<{ g: boolean }>('SELECT guests_present AS g FROM sophia.room_ai_presence')
       return r.rows[0]?.g === false
     })
-    const resumed = await call(`/api/v1/exchanges/${exchangeId}/resume`, { bearer: await token(E), body: {} })
+    const resumed = await call(`/api/v1/exchanges/${exchangeId}/resume`, {
+      at: presentBase,
+      bearer: await token(E),
+      body: {},
+    })
     assert.equal(resumed.status, 200, 'resumed by an explicit member action')
   })
 
@@ -467,7 +497,7 @@ describe('holder departure through the real API (S1-05A §7)', () => {
     const snap = await snapshot()
     const exchangeId = snap.room.sophia.exchangeId
     assert.ok(exchangeId)
-    await call(`/api/v1/exchanges/${exchangeId}/resume`, { bearer: await token(E), body: {} })
+    await call(`/api/v1/exchanges/${exchangeId}/resume`, { at: presentBase, bearer: await token(E), body: {} })
     rooms.length = 0
     lives.length = 0
     bridge = new MediaBridge({

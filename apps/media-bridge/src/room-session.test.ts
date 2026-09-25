@@ -376,6 +376,34 @@ describe('room session: Sophia’s output (case A09)', () => {
     assert.ok(room.played.length > 0)
   })
 
+  it('a stopped reply stays silenced however long the provider stalls, until its turn ends', async () => {
+    const { session, room, live } = await ready()
+    live.events.audio(speech(), OUT)
+    await flush()
+    session.update(assignment({ playbackEpoch: 2 }))
+    const played = room.played.length
+    clock += 20_000
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, played, 'the rest of the stopped reply, 20 s later, is still dropped')
+    live.events.turnComplete()
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > played, 'the next reply plays')
+  })
+
+  it('a reply that begins within the wait after a stop is dropped to its end, even across a stall', async () => {
+    const { session, room, live } = await ready()
+    live.events.inputTranscript('what is the status', true)
+    session.update(assignment({ playbackEpoch: 2 }))
+    clock += 7000
+    live.events.audio(speech(), OUT)
+    clock += 5000
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, 0)
+  })
+
   it('the fence lapses when the stopped reply never comes', async () => {
     const { session, room, live } = await ready()
     live.events.inputTranscript('hello?', true)
@@ -827,6 +855,31 @@ describe('room session: finished work (case A06)', () => {
     await flush()
     await flush()
     assert.deepEqual(service.announcedEvents, [{ exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1 }])
+  })
+
+  it('a heard notice whose receipt failed is recorded again later, and is not announced twice', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
+    const { session, live } = await ready({ results })
+    let failures = 1
+    service.announced = async (e) => {
+      await Promise.resolve()
+      if (failures > 0) {
+        failures -= 1
+        throw new Error('503 from the API')
+      }
+      service.announcedEvents.push(e)
+    }
+    session.tick()
+    live.events.audio(speech(), OUT)
+    await flush()
+    await flush()
+    assert.deepEqual(service.announcedEvents, [], 'the first receipt failed')
+    live.events.turnComplete()
+    clock += 5000
+    session.tick()
+    await flush()
+    assert.deepEqual(service.announcedEvents, [{ exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1 }])
+    assert.equal(live.notices.length, 1, 'recorded again, not announced again')
   })
 
   it('a notice answered with silence three times is left for a later session, unrecorded', async () => {

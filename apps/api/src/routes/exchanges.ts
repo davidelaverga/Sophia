@@ -23,9 +23,12 @@ const idParams = (name: string) =>
     required: [name],
   }) as const
 
-/** Refuse while the LiveKit server lists a guest (or anyone of unsigned standing) in the room; unreadable presence refuses too. */
+/**
+ * Refuse while the LiveKit server lists a guest (or anyone of unsigned standing) in the room. Presence that cannot
+ * be read refuses too, and so does an API without the room service configured: it cannot know who is listening.
+ */
 async function requireMemberOnlyRoom(livekit: LiveKitConfig | undefined, roomId: string): Promise<void> {
-  if (!livekit) return
+  if (!livekit) throw new DomainError('unavailable', 'The room service is not configured; Sophia stays paused')
   let people: Awaited<ReturnType<typeof roomParticipants>>
   try {
     people = await roomParticipants(livekit, roomId)

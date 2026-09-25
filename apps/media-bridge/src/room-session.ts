@@ -57,11 +57,17 @@ const RECONNECT_DELAYS_MS = [250, 1000, 2000, 4000, 8000]
 const JOIN_RETRY_MS = [1000, 2000, 5000, 10_000]
 /** A stopped reply that has not started within this long is not coming: the fence lapses. */
 const STOPPED_REPLY_WAIT_MS = 8000
-/** Once a stopped reply's audio pauses this long, it is over. */
-const STOPPED_TAIL_MS = 3000
 const UNAVAILABLE_RETRY_MS = 30_000
 /** A result notice whose turn ends unheard this many times is not sent again by this session. */
 const NOTICE_ATTEMPTS = 3
+/** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
+const RECEIPT_RETRY_MS = 5000
+
+interface Announced {
+  exchangeId: string
+  taskId: string
+  resultRevision: number
+}
 const CALL_ID = /^[A-Za-z0-9_.:-]{1,64}$/
 
 export const toAssignment = (a: MediaAssignment): Assignment => ({
@@ -178,8 +184,13 @@ export class RoomSession {
    * answer it before it sends any transcript, so a stop fences that reply too.
    */
   private heardAt: number | null = null
-  /** Stop Speaking or a pause mid-turn: until this time, the rest of that model turn is dropped, not played later. */
-  private discardUntil = 0
+  /**
+   * Stop Speaking or a pause mid-turn: the rest of that model turn is dropped, never played later. Once the stopped
+   * reply has begun (it was already speaking, or its first audio arrived in time), the fence holds until that turn
+   * ends (turnComplete, interrupted or a reconnect), however long the provider stalls. A reply that was only
+   * possibly on its way must begin within STOPPED_REPLY_WAIT_MS, or the fence lapses so a later reply is not lost.
+   */
+  private fence: { beginBy: number; begun: boolean } | null = null
   private playingUntil = 0
   private pumping = false
   private pauseApplied = false
@@ -193,8 +204,13 @@ export class RoomSession {
   /** Results sent to Google as a notice: while one waits to be heard, and once it was heard. */
   private readonly announced = new Set<string>()
   /** The notice sent and not yet heard: it is recorded as announced only once its audio reached the room. */
-  private notice: { key: string; event: { exchangeId: string; taskId: string; resultRevision: number } } | null = null
+  private notice: { key: string; event: Announced } | null = null
   private readonly noticeAttempts = new Map<string, number>()
+  /**
+   * Heard notices the API has not yet recorded. Each is retried until it is: an unrecorded result stays listed, and
+   * a later session would announce it again.
+   */
+  private readonly receipts = new Map<string, { event: Announced; retryAt: number; sending: boolean }>()
   private readonly cancelled = new Set<string>()
   private stopTicking: (() => void) | null = null
   private joining = false
@@ -384,7 +400,7 @@ export class RoomSession {
     this.framer.clear()
     this.playingUntil = 0
     if (!pending) return
-    this.discardUntil = this.deps.now() + STOPPED_REPLY_WAIT_MS
+    this.fence = { beginBy: this.deps.now() + STOPPED_REPLY_WAIT_MS, begun: pending === 'responding' }
     this.deps.log('audio.reply_fenced', { exchangeId: this.exchangeId, because: pending })
   }
 
@@ -581,17 +597,19 @@ export class RoomSession {
     this.responding = false
     this.awaitingReply = false
     this.heardAt = null
-    this.discardUntil = 0
+    this.fence = null
     this.noticeUnheard()
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
     const generation = this.state.currentGeneration()
-    const now = this.deps.now()
-    if (this.discardUntil > now) {
-      // The stopped reply is still arriving: keep dropping it while it lasts.
-      this.discardUntil = Math.max(this.discardUntil, now + STOPPED_TAIL_MS)
-      return
+    if (this.fence) {
+      // The stopped reply is (still) arriving: drop it until its turn ends. One that never began in time is over.
+      if (this.fence.begun || this.deps.now() < this.fence.beginBy) {
+        this.fence.begun = true
+        return
+      }
+      this.fence = null
     }
     if (!this.state.mayPlay(generation)) return
     let samples: Int16Array
@@ -693,6 +711,7 @@ export class RoomSession {
       void this.connect()
     }
     this.announce(now)
+    this.sendReceipts(now)
     this.publish(now)
   }
 
@@ -752,9 +771,25 @@ export class RoomSession {
     const notice = this.notice
     if (!notice) return
     this.notice = null
-    this.deps.service
-      .announced(notice.event)
-      .catch((err: unknown) => this.deps.log('announce.record_failed', { error: message(err) }))
+    this.receipts.set(notice.key, { event: notice.event, retryAt: 0, sending: false })
+    this.sendReceipts(this.deps.now())
+  }
+
+  /** Record heard notices with the API; one that fails is tried again after RECEIPT_RETRY_MS. */
+  private sendReceipts(now: number): void {
+    for (const [key, receipt] of this.receipts) {
+      if (receipt.sending || receipt.retryAt > now) continue
+      receipt.sending = true
+      this.deps.service.announced(receipt.event).then(
+        () => this.receipts.delete(key),
+        (err: unknown) => {
+          receipt.sending = false
+          receipt.retryAt = this.deps.now() + RECEIPT_RETRY_MS
+          const taskId = receipt.event.taskId
+          this.deps.log('announce.record_failed', { exchangeId: this.exchangeId, taskId, error: message(err) })
+        },
+      )
+    }
   }
 
   /** The notice's turn ended and nothing of it is still to play: it was not heard, so it may be sent again. */
