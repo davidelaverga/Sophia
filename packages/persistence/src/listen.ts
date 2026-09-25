@@ -3,6 +3,9 @@ import type pg from 'pg'
 /** Channel notified on commit of every project_events insert (db/migrations/0005). Payload: project UUID. */
 export const PROJECT_EVENTS_CHANNEL = 'sophia_project_events'
 
+/** Channel notified on commit of every runtime command (db/migrations/0012). Payload: runtime instance UUID. */
+export const RUNTIME_COMMANDS_CHANNEL = 'sophia_runtime_commands'
+
 export interface ListenHandlers {
   /** Something committed in this project; subscribers re-read under their own actor. */
   onProject: (projectId: string) => void
@@ -11,26 +14,37 @@ export interface ListenHandlers {
   onError: (err: Error) => void
 }
 
+/** The same, for any channel: `onPayload` receives each notification's payload. */
+export interface ChannelHandlers {
+  onPayload: (payload: string) => void
+  onReconnect: () => void
+  onError: (err: Error) => void
+}
+
 const MIN_RETRY_MS = 1000
 const MAX_RETRY_MS = 30_000
 
 /**
- * One pooled connection held in LISTEN. When it fails, the broken client is destroyed (never returned
- * to the pool), LISTEN is re-established with backoff, and `onReconnect` wakes every follower.
+ * One pooled connection held in LISTEN on one channel. When it fails, the broken client is destroyed
+ * (never returned to the pool), LISTEN is re-established with backoff, and `onReconnect` wakes every
+ * follower.
  */
-export class ProjectEventListener {
+export class ChannelListener {
   private client: pg.PoolClient | null = null
   private stopped = false
   private retryMs = MIN_RETRY_MS
   private timer: NodeJS.Timeout | undefined
   private readonly pool: pg.Pool
-  private readonly handlers: ListenHandlers
+  private readonly channel: string
+  private readonly handlers: ChannelHandlers
   private markListening: () => void = () => undefined
   /** Resolves once LISTEN is first established (tests and startup checks wait on it). */
   readonly listening: Promise<void>
 
-  constructor(pool: pg.Pool, handlers: ListenHandlers) {
+  constructor(pool: pg.Pool, channel: string, handlers: ChannelHandlers) {
+    if (!/^[a-z_]+$/.test(channel)) throw new Error(`invalid channel name ${channel}`)
     this.pool = pool
+    this.channel = channel
     this.handlers = handlers
     this.listening = new Promise((resolve) => {
       this.markListening = resolve
@@ -39,7 +53,7 @@ export class ProjectEventListener {
   }
 
   private readonly onNotification = (msg: pg.Notification) => {
-    if (msg.channel === PROJECT_EVENTS_CHANNEL && msg.payload) this.handlers.onProject(msg.payload)
+    if (msg.channel === this.channel && msg.payload) this.handlers.onPayload(msg.payload)
   }
 
   private async connect(recovering: boolean): Promise<void> {
@@ -53,7 +67,7 @@ export class ProjectEventListener {
       connected.on('error', (err) => {
         if (this.client === connected) this.fail(err)
       })
-      await connected.query(`LISTEN ${PROJECT_EVENTS_CHANNEL}`)
+      await connected.query(`LISTEN ${this.channel}`)
       if (this.stopped) {
         connected.release()
         return
@@ -89,7 +103,18 @@ export class ProjectEventListener {
     this.client = null
     if (!client) return
     client.off('notification', this.onNotification)
-    await client.query(`UNLISTEN ${PROJECT_EVENTS_CHANNEL}`).catch(() => undefined)
+    await client.query(`UNLISTEN ${this.channel}`).catch(() => undefined)
     client.release()
+  }
+}
+
+/** Project events (db/migrations/0005): `onProject` receives the project UUID of each committed event. */
+export class ProjectEventListener extends ChannelListener {
+  constructor(pool: pg.Pool, handlers: ListenHandlers) {
+    super(pool, PROJECT_EVENTS_CHANNEL, {
+      onPayload: handlers.onProject,
+      onReconnect: handlers.onReconnect,
+      onError: handlers.onError,
+    })
   }
 }

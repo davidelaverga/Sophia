@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@sophia/test-support": "workspace:*",
+    "@sophia/worker": "workspace:*",
     "@types/pg": "8.23.1"
   }
 }

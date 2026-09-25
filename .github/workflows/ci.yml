@@ -54,6 +54,9 @@ jobs:
       - run: pnpm test:sql
       # Two-connection races, lease fencing, idempotent retries, SSE and revocation over real HTTP.
       - run: pnpm test:db
+      # S1-05A crossing: the real pinned dsh runtime against the real API, PostgreSQL and worker dispatch.
+      - run: pnpm build && pnpm artifacts
+      - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/runtime-service.test.mjs
 
   supabase-live:
     name: Live auth on local Supabase

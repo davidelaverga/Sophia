@@ -28,6 +28,8 @@ const snapshot = {
   room: { id: G, revision: 1, inputActorId: null, mode: 'invoked' },
   lobby: [],
   sessions: [],
+  discussion: [],
+  work: [],
 }
 const receipt = {
   commandId: G,

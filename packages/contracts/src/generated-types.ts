@@ -10,11 +10,11 @@ export type CursorAdvance = { "projectId": string; "type": "cursor.advanced"; "s
 export type Resource = { "id": string; "projectId": string; "ownerId": string; "label": string; "harness": "codex-native" | "claude-native" | "dsh"; "hostState": "online" | "offline" | "unknown"; "nativeState": "idle" | "running" | "blocked" | "failed" | "unknown"; "observedAt": string | null; "model": string | null; "effort": string | null; "authorityState": "active" | "revoked" | "needs_connection"; "capabilities": ReadonlyArray<string>; };
 export type HumanAction = { "id": string; "projectId": string; "ownerId": string; "bindingId": string; "nativeSessionId": string; "nativeRequestId": string; "fingerprint": string; "kind": "permission" | "login" | "clarification" | "release" | "observation_gap"; "state": "pending" | "accepted" | "declined" | "cancelled" | "expired" | "resolved_unknown" | "superseded"; "detailsRef": string | null; "nativeUrl": string | null; "expiresAt": string | null; "responseMode": "native_only" | "in_app_form" | "in_app_binary"; };
 export type ArtifactVersion = { "id": string; "artifactId": string; "projectId": string; "parentId": string | null; "sourceId": string; "sourceHash": string; "state": "candidate" | "validated" | "stable" | "rejected" | "superseded"; "previewId": string | null; "format": "html" | "pdf" | "pptx" | "ui"; "exportEditability": "source_editable" | "raster_pptx_with_source" | "original_only"; };
-export type Snapshot = { "projectId": string; "title": string; "cursor": string; "missionRevision": number; "audienceRevision": number; "eligibilityRevision": number; "goals": ReadonlyArray<Goal>; "resources": ReadonlyArray<Resource>; "humanActions": ReadonlyArray<HumanAction>; "artifacts": ReadonlyArray<ArtifactVersion>; "sharedFocus": { "artifactVersionId": string; "revision": number; "guideId": string; } | null; "room": Room; "lobby": ReadonlyArray<LobbyEntry>; "sessions": ReadonlyArray<RoomSession>; };
+export type Snapshot = { "projectId": string; "title": string; "cursor": string; "missionRevision": number; "audienceRevision": number; "eligibilityRevision": number; "goals": ReadonlyArray<Goal>; "resources": ReadonlyArray<Resource>; "humanActions": ReadonlyArray<HumanAction>; "artifacts": ReadonlyArray<ArtifactVersion>; "sharedFocus": { "artifactVersionId": string; "revision": number; "guideId": string; } | null; "room": Room; "lobby": ReadonlyArray<LobbyEntry>; "sessions": ReadonlyArray<RoomSession>; "discussion": ReadonlyArray<DiscussionEntry>; "work": ReadonlyArray<NativeTask>; };
 export type ProjectCreate = { "title": string; };
 export type ProjectCreated = { "projectId": string; "cursor": string; };
 export type GoalCommand = { "kind": "steer" | "request_review" | "hold" | "stop" | "resume"; "goalId": string; "expectedGoalRevision": number; "expectedAuthorityEpoch": number; "bodySourceId": string | null; };
-export type Contribution = { "source": SourceRef; "threadId": string | null; "artifactVersionId": string | null; "intent": "discuss" | "ask_sophia" | "propose_work"; };
+export type Contribution = { "source": SourceRef | null; "text": string | null; "threadId": string | null; "artifactVersionId": string | null; "intent": "discuss" | "ask_sophia" | "propose_work"; };
 export type ProgressReviewRequest = { "goalIds": ReadonlyArray<string>; "questionSourceId": string | null; "expectedMissionRevision": number; };
 export type RoomTokenRequest = { "roomId": string; "expectedAudienceRevision": number; };
 export type RoomToken = { "roomId": string; "serverUrl": string; "token": string; "expiresAt": string; };
@@ -53,11 +53,28 @@ export type LobbyEntry = { "id": string; "displayName": string; "status": "waiti
 export type LobbyDecision = { "decision": "admit" | "deny" | "block" | "unblock"; };
 export type InvitationAccepted = { "projectId": string; };
 export type Membership = { "actorId": string; "role": "admin" | "editor" | "viewer"; };
+export type RuntimeWorkBinding = { "projectId": string; "goalId": string; "goalRevision": number; "attemptId": string; "resourceId": string; "authorityEpoch": number; "runtimeUnitId": string; };
+export type RuntimeCommand = { "schema": "sophia.runtime-command.v1"; "commandId": string; "binding": RuntimeWorkBinding; "kind": "create" | "resume" | "input" | "steer" | "hold" | "stop" | "inspect"; "expectedNativeSessionId": string | null; "contextPacketId": string | null; "payload": { "text"?: string; "role"?: string; }; };
+export type RuntimeReceipt = { "commandId": string; "attemptId": string; "stage": "delivered" | "incorporation_observed" | "checked" | "rejected" | "failed" | "outcome_unknown"; "nativeSessionId": string | null; "nativeSequence": number | null; "evidenceRefs": ReadonlyArray<string>; "observedAt": string; "reason": string | null; };
+export type RuntimeObservation = { "runtimeUnitId": string; "attemptId": string; "nativeSessionId": string; "nativeSeq": number; "type": string; "durable": true; "data": unknown; };
+export type RuntimeHello = { "bundle": string; "protocolVersion": 1; "dshVersion": string; };
+export type RuntimeServiceBinding = { "attemptId": string; "nativeSessionId": string; "authorityEpoch": number; "state": "active" | "held" | "stopped"; };
+export type RuntimeHelloReply = { "projectId": string; "leaseId": string; "authorityEpoch": number; "bindings": ReadonlyArray<RuntimeServiceBinding>; "cursor": number; };
+export type RuntimeCommandBatch = { "commands": ReadonlyArray<{ "seq": number; "command": unknown; }>; "cursor": number; };
+export type RuntimeReceiptBatch = { "receipts": ReadonlyArray<RuntimeReceipt>; };
+export type RuntimeObservationBatch = { "observations": ReadonlyArray<RuntimeObservation>; };
+export type RuntimeReady = { "state": "ready" | "not_ready"; "reason": string | null; "unrecovered": ReadonlyArray<{ "attemptId": string; "reason": string; }>; };
+export type ContributionReceipt = { "contributionId": string; "projectId": string; "sourceId": string; "sha256": string; "intent": "discuss" | "ask_sophia" | "propose_work"; "cursor": string; "stage": "recorded"; };
+export type DiscussionEntry = { "id": string; "actorId": string; "intent": "discuss" | "ask_sophia" | "propose_work"; "origin": "composer" | "voice"; "text": string; "sourceId": string; "sha256": string; "createdAt": string; };
+export type NativeTaskRequest = { "kind": "draft_brief"; "instruction": string; "contributionIds": ReadonlyArray<string>; "expectedMissionRevision": number; };
+export type NativeTaskReceipt = { "taskId": string; "commandId": string; "goalId": string; "attemptId": string; "projectId": string; "kind": "draft_brief"; "stage": "admitted"; "cursor": string; "goalRevision": number; "authorityEpoch": number; "contextSourceId": string; };
+export type NativeTask = { "id": string; "kind": "draft_brief"; "goalId": string; "attemptId": string; "commandId": string; "actorId": string; "state": "pending" | "running" | "succeeded" | "failed" | "cancelled" | "outcome_unknown"; "phase": "queued" | "dispatched" | "running" | "result_ready" | "holding" | "held" | "stopping" | "stopped" | "denied" | "failed" | "outcome_unknown"; "createdAt": string; "contextSourceId": string; "inputSourceIds": ReadonlyArray<string>; "resultSourceId": string | null; "reason": string | null; };
+export type NativeTaskDetail = { "task": NativeTask; "instruction": string; "result": { "sourceId": string; "sha256": string; "markdown": string; "provider": string | null; "model": string | null; "inputTokens": number | null; "outputTokens": number | null; "capturedAt": string; } | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
   "followProjectEvents": { method: "GET"; path: "/api/v1/projects/{projectId}/events"; request: undefined; response: AsyncIterable<Event | CursorAdvance>; };
-  "submitContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions"; request: Contribution; response: Receipt; };
+  "submitContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions"; request: Contribution; response: ContributionReceipt; };
   "admitGoalCommand": { method: "POST"; path: "/api/v1/projects/{projectId}/commands"; request: GoalCommand; response: Receipt; };
   "getCommandStatus": { method: "GET"; path: "/api/v1/projects/{projectId}/commands/{commandId}"; request: undefined; response: CommandStatus; };
   "requestProgressReview": { method: "POST"; path: "/api/v1/projects/{projectId}/progress-reviews"; request: ProgressReviewRequest; response: AcceptedJob; };
@@ -100,4 +117,11 @@ export interface Operations {
   "scheduleRoomSession": { method: "POST"; path: "/api/v1/projects/{projectId}/sessions"; request: SessionCreate; response: RoomSession; };
   "cancelRoomSession": { method: "POST"; path: "/api/v1/sessions/{sessionId}/cancel"; request: undefined; response: RoomSession; };
   "getProjectMembership": { method: "GET"; path: "/api/v1/projects/{projectId}/membership"; request: undefined; response: Membership; };
+  "runtimeHello": { method: "POST"; path: "/v1/runtime/hello"; request: RuntimeHello; response: RuntimeHelloReply; };
+  "runtimeCommands": { method: "GET"; path: "/v1/runtime/commands"; request: undefined; response: RuntimeCommandBatch; };
+  "runtimeReceipts": { method: "POST"; path: "/v1/runtime/receipts"; request: RuntimeReceiptBatch; response: undefined; };
+  "runtimeObservations": { method: "POST"; path: "/v1/runtime/observations"; request: RuntimeObservationBatch; response: undefined; };
+  "runtimeReady": { method: "POST"; path: "/v1/runtime/ready"; request: RuntimeReady; response: undefined; };
+  "admitNativeTask": { method: "POST"; path: "/api/v1/projects/{projectId}/native-tasks"; request: NativeTaskRequest; response: NativeTaskReceipt; };
+  "getNativeTask": { method: "GET"; path: "/api/v1/projects/{projectId}/native-tasks/{taskId}"; request: undefined; response: NativeTaskDetail; };
 }

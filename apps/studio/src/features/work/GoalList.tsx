@@ -1,5 +1,6 @@
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { TaskCard } from '../conversation/TaskCard.tsx'
 import { GoalCard } from './GoalCard.tsx'
 
 interface Props {
@@ -31,7 +32,23 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
           <GoalCard key={g.id} goal={g} projectId={projectId} identity={identity} controls={controls && canAct} />
         ))}
       </ol>
+      {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} />}
     </section>
+  )
+}
+
+/** Briefs the runtime drafted (A05); their Hold and Stop are the goal controls above. */
+function NativeTasks({ snapshot, projectId, identity }: { snapshot: Snapshot; projectId: string; identity: Identity }) {
+  if (snapshot.work.length === 0) return null
+  return (
+    <>
+      <h3 className="view-subhead">Briefs from Sophia’s runtime</h3>
+      <ol className="task-list">
+        {snapshot.work.map((t) => (
+          <TaskCard key={t.id} task={t} projectId={projectId} identity={identity} />
+        ))}
+      </ol>
+    </>
   )
 }
 

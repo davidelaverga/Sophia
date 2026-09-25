@@ -3,6 +3,7 @@
 // no Ajv compiler and no eval at runtime. A body that breaks the contract throws; it is never cast.
 import type { ErrorObject, ValidateFunction } from 'ajv'
 import {
+  validateContributionReceipt,
   validateCursorAdvance,
   validateError,
   validateEvent,
@@ -13,6 +14,8 @@ import {
   validateInvitationPreview,
   validateLobbyEntry,
   validateMembership,
+  validateNativeTaskDetail,
+  validateNativeTaskReceipt,
   validateProjectCreated,
   validateReceipt,
   validateRoomSession,
@@ -58,6 +61,9 @@ export const parseInvitationAccepted = parser('InvitationAccepted', validateInvi
 export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)
 export const parseRoomSession = parser('RoomSession', validateRoomSession)
 export const parseMembership = parser('Membership', validateMembership)
+export const parseContributionReceipt = parser('ContributionReceipt', validateContributionReceipt)
+export const parseNativeTaskReceipt = parser('NativeTaskReceipt', validateNativeTaskReceipt)
+export const parseNativeTaskDetail = parser('NativeTaskDetail', validateNativeTaskDetail)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

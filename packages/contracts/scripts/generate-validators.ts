@@ -28,6 +28,9 @@ const EXPORTS = [
   'LobbyEntry',
   'RoomSession',
   'Membership',
+  'ContributionReceipt',
+  'NativeTaskReceipt',
+  'NativeTaskDetail',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

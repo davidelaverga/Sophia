@@ -1,0 +1,663 @@
+{
+  "id": "A05",
+  "goal": "S1-05A",
+  "title": "Attributed discussion, one typed native task (draft_brief), and both in the snapshot",
+  "why": [
+    "submitContribution existed as a contract only and required a SourceRef, but nothing could create a source: there is no upload handler yet. A contribution may now carry its text (at most 4000 characters) instead; the service stores it as a project-scoped source owned by the author, content-addressed by SHA-256, and returns that source in a ContributionReceipt. A contribution is discussion: its intent never starts work.",
+    "S1-05A needs one useful, durable native task that a person admits explicitly. POST /api/v1/projects/{projectId}/native-tasks is new here (proposed by the S1-05A goal, not a pack operation). Its only kind is draft_brief: an implementation brief drafted by the dsh runtime from the project's accepted facts and contributions the person chose. It creates the ordinary goal, attempt, binding, command, job and outbox records in one transaction under an Idempotency-Key, like admitGoalCommand; there is no seed-only or demo path.",
+    "The brief's inputs are compiled into a small source-bound context manifest (the seed context compiler for this goal, not S1-08): it names every input by id and SHA-256, and missing facts stay unknown. The result is kept as a source-backed candidate, never an accepted roadmap.",
+    "The snapshot carries the recent discussion and the native tasks so every member sees the same state after a resnapshot. Discussion text is shared project content read under membership, like goal titles; it is never in an event. A task's result text is a separate authorized read (getNativeTask), so the snapshot stays small."
+  ],
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/components/schemas/Contribution",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifactVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "enum": ["discuss", "ask_sophia", "propose_work"]
+          }
+        },
+        "required": ["source", "text", "threadId", "artifactVersionId", "intent"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ContributionReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contributionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "intent": {
+            "type": "string",
+            "enum": ["discuss", "ask_sophia", "propose_work"]
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "stage": {
+            "const": "recorded"
+          }
+        },
+        "required": ["contributionId", "projectId", "sourceId", "sha256", "intent", "cursor", "stage"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DiscussionEntry",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intent": {
+            "type": "string",
+            "enum": ["discuss", "ask_sophia", "propose_work"]
+          },
+          "origin": {
+            "type": "string",
+            "enum": ["composer", "voice"]
+          },
+          "text": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "actorId", "intent", "origin", "text", "sourceId", "sha256", "createdAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "draft_brief"
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "contributionIds": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "expectedMissionRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["kind", "instruction", "contributionIds", "expectedMissionRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "const": "draft_brief"
+          },
+          "stage": {
+            "const": "admitted"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "contextSourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskId",
+          "commandId",
+          "goalId",
+          "attemptId",
+          "projectId",
+          "kind",
+          "stage",
+          "cursor",
+          "goalRevision",
+          "authorityEpoch",
+          "contextSourceId"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTask",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "const": "draft_brief"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "running", "succeeded", "failed", "cancelled", "outcome_unknown"]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "dispatched",
+              "running",
+              "result_ready",
+              "holding",
+              "held",
+              "stopping",
+              "stopped",
+              "denied",
+              "failed",
+              "outcome_unknown"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contextSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inputSourceIds": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "resultSourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "goalId",
+          "attemptId",
+          "commandId",
+          "actorId",
+          "state",
+          "phase",
+          "createdAt",
+          "contextSourceId",
+          "inputSourceIds",
+          "resultSourceId",
+          "reason"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskDetail",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/NativeTask"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "markdown": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "inputTokens": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "outputTokens": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "capturedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "sourceId",
+                  "sha256",
+                  "markdown",
+                  "provider",
+                  "model",
+                  "inputTokens",
+                  "outputTokens",
+                  "capturedAt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["task", "instruction", "result"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Snapshot/properties/discussion",
+      "value": {
+        "type": "array",
+        "maxItems": 50,
+        "items": {
+          "$ref": "#/components/schemas/DiscussionEntry"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Snapshot/required/-",
+      "value": "discussion"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Snapshot/properties/work",
+      "value": {
+        "type": "array",
+        "maxItems": 50,
+        "items": {
+          "$ref": "#/components/schemas/NativeTask"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Snapshot/required/-",
+      "value": "work"
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1contributions/post/responses/202/content/application~1json/schema",
+      "value": {
+        "$ref": "#/components/schemas/ContributionReceipt"
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1contributions/post/x-sophia-release-goal",
+      "value": "S1-05A"
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks",
+      "value": {
+        "post": {
+          "operationId": "admitNativeTask",
+          "summary": "Admit one typed native task (draft_brief) for the dsh runtime: goal, attempt, binding, command, job and outbox in one transaction. 202 with a receipt, never a finished result.",
+          "tags": ["commands"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeTaskRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Admitted; delivery and result are observed through events",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/NativeTaskReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (viewers and guests cannot admit work) or an input is not eligible"
+            },
+            "409": {
+              "description": "Stale mission revision or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "No native runtime is registered for this project, or a dependent service is unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks~1{taskId}",
+      "value": {
+        "get": {
+          "operationId": "getNativeTask",
+          "summary": "One native task with its instruction and, once captured, its source-backed result.",
+          "tags": ["commands"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "taskId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/NativeTaskDetail"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted"
+            },
+            "422": {
+              "description": "Unknown task",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    }
+  ]
+}

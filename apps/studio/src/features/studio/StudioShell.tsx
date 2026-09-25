@@ -4,6 +4,7 @@
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { Conversation } from '../conversation/Conversation.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
@@ -31,6 +32,9 @@ interface Props {
   snapshot: Snapshot | undefined
 }
 
+/** Names the room knows by identity, so discussion can say who spoke. */
+const namesOf = (room: ProjectRoom) => new Map(room.participants.map((p) => [p.identity, p.name]))
+
 export function StudioShell({ projectId, identity, room, snapshot }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   useShortcuts({ '1': () => setLens('converse'), '2': () => setLens('explore'), '3': () => setLens('build') })
@@ -44,33 +48,20 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
       lensBody={
         <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
           {state.lens === 'converse' ? (
-            <Composer draft={state.drafts.converse ?? ''} onDraft={(text) => setDraft('converse', text)} />
+            <Conversation
+              projectId={projectId}
+              identity={identity}
+              snapshot={snapshot}
+              names={namesOf(room)}
+              draft={state.drafts.converse ?? ''}
+              onDraft={(text) => setDraft('converse', text)}
+            />
           ) : (
             <ComingLens lens={state.lens} />
           )}
         </div>
       }
     />
-  )
-}
-
-function Composer({ draft, onDraft }: { draft: string; onDraft: (text: string) => void }) {
-  return (
-    <div className="composer">
-      <label htmlFor="converse-draft" className="sr-only">
-        Your draft
-      </label>
-      <textarea
-        id="converse-draft"
-        rows={1}
-        value={draft}
-        placeholder="What should Sophia and the team think about next?"
-        onChange={(e) => onDraft(e.target.value)}
-      />
-      <p className="composer-note">
-        Sending isn’t available yet. Your draft stays on this device, and only you see it.
-      </p>
-    </div>
   )
 }
 

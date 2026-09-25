@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import pg from 'pg'
 
 export interface SeededProject {
@@ -67,4 +67,38 @@ export async function seedProject(
     await c.end()
   }
   return { projectId, goalId, sourceId }
+}
+
+export interface RegisteredRuntime {
+  runtimeId: string
+  /** The capability the execution host would hold; only its SHA-256 is stored. */
+  token: string
+  runtimeUnitId: string
+}
+
+/**
+ * Register a dsh runtime for a project through the operator function (db/migrations/0012), as
+ * scripts/register-runtime.ts does with the migration owner. Dev/test only.
+ */
+export async function registerRuntime(
+  ownerUrl: string,
+  opts: { projectId: string; admin: string; runtimeUnitId?: string },
+): Promise<RegisteredRuntime> {
+  const token = randomBytes(32).toString('base64url')
+  const runtimeUnitId = opts.runtimeUnitId ?? 'sophia-runtime-test'
+  const c = new pg.Client({ connectionString: ownerUrl })
+  await c.connect()
+  try {
+    const { rows } = await c.query<{ id: string }>(`SELECT sophia.register_runtime($1, $2, $3, $4) AS id`, [
+      opts.projectId,
+      opts.admin,
+      runtimeUnitId,
+      createHash('sha256').update(token, 'utf8').digest(),
+    ])
+    const row = rows[0]
+    if (!row) throw new Error('register_runtime returned no row')
+    return { runtimeId: row.id, token, runtimeUnitId }
+  } finally {
+    await c.end()
+  }
 }

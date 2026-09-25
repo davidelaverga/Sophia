@@ -3,6 +3,7 @@ import type { Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
+import { readDiscussion, readNativeTasks } from './native-tasks.ts'
 import { onlyRow } from './rows.ts'
 
 interface ProjectRow {
@@ -32,6 +33,10 @@ interface ResourceRow {
   harness: Resource['harness']
   state: Resource['authorityState']
   allowed_operations: string[]
+  /** A registered dsh runtime's bridge readiness (0012); null for any other resource. */
+  ready_state: 'ready' | 'not_ready' | null
+  ready_at: Date | null
+  running: boolean
 }
 
 interface RoomRow {
@@ -57,6 +62,8 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const room = await readRoom(c, projectId)
   const lobby = await readLobby(c, projectId)
   const sessions = await readUpcomingSessions(c, projectId)
+  const discussion = await readDiscussion(c, projectId)
+  const work = await readNativeTasks(c, projectId)
   return {
     projectId: project.id,
     title: project.title,
@@ -77,6 +84,8 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
     },
     lobby,
     sessions,
+    discussion,
+    work,
   }
 }
 
@@ -108,11 +117,19 @@ async function readGoals(c: pg.PoolClient, projectId: string): Promise<Goal[]> {
   }))
 }
 
-/** Registration exists from S1-09; live host/native observation does not yet, so it is reported as unknown. */
+/**
+ * External resources (S1-09) have no live observation yet, so they report unknown. A dsh runtime reports what
+ * its bridge last said (0012): online only while the bridge's ready report stands, running while one of its
+ * bindings runs. A bridge that never said ready is unknown, not offline.
+ */
 async function readResources(c: pg.PoolClient, projectId: string): Promise<Resource[]> {
   const { rows } = await c.query<ResourceRow>(
-    `SELECT id, owner_id, label, harness, state, allowed_operations
-       FROM sophia.executor_resources WHERE project_id = $1 ORDER BY label, id`,
+    `SELECT r.id, r.owner_id, r.label, r.harness, r.state, r.allowed_operations, rs.ready_state, rs.ready_at,
+            EXISTS (SELECT 1 FROM sophia.execution_bindings b WHERE b.project_id = r.project_id AND b.resource_id = r.id
+                      AND b.state IN ('launching', 'running')) AS running
+       FROM sophia.executor_resources r
+       LEFT JOIN sophia.runtime_status($1) rs ON rs.resource_id = r.id
+      WHERE r.project_id = $1 ORDER BY r.label, r.id`,
     [projectId],
   )
   return rows.map((r) => ({
@@ -121,9 +138,10 @@ async function readResources(c: pg.PoolClient, projectId: string): Promise<Resou
     ownerId: r.owner_id,
     label: r.label,
     harness: r.harness,
-    hostState: 'unknown',
-    nativeState: 'unknown',
-    observedAt: null,
+    hostState:
+      r.ready_state === 'ready' ? 'online' : r.ready_state === 'not_ready' && r.ready_at ? 'offline' : 'unknown',
+    nativeState: r.ready_state !== 'ready' ? 'unknown' : r.running ? 'running' : 'idle',
+    observedAt: r.ready_at ? r.ready_at.toISOString() : null,
     model: null,
     effort: null,
     authorityState: r.state,

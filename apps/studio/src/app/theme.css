@@ -1201,11 +1201,98 @@ button.mark:hover {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
-/* Read, not decoration: it says what the box can and cannot do yet. */
+/* Read, not decoration: it says what sending does and does not do. */
 .composer-note {
   color: var(--text-3);
   font-size: 12px;
   text-align: center;
+}
+.composer-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* The Converse lens: recent discussion, one explicit brief request, the task in motion, the composer. */
+.conversation {
+  display: grid;
+  gap: 12px;
+  width: min(640px, 100%);
+  margin: 0 auto;
+}
+.discussion {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.contribution {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.contribution-author {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.contribution-text {
+  overflow-wrap: anywhere;
+}
+.discussion-empty {
+  text-align: center;
+}
+.brief-request {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.brief-request input {
+  flex: 1 1 220px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.task-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.brief {
+  display: grid;
+  gap: 6px;
+  max-height: 40cqh;
+  overflow: auto;
+}
+.brief h4 {
+  margin-top: 6px;
+  font-size: 14px;
+}
+.brief-note,
+.brief-source {
+  font-size: 12px;
+}
+.view-subhead {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--text-2);
 }
 .coming {
   display: grid;

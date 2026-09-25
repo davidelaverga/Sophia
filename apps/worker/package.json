@@ -1,0 +1,21 @@
+{
+  "name": "@sophia/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "start": "node src/server.ts"
+  },
+  "dependencies": {
+    "@sophia/persistence": "workspace:*",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@sophia/test-support": "workspace:*",
+    "@types/pg": "8.23.1"
+  }
+}

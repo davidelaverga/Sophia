@@ -61,6 +61,9 @@ importers:
       '@sophia/test-support':
         specifier: workspace:*
         version: link:../../packages/test-support
+      '@sophia/worker':
+        specifier: workspace:*
+        version: link:../worker
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
@@ -119,6 +122,22 @@ importers:
       vite:
         specifier: 8.3.1
         version: 8.3.1(@types/node@24.13.6)(yaml@2.9.1)
+
+  apps/worker:
+    dependencies:
+      '@sophia/persistence':
+        specifier: workspace:*
+        version: link:../../packages/persistence
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@sophia/test-support':
+        specifier: workspace:*
+        version: link:../../packages/test-support
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
 
   packages/contracts:
     dependencies:

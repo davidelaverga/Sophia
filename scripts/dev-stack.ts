@@ -4,6 +4,9 @@
 //   node scripts/dev-stack.ts --supabase            real Supabase Auth on the local Supabase stack
 //   node scripts/dev-stack.ts --hosted <env-file>   the HOSTED project (real accounts and data);
 //                                                   the env file stays outside the repository
+// With the synthetic backend, S1-05A adds the worker (runtime dispatch) and, on request, the dsh runtime:
+//   --runtime rehearse   keyless mock model: exercises the whole brief path, never live evidence
+//   --runtime live       the recorded model route with the key in YOUR environment: billable model calls
 // Everything is dev-only. Ctrl+C stops the API and Studio (database containers are kept).
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -21,6 +24,9 @@ const API_KEYS = ['SOPHIA_API_DATABASE_URL', 'SUPABASE_JWT_ISSUER', 'SUPABASE_JW
 
 interface Backend {
   apiEnv: Record<string, string>
+  /** The worker's database login and the registered runtime's capability (synthetic backend only). */
+  workerEnv?: Record<string, string>
+  runtimeEnv?: Record<string, string>
   /** Values the browser may see (public or dev-only). */
   studioEnv: Record<string, string>
   banner: string
@@ -77,21 +83,47 @@ function syntheticBackend(): Backend {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the last line apps/api/scripts/dev-db.ts prints
   const dev = JSON.parse(seeded.stdout.trim().split('\n').at(-1) ?? '{}') as {
     api: Record<string, string>
+    worker: Record<string, string>
+    runtime: Record<string, string>
     project: { projectId: string }
     identities: unknown[]
   }
   return {
     apiEnv: { ...dev.api, ...localRoomServer() },
+    workerEnv: dev.worker,
+    runtimeEnv: { ...dev.runtime, SOPHIA_PROJECT_ID: dev.project.projectId },
     studioEnv: { VITE_DEV_PROJECT_ID: dev.project.projectId, VITE_DEV_IDENTITIES: JSON.stringify(dev.identities) },
     banner: `Synthetic dev identities · project ${dev.project.projectId}`,
   }
 }
 
+const { values: flags } = parseArgs({
+  options: { supabase: { type: 'boolean' }, hosted: { type: 'string' }, runtime: { type: 'string' } },
+})
+
 function chooseBackend(): Backend {
-  const { values } = parseArgs({ options: { supabase: { type: 'boolean' }, hosted: { type: 'string' } } })
-  if (values.hosted) return hostedBackend(values.hosted)
-  if (values.supabase) return localSupabaseBackend()
+  if (flags.hosted) return hostedBackend(flags.hosted)
+  if (flags.supabase) return localSupabaseBackend()
   return syntheticBackend()
+}
+
+/** The worker dispatches admitted native work to the runtime's queue (S1-05A). */
+function startWorker(workerEnv: Record<string, string>): ChildProcess {
+  return spawn(process.execPath, ['apps/worker/src/server.ts'], {
+    stdio: 'inherit',
+    env: { ...process.env, ...workerEnv },
+  })
+}
+
+/** The dsh runtime under the execution-host supervisor, bound to this API; rehearsal uses the mock model. */
+function startRuntime(runtimeEnv: Record<string, string>, mode: string): ChildProcess {
+  if (mode !== 'rehearse' && mode !== 'live') throw new Error('--runtime is rehearse or live')
+  const root = `.sophia-runtime/${runtimeEnv.SOPHIA_PROJECT_ID ?? 'dev'}`
+  const args = ['scripts/runtime-host.mjs', '--root', root, ...(mode === 'rehearse' ? ['--rehearse'] : [])]
+  return spawn(process.execPath, args, {
+    stdio: 'inherit',
+    env: { ...process.env, ...runtimeEnv, SOPHIA_SERVICE_URL: 'http://127.0.0.1:8787' },
+  })
 }
 
 /** Invitation emails are written here (gitignored), never sent: open the .html to read one. */
@@ -133,12 +165,16 @@ const inviteEnv = { INVITE_TOKEN_SECRET: randomBytes(32).toString('hex'), STUDIO
 let stopping = false
 const api = superviseApi({ ...inviteEnv, ...backend.apiEnv }, () => stopping)
 const studio = spawn(process.execPath, ['node_modules/vite/bin/vite.js'], { stdio: 'inherit', cwd: 'apps/studio' })
+const worker = backend.workerEnv ? startWorker(backend.workerEnv) : null
+const runtime = backend.runtimeEnv && flags.runtime ? startRuntime(backend.runtimeEnv, flags.runtime) : null
 console.log(`\nSophia dev stack · ${backend.banner}\nStudio http://localhost:5173 · API http://127.0.0.1:8787\n`)
 
 const stop = () => {
   stopping = true
   api().kill()
   studio.kill()
+  worker?.kill()
+  runtime?.kill()
   process.exit(0)
 }
 process.on('SIGINT', stop)
