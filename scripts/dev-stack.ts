@@ -95,9 +95,11 @@ function syntheticBackend(): Backend {
     project: { projectId: string }
     identities: unknown[]
   }
+  const rooms = localRoomServer()
   return {
-    apiEnv: { ...dev.api, ...localRoomServer() },
-    workerEnv: dev.worker,
+    apiEnv: { ...dev.api, ...rooms },
+    // The worker takes declined guests out of the call (amendment A07): it needs the same LiveKit server.
+    workerEnv: { ...dev.worker, ...rooms },
     runtimeEnv: { ...dev.runtime, SOPHIA_PROJECT_ID: dev.project.projectId },
     mediaEnv: dev.media,
     studioEnv: { VITE_DEV_PROJECT_ID: dev.project.projectId, VITE_DEV_IDENTITIES: JSON.stringify(dev.identities) },

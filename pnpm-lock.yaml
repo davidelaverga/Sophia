@@ -153,10 +153,16 @@ importers:
       '@sophia/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence
+      livekit-server-sdk:
+        specifier: 2.19.1
+        version: 2.19.1
       pg:
         specifier: 8.23.0
         version: 8.23.0
     devDependencies:
+      '@livekit/rtc-node':
+        specifier: 1.1.0
+        version: 1.1.0
       '@sophia/test-support':
         specifier: workspace:*
         version: link:../../packages/test-support

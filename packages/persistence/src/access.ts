@@ -282,6 +282,9 @@ interface LobbyRow {
   requested_at: Date
   decided_at: Date | null
   knocks: number
+  removal_state: NonNullable<LobbyEntry['removal']>['state'] | null
+  removal_attempts: number | null
+  removal_error: string | null
 }
 
 /**
@@ -290,10 +293,15 @@ interface LobbyRow {
  */
 export async function readLobby(c: pg.PoolClient, projectId: string): Promise<LobbyEntry[]> {
   const { rows } = await c.query<LobbyRow>(
-    `SELECT id, display_name, status, requested_at, decided_at, knocks FROM sophia.room_lobby
-      WHERE project_id = $1
-        AND (status IN ('waiting', 'admitted', 'blocked') OR (status = 'denied' AND decided_at > now() - interval '1 day'))
-      ORDER BY requested_at, id LIMIT 500`,
+    `SELECT l.id, l.display_name, l.status, l.requested_at, l.decided_at, l.knocks,
+            r.state AS removal_state, r.attempts AS removal_attempts, r.last_error AS removal_error
+       FROM sophia.room_lobby l
+       LEFT JOIN LATERAL (SELECT state, attempts, last_error FROM sophia.room_removals x
+                           WHERE x.lobby_entry_id = l.id AND x.state <> 'cancelled'
+                           ORDER BY x.created_at DESC LIMIT 1) r ON true
+      WHERE l.project_id = $1
+        AND (l.status IN ('waiting', 'admitted', 'blocked') OR (l.status = 'denied' AND l.decided_at > now() - interval '1 day'))
+      ORDER BY l.requested_at, l.id LIMIT 500`,
     [projectId],
   )
   return rows.map((r) => ({
@@ -303,6 +311,9 @@ export async function readLobby(c: pg.PoolClient, projectId: string): Promise<Lo
     requestedAt: iso(r.requested_at),
     decidedAt: r.decided_at ? iso(r.decided_at) : null,
     knocks: r.knocks,
+    removal: r.removal_state
+      ? { state: r.removal_state, attempts: r.removal_attempts ?? 0, lastError: r.removal_error }
+      : null,
   }))
 }
 

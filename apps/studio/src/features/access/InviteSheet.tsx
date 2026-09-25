@@ -9,7 +9,7 @@ import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { nextInRow } from '../../app/roving.ts'
 import { useDialog } from '../../app/useDialog.ts'
-import { invitationState, knockNote, linkLimits } from './access-view.ts'
+import { invitationState, knockNote, linkLimits, removalNote } from './access-view.ts'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
@@ -327,7 +327,9 @@ function DoorList({ title, entries, note, children }: DoorListProps) {
         {entries.map((e) => (
           <li key={e.id}>
             <span className="invitation-who">{e.displayName}</span>
-            <span className="invitation-state">{knockNote(e.knocks) || 'guest'}</span>
+            <span className="invitation-state" title={e.removal?.lastError ?? undefined}>
+              {removalNote(e.removal) || knockNote(e.knocks) || 'guest'}
+            </span>
             <span className="invitation-actions">{children(e)}</span>
           </li>
         ))}

@@ -19,3 +19,4 @@ A drafted message is not a request that anyone approved, and a request is not an
 | Id | Kind | Operation | State |
 |---|---|---|---|
 | [S1-05A-CC-0001](S1-05A-CC-0001.md) | `inspect_request` | S1-05A-OP-0001 | drafted; waiting for the coordination issue |
+| — | `execution_request` (planned) | S1-05A-OP-0002 | **not drafted**: it needs CC-0001's observed deployment and schema, a reviewed candidate SHA and owner-set limits; its fixed inputs (migration checksums, ordered effects) are in the [handoff](../../handoffs/S1-05A-attempt-1.md) |

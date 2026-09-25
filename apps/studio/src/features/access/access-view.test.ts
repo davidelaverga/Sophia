@@ -7,6 +7,7 @@ import {
   freshJoinToken,
   invitationState,
   knockNote,
+  removalNote,
   linkLimits,
   nextSession,
   PENDING_JOIN_MS,
@@ -60,6 +61,18 @@ describe('room access, as the Studio shows it', () => {
 
   it('tells a first knock from someone who keeps asking', () => {
     assert.deepEqual([knockNote(1), knockNote(2), knockNote(4)], ['', 'asked again', 'asked 4 times'])
+  })
+
+  it('says whether a declined guest is out of the call, and never before the server confirmed it (A07)', () => {
+    assert.equal(removalNote(null), '')
+    assert.equal(removalNote(undefined), '')
+    assert.equal(removalNote({ state: 'pending', attempts: 0, lastError: null }), 'taking them out of the call…')
+    assert.equal(
+      removalNote({ state: 'pending', attempts: 3, lastError: 'connect ECONNREFUSED' }),
+      'not out of the call yet · tried 3 times',
+    )
+    assert.equal(removalNote({ state: 'removed', attempts: 1, lastError: null }), 'out of the call')
+    assert.equal(removalNote({ state: 'absent', attempts: 0, lastError: null }), '', 'they were not in it')
   })
 
   it('keeps an opened link for the sign-in round trip, then lets it go', () => {

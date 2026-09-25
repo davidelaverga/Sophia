@@ -80,3 +80,12 @@ export {
   type ExchangeAction,
   type PresenceReport,
 } from './exchange.ts'
+export {
+  claimRoomRemovals,
+  pendingRemoval,
+  readRemoval,
+  settleRoomRemoval,
+  type RemovalClaim,
+  type RemovalOutcome,
+  type RemovalState,
+} from './removals.ts'

@@ -34,6 +34,7 @@ import {
   type SeededProject,
   type TestDatabase,
 } from '@sophia/test-support'
+import { reconcileRemovalsOnce } from '@sophia/worker'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 
@@ -459,5 +460,59 @@ describe('holder departure through the real API (S1-05A §7)', () => {
     const sophia = (await snapshot()).room.sophia
     assert.equal(sophia.exchange, 'open')
     assert.equal(sophia.inputActorId, null)
+  })
+})
+
+describe('taking a declined guest out of the call (amendment A07)', () => {
+  it('a failed removal is pending in the decision’s reply and the snapshot, and the worker settles it on evidence', async () => {
+    const inv = parseInvitation(
+      (
+        await call(`/api/v1/projects/${seed.projectId}/invitations`, {
+          bearer: await token(E),
+          key: true,
+          body: { kind: 'guest' },
+        })
+      ).json,
+    )
+    const guestId = randomUUID()
+    const guest = await token(guestId, { is_anonymous: true })
+    const knock = { token: inv.url.split('#')[1] ?? '', displayName: 'Cora' }
+    const entry = parseLobbyEntry((await call('/api/v1/join/knock', { bearer: guest, body: knock })).json)
+    await call(`/api/v1/lobby/${entry.id}/decision`, { bearer: await token(E), body: { decision: 'admit' } })
+    // The API tries once at once; its LiveKit server is unreachable, so the removal is not done.
+    const denied = await call(`/api/v1/lobby/${entry.id}/decision`, {
+      at: voicedBase,
+      bearer: await token(E),
+      body: { decision: 'deny' },
+    })
+    assert.equal(denied.status, 200)
+    const reply = parseLobbyEntry(denied.json)
+    assert.equal(reply.removal?.state, 'pending')
+    assert.equal(reply.removal?.attempts, 1)
+    assert.ok(reply.removal?.lastError)
+    assert.equal((await snapshot()).lobby.find((e) => e.id === entry.id)?.removal?.state, 'pending')
+    const again = await call(`/api/v1/lobby/${entry.id}/room-token`, { at: voicedBase, bearer: guest, body: {} })
+    assert.equal(again.status, 409, 'no new token after the decision')
+
+    // The worker retries once the backoff passes, and only the server's evidence settles it.
+    await owner.query(`UPDATE sophia.room_removals SET next_attempt_at = now() WHERE lobby_entry_id = $1`, [entry.id])
+    const workerPool = createPool(db.workerUrl, { max: 1 })
+    try {
+      const asked: string[] = []
+      const pass = await reconcileRemovalsOnce(
+        workerPool,
+        async (_roomId, identity) => {
+          await Promise.resolve()
+          asked.push(identity)
+          return { outcome: 'removed' }
+        },
+        'worker-test',
+      )
+      assert.deepEqual(asked, [guestId])
+      assert.equal(pass.settled[0]?.state, 'removed')
+    } finally {
+      await workerPool.end()
+    }
+    assert.equal((await snapshot()).lobby.find((e) => e.id === entry.id)?.removal?.state, 'removed')
   })
 })

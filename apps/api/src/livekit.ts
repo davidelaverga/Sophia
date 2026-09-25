@@ -2,6 +2,7 @@
 // token issued for one project's room cannot join another; it is short-lived and carries no Google key.
 import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk'
 import type { RoomToken } from '@sophia/contracts'
+import type { RemovalOutcome } from '@sophia/persistence'
 
 export interface LiveKitConfig {
   /** The URL browsers connect to (wss:// in production). */
@@ -132,15 +133,17 @@ export async function roomParticipants(
 }
 
 /**
- * Take someone out of the call (a guest denied after being admitted). Best effort: they may already have
- * left, and their token expires within ROOM_TOKEN_TTL_SECONDS; the lobby record already refuses a new one.
+ * Take someone out of the call (a guest declined or blocked after being let in; amendment A07). The answer is
+ * evidence or it is a failure: `removed` when the server removed them, `absent` only when the server itself lists
+ * them gone, and otherwise `failed`, which keeps the removal pending (migration 0014) until the worker retries it.
  */
-export async function removeFromRoom(cfg: LiveKitConfig, roomId: string, identity: string): Promise<boolean> {
+export async function removeParticipant(cfg: LiveKitConfig, roomId: string, identity: string): Promise<RemovalOutcome> {
   try {
     await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).removeParticipant(roomId, identity)
-    return true
-  } catch {
-    // Not in the room (or the server is unreachable): nothing more to take away.
-    return false
+    return { outcome: 'removed' }
+  } catch (err: unknown) {
+    const people = await roomParticipants(cfg, roomId).catch(() => null)
+    if (people && !people.some((p) => p.identity === identity)) return { outcome: 'absent' }
+    return { outcome: 'failed', error: err instanceof Error ? err.message.slice(0, 300) : 'removal failed' }
   }
 }

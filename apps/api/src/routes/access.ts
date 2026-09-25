@@ -22,16 +22,19 @@ import {
   decideLobbyEntry,
   knockRoom,
   listInvitations,
+  pendingRemoval,
   previewRoomInvitation,
   quiesceAcked,
   readInvitation,
   readLobbyEntry,
   readMembership,
+  readRemoval,
   recordInvitationEmail,
   reissueRoomInvitation,
   requestGuestQuiesce,
   revokeRoomInvitation,
   scheduleRoomSession,
+  settleRoomRemoval,
   withActor,
   withoutActor,
   withService,
@@ -41,7 +44,7 @@ import {
 } from '@sophia/persistence'
 import { inviteEmail } from '../invite-email.ts'
 import { linkFor, tokenHash, type InviteConfig } from '../invite-token.ts'
-import { issueRoomToken, removeFromRoom, roomParticipants, SOPHIA_IDENTITY, type LiveKitConfig } from '../livekit.ts'
+import { issueRoomToken, removeParticipant, roomParticipants, SOPHIA_IDENTITY, type LiveKitConfig } from '../livekit.ts'
 import type { Mailer } from '../mail.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
@@ -115,6 +118,18 @@ const lobbyBody = (e: LobbyRecord): LobbyEntry => ({
 
 /** Declined or blocked while in the call: they leave it now, not when their token expires. */
 const leavesTheCall = (status: LobbyEntry['status']) => status === 'denied' || status === 'blocked'
+
+/**
+ * One attempt right after the decision (amendment A07). The database recorded the obligation with the decision;
+ * this settles it only on the server's evidence. A failure, or no LiveKit configured here, leaves it pending for
+ * the worker, and the member sees it pending.
+ */
+async function attemptRemoval(deps: AccessDeps, actorId: string, entryId: string): Promise<void> {
+  const open = await withActor(deps.pool, actorId, 'read', (c) => pendingRemoval(c, entryId))
+  if (!open || !deps.livekit) return
+  const result = await removeParticipant(deps.livekit, open.roomId, open.identity)
+  await withService(deps.pool, (c) => settleRoomRemoval(c, open.id, `api:${randomUUID()}`, result))
+}
 
 interface Delivery {
   deps: AccessDeps
@@ -326,8 +341,9 @@ function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
       const entry = await withActor(deps.pool, req.actorId, 'write', (c) =>
         decideLobbyEntry(c, req.params.entryId, req.body.decision),
       )
-      if (leavesTheCall(entry.status) && deps.livekit) await removeFromRoom(deps.livekit, entry.roomId, entry.actorId)
-      return lobbyBody(entry)
+      if (leavesTheCall(entry.status)) await attemptRemoval(deps, req.actorId, entry.id)
+      const removal = await withActor(deps.pool, req.actorId, 'read', (c) => readRemoval(c, entry.id))
+      return { ...lobbyBody(entry), removal }
     },
   )
 }

@@ -108,7 +108,7 @@ shape exactly.
 
 Observed in these SDKs, not in the pack: `sendClientContent` mid-conversation is for seeding initial history on the 3.x Live route (`historyConfig.initialHistoryInClientContent`), so a finished-result notice goes as realtime text; a LiveKit participant can set its own attributes only when its grant has `canUpdateOwnMetadata` (the API's bridge token does, people's tokens do not); `@livekit/rtc-node` logs at debug level unless `NODE_ENV=production`.
 
-**Contract amendments.** A04 (the private runtime service), A05 (discussion and native tasks) and A06 (the room exchange, the bridge's private `/v1/media/*` routes, `room.sophia` in the snapshot; viewers publish and may hold the floor) are in [`packages/contracts/amendments/`](../packages/contracts/amendments/), each with its reasons. A01 stays as it was; A06 amends it rather than duplicating the floor.
+**Contract amendments.** A04 (the private runtime service), A05 (discussion and native tasks), A06 (the room exchange, the bridge's private `/v1/media/*` routes, `room.sophia` in the snapshot; viewers publish and may hold the floor) and A07 (a lobby entry's durable removal from the call) are in [`packages/contracts/amendments/`](../packages/contracts/amendments/), each with its reasons. A01 stays as it was; A06 amends it rather than duplicating the floor.
 
 ## 3. Facts learned at the pin (not in the pack)
 
