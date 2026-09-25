@@ -626,6 +626,80 @@ input:focus-visible {
   max-width: 56ch;
 }
 
+/* Sophia dock (S1-04): the room, its people and the input floor, always reachable at the bottom */
+.dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background: #0d0a18f2;
+  backdrop-filter: blur(10px);
+}
+.dock-sophia {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.dock-sophia p {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.dock-room {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+}
+.person .muted {
+  font-size: 11px;
+}
+.person.speaking {
+  border-color: var(--teal);
+}
+.person.speaking .dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 4px #8fdccd33;
+}
+.person.muted .dot {
+  background: var(--t4);
+}
+.floor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .person.speaking .dot {
+    box-shadow: none;
+  }
+}
+
 @media (pointer: coarse) {
   button,
   select {
@@ -651,6 +725,25 @@ input:focus-visible {
   .lens-stage {
     padding: 18px 16px;
     min-height: 0;
+  }
+  .dock {
+    padding: 10px 16px;
+    gap: 8px 16px;
+  }
+}
+.dock-toggle {
+  display: none;
+}
+@media (max-width: 560px) {
+  .dock-toggle {
+    display: inline-flex;
+  }
+  /* One line of Sophia; the room and its controls keep the space. */
+  .dock-sophia p {
+    display: none;
+  }
+  .person .muted {
+    display: none;
   }
 }
 @media (max-width: 560px) {

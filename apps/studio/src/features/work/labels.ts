@@ -30,4 +30,5 @@ export const SUMMARY: Record<string, string> = {
   'command.stop': 'Stop requested',
   'command.resume': 'Resume requested',
   'command.steer': 'Steer sent to the lead',
+  'room.input_floor': 'Input to Sophia passed',
 }

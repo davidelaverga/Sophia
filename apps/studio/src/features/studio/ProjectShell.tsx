@@ -6,6 +6,7 @@ import { Tag, type Tone } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { routePath, type View } from '../../app/route.ts'
+import { SophiaDock } from '../voice/SophiaDock.tsx'
 import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
@@ -67,6 +68,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
             <ViewBody view={view} snapshot={snapshot.data} projectId={projectId} identity={identity} />
             {withPulse && <WorkPulse feed={feed} connection={connection} />}
           </main>
+          <SophiaDock projectId={projectId} identity={identity} snapshot={snapshot.data} />
         </>
       )}
     </div>

@@ -1,12 +1,24 @@
 // Typed calls to the Sophia API (packages/contracts). The browser talks only to this API.
 // No hidden retries: an ambiguous admission surfaces as outcome_unknown and the caller decides to
 // retry with the SAME Idempotency-Key.
-import type { Error as ApiErrorBody, GoalCommand, ProjectCreated, Receipt, Snapshot } from '@sophia/contracts'
+import type {
+  Error as ApiErrorBody,
+  ExchangeReceipt,
+  FloorRequest,
+  GoalCommand,
+  ProjectCreated,
+  Receipt,
+  RoomToken,
+  RoomTokenRequest,
+  Snapshot,
+} from '@sophia/contracts'
 import {
   asErrorBody,
   ContractViolation,
+  parseExchangeReceipt,
   parseProjectCreated,
   parseReceipt,
+  parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
 import { apiUrl } from './base.ts'
@@ -56,39 +68,51 @@ export async function getSnapshot(token: string, projectId: string, signal?: Abo
   return readBody(res, parseSnapshot, 'safe_read')
 }
 
-export async function admitGoalCommand(
+/**
+ * One idempotent write: POST with the caller's Idempotency-Key, the reply validated as `parse`. No reply
+ * at all is outcome_unknown (the write may have committed), so the caller retries with the same key.
+ */
+async function postIdempotent<T>(
   token: string,
-  projectId: string,
+  path: `/api/${string}`,
   idempotencyKey: string,
-  cmd: GoalCommand,
-): Promise<Receipt> {
+  body: unknown,
+  parse: (value: unknown) => T,
+): Promise<T> {
   let res: Response
   try {
-    res = await fetch(apiUrl(`/api/v1/projects/${projectId}/commands`), {
+    res = await fetch(apiUrl(path), {
       method: 'POST',
       headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-      body: JSON.stringify(cmd),
+      body: JSON.stringify(body),
     })
   } catch {
-    // The request may have reached the server and committed.
     throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
   }
   if (!res.ok) throw await toError(res)
-  return readBody(res, parseReceipt, 'same_admission_key')
+  return readBody(res, parse, 'same_admission_key')
 }
 
+export const admitGoalCommand = (token: string, projectId: string, key: string, cmd: GoalCommand): Promise<Receipt> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/commands`, key, cmd, parseReceipt)
+
 /** createProject: idempotent per person and key; reuse the key when retrying an unknown outcome. */
-export async function createProject(token: string, idempotencyKey: string, title: string): Promise<ProjectCreated> {
-  let res: Response
-  try {
-    res = await fetch(apiUrl('/api/v1/projects'), {
-      method: 'POST',
-      headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-      body: JSON.stringify({ title }),
-    })
-  } catch {
-    throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
-  }
-  if (!res.ok) throw await toError(res)
-  return readBody(res, parseProjectCreated, 'same_admission_key')
-}
+export const createProject = (token: string, key: string, title: string): Promise<ProjectCreated> =>
+  postIdempotent(token, '/api/v1/projects', key, { title }, parseProjectCreated)
+
+/** A short-lived token for this project's LiveKit room; issuing it changes nothing, so a retry is harmless. */
+export const issueRoomToken = (
+  token: string,
+  projectId: string,
+  key: string,
+  req: RoomTokenRequest,
+): Promise<RoomToken> => postIdempotent(token, `/api/v1/projects/${projectId}/room-token`, key, req, parseRoomToken)
+
+/** Pass who may address Sophia. Compare-and-set on the room revision; it never touches goals or work. */
+export const transferInputFloor = (
+  token: string,
+  roomId: string,
+  key: string,
+  req: FloorRequest,
+): Promise<ExchangeReceipt> =>
+  postIdempotent(token, `/api/v1/rooms/${roomId}/input-floor`, key, req, parseExchangeReceipt)
