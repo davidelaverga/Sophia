@@ -23,7 +23,10 @@ export const COMMAND: Record<CommandKind, { verb: string; noun: string; allowed:
   stop: { verb: 'Stop', noun: 'Stop', allowed: ['ready', 'running', 'checking', 'holding', 'held'] },
 }
 
-/** Event summaries describe what was *requested*; admission is not completion. */
+/**
+ * Command summaries describe what was *requested* (admission is not completion); room and membership
+ * summaries describe what happened.
+ */
 export const SUMMARY: Record<string, string> = {
   'command.request_review': 'Review requested',
   'command.hold': 'Hold requested',
@@ -31,4 +34,20 @@ export const SUMMARY: Record<string, string> = {
   'command.resume': 'Resume requested',
   'command.steer': 'Steer sent to the lead',
   'room.input_floor': 'Input to Sophia passed',
+  'room.session': 'Session scheduled',
+  'room.session_canceled': 'Session canceled',
+  'room.invitation': 'Invitation link issued',
+  'room.invitation_revoked': 'Invitation link closed',
+  'room.lobby_knock': 'A guest asked to come in',
+  'room.lobby_admit': 'Guest let in',
+  'room.lobby_deny': 'Guest not let in',
+  'project.member': 'Member joined',
+}
+
+/** Words for any event: its summary, or else its type without the code ("room.lobby_changed" → "Lobby changed"). */
+export function summaryLabel(summaryCode: string, type: string): string {
+  const known = SUMMARY[summaryCode]
+  if (known) return known
+  const words = (type.split('.').pop() ?? type).replaceAll('_', ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
 }

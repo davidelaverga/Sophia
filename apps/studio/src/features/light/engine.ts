@@ -181,7 +181,8 @@ export class LightEngine {
     this.traceCanvas.height = Math.round(height * dpr)
     this.trace?.setTransform(dpr, 0, 0, dpr, 0, 0)
     const narrow = width < 760
-    this.edge = perimeter(width, height, narrow ? 8 : 12, narrow ? 18 : 24)
+    // The corners match the panels' radii (--r-3 on phones, --r-4 elsewhere).
+    this.edge = perimeter(width, height, narrow ? 8 : 12, narrow ? 8 : 12)
   }
 
   private readonly tick = (): void => {

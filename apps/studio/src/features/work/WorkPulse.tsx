@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { isCursorAdvance } from '@sophia/contracts/validate'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
-import { SUMMARY } from './labels.ts'
+import { summaryLabel } from './labels.ts'
 
 function ago(iso: string, now: number): string {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
@@ -50,7 +50,7 @@ export function WorkPulse({ feed, connection }: { feed: Feed | null; connection:
             ) : (
               <li key={f.eventId} className="event">
                 <span className="dot" aria-hidden />
-                <span>{SUMMARY[f.summaryCode] ?? f.type}</span>
+                <span>{summaryLabel(f.summaryCode, f.type)}</span>
                 <span className="muted">{ago(f.occurredAt, now)}</span>
                 <span className="mono muted">#{f.sequence}</span>
               </li>
