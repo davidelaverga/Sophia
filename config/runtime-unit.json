@@ -1,8 +1,8 @@
 {
   "schema": "sophia.runtime-unit.v1",
-  "id": "sophia-runtime-s1-01",
+  "id": "sophia-runtime-s1-03-dev",
   "status": "built_not_ready",
-  "status_note": "Artifacts are built and identified; the control bridge reports not_ready until S1-03, so no runtime from this unit is healthy or deployable.",
+  "status_note": "Artifacts are built and identified. The bundle carries the development model route (openai/gpt-6-luna, high) and the S1-03 control bridge, which reports ready only when bound to a Sophia service. Admission is still the labelled fixture service (S1-02 pending) and the route is not live-verified, so no runtime from this unit is deployable. Previous unit: sophia-runtime-s1-01.",
   "dsh": {
     "repository": "deepseek-ai/deepseek-harness",
     "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
@@ -47,7 +47,19 @@
     "pnpm": "11.7.0",
     "typescript": "6.0.3"
   },
-  "workspace_lock_sha256": "3669b63abbed1444ec7e2ec4cfb3b3b1a6d89de6f83a7526f0d4facea55a2afd",
+  "model_route": {
+    "status": "development_route",
+    "decided": "2026-09-24 by Davide (owner): use the OpenAI API with GPT-6 Luna at high reasoning for now",
+    "adapter": "@deepseek-ai/dsh-llm-pi-ai",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "reasoningEffort": "high",
+    "credential_ref": "OPENAI_API_KEY",
+    "model_entry_source": "pi-ai 0.87.1 catalog entry (the pinned pi-ai 0.85.1 predates gpt-6-luna), declared in the Sophia bundle patch",
+    "release_baseline": "D13: deepseek-official / deepseek-flash (unchanged; switching back is a bundle-patch change and a new recorded unit)",
+    "live_verified": false
+  },
+  "workspace_lock_sha256": "c9b7a41c78709e19cf9fc2d5cb2959b3b8e819a0f20f50c65d273914cd4523e4",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -75,11 +87,11 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f",
-    "archive_integrity": "sha512-jP6AsAJXkNu8wRG+TiRPacBYq1wmEy178U+/lEk4DU+xJGhnuVYKalk6sWK3SmgCYbiXiUQwEhB8fqx9xmNmYQ==",
-    "artifact_digest": "sha256:f0698952695e4cbb1632e1cc41306b58d1f456611e83e7b99f0b69ebb0904b0f",
+    "archive_sha256": "8577ffe4d5f2224828f633ec37738f3f7694ebbd556c21e3c9293224fa160712",
+    "archive_integrity": "sha512-hfQPRClUoQQLm8dzzhXWTziPD2hp1H4sX3MFe4VGmwG4XjGs1e5NZadj5dkRIYRNxUwK6EiOd3btmR6lyhL2HQ==",
+    "artifact_digest": "sha256:8577ffe4d5f2224828f633ec37738f3f7694ebbd556c21e3c9293224fa160712",
     "bridge_protocol_version": 1,
-    "bridge_readiness": "not_ready (control bridge is S1-03)"
+    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
   "profile_install": {
     "manifest": "config/dsh/profile/package.json",
@@ -118,15 +130,15 @@
     },
     {
       "item": "container image digests",
-      "status": "pending (S1-03 execution host)"
+      "status": "pending (S1-03 execution host: container isolation not built)"
     },
     {
       "item": "required-service startup check",
-      "status": "pending (S1-03 bridge readiness)"
+      "status": "partial (S1-03: bridge readiness built; container isolation and the deployed host pending)"
     },
     {
       "item": "affected live acceptance evidence",
-      "status": "pending"
+      "status": "pending (S1-03 live steer needs OPENAI_API_KEY; real admission needs S1-02)"
     }
   ]
 }
