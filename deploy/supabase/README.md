@@ -44,7 +44,7 @@ Updated 2026-09-24 when the Studio was deployed (same method, 2 declared updates
 - `site_url = "https://sophia-studio.vercel.app"`
 - `additional_redirect_urls = ["https://sophia-studio.vercel.app/**", "http://localhost:5173/**", "http://127.0.0.1:5173/**"]`
 
-The magic-link email carries the link and the one-time code ([templates/magic-link.html](templates/magic-link.html), subject "Sign in to Sophia"), pushed the same way with `[auth.email.template.magic_link]` and `content_path`. The link only signs in the browser that asked for it (PKCE); the code works from any device. Invitations sent from the dashboard return tokens in the URL fragment, which the Studio accepts.
+The magic-link email carries the link and the one-time code ([templates/magic-link.html](templates/magic-link.html), subject "Sign in to Sophia"), pushed the same way with `[auth.email.template.magic_link]` and `content_path`. A first sign-in gets the welcome email instead ([templates/confirmation.html](templates/confirmation.html), subject "Welcome to Sophia", `[auth.email.template.confirmation]`), with the same link and code. The link only signs in the browser that asked for it (PKCE); the code works from any device. Invitations sent from the dashboard return tokens in the URL fragment, which the Studio accepts.
 
 Never push the repository's `supabase/config.toml` to this project: it describes the local stack.
 
@@ -59,7 +59,7 @@ Open http://localhost:5173 **in the same browser where you will click the email 
 ## Pending (owner decisions in the dashboard)
 
 - **Enable SSL enforcement** (Database → Settings). The project currently accepts non-TLS connections; our clients always use `verify-full`.
-- **Disable public sign-ups** (Authentication → Sign In / Providers) and invite the founders. Until then anyone holding the publishable key can register and create projects.
+- **Sign-ups stay open** (product decision, 2026-09-25): Sophia has a personal space for everyone and a work space for organizations, so anyone can register without an invitation. Organizations gate only the work side. Consider CAPTCHA (Turnstile) on sign-up.
 - Set the **Site URL** and redirect URLs once the Studio has its Vercel URL (magic links redirect there).
 - Default Supabase email only delivers to organization members and is rate-limited. Configure custom SMTP before inviting anyone outside the org.
 
@@ -80,7 +80,5 @@ setup (owner actions; nothing here is applied yet):
 3. **Guests without an account**: Authentication → Sign In / Providers → allow **anonymous sign-ins**, ideally
    with CAPTCHA (Turnstile or hCaptcha). The API lets an anonymous guest only knock, wait, and join a call
    they were admitted to; everything else answers 403.
-4. **Members invited by email** create their account with the emailed code, so **sign-ups must stay open**
-   for them. That conflicts with "Disable public sign-ups" under Pending, above. Either keep sign-ups open (a stranger's
-   account sees no project; it can still create its own projects), or disable them and invite new members
-   from this dashboard first. The Sophia link then only attaches them to the project.
+4. **Members invited by email** create their account with the emailed code, like anyone signing up. A new
+   account sees no project until it joins one or creates its own.
