@@ -60,7 +60,7 @@ a path updates its row in the same commit.
 | `packages/context/` | unbuilt | S1-08 | Scoped ContextPacket compiler and invalidation |
 | `packages/execution-adapters/` | unbuilt | S1-09, S1-10 | `omnigent/`, `native-team/`, `mailbox/` |
 | `packages/creative/` | unbuilt | S1-06, S1-07, S1-13 | Image adapters, assets, prototype bundle |
-| `packages/ui/` | partial | S1-02, S1-04 | Built: the first primitive (`Tag`). S1-04 adds tokens, primitives, common renderers |
+| `packages/ui/` | partial | S1-02, S1-04 | Built: `Tag`, line icons (`Icon`), labels that swap in place (`SwapLabel`) and the sliding thumb of segmented controls and navigation (`useSlidingThumb`). Later goals add common renderers |
 | `packages/test-support/` | built | S1-02 | Disposable migrated databases, cluster-role lock, project seeding |
 
 ## apps/
@@ -68,7 +68,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `apps/api/` | partial | S1-02, S1-05, S1-09, S1-11 | Built: Fastify HTTP, Supabase JWT auth (JWKS), project creation, command admission, snapshot, SSE |
-| `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in (link or emailed code), project start, the project shell with view routes (`/p/<project>/<view>`), per-viewer lenses and drafts, the work view (snapshot + live feed + goal commands), the room dock (LiveKit room, people and speaking state, input floor, leave; LiveKit loads on join) |
+| `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in (link or emailed code), project start, the project shell with view routes (`/p/<project>/<view>`), per-viewer lenses and drafts, the work view (snapshot + live feed + goal commands), the room stage (Sophia's light in WebGL, people around her, the input floor passing through her, a floating dock with microphone, camera, screen share and leave; video layouts where her light moves into a tile of her own; LiveKit loads on join) and a mini dock on the other views |
 | `apps/worker/` | unbuilt | S1-06, S1-08, S1-11, S1-13 | SQL job/outbox consumers and scheduler |
 | `apps/execution-host/` | partial | S1-03, S1-07, S1-12 | Private VM supervisor. Built: the runtime supervisor. The workspace supervisor and artifact gateway are S1-07 |
 | `apps/execution-host/src/runtime-supervisor.ts` | partial | S1-03 | Built: launches the official dsh per project home under a single-writer lease and a sanitized env. Ready only from the bridge. Bounded crash restarts. Container isolation and the deployed host are still to do |

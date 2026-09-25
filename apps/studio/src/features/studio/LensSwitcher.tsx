@@ -1,6 +1,7 @@
 // v2LensBar → LensSwitcher (frontend bindings). A lens is this viewer's local view: switching it sends
 // nothing to the server, so it cannot move anyone else's view or retask work.
 import { useRef } from 'react'
+import { useSlidingThumb } from '@sophia/ui'
 import { LENSES, type Lens } from './viewer-state.ts'
 
 export const LENS_LABEL: Record<Lens, string> = { converse: 'Converse', explore: 'Explore', build: 'Build' }
@@ -17,12 +18,12 @@ function nextLens(current: Lens, key: string): Lens | null {
 
 interface Props {
   lens: Lens
-  viewerName: string
   onChange: (lens: Lens) => void
 }
 
-export function LensSwitcher({ lens, viewerName, onChange }: Props) {
+export function LensSwitcher({ lens, onChange }: Props) {
   const tabs = useRef(new Map<Lens, HTMLButtonElement>())
+  const thumb = useSlidingThumb<HTMLDivElement>(lens)
   const onKeyDown = (event: React.KeyboardEvent) => {
     const next = nextLens(lens, event.key)
     if (!next) return
@@ -32,7 +33,7 @@ export function LensSwitcher({ lens, viewerName, onChange }: Props) {
   }
   return (
     <div className="lens-bar">
-      <div className="lenses" role="tablist" aria-label="Studio lenses" onKeyDown={onKeyDown}>
+      <div ref={thumb} className="segmented" role="tablist" aria-label="Your lens" onKeyDown={onKeyDown}>
         {LENSES.map((l) => (
           <button
             key={l}
@@ -42,6 +43,7 @@ export function LensSwitcher({ lens, viewerName, onChange }: Props) {
             type="button"
             role="tab"
             id={`lens-${l}`}
+            data-thumb={l}
             aria-selected={l === lens}
             aria-controls="lens-stage"
             tabIndex={l === lens ? 0 : -1}
@@ -51,7 +53,7 @@ export function LensSwitcher({ lens, viewerName, onChange }: Props) {
           </button>
         ))}
       </div>
-      <span className="muted lens-note">{viewerName}’s view · only you see this lens</span>
+      <span className="lens-note">Only you see your lens</span>
     </div>
   )
 }

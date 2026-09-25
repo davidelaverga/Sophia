@@ -1,12 +1,14 @@
-// ProjectShell (architecture 04 §3): project header, view navigation and the one project feed every view
-// shares. Views change the address, never the project; the pulse stays with the views about work.
+// ProjectShell (architecture 04 §3): project header, view navigation, the one project feed every view
+// shares, and the room connection, which outlives view changes: joining in Studio and reading Goals
+// keeps you in the room. Views change the address, never the project.
 import { useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
-import { Tag, type Tone } from '@sophia/ui'
+import { Icon, SwapLabel } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { routePath, type View } from '../../app/route.ts'
-import { SophiaDock } from '../voice/SophiaDock.tsx'
+import { MiniDock } from '../voice/MiniDock.tsx'
+import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
@@ -14,12 +16,12 @@ import { StudioShell } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 
-const CONNECTION: Record<Connection, { label: string; tone: Tone }> = {
-  connecting: { label: 'Connecting', tone: 'muted' },
-  live: { label: 'Live', tone: 'teal' },
-  reconnecting: { label: 'Reconnecting', tone: 'amber' },
-  resyncing: { label: 'Resyncing', tone: 'amber' },
-  denied: { label: 'No access', tone: 'rose' },
+const CONNECTION: Record<Connection, string> = {
+  connecting: 'Connecting',
+  live: 'Live',
+  reconnecting: 'Reconnecting',
+  resyncing: 'Resyncing',
+  denied: 'No access',
 }
 
 /** Why the project cannot be shown: session ended (401), not a member (403) or unreachable. */
@@ -43,17 +45,26 @@ interface Props {
 
 export function ProjectShell({ projectId, view, identity, identitySwitcher, onShow, onLeave }: Props) {
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
+  const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const blocked = blockedBy(snapshot.error)
-  const withPulse = view === 'studio' || view === 'work'
   return (
-    <div className="shell">
-      <ProjectHeader
-        title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
-        connection={connection}
-        projectId={snapshot.data ? projectId : null}
-        identitySwitcher={identitySwitcher}
-        onLeave={onLeave}
-      />
+    <div className="shell" data-view={view}>
+      <header className="topbar">
+        <button type="button" className="mark" onClick={onLeave} title="All projects">
+          <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
+          <span className="mark-word">Sophia</span>
+        </button>
+        <h1 className="project-name">{snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}</h1>
+        {!blocked && <ViewNav projectId={projectId} view={view} onShow={onShow} />}
+        <div className="topbar-end">
+          <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
+            <span className="connection-dot" aria-hidden />
+            <span className="connection-label">{CONNECTION[connection]}</span>
+          </span>
+          {snapshot.data && <CopyLinkButton projectId={projectId} />}
+          {identitySwitcher}
+        </div>
+      </header>
       {blocked ? (
         <AccessNotice
           blocked={blocked}
@@ -62,63 +73,47 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
           onRetry={() => void snapshot.refetch()}
         />
       ) : (
-        <>
-          <ViewNav projectId={projectId} view={view} onShow={onShow} />
-          <main className={`stage${withPulse ? '' : ' wide'}`}>
-            <ViewBody view={view} snapshot={snapshot.data} projectId={projectId} identity={identity} />
-            {withPulse && <WorkPulse feed={feed} connection={connection} />}
-          </main>
-          <SophiaDock projectId={projectId} identity={identity} snapshot={snapshot.data} />
-        </>
+        <ProjectBody
+          view={view}
+          projectId={projectId}
+          identity={identity}
+          room={room}
+          snapshot={snapshot.data}
+          pulse={<WorkPulse feed={feed} connection={connection} />}
+          onShow={onShow}
+        />
       )}
     </div>
   )
 }
 
-interface ViewBodyProps {
+interface BodyProps {
   view: View
-  snapshot: Snapshot | undefined
   projectId: string
   identity: Identity
+  room: ProjectRoom
+  snapshot: Snapshot | undefined
+  pulse: React.ReactNode
+  onShow: (view: View) => void
 }
 
-function ViewBody({ view, snapshot, projectId, identity }: ViewBodyProps) {
-  if (view === 'studio') return <StudioShell projectId={projectId} viewerName={identity.name} />
-  if (view === 'goals' || view === 'work') {
-    return <GoalList snapshot={snapshot} projectId={projectId} identity={identity} controls={view === 'work'} />
-  }
-  return <PendingView view={view} />
-}
-
-interface HeaderProps {
-  title: string
-  connection: Connection
-  /** Shown only once the project loaded, so a copied link always works for its members. */
-  projectId: string | null
-  identitySwitcher: React.ReactNode
-  onLeave: () => void
-}
-
-function ProjectHeader({ title, connection, projectId, identitySwitcher, onLeave }: HeaderProps) {
-  const conn = CONNECTION[connection]
+/** Studio is the room itself; every other view is a page, with the room one click away in the mini dock. */
+function ProjectBody({ view, projectId, identity, room, snapshot, pulse, onShow }: BodyProps) {
+  if (view === 'studio')
+    return <StudioShell projectId={projectId} identity={identity} room={room} snapshot={snapshot} />
+  const work = view === 'work'
   return (
-    <header className="topbar">
-      <button type="button" className="brand quiet" onClick={onLeave} title="All projects">
-        <span className={`orb${connection === 'live' ? ' ready' : ''}`} aria-hidden />
-        <span className="brand-name">Sophia</span>
-      </button>
-      <div className="project-title">
-        <span className="eyebrow">Project</span>
-        <h1>{title}</h1>
-      </div>
-      <div className="topbar-end">
-        <span role="status">
-          <Tag tone={conn.tone}>{conn.label}</Tag>
-        </span>
-        {projectId && <CopyLinkButton projectId={projectId} />}
-        {identitySwitcher}
-      </div>
-    </header>
+    <>
+      <main className={`page${work ? ' split' : ''}`}>
+        {view === 'goals' || work ? (
+          <GoalList snapshot={snapshot} projectId={projectId} identity={identity} controls={work} />
+        ) : (
+          <PendingView view={view} />
+        )}
+        {work && pulse}
+      </main>
+      <MiniDock room={room} onOpen={() => onShow('studio')} />
+    </>
   )
 }
 
@@ -135,8 +130,15 @@ function CopyLinkButton({ projectId }: { projectId: string }) {
     }
   }
   return (
-    <button type="button" className="quiet" onClick={() => void copy()}>
-      {copied ? 'Link copied' : 'Copy link'}
+    <button
+      type="button"
+      className="ghost copy-link"
+      aria-label={copied ? 'Link copied' : 'Copy link'}
+      title="Copy the room’s link"
+      onClick={() => void copy()}
+    >
+      <Icon name="link" size={16} />
+      <SwapLabel value={copied ? 'copied' : 'copy'} labels={{ copy: 'Copy link', copied: 'Link copied' }} />
     </button>
   )
 }
@@ -165,20 +167,18 @@ interface NoticeProps {
 function AccessNotice({ blocked, identityName, onLeave, onRetry }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
-    <main className="stage single">
-      <section className="notice">
-        <h2>{notice.title}</h2>
-        <p>{notice.body(identityName)}</p>
-        {notice.action === 'leave' ? (
-          <button type="button" onClick={onLeave}>
-            Back to projects
-          </button>
-        ) : (
-          <button type="button" onClick={onRetry}>
-            Try again
-          </button>
-        )}
-      </section>
+    <main className="page notice">
+      <h2>{notice.title}</h2>
+      <p>{notice.body(identityName)}</p>
+      {notice.action === 'leave' ? (
+        <button type="button" className="pill" onClick={onLeave}>
+          Back to projects
+        </button>
+      ) : (
+        <button type="button" className="pill" onClick={onRetry}>
+          Try again
+        </button>
+      )}
     </main>
   )
 }

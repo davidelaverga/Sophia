@@ -15,26 +15,26 @@ interface Props {
 export function GoalCard({ goal, projectId, identity, controls = true }: Props) {
   const status = GOAL_STATUS[goal.status]
   return (
-    <article className="goal">
-      <div className="goal-head">
+    <li className="goal" data-status={goal.status}>
+      <div className="goal-meta">
         <Tag tone={status.tone}>{status.label}</Tag>
-        <span className="mono muted" title="Goal revision · authority epoch">
+        <span className="mono" title="Goal revision · authority epoch">
           rev {goal.revision} · epoch {goal.authorityEpoch}
         </span>
       </div>
-      <h3>{goal.title}</h3>
-      <p className="outcome-text">{goal.outcome}</p>
+      <h3 className="goal-title">{goal.title}</h3>
+      <p className="goal-outcome">{goal.outcome}</p>
       {goal.criteria.length > 0 && (
         <ul className="criteria">
           {goal.criteria.map((c) => (
             <li key={c.id}>
               <span>{c.description}</span>
-              {c.required && <span className="muted"> · required</span>}
+              {c.required && <span className="required"> · required</span>}
             </li>
           ))}
         </ul>
       )}
       {controls && <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />}
-    </article>
+    </li>
   )
 }

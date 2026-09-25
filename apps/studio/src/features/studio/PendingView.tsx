@@ -22,9 +22,10 @@ const PENDING: Record<PendingViewName, { title: string; body: string }> = {
 export function PendingView({ view }: { view: PendingViewName }) {
   const pending = PENDING[view]
   return (
-    <section className="coming" aria-labelledby="pending-title">
+    <section className="coming pending" aria-labelledby="pending-title">
+      <span className="eyebrow">Coming</span>
       <h2 id="pending-title">{pending.title}</h2>
-      <p className="muted">{pending.body}</p>
+      <p>{pending.body}</p>
     </section>
   )
 }
