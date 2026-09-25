@@ -35,3 +35,22 @@ test('the launch environment is explicit: no inherited variables beyond the fixe
     rmSync(root, { recursive: true })
   }
 })
+
+test('only named credential variables pass, and only when the caller has them', () => {
+  const root = mkdtempSync(join(tmpdir(), 'launch-env-'))
+  const saved = { a: process.env.SOPHIA_TEST_CREDENTIAL, b: process.env.SOPHIA_TEST_OTHER }
+  try {
+    process.env.SOPHIA_TEST_CREDENTIAL = 'value-for-test'
+    process.env.SOPHIA_TEST_OTHER = 'must-not-pass'
+    const layout = { dshHome: join(root, 'dsh-home'), home: join(root, 'home') }
+    const env = sanitizedEnv({ ...layout, credentials: ['SOPHIA_TEST_CREDENTIAL', 'SOPHIA_TEST_UNSET'] })
+    assert.equal(env.SOPHIA_TEST_CREDENTIAL, 'value-for-test')
+    assert.equal('SOPHIA_TEST_UNSET' in env, false)
+    assert.equal('SOPHIA_TEST_OTHER' in env, false)
+    assert.equal('SOPHIA_TEST_CREDENTIAL' in sanitizedEnv(layout), false, 'nothing passes unless named')
+  } finally {
+    if (saved.a === undefined) delete process.env.SOPHIA_TEST_CREDENTIAL; else process.env.SOPHIA_TEST_CREDENTIAL = saved.a
+    if (saved.b === undefined) delete process.env.SOPHIA_TEST_OTHER; else process.env.SOPHIA_TEST_OTHER = saved.b
+    rmSync(root, { recursive: true })
+  }
+})

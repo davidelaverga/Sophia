@@ -60,6 +60,11 @@ All at `deepseek-ai/deepseek-harness@46a7f68b0922371ce7144b668b90e377d8e799f4`
 | DSH-05 | `packages/bundle/sdk-app/cordis.patch.yml` | Row `disabled: true` and `insert` syntax precedent | `packages/dsh-bundle/cordis.patch.yml` |
 | DSH-19 | `packages/util/package-manifest/src/types.ts` | `dsh.profile.bundles`, `dsh.bundle.patch`, `manifestVersion` | `config/dsh/profile/package.json`, `packages/dsh-bundle/package.json` |
 | DSH-20 | `packages/bundle/sdk-app/package.json` | Packaged bundle manifest shape (`exports` of `./cordis.patch.yml`, `files`) | `packages/dsh-bundle/package.json` |
+| DSH-15 | `packages/llm/llm-pi-ai/README.md`, and `docs/config-catalog.md` (`dsh-llm-pi-ai`, `dsh-agent-default-model`, `dsh-agent-loop`) | Provider routes, `apiKeyEnv` references, a `models` list declaring a model newer than the catalog, `reasoningEfforts`; default-model `{provider, model, reasoningEffort}`; the agent loop requires the `agents`, `sessions`, `llm`, `tools`, `systemPrompt` and `sessionProjections` services | `packages/dsh-bundle/cordis.patch.yml` (development model route), `scripts/lib/gate.mjs` (`checkModelRoute`) |
+| DSH-08, DSH-09, DSH-10 | `docs/subsystems/core.md`, and the installed `@deepseek-ai/dsh-agent` declarations | `ctx.agents.create/resume` with `setup`, `AgentHandle.dispose`, `send/followup/steer/inject`, `cancel(cause, {keepInbox})`, `whenIdle`, `agent/pre-step` (reject/enter), inbox `claimed`/`discarded`, `isOwnedBy` | `packages/dsh-bundle/src/control-bridge.ts` |
+| DSH-11 | `docs/subsystems/session.md`, `persistence.md` | `ctx.sessions.flush` as the durability barrier; log-only plugin events and the `ignorable` envelope marker | `control-bridge.ts` (`settled`), `session-events.ts` (journal) |
+| DSH-12 | `docs/cookbook/extension-cookbook.md`, and the installed `@deepseek-ai/dsh-tools` declarations | Protocol-driver plugin shape; `tools.guard` (monotonic, root and nested executions); `tools.restrict` (agent scope, unknown names fail); `tools.schemas` | `control-bridge.ts`, `role-registry.ts` |
+| DSH-13, DSH-18 | `docs/subsystems/core.md` (`ctx.agentPresets`); the `workflow` tool schema observed at runtime | Presets resolve current definitions on resume; `workflow` is the PTC program runtime in native presentation mode | `role-registry.ts` |
 | — | `apps/cli/README.md`, `apps/cli/reference/README.md` | `dsh plugin --profile … <pnpm args>`, dump flags, startup diagnostics under `$DSH_HOME/logs/` | `scripts/lib/profile.mjs` |
 
 Also consulted: the `dsh plugin` output at the pin. A non-shipped profile
@@ -101,3 +106,30 @@ do not rediscover them.
 5. **The base profile boots without an app surface.** `dsh --profile
    sophia-runtime` stays running with no listening port, loads the Sophia
    row, and disposes cleanly on SIGTERM (exit 0).
+
+Learned during S1-03 (each is covered by a test):
+
+6. **`ctx.agents.create` does not apply the default model.** An Agent
+   created without `agentOptions` fails its first step with "has no
+   provider/model". Entry points read `ctx.agentDefaultModel` at creation,
+   and the bridge does the same on create and resume.
+7. **An external plugin cannot write a reload-safe session event.**
+   Persistence refuses to reload a log that holds an out-of-repo event type
+   unless its stored envelope carries `ignorable: true`. The public
+   `Session.append` cannot set that marker; only seed events carry it. The
+   bridge therefore keeps its correlation, fences and held input in its own
+   fsynced journal instead of the extension event 02_DSH_BOOTSTRAP §5
+   prefers.
+8. **A rejected pre-step drops the claimed messages.** They are neither
+   discarded nor re-queued, and re-queuing them would restart the driver. A
+   Hold must therefore keep claimed input itself (the journaled stash).
+9. **`workflow` is the PTC runtime in this composition.** In native
+   presentation mode there is no `run_code`. `workflow` scripts reach tools
+   only through child agents, so a PTC guard must cover child agents, which
+   is why the bridge walks runtime ownership.
+10. **`session-title-llm` makes a second model call per session.** It sends
+    the first prompt to the provider again. The Sophia bundle disables it,
+    as dsh's SDK bundle does.
+11. **`tools.restrict` fails on unknown names.** Role visibility is
+    therefore computed from the registered tools (deny what the role does not
+    allow), never from a static allowlist.

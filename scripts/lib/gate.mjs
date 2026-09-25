@@ -20,8 +20,8 @@ const BASE = '@deepseek-ai/dsh-base'
 const BUNDLE = '@sophia/dsh-bundle'
 const BRIDGE_ROW = 'sophia-control-bridge'
 
-/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6). */
-export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr']
+/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6, plus the per-session title model call since S1-03). */
+export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr', 'session-title-llm']
 
 /** App-surface rows that bring their own root loop or endpoint; none belong in sophia-runtime. */
 export const FOREIGN_ROOT_ROWS = ['webserver', 'modules', 'connection', 'headless-runner', 'acp', 'sdk-jsonrpc-server']
@@ -102,6 +102,49 @@ export function diffAgainstArchive(archive, installedDir) {
   } finally {
     rmSync(scratch, { recursive: true, force: true })
   }
+}
+
+/**
+ * The model route is part of the runtime unit. At the pin, pi-ai keeps an
+ * unserviceable route as a silent editable diagnostic, and the boot prints
+ * nothing, so the composed rows are checked against the recorded route: the
+ * default model selects it, the Sophia bundle set both rows, the credential is
+ * a reference, and the chosen effort is one the model offers.
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ provider: string, model: string, reasoningEffort: string, credential_ref: string }} route - the recorded route.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkModelRoute(rows, route) {
+  const findings = []
+  const fail = (message) => findings.push({ code: 'model_route_invalid', message })
+  const row = (id) => rows.find((r) => r.id === id)
+  const selection = row('agent-default-model')
+  if (!selection || !selection.patchedBy.includes(BUNDLE)) {
+    fail(`agent-default-model must be set by ${BUNDLE}`)
+  } else {
+    const { provider, model, reasoningEffort } = selection.config ?? {}
+    if (provider !== route.provider || model !== route.model || reasoningEffort !== route.reasoningEffort) {
+      fail(`agent-default-model selects ${JSON.stringify({ provider, model, reasoningEffort })}, the unit records ${JSON.stringify({ provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort })}`)
+    }
+  }
+  const adapter = row('llm-pi-ai')
+  const profile = adapter?.config?.providers?.[route.provider]
+  if (!adapter || !adapter.patchedBy.includes(BUNDLE) || !profile) {
+    fail(`llm-pi-ai must declare the "${route.provider}" route in ${BUNDLE}`)
+    return findings
+  }
+  if (profile.apiKeyEnv !== route.credential_ref) {
+    fail(`route "${route.provider}" must reference ${route.credential_ref} through apiKeyEnv, found ${JSON.stringify(profile.apiKeyEnv)}`)
+  }
+  const literal = JSON.stringify(adapter.config).match(/"(apiKey|key|token|secret)"\s*:/i)
+  if (literal) fail(`llm-pi-ai config carries a literal credential field "${literal[1]}"; only apiKeyEnv references are allowed`)
+  const entry = (profile.models ?? []).find((m) => m.id === route.model)
+  if (!entry) {
+    fail(`route "${route.provider}" does not list model "${route.model}"`)
+  } else if (!entry.reasoningEfforts || !(route.reasoningEffort in entry.reasoningEfforts)) {
+    fail(`model "${route.model}" does not offer reasoning effort "${route.reasoningEffort}"`)
+  }
+  return findings
 }
 
 /** Directories from `start` to the filesystem root. */
@@ -238,6 +281,7 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
         findings.push({ code: 'required_disable_missing', message: `${id} must be disabled by ${BUNDLE}` })
       }
     }
+    if (unit.model_route) findings.push(...checkModelRoute(rows, unit.model_route))
     const loops = byId.get('agent-loop') ?? []
     if (loops.length !== 1 || loops[0].origin !== BASE) {
       findings.push({ code: 'agent_loop_not_single', message: `expected exactly one agent-loop row from ${BASE}, found ${loops.length}` })
@@ -267,12 +311,14 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
 }
 
 /**
- * Health needs a verified composition AND a bridge that reports ready. The
- * S1-01 bridge never reports ready, so every S1-01 runtime is unhealthy; a
- * composition failure adds its own reasons so the two causes stay distinct.
+ * Health needs a verified composition AND a running bridge that reported
+ * `ready` to the Sophia service. This gate checks composition statically, so
+ * its verdict is never `healthy`: readiness is observed at runtime by the
+ * service (and the execution-host supervisor), never inferred from files.
+ * Composition failures keep their own reasons so the two causes stay distinct.
  */
 export function healthOf(checks) {
   const reasons = checks.filter((c) => !c.ok).map((c) => `composition:${c.id}`)
-  reasons.push('bridge_not_ready: control bridge not implemented (S1-03)')
+  reasons.push('bridge_readiness_unobserved: readiness is reported by the running bridge, not by files')
   return { healthy: false, reasons }
 }
