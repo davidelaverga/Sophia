@@ -9,6 +9,7 @@ import { transferInputFloor, type ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { micOnJoin } from './mic-preference.ts'
+import { PassMenu } from './PassMenu.tsx'
 import { listensOnly, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -217,25 +218,6 @@ function FloorAction({ floor, me, busy, onPass }: ActionProps) {
       </button>
     )
   }
-  if (floor.passTargets.length > 1) {
-    return (
-      <select
-        className="pill warm"
-        aria-label="Pass the floor"
-        value=""
-        disabled={busy}
-        onChange={(e) => onPass(e.target.value)}
-      >
-        <option value="" disabled>
-          Pass to…
-        </option>
-        {floor.passTargets.map((p) => (
-          <option key={p.identity} value={p.identity}>
-            {shortName(p.name)}
-          </option>
-        ))}
-      </select>
-    )
-  }
+  if (floor.passTargets.length > 1) return <PassMenu targets={floor.passTargets} busy={busy} onPass={onPass} />
   return null
 }
