@@ -36,11 +36,11 @@ export function eventRoutes(app: FastifyInstance, { pool, hub, heartbeatMs }: Ev
       const read = (after: bigint) => withActor(pool, req.actorId, 'read', (c) => readEventFrames(c, projectId, after))
 
       // Watch for the client leaving from the start: it may go while the first read is in flight.
-      let stream: ProjectEventStream | undefined
-      let gone = false
+      // An object, not a `let`: the flag flips inside the listener, which control-flow narrowing ignores.
+      const client: { gone: boolean; stream?: ProjectEventStream } = { gone: false }
       reply.raw.on('close', () => {
-        gone = true
-        stream?.close()
+        client.gone = true
+        client.stream?.close()
       })
 
       // Authorize before switching to a stream so a denial is an ordinary JSON 403.
@@ -48,8 +48,8 @@ export function eventRoutes(app: FastifyInstance, { pool, hub, heartbeatMs }: Ev
       if (!first.visible) throw new DomainError('forbidden', 'Not permitted')
 
       reply.hijack()
-      if (gone || reply.raw.destroyed) return
-      stream = new ProjectEventStream({ res: reply.raw, projectId, read, first, hub, heartbeatMs, log: req.log })
+      if (client.gone || reply.raw.destroyed) return
+      client.stream = new ProjectEventStream({ res: reply.raw, projectId, read, first, hub, heartbeatMs, log: req.log })
     },
   )
 }
