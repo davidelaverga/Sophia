@@ -25,6 +25,15 @@ export function Centered({ title, children, busy }: { title: string; children?: 
   )
 }
 
+/** A closed door still leads somewhere: Sophia's front page (sign-in, or your projects). */
+export function HomeLink() {
+  return (
+    <a className="pill" href="/">
+      Go to Sophia
+    </a>
+  )
+}
+
 interface SignInProps {
   onChooseDev: (identity: Identity) => void
   /** Why the last sign-in link did not work, when it did not. */

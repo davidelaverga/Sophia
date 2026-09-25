@@ -52,8 +52,9 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
             <span className="lobby-wait">{waitedFor(e.requestedAt, now)}</span>
             {canDecide && (
               <span className="lobby-actions">
+                {/* Honest about the effect: a guest turned away cannot knock again from that device. */}
                 <button type="button" className="ghost" disabled={busy === e.id} onClick={() => void decide(e, 'deny')}>
-                  Not now
+                  Turn away
                 </button>
                 <button
                   type="button"

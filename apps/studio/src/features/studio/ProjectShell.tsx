@@ -6,6 +6,7 @@ import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
@@ -59,15 +60,8 @@ function useRecentProject(
 
 /** The tab names the project and counts who waits at its door, so a tab in the background still calls. */
 function useTabTitle(snapshot: Snapshot | undefined) {
-  const title = snapshot?.title
   const waiting = snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0
-  useEffect(() => {
-    if (!title) return undefined
-    document.title = waiting > 0 ? `(${waiting}) ${title} · Sophia` : `${title} · Sophia`
-    return () => {
-      document.title = 'Sophia Studio'
-    }
-  }, [title, waiting])
+  useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
 }
 
 interface Props {

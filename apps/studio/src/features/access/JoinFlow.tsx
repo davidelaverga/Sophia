@@ -6,8 +6,9 @@ import { useEffect, useState } from 'react'
 import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { acceptInvitation, getLobbyEntry, knockRoom, previewInvitation } from '../../api/access.ts'
 import { authMode, guestAccessToken, sendInvitedSignIn, type AuthState } from '../../app/auth.ts'
+import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
-import { Centered, CodeForm } from '../../app/SignIn.tsx'
+import { Centered, CodeForm, HomeLink } from '../../app/SignIn.tsx'
 import { countdown, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom } from './GuestRoom.tsx'
 
@@ -68,15 +69,6 @@ function Closed({ text }: { text: string }) {
       <p>{text}</p>
       <HomeLink />
     </Centered>
-  )
-}
-
-/** A closed door still leads somewhere: Sophia's front page (sign-in, or your projects). */
-function HomeLink() {
-  return (
-    <a className="pill" href="/">
-      Go to Sophia
-    </a>
   )
 }
 
@@ -220,6 +212,7 @@ function Waiting({
     }, POLL_MS)
     return () => clearInterval(t)
   }, [accessToken, current, onIn])
+  useDocumentTitle(current.status === 'denied' ? null : 'Waiting to be let in · Sophia')
   if (current.status === 'denied') {
     return (
       <Centered title="Not this time">

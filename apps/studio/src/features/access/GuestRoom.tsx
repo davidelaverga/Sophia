@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { LobbyEntry } from '@sophia/contracts'
 import { getLobbyEntry, issueGuestRoomToken } from '../../api/access.ts'
 import { endGuestSession } from '../../app/auth.ts'
-import { Centered } from '../../app/SignIn.tsx'
+import { useDocumentTitle } from '../../app/document-title.ts'
+import { Centered, HomeLink } from '../../app/SignIn.tsx'
 import { VOICE_NOTE } from '../voice/room-view.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { useRoomConnection } from '../voice/useProjectRoom.ts'
@@ -38,6 +39,8 @@ export function GuestRoom({ accessToken, entry, projectTitle }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const [leaving, setLeaving] = useState(false)
   const removed = useRemoved(live, accessToken, entry.id, leaving)
+  // A guest who waited in another tab sees the title change the moment they are let in.
+  useDocumentTitle(live ? `${projectTitle} · Sophia` : 'You’re let in · Sophia')
   const leave = async () => {
     setLeaving(true)
     await room.leave()
@@ -47,6 +50,7 @@ export function GuestRoom({ accessToken, entry, projectTitle }: Props) {
     return (
       <Centered title="Your visit has ended">
         <p>Someone in “{projectTitle}” closed your place in the room. You can ask whoever invited you.</p>
+        <HomeLink />
       </Centered>
     )
   }
@@ -56,6 +60,9 @@ export function GuestRoom({ accessToken, entry, projectTitle }: Props) {
         <span className="mark">
           <span className="mark-dot" data-live={live || undefined} aria-hidden />
           <span className="mark-word">Sophia</span>
+        </span>
+        <span className="crumb-sep" aria-hidden>
+          /
         </span>
         <h1 className="project-name">{projectTitle}</h1>
         <span className="topbar-end guest-tag">Guest · {entry.displayName}</span>

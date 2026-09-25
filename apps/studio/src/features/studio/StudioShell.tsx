@@ -68,7 +68,7 @@ function Composer({ draft, onDraft }: { draft: string; onDraft: (text: string) =
         onChange={(e) => onDraft(e.target.value)}
       />
       <p className="composer-note">
-        Your draft stays on this device. Sending it to the shared conversation comes with project contributions.
+        Sending isn’t available yet. Your draft stays on this device, and only you see it.
       </p>
     </div>
   )
