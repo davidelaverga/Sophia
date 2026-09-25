@@ -1,4 +1,4 @@
-/* Tokens from the V2-R1 reference (docs/pack-v0.4/references, SHA f3879d9e…): quiet dark/violet
+/* Tokens from the V2-R1 reference (docs/pack/references, SHA f3879d9e…): quiet dark/violet
    surfaces, orb, serif display with a sans body. The Studio is dark-only, like the reference. */
 :root {
   --void: #06040e;
@@ -530,6 +530,176 @@ input:focus-visible {
 }
 
 /* Touch screens: 44px targets. */
+/* Project views (S1-04): real links, one row that scrolls sideways on narrow screens */
+.view-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 24px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.view-nav a {
+  flex: none;
+  padding: 10px 12px 12px;
+  color: var(--t3);
+  text-decoration: none;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.view-nav a:hover {
+  color: var(--t1);
+}
+.view-nav a[aria-current='page'] {
+  color: var(--t1);
+  border-bottom-color: var(--lav);
+}
+.stage.wide {
+  grid-template-columns: minmax(0, 760px);
+}
+
+/* Studio: the viewer's own lens over the shared room */
+.studio {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.lens-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lenses {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.lenses button {
+  border: 0;
+  background: transparent;
+  color: var(--t3);
+  padding: 7px 16px;
+}
+.lenses button[aria-selected='true'] {
+  background: var(--raise);
+  color: var(--t1);
+  box-shadow: var(--rim);
+}
+.lens-note {
+  font-size: 12px;
+}
+.lens-stage {
+  min-height: 320px;
+  padding: 26px 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #120c1f99;
+  box-shadow: var(--rim);
+}
+.converse {
+  display: grid;
+  gap: 12px;
+}
+.converse textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--t1);
+}
+.coming {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.coming p {
+  max-width: 56ch;
+}
+
+/* Sophia dock (S1-04): the room, its people and the input floor, always reachable at the bottom */
+.dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background: #0d0a18f2;
+  backdrop-filter: blur(10px);
+}
+.dock-sophia {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.dock-sophia p {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+.dock-room {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+}
+.person .muted {
+  font-size: 11px;
+}
+.person.speaking {
+  border-color: var(--teal);
+}
+.person.speaking .dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 4px #8fdccd33;
+}
+.person.muted .dot {
+  background: var(--t4);
+}
+.floor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .person.speaking .dot {
+    box-shadow: none;
+  }
+}
+
 @media (pointer: coarse) {
   button,
   select {
@@ -548,6 +718,32 @@ input:focus-visible {
   }
   .pulse {
     position: static;
+  }
+  .view-nav {
+    padding: 4px 16px 0;
+  }
+  .lens-stage {
+    padding: 18px 16px;
+    min-height: 0;
+  }
+  .dock {
+    padding: 10px 16px;
+    gap: 8px 16px;
+  }
+}
+.dock-toggle {
+  display: none;
+}
+@media (max-width: 560px) {
+  .dock-toggle {
+    display: inline-flex;
+  }
+  /* One line of Sophia; the room and its controls keep the space. */
+  .dock-sophia p {
+    display: none;
+  }
+  .person .muted {
+    display: none;
   }
 }
 @media (max-width: 560px) {

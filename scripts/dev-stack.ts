@@ -10,6 +10,7 @@ import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { readEnvFile, requireKeys } from './lib/env-file.ts'
+import { namedLiveKit } from './lib/livekit.ts'
 import { namedPostgres } from './lib/postgres.ts'
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)))
@@ -27,11 +28,21 @@ interface Backend {
 const pick = (env: Record<string, string>, keys: readonly string[]) =>
   Object.fromEntries(keys.map((k) => [k, env[k] ?? '']))
 
+/** Project rooms on the local LiveKit container (S1-04); the hosted backend brings its own server. */
+function localRoomServer(): Record<string, string> {
+  const lk = namedLiveKit()
+  return { LIVEKIT_URL: lk.url, LIVEKIT_API_KEY: lk.apiKey, LIVEKIT_API_SECRET: lk.apiSecret }
+}
+
+const LIVEKIT_KEYS = ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'] as const
+
 function hostedBackend(file: string): Backend {
   const env = readEnvFile(file)
   requireKeys(env, [...API_KEYS, 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'], file)
+  // Rooms need a LiveKit server reachable by both founders; without one the Studio says voice is unavailable.
+  const rooms = env.LIVEKIT_URL ? pick(env, LIVEKIT_KEYS) : {}
   return {
-    apiEnv: pick(env, API_KEYS),
+    apiEnv: { ...pick(env, API_KEYS), ...rooms },
     studioEnv: {
       VITE_SUPABASE_URL: env.SUPABASE_URL ?? '',
       VITE_SUPABASE_PUBLISHABLE_KEY: env.SUPABASE_PUBLISHABLE_KEY ?? '',
@@ -46,7 +57,7 @@ function localSupabaseBackend(): Backend {
   const env = readEnvFile('.env.supabase.local')
   requireKeys(env, API_KEYS, '.env.supabase.local')
   return {
-    apiEnv: pick(env, API_KEYS),
+    apiEnv: { ...pick(env, API_KEYS), ...localRoomServer() },
     studioEnv: {}, // supabase-local already wrote the Studio's public values
     banner: [
       `Supabase Auth (local) · sign-in emails in Mailpit ${env.MAILPIT_URL}`,
@@ -69,7 +80,7 @@ function syntheticBackend(): Backend {
     identities: unknown[]
   }
   return {
-    apiEnv: dev.api,
+    apiEnv: { ...dev.api, ...localRoomServer() },
     studioEnv: { VITE_DEV_PROJECT_ID: dev.project.projectId, VITE_DEV_IDENTITIES: JSON.stringify(dev.identities) },
     banner: `Synthetic dev identities · project ${dev.project.projectId}`,
   }

@@ -4,7 +4,15 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { GOAL_STATUS } from './labels.ts'
 import { WorkControls } from './WorkControls.tsx'
 
-export function GoalCard({ goal, projectId, identity }: { goal: Goal; projectId: string; identity: Identity }) {
+interface Props {
+  goal: Goal
+  projectId: string
+  identity: Identity
+  /** The Work view carries the controls; the Goals view reads outcomes and criteria only. */
+  controls?: boolean
+}
+
+export function GoalCard({ goal, projectId, identity, controls = true }: Props) {
   const status = GOAL_STATUS[goal.status]
   return (
     <article className="goal">
@@ -26,7 +34,7 @@ export function GoalCard({ goal, projectId, identity }: { goal: Goal; projectId:
           ))}
         </ul>
       )}
-      <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />
+      {controls && <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />}
     </article>
   )
 }

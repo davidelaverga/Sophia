@@ -89,21 +89,38 @@ before(async () => {
   await app.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
 })
-after(async () => {
-  if (projects.length) {
-    const owner = new pg.Client({ connectionString: env('SOPHIA_MIGRATION_DATABASE_URL') })
-    await owner.connect()
-    for (const table of ['project_creations', 'project_members', 'project_revisions', 'projects']) {
-      await owner.query(
-        `DELETE FROM sophia.${table} WHERE ${table === 'projects' ? 'id' : 'project_id'} = ANY($1::uuid[])`,
-        [projects],
-      )
+/** Every table that references a project, children first (room tables since migration 0009). */
+const PROJECT_TABLES = [
+  'project_creations',
+  'floor_changes',
+  'room_state',
+  'project_members',
+  'project_revisions',
+  'projects',
+] as const
+
+async function removeProjects(ids: string[]): Promise<void> {
+  const owner = new pg.Client({ connectionString: env('SOPHIA_MIGRATION_DATABASE_URL') })
+  await owner.connect()
+  try {
+    for (const table of PROJECT_TABLES) {
+      const column = table === 'projects' ? 'id' : 'project_id'
+      await owner.query(`DELETE FROM sophia.${table} WHERE ${column} = ANY($1::uuid[])`, [ids])
     }
+  } finally {
     await owner.end()
   }
-  for (const u of users) await authAdmin(`users/${u.id}`, { method: 'DELETE' }).catch(() => undefined)
-  await app?.close()
-  await pool?.end()
+}
+
+after(async () => {
+  // Close the server and pool even if cleanup fails, so a failed cleanup cannot hang the run.
+  try {
+    if (projects.length) await removeProjects(projects)
+    for (const u of users) await authAdmin(`users/${u.id}`, { method: 'DELETE' }).catch(() => undefined)
+  } finally {
+    await app?.close()
+    await pool?.end()
+  }
 })
 
 describe('Supabase Auth (local GoTrue) → Sophia API', () => {

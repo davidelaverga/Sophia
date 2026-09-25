@@ -1,0 +1,37 @@
+{
+  "id": "A01",
+  "goal": "S1-04",
+  "title": "Expose the project room in the snapshot; implement the input floor with S1-04",
+  "why": [
+    "issueRoomToken requires a roomId and transferInputFloor an expectedRoomRevision, but no operation returned either: sophia.room_state (0001) existed without a way for a client to read it.",
+    "S1-04's acceptance requires two participants to pass the input role, so transferInputFloor ships with S1-04 instead of S1-05. Its response stays ExchangeReceipt; until S1-05 opens exchanges, exchangeId identifies the floor change itself."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/Room",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "revision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "inputActorId": { "anyOf": [{ "type": "string", "format": "uuid" }, { "type": "null" }] },
+          "mode": { "type": "string", "enum": ["invoked", "follow_discussion"] }
+        },
+        "required": ["id", "revision", "inputActorId", "mode"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/Snapshot/properties/room",
+      "value": { "$ref": "#/components/schemas/Room" }
+    },
+    { "op": "add", "path": "/components/schemas/Snapshot/required/-", "value": "room" },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1rooms~1{roomId}~1input-floor/post/x-sophia-release-goal",
+      "value": "S1-04"
+    }
+  ]
+}

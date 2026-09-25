@@ -86,6 +86,17 @@ added bundle (dsh-base resolves from the installation), and gets a
 `autoInstallPeers: false`. `config/dsh/profile/` reproduces that generated
 shape exactly.
 
+## 2a. Sources and amendments at S1-04
+
+| What | Version / identity | Used for | Sophia files |
+|---|---|---|---|
+| `livekit-server-sdk` | 2.19.1 (npm) | `AccessToken` with a single-room video grant | `apps/api/src/livekit.ts` |
+| `livekit-client` | 2.22.3 (npm) | Browser room connection, remote audio, active speakers | `apps/studio/src/features/voice/livekit-room.ts` |
+| `livekit/livekit-server` | v1.13.7 (Docker image, dev mode) | The local room server for the dev stack; not a deployment | `scripts/lib/livekit.ts` |
+| LK-01 … LK-03 | pack source register | Read for the room lifecycle; `@livekit/rtc-node` 1.1.0 stays the S1-05 media bridge's pin | — |
+
+**Contract amendments.** `packages/contracts/openapi/openapi.json` is the pack's contract plus the JSON Patches in [`packages/contracts/amendments/`](../packages/contracts/amendments/), applied in file order and checked by `pnpm contracts:check`. The pack's own generated types still come out byte-for-byte from the pack's contract. A01 (S1-04) exposes the project room in the snapshot and ships `transferInputFloor` with S1-04. Its reasons are in the file.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

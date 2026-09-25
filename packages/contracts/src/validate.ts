@@ -6,8 +6,10 @@ import {
   validateCursorAdvance,
   validateError,
   validateEvent,
+  validateExchangeReceipt,
   validateProjectCreated,
   validateReceipt,
+  validateRoomToken,
   validateSnapshot,
 } from './generated/validators.js'
 import type { CursorAdvance, Error as ErrorBody, Event } from './generated-types.ts'
@@ -40,6 +42,8 @@ export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
+export const parseRoomToken = parser('RoomToken', validateRoomToken)
+export const parseExchangeReceipt = parser('ExchangeReceipt', validateExchangeReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

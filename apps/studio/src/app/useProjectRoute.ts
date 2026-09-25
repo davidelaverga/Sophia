@@ -1,29 +1,31 @@
-// The open project lives in the URL (/projects/<id>), so links can be shared and Back works.
+// Keeps the open project and view in sync with the address bar (route.ts), including Back and Forward.
 import { useEffect, useState } from 'react'
+import { parseRoute, routePath, type Route, type View } from './route.ts'
 
-const PROJECT_PATH = /^\/projects\/([0-9a-f-]{36})\/?$/i
+const current = (): Route => parseRoute(window.location.pathname)
 
-const projectFromPath = (): string | null => PROJECT_PATH.exec(window.location.pathname)?.[1] ?? null
-
-export function useProjectRoute(fallback: string | null) {
-  const [projectId, setProjectId] = useState<string | null>(() => projectFromPath() ?? fallback)
+export function useProjectRoute(fallbackProject: string | null) {
+  const [route, setRoute] = useState<Route>(() => {
+    const parsed = current()
+    return parsed.projectId ? parsed : { ...parsed, projectId: fallbackProject }
+  })
 
   useEffect(() => {
-    if (projectId && !projectFromPath()) window.history.replaceState(null, '', `/projects/${projectId}`)
-    const onPop = () => setProjectId(projectFromPath())
+    // Normalize legacy and fallback addresses once, without adding a history entry.
+    if (window.location.pathname !== routePath(route)) window.history.replaceState(null, '', routePath(route))
+    const onPop = () => setRoute(current())
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [projectId])
+  }, [route])
 
+  const go = (next: Route) => {
+    window.history.pushState(null, '', routePath(next))
+    setRoute(next)
+  }
   return {
-    projectId,
-    open: (id: string) => {
-      window.history.pushState(null, '', `/projects/${id}`)
-      setProjectId(id)
-    },
-    leave: () => {
-      window.history.pushState(null, '', '/')
-      setProjectId(null)
-    },
+    route,
+    open: (projectId: string) => go({ projectId, view: 'studio' }),
+    show: (view: View) => go({ ...route, view }),
+    leave: () => go({ projectId: null, view: 'studio' }),
   }
 }

@@ -19,8 +19,9 @@ const seed = await seedProject(db.ownerUrl, {
   editors: [founders.davide],
 })
 
-const token = (sub: string) =>
-  new SignJWT({ role: 'authenticated' })
+// Synthetic accounts carry an email like Supabase tokens do; the API shows it as the display name.
+const token = (sub: string, email: string) =>
+  new SignJWT({ role: 'authenticated', email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sub)
     .setIssuer(issuer)
@@ -33,9 +34,9 @@ const out = {
   api: { SOPHIA_API_DATABASE_URL: db.apiUrl, SUPABASE_JWT_ISSUER: issuer, SUPABASE_JWT_SECRET: secret },
   project: seed,
   identities: [
-    { name: 'Luis', role: 'admin', token: await token(founders.luis) },
-    { name: 'Davide', role: 'editor', token: await token(founders.davide) },
-    { name: 'Outsider', role: 'none', token: await token(founders.outsider) },
+    { name: 'Luis', role: 'admin', token: await token(founders.luis, 'luis@sophia.test') },
+    { name: 'Davide', role: 'editor', token: await token(founders.davide, 'davide@sophia.test') },
+    { name: 'Outsider', role: 'none', token: await token(founders.outsider, 'outsider@sophia.test') },
   ],
 }
 

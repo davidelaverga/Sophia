@@ -11,10 +11,14 @@ import { commandRoutes } from './routes/commands.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
+import { roomRoutes } from './routes/rooms.ts'
+import type { LiveKitConfig } from './livekit.ts'
 
 declare module 'fastify' {
   interface FastifyRequest {
     actorId: string
+    /** Display name from the verified token (email), or null. Shown to others; never authority. */
+    actorName: string | null
   }
 }
 
@@ -27,6 +31,8 @@ export interface AppDeps {
    */
   eventPollMs?: number
   logger?: boolean
+  /** The LiveKit server for project rooms; without it, room tokens answer 503. */
+  livekit?: LiveKitConfig
   /** Exact Studio origins allowed to call the API from a browser (a deployed Studio); none by default. */
   corsOrigins?: readonly string[]
 }
@@ -34,7 +40,8 @@ export interface AppDeps {
 /** Functions the API requires in the database; /ready fails if any is missing. */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
-  AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.transfer_input_floor(uuid,uuid,bigint,text)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -59,6 +66,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   projectRoutes(app, { pool: deps.pool })
   projectionRoutes(app, { pool: deps.pool })
   commandRoutes(app, { pool: deps.pool })
+  roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   return app
 }
@@ -73,10 +81,13 @@ const PUBLIC_ROUTES: ReadonlySet<string> = new Set(['/health', '/ready'])
  */
 function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor): void {
   app.decorateRequest('actorId', '')
+  app.decorateRequest('actorName', null)
   app.addHook('onRequest', async (req) => {
     if (PUBLIC_ROUTES.has(req.routeOptions.url ?? '')) return
     try {
-      req.actorId = await verifyActor(req.headers.authorization)
+      const actor = await verifyActor(req.headers.authorization)
+      req.actorId = actor.id
+      req.actorName = actor.name
     } catch (err: unknown) {
       req.log.warn({ auth: describeAuthRejection(req.headers.authorization, err) }, 'authentication rejected')
       throw err

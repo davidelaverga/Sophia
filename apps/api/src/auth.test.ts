@@ -6,8 +6,8 @@ import { createActorVerifier, describeAuthRejection } from './auth.ts'
 
 const SECRET = 'unit-test-secret-at-least-32-characters!!'
 const ISSUER = 'https://example.supabase.co/auth/v1'
-const token = (claims: { iss?: string; role?: string; sub?: string } = {}) =>
-  new SignJWT({ role: claims.role ?? 'authenticated' })
+const token = (claims: { iss?: string; role?: string; sub?: string; email?: unknown } = {}) =>
+  new SignJWT({ role: claims.role ?? 'authenticated', ...(claims.email === undefined ? {} : { email: claims.email }) })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.sub ?? randomUUID())
     .setIssuer(claims.iss ?? ISSUER)
@@ -21,7 +21,17 @@ describe('actor verification', () => {
     // Regression: ~/.sophia env written on Windows left "\r" on the issuer; every real token got 401.
     const verify = createActorVerifier({ issuer: `${ISSUER}\r`, audience: 'authenticated\r\n', secret: SECRET })
     const sub = randomUUID()
-    assert.equal(await verify(`Bearer ${await token({ sub })}`), sub)
+    assert.deepEqual(await verify(`Bearer ${await token({ sub })}`), { id: sub, name: null })
+  })
+
+  it('names the actor from the verified email claim, and only from a string', async () => {
+    const verify = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const sub = randomUUID()
+    assert.deepEqual(await verify(`Bearer ${await token({ sub, email: 'luis@sophia.test' })}`), {
+      id: sub,
+      name: 'luis@sophia.test',
+    })
+    assert.equal((await verify(`Bearer ${await token({ email: { admin: true } })}`)).name, null)
   })
 
   it('rejects another issuer and non-user roles', async () => {

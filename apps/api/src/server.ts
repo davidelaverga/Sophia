@@ -15,10 +15,14 @@ function required(name: string): string {
 const pool = createPool(required('SOPHIA_API_DATABASE_URL'))
 await checkRoleSafety(pool) // refuse to start as an owner, superuser or BYPASSRLS login
 
+const livekitUrl = optional('LIVEKIT_URL')
 const app = buildApp({
   pool,
   logger: true,
   corsOrigins: parseOrigins(optional('STUDIO_ORIGINS')),
+  ...(livekitUrl
+    ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }
+    : {}),
   verifyActor: createActorVerifier({
     issuer: required('SUPABASE_JWT_ISSUER'),
     audience: optional('SUPABASE_JWT_AUDIENCE') ?? 'authenticated',

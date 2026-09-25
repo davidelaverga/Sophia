@@ -42,7 +42,7 @@ a path updates its row in the same commit.
 | `config/models.json` | partial | S1-05, S1-06 | Pack design specimen of exact route ids; consumed once the media and image adapters exist |
 | `config/roles.json` | partial | S1-03 | Pack design specimen of role presets; installed by the role registry |
 | `config/supervision.json` | partial | S1-11 | Pack design specimen of lead supervision policy |
-| `scripts/` | built | S1-01, S1-02 | Toolchain check, artifact build and verify, profile install and gate, pinned-source verify. S1-02: SQL test runner, disposable PostgreSQL, local Supabase, dev stack, API login and member provisioning |
+| `scripts/` | built | S1-01, S1-02, S1-04 | Toolchain check, artifact build and verify, profile install and gate, pinned-source verify. S1-02: SQL test runner, disposable PostgreSQL, local Supabase, dev stack, API login and member provisioning. S1-04: a dev LiveKit container |
 
 ## packages/
 
@@ -68,7 +68,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `apps/api/` | partial | S1-02, S1-05, S1-09, S1-11 | Built: Fastify HTTP, Supabase JWT auth (JWKS), project creation, command admission, snapshot, SSE |
-| `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in, project start, the S1-02 work view (snapshot + live feed + goal commands) |
+| `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in (link or emailed code), project start, the project shell with view routes (`/p/<project>/<view>`), per-viewer lenses and drafts, the work view (snapshot + live feed + goal commands), the room dock (LiveKit room, people and speaking state, input floor, leave; LiveKit loads on join) |
 | `apps/worker/` | unbuilt | S1-06, S1-08, S1-11, S1-13 | SQL job/outbox consumers and scheduler |
 | `apps/execution-host/` | partial | S1-03, S1-07, S1-12 | Private VM supervisor. Built: the runtime supervisor. The workspace supervisor and artifact gateway are S1-07 |
 | `apps/execution-host/src/runtime-supervisor.ts` | partial | S1-03 | Built: launches the official dsh per project home under a single-writer lease and a sanitized env. Ready only from the bridge. Bounded crash restarts. Container isolation and the deployed host are still to do |

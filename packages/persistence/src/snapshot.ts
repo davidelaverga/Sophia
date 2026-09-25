@@ -2,6 +2,7 @@ import type pg from 'pg'
 import type { Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { safeInt } from './bigint.ts'
+import { onlyRow } from './rows.ts'
 
 interface ProjectRow {
   id: string
@@ -33,9 +34,12 @@ interface ResourceRow {
 }
 
 interface RoomRow {
-  shared_focus_version_id: string | null
+  id: string
   revision: string
+  input_actor_id: string | null
   guide_actor_id: string | null
+  shared_focus_version_id: string | null
+  mode: Snapshot['room']['mode']
 }
 
 /**
@@ -49,7 +53,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   // Sequential on purpose: one connection, one REPEATABLE READ snapshot.
   const goals = await readGoals(c, projectId)
   const resources = await readResources(c, projectId)
-  const sharedFocus = await readSharedFocus(c, projectId)
+  const room = await readRoom(c, projectId)
   return {
     projectId: project.id,
     title: project.title,
@@ -61,7 +65,13 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
     resources,
     humanActions: [],
     artifacts: [],
-    sharedFocus,
+    sharedFocus: sharedFocusOf(room),
+    room: {
+      id: room.id,
+      revision: safeInt(room.revision, 'room.revision'),
+      inputActorId: room.input_actor_id,
+      mode: room.mode,
+    },
   }
 }
 
@@ -131,13 +141,18 @@ async function refuseUnprojectedRecords(c: pg.PoolClient, projectId: string): Pr
   }
 }
 
-async function readSharedFocus(c: pg.PoolClient, projectId: string): Promise<Snapshot['sharedFocus']> {
+/** Every project has one room (migration 0009); a missing row is a broken invariant, not an empty room. */
+async function readRoom(c: pg.PoolClient, projectId: string): Promise<RoomRow> {
   const { rows } = await c.query<RoomRow>(
-    `SELECT shared_focus_version_id, revision, guide_actor_id FROM sophia.room_state WHERE project_id = $1`,
+    `SELECT id, revision, input_actor_id, guide_actor_id, shared_focus_version_id, mode
+       FROM sophia.room_state WHERE project_id = $1`,
     [projectId],
   )
-  const room = rows[0]
-  if (!room?.shared_focus_version_id || !room.guide_actor_id) return null
+  return onlyRow(rows, 'room_state')
+}
+
+function sharedFocusOf(room: RoomRow): Snapshot['sharedFocus'] {
+  if (!room.shared_focus_version_id || !room.guide_actor_id) return null
   return {
     artifactVersionId: room.shared_focus_version_id,
     revision: safeInt(room.revision, 'room.revision'),
