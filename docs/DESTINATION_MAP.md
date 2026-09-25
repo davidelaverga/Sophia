@@ -60,7 +60,7 @@ a path updates its row in the same commit.
 | `packages/context/` | unbuilt | S1-08 | Scoped ContextPacket compiler and invalidation |
 | `packages/execution-adapters/` | unbuilt | S1-09, S1-10 | `omnigent/`, `native-team/`, `mailbox/` |
 | `packages/creative/` | unbuilt | S1-06, S1-07, S1-13 | Image adapters, assets, prototype bundle |
-| `packages/ui/` | partial | S1-02, S1-04 | Built: `Tag`, line icons (`Icon`), labels that swap in place (`SwapLabel`) and the sliding thumb of segmented controls and navigation (`useSlidingThumb`). Later goals add common renderers |
+| `packages/ui/` | partial | S1-02, S1-04 | Built: `Tag`, line icons (`Icon`), labels that swap in place (`SwapLabel`), hover and focus tips that name a control and its key (`Tip`) and the sliding thumb of segmented controls and navigation (`useSlidingThumb`). Later goals add common renderers |
 | `packages/test-support/` | built | S1-02 | Disposable migrated databases, cluster-role lock, project seeding |
 
 ## apps/

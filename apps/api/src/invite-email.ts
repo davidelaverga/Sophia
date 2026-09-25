@@ -81,27 +81,27 @@ function wordsFor(input: InviteEmailInput): Words {
   }
 }
 
-const SANS = `'Instrument Sans',Helvetica,Arial,sans-serif`
-const SERIF = `'Instrument Serif',Georgia,'Times New Roman',serif`
+const SANS = `'Geist',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif`
+const MONO = `'Geist Mono',ui-monospace,Menlo,Consolas,monospace`
 
 function sessionBlock(session: SessionTimes | null): string {
   if (!session) return ''
-  return `<tr><td style="padding:0 0 28px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(237,234,242,0.14);border-radius:14px"><tr><td style="padding:16px 18px;font:400 15px/1.5 ${SANS};color:#edeaf2"><div style="font:600 11px/1 ${SANS};letter-spacing:0.14em;text-transform:uppercase;color:#c4b3ff;padding-bottom:8px">When</div>${escapeHtml(session.title)}<br><span style="color:rgba(237,234,242,0.68)">${escapeHtml(sessionWhen(session))}</span></td></tr></table></td></tr>`
+  return `<tr><td style="padding:0 0 28px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(236,235,241,0.14);border-radius:8px"><tr><td style="padding:16px 18px;font:400 15px/1.5 ${SANS};color:#edeaf2"><div style="font:500 10.5px/1 ${MONO};letter-spacing:0.06em;text-transform:uppercase;color:#b9a8ff;padding-bottom:8px">When</div>${escapeHtml(session.title)}<br><span style="color:rgba(237,234,242,0.68)">${escapeHtml(sessionWhen(session))}</span></td></tr></table></td></tr>`
 }
 
 function renderHtml(input: InviteEmailInput, w: Words): string {
   const url = escapeHtml(input.url)
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>${escapeHtml(w.subject)}</title><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"></head>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>${escapeHtml(w.subject)}</title><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"></head>
 <body style="margin:0;padding:0;background:#050408">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050408;background-image:radial-gradient(ellipse at 50% 0%,rgba(156,130,245,0.24),rgba(5,4,8,0) 62%)"><tr><td align="center" style="padding:48px 20px 40px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
 <tr><td style="padding:0 0 44px;font:600 15px/1 ${SANS};color:#edeaf2;letter-spacing:0.01em"><span style="color:#f4f0ff;text-shadow:0 0 12px #9c82f5">&#9679;</span>&nbsp;&nbsp;Sophia</td></tr>
-<tr><td style="padding:0 0 16px;font:italic 400 34px/1.18 ${SERIF};color:#f4f0ff">${escapeHtml(w.headline)}</td></tr>
+<tr><td style="padding:0 0 14px;font:600 26px/1.25 ${SANS};letter-spacing:-0.02em;color:#f4f0ff">${escapeHtml(w.headline)}</td></tr>
 <tr><td style="padding:0 0 28px;font:400 15px/1.6 ${SANS};color:rgba(237,234,242,0.72)">${escapeHtml(w.lead)}</td></tr>
 ${sessionBlock(input.session)}
-<tr><td style="padding:0 0 26px"><a href="${url}" style="display:inline-block;background:#f4f0ff;color:#050408;font:600 15px/1 ${SANS};text-decoration:none;padding:15px 26px;border-radius:999px">${escapeHtml(w.action)}</a></td></tr>
+<tr><td style="padding:0 0 26px"><a href="${url}" style="display:inline-block;background:#f4f0ff;color:#050408;font:600 14px/1 ${SANS};text-decoration:none;padding:13px 20px;border-radius:6px">${escapeHtml(w.action)}</a></td></tr>
 <tr><td style="padding:0 0 10px;font:400 13px/1.55 ${SANS};color:rgba(237,234,242,0.52)">${escapeHtml(w.note)}</td></tr>
-<tr><td style="padding:0 0 40px;font:400 12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:rgba(237,234,242,0.4);word-break:break-all">${url}</td></tr>
+<tr><td style="padding:0 0 40px;font:400 12px/1.5 ${MONO};color:rgba(236,235,241,0.4);word-break:break-all">${url}</td></tr>
 <tr><td style="border-top:1px solid rgba(237,234,242,0.1);padding:18px 0 0;font:400 12px/1.55 ${SANS};color:rgba(237,234,242,0.4)">Sent by Sophia for ${escapeHtml(personName(input.inviterName))}. If you were not expecting this invitation, you can ignore it: nothing happens unless the link is opened.</td></tr>
 </table></td></tr></table></body></html>`
 }

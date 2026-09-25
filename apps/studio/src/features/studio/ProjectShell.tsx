@@ -3,10 +3,11 @@
 // keeps you in the room. Views change the address, never the project.
 import { lazy, Suspense, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
-import { Icon, SwapLabel } from '@sophia/ui'
+import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { routePath, type View } from '../../app/route.ts'
+import { useShortcuts } from '../../app/shortcuts.ts'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { MiniDock } from '../voice/MiniDock.tsx'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -53,6 +54,7 @@ export function ProjectShell({ projectId, view, identity, identitySwitcher, onSh
   const membership = useMembership(projectId, identity.name, identity.token).data
   const [inviting, setInviting] = useState(false)
   const blocked = blockedBy(snapshot.error)
+  useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
       <ProjectHeader
@@ -115,10 +117,14 @@ interface HeaderProps {
 function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
   return (
     <header className="topbar">
-      <button type="button" className="mark" onClick={onLeave} title="All projects">
+      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="All projects">
         <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
         <span className="mark-word">Sophia</span>
+        <Tip label="All projects" side="bottom" />
       </button>
+      <span className="crumb-sep" aria-hidden>
+        /
+      </span>
       <h1 className="project-name">{title}</h1>
       {nav}
       <div className="topbar-end">
@@ -135,9 +141,10 @@ function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeav
 
 function InviteButton({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" className="ghost invite-button" aria-label="Invite" onClick={onClick}>
-      <Icon name="invite" size={16} />
+    <button type="button" className="ghost invite-button has-tip" aria-label="Invite" onClick={onClick}>
+      <Icon name="invite" />
       <span className="invite-label">Invite</span>
+      <Tip label="Invite people" keys="I" side="bottom" align="end" />
     </button>
   )
 }
@@ -193,10 +200,9 @@ function CopyLinkButton({ projectId }: { projectId: string }) {
       type="button"
       className="ghost copy-link"
       aria-label={copied ? 'Link copied' : 'Copy link'}
-      title="Copy the room’s link"
       onClick={() => void copy()}
     >
-      <Icon name="link" size={16} />
+      <Icon name="link" />
       <SwapLabel value={copied ? 'copied' : 'copy'} labels={{ copy: 'Copy link', copied: 'Link copied' }} />
     </button>
   )

@@ -1,6 +1,6 @@
 // The room from every other view: a small floating pill, so the room stays one click away and a live
 // call keeps its microphone and leave within reach while you read goals or work.
-import { Icon } from '@sophia/ui'
+import { Icon, Tip } from '@sophia/ui'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 export function MiniDock({ room, onOpen }: { room: ProjectRoom; onOpen: () => void }) {
@@ -24,22 +24,22 @@ export function MiniDock({ room, onOpen }: { room: ProjectRoom; onOpen: () => vo
       </button>
       <button
         type="button"
-        className="round"
+        className="round has-tip"
         aria-pressed={!!me?.micOn}
         aria-label="Microphone"
-        title="Microphone"
         onClick={() => void room.setMicrophone(!me?.micOn)}
       >
         <Icon name={me?.micOn ? 'mic' : 'micOff'} />
+        <Tip label="Microphone" />
       </button>
       <button
         type="button"
-        className="round leave"
+        className="round leave has-tip"
         aria-label="Leave the room"
-        title="Leave the room"
         onClick={() => void room.leave()}
       >
         <Icon name="leave" />
+        <Tip label="Leave the room" />
       </button>
     </div>
   )

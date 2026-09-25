@@ -3,7 +3,7 @@
 // and leave. Nothing here changes project work.
 import { useQueryClient } from '@tanstack/react-query'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
-import { Icon, SwapLabel, type IconName } from '@sophia/ui'
+import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { transferInputFloor } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
@@ -22,7 +22,7 @@ interface Props {
 }
 
 /** Screen sharing needs getDisplayMedia, which phones do not offer; an insecure page has no mediaDevices. */
-const canShareScreen = 'mediaDevices' in navigator && 'getDisplayMedia' in navigator.mediaDevices
+export const canShareScreen = 'mediaDevices' in navigator && 'getDisplayMedia' in navigator.mediaDevices
 
 export function RoomDock(props: Props) {
   const { room } = props
@@ -52,6 +52,7 @@ function JoinButton({ room }: { room: ProjectRoom }) {
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
+      <kbd aria-hidden>J</kbd>
     </button>
   )
 }
@@ -59,15 +60,18 @@ function JoinButton({ room }: { room: ProjectRoom }) {
 interface ToggleProps {
   on: boolean
   label: string
+  /** The single-key shortcut, shown in the tip (RoomStage binds it). */
+  keys: string
   icons: [IconName, IconName]
   onToggle: () => void
 }
 
-/** A round toggle: its name says what it controls, aria-pressed says whether it is on. */
-function Toggle({ on, label, icons, onToggle }: ToggleProps) {
+/** A toggle: its name says what it controls, aria-pressed says whether it is on, the tip gives its key. */
+export function Toggle({ on, label, keys, icons, onToggle }: ToggleProps) {
   return (
-    <button type="button" className="round" aria-pressed={on} aria-label={label} title={label} onClick={onToggle}>
+    <button type="button" className="round has-tip" aria-pressed={on} aria-label={label} onClick={onToggle}>
       <Icon name={on ? icons[0] : icons[1]} />
+      <Tip label={label} keys={keys} />
     </button>
   )
 }
@@ -79,12 +83,14 @@ function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: 
       <Toggle
         on={!!me?.micOn}
         label="Microphone"
+        keys="M"
         icons={['mic', 'micOff']}
         onToggle={() => void room.setMicrophone(!me?.micOn)}
       />
       <Toggle
         on={!!me?.cameraOn}
         label="Camera"
+        keys="V"
         icons={['camera', 'cameraOff']}
         onToggle={() => void room.setCamera(!me?.cameraOn)}
       />
@@ -92,6 +98,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: 
         <Toggle
           on={!!me?.screenOn}
           label="Share your screen"
+          keys="S"
           icons={['screen', 'screen']}
           onToggle={() => void room.setScreenShare(!me?.screenOn)}
         />
@@ -103,12 +110,12 @@ function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: 
       <span className="dock-sep" aria-hidden />
       <button
         type="button"
-        className="round leave"
+        className="round leave has-tip"
         aria-label="Leave the room"
-        title="Leave the room"
         onClick={() => void room.leave()}
       >
         <Icon name="leave" />
+        <Tip label="Leave the room" />
       </button>
     </>
   )

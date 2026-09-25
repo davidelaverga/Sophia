@@ -60,7 +60,7 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
 }
 
-export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
+export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   return (
     <svg
       className="icon"
@@ -69,7 +69,7 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.6}
+      strokeWidth={1.5}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
