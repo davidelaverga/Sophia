@@ -47,9 +47,20 @@ export function eventRoutes(app: FastifyInstance, { pool, hub, heartbeatMs }: Ev
       const first = await read(BigInt(req.query.after))
       if (!first.visible) throw new DomainError('forbidden', 'Not permitted')
 
+      // Hooks (CORS) set their headers on the reply; the hijacked stream writes them itself.
+      const headers = Object.fromEntries(Object.entries(reply.getHeaders()).filter(([, v]) => v !== undefined))
       reply.hijack()
       if (client.gone || reply.raw.destroyed) return
-      client.stream = new ProjectEventStream({ res: reply.raw, projectId, read, first, hub, heartbeatMs, log: req.log })
+      client.stream = new ProjectEventStream({
+        res: reply.raw,
+        projectId,
+        read,
+        first,
+        hub,
+        heartbeatMs,
+        log: req.log,
+        headers,
+      })
     },
   )
 }

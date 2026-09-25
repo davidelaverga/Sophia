@@ -5,6 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_DEV_PROJECT_ID?: string
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string
+  /** API origin for a deployed Studio (e.g. https://sophia-next-api.onrender.com); empty in development. */
+  readonly VITE_API_URL?: string
 }
 
 interface ImportMeta {

@@ -39,7 +39,14 @@ Pushed with a minimal `config.toml` that declares only these two properties (aft
 - `site_url = "http://localhost:5173"` (was the default `http://localhost:3000`)
 - `additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**"]`
 
-Replace them with the Vercel URL when the Studio is deployed. Never push the repository's `supabase/config.toml` to this project: it describes the local stack.
+Updated 2026-09-24 when the Studio was deployed (same method, 2 declared updates, the rest untouched):
+
+- `site_url = "https://sophia-studio.vercel.app"`
+- `additional_redirect_urls = ["https://sophia-studio.vercel.app/**", "http://localhost:5173/**", "http://127.0.0.1:5173/**"]`
+
+The magic-link email carries the link and the one-time code ([templates/magic-link.html](templates/magic-link.html), subject "Sign in to Sophia"), pushed the same way with `[auth.email.template.magic_link]` and `content_path`. The link only signs in the browser that asked for it (PKCE); the code works from any device. Invitations sent from the dashboard return tokens in the URL fragment, which the Studio accepts.
+
+Never push the repository's `supabase/config.toml` to this project: it describes the local stack.
 
 ## Local Studio against this project
 

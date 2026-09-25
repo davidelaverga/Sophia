@@ -2,6 +2,7 @@
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import { parseOrigins } from './cors.ts'
 
 // Trimmed: a trailing CR from a CRLF env file would silently break the exact issuer check.
 const optional = (name: string): string | undefined => process.env[name]?.trim() || undefined
@@ -18,6 +19,7 @@ const livekitUrl = optional('LIVEKIT_URL')
 const app = buildApp({
   pool,
   logger: true,
+  corsOrigins: parseOrigins(optional('STUDIO_ORIGINS')),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }
     : {}),
