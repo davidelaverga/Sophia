@@ -19,6 +19,10 @@ const isView = (value: string | undefined): value is View => VIEWS.some((v) => v
 
 export const HOME: Route = { projectId: null, view: 'studio' }
 
+/** Invitation links open `/join#<token>`: outside any project, and never rewritten by the router. */
+export const JOIN_PATH = '/join'
+export const isJoinPath = (pathname: string) => pathname.replace(/\/+$/, '') === JOIN_PATH
+
 /** Unknown paths and views fall back to the nearest valid route rather than a blank page. */
 export function parseRoute(pathname: string): Route {
   const current = PROJECT_VIEW.exec(pathname)

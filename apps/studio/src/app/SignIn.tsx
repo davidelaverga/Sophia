@@ -50,12 +50,15 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
     <Centered title="Who’s here?">
       <p className="muted">Development identities. Each tab keeps its own.</p>
       <div className="identity-grid">
-        {devIdentities.map((i) => (
-          <button key={i.name} type="button" onClick={() => onChoose(i)}>
-            <strong>{i.name}</strong>
-            <span className="muted">{i.role === 'none' ? 'not a member' : i.role}</span>
-          </button>
-        ))}
+        {/* The guest identity is for invitation links (/join), where it is used on its own. */}
+        {devIdentities
+          .filter((i) => i.role !== 'guest')
+          .map((i) => (
+            <button key={i.name} type="button" onClick={() => onChoose(i)}>
+              <strong>{i.name}</strong>
+              <span className="muted">{i.role === 'none' ? 'not a member' : i.role}</span>
+            </button>
+          ))}
       </div>
     </Centered>
   )
@@ -137,7 +140,7 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
 }
 
 /** The emailed code signs in on this browser whichever device the email was read on. */
-function CodeForm({ email }: { email: string }) {
+export function CodeForm({ email }: { email: string }) {
   const [code, setCode] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
   const submit = async (e: React.FormEvent) => {

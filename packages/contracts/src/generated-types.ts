@@ -10,7 +10,7 @@ export type CursorAdvance = { "projectId": string; "type": "cursor.advanced"; "s
 export type Resource = { "id": string; "projectId": string; "ownerId": string; "label": string; "harness": "codex-native" | "claude-native" | "dsh"; "hostState": "online" | "offline" | "unknown"; "nativeState": "idle" | "running" | "blocked" | "failed" | "unknown"; "observedAt": string | null; "model": string | null; "effort": string | null; "authorityState": "active" | "revoked" | "needs_connection"; "capabilities": ReadonlyArray<string>; };
 export type HumanAction = { "id": string; "projectId": string; "ownerId": string; "bindingId": string; "nativeSessionId": string; "nativeRequestId": string; "fingerprint": string; "kind": "permission" | "login" | "clarification" | "release" | "observation_gap"; "state": "pending" | "accepted" | "declined" | "cancelled" | "expired" | "resolved_unknown" | "superseded"; "detailsRef": string | null; "nativeUrl": string | null; "expiresAt": string | null; "responseMode": "native_only" | "in_app_form" | "in_app_binary"; };
 export type ArtifactVersion = { "id": string; "artifactId": string; "projectId": string; "parentId": string | null; "sourceId": string; "sourceHash": string; "state": "candidate" | "validated" | "stable" | "rejected" | "superseded"; "previewId": string | null; "format": "html" | "pdf" | "pptx" | "ui"; "exportEditability": "source_editable" | "raster_pptx_with_source" | "original_only"; };
-export type Snapshot = { "projectId": string; "title": string; "cursor": string; "missionRevision": number; "audienceRevision": number; "eligibilityRevision": number; "goals": ReadonlyArray<Goal>; "resources": ReadonlyArray<Resource>; "humanActions": ReadonlyArray<HumanAction>; "artifacts": ReadonlyArray<ArtifactVersion>; "sharedFocus": { "artifactVersionId": string; "revision": number; "guideId": string; } | null; "room": Room; };
+export type Snapshot = { "projectId": string; "title": string; "cursor": string; "missionRevision": number; "audienceRevision": number; "eligibilityRevision": number; "goals": ReadonlyArray<Goal>; "resources": ReadonlyArray<Resource>; "humanActions": ReadonlyArray<HumanAction>; "artifacts": ReadonlyArray<ArtifactVersion>; "sharedFocus": { "artifactVersionId": string; "revision": number; "guideId": string; } | null; "room": Room; "lobby": ReadonlyArray<LobbyEntry>; "sessions": ReadonlyArray<RoomSession>; };
 export type ProjectCreate = { "title": string; };
 export type ProjectCreated = { "projectId": string; "cursor": string; };
 export type GoalCommand = { "kind": "steer" | "request_review" | "hold" | "stop" | "resume"; "goalId": string; "expectedGoalRevision": number; "expectedAuthorityEpoch": number; "bodySourceId": string | null; };
@@ -41,6 +41,18 @@ export type CandidatePublish = { "expectedStableVersionId": string | null; "expe
 export type GrantRevocation = { "expectedRevision": number; };
 export type Empty = {  };
 export type Room = { "id": string; "revision": number; "inputActorId": string | null; "mode": "invoked" | "follow_discussion"; };
+export type RoomSession = { "id": string; "title": string; "startsAt": string; "endsAt": string; "timeZone": string; };
+export type SessionCreate = { "title": string; "startsAt": string; "endsAt": string; "timeZone": string; };
+export type Invitation = { "id": string; "kind": "guest" | "member"; "role": "editor" | "viewer" | null; "email": string | null; "sessionId": string | null; "expiresAt": string; "maxUses": number; "uses": number; "revokedAt": string | null; "emailStatus": "none" | "sent" | "failed" | "not_configured"; "createdAt": string; "url": string; };
+export type InvitationCreate = { "kind": "guest" | "member"; "role"?: "editor" | "viewer"; "email"?: string; "sessionId"?: string; "expiresInHours"?: number; "maxUses"?: number; };
+export type InvitationList = { "invitations": ReadonlyArray<Invitation>; };
+export type InvitationToken = { "token": string; };
+export type InvitationPreview = { "projectTitle": string; "inviterName": string | null; "kind": "guest" | "member"; "role": "editor" | "viewer" | null; "email": string | null; "expiresAt": string; "session": RoomSession | null; "state": "open" | "expired" | "revoked" | "used_up"; };
+export type Knock = { "token": string; "displayName": string; };
+export type LobbyEntry = { "id": string; "displayName": string; "status": "waiting" | "admitted" | "denied" | "left"; "requestedAt": string; };
+export type LobbyDecision = { "decision": "admit" | "deny"; };
+export type InvitationAccepted = { "projectId": string; };
+export type Membership = { "actorId": string; "role": "admin" | "editor" | "viewer"; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
@@ -75,4 +87,17 @@ export interface Operations {
   "publishArtifactCandidate": { method: "POST"; path: "/api/v1/artifact-versions/{versionId}/publish"; request: CandidatePublish; response: ArtifactVersion; };
   "getJob": { method: "GET"; path: "/api/v1/jobs/{jobId}"; request: undefined; response: AcceptedJob; };
   "revokeResource": { method: "POST"; path: "/api/v1/resources/{resourceId}/revoke"; request: GrantRevocation; response: Receipt; };
+  "createRoomInvitation": { method: "POST"; path: "/api/v1/projects/{projectId}/invitations"; request: InvitationCreate; response: Invitation; };
+  "listRoomInvitations": { method: "GET"; path: "/api/v1/projects/{projectId}/invitations"; request: undefined; response: InvitationList; };
+  "reissueRoomInvitation": { method: "POST"; path: "/api/v1/invitations/{invitationId}/reissue"; request: undefined; response: Invitation; };
+  "revokeRoomInvitation": { method: "POST"; path: "/api/v1/invitations/{invitationId}/revoke"; request: undefined; response: Invitation; };
+  "previewRoomInvitation": { method: "POST"; path: "/api/v1/join/preview"; request: InvitationToken; response: InvitationPreview; };
+  "knockRoom": { method: "POST"; path: "/api/v1/join/knock"; request: Knock; response: LobbyEntry; };
+  "acceptRoomInvitation": { method: "POST"; path: "/api/v1/join/accept"; request: InvitationToken; response: InvitationAccepted; };
+  "getLobbyEntry": { method: "GET"; path: "/api/v1/lobby/{entryId}"; request: undefined; response: LobbyEntry; };
+  "issueGuestRoomToken": { method: "POST"; path: "/api/v1/lobby/{entryId}/room-token"; request: undefined; response: RoomToken; };
+  "decideLobbyEntry": { method: "POST"; path: "/api/v1/lobby/{entryId}/decision"; request: LobbyDecision; response: LobbyEntry; };
+  "scheduleRoomSession": { method: "POST"; path: "/api/v1/projects/{projectId}/sessions"; request: SessionCreate; response: RoomSession; };
+  "cancelRoomSession": { method: "POST"; path: "/api/v1/sessions/{sessionId}/cancel"; request: undefined; response: RoomSession; };
+  "getProjectMembership": { method: "GET"; path: "/api/v1/projects/{projectId}/membership"; request: undefined; response: Membership; };
 }

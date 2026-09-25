@@ -62,3 +62,25 @@ Open http://localhost:5173 **in the same browser where you will click the email 
 - **Disable public sign-ups** (Authentication → Sign In / Providers) and invite the founders. Until then anyone holding the publishable key can register and create projects.
 - Set the **Site URL** and redirect URLs once the Studio has its Vercel URL (magic links redirect there).
 - Default Supabase email only delivers to organization members and is rate-limited. Configure custom SMTP before inviting anyone outside the org.
+
+## Room access (S1-04A): what the hosted services need
+
+Invitations, the lobby and sessions are in the API and migration 0010. To turn them on in the hosted
+setup (owner actions; nothing here is applied yet):
+
+1. **Migration 0010** on this project: `pnpm db:migrate -- --dry-run`, then `pnpm db:migrate` (the API's
+   `/ready` stays red until 0009 and 0010 are applied, so Render keeps the old service until then).
+2. **Render (API)**, in the dashboard:
+   - `INVITE_TOKEN_SECRET`: at least 32 random characters (`openssl rand -hex 32`). Links are derived from
+     it, so rotating it retires every open link.
+   - `STUDIO_URL=https://sophia-studio.vercel.app`: where links point (`/join#…`).
+   - `RESEND_API_KEY` (a sending-only key) and `INVITE_FROM` (for example `Sophia <rooms@your-domain>`,
+     on a domain verified in Resend). Without them, invitations are still created: the Studio shows the link
+     and QR, and says email is not set up.
+3. **Guests without an account**: Authentication → Sign In / Providers → allow **anonymous sign-ins**, ideally
+   with CAPTCHA (Turnstile or hCaptcha). The API lets an anonymous guest only knock, wait, and join a call
+   they were admitted to; everything else answers 403.
+4. **Members invited by email** create their account with the emailed code, so **sign-ups must stay open**
+   for them. That conflicts with "Disable public sign-ups" under Pending, above. Either keep sign-ups open (a stranger's
+   account sees no project; it can still create its own projects), or disable them and invite new members
+   from this dashboard first. The Sophia link then only attaches them to the project.

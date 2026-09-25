@@ -3,6 +3,9 @@
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
+/** A member's role or a guest, from the token's metadata; unknown when the token had none. */
+export type Standing = 'admin' | 'editor' | 'viewer' | 'guest' | 'unknown'
+
 export interface RoomParticipant {
   /** LiveKit identity = the verified actor id the API put in the token. */
   identity: string
@@ -12,7 +15,26 @@ export interface RoomParticipant {
   cameraOn: boolean
   screenOn: boolean
   local: boolean
+  standing: Standing
 }
+
+const ROLES: ReadonlyArray<Standing> = ['admin', 'editor', 'viewer']
+
+/** Read the metadata the API signed into the token (`{"role": …}` or `{"guest": true}`); nothing else. */
+export function standingOf(metadata: string | undefined): Standing {
+  try {
+    const value: unknown = JSON.parse(metadata ?? 'null')
+    if (typeof value !== 'object' || value === null) return 'unknown'
+    if ('guest' in value && value.guest === true) return 'guest'
+    const role = 'role' in value ? ROLES.find((r) => r === value.role) : undefined
+    return role ?? 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
+/** Only editors and admins can hold the input floor (migration 0009); guests and viewers listen. */
+const canHold = (p: RoomParticipant) => p.standing !== 'guest' && p.standing !== 'viewer'
 
 export interface FloorView {
   /** Who may address Sophia; `present` says whether they are in the room right now. */
@@ -37,8 +59,8 @@ export function floorView(inputActorId: string | null, participants: readonly Ro
   return {
     holder,
     mine,
-    canTake: !!me && !mine && (inputActorId === null || !holderInRoom),
-    passTargets: mine ? participants.filter((p) => !p.local) : [],
+    canTake: !!me && canHold(me) && !mine && (inputActorId === null || !holderInRoom),
+    passTargets: mine ? participants.filter((p) => !p.local && canHold(p)) : [],
   }
 }
 

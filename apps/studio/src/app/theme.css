@@ -1454,6 +1454,255 @@ select {
   color: var(--mist-2);
 }
 
+/* Room access: the next session under Sophia's line, the lobby over the stage, and the Invite sheet. */
+.line-session,
+.join-session {
+  color: var(--halo-text);
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+}
+.guest-tag {
+  color: var(--mist-3);
+  font-size: 13px;
+}
+.lobby {
+  position: absolute;
+  top: 84px;
+  right: var(--gutter);
+  z-index: 3;
+  width: min(330px, calc(100% - 2 * var(--gutter)));
+  padding: 14px 16px 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(243, 220, 200, 0.22);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+.lobby-title {
+  color: var(--mist-2);
+  font-size: 13px;
+  padding-bottom: 6px;
+}
+.lobby ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lobby li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--hair);
+}
+.lobby-name {
+  color: var(--warm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lobby-wait {
+  color: var(--mist-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.lobby-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.lobby-actions .pill {
+  min-height: 34px;
+  padding: 0 14px;
+}
+@keyframes veil {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(5, 4, 8, 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: veil 0.4s var(--ease) both;
+}
+.sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 100%);
+  overflow-y: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 26px 32px;
+  border-left: 1px solid var(--hair);
+  background: rgba(11, 9, 17, 0.92);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: -30px 0 80px rgba(0, 0, 0, 0.5);
+  animation: slide 0.55s var(--ease) both;
+}
+.sheet:focus-visible {
+  outline: none;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 18px;
+}
+.sheet-head h2 {
+  font-size: 32px;
+}
+.sheet-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  background: rgba(237, 234, 242, 0.03);
+}
+.sheet-tabs button {
+  flex: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--mist-3);
+  font-weight: 500;
+  transition:
+    color 0.3s var(--ease),
+    background 0.3s var(--ease);
+}
+.sheet-tabs button[aria-selected='true'] {
+  color: var(--mist);
+  background: rgba(237, 234, 242, 0.09);
+}
+.sheet-body {
+  display: grid;
+  gap: 20px;
+  padding-top: 22px;
+  animation: arrive 0.6s var(--ease) both;
+}
+.sheet-lead {
+  color: var(--mist-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.room-link {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 22px 18px 18px;
+  border-radius: 22px;
+  border: 1px solid var(--hair);
+  background: radial-gradient(ellipse at 50% 0%, rgba(156, 130, 245, 0.14), transparent 70%);
+}
+.qr {
+  margin: 0;
+  width: min(220px, 70%);
+  filter: drop-shadow(0 0 40px rgba(156, 130, 245, 0.28));
+}
+.qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.link-text {
+  max-width: 100%;
+  color: var(--mist-3);
+  font: 11.5px/1.5 var(--mono);
+  text-align: center;
+  word-break: break-all;
+}
+.sheet-form {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.sheet-form .field,
+.sheet-form > input {
+  width: 100%;
+}
+.field-label {
+  color: var(--mist-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.field select {
+  border: 0;
+  min-height: 40px;
+}
+.sheet-status {
+  min-height: 1.3em;
+  color: var(--mist-3);
+  font-size: 13px;
+}
+.calendar-when {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 0.9fr;
+  gap: 8px;
+  width: 100%;
+}
+.calendar-when select {
+  min-height: 44px;
+  border-color: var(--hair-2);
+}
+.invitation-list,
+.session-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.invitation-list li,
+.session-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--hair);
+}
+.invitation-list li[data-closed] {
+  opacity: 0.55;
+}
+.invitation-who,
+.session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.invitation-state,
+.session-when {
+  grid-column: 1;
+  color: var(--mist-3);
+  font-size: 12.5px;
+}
+.invitation-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: 2px;
+}
+.session-list .ghost {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 /* A note above the dock (a blocked microphone) lifts the composer and the video so nothing overlaps. */
 .room-stage:has(.dock-note) .stage-body {
   bottom: 168px;
@@ -1580,6 +1829,35 @@ select {
   }
 }
 
+@keyframes lift {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+@media (max-width: 560px) {
+  /* Phones: the Invite sheet rises from the bottom; the lobby sits under the lens bar. */
+  .sheet {
+    top: auto;
+    left: 0;
+    width: 100%;
+    max-height: 90dvh;
+    padding: 18px 18px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    border-left: 0;
+    border-top: 1px solid var(--hair);
+    border-radius: 26px 26px 0 0;
+    animation-name: lift;
+  }
+  .lobby {
+    top: 92px;
+    left: var(--gutter);
+    width: auto;
+  }
+  .invite-label {
+    display: none;
+  }
+}
+
 @media (max-width: 420px) {
   .mark-word,
   .lens-note {
@@ -1604,7 +1882,10 @@ select {
   .dock,
   .mini-dock,
   .ignite,
-  .presence[data-speaking] .meter i {
+  .presence[data-speaking] .meter i,
+  .sheet,
+  .sheet-backdrop,
+  .sheet-body {
     animation: none;
   }
   .swap > *,

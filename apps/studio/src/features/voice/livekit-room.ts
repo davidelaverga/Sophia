@@ -10,7 +10,7 @@ import {
   type RemoteTrack,
   type TrackPublication,
 } from 'livekit-client'
-import type { RoomParticipant } from './room-view.ts'
+import { standingOf, type RoomParticipant } from './room-view.ts'
 
 export type RoomStatus = 'live' | 'reconnecting' | 'ended'
 
@@ -48,6 +48,7 @@ const toView = (p: Participant, local: boolean): RoomParticipant => ({
   cameraOn: p.isCameraEnabled,
   screenOn: p.isScreenShareEnabled,
   local,
+  standing: standingOf(p.metadata),
 })
 
 type Feeds = (p: Participant, local: boolean) => VideoFeed[]

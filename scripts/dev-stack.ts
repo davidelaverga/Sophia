@@ -6,6 +6,7 @@
 //                                                   the env file stays outside the repository
 // Everything is dev-only. Ctrl+C stops the API and Studio (database containers are kept).
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -93,13 +94,16 @@ function chooseBackend(): Backend {
   return syntheticBackend()
 }
 
+/** Invitation emails are written here (gitignored), never sent: open the .html to read one. */
+const MAIL_DIR = '.sophia-mail'
+
 /** The API restarts if it exits, so the Studio's reconnection can be exercised locally. */
 function superviseApi(apiEnv: Record<string, string>, isStopping: () => boolean): () => ChildProcess {
   let current: ChildProcess
   const start = () => {
     current = spawn(process.execPath, ['apps/api/src/server.ts'], {
       stdio: 'inherit',
-      env: { ...process.env, ...apiEnv, PORT: '8787' },
+      env: { SOPHIA_MAIL_DIR: MAIL_DIR, ...process.env, ...apiEnv, PORT: '8787' },
     })
     current.on('exit', (code) => {
       if (isStopping()) return
@@ -124,8 +128,10 @@ if (Object.keys(backend.studioEnv).length > 0) {
   )
 }
 
+// Invitation links need a secret and the Studio address; a fresh secret per run is enough locally.
+const inviteEnv = { INVITE_TOKEN_SECRET: randomBytes(32).toString('hex'), STUDIO_URL: 'http://localhost:5173' }
 let stopping = false
-const api = superviseApi(backend.apiEnv, () => stopping)
+const api = superviseApi({ ...inviteEnv, ...backend.apiEnv }, () => stopping)
 const studio = spawn(process.execPath, ['node_modules/vite/bin/vite.js'], { stdio: 'inherit', cwd: 'apps/studio' })
 console.log(`\nSophia dev stack · ${backend.banner}\nStudio http://localhost:5173 · API http://127.0.0.1:8787\n`)
 

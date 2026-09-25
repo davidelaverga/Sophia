@@ -12,6 +12,12 @@ interface Rule {
 /** SQLSTATEs raised by the sophia.* functions (db/migrations), most specific rule first. */
 const RULES: readonly Rule[] = [
   { sqlstate: '42501', when: (m) => m.startsWith('Source not released'), code: 'source_ineligible' },
+  // Room access refusals that say what to do (0010): the caller already holds the link, so naming why is safe.
+  {
+    sqlstate: '42501',
+    when: (m) => m.startsWith('Only a project admin') || m.startsWith('This invitation is for'),
+    code: 'forbidden',
+  },
   { sqlstate: '42501', code: 'forbidden', publicMessage: 'Not permitted' },
   // Compare-and-set losers: a newer revision, epoch or stable head won.
   { sqlstate: '40001', when: (m) => m.startsWith('Stale') || m === 'Stable head changed', code: 'stale_revision' },

@@ -21,6 +21,13 @@ const EXPORTS = [
   'CursorAdvance',
   'RoomToken',
   'ExchangeReceipt',
+  'Invitation',
+  'InvitationList',
+  'InvitationPreview',
+  'InvitationAccepted',
+  'LobbyEntry',
+  'RoomSession',
+  'Membership',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

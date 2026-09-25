@@ -39,6 +39,7 @@ function PersonTile({ person, camera, holds }: TileProps) {
       <span className="tile-name" data-anchor>
         {shortName(person.name)}
         {person.local && ' · you'}
+        {person.standing === 'guest' && ' · guest'}
         {holds && <span className="tile-floor"> · floor</span>}
       </span>
     </li>

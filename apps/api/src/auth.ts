@@ -16,6 +16,11 @@ export interface AuthConfig {
 export interface Actor {
   id: string
   name: string | null
+  /**
+   * A Supabase anonymous sign-in (`is_anonymous`): someone who came in by a guest link without an account.
+   * They may only knock, wait and join a room they were admitted to (app.ts GUEST_ROUTES).
+   */
+  anonymous: boolean
 }
 
 export type VerifyActor = (authorization: string | undefined) => Promise<Actor>
@@ -54,7 +59,11 @@ export function createActorVerifier(cfg: AuthConfig): VerifyActor {
       if (payload.role !== 'authenticated' || typeof payload.sub !== 'string' || !UUID.test(payload.sub)) {
         throw new Error('not an authenticated user token')
       }
-      return { id: payload.sub.toLowerCase(), name: typeof payload.email === 'string' ? payload.email : null }
+      return {
+        id: payload.sub.toLowerCase(),
+        name: typeof payload.email === 'string' && payload.email ? payload.email : null,
+        anonymous: payload.is_anonymous === true,
+      }
     } catch (err: unknown) {
       throw new DomainError('actor_context_required', 'Invalid or expired token', { cause: err })
     }

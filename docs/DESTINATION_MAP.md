@@ -54,9 +54,9 @@ a path updates its row in the same commit.
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |
 | `packages/dsh-bundle/skills/` | unbuilt | S1-03 | Procedural task knowledge |
-| `packages/contracts/` | built | S1-02 | OpenAPI contract (identical to the pack), generated types, generated response validators (`./validate`), Ajv component schemas, SSE frame parser |
+| `packages/contracts/` | built | S1-02, S1-04, S1-04A | OpenAPI contract = the pack plus reviewed JSON Patch amendments (A01 room, A02 room access), generated types, generated response validators (`./validate`), Ajv component schemas, SSE frame parser |
 | `packages/domain/` | partial | S1-02, S1-12 | Built: the domain error vocabulary (code, HTTP status, retry). S1-12 adds accepted goals, authority, versions, transitions |
-| `packages/persistence/` | built | S1-02 | Actor-scoped transactions, command admission, snapshot, event frames, LISTEN, outbox leases, migration ledger |
+| `packages/persistence/` | built | S1-02, S1-04, S1-04A | Actor-scoped transactions (and an actor-less read for invitation previews), command admission, snapshot (with the room, lobby and sessions), event frames, LISTEN, outbox leases, migration ledger, room floor, invitations, lobby, sessions |
 | `packages/context/` | unbuilt | S1-08 | Scoped ContextPacket compiler and invalidation |
 | `packages/execution-adapters/` | unbuilt | S1-09, S1-10 | `omnigent/`, `native-team/`, `mailbox/` |
 | `packages/creative/` | unbuilt | S1-06, S1-07, S1-13 | Image adapters, assets, prototype bundle |
@@ -67,7 +67,7 @@ a path updates its row in the same commit.
 
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
-| `apps/api/` | partial | S1-02, S1-05, S1-09, S1-11 | Built: Fastify HTTP, Supabase JWT auth (JWKS), project creation, command admission, snapshot, SSE |
+| `apps/api/` | partial | S1-02, S1-04, S1-04A, S1-05, S1-09, S1-11 | Built: Fastify HTTP, Supabase JWT auth (JWKS; anonymous guests limited to the lobby and their call), project creation, command admission, snapshot, SSE, room tokens and the input floor, invitations (derived links, Resend or folder email, calendar files), lobby decisions, sessions, one's own membership |
 | `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in (link or emailed code), project start, the project shell with view routes (`/p/<project>/<view>`), per-viewer lenses and drafts, the work view (snapshot + live feed + goal commands), the room stage (Sophia's light in WebGL, people around her, the input floor passing through her, a floating dock with microphone, camera, screen share and leave; video layouts where her light moves into a tile of her own; LiveKit loads on join) and a mini dock on the other views |
 | `apps/worker/` | unbuilt | S1-06, S1-08, S1-11, S1-13 | SQL job/outbox consumers and scheduler |
 | `apps/execution-host/` | partial | S1-03, S1-07, S1-12 | Private VM supervisor. Built: the runtime supervisor. The workspace supervisor and artifact gateway are S1-07 |
@@ -81,7 +81,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `renderers/` | unbuilt | S1-13 | `web/pdf/` and `web/deck/`: the adapted JS render kernels (v0.4 D32 removed the Python path) |
-| `db/migrations/` | built | S1-02 | Pack 0001–0004 verbatim plus 0005–0008 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results); no automatic old-DB migration |
+| `db/migrations/` | built | S1-02, S1-04, S1-04A | Pack 0001–0004 verbatim plus 0005–0010 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results, project room and input floor, room access: invitations, lobby, sessions); no automatic old-DB migration |
 | `db/tests/` | built | S1-02 | The pack's SQL test, run after the migrations |
 | `supabase/` | built | S1-02 | Supabase CLI config for the local stack (ES256 signing keys, Auth redirects) |
 | `deploy/` | partial | S1-02, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate). S1-14 adds Render, execution-host and Vercel manifests |

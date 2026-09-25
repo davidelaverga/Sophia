@@ -1,7 +1,8 @@
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
-// leave. Leaving the page leaves the room; nothing here touches goals or work.
+// leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
+// page leaves the room; nothing here touches goals or work.
 import { useEffect, useRef, useState } from 'react'
-import type { Snapshot } from '@sophia/contracts'
+import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { issueRoomToken } from '../../api/client.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import type { DockStatus, RoomParticipant } from './room-view.ts'
@@ -45,10 +46,12 @@ interface People {
 const NOBODY: People = { participants: [], feeds: [] }
 const MEDIA_NOTE_MS = 8000
 
-/** A token for this project's room from the API, then LiveKit, which loads only now: it is most of the Studio's weight. */
-async function openRoom(token: string, projectId: string, snapshot: Snapshot, cb: RoomCallbacks) {
-  const req = { roomId: snapshot.room.id, expectedAudienceRevision: snapshot.audienceRevision }
-  const issued = await issueRoomToken(token, projectId, crypto.randomUUID(), req)
+/** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
+export type IssueToken = () => Promise<RoomToken>
+
+/** A token from the API, then LiveKit, which loads only now: it is most of the Studio's weight. */
+async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
+  const issued = await issue()
   const { connectRoom } = await import('./livekit-room.ts')
   return connectRoom(issued.serverUrl, issued.token, cb)
 }
@@ -64,7 +67,14 @@ function useMediaNote(): [string | null, (note: string | null) => void] {
   return [note, setNote]
 }
 
+/** A member's room: the token names this project's room and the audience revision the member saw. */
 export function useProjectRoom(projectId: string, token: string, snapshot: Snapshot | undefined): ProjectRoom {
+  const req = snapshot ? { roomId: snapshot.room.id, expectedAudienceRevision: snapshot.audienceRevision } : null
+  return useRoomConnection(req ? () => issueRoomToken(token, projectId, crypto.randomUUID(), req) : null)
+}
+
+/** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
+export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const connection = useRef<RoomConnection | null>(null)
   const [status, setStatus] = useState<DockStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -88,14 +98,22 @@ export function useProjectRoom(projectId: string, token: string, snapshot: Snaps
     }
   }
 
+  /** Out of the call, by leaving or because it ended from the other side: nobody is shown as still here. */
+  const reset = () => {
+    connection.current = null
+    setPeople(NOBODY)
+    setMediaError(null)
+    setStatus('idle')
+  }
+
   const join = async () => {
-    if (!snapshot) return
+    if (!issue) return
     setStatus('joining')
     setError(null)
     try {
-      connection.current = await openRoom(token, projectId, snapshot, {
+      connection.current = await openRoom(issue, {
         onChange: refresh,
-        onStatus: (s) => setStatus(s === 'ended' ? 'idle' : s),
+        onStatus: (s) => (s === 'ended' ? reset() : setStatus(s)),
       })
       setStatus('live')
       refresh()
@@ -109,10 +127,7 @@ export function useProjectRoom(projectId: string, token: string, snapshot: Snaps
 
   const leave = async () => {
     await connection.current?.leave()
-    connection.current = null
-    setPeople(NOBODY)
-    setMediaError(null)
-    setStatus('idle')
+    reset()
   }
 
   return {

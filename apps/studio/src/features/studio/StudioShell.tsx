@@ -1,8 +1,10 @@
 // renderRoom / v2StudioStage → StudioShell (frontend bindings): the shared room seen through this
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared.
-import type { Snapshot } from '@sophia/contracts'
+import type { Membership, Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { LobbyPanel } from '../access/LobbyPanel.tsx'
+import { canInvite } from '../access/useAccess.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
@@ -26,9 +28,10 @@ interface Props {
   identity: Identity
   room: ProjectRoom
   snapshot: Snapshot | undefined
+  membership: Membership | undefined
 }
 
-export function StudioShell({ projectId, identity, room, snapshot }: Props) {
+export function StudioShell({ projectId, identity, room, snapshot, membership }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   return (
     <RoomStage
@@ -37,6 +40,14 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
       projectId={projectId}
       identity={identity}
       lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
+      aside={
+        <LobbyPanel
+          projectId={projectId}
+          identity={identity}
+          lobby={snapshot?.lobby ?? []}
+          canDecide={canInvite(membership)}
+        />
+      }
       lensBody={
         <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
           {state.lens === 'converse' ? (

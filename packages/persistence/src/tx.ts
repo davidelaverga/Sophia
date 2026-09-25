@@ -41,6 +41,27 @@ export async function checkRoleSafety(pool: pg.Pool): Promise<void> {
 export type TxMode = 'read' | 'write'
 
 /**
+ * A read with no actor, for what anyone holding a secret may see (an invitation preview). The actor
+ * setting is transaction-local, so a pooled connection never carries one into this read.
+ */
+export async function withoutActor<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect().catch((err: unknown) => {
+    throw new DomainError('unavailable', 'Database unavailable', { cause: err })
+  })
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+    const result = await fn(client)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw err instanceof DomainError ? err : classifyDbError(err)
+  } finally {
+    client.release()
+  }
+}
+
+/**
  * One connection, one transaction, the verified actor set transaction-locally
  * (`set_config(..., true)`), so a pooled connection never carries a previous actor.
  * Reads use REPEATABLE READ READ ONLY so a snapshot and its cursor are consistent.
