@@ -95,24 +95,20 @@ export function useAuth(): { state: AuthState; chooseDev: (i: Identity | null) =
   }
 }
 
-/** Sophia is invite-only: an email without an account learns how to get in, not Supabase's wording. */
+/** Anyone can sign up: the first link creates the account. A server with sign-ups closed says so plainly. */
 function signInError(error: AuthError, email: string): Error {
-  const noAccount = error.code === 'otp_disabled' || /signups not allowed/i.test(error.message)
-  return noAccount
-    ? new Error(
-        `There’s no Sophia account for ${email}. Ask a project admin to invite you, then use the link in that email.`,
-      )
-    : error
+  const closed = error.code === 'otp_disabled' || /signups not allowed/i.test(error.message)
+  return closed ? new Error(`New accounts are closed on this server, so ${email} can’t sign up yet.`) : error
 }
 
-/** Magic link to the current page; locally the email lands in Mailpit. New accounts only in dev. */
+/** Magic link to the current page; locally the email lands in Mailpit. A new email gets an account. */
 export async function sendMagicLink(email: string): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
-      shouldCreateUser: import.meta.env.DEV,
+      shouldCreateUser: true,
     },
   })
   if (error) throw signInError(error, email)
