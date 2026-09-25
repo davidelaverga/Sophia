@@ -53,6 +53,12 @@ export const HOLDER_GRACE_MS = 5000
 /** How long after the last frame handed to the AudioSource the room still hears Sophia (its 200 ms queue). */
 const PLAYING_TAIL_MS = 250
 const RECONNECT_DELAYS_MS = [250, 1000, 2000, 4000, 8000]
+/** A room join that failed is tried again after these waits, then every 30 s. */
+const JOIN_RETRY_MS = [1000, 2000, 5000, 10_000]
+/** A stopped reply that has not started within this long is not coming: the fence lapses. */
+const STOPPED_REPLY_WAIT_MS = 8000
+/** Once a stopped reply's audio pauses this long, it is over. */
+const STOPPED_TAIL_MS = 3000
 const UNAVAILABLE_RETRY_MS = 30_000
 const CALL_ID = /^[A-Za-z0-9_.:-]{1,64}$/
 
@@ -139,8 +145,13 @@ export class RoomSession {
   private readonly sampler = new FrameSampler()
   /** The model is producing audio for a turn that has not ended. */
   private responding = false
-  /** Stop Speaking or a pause mid-turn: the rest of that model turn is dropped, not played later. */
-  private discarding = false
+  /**
+   * The holder said something (Google transcribed words) and the reply has not ended: a reply may be on its way
+   * before its first audio chunk, and Stop Speaking must fence it too.
+   */
+  private awaitingReply = false
+  /** Stop Speaking or a pause mid-turn: until this time, the rest of that model turn is dropped, not played later. */
+  private discardUntil = 0
   private playingUntil = 0
   private pumping = false
   private pauseApplied = false
@@ -154,6 +165,9 @@ export class RoomSession {
   private readonly announced = new Set<string>()
   private readonly cancelled = new Set<string>()
   private stopTicking: (() => void) | null = null
+  private joining = false
+  private joinAttempts = 0
+  private joinRetryAt: number | null = null
 
   constructor(assignment: MediaAssignment, deps: SessionDeps) {
     this.exchangeId = assignment.exchangeId
@@ -174,22 +188,51 @@ export class RoomSession {
     this.stopTicking = (this.deps.every ?? everyInterval)(() => this.tick(), TICK_MS)
     this.applyPause()
     this.ackQuiesce()
+    await this.join()
+  }
+
+  /**
+   * Join the room with the latest assignment's token. A failure is retried with backoff, with each newer
+   * assignment's fresh token; until then Sophia is unavailable, and says why.
+   */
+  private async join(): Promise<void> {
+    if (this.closed || this.joining || this.room) return
     const token = this.assignment.roomToken
-    if (!token) return this.fail('The room service is not configured for Sophia')
+    if (!token) return this.joinFailed('The room service is not configured for Sophia')
+    this.joining = true
+    let room: RoomLink
     try {
-      this.room = await this.deps.joinRoom(token, {
+      room = await this.deps.joinRoom(token, {
         people: (people) => this.onPeople(people),
         audio: (identity, samples, rate, channels) => this.onAudio(identity, samples, rate, channels),
         frame: (identity, source, frame, at) => this.onFrame(identity, source, frame, at),
         connection: (state, reason) => this.onRoomConnection(state, reason),
       })
     } catch (err: unknown) {
-      return this.fail(`Sophia could not join the room: ${message(err)}`)
+      return this.joinFailed(`Sophia could not join the room: ${message(err)}`)
+    } finally {
+      this.joining = false
     }
-    this.room.watch(this.assignment.looking)
-    this.onPeople(this.room.people())
+    if (this.isClosed()) return void room.close().catch(() => undefined)
+    this.room = room
+    this.joinAttempts = 0
+    this.joinRetryAt = null
+    this.state.provider = this.live ? this.state.provider : 'connecting'
+    this.reason = null
+    room.watch(this.assignment.looking)
+    this.onPeople(room.people())
     this.deps.log('room.joined', { exchangeId: this.exchangeId, people: standings(this.people) })
-    await this.connect()
+    if (!this.live) await this.connect()
+  }
+
+  private joinFailed(reason: string): void {
+    this.fail(reason)
+    this.joinRetryAt = this.deps.now() + (JOIN_RETRY_MS[this.joinAttempts] ?? 30_000)
+    this.joinAttempts += 1
+  }
+
+  private isClosed(): boolean {
+    return this.closed
   }
 
   private fail(reason: string): void {
@@ -201,7 +244,7 @@ export class RoomSession {
 
   /** The API's newer view of this exchange. */
   update(next: MediaAssignment): void {
-    const midTurn = this.responding
+    const midTurn = this.responding || this.awaitingReply
     const before = this.assignment
     const change = this.state.update(toAssignment(next), this.deps.now())
     this.assignment = next
@@ -301,7 +344,7 @@ export class RoomSession {
     this.room?.clearPlayback()
     this.framer.clear()
     this.playingUntil = 0
-    if (midTurn) this.discarding = true
+    if (midTurn) this.discardUntil = this.deps.now() + STOPPED_REPLY_WAIT_MS
   }
 
   /** Paused (by the API, or locally for a guest): input closed, output cleared, once per pause. */
@@ -317,7 +360,7 @@ export class RoomSession {
     this.sampler.clear()
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
-    this.silence(this.responding)
+    this.silence(this.responding || this.awaitingReply)
   }
 
   /** A guest is waiting for their token: confirm input is closed and output cleared (case A12). */
@@ -413,7 +456,9 @@ export class RoomSession {
         if (current()) this.audioOut(data, mimeType)
       },
       // Transcripts are not retained or published (S1-05A A05: only under a test's explicit scope).
-      inputTranscript: () => undefined,
+      inputTranscript: (text) => {
+        if (current() && text.trim()) this.awaitingReply = true
+      },
       outputTranscript: () => undefined,
       generationComplete: () => undefined,
       turnComplete: () => {
@@ -477,12 +522,19 @@ export class RoomSession {
   private endTurn(): void {
     this.state.turnEnded()
     this.responding = false
-    this.discarding = false
+    this.awaitingReply = false
+    this.discardUntil = 0
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
     const generation = this.state.currentGeneration()
-    if (this.discarding || !this.state.mayPlay(generation)) return
+    const now = this.deps.now()
+    if (this.discardUntil > now) {
+      // The stopped reply is still arriving: keep dropping it while it lasts.
+      this.discardUntil = Math.max(this.discardUntil, now + STOPPED_TAIL_MS)
+      return
+    }
+    if (!this.state.mayPlay(generation)) return
     let samples: Int16Array
     try {
       const rate = pcmRate(mimeType)
@@ -571,6 +623,10 @@ export class RoomSession {
     this.applyPause()
     this.sendFrame(now)
     this.checkHolder()
+    if (this.joinRetryAt !== null && now >= this.joinRetryAt) {
+      this.joinRetryAt = null
+      void this.join()
+    }
     if (this.reconnectAt !== null && now >= this.reconnectAt) {
       this.reconnectAt = null
       void this.connect()
@@ -582,7 +638,7 @@ export class RoomSession {
   /** A handoff that timed out while the old holder's turn was still speaking cancels that turn's output. */
   private settled(now: number): void {
     const settling = this.state.input(now) === 'settling'
-    if (this.wasSettling && !settling && this.responding) {
+    if (this.wasSettling && !settling && (this.responding || this.awaitingReply)) {
       this.state.bumpGeneration()
       this.silence(true)
     }
@@ -601,7 +657,8 @@ export class RoomSession {
   private announce(now: number): void {
     const live = this.live
     const input = this.state.input(now)
-    if (!live || this.state.provider !== 'ready' || this.responding || this.playingUntil > now) return
+    const busy = this.responding || this.awaitingReply || this.playingUntil > now
+    if (!live || this.state.provider !== 'ready' || busy) return
     if (input === 'paused' || input === 'settling') return
     const next = this.assignment.results.find((r) => !this.announced.has(`${r.taskId}:${r.resultRevision}`))
     if (!next) return

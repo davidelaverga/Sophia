@@ -59,6 +59,8 @@ CREATE TABLE sophia.runtime_instances (
  ready_state text NOT NULL DEFAULT 'not_ready' CHECK(ready_state IN ('ready','not_ready')),
  ready_reason text, ready_at timestamptz, unrecovered jsonb NOT NULL DEFAULT '[]' CHECK(jsonb_typeof(unrecovered)='array'),
  command_sequence bigint NOT NULL DEFAULT 0 CHECK(command_sequence>=0),
+ -- Liveness: the last hello, ready report or command poll. A runtime not seen recently is not dispatched to.
+ seen_at timestamptz,
  created_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz,
  PRIMARY KEY(project_id,id), FOREIGN KEY(project_id,resource_id) REFERENCES sophia.executor_resources(project_id,id)
 );
@@ -409,7 +411,7 @@ BEGIN
  PERFORM 1 FROM sophia.projects WHERE id=rt.project_id FOR UPDATE;
  UPDATE sophia.runtime_instances SET lease_id=gen_random_uuid(), lease_epoch=lease_epoch+1, bridge_instance_id=p_bridge,
   protocol_version=1, bundle=left(p_hello->>'bundle',200), dsh_version=left(p_hello->>'dshVersion',100), hello_at=now(),
-  ready_state='not_ready', ready_reason='hello received; waiting for the ready report', ready_at=NULL
+  ready_state='not_ready', ready_reason='hello received; waiting for the ready report', ready_at=NULL, seen_at=now()
   WHERE id=rt.id RETURNING * INTO rt;
  SELECT coalesce(jsonb_agg(jsonb_build_object('attemptId',b.attempt_id,'nativeSessionId',b.native_session_id,'authorityEpoch',g.authority_epoch,
    'state',CASE WHEN g.status IN ('holding','held') THEN 'held' WHEN g.status IN ('stopping','stopped') THEN 'stopped' ELSE 'active' END)
@@ -430,6 +432,7 @@ DECLARE rt sophia.runtime_instances:=sophia.runtime_authenticate(p_token_sha256,
 BEGIN
  IF rt.bridge_instance_id IS DISTINCT FROM p_bridge THEN RAISE EXCEPTION 'Runtime lease superseded; say hello again' USING ERRCODE='40001'; END IF;
  IF p_after IS NULL OR p_after<0 OR p_limit NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'Invalid poll bounds' USING ERRCODE='22023'; END IF;
+ UPDATE sophia.runtime_instances SET seen_at=now() WHERE id=rt.id;
  SELECT coalesce(jsonb_agg(jsonb_build_object('seq',q.seq,'command',q.body) ORDER BY q.seq),'[]'), max(q.seq) INTO batch, last_seq
   FROM (SELECT seq, body FROM sophia.runtime_commands WHERE runtime_id=rt.id AND seq>p_after ORDER BY seq LIMIT p_limit) q;
  RETURN jsonb_build_object('commands',batch,'cursor',greatest(p_after,coalesce(last_seq,p_after)),'runtimeId',rt.id);
@@ -611,7 +614,7 @@ DECLARE rt sophia.runtime_instances:=sophia.runtime_lease(p_token_sha256,p_unit,
 BEGIN
  IF p_ready->>'state' NOT IN ('ready','not_ready') THEN RAISE EXCEPTION 'Invalid readiness' USING ERRCODE='22023'; END IF;
  UPDATE sophia.runtime_instances SET ready_state=p_ready->>'state', ready_reason=left(p_ready->>'reason',2000), ready_at=now(),
-  unrecovered=coalesce(p_ready->'unrecovered','[]') WHERE id=rt.id;
+  unrecovered=coalesce(p_ready->'unrecovered','[]'), seen_at=now() WHERE id=rt.id;
  PERFORM sophia.emit_service_event(rt.project_id,'runtime.'||(p_ready->>'state'),'executor_resource',rt.resource_id,rt.lease_epoch,
   CASE WHEN jsonb_array_length(coalesce(p_ready->'unrecovered','[]'))>0 THEN 'runtime.unrecovered' ELSE 'runtime.'||(p_ready->>'state') END);
 END $$;
@@ -673,8 +676,36 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.deny_native_delivery(sophia.outbox,sophia.commands,text) FROM PUBLIC;
 
+-- Why a runtime cannot take a delivery yet, or null when it can: it must have reported ready on its current lease
+-- and been seen (hello, ready or a command poll) within 90 seconds; a long poll returns at least every 25.
+CREATE FUNCTION sophia.runtime_unavailable(rt sophia.runtime_instances) RETURNS text LANGUAGE sql STABLE
+SET search_path=pg_catalog,sophia AS $$
+ SELECT CASE
+  WHEN rt.lease_id IS NULL OR rt.seen_at IS NULL THEN 'waiting for Sophia''s runtime to connect'
+  WHEN rt.ready_state<>'ready' THEN 'waiting for Sophia''s runtime to report ready'
+  WHEN rt.seen_at<now()-interval '90 seconds' THEN 'waiting for Sophia''s runtime to reconnect'
+  ELSE NULL END $$;
+REVOKE ALL ON FUNCTION sophia.runtime_unavailable(sophia.runtime_instances) FROM PUBLIC;
+
+-- A delivery the runtime cannot take yet goes back to pending, visibly: the task stays queued with the reason,
+-- and the worker tries again shortly. Nothing is queued to a runtime that is not there, and nothing is denied.
+CREATE FUNCTION sophia.defer_native_delivery(o sophia.outbox, c sophia.commands, p_reason text) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE j sophia.jobs;
+BEGIN
+ UPDATE sophia.outbox SET state='pending', lease_owner=NULL, lease_token=NULL, lease_until=NULL,
+  available_at=now()+interval '5 seconds', outcome_reason=left(p_reason,2000) WHERE project_id=o.project_id AND id=o.id;
+ UPDATE sophia.jobs SET reason=left(p_reason,2000)
+  WHERE project_id=o.project_id AND command_id=c.id AND state='pending' AND reason IS DISTINCT FROM left(p_reason,2000) RETURNING * INTO j;
+ IF j.id IS NOT NULL THEN PERFORM sophia.emit_service_event(o.project_id,'native_task.waiting','job',j.id,1,'native_task.waiting'); END IF;
+ RETURN jsonb_build_object('result','deferred','reason',p_reason);
+END $$;
+REVOKE ALL ON FUNCTION sophia.defer_native_delivery(sophia.outbox,sophia.commands,text) FROM PUBLIC;
+
 -- Dispatch one claimed row: recheck, then either enqueue exactly one runtime command (recording the
--- outbox result in the same transaction) or record the terminal outcome. Only the live lease may write.
+-- outbox result in the same transaction), defer it while the runtime is not ready, or record the terminal
+-- outcome. Only the live lease may write. Hold/Stop are not deferred: their fence is already in the database,
+-- and the runtime's journal replays them when it comes back.
 CREATE FUNCTION sophia.dispatch_runtime_outbox(p_project uuid, p_outbox uuid, p_lease_token uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE o sophia.outbox; g sophia.goals; c sophia.commands; b sophia.execution_bindings; rt sophia.runtime_instances; why text;
@@ -712,6 +743,8 @@ BEGIN
  ELSE
   why:=sophia.native_delivery_ineligible(o,g,c,b,rt);
   IF why IS NOT NULL THEN RETURN sophia.deny_native_delivery(o,c,why); END IF;
+  why:=sophia.runtime_unavailable(rt);
+  IF why IS NOT NULL THEN RETURN sophia.defer_native_delivery(o,c,why); END IF;
   kind:=substr(o.destination,8);
   IF kind='create' THEN
    SELECT t.body::jsonb INTO manifest FROM sophia.jobs j JOIN sophia.source_texts t ON t.project_id=j.project_id AND t.source_id=j.input_source_id
@@ -732,9 +765,12 @@ BEGIN
   'payload',payload);
  INSERT INTO sophia.runtime_commands(project_id,runtime_id,seq,id,outbox_id,command_id,binding_id,attempt_id,kind,authority_epoch,body)
  VALUES(p_project,rt.id,next_seq,rc_id,o.id,c.id,b.id,b.attempt_id,kind,o.authority_epoch,command_body);
- UPDATE sophia.outbox SET state='acknowledged', lease_until=NULL WHERE project_id=p_project AND id=p_outbox;
+ UPDATE sophia.outbox SET state='acknowledged', lease_until=NULL, outcome_reason=NULL WHERE project_id=p_project AND id=p_outbox;
  UPDATE sophia.commands SET state='dispatching' WHERE project_id=p_project AND id=c.id AND state='admitted';
- IF kind='create' THEN UPDATE sophia.execution_bindings SET state='launching' WHERE project_id=p_project AND id=b.id AND state='created'; END IF;
+ IF kind='create' THEN
+  UPDATE sophia.execution_bindings SET state='launching' WHERE project_id=p_project AND id=b.id AND state='created';
+  UPDATE sophia.jobs SET reason=NULL WHERE project_id=p_project AND command_id=c.id AND state='pending' AND reason LIKE 'waiting for Sophia''s runtime%';
+ END IF;
  RETURN jsonb_build_object('result','enqueued','runtimeId',rt.id,'seq',next_seq,'runtimeCommandId',rc_id);
 END $$;
 

@@ -163,12 +163,20 @@ let service: FakeService
 let rooms: FakeRoom[]
 let lives: FakeLive[]
 let order: string[]
+/** Joins that fail before one succeeds (a LiveKit outage), and the tokens joins were attempted with. */
+let joinFailures: number
+let joinTokens: string[]
 
-async function open(over: Partial<MediaAssignment> = {}, people = [member(LUIS), member(DAVIDE)]) {
-  const session = new RoomSession(assignment(over), {
+function newSession(over: Partial<MediaAssignment>, people: RoomPerson[]) {
+  return new RoomSession(assignment(over), {
     service,
-    joinRoom: async (_access, events) => {
+    joinRoom: async (access, events) => {
       await Promise.resolve()
+      joinTokens.push(access.token)
+      if (joinFailures > 0) {
+        joinFailures -= 1
+        throw new Error('could not establish signal connection')
+      }
       order.push('room')
       const room = new FakeRoom(events, people)
       rooms.push(room)
@@ -188,11 +196,15 @@ async function open(over: Partial<MediaAssignment> = {}, people = [member(LUIS),
     log: () => undefined,
     every: () => () => undefined,
   })
-  await session.start()
+}
+
+async function open(over: Partial<MediaAssignment> = {}, people = [member(LUIS), member(DAVIDE)]) {
+  const s = newSession(over, people)
+  await s.start()
   const room = rooms.at(-1)
   const live = lives.at(-1)
   assert.ok(room && live)
-  return { session, room, live }
+  return { session: s, room, live }
 }
 
 async function ready(over: Partial<MediaAssignment> = {}, people?: RoomPerson[]) {
@@ -207,6 +219,8 @@ beforeEach(() => {
   rooms = []
   lives = []
   order = []
+  joinFailures = 0
+  joinTokens = []
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -288,6 +302,38 @@ describe('room session: Sophia’s output (case A09)', () => {
     await flush()
     assert.equal(room.played.length, 0)
     assert.equal(session.observed().output, 'idle')
+  })
+
+  it('Stop Speaking before the first audio chunk still silences the reply on its way', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.inputTranscript('what is the status', true)
+    session.update(assignment({ playbackEpoch: 2 }))
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, 0, 'the stopped reply is dropped even though it had not started')
+    live.events.turnComplete()
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > 0, 'the next reply plays')
+  })
+
+  it('Stop Speaking with no reply pending does not silence the next one', async () => {
+    const { session, room, live } = await ready()
+    session.update(assignment({ playbackEpoch: 2 }))
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > 0)
+  })
+
+  it('the fence lapses when the stopped reply never comes', async () => {
+    const { session, room, live } = await ready()
+    live.events.inputTranscript('hello?', true)
+    session.update(assignment({ playbackEpoch: 2 }))
+    clock += 8001
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.ok(room.played.length > 0, 'a later reply is not swallowed by an old stop')
   })
 
   it('Stop Speaking clears the source and drops the rest of the turn, without touching work', async () => {
@@ -439,6 +485,42 @@ describe('room session: provider recovery (case A14)', () => {
       await flush()
     }
     assert.equal(session.observed().voice, 'unavailable')
+  })
+})
+
+describe('room session: joining the room', () => {
+  it('retries a failed first join with backoff and the latest token, then connects Google', async () => {
+    joinFailures = 1
+    const s = newSession({}, [member(LUIS)])
+    await s.start()
+    assert.equal(rooms.length, 0)
+    assert.equal(lives.length, 0, 'Google waits for the room')
+    assert.equal(s.observed().voice, 'unavailable')
+    s.update(
+      assignment({ roomRevision: 2, roomToken: { serverUrl: 'ws://fake-livekit', token: 'fresh', expiresAt: 'x' } }),
+    )
+    clock += 999
+    s.tick()
+    await flush()
+    assert.equal(joinTokens.length, 1, 'not before the backoff')
+    clock += 1
+    s.tick()
+    await flush()
+    await flush()
+    assert.deepEqual(joinTokens, ['fake-token', 'fresh'], 'the retry uses the newest token')
+    assert.equal(rooms.length, 1)
+    assert.equal(lives.length, 1)
+    lives[0]?.events.setupComplete()
+    assert.equal(s.observed().voice, 'ready')
+  })
+
+  it('a session closed while its join is in flight leaves the room at once', async () => {
+    const s = newSession({}, [member(LUIS)])
+    const started = s.start()
+    await s.close()
+    await started
+    assert.equal(rooms.at(-1)?.closed ?? true, true)
+    assert.equal(lives.length, 0)
   })
 })
 

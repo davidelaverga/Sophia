@@ -3,7 +3,7 @@
 // starts work: only "Draft a brief" admits a task, once per click, retried with the same key after no reply.
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { DiscussionEntry, NativeTaskReceipt, Snapshot } from '@sophia/contracts'
+import type { DiscussionEntry, NativeTaskReceipt, NativeTaskRequest, Snapshot } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { admitNativeTask } from '../../api/conversation.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
@@ -102,14 +102,10 @@ const DEFAULT_INSTRUCTION = 'Draft an implementation brief from the points we ch
 function BriefRequest({ projectId, identity, snapshot, inputs, onAdmitted }: BriefProps) {
   const queryClient = useQueryClient()
   const [instruction, setInstruction] = useState(DEFAULT_INSTRUCTION)
-  const admission = useAdmission<readonly string[], NativeTaskReceipt>(async (key, contributionIds) => {
+  // The whole request is the admission's argument: Try again after an unknown outcome resends exactly what was
+  // sent under the same key, whatever was typed or changed since (the server would refuse anything else).
+  const admission = useAdmission<NativeTaskRequest, NativeTaskReceipt>(async (key, request) => {
     try {
-      const request = {
-        kind: 'draft_brief' as const,
-        instruction,
-        contributionIds: [...contributionIds],
-        expectedMissionRevision: snapshot.missionRevision,
-      }
       return await admitNativeTask(identity.token, projectId, key, request)
     } finally {
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
@@ -117,7 +113,13 @@ function BriefRequest({ projectId, identity, snapshot, inputs, onAdmitted }: Bri
   })
   const busy = admission.state.status === 'sending'
   const ask = async () => {
-    if (await admission.submit(inputs)) onAdmitted()
+    const request: NativeTaskRequest = {
+      kind: 'draft_brief',
+      instruction,
+      contributionIds: [...inputs],
+      expectedMissionRevision: snapshot.missionRevision,
+    }
+    if (await admission.submit(request)) onAdmitted()
   }
   return (
     <div className="brief-request">

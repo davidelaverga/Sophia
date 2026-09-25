@@ -9,6 +9,8 @@ import { onlyRow } from './rows.ts'
 export type DispatchOutcome =
   | { result: 'enqueued'; runtimeId: string; seq: number; runtimeCommandId: string }
   | { result: 'denied'; reason: string }
+  /** The runtime is not connected, ready and recently seen: back to pending, retried shortly, the reason shown. */
+  | { result: 'deferred'; reason: string }
   | { result: 'settled'; reason?: string }
   | { result: 'outcome_unknown'; reason: string }
 

@@ -89,7 +89,7 @@ Its inputs are already fixed by this branch:
 
 | Migration | SHA-256 (as the runner records it) |
 |---|---|
-| `0012_runtime_service.sql` | `5c90ed79d52690183a368e8e2de1b86bca3ec41c68c3345a8a03b65d43244fe9` |
+| `0012_runtime_service.sql` | `311396e5928af0a439b5f867fa0539cab405c054cdd562d3a3eadd17252993d6` |
 | `0013_room_exchange.sql` | `b04e41c227551554f6e451c84fe7ce7ffb4def50ee20ef4e5dece2047f58cb45` |
 | `0014_room_removals.sql` | `55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2` |
 

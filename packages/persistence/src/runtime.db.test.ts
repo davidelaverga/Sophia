@@ -27,6 +27,7 @@ import {
   reconcileRuntimeOutbox,
   recordRuntimeObservations,
   recordRuntimeReceipts,
+  recordRuntimeReady,
   runtimeHello,
   runtimePoll,
   runtimeTokenHash,
@@ -156,6 +157,10 @@ async function world() {
   await withService(pool, (c) =>
     runtimeHello(c, caller(rt, bridge), { bundle: 'test', protocolVersion: 1, dshVersion: 'x' }),
   )
+  // As the supervisor does after recovery: nothing is dispatched to a runtime that has not reported ready.
+  await withService(pool, (c) =>
+    recordRuntimeReady(c, caller(rt, bridge), { state: 'ready', reason: null, unrecovered: [] }),
+  )
   const first = await say(E, project.projectId, 'Keep the room and the floor; add a real voice.')
   const second = await say(A, project.projectId, 'The brief should name the runtime crossing first.')
   return { project, rt, bridge, who: caller(rt, bridge), inputs: [first.contributionId, second.contributionId] }
@@ -255,6 +260,63 @@ describe('draft_brief admission', () => {
     assert.equal(await codeOf(brief(E, w.project.projectId, [other.inputs[0]!])), 'source_ineligible')
     const bare = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
     assert.equal(await codeOf(brief(E, bare.projectId, [])), 'native_capability_unavailable')
+  })
+})
+
+describe('dispatch waits for a ready runtime', () => {
+  it('defers a delivery until the runtime is connected, ready and recently seen; the task stays queued, saying why', async () => {
+    const project = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+    const rt = await registerRuntime(db.ownerUrl, { projectId: project.projectId, admin: A })
+    const said = await say(E, project.projectId, 'Only the brief, please.')
+    const admitted = await brief(E, project.projectId, [said.contributionId])
+    const phase = async () => {
+      const t = await withActor(pool, E, 'read', (c) => readNativeTask(c, project.projectId, admitted.taskId))
+      return [t.task.phase, t.task.reason]
+    }
+    const dueNow = () =>
+      owner((c) => c.query(`UPDATE sophia.outbox SET available_at = now() WHERE project_id = $1`, [project.projectId]))
+
+    assert.deepEqual(
+      (await dispatchAll(project.projectId)).map((o) => o.result),
+      ['deferred'],
+      'registered, never connected',
+    )
+    assert.deepEqual(await phase(), ['queued', "waiting for Sophia's runtime to connect"])
+    assert.deepEqual(await dispatchAll(project.projectId), [], 'retried after a short wait, not at once')
+
+    const bridge = randomUUID()
+    const who = caller(rt, bridge)
+    await withService(pool, (c) => runtimeHello(c, who, { bundle: 'test', protocolVersion: 1, dshVersion: 'x' }))
+    await dueNow()
+    assert.deepEqual(
+      (await dispatchAll(project.projectId)).map((o) => o.result),
+      ['deferred'],
+      'hello alone is not ready',
+    )
+    assert.equal((await phase())[1], "waiting for Sophia's runtime to report ready")
+
+    await withService(pool, (c) => recordRuntimeReady(c, who, { state: 'ready', reason: null, unrecovered: [] }))
+    await owner((c) =>
+      c.query(`UPDATE sophia.runtime_instances SET seen_at = now() - interval '2 minutes' WHERE id = $1`, [
+        rt.runtimeId,
+      ]),
+    )
+    await dueNow()
+    assert.deepEqual(
+      (await dispatchAll(project.projectId)).map((o) => o.result),
+      ['deferred'],
+      'ready, but not seen for two minutes',
+    )
+    assert.equal((await phase())[1], "waiting for Sophia's runtime to reconnect")
+
+    await withService(pool, (c) => runtimePoll(c, who, 0))
+    await dueNow()
+    assert.deepEqual(
+      (await dispatchAll(project.projectId)).map((o) => o.result),
+      ['enqueued'],
+      'a poll shows it is there',
+    )
+    assert.deepEqual(await phase(), ['dispatched', null], 'the waiting reason is cleared once it is sent')
   })
 })
 

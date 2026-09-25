@@ -172,6 +172,13 @@ describe('discussion and a draft_brief through the API (A05)', () => {
 
     const bridge = randomUUID()
     const opened = await hello(rt.token, bridge)
+    const ready = await call('/v1/runtime/ready', {
+      method: 'POST',
+      bearer: rt.token,
+      headers: bridgeHeaders(bridge),
+      body: { state: 'ready', reason: null, unrecovered: [] },
+    })
+    assert.equal(ready.status, 204, 'nothing is dispatched to a runtime that has not reported ready')
     const waiting = call(`/v1/runtime/commands?after=${opened.json.cursor}&waitMs=10000`, {
       bearer: rt.token,
       headers: bridgeHeaders(bridge),
@@ -199,7 +206,11 @@ describe('discussion and a draft_brief through the API (A05)', () => {
     )
     assert.equal(snap.discussion.at(-1)?.text, 'Say what the room needs first.')
     const runtime = snap.resources.find((r) => r.harness === 'dsh')
-    assert.deepEqual([runtime?.hostState, runtime?.nativeState], ['unknown', 'unknown'], 'no ready report yet')
+    assert.deepEqual(
+      [runtime?.hostState, runtime?.nativeState],
+      ['online', 'running'],
+      'its ready report reaches the room',
+    )
   })
 
   it('keeps guests out of discussion and work', async () => {
