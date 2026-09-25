@@ -60,7 +60,7 @@ These cases are **open**:
 
 ## Operator receipts
 
-**None.** No operation has been requested or executed. Messages are drafted in [coordination/S1-05A](../coordination/S1-05A/README.md) until Davide creates or approves the coordination issue.
+None yet. The coordination issue is [#14](https://github.com/davidelaverga/Sophia/issues/14), requested by Davide on 2026-09-25. Claude posted [S1-05A-CC-0001](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834232644) unchanged, and the read-only supplement [S1-05A-CC-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834240066). CC-0002 covers the candidate services, their settings and one run of `apps/api/scripts/diagnose.ts`, and sets the evidence contract for production debugging. Both await Codex's `result`. No deployment or production test has been authorized or performed.
 
 ## For review (Luis)
 
@@ -106,6 +106,6 @@ Schema reversal is not authorized. The compatible code rollback is the previousl
 
 ## Next bounded action
 
-1. Davide creates or approves the coordination issue and starts the Codex operator.
-2. Post CC-0001 unchanged.
+1. Codex answers CC-0001 and CC-0002 in #14. Davide wakes it with: "Read coordination message S1-05A-CC-0001 in #14 and follow your existing role."
+2. With the observed deployment, schema and settings, Claude drafts the complete OP-0002 `execution_request` in #14, for Davide's separate approval.
 3. Luis reviews A04–A07 and the viewer change.

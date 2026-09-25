@@ -13,4 +13,4 @@
 | [alignment/2026-09-25/](alignment/2026-09-25/00_START_HERE.md) | The 2026-09-25 progress ledger and the S1-05A goal packet (additive to the frozen pack; [installation record](alignment/2026-09-25/INSTALLED.md)) |
 | [progress/S1-05A.md](progress/S1-05A.md) | S1-05A acceptance cases: source, tests, hosted evidence and human acceptance kept apart |
 | [evidence/S1-05A/](evidence/S1-05A/checkpoint-A.md) | S1-05A checkpoint records |
-| [coordination/S1-05A/](coordination/S1-05A/README.md) | Claude ↔ Codex operator messages, drafted until the coordination issue exists |
+| [coordination/S1-05A/](coordination/S1-05A/README.md) | Claude ↔ Codex operator messages, posted on coordination issue [#14](https://github.com/davidelaverga/Sophia/issues/14) |
