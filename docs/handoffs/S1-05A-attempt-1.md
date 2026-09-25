@@ -57,7 +57,7 @@ These cases are **open**:
 
 | Case | Why it is open |
 |---|---|
-| A01 | Partial and blocked. Codex observed the Render API live at `29a570c3`; the hosted ledger, the auto-deploy switch, the Vercel source commit and the hosts for the worker, bridge and execution host are unknown ([progress A01](../progress/S1-05A.md)). The reported Render auto-deploy of `deploy/render-vercel` (`ff22a249`, which predates the room work) remains an unverified hazard |
+| A01 | Partial and blocked. Codex observed the Render API live at `29a570c3`, and a hosted ledger of 0001–0011 that matches the source. **Auto-deploy of the stale `deploy/render-vercel` (`ff22a249`) is confirmed on**; OP-0004 is requested to turn it off. No host exists yet for the worker, bridge or execution host, and the Vercel source commit is unknown ([progress A01](../progress/S1-05A.md)) |
 | A04 | A real model brief needs an owner allowance and `OPENAI_API_KEY` on the execution host |
 | A05, A06 | Two humans with real Gemini need an owner allowance, `GEMINI_API_KEY`, LiveKit and a deployed bridge |
 | A07 | The voice half of steering, on a live run |
@@ -66,7 +66,12 @@ These cases are **open**:
 
 None yet. The coordination issue is [#14](https://github.com/davidelaverga/Sophia/issues/14), requested by Davide on 2026-09-25. Claude posted [S1-05A-CC-0001](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834232644) unchanged, and the read-only supplement [S1-05A-CC-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834240066). CC-0002 covers the candidate services, their settings and one run of `apps/api/scripts/diagnose.ts`, and sets the evidence contract for production debugging.
 
-Codex answered both as `blocked`: its host has no provider credentials, and it asked Davide for a read-only access path. Its review finding on the diagnostic's public output was fixed at `833221c` and answered in [S1-05A-CC-0003](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5834807704). The [coordination log](../coordination/S1-05A/README.md) lists every message. No deployment or production test has been authorized or performed.
+Codex first answered both as `blocked`, because its host had no provider credentials. It then reconciled both read-only in Davide's signed-in provider projects ([CX-0004](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5835343541), [CX-0005](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5835349474)):
+- The hosted ledger is 0001–0011 and matches the source.
+- Auto-deploy is on for the stale branch.
+- No worker, bridge or execution host exists.
+
+Codex's finding on the diagnostic's public output was fixed at `833221c`. Claude replied in [CC-0004](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5835927773): the facts are recorded, two settings would stop the API at its next start, and six decisions are Davide's. Claude also requested **OP-0004, auto-deploy off**, in [CC-0005](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5835930429); it awaits approval. The [coordination log](../coordination/S1-05A/README.md) lists every message. No deployment or production test has been authorized or performed.
 
 ## For review (Luis)
 
@@ -85,7 +90,7 @@ Codex answered both as `blocked`: its host has no provider credentials, and it a
 ## To turn it on (owner decisions, then a Codex execution request)
 
 Planned operation **S1-05A-OP-0002**. It is **not requested yet**. A complete request needs:
-- the observed deployed commit and schema ledger, the auto-deploy setting, and the hosts and settings for the worker, bridge and execution host (CC-0001 and CC-0002);
+- the hosts for the worker, bridge and execution host, and their settings. The deployed commit, schema ledger and auto-deploy setting are now observed (CX-0004), and no such host exists yet (CX-0005);
 - a reviewed candidate SHA;
 - an owner-confirmed target;
 - an expiry;
@@ -112,6 +117,6 @@ Schema reversal is not authorized. The compatible code rollback is the previousl
 
 ## Next bounded action
 
-1. Davide decides the read-only access path Codex asked for. Codex then completes CC-0001 and CC-0002 in #14.
-2. With the observed deployment, schema and settings, Claude drafts the complete OP-0002 `execution_request` in #14, for Davide's separate approval.
+1. Davide approves or declines OP-0004 (auto-deploy off), and makes the CC-0004 decisions: where the worker, bridge and runtime host run; which LiveKit key the API holds, and `STUDIO_ORIGINS`; the two Auth settings; LiveKit PII redaction; and a private evidence destination.
+2. Once the hosts are decided, Claude drafts the complete OP-0002 `execution_request` in #14, for Davide's separate approval.
 3. Luis reviews A04–A07 and the viewer change.
