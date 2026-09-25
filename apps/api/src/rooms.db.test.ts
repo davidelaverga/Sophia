@@ -99,14 +99,14 @@ describe('room tokens', () => {
       room: roomId,
       canSubscribe: true,
       canPublish: true,
-      canPublishSources: ['microphone'],
+      canPublishSources: ['microphone', 'camera', 'screen_share', 'screen_share_audio'],
       canPublishData: false,
       canUpdateOwnMetadata: false,
     })
     assert.equal((grant.exp ?? 0) - (grant.nbf ?? 0), 600)
   })
 
-  it('let viewers listen without publishing', async () => {
+  it('let viewers listen and watch without publishing', async () => {
     const grant = await grantOf(parseRoomToken((await roomToken(V)).json).token)
     assert.deepEqual([grant.video?.canPublish, grant.video?.canPublishSources], [false, []])
   })

@@ -1,4 +1,5 @@
-// Who is acting: a dev-identity switcher, or the signed-in email with Sign out.
+// Who is acting: a dev-identity switcher, or the signed-in person with Sign out.
+import { shortName } from '../features/voice/room-view.ts'
 import { authMode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
 
@@ -12,6 +13,9 @@ export function IdentityControl({ identity, onChooseDev, onSignOut }: Props) {
   if (authMode === 'dev') {
     return (
       <label className="identity">
+        <span className="avatar" aria-hidden>
+          {shortName(identity.name).charAt(0)}
+        </span>
         <span className="sr-only">Acting as</span>
         <select
           value={identity.name}
@@ -27,11 +31,14 @@ export function IdentityControl({ identity, onChooseDev, onSignOut }: Props) {
     )
   }
   return (
-    <span className="identity-chip">
+    <span className="identity">
+      <span className="avatar" aria-hidden>
+        {shortName(identity.name).charAt(0)}
+      </span>
       <span className="identity-name" title={identity.name}>
         {identity.name}
       </span>
-      <button type="button" className="quiet" onClick={onSignOut}>
+      <button type="button" className="ghost" onClick={onSignOut}>
         Sign out
       </button>
     </span>

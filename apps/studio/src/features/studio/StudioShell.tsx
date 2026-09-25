@@ -1,5 +1,10 @@
 // renderRoom / v2StudioStage → StudioShell (frontend bindings): the shared room seen through this
-// viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); goals and events are shared.
+// viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
+// are shared.
+import type { Snapshot } from '@sophia/contracts'
+import type { Identity } from '../../app/dev-identity.ts'
+import { RoomStage } from '../voice/RoomStage.tsx'
+import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
@@ -18,51 +23,60 @@ const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }>
 
 interface Props {
   projectId: string
-  viewerName: string
+  identity: Identity
+  room: ProjectRoom
+  snapshot: Snapshot | undefined
 }
 
-export function StudioShell({ projectId, viewerName }: Props) {
-  const { state, setLens, setDraft } = useViewerState(viewerName, projectId)
+export function StudioShell({ projectId, identity, room, snapshot }: Props) {
+  const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   return (
-    <section className="studio" aria-label="Studio">
-      <LensSwitcher lens={state.lens} viewerName={viewerName} onChange={setLens} />
-      <div id="lens-stage" className="lens-stage" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
-        {state.lens === 'converse' ? (
-          <ConverseStage draft={state.drafts.converse ?? ''} onDraft={(text) => setDraft('converse', text)} />
-        ) : (
-          <ComingStage lens={state.lens} />
-        )}
-      </div>
-    </section>
+    <RoomStage
+      room={room}
+      snapshot={snapshot}
+      projectId={projectId}
+      identity={identity}
+      lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
+      lensBody={
+        <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
+          {state.lens === 'converse' ? (
+            <Composer draft={state.drafts.converse ?? ''} onDraft={(text) => setDraft('converse', text)} />
+          ) : (
+            <ComingLens lens={state.lens} />
+          )}
+        </div>
+      }
+    />
   )
 }
 
-function ConverseStage({ draft, onDraft }: { draft: string; onDraft: (text: string) => void }) {
+function Composer({ draft, onDraft }: { draft: string; onDraft: (text: string) => void }) {
   return (
-    <div className="converse">
-      <h2>Thinking together</h2>
-      <label htmlFor="converse-draft" className="muted">
-        Your draft stays on this device, through reconnects and updates from the project. Sending it to the shared
-        conversation comes with project contributions.
+    <div className="composer">
+      <label htmlFor="converse-draft" className="sr-only">
+        Your draft
       </label>
       <textarea
         id="converse-draft"
-        rows={5}
+        rows={1}
         value={draft}
         placeholder="What should Sophia and the team think about next?"
         onChange={(e) => onDraft(e.target.value)}
       />
+      <p className="composer-note">
+        Your draft stays on this device. Sending it to the shared conversation comes with project contributions.
+      </p>
     </div>
   )
 }
 
-function ComingStage({ lens }: { lens: Exclude<Lens, 'converse'> }) {
+function ComingLens({ lens }: { lens: Exclude<Lens, 'converse'> }) {
   const coming = COMING[lens]
   return (
     <div className="coming">
       <span className="eyebrow">{LENS_LABEL[lens]}</span>
       <h2>{coming.title}</h2>
-      <p className="muted">{coming.body}</p>
+      <p>{coming.body}</p>
     </div>
   )
 }

@@ -49,7 +49,7 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
             <button
               key={kind}
               type="button"
-              className={kind === 'request_review' ? 'primary' : undefined}
+              className={kind === 'request_review' ? 'pill primary' : 'pill'}
               disabled={busy}
               onClick={() => void admission.submit(kind)}
             >
@@ -75,7 +75,7 @@ function StopButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
 
   if (!confirming) {
     return (
-      <button type="button" className="quiet" disabled={disabled} onClick={() => setConfirming(true)}>
+      <button type="button" className="pill" disabled={disabled} onClick={() => setConfirming(true)}>
         Stop
       </button>
     )
@@ -84,7 +84,7 @@ function StopButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
     <span className="confirm">
       <button
         type="button"
-        className="danger"
+        className="pill danger"
         disabled={disabled}
         onClick={() => {
           setConfirming(false)
@@ -93,7 +93,7 @@ function StopButton({ disabled, onConfirm }: { disabled: boolean; onConfirm: () 
       >
         Confirm stop
       </button>
-      <button type="button" className="quiet" onClick={() => setConfirming(false)}>
+      <button type="button" className="ghost" onClick={() => setConfirming(false)}>
         Keep working
       </button>
     </span>
@@ -127,7 +127,7 @@ function AdmissionOutcome({ state, onRetry }: { state: AdmissionState<CommandKin
       <>
         <Tag tone="amber">Not confirmed</Tag>
         <span>Sophia didn’t answer. It may already be recorded.</span>
-        <button type="button" className="text" onClick={onRetry}>
+        <button type="button" className="text-button" onClick={onRetry}>
           Retry same request
         </button>
       </>

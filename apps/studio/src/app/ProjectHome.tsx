@@ -1,10 +1,11 @@
-// Entry without a project: start one (createProject, idempotent) or open a shared link.
-// There is no project list operation in the contract yet, so a link or ID is the way in.
+// Entry without a project: start one (createProject, idempotent) or open a shared link. There is no
+// project list operation in the contract yet, so a link or ID is the way in. Sophia's light rests above.
 import { useState } from 'react'
 import type { ProjectCreated } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { createProject } from '../api/client.ts'
 import { useAdmission } from '../api/useAdmission.ts'
+import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import type { Identity } from './dev-identity.ts'
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
@@ -17,23 +18,20 @@ interface Props {
 
 export function ProjectHome({ identity, identityControl, onOpen }: Props) {
   return (
-    <div className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <span className="orb" aria-hidden />
-          <span className="brand-name">Sophia</span>
+    <main className="screen home">
+      <SophiaLight mode="rest" target={null} attention={null} working={false} />
+      <header className="screen-bar">
+        <div className="screen-mark">
+          <span className="mark-dot" aria-hidden />
+          <span className="mark-word">Sophia</span>
         </div>
-        <div className="project-title">
-          <span className="eyebrow">Projects</span>
-          <h1>Start or open a project</h1>
-        </div>
-        <div className="topbar-end">{identityControl}</div>
+        {identityControl}
       </header>
-      <main className="stage home">
+      <div className="screen-body">
         <CreateProjectForm token={identity.token} onCreated={onOpen} />
         <OpenProjectForm onOpen={onOpen} />
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }
 
@@ -49,13 +47,13 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
   }
 
   return (
-    <form className="goal home-card" onSubmit={(e) => void submit(e)}>
-      <h3>Start a project</h3>
+    <form className="create" onSubmit={(e) => void submit(e)}>
       <label htmlFor="title" className="sr-only">
         Project title
       </label>
       <input
         id="title"
+        className="title-input"
         required
         maxLength={180}
         placeholder="What are we building?"
@@ -64,11 +62,9 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         readOnly={status === 'unknown'}
         onChange={(e) => setTitle(e.target.value)}
       />
-      <div className="control-row">
-        <button type="submit" className="primary" disabled={status === 'sending' || !title.trim()}>
-          {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Retry same request' : 'Create project'}
-        </button>
-      </div>
+      <button type="submit" className="pill primary" disabled={status === 'sending' || !title.trim()}>
+        {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Retry same request' : 'Start the project'}
+      </button>
       <p className="outcome" role="status" aria-live="polite">
         {admission.state.status === 'unknown' && (
           <>
@@ -92,22 +88,24 @@ function OpenProjectForm({ onOpen }: { onOpen: (projectId: string) => void }) {
   const projectId = UUID.exec(link)?.[0]
   return (
     <form
-      className="goal home-card"
+      className="field quiet"
       onSubmit={(e) => {
         e.preventDefault()
         if (projectId) onOpen(projectId)
       }}
     >
-      <h3>Open a shared project</h3>
       <label htmlFor="link" className="sr-only">
         Project link or ID
       </label>
-      <input id="link" placeholder="Paste a project link" value={link} onChange={(e) => setLink(e.target.value)} />
-      <div className="control-row">
-        <button type="submit" disabled={!projectId}>
-          Open
-        </button>
-      </div>
+      <input
+        id="link"
+        placeholder="Or paste a shared project link"
+        value={link}
+        onChange={(e) => setLink(e.target.value)}
+      />
+      <button type="submit" className="pill" disabled={!projectId}>
+        Open
+      </button>
     </form>
   )
 }

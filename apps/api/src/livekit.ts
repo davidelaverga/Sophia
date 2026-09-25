@@ -18,9 +18,17 @@ export interface RoomGrant {
   /** The verified actor: LiveKit's participant identity is the authority, never a display name. */
   identity: string
   name: string | null
-  /** Viewers listen; only editors and admins publish their microphone. */
+  /** Viewers listen and watch; only editors and admins publish their microphone, camera and screen. */
   canPublish: boolean
 }
+
+/** What a publishing participant may send: voice, camera, and a chosen screen or window with its sound. */
+const PUBLISH_SOURCES = [
+  TrackSource.MICROPHONE,
+  TrackSource.CAMERA,
+  TrackSource.SCREEN_SHARE,
+  TrackSource.SCREEN_SHARE_AUDIO,
+]
 
 export async function issueRoomToken(cfg: LiveKitConfig, grant: RoomGrant, now = Date.now()): Promise<RoomToken> {
   const token = new AccessToken(cfg.apiKey, cfg.apiSecret, {
@@ -33,7 +41,7 @@ export async function issueRoomToken(cfg: LiveKitConfig, grant: RoomGrant, now =
     room: grant.roomId,
     canSubscribe: true,
     canPublish: grant.canPublish,
-    canPublishSources: grant.canPublish ? [TrackSource.MICROPHONE] : [],
+    canPublishSources: grant.canPublish ? PUBLISH_SOURCES : [],
     canPublishData: false,
     canUpdateOwnMetadata: false,
   })

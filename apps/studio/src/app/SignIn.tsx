@@ -1,5 +1,7 @@
-// Sign-in screens: Supabase magic link, dev identities, or a configuration hint.
+// Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
+// with Sophia's light at rest above the words.
 import { useState } from 'react'
+import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { authMode, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
 
@@ -9,10 +11,16 @@ const MAILPIT_URL = 'http://127.0.0.1:54324'
 
 export function Centered({ title, children, busy }: { title: string; children?: React.ReactNode; busy?: boolean }) {
   return (
-    <main className="centered" aria-busy={busy}>
-      <span className="orb big" aria-hidden />
-      <h2>{title}</h2>
-      {children}
+    <main className="screen" aria-busy={busy}>
+      <SophiaLight mode="rest" target={null} attention={null} working={false} />
+      <div className="screen-mark">
+        <span className="mark-dot" aria-hidden />
+        <span className="mark-word">Sophia</span>
+      </div>
+      <div className="screen-body">
+        <h1 className="screen-title arrive">{title}</h1>
+        {children}
+      </div>
     </main>
   )
 }
@@ -78,7 +86,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
           {notice}
         </p>
       )}
-      <form className="signin" onSubmit={(e) => void submit(e)}>
+      <form className="field" onSubmit={(e) => void submit(e)}>
         <label htmlFor="email" className="sr-only">
           Email
         </label>
@@ -91,7 +99,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <button type="submit" className="primary" disabled={state.step === 'sending'}>
+        <button type="submit" className="pill primary" disabled={state.step === 'sending'}>
           {state.step === 'sending' ? 'Sending…' : 'Email me a link'}
         </button>
       </form>
@@ -121,7 +129,7 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
           .
         </p>
       )}
-      <button type="button" className="text" onClick={onReset}>
+      <button type="button" className="text-button" onClick={onReset}>
         Use another email
       </button>
     </Centered>
@@ -144,7 +152,7 @@ function CodeForm({ email }: { email: string }) {
   }
   return (
     <>
-      <form className="signin" onSubmit={(e) => void submit(e)}>
+      <form className="field" onSubmit={(e) => void submit(e)}>
         <label htmlFor="email-code" className="sr-only">
           Code from the email
         </label>
@@ -158,7 +166,7 @@ function CodeForm({ email }: { email: string }) {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
         />
-        <button type="submit" className="primary" disabled={state.step === 'sending'}>
+        <button type="submit" className="pill primary" disabled={state.step === 'sending'}>
           {state.step === 'sending' ? 'Checking…' : 'Sign in with code'}
         </button>
       </form>

@@ -1,2 +1,5 @@
-// @sophia/ui — Studio primitives on the V2-R1 tokens (apps/studio/src/app/theme.css).
+// @sophia/ui — Studio primitives on the Studio tokens (apps/studio/src/app/theme.css).
+export { Icon, type IconName } from './Icon.tsx'
+export { SwapLabel } from './SwapLabel.tsx'
 export { Tag, type Tone } from './Tag.tsx'
+export { useSlidingThumb } from './useSlidingThumb.ts'
