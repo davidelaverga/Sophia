@@ -271,10 +271,13 @@ describe('events', () => {
   it('re-establishes LISTEN after the connection is killed, and says so', async () => {
     const seen: string[] = []
     const errors: string[] = []
-    let reconnects = 0
+    let reconnected: () => void = () => undefined
+    const reconnect = new Promise<'reconnected'>((resolve) => {
+      reconnected = () => resolve('reconnected')
+    })
     const listener = new ProjectEventListener(pool, {
       onProject: (p) => seen.push(p),
-      onReconnect: () => reconnects++,
+      onReconnect: () => reconnected(),
       onError: (err) => errors.push(err.message),
     })
     await listener.listening
@@ -286,9 +289,8 @@ describe('events', () => {
         ),
       )
       assert.equal(killed.rows.length, 1)
-      const deadline = Date.now() + 5000
-      while (reconnects === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50))
-      assert.equal(reconnects, 1)
+      const timeout = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 5000))
+      assert.equal(await Promise.race([reconnect, timeout]), 'reconnected')
       assert.ok(errors.length >= 1)
 
       await withActor(pool, A, 'write', (c) => admitGoalCommand(c, seed.projectId, `rc-${randomUUID()}`, cmd()))
