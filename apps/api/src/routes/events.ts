@@ -35,13 +35,21 @@ export function eventRoutes(app: FastifyInstance, { pool, hub, heartbeatMs }: Ev
       const { projectId } = req.params
       const read = (after: bigint) => withActor(pool, req.actorId, 'read', (c) => readEventFrames(c, projectId, after))
 
+      // Watch for the client leaving from the start: it may go while the first read is in flight.
+      let stream: ProjectEventStream | undefined
+      let gone = false
+      reply.raw.on('close', () => {
+        gone = true
+        stream?.close()
+      })
+
       // Authorize before switching to a stream so a denial is an ordinary JSON 403.
       const first = await read(BigInt(req.query.after))
       if (!first.visible) throw new DomainError('forbidden', 'Not permitted')
 
       reply.hijack()
-      const stream = new ProjectEventStream({ res: reply.raw, projectId, read, first, hub, heartbeatMs, log: req.log })
-      req.raw.on('close', () => stream.close())
+      if (gone || reply.raw.destroyed) return
+      stream = new ProjectEventStream({ res: reply.raw, projectId, read, first, hub, heartbeatMs, log: req.log })
     },
   )
 }

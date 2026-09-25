@@ -13,7 +13,7 @@ import {
   classifyDbError,
   createPool,
   createProject,
-  listenForProjectEvents,
+  ProjectEventListener,
   readEventFrames,
   readSnapshot,
   withActor,
@@ -58,7 +58,7 @@ async function codeOf(p: Promise<unknown>): Promise<string> {
 
 before(async () => {
   db = await createTestDatabase()
-  pool = createPool(db.apiUrl, 4)
+  pool = createPool(db.apiUrl, { max: 4 })
   seed = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
 })
 
@@ -70,7 +70,7 @@ after(async () => {
 describe('database role', () => {
   it('accepts the sophia_api login and refuses the migration owner', async () => {
     assert.equal(await checkRoleSafety(pool), undefined)
-    const ownerPool = createPool(db.ownerUrl, 1)
+    const ownerPool = createPool(db.ownerUrl, { max: 1 })
     await assert.rejects(checkRoleSafety(ownerPool), { code: 'unavailable' })
     await ownerPool.end()
   })
@@ -100,7 +100,7 @@ describe('snapshot scope', () => {
   })
 
   it('never lets a pooled connection inherit the previous actor', async () => {
-    const single = createPool(db.apiUrl, 1)
+    const single = createPool(db.apiUrl, { max: 1 })
     await withActor(single, A, 'read', (c) => readSnapshot(c, seed.projectId))
     const c = await single.connect()
     try {
@@ -244,11 +244,12 @@ describe('events', () => {
 
   it('notifies followers on commit and never on rollback', async () => {
     const seen: string[] = []
-    const stop = await listenForProjectEvents(
-      pool,
-      (p) => seen.push(p),
-      () => undefined,
-    )
+    const listener = new ProjectEventListener(pool, {
+      onProject: (p) => seen.push(p),
+      onReconnect: () => undefined,
+      onError: () => undefined,
+    })
+    await listener.listening
     try {
       const rolledBack = await pool.connect()
       await rolledBack.query('BEGIN')
@@ -263,7 +264,38 @@ describe('events', () => {
       await new Promise((r) => setTimeout(r, 200))
       assert.deepEqual(seen, [seed.projectId])
     } finally {
-      await stop()
+      await listener.stop()
+    }
+  })
+
+  it('re-establishes LISTEN after the connection is killed, and says so', async () => {
+    const seen: string[] = []
+    const errors: string[] = []
+    let reconnects = 0
+    const listener = new ProjectEventListener(pool, {
+      onProject: (p) => seen.push(p),
+      onReconnect: () => reconnects++,
+      onError: (err) => errors.push(err.message),
+    })
+    await listener.listening
+    try {
+      const killed = await owner((c) =>
+        c.query(
+          `SELECT pg_terminate_backend(pid) AS killed FROM pg_stat_activity
+            WHERE datname = current_database() AND query LIKE 'LISTEN %' AND state = 'idle'`,
+        ),
+      )
+      assert.equal(killed.rows.length, 1)
+      const deadline = Date.now() + 5000
+      while (reconnects === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50))
+      assert.equal(reconnects, 1)
+      assert.ok(errors.length >= 1)
+
+      await withActor(pool, A, 'write', (c) => admitGoalCommand(c, seed.projectId, `rc-${randomUUID()}`, cmd()))
+      await new Promise((r) => setTimeout(r, 200))
+      assert.deepEqual(seen, [seed.projectId])
+    } finally {
+      await listener.stop()
     }
   })
 })

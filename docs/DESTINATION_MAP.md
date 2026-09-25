@@ -77,7 +77,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `renderers/` | unbuilt | S1-13 | `web/pdf/` and `web/deck/`: the adapted JS render kernels (v0.4 D32 removed the Python path) |
-| `db/migrations/` | built | S1-02 | Pack 0001–0004 verbatim plus 0005–0007 (event notify, idempotent project creation, dispatch fencing); no automatic old-DB migration |
+| `db/migrations/` | built | S1-02 | Pack 0001–0004 verbatim plus 0005–0008 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results); no automatic old-DB migration |
 | `db/tests/` | built | S1-02 | The pack's SQL test, run after the migrations |
 | `supabase/` | built | S1-02 | Supabase CLI config for the local stack (ES256 signing keys, Auth redirects) |
 | `deploy/` | partial | S1-02, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate). S1-14 adds Render, execution-host and Vercel manifests |
