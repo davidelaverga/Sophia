@@ -11,6 +11,8 @@ sophia-next/
     studio/                         # React/Vite application, deployed to Vercel
       src/app/                      # router, authenticated shell, providers
       src/features/studio/          # Converse, Explore, Build lenses
+      src/features/discussion/      # project thread and contextual discussion
+      src/features/explore/         # directions and source-linked preview stage
       src/features/voice/           # room tracks, input floor, exchange controls
       src/features/review/          # inspect/select, annotations, change intent
       src/features/work/            # work pulse, controls, progress review
@@ -58,8 +60,8 @@ sophia-next/
     ui/                             # Luis's tokens, primitives and common renderers
     test-support/                   # semantic fixtures, controlled failures, replay
   renderers/
-    python/                         # selected legacy renderer jobs, isolated process
-    web/                            # browser render/export jobs with pinned Chromium
+    web/pdf/                        # adapted static HTML→PDF kernel
+    web/deck/                       # adapted HTML→PNG→image-based PPTX kernels
   config/
     runtime-unit.json               # dsh/provider/preset/codec compatibility unit
     models.json                     # exact configured route IDs and capability limits
@@ -110,3 +112,21 @@ Store selected generated image bytes as immutable project assets with provenance
 ## Toolchain pinning
 
 Use the dsh commit and package version in `config/runtime-unit.json`. Resolve and commit the ordinary frontend/Fastify/Postgres dependency lock during S1-01, then retain it; this document does not invent unverified current patch versions. Pin Chromium and renderer binaries with the images that contain them. Reproducibility is a committed lock and digest, not a sentence saying “latest.”
+
+## Part 2 binding map
+
+The documentation pack contains proposed contracts and executable reference logic, not a checked-in implementation of every path above. Promote each into the owning package through its goal:
+
+| Pack artifact | Product destination |
+|---|---|
+| `api/openapi.json`, `generated-types.ts` | `packages/contracts/` and generated API/client bindings |
+| `api/reference-client.ts` | `apps/studio/src/api/` after adding runtime response validators |
+| `db/migrations/` | `db/migrations/`, tested on a fresh disposable database first |
+| `implementation/src/native-wire.ts`, `control.ts` | `packages/execution-adapters/src/omnigent/` and `packages/domain/` |
+| `implementation/src/projections.ts` | `apps/studio/src/projectors/`, with bounded cache and resnapshot controller |
+| `implementation/src/source-patch.ts` | `packages/domain/` and workspace service checks; filesystem enforcement remains separate |
+| `frontend/bindings.json` | `apps/studio/src/features/` module work map |
+| `renderers/extraction-manifest.json` | staged donor files → `renderers/web/`, with mandatory adaptations |
+| `ops/deployment-units.json` | `deploy/` manifests and actual artifact/digest records |
+
+Do not introduce `dsh-sophia` as a second bundle name or `apps/media` as a second bridge. The canonical package is `packages/dsh-bundle`, and the media service is `apps/media-bridge`. Frontend feature subdirectories in architecture 13 define the production homes; the reference binding map provides the named component lookup.

@@ -47,9 +47,9 @@ Research has scoped web lookup, exact page/source reads, uploads and citations. 
 
 HTML reports are retained as source plus approved assets. PDF and PPTX outputs are produced by isolated format jobs, not by copying the old companion/Builder orchestration. Reuse the current Sophia rendering knowledge and format code deliberately.
 
-**Exact legacy entry points:** at the pinned Sophia source, `backend/packages/harness/deerflow/sophia/tools/create_pdf_artifact.py` is a modest deterministic PDF wrapper importing `ToolRuntime` and thread path helpers. It is not the rich general HTML renderer. `build_deck_from_slides.py` is the identified deck wrapper entry point. The latter's complete compiler/asset closure and the rich PDF renderer are the named Part 2 extraction audit. [OLD-01, OLD-03]
+**Exact legacy entry points:** at the pinned Sophia source, `backend/packages/harness/deerflow/sophia/tools/create_pdf_artifact.py` is a modest deterministic PDF wrapper importing `ToolRuntime` and thread path helpers. It is not the rich general HTML renderer. `build_deck_from_slides.py` is the identified deck wrapper entry point. The rich PDF and deck kernels are now located and audited in [architecture 14](14_RENDERER_EXTRACTION.md); their exact files/blobs and adaptations are registered. [OLD-01, OLD-03]
 
-**Decision:** keep compatible Python renderers as job processes with a plain JSON/file input/output contract; replace thread/path and `ToolRuntime` dependencies at the adapter boundary. Do not rewrite mature formatting logic into TypeScript solely for language consistency. Do not claim all dependencies have already been extracted.
+**Decision after source audit:** call the existing JavaScript PDF/PNG/PPTX kernels through isolated JSON/file render jobs. Replace the Python ToolRuntime orchestration and thread/path mapping; do not add a Python wrapper merely because Part 1 anticipated one. Retain formatting logic, enforce the new input/isolation contract, preserve notes and source, and label the PPTX export as image-based. Extraction and live rendering remain S1-13 implementation work.
 
 ## 6. Review S1: intention reaches the right worker
 

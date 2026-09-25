@@ -1,0 +1,51 @@
+{
+  "schema": "sophia.extraction-manifest.v1",
+  "repository": "davidelaverga/Sophia-Agent",
+  "commit": "d467ab97464908b4e7c7752701eee9d24db7faf6",
+  "status": "source_audited_not_extracted_or_deployed",
+  "files": [
+    {
+      "source_id": "OLD-05",
+      "path": "backend/packages/harness/deerflow/sophia/js/render_html_to_pdf.mjs",
+      "git_blob_sha1": "f2e808cf5e7c4f6514c1bb912c361dd6c21eba7d",
+      "destination": "web/pdf/render-html.mjs",
+      "action": "copy_to_staging_then_adapt"
+    },
+    {
+      "source_id": "OLD-06",
+      "path": "backend/packages/harness/deerflow/sophia/js/render_html_to_png.mjs",
+      "git_blob_sha1": "ab11b990c3100d48c81bdc59f91b90e0b933ccd1",
+      "destination": "web/deck/render-slide.mjs",
+      "action": "copy_to_staging_then_adapt"
+    },
+    {
+      "source_id": "OLD-07",
+      "path": "backend/packages/harness/deerflow/sophia/js/compile_pptx.mjs",
+      "git_blob_sha1": "13202e8255ff5db701905c894e56d381f2411517",
+      "destination": "web/deck/compile-pptx.mjs",
+      "action": "copy_to_staging_then_adapt"
+    },
+    {
+      "source_id": "OLD-09",
+      "path": "LICENSE",
+      "git_blob_sha1": "9dc98a4a6b9b549447a4fc314e4cf50529c184c7",
+      "destination": "THIRD_PARTY_LEGACY_LICENSE.txt",
+      "action": "retain_notice"
+    }
+  ],
+  "excluded": [
+    "ToolRuntime wrappers",
+    "thread path mapping",
+    "companion middleware",
+    "font binaries",
+    "legacy uncontrolled asset paths"
+  ],
+  "mandatory_adaptations": [
+    "explicit manifest roots and realpath containment",
+    "sandboxed non-root browser; no fallback --no-sandbox",
+    "structured JSON outcome and unknown measurements",
+    "notes and language retained",
+    "preview PNG persistence before cleanup",
+    "cancellation and source/epoch publication check"
+  ]
+}

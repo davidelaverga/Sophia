@@ -53,7 +53,7 @@ For simultaneous team conversation, participant identity comes from authenticate
 
 **OM-02 — `QUEUE_STEER_DESIGN.md`.** Codex-native uses active-turn steer RPC; Claude-native uses its managed terminal path with timing limits. A draft waiting in browser localStorage is not a durably admitted project command. Sophia stores admitted amendments server-side and tracks provider acceptance separately from incorporation. The adapter reports actual capabilities; it does not copy a single optimistic boolean into a promise of safe steer.
 
-**Remaining binding audit is explicit:** enumerate current session creation/adoption, sharing, durable history, live feeds, native identities, permission events/resolution and cancellation from the pinned OpenAPI/route implementations. Map each to the chosen native runner. Run one positive and one adverse owner case per operation. This is the first work in S1-09 and the main subject of Part 2; the endpoint matrix is not fabricated here.
+**Part 2 binding audit delivered:** [architecture 11](../architecture/11_OMNIGENT_BINDINGS.md) maps the selected native routes, principal flow, receipts and recovery. OM-03 through OM-16 record the exact source coverage. The full upstream OpenAPI was not downloaded; route/schema code and API sections are the evidence. Installed-account and positive/adverse native probes remain S1-09 work.
 
 ## 5. Buzz: delivery discipline and human floor
 
@@ -81,10 +81,16 @@ Do not install Buzz's relay, Nostr identity, forge, or mobile stack. Its useful 
 
 **OLD-03 — `build_deck_from_slides.py`.** This path and blob are verified. Its full compiler closure remains to inspect: tool wrapper, slide/source model, rendering dependencies, object paths and output registration. This is a specific unresolved extraction, not a license to substitute a simplistic deck generator and claim reuse.
 
-**IM-01 — Impeccable.** Keep design intent/product truth separate from surface style; use selected critique/audit guidance for prototypes. Do not let generic anti-pattern rules silently redesign Luis's established Sophia interface. The v0.2 README audit is retained; exact installed skill dependencies and license notices are Part 2 work.
+**IM-01 — Impeccable.** Keep design intent/product truth separate from surface style; use selected critique/audit guidance for prototypes. Do not let generic anti-pattern rules silently redesign Luis's established Sophia interface. The v0.2 README audit is retained; exact installed skill dependencies and license notices remain an explicit implementation task, not a completed audit.
 
 **TEST-01/02 — Playwright and Storybook.** Adopt Playwright for actual preview assertions/traces and Storybook/MSW for component scenario control in S2. Neither supplies dsh conversation replay or establishes API behavior from a mock. Keep the three evidence types labelled.
 
 ## 8. License and upgrade record
 
 No third-party source code was copied into this documentation pack as an implemented module. Before extraction, record exact files, source SHA, license/NOTICE obligations, local changes and maintenance owner. Pin donor versions at the package/adapter boundary. A newer interesting donor is an extension candidate, not a reason to replace the selected architecture mid-goal.
+
+## Part 2 exact additions
+
+[Renderer extraction](../architecture/14_RENDERER_EXTRACTION.md) identifies OLD-04 through OLD-09 and the actual kernel blob closure. [Frontend bindings](../architecture/13_FRONTEND_BINDINGS.md) bind UI-01's actual source anchors, not descriptions of a missing reference. [Data/API bindings](../architecture/12_DATA_AND_API_BINDINGS.md) are Sophia decisions informed by the cited database contracts; the SQL is not upstream code.
+
+The auth route implementation supersedes older design prose where it differs: authorize is JSON, token operations are forms, the device client ID cannot impersonate the reserved first-party login client, and refreshing a stale rotating token may revoke the grant. A native session model PATCH stores a requested route; actual selection must be observed.

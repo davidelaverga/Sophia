@@ -53,3 +53,7 @@ Additional channels, richer membership/decision charters, mobile native shells, 
 ## Promotion rule
 
 A concrete user need and a bounded implementation proposal admit an extension experiment. Success requires a better useful outcome or substantially simpler operation against a competent current route, without violating source, authority or privacy boundaries. Inconclusive, rejected and no-change are legitimate outcomes. No calendar deadline or cost estimate is asserted here without task sizing and actual usage.
+
+## Native-editable PowerPoint export
+
+The first deck path retains editable HTML and exports one full-slide image per PPTX slide. Add a separate semantic slide representation and native text/shape/chart exporter when that becomes a real user need; do not call the existing raster compiler natively editable. Reuse the same asset/source/version/publication contracts. Compare visual fidelity, notes, fonts, accessibility, client editability and export/reimport behavior on actual decks. This extension does not replace S1's working export or S2's source-preserving HTML edits. [OLD-03, OLD-07]

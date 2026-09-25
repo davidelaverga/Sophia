@@ -1,0 +1,133 @@
+Generated API types match OpenAPI
+
+> test
+> npm run build && node --test tests/*.test.mjs
+
+
+> build
+> tsc -p tsconfig.json
+
+✔ device authorize is JSON, not a form (0.8015ms)
+✔ device exchange is a form with the RFC grant name (0.1269ms)
+✔ refresh and revoke use actual refresh_token field (0.0891ms)
+✔ native message does not spoof created_by (0.4555ms)
+✔ multipart create is decoded separately from JSON create (0.1567ms)
+✔ native hosts use hosts not data (0.0899ms)
+✔ a 2xx policy denial is not acceptance (0.0799ms)
+✔ native control ack is not settlement (0.066ms)
+✔ unknown response shape fails instead of inventing success (0.057ms)
+✔ missing native resolution verdict stays unknown (0.0956ms)
+✔ explicit unanswered resolution is expiry, not denial (0.0485ms)
+✔ approval defaults to one-time and cannot add persist metadata (0.0733ms)
+✔ launch uses host-owned absolute workspace and git shape (0.1259ms)
+✔ Hold fences first and waits for settlement (0.0761ms)
+✔ Resume cannot overtake unsettled Hold (0.0325ms)
+✔ Resume reauthorizes after settled Hold with a new epoch (0.0224ms)
+✔ Stop cannot settle while native effects are unknown (0.0221ms)
+✔ Stopped pursuit cannot be resumed by a late event (0.0259ms)
+✔ expired dispatch becomes unknown, not retryable pending (0.0244ms)
+✔ uncertain rotating refresh requires renewed authorization (0.0206ms)
+✔ only Sophia admission repeats its same key after ambiguous response (0.0165ms)
+✔ valid current dispatch is allowed (0.0619ms)
+✔ old goal epoch is not allowed after Hold (0.0279ms)
+✔ wrong project or binding is not admitted (0.0239ms)
+✔ revoked source or resource denies even a fresh queued dispatch (0.0434ms)
+✔ project member cannot resolve another owner permission (0.0369ms)
+✔ stale permission fingerprint is refused (0.023ms)
+✔ S1 approval remains native while S2 supported response is allowed (0.0265ms)
+✔ SSE cursor remains exact above Number safe range (0.1025ms)
+✔ SSE duplicate does not mutate projection (0.0449ms)
+✔ gap requests snapshot instead of silently applying (0.0228ms)
+✔ explicit authorized cursor advance accounts for hidden events (0.0457ms)
+✔ lens navigation and reconnect preserve the unsaved draft (0.0423ms)
+✔ failed preview retains stable candidate (0.0252ms)
+✔ path traversal, encoded traversal and absolute paths are refused (0.1237ms)
+✔ stale source-head and file hash both conflict (0.1038ms)
+✔ valid patch and new file are accepted as source operations (0.035ms)
+✔ duplicate file targets conflict (0.0452ms)
+✔ unavailable overflow is unknown instead of zero (0.0451ms)
+✔ semantic hashing input is stable under property ordering (0.0655ms)
+✔ canonical JSON rejects nonfinite values (0.0319ms)
+✔ once a gap is observed, incremental application waits for resnapshot (0.0216ms)
+✔ host readiness is a nullable map and preserves named failure reasons (0.0471ms)
+✔ unreported or malformed host readiness remains unknown (0.0378ms)
+ℹ tests 44
+ℹ suites 0
+ℹ pass 44
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 54.351
+✔ client does not retry ambiguous admission with a fresh key (0.6596ms)
+✔ client carries bearer and stable key without actor spoofing (10.4171ms)
+✔ client treats a stale response as an API error, not a completion (0.3155ms)
+✔ client refuses credentials and arbitrary path in configured origin (0.1211ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 55.9416
+{
+  "status": "passed",
+  "scope": "offline_contract_structure_and_binding_consistency",
+  "checked_at_utc": "2026-09-24T22:42:42.253093+00:00",
+  "counts": {
+    "api_local_references": 155,
+    "api_operations": 33,
+    "api_component_schemas": 40,
+    "declared_sql_tables": 31,
+    "frontend_source_bindings": 26,
+    "renderer_extraction_entries": 4,
+    "renderer_positive_examples": 1,
+    "renderer_negative_examples": 5,
+    "synthetic_native_wire_examples": 12,
+    "unexecuted_migration_candidates": 4
+  },
+  "generated_types": "matched",
+  "not_tested": [
+    "formal full OpenAPI conformance",
+    "Fastify route implementation",
+    "runtime response schema validation",
+    "PostgreSQL parsing/execution/RLS/concurrency",
+    "native device grant or native sessions",
+    "actual renderer extraction/rendering",
+    "target Node 24 runtime",
+    "cloud deployment"
+  ],
+  "errors": []
+}
+{
+  "status": "passed",
+  "scope": "documentation_integrity_only",
+  "checked_at_utc": "2026-09-24T22:42:42.617077+00:00",
+  "counts": {
+    "files": 131,
+    "sources": 85,
+    "goals": 24,
+    "detailed_sprint1_goals": 14,
+    "local_links_checked": 247,
+    "source_mentions_checked": 453
+  },
+  "contract_specimen_schema_validation": "passed",
+  "not_tested": [
+    "external link availability",
+    "installed provider capability",
+    "production TypeScript implementation (reference tests are reported separately)",
+    "dsh boot",
+    "live audio or images",
+    "native engineering sessions",
+    "SQL migrations",
+    "application deployment",
+    "runtime configuration-schema acceptance"
+  ],
+  "errors": [],
+  "warnings": []
+}
+
+Local checks finished. PostgreSQL, native sessions, media and deployment remain separate tests.
+
+# Environment: Windows 11, Node v24.11.0, TypeScript 5.8.3, Python 3.12.10 + jsonschema; PYTHONUTF8=1 (the pack's Python reads files without an encoding). Run 2026-09-24T22:42Z on a throwaway copy of docs/pack/.

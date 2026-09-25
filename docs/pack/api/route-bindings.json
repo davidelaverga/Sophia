@@ -1,0 +1,534 @@
+{
+  "status": "design_bound_not_implemented",
+  "routes": [
+    {
+      "method": "post",
+      "path": "/api/v1/projects",
+      "operationId": "createProject",
+      "requestSchema": "ProjectCreate",
+      "responseSchema": "ProjectCreated",
+      "service": "projects.create",
+      "tables": [
+        "projects",
+        "project_members"
+      ],
+      "goal": "S1-02",
+      "description": "Create a project and creator membership atomically.",
+      "status": 201,
+      "destination": "apps/api/src/routes/projects.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/projects/{projectId}/snapshot",
+      "operationId": "getProjectSnapshot",
+      "requestSchema": null,
+      "responseSchema": "Snapshot",
+      "service": "projections.snapshot",
+      "tables": [
+        "projects",
+        "goals",
+        "project_events"
+      ],
+      "goal": "S1-02",
+      "description": "Consistent authorized snapshot with replay cursor.",
+      "status": 200,
+      "destination": "apps/api/src/routes/projections.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/projects/{projectId}/events",
+      "operationId": "followProjectEvents",
+      "requestSchema": null,
+      "responseSchema": null,
+      "service": "events.follow",
+      "tables": [
+        "project_events"
+      ],
+      "goal": "S1-02",
+      "description": "Authorized replay then live SSE; event ID is a decimal sequence; not an Omnigent stream.",
+      "status": 200,
+      "destination": "apps/api/src/routes/events.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/contributions",
+      "operationId": "submitContribution",
+      "requestSchema": "Contribution",
+      "responseSchema": "Receipt",
+      "service": "conversations.submit",
+      "tables": [
+        "commands",
+        "source_objects"
+      ],
+      "goal": "S1-04",
+      "description": "Post attributed discussion; explicit intent distinguishes discussion from work admission.",
+      "status": 202,
+      "destination": "apps/api/src/routes/conversations.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/commands",
+      "operationId": "admitGoalCommand",
+      "requestSchema": "GoalCommand",
+      "responseSchema": "Receipt",
+      "service": "commands.admitGoal",
+      "tables": [
+        "commands",
+        "goals",
+        "outbox"
+      ],
+      "goal": "S1-02",
+      "description": "Check current membership, revisions, epoch and idempotency; no provider I/O in transaction.",
+      "status": 202,
+      "destination": "apps/api/src/routes/commands.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/projects/{projectId}/commands/{commandId}",
+      "operationId": "getCommandStatus",
+      "requestSchema": null,
+      "responseSchema": "CommandStatus",
+      "service": "commands.status",
+      "tables": [
+        "commands",
+        "outbox"
+      ],
+      "goal": "S1-02",
+      "description": "Delivery and settlement states are separate.",
+      "status": 200,
+      "destination": "apps/api/src/routes/commands.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/progress-reviews",
+      "operationId": "requestProgressReview",
+      "requestSchema": "ProgressReviewRequest",
+      "responseSchema": "AcceptedJob",
+      "service": "reviews.request",
+      "tables": [
+        "lead_reviews",
+        "jobs"
+      ],
+      "goal": "S1-11",
+      "description": "Coalesce scheduled/event/manual review while retaining the manual question.",
+      "status": 202,
+      "destination": "apps/api/src/routes/reviews.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/room-token",
+      "operationId": "issueRoomToken",
+      "requestSchema": "RoomTokenRequest",
+      "responseSchema": "RoomToken",
+      "service": "rooms.issueToken",
+      "tables": [
+        "room_state",
+        "project_members"
+      ],
+      "goal": "S1-04",
+      "description": "Short-lived project room token, never a Google API key.",
+      "status": 200,
+      "destination": "apps/api/src/routes/rooms.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/rooms/{roomId}/exchanges",
+      "operationId": "startExchange",
+      "requestSchema": "ExchangeRequest",
+      "responseSchema": "ExchangeReceipt",
+      "service": "rooms.startExchange",
+      "tables": [
+        "room_state"
+      ],
+      "goal": "S1-05",
+      "description": "Open one attributed exchange against current room revision.",
+      "status": 201,
+      "destination": "apps/api/src/routes/rooms.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/rooms/{roomId}/input-floor",
+      "operationId": "transferInputFloor",
+      "requestSchema": "FloorRequest",
+      "responseSchema": "ExchangeReceipt",
+      "service": "rooms.transferFloor",
+      "tables": [
+        "room_state"
+      ],
+      "goal": "S1-05",
+      "description": "Permission to talk is not a resource-owner grant.",
+      "status": 200,
+      "destination": "apps/api/src/routes/rooms.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/source-imports",
+      "operationId": "createSourceImport",
+      "requestSchema": "SourceImportRequest",
+      "responseSchema": "AcceptedJob",
+      "service": "imports.create",
+      "tables": [
+        "source_objects",
+        "jobs"
+      ],
+      "goal": "S1-08",
+      "description": "Parse selected sources only; imported instructions are evidence, not authority.",
+      "status": 202,
+      "destination": "apps/api/src/routes/imports.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/imports/{importId}/manifest",
+      "operationId": "getImportManifest",
+      "requestSchema": null,
+      "responseSchema": "ImportManifest",
+      "service": "imports.manifest",
+      "tables": [
+        "jobs",
+        "source_objects"
+      ],
+      "goal": "S1-08",
+      "description": "Report missing files, grouping and source coverage explicitly.",
+      "status": 200,
+      "destination": "apps/api/src/routes/imports.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/imports/{importId}/publish",
+      "operationId": "publishImport",
+      "requestSchema": "PublishImport",
+      "responseSchema": "Receipt",
+      "service": "imports.publish",
+      "tables": [
+        "project_revisions",
+        "source_objects",
+        "commands"
+      ],
+      "goal": "S1-08",
+      "description": "Release selected source material and accept the corrected current frame as distinct checks.",
+      "status": 202,
+      "destination": "apps/api/src/routes/imports.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/execution-connections",
+      "operationId": "startExecutionConnection",
+      "requestSchema": "ConnectionStart",
+      "responseSchema": "ConnectionReceipt",
+      "service": "connections.start",
+      "tables": [
+        "execution_connections"
+      ],
+      "goal": "S1-09",
+      "description": "Start fixed-server Omnigent device authorization; user signs in on Omnigent, not a vendor login.",
+      "status": 201,
+      "destination": "apps/api/src/routes/connections.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/execution-connections/{connectionId}",
+      "operationId": "getExecutionConnection",
+      "requestSchema": null,
+      "responseSchema": "ConnectionReceipt",
+      "service": "connections.status",
+      "tables": [
+        "execution_connections"
+      ],
+      "goal": "S1-09",
+      "description": "Owner-only; backend polls native flow. Never return device/access/refresh secrets.",
+      "status": 200,
+      "destination": "apps/api/src/routes/connections.ts"
+    },
+    {
+      "method": "delete",
+      "path": "/api/v1/execution-connections/{connectionId}",
+      "operationId": "revokeExecutionConnection",
+      "requestSchema": null,
+      "responseSchema": "Empty",
+      "service": "connections.revoke",
+      "tables": [
+        "execution_connections",
+        "executor_resources",
+        "outbox"
+      ],
+      "goal": "S1-09",
+      "description": "Fence new use first; reconcile native grant revocation and active jobs separately.",
+      "status": 200,
+      "destination": "apps/api/src/routes/connections.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/execution-connections/{connectionId}/hosts",
+      "operationId": "listConnectionHosts",
+      "requestSchema": null,
+      "responseSchema": null,
+      "service": "connections.hosts",
+      "tables": [
+        "execution_connections"
+      ],
+      "goal": "S1-09",
+      "description": "Owner-only native host metadata, not a shared host-filesystem browser.",
+      "status": 200,
+      "destination": "apps/api/src/routes/connections.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/resources",
+      "operationId": "registerResource",
+      "requestSchema": "ResourceRegister",
+      "responseSchema": "Resource",
+      "service": "resources.register",
+      "tables": [
+        "executor_resources",
+        "execution_connections"
+      ],
+      "goal": "S1-09",
+      "description": "Require selected host ownership and a bounded repository mandate.",
+      "status": 201,
+      "destination": "apps/api/src/routes/resources.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/resources/{resourceId}/status",
+      "operationId": "getResourceStatus",
+      "requestSchema": null,
+      "responseSchema": "Resource",
+      "service": "resources.status",
+      "tables": [
+        "executor_resources",
+        "native_observations"
+      ],
+      "goal": "S1-09",
+      "description": "Current source timestamps; unavailable quota/cost is not zero.",
+      "status": 200,
+      "destination": "apps/api/src/routes/resources.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/human-actions/{actionId}",
+      "operationId": "getHumanAction",
+      "requestSchema": null,
+      "responseSchema": "HumanAction",
+      "service": "actions.read",
+      "tables": [
+        "human_actions"
+      ],
+      "goal": "S1-09",
+      "description": "Returns owner and exact native destination; S1 permissions are native-only.",
+      "status": 200,
+      "destination": "apps/api/src/routes/actions.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/human-actions/{actionId}/responses",
+      "operationId": "respondToHumanAction",
+      "requestSchema": "ActionResponse",
+      "responseSchema": "Receipt",
+      "service": "actions.respond",
+      "tables": [
+        "human_actions",
+        "commands",
+        "outbox"
+      ],
+      "goal": "S2-04",
+      "description": "S2: owner, request fingerprint and capability checked again before native resolution.",
+      "status": 202,
+      "destination": "apps/api/src/routes/actions.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/projects/{projectId}/review-intents",
+      "operationId": "submitReviewIntent",
+      "requestSchema": "ReviewIntent",
+      "responseSchema": "Receipt",
+      "service": "reviewIntents.create",
+      "tables": [
+        "review_intents",
+        "commands"
+      ],
+      "goal": "S1-12",
+      "description": "Version-bound change/preserve brief, not direct arbitrary worker text.",
+      "status": 202,
+      "destination": "apps/api/src/routes/reviewIntents.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/artifacts/{artifactId}/versions",
+      "operationId": "listArtifactVersions",
+      "requestSchema": null,
+      "responseSchema": null,
+      "service": "artifacts.versions",
+      "tables": [
+        "artifacts",
+        "artifact_versions"
+      ],
+      "goal": "S1-07",
+      "description": "Return authorized source/preview versions; retain stable while candidate builds.",
+      "status": 200,
+      "destination": "apps/api/src/routes/artifacts.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/workspaces/{workspaceId}/patches",
+      "operationId": "submitSourcePatch",
+      "requestSchema": "SourcePatch",
+      "responseSchema": "AcceptedJob",
+      "service": "sources.patch",
+      "tables": [
+        "source_objects",
+        "artifact_versions",
+        "jobs"
+      ],
+      "goal": "S1-07",
+      "description": "Compare expected source head and each file hash; no stale human-draft overwrite.",
+      "status": 202,
+      "destination": "apps/api/src/routes/sources.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/workspaces/{workspaceId}/builds",
+      "operationId": "startSourceBuild",
+      "requestSchema": "BuildRequest",
+      "responseSchema": "AcceptedJob",
+      "service": "builds.start",
+      "tables": [
+        "jobs",
+        "artifact_versions"
+      ],
+      "goal": "S1-07",
+      "description": "Fixed recipe over immutable source, no arbitrary command string.",
+      "status": 202,
+      "destination": "apps/api/src/routes/builds.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/assets/image-jobs",
+      "operationId": "startImageJob",
+      "requestSchema": "ImageRequest",
+      "responseSchema": "AcceptedJob",
+      "service": "images.start",
+      "tables": [
+        "source_objects",
+        "jobs",
+        "usage_records"
+      ],
+      "goal": "S1-06",
+      "description": "One explicit model route per job; preserve selected references.",
+      "status": 202,
+      "destination": "apps/api/src/routes/images.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/sources/uploads",
+      "operationId": "createSourceUpload",
+      "requestSchema": "SourceUploadRequest",
+      "responseSchema": "SourceUploadReceipt",
+      "service": "sources.issueUpload",
+      "tables": [
+        "source_objects"
+      ],
+      "goal": "S1-08",
+      "description": "Private upload staging; checksums and completed upload verified before use.",
+      "status": 201,
+      "destination": "apps/api/src/routes/sources.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/sources/{sourceId}/complete",
+      "operationId": "completeSourceUpload",
+      "requestSchema": null,
+      "responseSchema": "SourceRef",
+      "service": "sources.complete",
+      "tables": [
+        "source_objects"
+      ],
+      "goal": "S1-08",
+      "description": "Server verifies received object length/hash, never trusts only the client claim.",
+      "status": 200,
+      "destination": "apps/api/src/routes/sources.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/sources/{sourceId}/content",
+      "operationId": "getSourceContent",
+      "requestSchema": null,
+      "responseSchema": "SourceContent",
+      "service": "sources.content",
+      "tables": [
+        "source_objects",
+        "project_members"
+      ],
+      "goal": "S1-08",
+      "description": "Authorize each read and issue short-lived URL; redacted/forgotten source has no new URL.",
+      "status": 200,
+      "destination": "apps/api/src/routes/sources.ts"
+    },
+    {
+      "method": "delete",
+      "path": "/api/v1/sources/{sourceId}",
+      "operationId": "forgetSource",
+      "requestSchema": null,
+      "responseSchema": "Receipt",
+      "service": "sources.forget",
+      "tables": [
+        "source_objects",
+        "source_dependencies",
+        "context_manifests",
+        "commands"
+      ],
+      "goal": "S1-08",
+      "description": "Future-use fence first, derived/runtime/provider-copy cleanup tracked independently.",
+      "status": 202,
+      "destination": "apps/api/src/routes/sources.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/artifact-versions/{versionId}/publish",
+      "operationId": "publishArtifactCandidate",
+      "requestSchema": "CandidatePublish",
+      "responseSchema": "ArtifactVersion",
+      "service": "artifacts.publish",
+      "tables": [
+        "artifacts",
+        "artifact_versions",
+        "goals"
+      ],
+      "goal": "S1-07",
+      "description": "Trusted validation plus current goal/source and stable-head CAS; no automatic goal acceptance.",
+      "status": 200,
+      "destination": "apps/api/src/routes/artifacts.ts"
+    },
+    {
+      "method": "get",
+      "path": "/api/v1/jobs/{jobId}",
+      "operationId": "getJob",
+      "requestSchema": null,
+      "responseSchema": "AcceptedJob",
+      "service": "jobs.read",
+      "tables": [
+        "jobs"
+      ],
+      "goal": "S1-03",
+      "description": "Job state is not artifact acceptance or complete native effect settlement.",
+      "status": 200,
+      "destination": "apps/api/src/routes/jobs.ts"
+    },
+    {
+      "method": "post",
+      "path": "/api/v1/resources/{resourceId}/revoke",
+      "operationId": "revokeResource",
+      "requestSchema": "GrantRevocation",
+      "responseSchema": "Receipt",
+      "service": "resources.revoke",
+      "tables": [
+        "executor_resources",
+        "outbox",
+        "commands"
+      ],
+      "goal": "S1-09",
+      "description": "Owner withdraws mandate; pending delivery retired, live work reconciled.",
+      "status": 202,
+      "destination": "apps/api/src/routes/resources.ts"
+    }
+  ]
+}

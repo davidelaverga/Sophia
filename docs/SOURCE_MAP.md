@@ -1,7 +1,7 @@
 # Document and source map
 
 This file answers two questions: which document governs a decision, and which
-upstream source a Sophia file is grounded in. Design authority is the v0.3
+upstream source a Sophia file is grounded in. Design authority is the v0.4
 pack. Upstream sources establish mechanisms and never override a Sophia
 decision.
 
@@ -9,10 +9,11 @@ decision.
 
 | Fact | Value |
 |---|---|
-| Imported file | `Sophia_Implementation_Pack_v0.3_Part1_LINKS_FIXED_2026-09-24.zip` |
-| ZIP SHA-256 | `61fb067bf32541496c7fbf5ec8ce59ea33a2e6e3a6441dbb11c5f1cf9761d7b3` |
-| Location | [`docs/pack/`](pack/00_START_HERE.md): 60 files, byte-identical to the archive contents |
-| Validator | `python3 docs/pack/scripts/validate_pack.py`: 0 errors, 0 warnings, specimen schemas passed ([run output](evidence/S1-01/pack-validation.run.json)). The validator rewrites `evidence/pack-validation.json` in place, so the pack's own copy was restored and this run's output was stored separately |
+| Imported file | `Sophia_Implementation_Pack_v0.4_Part2_2026-09-24.zip` (cumulative: Part 1 plus the Part 2 bindings) |
+| ZIP SHA-256 | `2a869f5201bac25c47584fda95b7146ef9dfd3b5ab86ef71db11cc93d9973766` |
+| Location | [`docs/pack/`](pack/00_START_HERE.md): 119 files, byte-identical to the archive contents; `sha256sum -c` against the pack's own [SHA256SUMS.txt](pack/SHA256SUMS.txt) passes for all 118 listed files |
+| Validator | `docs/pack/scripts/verify_local.sh` (runs `validate_pack.py`, `validate_part2.py` and the pack's 48 reference tests): all passed on a throwaway copy ([run output](evidence/pack-v0.4/verify-local.run.txt)). The scripts rewrite files under `evidence/`, so they never run in place |
+| Replaces | v0.3 Part 1 (`..._LINKS_FIXED_...zip`, SHA-256 `61fb067b…`), imported at S1-01. The v0.4 `00_START_HERE` makes v0.3 historical. Its navigation-only extras (`OPEN_GOALS.html`, `NAVIGATION_README.md`) are not part of v0.4 and were dropped; on GitHub the Markdown links work as they are |
 
 Do not edit files under `docs/pack/`. Record repository-specific decisions in
 the files outside it (this map, [DESTINATION_MAP](DESTINATION_MAP.md),
@@ -43,7 +44,18 @@ replaces `docs/pack/` wholesale.
 | [sources/](pack/sources/README.md) | Source register and donor atlas | per goal `source_ids` |
 | [delivery/](pack/delivery/GOAL_INDEX.md) | Goals, dependencies, acceptance | per goal |
 | [templates/](pack/templates/SESSION_HANDOFF.md) | Session and executable handoffs; S1-01 attempt 1 is [here](handoffs/S1-01-attempt-1.md) | every attempt |
-| [CONTINUATION](pack/CONTINUATION.md) | Next documentation pass (Part 2) | documentation owners |
+| [architecture/11_OMNIGENT_BINDINGS](pack/architecture/11_OMNIGENT_BINDINGS.md) | Owner device grants, dormant session bundles, native Stop/settlement, receipts | S1-09, S1-10 |
+| [architecture/12_DATA_AND_API_BINDINGS](pack/architecture/12_DATA_AND_API_BINDINGS.md) | Roles/RLS, command admission, outbox, snapshot + SSE, errors | **S1-02** onward |
+| [architecture/13_FRONTEND_BINDINGS](pack/architecture/13_FRONTEND_BINDINGS.md) | Studio reference → production components and API | S1-04, S1-07, S1-12 |
+| [architecture/14_RENDERER_EXTRACTION](pack/architecture/14_RENDERER_EXTRACTION.md) | The three audited JS render kernels and their adaptations (D32) | S1-13 |
+| [api/](pack/api/README.md) | OpenAPI contract (33 operations), generated types, route bindings, reference client | S1-02 onward |
+| [db/](pack/db/README.md) | Four PostgreSQL migration candidates and their SQL tests | **S1-02** |
+| [implementation/](pack/implementation/README.md) | Executable reference logic (wire builders, control rules, projections, source patches) | S1-02, S1-03, S1-09 |
+| [frontend/](pack/frontend/README.md) | Anchor → component/API bindings for the Studio reference | S1-04, S1-07, S1-12 |
+| [renderers/](pack/renderers/README.md) | Renderer extraction manifest, dependency closure, render contract | S1-13 |
+| [ops/](pack/ops/DEPLOYMENT_BINDINGS.md) | Deployment units, secrets, readiness, upgrade order | S1-01, S1-14 |
+| [05_IMPLEMENTATION_STATUS](pack/05_IMPLEMENTATION_STATUS.md) | What the pack itself tested and what it did not | all |
+| [CONTINUATION](pack/CONTINUATION.md) | Next documentation pass | documentation owners |
 
 ## 2. Upstream sources used at S1-01
 
