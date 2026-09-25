@@ -66,7 +66,17 @@ function Closed({ text }: { text: string }) {
   return (
     <Centered title="This door is closed">
       <p>{text}</p>
+      <HomeLink />
     </Centered>
+  )
+}
+
+/** A closed door still leads somewhere: Sophia's front page (sign-in, or your projects). */
+function HomeLink() {
+  return (
+    <a className="pill" href="/">
+      Go to Sophia
+    </a>
   )
 }
 
@@ -214,6 +224,7 @@ function Waiting({
     return (
       <Centered title="Not this time">
         <p>The room did not let you in. You can ask whoever invited you.</p>
+        <HomeLink />
       </Centered>
     )
   }

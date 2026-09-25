@@ -50,6 +50,7 @@ export function LensSwitcher({ lens, onChange }: Props) {
             onClick={() => onChange(l)}
           >
             {LENS_LABEL[l]}
+            <kbd aria-hidden>{LENSES.indexOf(l) + 1}</kbd>
           </button>
         ))}
       </div>

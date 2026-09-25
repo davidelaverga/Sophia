@@ -3,6 +3,7 @@
 // are shared.
 import type { Membership, Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useShortcuts } from '../../app/shortcuts.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
@@ -33,6 +34,7 @@ interface Props {
 
 export function StudioShell({ projectId, identity, room, snapshot, membership }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
+  useShortcuts({ '1': () => setLens('converse'), '2': () => setLens('explore'), '3': () => setLens('build') })
   return (
     <RoomStage
       room={room}

@@ -3,7 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { Invitation, InvitationCreate } from '@sophia/contracts'
-import { Icon, SwapLabel } from '@sophia/ui'
+import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import { createInvitation, decideLobbyEntry, reissueInvitation, revokeInvitation } from '../../api/access.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
@@ -44,8 +44,9 @@ export function InviteSheet({ context, onClose }: { context: SheetContext; onClo
       <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-labelledby="invite-title" tabIndex={-1}>
         <header className="sheet-head">
           <h2 id="invite-title">Invite</h2>
-          <button type="button" className="round" aria-label="Close" onClick={onClose}>
+          <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
             <Icon name="close" />
+            <Tip label="Close" keys="Esc" side="bottom" align="end" />
           </button>
         </header>
         <div className="sheet-tabs" role="tablist" aria-label="Invite">

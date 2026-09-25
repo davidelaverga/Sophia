@@ -4,10 +4,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useShortcuts } from '../../app/shortcuts.ts'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
-import { RoomDock } from './RoomDock.tsx'
+import { canShareScreen, RoomDock } from './RoomDock.tsx'
 import { floorView, orderParticipants, roomLine, stageMode, type RoomLine, type StageMode } from './room-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
@@ -117,6 +118,18 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
   )
 }
 
+/** J joins; in the room, M, V and S toggle microphone, camera and screen (the dock's tips show them). */
+function useRoomKeys(room: ProjectRoom) {
+  const live = room.status === 'live' || room.status === 'reconnecting'
+  const me = room.participants.find((p) => p.local)
+  useShortcuts({
+    j: room.status === 'idle' || room.status === 'failed' ? () => void room.join() : undefined,
+    m: live ? () => void room.setMicrophone(!me?.micOn) : undefined,
+    v: live ? () => void room.setCamera(!me?.cameraOn) : undefined,
+    s: live && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
+  })
+}
+
 const runningGoals = (snapshot: Snapshot | undefined) =>
   snapshot?.goals.filter((g) => g.status === 'running' || g.status === 'checking').length ?? 0
 
@@ -133,6 +146,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
   const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
   const passed = useFloorHandoff(stage, light, holder)
+  useRoomKeys(room)
   return (
     <section
       ref={stage}
