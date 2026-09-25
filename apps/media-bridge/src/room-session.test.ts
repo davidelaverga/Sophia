@@ -657,8 +657,33 @@ describe('room session: guests (case A12)', () => {
     assert.deepEqual(service.acks, [])
   })
 
-  it('a fresh session for a paused exchange acknowledges before it even joins Google', async () => {
+  it('a fresh session for a paused exchange acknowledges once it joined the room, before it even joins Google', async () => {
     await open({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST })
+    await flush()
+    assert.deepEqual(service.acks, [REQUEST])
+  })
+
+  it('acknowledges only from inside the room: not after a failed join, and once a retry joins', async () => {
+    joinFailures = 1
+    const s = newSession({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST }, [member(LUIS)])
+    await s.start()
+    await flush()
+    assert.deepEqual(service.acks, [], 'not in the room, so it cannot speak for it')
+    clock += 1000
+    s.tick()
+    await flush()
+    await flush()
+    assert.equal(rooms.length, 1)
+    assert.deepEqual(service.acks, [REQUEST])
+  })
+
+  it('a bridge reconnecting to the room acknowledges once it is connected again', async () => {
+    const { session, room } = await ready()
+    room.events.connection('reconnecting', null)
+    session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST, roomRevision: 2 }))
+    await flush()
+    assert.deepEqual(service.acks, [], 'not while its room connection is down')
+    room.events.connection('connected', null)
     await flush()
     assert.deepEqual(service.acks, [REQUEST])
   })

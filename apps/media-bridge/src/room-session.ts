@@ -208,7 +208,6 @@ export class RoomSession {
     })
     this.stopTicking = (this.deps.every ?? everyInterval)(() => this.tick(), TICK_MS)
     this.applyPause()
-    this.ackQuiesce()
     await this.join()
   }
 
@@ -316,6 +315,7 @@ export class RoomSession {
     const members = people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
     this.state.setPresent(members, this.roomDown || people.some(isGuestLike))
     this.applyPause()
+    this.ackQuiesce()
     this.checkHolder()
     this.reportDirty = true
   }
@@ -401,10 +401,15 @@ export class RoomSession {
     this.silence(this.pendingReply(this.deps.now()))
   }
 
-  /** A guest is waiting for their token: confirm input is closed and output cleared (case A12). */
+  /**
+   * A guest is waiting for their token: confirm input is closed and output cleared (case A12). Only from inside the
+   * room, connected: joining as `sophia` displaced any older bridge process there, so this confirmation speaks for
+   * whatever the room can hear. It is retried whenever the room's presence is known again (a join or a reconnect).
+   */
   private ackQuiesce(): void {
     const requestId = this.assignment.quiesceRequestId
-    if (!requestId || !this.pauseApplied || this.acked.has(requestId)) return
+    if (!requestId || !this.room || this.roomDown) return
+    if (!this.pauseApplied || this.acked.has(requestId)) return
     this.acked.add(requestId)
     const ack = {
       requestId,

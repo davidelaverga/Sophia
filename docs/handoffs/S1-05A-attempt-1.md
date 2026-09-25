@@ -23,7 +23,8 @@
 | `5e057b3` | Codex code review, round 1: dispatch waits for a ready runtime; a stop fences a transcribed reply before its first audio; a failed room join is retried; a brief retry resends the frozen request |
 | `27d3acf` | Codex code review, round 2: a stop also fences a reply to sound the holder made before any transcript; a brief is captured once, so a later steer's turn cannot replace it |
 | `4ba339a` | Codex code review, round 3: both long polls listen before the read that decides to wait; the room shows a runtime online only while dispatch would use it; a result notice counts as announced only once the room heard it; dev-stack runtime data lives under the system tmpdir |
-| (this commit) | Codex code review, round 4: a tool call Google repeats on a resumed connection keeps its idempotency identity; a guest declined during the quiescence wait gets no token; every bridge process still reporting for the room must confirm a quiesce request; a brief counts as one piece of work in the room line |
+| `c99fd7a` | Codex code review, round 4: a tool call Google repeats on a resumed connection keeps its idempotency identity; a guest declined during the quiescence wait gets no token; every bridge process still reporting for the room must confirm a quiesce request; a brief counts as one piece of work in the room line |
+| (this commit) | Codex end-to-end check: the bridge confirms a guest's quiesce request only from inside the room, connected, and again after a join or reconnect. Codex's own fix (`3c7335d`) and follow-up PR exist only in its cloud task; this is an equivalent change with its tests |
 
 ## Evidence
 
