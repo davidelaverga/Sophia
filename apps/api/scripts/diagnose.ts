@@ -3,7 +3,8 @@
 // next one starts a new READ ONLY transaction); the LiveKit part only lists rooms and participants.
 // Public output is an explicit allowlist (apps/api/src/diagnostics/sanitize.ts): every column has a declared kind,
 // ids pass as 8 hex characters, free text passes only as a known system code or a `redacted:<hash8>` reference,
-// enumerations only as their values, and undeclared columns are dropped. Review the JSON before posting anyway.
+// enumerations and system codes only from their field's own vocabulary, and undeclared columns are dropped. LiveKit
+// rooms appear as counts and Sophia's own state, never a person. Review the JSON before posting anyway.
 //
 //   SOPHIA_DIAGNOSE_DATABASE_URL=<a login that can read the sophia schema, verify-full TLS>
 //   [LIVEKIT_URL=… LIVEKIT_API_KEY=… LIVEKIT_API_SECRET=…]      also list LiveKit rooms and who is in them
@@ -12,13 +13,16 @@ import { parseArgs } from 'node:util'
 import { RoomServiceClient } from 'livekit-server-sdk'
 import pg from 'pg'
 import {
+  EVENT_TYPES,
   field,
-  identityClass,
+  OUTBOX_DESTINATIONS,
+  RECEIPT_STAGES,
+  roomSummary,
   type RowSchema,
   sanitizeRow,
   shortId,
-  sophiaAttributes,
-  standing,
+  sqlState,
+  SUMMARY_CODES,
 } from '../src/diagnostics/sanitize.ts'
 
 const { values } = parseArgs({ options: { project: { type: 'string' }, limit: { type: 'string' } } })
@@ -52,7 +56,7 @@ const SECTIONS: readonly Section[] = [
   {
     name: 'migrations',
     sql: () => `SELECT version, filename, sha256, applied_at FROM sophia_meta.schema_migrations ORDER BY version`,
-    schema: { version: 'code', filename: 'migration', sha256: 'sha256', applied_at: 'time' },
+    schema: { version: 'version', filename: 'migration', sha256: 'sha256', applied_at: 'time' },
   },
   {
     name: 'runtimes',
@@ -98,7 +102,7 @@ const SECTIONS: readonly Section[] = [
     schema: {
       project_id: 'id',
       id: 'id',
-      destination: 'code',
+      destination: { codes: OUTBOX_DESTINATIONS },
       state: {
         enum: ['pending', 'dispatching', 'acknowledged', 'outcome_unknown', 'settled', 'superseded', 'denied'],
       },
@@ -111,7 +115,7 @@ const SECTIONS: readonly Section[] = [
   {
     name: 'runtime_commands',
     sql: () => `SELECT c.project_id, c.runtime_id, c.seq, c.kind, c.answered_stage, c.created_at,
-                       (SELECT string_agg(r.stage, ',' ORDER BY r.recorded_at) FROM sophia.runtime_receipts r
+                       (SELECT array_agg(r.stage ORDER BY r.recorded_at) FROM sophia.runtime_receipts r
                          WHERE r.project_id = c.project_id AND r.runtime_command_id = c.id) AS receipts
                   FROM sophia.runtime_commands c ${scope('c.project_id')} ORDER BY c.created_at DESC LIMIT ${limit}`,
     schema: {
@@ -119,8 +123,8 @@ const SECTIONS: readonly Section[] = [
       runtime_id: 'id',
       seq: 'int',
       kind: { enum: ['create', 'resume', 'input', 'steer', 'hold', 'stop', 'inspect'] },
-      answered_stage: 'code',
-      receipts: 'code',
+      answered_stage: { enum: RECEIPT_STAGES },
+      receipts: { each: { enum: RECEIPT_STAGES } },
       created_at: 'time',
     },
   },
@@ -221,16 +225,19 @@ const SECTIONS: readonly Section[] = [
     name: 'events',
     sql: () => `SELECT project_id, sequence, type, summary_code, occurred_at FROM sophia.project_events ${scope()}
                  ORDER BY occurred_at DESC LIMIT ${limit}`,
-    schema: { project_id: 'id', sequence: 'int', type: 'code', summary_code: 'code', occurred_at: 'time' },
+    schema: {
+      project_id: 'id',
+      sequence: 'int',
+      type: { codes: EVENT_TYPES },
+      summary_code: { codes: SUMMARY_CODES },
+      occurred_at: 'time',
+    },
   },
 ]
 
 /** A failed section says only which Postgres error class it hit (e.g. 42P01: that migration is not applied). */
 const failure = (err: unknown) => ({
-  error:
-    typeof err === 'object' && err !== null && 'code' in err
-      ? field('code', `pg_${String(err.code).toLowerCase()}`)
-      : 'failed',
+  error: sqlState(typeof err === 'object' && err !== null && 'code' in err ? err.code : null),
 })
 
 async function database(url: string): Promise<Record<string, unknown>> {
@@ -255,11 +262,6 @@ async function database(url: string): Promise<Record<string, unknown>> {
   return out
 }
 
-// LiveKit's protocol enums, named for a reader of the thread.
-const PARTICIPANT_STATE = ['joining', 'joined', 'active', 'disconnected']
-const TRACK_SOURCE = ['unknown', 'camera', 'microphone', 'screen_share', 'screen_share_audio']
-const TRACK_TYPE = ['audio', 'video', 'data']
-const named = (names: readonly string[], n: number) => names[n] ?? 'invalid'
 const epochTime = (seconds: bigint) => field('time', new Date(Number(seconds) * 1000))
 
 async function livekit(): Promise<unknown> {
@@ -270,24 +272,13 @@ async function livekit(): Promise<unknown> {
   const client = new RoomServiceClient(url.replace(/^ws(s?):\/\//, 'http$1://'), key, secret)
   // Rooms are named by the project's room id; all live rooms are listed (a handful at most).
   const rooms = await client.listRooms()
+  // A room's trace is found in LiveKit by its name (the Sophia room id); its session id passes only as a digest.
   return Promise.all(
     rooms.slice(0, limit).map(async (r) => ({
       room: shortId(r.name),
-      // LiveKit's room session id: what its traces are looked up by. Nothing else is taken from the room.
-      sid: /^RM_[A-Za-z0-9]{1,40}$/.test(r.sid) ? r.sid : 'invalid',
+      session: field('digest', r.sid),
       created: epochTime(r.creationTime),
-      participants: (await client.listParticipants(r.name)).map((p) => ({
-        identity: identityClass(p.identity),
-        standing: standing(p.metadata),
-        state: named(PARTICIPANT_STATE, p.state),
-        joinedAt: epochTime(p.joinedAt),
-        tracks: p.tracks.map((t) => ({
-          source: named(TRACK_SOURCE, t.source),
-          type: named(TRACK_TYPE, t.type),
-          muted: t.muted,
-        })),
-        sophia: sophiaAttributes(p.attributes),
-      })),
+      participants: roomSummary(await client.listParticipants(r.name)),
     })),
   )
 }

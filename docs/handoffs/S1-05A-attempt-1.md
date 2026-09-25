@@ -26,7 +26,9 @@
 | `c99fd7a` | Codex code review, round 4: a tool call Google repeats on a resumed connection keeps its idempotency identity; a guest declined during the quiescence wait gets no token; every bridge process still reporting for the room must confirm a quiesce request; a brief counts as one piece of work in the room line |
 | `f820349` | Codex end-to-end check: the bridge confirms a guest's quiesce request only from inside the room, connected, and again after a join or reconnect. Codex's own fix (`3c7335d`) and follow-up PR exist only in its cloud task; this is an equivalent change with its tests |
 | `b8b00f5`, `0c93daa` | Production observability (refusal codes, dispatch outcomes, tool ids, `/ready` through 0014) and `deploy/S1-05A-release.md`, the release and debugging runbook |
-| (this commit) | Codex code review, round 5: opening or resuming an exchange refuses when the room service is not configured; a stopped reply that has begun stays silenced until its turn ends, however long the provider stalls; a heard notice's receipt is retried until the API records it |
+| `195236b` | Codex code review, round 5: opening or resuming an exchange refuses when the room service is not configured; a stopped reply that has begun stays silenced until its turn ends, however long the provider stalls; a heard notice's receipt is retried until the API records it |
+| `47ba439` | Merges `studio/qol` at `878aa9e`, the API that went live outside this branch (CX-0006): open sign-up, and an optional invitation email sender. The API settings now hold `RESEND_API_KEY` without `INVITE_FROM` (CX-0009), so without this merge the candidate API would exit at start |
+| (this commit) | Codex finding CX-0007 on the diagnostic: system codes pass only from their field's own vocabulary (anything else is digested), LiveKit rooms appear as counts plus Sophia's own state, and a command's receipt stages come back as an ordered list |
 
 ## Evidence
 
@@ -34,8 +36,8 @@ Records: [A](../evidence/S1-05A/checkpoint-A.md), [B](../evidence/S1-05A/checkpo
 
 | Check | Result at this commit |
 |---|---|
-| `pnpm check` | exit 0: toolchain, Prettier, oxlint, build, typecheck, contracts, 190 unit tests, all runtime-unit identities reproduced, 56 integration tests against the real pinned dsh (51 earlier + 5 runtime-service crossing) |
-| `pnpm test:db` | 127 pass |
+| `pnpm check` | exit 0: toolchain, Prettier, oxlint, build, typecheck, contracts, 223 unit tests, all runtime-unit identities reproduced, 56 integration tests against the real pinned dsh (51 earlier + 5 runtime-service crossing) |
+| `pnpm test:db` | 136 pass |
 | `pnpm test:sql` | 14 migrations and the pack's SQL test |
 | `pnpm test:livekit` | 2/2 against `livekit-server:v1.13.7` |
 | CI on `07dc4fb` | all four jobs green: runtime-unit, PostgreSQL, real LiveKit, local Supabase |

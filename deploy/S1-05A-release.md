@@ -20,7 +20,7 @@ This covers the five processes that make Sophia's room voice and her briefs work
 - `SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256`: without it, `/v1/media/*` answers 401.
 - `HOST=0.0.0.0` on Render. The default binds to localhost.
 
-Optional: `INVITE_TOKEN_SECRET`, `STUDIO_URL`, `RESEND_API_KEY` and `INVITE_FROM`, for invitations.
+Optional: `INVITE_TOKEN_SECRET`, `STUDIO_URL`, `RESEND_API_KEY` and `INVITE_FROM`, for invitations. `RESEND_API_KEY` without `INVITE_FROM` logs a warning at start and turns invitation emails off; invitations still carry their link and QR code.
 
 **Before the API runs this candidate**, the hosted database needs migrations 0012–0014. Apply them with the owner connection: `SOPHIA_MIGRATION_DATABASE_URL=… pnpm db:migrate -- --dry-run`, then again without `--dry-run`. `scripts/register-runtime.ts <projectId> <adminEmail>` registers the runtime and prints its capability once.
 
@@ -45,7 +45,13 @@ Every line carries ids and codes only: no audio, transcripts, brief text, tokens
   - One per dispatch: `dispatch outbox <id>: enqueued as runtime command <id> (seq n)`, `deferred: waiting for Sophia's runtime to …`, `denied: …` or `outcome_unknown: …`.
   - One per guest removal: `room removal <id> removed | absent | still pending`.
 - **Runtime host.** JSON events from the supervisor (`live: true` against the real model), covering start, ready, restarts and command handling.
-- **Database.** `apps/api/scripts/diagnose.ts` is a read-only snapshot of exchanges, presence, quiesce requests, native tasks, runtime commands and removals. It needs the owner connection. Its output is an allowlist: 8-character ids, codes, and `redacted:<hash>` for any text.
+- **Database and rooms.** `apps/api/scripts/diagnose.ts` is a read-only snapshot of exchanges, presence, quiesce requests, native tasks, runtime commands (with their receipt stages in order), removals and events. It needs the owner connection; with the LiveKit settings it also lists live rooms. Its output is an allowlist:
+  - 8-character ids;
+  - enumerations and system codes only from each field's own vocabulary;
+  - `redacted:<hash>` for any text or unknown code;
+  - each LiveKit room as counts (people by standing, unmuted tracks by source) plus Sophia's own state. There is no person's identity, join time or track list, and the room's session id appears only as a digest.
+
+  The full JSON is private evidence. Keep it in the owner's private store, and post only a reviewed summary with a reference to it.
 - **LiveKit.** The room's name is the Sophia room id. Sophia's participant identity is `sophia`; members and guests appear by their actor ids.
   - Sophia publishes `sophia.voice`, `sophia.input`, `sophia.output` and `sophia.inputEpoch` as participant attributes, so the trace shows what the bridge observed at each moment.
 
@@ -80,7 +86,7 @@ LiveKit traces show the room. They do not show Google, the tool calls, the work,
 Report in [#14](https://github.com/davidelaverga/Sophia/issues/14), sanitized, following the evidence contract in [S1-05A-CC-0002](../docs/coordination/S1-05A/S1-05A-CC-0002.md):
 - a UTC time window;
 - every service's deploy id and commit;
-- the diagnostic;
+- the diagnostic: a reviewed summary here, and the full JSON in the private store;
 - the bridge, API and worker lines in the window;
 - the LiveKit trace for the room;
 - what the browser showed.
