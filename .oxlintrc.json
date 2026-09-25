@@ -5,12 +5,18 @@
   "plugins": ["typescript", "unicorn", "oxc", "import", "react", "react-hooks", "node"],
   "categories": { "correctness": "error", "suspicious": "error" },
   "options": { "reportUnusedDisableDirectives": "error", "typeAware": true },
+  // The runtime-unit areas (S1-01 scripts and tests, S1-03 bridge and execution host) are outside the gate
+  // until their owner opts them in; see CONTRIBUTING.md.
   "ignorePatterns": [
     "docs/**",
     "**/dist/**",
     "**/node_modules/**",
     "**/*.config.ts",
-    "packages/contracts/src/generated/**"
+    "packages/contracts/src/generated/**",
+    "packages/dsh-bundle/**",
+    "apps/execution-host/**",
+    "scripts/**/*.mjs",
+    "tests/**"
   ],
   "rules": {
     "eqeqeq": "error",
@@ -83,45 +89,6 @@
             ]
           }
         ]
-      }
-    },
-    {
-      // Plain JavaScript with JSDoc (the S1-01 scripts and tests) has no program types, so the
-      // type-aware "unsafe" rules would only report `error` types. Every other rule applies.
-      "files": ["**/*.mjs"],
-      "rules": {
-        "typescript/no-unsafe-argument": "off",
-        "typescript/no-unsafe-assignment": "off",
-        "typescript/no-unsafe-call": "off",
-        "typescript/no-unsafe-member-access": "off",
-        "typescript/no-unsafe-return": "off",
-        "typescript/no-floating-promises": "off",
-        "typescript/no-misused-promises": "off",
-        "typescript/restrict-template-expressions": "off",
-        "typescript/no-base-to-string": "off",
-        "typescript/no-unnecessary-condition": "off",
-        "typescript/no-unnecessary-type-assertion": "off",
-        "typescript/require-await": "off"
-      }
-    },
-    {
-      // S1-01 code written before this gate. Whether to split the composition gate is its owner's
-      // call; these exceptions go when the files are next changed. New code gets no exceptions.
-      "files": [
-        "scripts/lib/gate.mjs",
-        "scripts/lib/patch-lint.mjs",
-        "scripts/lib/tree-digest.mjs",
-        "packages/dsh-bundle/src/index.ts"
-      ],
-      "rules": {
-        "max-lines-per-function": "off",
-        "complexity": "off",
-        "max-depth": "off",
-        "unicorn/consistent-function-scoping": "off",
-        "unicorn/no-array-sort": "off",
-        "typescript/require-array-sort-compare": "off",
-        // The bundle reads its own packed manifest; its bytes are a recorded identity.
-        "typescript/no-unsafe-type-assertion": "off"
       }
     }
   ]

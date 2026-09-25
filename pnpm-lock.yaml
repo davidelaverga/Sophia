@@ -65,6 +65,15 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
 
+  apps/execution-host:
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   apps/studio:
     dependencies:
       '@fontsource-variable/instrument-sans':
@@ -126,6 +135,27 @@ importers:
         specifier: 0.1.7-rc.1
         version: 0.1.7-rc.1(5d5b4b087d06724d855435a523885522)
     devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      '@deepseek-ai/dsh-agent':
+        specifier: 0.1.7-rc.1
+        version: 0.1.7-rc.1(d8c71e7a116df1d698534a033638d3d5)
+      '@deepseek-ai/dsh-agent-default-model':
+        specifier: 0.1.7-rc.1
+        version: 0.1.7-rc.1(4d96f5cff90e884af9db13d59c58ec28)
+      '@deepseek-ai/dsh-brand':
+        specifier: 0.1.7-rc.1
+        version: 0.1.7-rc.1(@deepseek-ai/cordis@4.0.4)
+      '@deepseek-ai/dsh-llm':
+        specifier: 0.1.7-rc.1
+        version: 0.1.7-rc.1(@deepseek-ai/cordis@4.0.4)
+      '@deepseek-ai/dsh-session':
+        specifier: 0.1.7-rc.1
+        version: 0.1.7-rc.1(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.1.7-rc.1(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.1.7-rc.1(@deepseek-ai/cordis@4.0.4)))
+      '@deepseek-ai/dsh-tools':
+        specifier: 0.1.7-rc.1
+        version: 0.1.7-rc.1(6324813fb9cb1806690265a65e1db43b)
       '@types/node':
         specifier: 24.13.6
         version: 24.13.6

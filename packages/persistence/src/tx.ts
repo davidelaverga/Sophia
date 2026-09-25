@@ -2,9 +2,21 @@ import pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
 
-export function createPool(connectionString: string, max = 10): pg.Pool {
-  return new pg.Pool({ connectionString, max, application_name: 'sophia-api' })
+export interface PoolOptions {
+  max?: number
+  /** An idle client whose connection dropped (restart, failover, pooler reset). The pool replaces it. */
+  onIdleError?: (err: Error) => void
 }
+
+export function createPool(connectionString: string, { max = 10, onIdleError }: PoolOptions = {}): pg.Pool {
+  const pool = new pg.Pool({ connectionString, max, application_name: 'sophia-api' })
+  // Without a listener, pg.Pool's 'error' event is an uncaught exception and the process exits.
+  pool.on('error', onIdleError ?? ((err) => console.error(`idle database client failed: ${err.message}`)))
+  return pool
+}
+
+/** The verified actor's id: a lowercase UUID. Anything else fails closed before touching the database. */
+const ACTOR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
  * Refuse to serve user traffic from a role that bypasses RLS or is not scoped to sophia_api
@@ -39,6 +51,7 @@ export async function withActor<T>(
   mode: TxMode,
   fn: (c: pg.PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (!ACTOR_ID.test(actorId)) throw new DomainError('actor_context_required', 'A verified actor is required')
   const client = await pool.connect().catch((err: unknown) => {
     throw new DomainError('unavailable', 'Database unavailable', { cause: err })
   })

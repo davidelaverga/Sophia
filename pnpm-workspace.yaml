@@ -1,6 +1,6 @@
-# One lock for the whole product tree (S1-01). apps/* joined at S1-02; the
-# remaining unbuilt destinations in docs/DESTINATION_MAP.md join when their
-# goal creates them.
+# One lock for the whole product tree (S1-01). apps/* joined at S1-02 and
+# S1-03; the remaining unbuilt destinations in docs/DESTINATION_MAP.md join
+# when their goal creates them.
 packages:
   - apps/*
   - packages/*

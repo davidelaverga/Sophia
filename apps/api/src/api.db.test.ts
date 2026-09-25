@@ -152,7 +152,7 @@ async function follow(
 
 before(async () => {
   db = await createTestDatabase()
-  pool = createPool(db.apiUrl, 8)
+  pool = createPool(db.apiUrl, { max: 8 })
   seed = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
   app = buildApp({
     pool,
@@ -191,6 +191,28 @@ describe('authentication', () => {
 
   it('is ready only as the sophia_api login', async () => {
     assert.deepEqual((await call(null, 'GET', '/ready')).json, { ready: true })
+  })
+})
+
+describe('authentication is enforced by the API itself', () => {
+  it('cannot be skipped by percent-encoding the path (review of #4)', async () => {
+    const encoded = `/%61pi/v1/projects/${seed.projectId}/snapshot`
+    const anonymous = await call(null, 'GET', encoded)
+    assert.equal(anonymous.status, 401)
+    assert.equal(anonymous.json.code, 'actor_context_required')
+    assert.equal((await call(A, 'GET', encoded)).status, 200) // the same route, authenticated
+  })
+
+  it('keeps health and readiness public, and refuses unknown paths without a token', async () => {
+    assert.equal((await call(null, 'GET', '/health')).status, 200)
+    assert.equal((await call(null, 'GET', '/ready')).status, 200)
+    assert.equal((await call(null, 'GET', '/api/v1/nowhere')).status, 401)
+  })
+
+  it('accepts only lowercase canonical project ids', async () => {
+    const upper = await call(A, 'GET', `/api/v1/projects/${seed.projectId.toUpperCase()}/snapshot`)
+    const urn = await call(A, 'GET', `/api/v1/projects/urn:uuid:${seed.projectId}/snapshot`)
+    assert.deepEqual([upper.status, urn.status], [422, 422])
   })
 })
 

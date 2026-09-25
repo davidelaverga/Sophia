@@ -10,13 +10,17 @@ separate repository from
 live application. That repository and its outstanding obligations are not
 modified by this one.
 
-**Status:** S1-01 is done: the repository, exact toolchain, pinned runtime
-artifact and bundle archive are built and identified. S1-02 is in progress:
-the first product slice (shared project, command admission, snapshot and live
-events, with a minimal Studio view) works against PostgreSQL and Supabase
-Auth; see its [handoff](docs/handoffs/S1-02-attempt-1.md). The runtime
-carries the Sophia bundle but is **not healthy by design** until the S1-03
-control bridge reports ready.
+**Status:** S1-01 is done (merged). S1-02 is in review: the first product
+slice (shared project, command admission, snapshot and live events, with a
+minimal Studio view) works against PostgreSQL and Supabase Auth; see its
+[handoff](docs/handoffs/S1-02-attempt-1.md). S1-03 is in progress on a
+development model route: the control bridge, role presets and the
+execution-host runtime supervisor are built and pass their acceptance and
+adverse checks against the real pinned dsh loop, a LABELLED fixture Sophia
+service and a keyless mock model. Real S1-02 admission and a live-model steer
+check are still to come (see
+[docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md#control-bridge-s1-03)). Without a
+Sophia service binding the runtime reports `readiness=not_ready` by design.
 
 ## Read first
 
@@ -24,7 +28,7 @@ control bridge reports ready.
 - [docs/pack/00_START_HERE.md](docs/pack/00_START_HERE.md): the v0.4
   implementation pack, the design source of truth.
 - [docs/pack/delivery/GOAL_INDEX.md](docs/pack/delivery/GOAL_INDEX.md): the
-  goals. S1-02 is in progress.
+  goals. S1-02 (admission) and S1-03 (this runtime) are the current work.
 - [docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md): what is pinned, how it is
   identified and how to reproduce it.
 - [docs/DESTINATION_MAP.md](docs/DESTINATION_MAP.md): every planned source
@@ -63,6 +67,8 @@ pnpm artifacts:record                         # build + write identities (review
 pnpm profile:install --force --boot 10        # isolated install, gate, bounded boot
 pnpm profile:verify                           # gate an existing install
 pnpm dsh:source --verify-release              # pinned source outside the tree + release provenance
+pnpm live:steer                               # real-route steer check; needs OPENAI_API_KEY (exits 2 without it)
+pnpm live:steer --rehearse                    # the same check against the keyless mock (never live evidence)
 ```
 
 ## Product slice (S1-02)
@@ -83,12 +89,18 @@ Secrets never enter the repository: env files live outside it or are
 gitignored (`.env.*`). See [.env.example](.env.example) and
 [deploy/supabase/README.md](deploy/supabase/README.md).
 
+The development model route is `openai/gpt-6-luna` at `high` reasoning
+through the pinned `@deepseek-ai/dsh-llm-pi-ai` adapter. The credential is
+passed by reference (`OPENAI_API_KEY`), never stored. The D13 release
+baseline is unchanged.
+
 ## Layout (built so far)
 
 ```text
 package.json / pnpm-lock.yaml / pnpm-workspace.yaml   exact workspace resolution
 runtime/dsh/                 @sophia/dsh-runtime: the pinned dsh launcher release
-packages/dsh-bundle/         @sophia/dsh-bundle: profile bundle + sophia-control-bridge row
+packages/dsh-bundle/         @sophia/dsh-bundle: profile bundle, control bridge, role presets
+apps/execution-host/         @sophia/execution-host: runtime supervisor (one dsh per project home)
 config/runtime-unit.json     runtime unit: pins and recorded artifact identities
 config/dsh/profile/          sophia-runtime profile manifest, lock and literal [] patch
 config/{models,roles,supervision}.json   design specimens from the pack (not installed)
@@ -99,7 +111,8 @@ db/migrations/, db/tests/    pack 0001–0004 verbatim + 0005–0007; the SQL te
 supabase/, deploy/supabase/  local Supabase config; hosted project runbook and CA
 scripts/                     toolchain, artifact, profile and gate tooling; database and dev-stack scripts
 tests/unit, tests/integration
+tests/support/               LABELLED fixture Sophia service, keyless mock model, test harness
 docs/pack/                   v0.4 Part 2 implementation pack (byte-identical import)
-docs/evidence/S1-01/, S1-02/ evidence retained from actual runs
+docs/evidence/S1-01/, S1-02/ evidence retained from actual runs (S1-03 live evidence pending)
 docs/handoffs/               session handoffs per goal attempt
 ```

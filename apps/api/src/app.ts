@@ -67,12 +67,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   return app
 }
 
-/** Every /api route acts as the verified token subject; a 401 is logged with non-secret reasons. */
+/** Routes anyone may call. Everything else, matched or not, needs a verified actor. */
+const PUBLIC_ROUTES: ReadonlySet<string> = new Set(['/health', '/ready'])
+
+/**
+ * Every non-public request acts as the verified token subject; a 401 is logged with non-secret reasons.
+ * The check uses the route the router matched, never the raw URL: the router decodes percent-escapes,
+ * so a raw-URL prefix test could be skipped with `/%61pi/...` (review of #4).
+ */
 function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor): void {
   app.decorateRequest('actorId', '')
   app.decorateRequest('actorName', null)
   app.addHook('onRequest', async (req) => {
-    if (!req.url.startsWith('/api/')) return
+    if (PUBLIC_ROUTES.has(req.routeOptions.url ?? '')) return
     try {
       const actor = await verifyActor(req.headers.authorization)
       req.actorId = actor.id
