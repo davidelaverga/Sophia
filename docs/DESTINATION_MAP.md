@@ -25,6 +25,10 @@ a path updates its row in the same commit.
 | `.github/workflows/ci.yml` | built | S1-01, S1-02 | Clean-checkout reproduction and gate on every push; S1-02 adds the SQL/API job on PostgreSQL 16 and live auth on local Supabase |
 | `.gitattributes` | built | S1-02 | LF in every checkout, so `docs/pack/` stays byte-identical to the archive on Windows too |
 | `tsconfig.base.json` | built | S1-02 | Strict compiler options for the TypeScript packages and apps (run by Node type stripping, no build step) |
+| `.prettierrc.json` | built | S1-02 | Formatting, run by `pnpm check` |
+| `.prettierignore` | built | S1-02 | Keeps Prettier off recorded identities: `docs/`, `config/`, the dsh bundle and runtime, generated files |
+| `CONTRIBUTING.md` | built | S1-02 | Clean-code rules and how the tools enforce them |
+| `.oxlintrc.json` | built | S1-02 | Strict type-aware lint, run by `pnpm check` (CONTRIBUTING.md) |
 | `tsconfig.json` | built | S1-02 | Typechecks the TypeScript scripts under `scripts/` |
 | `.env.example` | built | S1-02 | Names of the local variables; real values stay outside the repository |
 
