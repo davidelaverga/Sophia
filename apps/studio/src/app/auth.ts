@@ -114,6 +114,30 @@ export async function sendMagicLink(email: string): Promise<void> {
   if (error) throw signInError(error, email)
 }
 
+export type OAuthProvider = 'google' | 'github'
+const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github']
+
+/**
+ * The account providers this build offers (VITE_AUTH_PROVIDERS="google,github"). A provider appears only once
+ * it is enabled in Supabase Auth, so no button leads to "provider is not enabled".
+ */
+export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) =>
+  (import.meta.env.VITE_AUTH_PROVIDERS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .includes(p),
+)
+
+/** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
+export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: `${window.location.origin}${window.location.pathname}` },
+  })
+  if (error) throw error
+}
+
 /**
  * A token to knock with: the signed-in person's own, else a guest's. A guest is a Supabase anonymous sign-in
  * (the project must allow anonymous sign-ins) or, locally, the dev guest. The API lets a guest only knock,
