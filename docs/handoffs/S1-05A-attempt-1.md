@@ -119,6 +119,6 @@ Schema reversal is not authorized. The compatible code rollback is the previousl
 
 ## Next bounded action
 
-1. Davide approves or declines OP-0004 (auto-deploy off), and makes the CC-0004 decisions: where the worker, bridge and runtime host run; which LiveKit key the API holds, and `STUDIO_ORIGINS`; the two Auth settings; LiveKit PII redaction; and a private evidence destination.
-2. Once the hosts are decided, Claude drafts the complete OP-0002 `execution_request` in #14, for Davide's separate approval.
+1. Davide approved OP-0004, relayed in [CC-0006](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5836772918), and Codex carries it out. The release request is [CC-0007 (OP-0002)](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5836915687), for candidate `0c93daa`: three new Render services, plus the API and Studio deployed. It awaits Davide's approval with the project id, the LiveKit key, the Render plan, a spend ceiling and an expiry. `deploy/S1-05A-release.md` is the runbook for the release and for production debugging.
+2. After OP-0002's smoke checks, the owner runs the live test (A05–A07, paid). Codex reports each incident with the evidence contract.
 3. Luis reviews A04–A07 and the viewer change.
