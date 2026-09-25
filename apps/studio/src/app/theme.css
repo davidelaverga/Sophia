@@ -760,6 +760,60 @@ button.mark:hover {
   color: var(--text-2);
   max-width: 42ch;
 }
+/* Account providers: one row of equal squared tiles, marks only; the name lives in the tip. */
+.providers {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.provider {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  box-shadow: var(--lift);
+  color: var(--text);
+  transition:
+    border-color 140ms,
+    background 140ms,
+    transform 140ms;
+}
+.provider:hover:not(:disabled) {
+  border-color: rgba(185, 168, 255, 0.45);
+  background: rgba(185, 168, 255, 0.06);
+}
+.provider:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.provider:disabled {
+  opacity: 0.55;
+}
+.provider[aria-busy='true'] {
+  opacity: 1;
+  border-color: rgba(185, 168, 255, 0.55);
+}
+.or {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  color: var(--text-3);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.or::before,
+.or::after {
+  content: '';
+  height: 1px;
+  background: var(--line);
+}
 .field {
   display: flex;
   gap: 4px;

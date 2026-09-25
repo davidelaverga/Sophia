@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { authMode, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
+import { ProviderButtons } from './ProviderButtons.tsx'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -98,6 +99,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
           {notice}
         </p>
       )}
+      <ProviderButtons />
       <form className="field" onSubmit={(e) => void submit(e)}>
         <label htmlFor="email" className="sr-only">
           Email
