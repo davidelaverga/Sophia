@@ -110,14 +110,18 @@ export function pnpmBinDir(pathValue = process.env.PATH ?? '') {
  * process HOME and TMPDIR, no inherited personal home, no credentials,
  * telemetry off.
  * PATH holds only the node directory, the pinned pnpm directory and /usr/bin:/bin.
- * @param {{ dshHome: string, home: string }} homes - absolute directories.
+ * @param {{ dshHome: string, home: string, credentials?: string[] }} homes - absolute directories, plus the
+ *   credential variable names (never values) to copy from this process when set. dsh resolves them by
+ *   reference per request; nothing else from the caller's environment passes.
  * @returns {Record<string, string>} the complete child environment.
  */
-export function sanitizedEnv({ dshHome, home }) {
+export function sanitizedEnv({ dshHome, home, credentials = [] }) {
   // dsh's spill-local plugin writes under the process temp dir; keep it inside this install.
   const tmp = join(home, 'tmp')
   mkdirSync(tmp, { recursive: true })
+  const passed = Object.fromEntries(credentials.filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
   return {
+    ...passed,
     HOME: home,
     TMPDIR: tmp,
     DSH_HOME: dshHome,

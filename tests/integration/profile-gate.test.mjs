@@ -48,7 +48,7 @@ test('positive: dsh-base + Sophia bundle compose cleanly, no other root loop; ru
   assert.equal(gate.dump.status, 0)
   assert.equal(gate.dump.stderr, '')
   assert.equal(gate.health.healthy, false)
-  assert.deepEqual(gate.health.reasons, ['bridge_not_ready: control bridge not implemented (S1-03)'])
+  assert.deepEqual(gate.health.reasons, ['bridge_readiness_unobserved: readiness is reported by the running bridge, not by files'])
 })
 
 test('adverse: a missing Sophia bundle is rejected although dsh boots the base alone', () => {
@@ -137,6 +137,16 @@ test('adverse: installed bundle files that differ from the recorded archive are 
   assert.ok(findingCodes(gate).includes('bundle_files_mismatch'))
 })
 
+test('adverse: a bundle selecting a model route other than the recorded one is rejected', () => {
+  const gate = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    writeFileSync(file, readFileSync(file, 'utf8').replace('    model: gpt-6-luna\n', '    model: gpt-6-astra\n'))
+  }))
+  assert.equal(gate.dump.status, 0, 'upstream composes any route without complaint')
+  assert.equal(gate.ok, false)
+  assert.ok(findingCodes(gate).includes('model_route_invalid'))
+})
+
 test('adverse: a profile without the recorded archive cannot be checked and is rejected', () => {
   const gate = gateOf(variant((profile) => rmSync(join(profile, unit.sophia_bundle.archive))))
   assert.equal(gate.ok, false)
@@ -169,11 +179,13 @@ test('adverse: a bundle copy reachable from the runtime installation (masking th
   }
 })
 
-test('boot: the official launcher stays up with the Sophia row loaded and reports not_ready', () => {
+test('boot: without a Sophia service binding the launcher stays up with the Sophia row loaded and reports not_ready', () => {
   const layout = variant(() => {})
   const boot = bootProfile({ unit, runtimeDir: RUNTIME_DIR, layout, seconds: 8 })
   assert.equal(boot.timedOut, true, 'runtime was still running at the deadline')
-  assert.match(boot.bridgeLine ?? '', /loaded @sophia\/dsh-bundle@0\.1\.0 protocolVersion=1 readiness=not_ready/)
+  assert.match(boot.bridgeLine ?? '', /loaded @sophia\/dsh-bundle@0\.1\.0 protocolVersion=1 runtimeUnit=\(unset\)/)
+  assert.match(boot.stderr, /readiness=not_ready reason="no Sophia service binding/)
+  assert.doesNotMatch(boot.stderr, /readiness=ready/)
   assert.deepEqual(boot.diagnostics, [])
   assert.doesNotMatch(boot.stderr, /skipping profile bundle|not found|startup failed/)
 })
