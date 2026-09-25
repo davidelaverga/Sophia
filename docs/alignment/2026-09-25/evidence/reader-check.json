@@ -1,0 +1,16 @@
+{
+  "browser": "system Chromium",
+  "render_method": "set_content of generated HTML; file navigation unavailable under browser policy",
+  "desktop": [
+    1365,
+    1000
+  ],
+  "mobile": [
+    390,
+    844
+  ],
+  "goal_navigation": "passed",
+  "mobile_document_overflow": false,
+  "page_errors": [],
+  "scope": "generated document reader only; not Sophia app"
+}
