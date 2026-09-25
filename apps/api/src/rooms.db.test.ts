@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { jwtVerify, SignJWT } from 'jose'
-import pg from 'pg'
+import type pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { parseExchangeReceipt, parseRoomToken, parseSnapshot } from '@sophia/contracts/validate'

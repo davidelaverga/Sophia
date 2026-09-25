@@ -90,7 +90,7 @@ describe('input floor', () => {
   })
 
   it('passes by compare-and-set, emits one event and never touches work', async () => {
-    const before = await workCounts(seed.projectId)
+    const untouched = await workCounts(seed.projectId)
     const room = await roomOf(B, seed.projectId)
     const receipt = await pass(B, room.id, { nextActorId: B, expectedRoomRevision: 1 })
     assert.deepEqual(
@@ -108,7 +108,7 @@ describe('input floor', () => {
       events.frames.map((f) => ('entityType' in f ? [f.type, f.entityId, f.entityRevision] : f.type)),
       [['room.input_floor_changed', room.id, 2]],
     )
-    assert.deepEqual(await workCounts(seed.projectId), before)
+    assert.deepEqual(await workCounts(seed.projectId), untouched)
   })
 
   it('returns the first receipt for a retry and refuses a key reused for another request', async () => {
