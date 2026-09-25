@@ -100,13 +100,14 @@ export function presenceSlots(count: number): Slot[] {
 }
 
 export interface RoomLine {
-  /** Sophia's line under the light, in her own type. */
+  /** Sophia's line under the light. */
   text: string
   /** A quiet second line, or null. */
   note: string | null
 }
 
-const VOICE_NOTE = 'Sophia’s voice arrives with S1-05. Today the room carries yours.'
+/** Until Sophia speaks in the call (S1-05), the room says so in the user's words. */
+export const VOICE_NOTE = 'Sophia’s voice is on its way. For now, the room carries yours.'
 
 function floorLine(floor: FloorView): string {
   if (!floor.holder) return 'The floor is open'

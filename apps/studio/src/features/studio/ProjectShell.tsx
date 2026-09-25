@@ -222,7 +222,7 @@ function ProjectBody({ view, projectId, identity, room, membership, snapshot, pu
         {view === 'goals' || work ? (
           <GoalList snapshot={snapshot} projectId={projectId} identity={identity} controls={work} />
         ) : (
-          <PendingView view={view} />
+          <PendingView view={view} onShow={onShow} />
         )}
         {work && pulse}
       </main>

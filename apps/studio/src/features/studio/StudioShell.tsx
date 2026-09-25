@@ -10,15 +10,17 @@ import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
 
-/** What each lens will hold, and which goal brings it. Stated plainly instead of showing fake content. */
+/** What each lens will hold, stated plainly instead of showing fake content (the goal is noted for us). */
 const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }> = {
+  // S1-06, image jobs.
   explore: {
     title: 'An idea taking shape',
-    body: 'Directions, generated images and side-by-side comparisons arrive with image jobs (S1-06).',
+    body: 'Directions, generated images and side-by-side comparisons will appear here.',
   },
+  // S1-07, runnable prototypes.
   build: {
     title: 'The work taking shape',
-    body: 'Runnable prototypes with Preview, Source and Diff arrive with S1-07.',
+    body: 'Runnable prototypes, with their preview, source and changes, will appear here.',
   },
 }
 

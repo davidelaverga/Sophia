@@ -102,7 +102,7 @@ describe('room stage', () => {
     const free = floorView(null, [luis, davide])
     assert.deepEqual(roomLine('idle', free, 0), {
       text: 'The room is ready',
-      note: 'Sophia’s voice arrives with S1-05. Today the room carries yours.',
+      note: 'Sophia’s voice is on its way. For now, the room carries yours.',
     })
     assert.equal(roomLine('live', free, 0).text, 'The floor is open')
     assert.equal(roomLine('live', floorView('a', [luis, davide]), 0).text, 'You have the floor')

@@ -5,6 +5,7 @@ import type { LobbyEntry } from '@sophia/contracts'
 import { getLobbyEntry, issueGuestRoomToken } from '../../api/access.ts'
 import { endGuestSession } from '../../app/auth.ts'
 import { Centered } from '../../app/SignIn.tsx'
+import { VOICE_NOTE } from '../voice/room-view.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { useRoomConnection } from '../voice/useProjectRoom.ts'
 
@@ -68,7 +69,7 @@ export function GuestRoom({ accessToken, entry, projectTitle }: Props) {
         lensBody={null}
         line={{
           text: live ? 'You’re in the room' : 'You’re let in',
-          note: live ? 'Sophia’s voice arrives with S1-05. Today the room carries yours.' : 'Join when you’re ready.',
+          note: live ? VOICE_NOTE : 'Join when you’re ready.',
         }}
       />
     </div>
