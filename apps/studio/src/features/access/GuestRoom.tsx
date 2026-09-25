@@ -18,12 +18,14 @@ interface Props {
   anonymous: boolean
 }
 
+type Removal = 'denied' | 'blocked'
+
 /**
- * A call that ends without the guest leaving may mean the room took them out: ask the lobby, and if their
- * entry was denied, say so instead of offering a door that will not open.
+ * A call that ends without the guest leaving may mean the room took them out: ask the lobby, and say which
+ * (out for now, or blocked) instead of offering a door that will not open.
  */
-function useRemoved(live: boolean, accessToken: string, entryId: string, leaving: boolean): boolean {
-  const [removed, setRemoved] = useState(false)
+function useRemoved(live: boolean, accessToken: string, entryId: string, leaving: boolean): Removal | null {
+  const [removed, setRemoved] = useState<Removal | null>(null)
   const wasLive = useRef(false)
   useEffect(() => {
     if (live) wasLive.current = true
@@ -31,10 +33,22 @@ function useRemoved(live: boolean, accessToken: string, entryId: string, leaving
     wasLive.current = false
     void currentToken(accessToken)
       .then((token) => getLobbyEntry(token, entryId))
-      .then((e) => setRemoved(e.status === 'denied'))
+      .then((e) => setRemoved(e.status === 'denied' || e.status === 'blocked' ? e.status : null))
       .catch(() => undefined) // unknown: the Join button stays, and the API explains a refusal
   }, [live, accessToken, entryId, leaving])
   return removed
+}
+
+/** Out of the call for now, not shut out: the page starts over from the invitation, and the lobby decides. */
+function TakenOut({ projectTitle }: { projectTitle: string }) {
+  return (
+    <Centered title="You were taken out of the call">
+      <p>Someone in “{projectTitle}” ended your place in the call. You can ask to come back in a minute.</p>
+      <button type="button" className="pill" onClick={() => window.location.reload()}>
+        Ask to come back
+      </button>
+    </Centered>
+  )
 }
 
 /**
@@ -66,17 +80,18 @@ export function GuestRoom({ accessToken, entry, projectTitle, anonymous }: Props
   const [leaving, setLeaving] = useState(false)
   const [left, setLeft] = useState(false)
   const removed = useRemoved(live, accessToken, entry.id, leaving)
-  useDocumentTitle(guestTitle(projectTitle, live, left || removed))
+  useDocumentTitle(guestTitle(projectTitle, live, left || removed !== null))
   const leave = async () => {
     setLeaving(true)
     await room.leave()
     setLeft(true)
   }
-  if (removed) {
+  if (removed === 'denied') return <TakenOut projectTitle={projectTitle} />
+  if (removed === 'blocked') {
     return (
       <VisitEnd
-        title="Your visit has ended"
-        body={`Someone in “${projectTitle}” closed your place in the room. If that seems wrong, ask whoever invited you.`}
+        title="You can’t join this room"
+        body={`Someone in “${projectTitle}” took you out of the call and blocked this device from asking again. If that seems wrong, ask whoever invited you.`}
         anonymous={anonymous}
       />
     )

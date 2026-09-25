@@ -10,7 +10,7 @@ import { authMode, currentToken, guestAccessToken, sendInvitedSignIn, type AuthS
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
 import { Centered, CodeForm, HomeLink } from '../../app/SignIn.tsx'
-import { countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
+import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 
 interface Props {
@@ -73,7 +73,8 @@ export function JoinFlow({ auth, onChooseDev, onSignOut, onOpenProject }: Props)
     <MemberJoin
       preview={preview.data}
       token={token}
-      identity={identity}
+      // A leftover guest session is no account: a member invitation still asks them to sign in.
+      identity={identity?.role === 'guest' ? null : identity}
       onChooseDev={onChooseDev}
       onSignOut={onSignOut}
       onOpenProject={onOpenProject}
@@ -160,8 +161,9 @@ function GuestJoin({
 }) {
   const { state, setState, knock } = useKnock(token, identity)
   const [name, setName] = useState('')
-  // Without an account, the visit is an anonymous session that must not outlive it on a shared device.
-  const anonymous = !identity
+  // Without an account, the visit is an anonymous session that must not outlive it on a shared device. After a
+  // reload that session is signed in, but it is still a guest's.
+  const anonymous = !identity || identity.role === 'guest'
   if (state.step === 'in') {
     return (
       <GuestRoom
@@ -176,6 +178,7 @@ function GuestJoin({
     return (
       <Waiting
         preview={preview}
+        token={token}
         entry={state.entry}
         accessToken={state.accessToken}
         anonymous={anonymous}
@@ -247,27 +250,25 @@ const inviter = (p: InvitationPreview) => {
   return word.charAt(0).toUpperCase() + word.slice(1)
 }
 
-const POLL_MS = 2500
+/**
+ * How often the guest's page asks where it stands: briskly while waiting, and still (slower) once declined,
+ * so a "Let in instead" from inside reaches them. Blocked and admitted end the polling.
+ */
+const POLL_MS: Partial<Record<LobbyEntry['status'], number>> = { waiting: 2500, denied: 5000 }
 /** Missed polls in a row before the guest is told Sophia is out of reach (a single miss is retried quietly). */
 const MISSES_TO_SAY = 3
-
-interface WaitingProps {
-  preview: InvitationPreview
-  entry: LobbyEntry
-  accessToken: string
-  anonymous: boolean
-  onIn: (e: LobbyEntry) => void
+const TITLE: Partial<Record<LobbyEntry['status'], string>> = {
+  waiting: 'Waiting to be let in · Sophia',
+  denied: 'Not let in yet · Sophia',
 }
 
-/**
- * The lobby from the outside: a quiet wait that ends as soon as someone inside decides. Each poll uses the
- * session's current token, so a wait longer than a token's life still ends in the room.
- */
-function Waiting({ preview, entry, accessToken, anonymous, onIn }: WaitingProps) {
+/** The guest's own entry, polled with the session's current token, so a wait longer than a token's life still ends. */
+function useOwnEntry(entry: LobbyEntry, accessToken: string, onIn: (e: LobbyEntry) => void) {
   const [current, setCurrent] = useState(entry)
   const [misses, setMisses] = useState(0)
   useEffect(() => {
-    if (current.status !== 'waiting') return undefined
+    const every = POLL_MS[current.status]
+    if (!every) return undefined
     const t = setInterval(() => {
       void currentToken(accessToken)
         .then((fresh) => getLobbyEntry(fresh, current.id))
@@ -276,11 +277,35 @@ function Waiting({ preview, entry, accessToken, anonymous, onIn }: WaitingProps)
           return next.status === 'admitted' ? onIn(next) : setCurrent(next)
         })
         .catch(() => setMisses((n) => n + 1)) // retried by the next poll
-    }, POLL_MS)
+    }, every)
     return () => clearInterval(t)
   }, [accessToken, current, onIn])
-  useDocumentTitle(current.status === 'denied' ? null : 'Waiting to be let in · Sophia')
-  if (current.status === 'denied') return <Denied preview={preview} anonymous={anonymous} />
+  return { current, setCurrent, misses }
+}
+
+interface WaitingProps {
+  preview: InvitationPreview
+  /** The invitation, to ask again after a decline. */
+  token: string
+  entry: LobbyEntry
+  accessToken: string
+  anonymous: boolean
+  onIn: (e: LobbyEntry) => void
+}
+
+/** The lobby from the outside: a quiet wait that ends as soon as someone inside decides. */
+function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: WaitingProps) {
+  const { current, setCurrent, misses } = useOwnEntry(entry, accessToken, onIn)
+  useDocumentTitle(TITLE[current.status] ?? null)
+  if (current.status === 'blocked') return <Blocked preview={preview} anonymous={anonymous} />
+  if (current.status === 'denied') {
+    const askAgain = async () => {
+      const next = await knockRoom(await currentToken(accessToken), token, current.displayName)
+      if (next.status === 'admitted') onIn(next)
+      else setCurrent(next)
+    }
+    return <Declined preview={preview} entry={current} onAskAgain={askAgain} />
+  }
   return (
     <Centered title={`Waiting to be let in, ${current.displayName}`} busy>
       <p>
@@ -292,12 +317,67 @@ function Waiting({ preview, entry, accessToken, anonymous, onIn }: WaitingProps)
   )
 }
 
-/** A guest turned away: the visit ends here. */
-function Denied({ preview, anonymous }: { preview: InvitationPreview; anonymous: boolean }) {
+/** Seconds left before asking again, ticking each second while there are any. */
+function useAskAgainIn(decidedAt: string | null): number {
+  const [now, setNow] = useState(() => Date.now())
+  const left = askAgainIn(decidedAt, now)
+  const counting = left > 0
+  useEffect(() => {
+    if (!counting) return undefined
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [counting])
+  return left
+}
+
+/** Declined is for now: the guest may ask again after a minute, and the page stays in touch meanwhile. */
+function Declined({
+  preview,
+  entry,
+  onAskAgain,
+}: {
+  preview: InvitationPreview
+  entry: LobbyEntry
+  onAskAgain: () => Promise<void>
+}) {
+  const left = useAskAgainIn(entry.decidedAt)
+  const [asking, setAsking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const ask = async () => {
+    setAsking(true)
+    setError(null)
+    try {
+      await onAskAgain()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Couldn’t ask again. Try in a moment.')
+    } finally {
+      setAsking(false)
+    }
+  }
+  return (
+    <Centered title="Not this time">
+      <p>
+        Someone in “{preview.projectTitle}” didn’t let you in yet.{' '}
+        {left > 0 ? `You can ask again in ${clock(left)}.` : 'You can ask again now.'}
+      </p>
+      <button type="button" className="pill primary" disabled={left > 0 || asking} onClick={() => void ask()}>
+        {asking ? 'Asking…' : 'Ask again'}
+      </button>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+    </Centered>
+  )
+}
+
+/** Blocked is for good, until someone inside unblocks them: the visit ends here. */
+function Blocked({ preview, anonymous }: { preview: InvitationPreview; anonymous: boolean }) {
   return (
     <VisitEnd
-      title="Not this time"
-      body={`Someone in “${preview.projectTitle}” didn’t let you in. If that seems wrong, ask ${inviter(preview)}.`}
+      title="You can’t join this room"
+      body={`Someone in “${preview.projectTitle}” blocked this device from asking to join. If that seems wrong, ask ${inviter(preview)}.`}
       anonymous={anonymous}
     />
   )

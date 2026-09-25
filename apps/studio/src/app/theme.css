@@ -1588,6 +1588,33 @@ button.mark:hover {
   color: var(--text-3);
   font-size: 12px;
 }
+/* The count, and with several waiting, one answer for all. */
+.lobby-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+}
+.lobby-all {
+  display: flex;
+  gap: 2px;
+}
+.lobby-all .ghost {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+/* A decline undone in one click, for a few seconds. */
+.lobby-undo {
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.lobby-undo .text-button {
+  font-size: 12.5px;
+}
 .lobby ul {
   margin: 0;
   padding: 0;

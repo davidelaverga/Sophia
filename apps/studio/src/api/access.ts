@@ -1,11 +1,12 @@
-// Room access calls (contract amendment A02). An invitation link's token travels only in request bodies,
-// never in a URL the API or a proxy could log; the Studio reads it from the link's fragment.
+// Room access calls (contract amendments A02 and A03). An invitation link's token travels only in request
+// bodies, never in a URL the API or a proxy could log; the Studio reads it from the link's fragment.
 import type {
   Invitation,
   InvitationAccepted,
   InvitationCreate,
   InvitationList,
   InvitationPreview,
+  LobbyDecision,
   LobbyEntry,
   Membership,
   RoomSession,
@@ -56,7 +57,7 @@ export const getLobbyEntry = (token: string, entryId: string) =>
 export const issueGuestRoomToken = (token: string, entryId: string) =>
   callApi<RoomToken>(`/api/v1/lobby/${entryId}/room-token`, { token }, parseRoomToken)
 
-export const decideLobbyEntry = (token: string, entryId: string, decision: 'admit' | 'deny') =>
+export const decideLobbyEntry = (token: string, entryId: string, decision: LobbyDecision['decision']) =>
   callApi<LobbyEntry>(`/api/v1/lobby/${entryId}/decision`, { token, body: { decision } }, parseLobbyEntry)
 
 export const scheduleSession = (token: string, projectId: string, key: string, body: SessionCreate) =>

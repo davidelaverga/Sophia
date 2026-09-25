@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  askAgainIn,
+  clock,
   countdown,
   freshJoinToken,
   invitationState,
+  knockNote,
   linkLimits,
   nextSession,
   PENDING_JOIN_MS,
@@ -44,6 +47,19 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(invitationState({ ...open, uses: 1, emailStatus: 'sent' }, now), 'joined')
     assert.equal(invitationState({ ...open, revokedAt: '2026-10-01T10:00:00Z', emailStatus: 'sent' }, now), 'cancelled')
     assert.equal(invitationState({ ...open, expiresAt: '2026-09-30T12:00:00Z', emailStatus: 'failed' }, now), 'expired')
+  })
+
+  it('counts down the minute before a declined guest may ask again', () => {
+    const decided = '2026-10-01T12:00:00Z'
+    assert.equal(askAgainIn(decided, at('2026-10-01T12:00:18Z')), 42)
+    assert.equal(askAgainIn(decided, at('2026-10-01T12:01:00Z')), 0)
+    assert.equal(askAgainIn(null, 0), 0)
+    assert.equal(clock(42), '0:42')
+    assert.equal(clock(60), '1:00')
+  })
+
+  it('tells a first knock from someone who keeps asking', () => {
+    assert.deepEqual([knockNote(1), knockNote(2), knockNote(4)], ['', 'asked again', 'asked 4 times'])
   })
 
   it('keeps an opened link for the sign-in round trip, then lets it go', () => {

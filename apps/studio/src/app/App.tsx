@@ -40,6 +40,8 @@ export function App() {
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
+  // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
+  if (state.identity.role === 'guest') return <SignIn onChooseDev={switchIdentity} />
 
   const { identity } = state
   const identityControl = <IdentityControl identity={identity} onChooseDev={switchIdentity} onSignOut={leaveSession} />

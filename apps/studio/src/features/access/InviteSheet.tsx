@@ -1,20 +1,18 @@
 // Invite: the room's link and its QR for guests, emailed invitations, and the room's calendar. A sheet over
 // the Studio; nothing here changes the room itself until someone uses a link. Every action says when it is
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
-import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import type { Invitation, InvitationCreate } from '@sophia/contracts'
+import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
 import { ConfirmButton, Icon, SwapLabel, Tip } from '@sophia/ui'
-import { createInvitation, decideLobbyEntry, reissueInvitation, revokeInvitation } from '../../api/access.ts'
+import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { nextInRow } from '../../app/roving.ts'
 import { useDialog } from '../../app/useDialog.ts'
-import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { invitationState, linkLimits } from './access-view.ts'
+import { invitationState, knockNote, linkLimits } from './access-view.ts'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
-import { useInvitations, useRefreshInvitations, type SheetContext } from './useAccess.ts'
+import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
 
 type Tab = 'guests' | 'members' | 'calendar'
 const TABS: ReadonlyArray<[Tab, string]> = [
@@ -172,7 +170,7 @@ function GuestsTab({ context }: { context: SheetContext }) {
           <InvitationList invitations={emailed} token={context.identity.token} onChange={refresh} />
         </div>
       )}
-      <GuestsLetIn context={context} />
+      <GuestDoor context={context} />
     </section>
   )
 }
@@ -251,47 +249,90 @@ function RoomLink({ token, link, onChange }: { token: string; link: Invitation; 
 }
 
 /**
- * Guests let in stay listed after they leave the call (the list is who was admitted). Removing one ends their
- * call and closes their entry, so it asks first.
+ * The door's record: guests let in (out of the call for now, or for good), those declined in the last day
+ * (let in after all, or block), and those blocked (unblock). What ends a call or shuts the door asks first;
+ * the rest undo each other.
  */
-function GuestsLetIn({ context }: { context: SheetContext }) {
-  const queryClient = useQueryClient()
-  const action = useAction(
-    () => void queryClient.invalidateQueries({ queryKey: snapshotKey(context.projectId, context.identity.name) }),
+function GuestDoor({ context }: { context: SheetContext }) {
+  const { busy, error, decide } = useLobbyDecision(context.projectId, context.identity)
+  const by = (status: LobbyEntry['status']) => context.lobby.filter((e) => e.status === status)
+  const block = (e: LobbyEntry, warning: string) => (
+    <ConfirmButton
+      label="Block"
+      warning={warning}
+      confirm="Block"
+      disabled={busy}
+      onConfirm={() => void decide([e], 'block')}
+    />
   )
-  const inside = context.lobby.filter((e) => e.status === 'admitted')
-  if (inside.length === 0) return null
+  return (
+    <>
+      <DoorList title="Guests let in" entries={by('admitted')}>
+        {(e) => (
+          <>
+            <ConfirmButton
+              label="Remove"
+              warning={`${e.displayName} leaves the call and can ask to come back in a minute.`}
+              confirm="Remove"
+              disabled={busy}
+              onConfirm={() => void decide([e], 'deny')}
+            />
+            {block(e, `${e.displayName} leaves the call and can’t ask again from this device.`)}
+          </>
+        )}
+      </DoorList>
+      <DoorList title="Declined today" entries={by('denied')}>
+        {(e) => (
+          <>
+            {block(e, 'They can’t ask again from this device.')}
+            <button type="button" className="ghost" disabled={busy} onClick={() => void decide([e], 'admit')}>
+              Let in
+            </button>
+          </>
+        )}
+      </DoorList>
+      <DoorList
+        title="Blocked"
+        entries={by('blocked')}
+        note="A block holds on the device they used. To stop everyone new, replace the room link."
+      >
+        {(e) => (
+          <button type="button" className="ghost" disabled={busy} onClick={() => void decide([e], 'unblock')}>
+            Unblock
+          </button>
+        )}
+      </DoorList>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
+  )
+}
+
+interface DoorListProps {
+  title: string
+  entries: readonly LobbyEntry[]
+  note?: string
+  children: (entry: LobbyEntry) => React.ReactNode
+}
+
+function DoorList({ title, entries, note, children }: DoorListProps) {
+  if (entries.length === 0) return null
   return (
     <div className="sheet-form">
-      <p className="field-label">Guests let in</p>
+      <p className="field-label">{title}</p>
       <ul className="invitation-list">
-        {inside.map((e) => (
+        {entries.map((e) => (
           <li key={e.id}>
             <span className="invitation-who">{e.displayName}</span>
-            <span className="invitation-state">guest</span>
-            <span className="invitation-actions">
-              <ConfirmButton
-                label="Remove from call"
-                warning={`${e.displayName} leaves the call and can’t come back with this link.`}
-                confirm="Remove"
-                disabled={action.busy === e.id}
-                onConfirm={() =>
-                  void action.run(
-                    e.id,
-                    () => decideLobbyEntry(context.identity.token, e.id, 'deny'),
-                    `Couldn’t remove ${e.displayName}. Try again.`,
-                  )
-                }
-              />
-            </span>
+            <span className="invitation-state">{knockNote(e.knocks) || 'guest'}</span>
+            <span className="invitation-actions">{children(e)}</span>
           </li>
         ))}
       </ul>
-      {action.error && (
-        <p className="form-error" role="alert">
-          {action.error}
-        </p>
-      )}
+      {note && <p className="sheet-status">{note}</p>}
     </div>
   )
 }

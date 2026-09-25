@@ -74,7 +74,9 @@ export const SUMMARY: Record<string, string> = {
   'room.invitation_revoked': 'Invitation link closed',
   'room.lobby_knock': 'A guest asked to come in',
   'room.lobby_admit': 'Guest let in',
-  'room.lobby_deny': 'Guest not let in',
+  'room.lobby_deny': 'Guest declined',
+  'room.lobby_block': 'Guest blocked',
+  'room.lobby_unblock': 'Guest unblocked',
   'project.member': 'Member joined',
 }
 

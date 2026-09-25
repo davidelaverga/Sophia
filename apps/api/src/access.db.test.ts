@@ -148,6 +148,28 @@ describe('guest invitations', () => {
 
     await call(`/api/v1/lobby/${knocked.id}/decision`, { bearer: await token(A), body: { decision: 'deny' } })
     assert.equal((await call(`/api/v1/lobby/${knocked.id}/room-token`, { bearer: guest })).status, 409)
+    // Declined a moment ago: asking again waits the minute (A03).
+    const tooSoon = await call('/api/v1/join/knock', { bearer: guest, body: { ...link, displayName: 'Ana' } })
+    assert.equal(tooSoon.status, 409)
+  })
+
+  it('blocks a guest for good until someone unblocks them (A03)', async () => {
+    const inv = parseInvitation((await invite(B, { kind: 'guest' })).json)
+    const link = { token: tokenOf(inv.url) }
+    const guest = await guestToken(randomUUID())
+    const knock = async () =>
+      parseLobbyEntry(
+        (await call('/api/v1/join/knock', { bearer: guest, body: { ...link, displayName: 'Beto' } })).json,
+      )
+    const entry = await knock()
+    const decide = async (decision: 'block' | 'unblock' | 'admit') =>
+      call(`/api/v1/lobby/${entry.id}/decision`, { bearer: await token(B), body: { decision } })
+    const blocked = parseLobbyEntry((await decide('block')).json)
+    assert.deepEqual([blocked.status, blocked.knocks, typeof blocked.decidedAt], ['blocked', 1, 'string'])
+    assert.equal((await knock()).status, 'blocked')
+    assert.equal((await decide('admit')).status, 409)
+    assert.equal(parseLobbyEntry((await decide('unblock')).json).status, 'left')
+    assert.deepEqual([(await knock()).status, (await knock()).knocks], ['waiting', 2])
   })
 
   it('reissue retires the old link and revoke closes the new one', async () => {

@@ -49,8 +49,8 @@ export type InvitationList = { "invitations": ReadonlyArray<Invitation>; };
 export type InvitationToken = { "token": string; };
 export type InvitationPreview = { "projectTitle": string; "inviterName": string | null; "kind": "guest" | "member"; "role": "editor" | "viewer" | null; "email": string | null; "expiresAt": string; "session": RoomSession | null; "state": "open" | "expired" | "revoked" | "used_up"; };
 export type Knock = { "token": string; "displayName": string; };
-export type LobbyEntry = { "id": string; "displayName": string; "status": "waiting" | "admitted" | "denied" | "left"; "requestedAt": string; };
-export type LobbyDecision = { "decision": "admit" | "deny"; };
+export type LobbyEntry = { "id": string; "displayName": string; "status": "waiting" | "admitted" | "denied" | "left" | "blocked"; "requestedAt": string; "decidedAt": string | null; "knocks": number; };
+export type LobbyDecision = { "decision": "admit" | "deny" | "block" | "unblock"; };
 export type InvitationAccepted = { "projectId": string; };
 export type Membership = { "actorId": string; "role": "admin" | "editor" | "viewer"; };
 export interface Operations {

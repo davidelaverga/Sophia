@@ -30,9 +30,13 @@ export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length >
 export type AuthState =
   { status: 'loading' } | { status: 'signed_out'; notice?: string } | { status: 'signed_in'; identity: Identity }
 
+/** An anonymous session is a guest's (a knock at a room's door), never an account: its role says so. */
 const fromSession = (s: Session | null): AuthState =>
   s
-    ? { status: 'signed_in', identity: { name: s.user.email ?? s.user.id, role: '', token: s.access_token } }
+    ? {
+        status: 'signed_in',
+        identity: { name: s.user.email ?? s.user.id, role: s.user.is_anonymous ? 'guest' : '', token: s.access_token },
+      }
     : { status: 'signed_out' }
 
 /**

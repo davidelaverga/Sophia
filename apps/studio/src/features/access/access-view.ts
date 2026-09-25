@@ -10,6 +10,24 @@ export function readJoinToken(hash: string): string | null {
   return TOKEN.test(token) ? token : null
 }
 
+/** How long a declined guest waits before asking again; migration 0011 holds the same minute. */
+export const ASK_AGAIN_MS = 60_000
+
+/** Seconds until a declined guest may ask again, 0 once they may. */
+export function askAgainIn(decidedAt: string | null, now: number): number {
+  if (!decidedAt) return 0
+  return Math.max(0, Math.ceil((Date.parse(decidedAt) + ASK_AGAIN_MS - now) / 1000))
+}
+
+/** "0:42": a short wait, as a clock. */
+export const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+
+/** How often a guest has asked, when it is more than once: the room sees who keeps asking. */
+export function knockNote(knocks: number): string {
+  if (knocks < 2) return ''
+  return knocks === 2 ? 'asked again' : `asked ${knocks} times`
+}
+
 /** How long an opened invitation link waits on this device for its sign-in round trip. */
 export const PENDING_JOIN_MS = 60 * 60_000
 

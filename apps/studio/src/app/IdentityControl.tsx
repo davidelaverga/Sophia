@@ -21,11 +21,14 @@ export function IdentityControl({ identity, onChooseDev, onSignOut }: Props) {
           value={identity.name}
           onChange={(e) => onChooseDev(devIdentities.find((i) => i.name === e.target.value) ?? null)}
         >
-          {devIdentities.map((i) => (
-            <option key={i.name} value={i.name}>
-              {i.name}
-            </option>
-          ))}
+          {/* The dev guest is for invitation links (/join), not the member Studio. */}
+          {devIdentities
+            .filter((i) => i.role !== 'guest')
+            .map((i) => (
+              <option key={i.name} value={i.name}>
+                {i.name}
+              </option>
+            ))}
         </select>
       </label>
     )
