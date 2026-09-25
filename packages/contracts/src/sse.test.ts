@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { parseSse } from './sse.ts'
+import { ContractViolation } from './validate.ts'
 
 const P = '00000000-0000-0000-0000-000000000001'
 const advance = (sequence: string) => JSON.stringify({ projectId: P, type: 'cursor.advanced', sequence })
@@ -33,5 +34,24 @@ describe('parseSse', () => {
         ['1', '2'],
       )
     }
+  })
+
+  it('throws on a frame that breaks the contract instead of passing it on', () => {
+    const forged = JSON.stringify({ projectId: P, type: 'goal.completed', sequence: '3' })
+    assert.throws(
+      () =>
+        parseSse(`id: 3
+data: ${forged}
+
+`),
+      ContractViolation,
+    )
+    assert.throws(
+      () =>
+        parseSse(`data: ${advance('08')}
+
+`),
+      /sequence/,
+    )
   })
 })

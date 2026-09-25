@@ -1,7 +1,7 @@
 // renderPulse → WorkPulse (frontend bindings): what changed in the project, from the SSE feed.
 // Quiet by design; no percent-complete, no invented progress.
 import { useEffect, useState } from 'react'
-import type { Event } from '@sophia/contracts'
+import { isCursorAdvance } from '@sophia/contracts/validate'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
 import { SUMMARY } from './labels.ts'
@@ -41,17 +41,17 @@ export function WorkPulse({ feed, connection }: { feed: Feed | null; connection:
       ) : (
         <ol className="events">
           {items.map((f) =>
-            f.type === 'cursor.advanced' ? (
+            isCursorAdvance(f) ? (
               <li key={`adv-${f.sequence}`} className="event hidden-event">
                 <span className="dot" aria-hidden />
                 <span>Private update</span>
                 <span className="mono muted">#{f.sequence}</span>
               </li>
             ) : (
-              <li key={(f as Event).eventId} className="event">
+              <li key={f.eventId} className="event">
                 <span className="dot" aria-hidden />
-                <span>{SUMMARY[(f as Event).summaryCode] ?? (f as Event).type}</span>
-                <span className="muted">{ago((f as Event).occurredAt, now)}</span>
+                <span>{SUMMARY[f.summaryCode] ?? f.type}</span>
+                <span className="muted">{ago(f.occurredAt, now)}</span>
                 <span className="mono muted">#{f.sequence}</span>
               </li>
             ),

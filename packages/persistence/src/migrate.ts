@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import pg from 'pg'
+import { pgError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
 export interface MigrationFile {
@@ -115,7 +116,7 @@ async function readLedger(c: pg.Client, dryRun: boolean): Promise<Map<string, Le
     const { rows } = await c.query<LedgerRow>(`SELECT version, filename, sha256 FROM sophia_meta.schema_migrations`)
     return new Map(rows.map((r) => [r.version, r]))
   } catch (err: unknown) {
-    if (dryRun && (err as { code?: string }).code === UNDEFINED_TABLE) return new Map()
+    if (dryRun && pgError(err).code === UNDEFINED_TABLE) return new Map()
     throw err
   }
 }

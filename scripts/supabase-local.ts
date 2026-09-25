@@ -13,19 +13,14 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { migrate } from '../packages/persistence/src/migrate.ts'
 import { apiLoginUrl, provisionApiLogin } from './lib/api-login.ts'
+import { pickStrings } from './lib/env-file.ts'
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)))
 const CLI = 'npx -y supabase@2.117.0'
 const EXCLUDED_SERVICES = 'realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor'
 const SIGNING_KEYS = 'supabase/signing_keys.json'
 
-interface SupabaseStatus {
-  API_URL: string
-  DB_URL: string
-  PUBLISHABLE_KEY: string
-  SECRET_KEY: string
-  MAILPIT_URL: string
-}
+const STATUS_KEYS = ['API_URL', 'DB_URL', 'PUBLISHABLE_KEY', 'SECRET_KEY', 'MAILPIT_URL'] as const
 
 /** The CLI is an npx shim (a shell is needed on Windows); arguments are fixed constants. */
 function supabase(args: string): string {
@@ -41,7 +36,7 @@ if (!existsSync(SIGNING_KEYS)) {
 }
 
 supabase(`start -x ${EXCLUDED_SERVICES}`)
-const status = JSON.parse(supabase('status -o json').replace(/^[^{]*/, '')) as SupabaseStatus
+const status = pickStrings(JSON.parse(supabase('status -o json').replace(/^[^{]*/, '')), STATUS_KEYS, 'supabase status')
 console.log(`✓ Supabase local: API ${status.API_URL} · DB ${status.DB_URL.replace(/:[^:@]+@/, ':***@')}`)
 
 const report = await migrate(status.DB_URL, 'db/migrations')

@@ -23,9 +23,10 @@ contract; this file holds the code rules.
   each piece for what it does (`readSnapshot` → `readGoals`,
   `readResources`…).
 - **Types tell the truth.** No `any` (use `unknown` and narrow), no non-null
-  `!` where narrowing can do it, `catch (err: unknown)`. JSON crossing a
-  boundary is typed with the contract types; runtime validators replace
-  those casts as they land.
+  `!` where narrowing can do it, `catch (err: unknown)`, and no type
+  assertions (`typescript/no-unsafe-type-assertion`). JSON from the wire goes
+  through `@sophia/contracts/validate`; any other `unknown` through a type
+  guard. The few trusted local reads that keep a cast say why on the line.
 - **Pure logic apart from I/O and React.** Protocol, ordering and retry logic
   live in plain modules with unit tests (`projection.ts`, `feed-loop.ts`,
   `@sophia/contracts/sse`); components and routes only wire them.

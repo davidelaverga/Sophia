@@ -17,3 +17,12 @@ export function requireKeys(env: Record<string, string>, keys: readonly string[]
   const missing = keys.filter((k) => !env[k])
   if (missing.length > 0) throw new Error(`${missing.join(', ')} missing in ${source}`)
 }
+
+/** The named string fields of parsed JSON (such as CLI output); throws naming whatever is missing. */
+export function pickStrings<K extends string>(value: unknown, keys: readonly K[], source: string): Record<K, string> {
+  const record: Record<string, unknown> = typeof value === 'object' && value !== null ? { ...value } : {}
+  const missing = keys.filter((k) => typeof record[k] !== 'string')
+  if (missing.length > 0) throw new Error(`${missing.join(', ')} missing in ${source}`)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every key was checked to be a string above
+  return Object.fromEntries(keys.map((k) => [k, record[k]])) as Record<K, string>
+}

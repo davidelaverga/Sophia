@@ -2,6 +2,13 @@
 // No hidden retries: an ambiguous admission surfaces as outcome_unknown and the caller decides to
 // retry with the SAME Idempotency-Key.
 import type { Error as ApiErrorBody, GoalCommand, ProjectCreated, Receipt, Snapshot } from '@sophia/contracts'
+import {
+  asErrorBody,
+  ContractViolation,
+  parseProjectCreated,
+  parseReceipt,
+  parseSnapshot,
+} from '@sophia/contracts/validate'
 
 export class ApiError extends Error {
   readonly status: number
@@ -16,14 +23,25 @@ export class ApiError extends Error {
   }
 }
 
-async function toError(res: Response): Promise<ApiError> {
-  const body = (await res.json().catch(() => null)) as Partial<ApiErrorBody> | null
-  return new ApiError(
-    res.status,
-    body?.code ?? `http_${res.status}`,
-    body?.message ?? res.statusText,
-    body?.retry ?? 'never',
-  )
+/** The reply's error body when it matches the contract; otherwise the HTTP status speaks. */
+export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'never'): Promise<ApiError> {
+  const body = asErrorBody(await res.json().catch(() => null))
+  return body
+    ? new ApiError(res.status, body.code, body.message, body.retry)
+    : new ApiError(res.status, `http_${res.status}`, res.statusText, retry)
+}
+
+/**
+ * A success body, validated. A reply that breaks the contract is an error, never a cast: `retry`
+ * says what is safe (a read can be repeated; an admission is repeated with the same key).
+ */
+async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: ApiErrorBody['retry']): Promise<T> {
+  try {
+    return parse(await res.json())
+  } catch (err: unknown) {
+    const message = err instanceof ContractViolation ? err.message : 'Unreadable reply from Sophia'
+    throw new ApiError(res.status, 'contract_violation', message, retry)
+  }
 }
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` })
@@ -34,7 +52,7 @@ export async function getSnapshot(token: string, projectId: string, signal?: Abo
     ...(signal ? { signal } : {}),
   })
   if (!res.ok) throw await toError(res)
-  return (await res.json()) as Snapshot
+  return readBody(res, parseSnapshot, 'safe_read')
 }
 
 export async function admitGoalCommand(
@@ -55,7 +73,7 @@ export async function admitGoalCommand(
     throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
   }
   if (!res.ok) throw await toError(res)
-  return (await res.json()) as Receipt
+  return readBody(res, parseReceipt, 'same_admission_key')
 }
 
 /** createProject: idempotent per person and key; reuse the key when retrying an unknown outcome. */
@@ -71,5 +89,5 @@ export async function createProject(token: string, idempotencyKey: string, title
     throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
   }
   if (!res.ok) throw await toError(res)
-  return (await res.json()) as ProjectCreated
+  return readBody(res, parseProjectCreated, 'same_admission_key')
 }

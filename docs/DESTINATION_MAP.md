@@ -54,7 +54,7 @@ a path updates its row in the same commit.
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |
 | `packages/dsh-bundle/skills/` | unbuilt | S1-03 | Procedural task knowledge |
-| `packages/contracts/` | built | S1-02 | OpenAPI contract (identical to the pack), generated types, Ajv component schemas, SSE frame parser |
+| `packages/contracts/` | built | S1-02 | OpenAPI contract (identical to the pack), generated types, generated response validators (`./validate`), Ajv component schemas, SSE frame parser |
 | `packages/domain/` | partial | S1-02, S1-12 | Built: the domain error vocabulary (code, HTTP status, retry). S1-12 adds accepted goals, authority, versions, transitions |
 | `packages/persistence/` | built | S1-02 | Actor-scoped transactions, command admission, snapshot, event frames, LISTEN, outbox leases, migration ledger |
 | `packages/context/` | unbuilt | S1-08 | Scoped ContextPacket compiler and invalidation |
