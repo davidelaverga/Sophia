@@ -1,0 +1,24 @@
+{
+  "name": "@sophia/execution-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Private execution-host supervisor: launches the official dsh for one project runtime unit and supervises it",
+  "license": "UNLICENSED",
+  "main": "./dist/runtime-supervisor.js",
+  "types": "./dist/runtime-supervisor.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/runtime-supervisor.d.ts",
+      "default": "./dist/runtime-supervisor.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "typescript": "6.0.3"
+  }
+}

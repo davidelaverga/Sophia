@@ -6,6 +6,10 @@ pnpm-lock.yaml
 # sources (config/runtime-unit.json); reformatting would change their digests.
 packages/dsh-bundle/
 runtime/
+# Runtime-unit areas owned by S1-01/S1-03, formatted by hand until their owner opts in.
+apps/execution-host/
+scripts/**/*.mjs
+tests/
 # Generated, third-party or build output
 packages/contracts/openapi/openapi.json
 packages/contracts/src/generated-types.ts

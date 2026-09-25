@@ -25,15 +25,12 @@ const DUMP = `# == @deepseek-ai/dsh-base
 
 test('dump rows carry the source layer printed above them', () => {
   const rows = parseDump(DUMP)
-  assert.deepEqual(
-    rows.map((r) => [r.id, r.origin, r.patchedBy]),
-    [
-      ['timer', '@deepseek-ai/dsh-base', []],
-      ['hmr', '@deepseek-ai/dsh-base', ['@sophia/dsh-bundle']],
-      ['plugin-manager', '@deepseek-ai/dsh-base', []],
-      ['sophia-control-bridge', '@sophia/dsh-bundle', []],
-    ],
-  )
+  assert.deepEqual(rows.map((r) => [r.id, r.origin, r.patchedBy]), [
+    ['timer', '@deepseek-ai/dsh-base', []],
+    ['hmr', '@deepseek-ai/dsh-base', ['@sophia/dsh-bundle']],
+    ['plugin-manager', '@deepseek-ai/dsh-base', []],
+    ['sophia-control-bridge', '@sophia/dsh-bundle', []],
+  ])
   assert.equal(rows[1].disabled, true)
   assert.deepEqual(rows[2].disabled, { $js: "!ctx.get('profileContext')" })
 })
@@ -47,20 +44,35 @@ test('each upstream skip/warning line is classified', () => {
     'something else entirely',
     '',
   ].join('\n')
-  assert.deepEqual(
-    classifyDumpStderr(stderr).map((f) => f.code),
-    ['bundle_missing', 'bundle_incompatible', 'patch_comments_only', 'patch_unmatched_row', 'dump_diagnostic'],
-  )
+  assert.deepEqual(classifyDumpStderr(stderr).map((f) => f.code), [
+    'bundle_missing', 'bundle_incompatible', 'patch_comments_only', 'patch_unmatched_row', 'dump_diagnostic',
+  ])
   assert.deepEqual(classifyDumpStderr(''), [])
 })
 
-test('health is never true at S1-01 and names composition failures separately', () => {
+test('the static gate never claims health and names composition failures separately', () => {
   assert.deepEqual(healthOf([{ id: 'composition', ok: true, findings: [] }]), {
-    healthy: false,
-    reasons: ['bridge_not_ready: control bridge not implemented (S1-03)'],
+    healthy: false, reasons: ['bridge_readiness_unobserved: readiness is reported by the running bridge, not by files'],
   })
-  assert.equal(
-    healthOf([{ id: 'bundle_installed', ok: false, findings: [{}] }]).reasons[0],
-    'composition:bundle_installed',
-  )
+  assert.equal(healthOf([{ id: 'bundle_installed', ok: false, findings: [{}] }]).reasons[0], 'composition:bundle_installed')
+})
+
+test('the model route check accepts the recorded route and names each way it can be wrong', async () => {
+  const { checkModelRoute } = await import('../../scripts/lib/gate.mjs')
+  const route = { provider: 'openai', model: 'gpt-6-luna', reasoningEffort: 'high', credential_ref: 'OPENAI_API_KEY' }
+  const rows = (overrides = {}) => [
+    { id: 'agent-default-model', origin: '@deepseek-ai/dsh-base', patchedBy: ['@sophia/dsh-bundle'], config: { provider: 'openai', model: 'gpt-6-luna', reasoningEffort: 'high', ...overrides.selection } },
+    { id: 'llm-pi-ai', origin: '@deepseek-ai/dsh-base', patchedBy: ['@sophia/dsh-bundle'], config: { providers: { openai: { apiKeyEnv: 'OPENAI_API_KEY', models: [{ id: 'gpt-6-luna', reasoningEfforts: { low: 'low', high: 'high' } }], ...overrides.profile } } } },
+  ]
+  assert.deepEqual(checkModelRoute(rows(), route), [])
+  const messages = (r) => checkModelRoute(r, route).map((f) => f.message)
+  assert.match(messages(rows({ selection: { provider: 'deepseek-official' } }))[0], /selects/)
+  assert.match(messages(rows({ selection: { reasoningEffort: 'max' } }))[0], /selects/)
+  assert.match(messages(rows({ profile: { apiKeyEnv: undefined } }))[0], /apiKeyEnv/)
+  assert.match(messages(rows({ profile: { apiKey: 'sk-literal' } })).join(' '), /literal credential/)
+  assert.match(messages(rows({ profile: { models: [{ id: 'gpt-6-astra' }] } }))[0], /does not list model/)
+  assert.match(messages(rows({ profile: { models: [{ id: 'gpt-6-luna' }] } }))[0], /does not offer reasoning effort/)
+  const unpatched = rows()
+  unpatched[0].patchedBy = []
+  assert.match(checkModelRoute(unpatched, route)[0].message, /must be set by/)
 })

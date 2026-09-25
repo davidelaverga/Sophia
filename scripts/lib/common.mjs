@@ -72,13 +72,7 @@ export function run(command, args, options = {}) {
   // A deliberate deadline (bounded boot) reports ETIMEDOUT with the kill signal set.
   const timedOut = options.timeout !== undefined && result.error?.code === 'ETIMEDOUT'
   if (result.error && !timedOut) throw result.error
-  return {
-    status: result.status,
-    signal: result.signal,
-    timedOut,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-  }
+  return { status: result.status, signal: result.signal, timedOut, stdout: result.stdout ?? '', stderr: result.stderr ?? '' }
 }
 
 /**
@@ -88,9 +82,7 @@ export function run(command, args, options = {}) {
 export function runChecked(command, args, options = {}) {
   const result = run(command, args, options)
   if (result.status !== 0) {
-    throw new Error(
-      `${command} ${args.join(' ')} exited ${result.status ?? result.signal}\n${result.stdout}\n${result.stderr}`,
-    )
+    throw new Error(`${command} ${args.join(' ')} exited ${result.status ?? result.signal}\n${result.stdout}\n${result.stderr}`)
   }
   return result.stdout
 }
@@ -118,14 +110,18 @@ export function pnpmBinDir(pathValue = process.env.PATH ?? '') {
  * process HOME and TMPDIR, no inherited personal home, no credentials,
  * telemetry off.
  * PATH holds only the node directory, the pinned pnpm directory and /usr/bin:/bin.
- * @param {{ dshHome: string, home: string }} homes - absolute directories.
+ * @param {{ dshHome: string, home: string, credentials?: string[] }} homes - absolute directories, plus the
+ *   credential variable names (never values) to copy from this process when set. dsh resolves them by
+ *   reference per request; nothing else from the caller's environment passes.
  * @returns {Record<string, string>} the complete child environment.
  */
-export function sanitizedEnv({ dshHome, home }) {
+export function sanitizedEnv({ dshHome, home, credentials = [] }) {
   // dsh's spill-local plugin writes under the process temp dir; keep it inside this install.
   const tmp = join(home, 'tmp')
   mkdirSync(tmp, { recursive: true })
+  const passed = Object.fromEntries(credentials.filter((name) => process.env[name]).map((name) => [name, process.env[name]]))
   return {
+    ...passed,
     HOME: home,
     TMPDIR: tmp,
     DSH_HOME: dshHome,
@@ -155,9 +151,7 @@ export function runDsh(runtimeDir, args, { env, cwd, timeoutMs }) {
  */
 export function normalizePaths(text, placeholders) {
   let out = text
-  const entries = Object.entries(placeholders)
-    .filter(([path]) => path)
-    .toSorted((a, b) => b[0].length - a[0].length)
+  const entries = Object.entries(placeholders).filter(([path]) => path).sort((a, b) => b[0].length - a[0].length)
   for (const [path, placeholder] of entries) out = out.split(path).join(placeholder)
   return out
 }

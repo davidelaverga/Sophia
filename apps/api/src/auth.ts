@@ -23,10 +23,12 @@ const bearerToken = (authorization: string | undefined) => /^Bearer (.+)$/.exec(
 /** Chosen once: asymmetric JWKS when configured (ES256/RS256), otherwise the legacy HS256 secret. */
 function tokenVerifier(cfg: AuthConfig): VerifyToken {
   // Trimmed so a stray CR/space from an env file cannot fail the exact issuer comparison.
-  const claims = { issuer: cfg.issuer.trim(), audience: cfg.audience.trim() }
+  // A token without an expiry or a subject is refused by the verifier itself.
+  const claims = { issuer: cfg.issuer.trim(), audience: cfg.audience.trim(), requiredClaims: ['exp', 'sub'] }
   if (cfg.jwksUrl) {
     const jwks = createRemoteJWKSet(new URL(cfg.jwksUrl))
-    return async (token) => (await jwtVerify(token, jwks, { ...claims, algorithms: ['RS256', 'ES256'] })).payload
+    // Supabase signs user tokens with its ES256 key (local and hosted alike).
+    return async (token) => (await jwtVerify(token, jwks, { ...claims, algorithms: ['ES256'] })).payload
   }
   if (cfg.secret) {
     const secret = new TextEncoder().encode(cfg.secret)

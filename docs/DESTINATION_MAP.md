@@ -48,9 +48,9 @@ a path updates its row in the same commit.
 
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
-| `packages/dsh-bundle/` | partial | S1-01, S1-03 | Built: manifest (`dsh.bundle.patch`), `cordis.patch.yml`, plugin entry reporting `not_ready` |
-| `packages/dsh-bundle/src/control-bridge.ts` | unbuilt | S1-03 | Application command ↔ public Agent operations |
-| `packages/dsh-bundle/src/role-registry.ts` | unbuilt | S1-03 | guide/lead/research/prototype/review presets |
+| `packages/dsh-bundle/` | partial | S1-01, S1-03 | Built: manifest (`dsh.bundle.patch`), `cordis.patch.yml` (including the development model route), plugin entry, control bridge |
+| `packages/dsh-bundle/src/control-bridge.ts` | partial | S1-03, S1-02 | Built: application command ↔ public Agent operations, a fenced Hold/Stop, a journal-backed dedupe, and restart reconciliation. Runs against the labelled fixture service until S1-02's real admission lands |
+| `packages/dsh-bundle/src/role-registry.ts` | partial | S1-03, S1-02+ | Built: the five versioned role presets with the S1-03 native-tool policy, enforced by agent-scoped visibility and a monotonic guard that also covers workflow child agents. Sophia domain tools join as later goals build them |
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |
 | `packages/dsh-bundle/skills/` | unbuilt | S1-03 | Procedural task knowledge |
@@ -70,7 +70,10 @@ a path updates its row in the same commit.
 | `apps/api/` | partial | S1-02, S1-05, S1-09, S1-11 | Built: Fastify HTTP, Supabase JWT auth (JWKS), project creation, command admission, snapshot, SSE |
 | `apps/studio/` | partial | S1-02, S1-04 … S1-12 | Built: sign-in, project start, the S1-02 work view (snapshot + live feed + goal commands) |
 | `apps/worker/` | unbuilt | S1-06, S1-08, S1-11, S1-13 | SQL job/outbox consumers and scheduler |
-| `apps/execution-host/` | unbuilt | S1-03, S1-07, S1-12 | Private VM supervisor: runtime, workspace, artifact gateway |
+| `apps/execution-host/` | partial | S1-03, S1-07, S1-12 | Private VM supervisor. Built: the runtime supervisor. The workspace supervisor and artifact gateway are S1-07 |
+| `apps/execution-host/src/runtime-supervisor.ts` | partial | S1-03 | Built: launches the official dsh per project home under a single-writer lease and a sanitized env. Ready only from the bridge. Bounded crash restarts. Container isolation and the deployed host are still to do |
+| `apps/execution-host/src/workspace-supervisor.ts` | unbuilt | S1-07 | No-secret task containers, build processes |
+| `apps/execution-host/src/artifact-gateway.ts` | unbuilt | S1-07, S1-12 | Authenticated preview routing and snapshots |
 | `apps/media-bridge/` | unbuilt | S1-05 | Raw LiveKit RTC ↔ Google Live |
 
 ## Other roots
@@ -78,15 +81,16 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `renderers/` | unbuilt | S1-13 | `web/pdf/` and `web/deck/`: the adapted JS render kernels (v0.4 D32 removed the Python path) |
-| `db/migrations/` | built | S1-02 | Pack 0001–0004 verbatim plus 0005–0007 (event notify, idempotent project creation, dispatch fencing); no automatic old-DB migration |
+| `db/migrations/` | built | S1-02 | Pack 0001–0004 verbatim plus 0005–0008 (event notify, idempotent project creation, dispatch fencing, idempotent dispatch results); no automatic old-DB migration |
 | `db/tests/` | built | S1-02 | The pack's SQL test, run after the migrations |
 | `supabase/` | built | S1-02 | Supabase CLI config for the local stack (ES256 signing keys, Auth redirects) |
 | `deploy/` | partial | S1-02, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate). S1-14 adds Render, execution-host and Vercel manifests |
 | `tests/unit/` | built | S1-01 | Toolchain, digest, patch-lint, dump-parse and map checks |
-| `tests/integration/` | partial | S1-01, S1-14 | Built: profile gate against the real pinned dsh. S1-14 adds the release crossings |
+| `tests/integration/` | partial | S1-01, S1-03, S1-14 | Built: profile gate, control bridge, roles, runtime supervisor and the live-steer rehearsal, all against the real pinned dsh. S1-14 adds the release crossings |
 | `tests/contracts/` | unbuilt | S1-02 | Contract fixtures |
 | `tests/e2e/` | unbuilt | S1-14 | Browser E2E |
 | `tests/fixtures/` | unbuilt | S1-02 | Synthetic fixtures |
+| `tests/support/` | built | S1-03 | LABELLED fixture Sophia service and keyless mock model for runtime tests |
 | `docs/` | built | S1-01 | Pack, source map, this map, runtime-unit guide, evidence, handoffs |
 | `docs/releases/` | unbuilt | S1-14 | Release records |
 | `planning/` | unbuilt | S1-02 | Versioned goal definitions (no private runtime logs) |
