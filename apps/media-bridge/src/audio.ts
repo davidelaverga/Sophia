@@ -13,8 +13,15 @@ export const INPUT_BACKLOG = 5
 export const OUTPUT_RATE = 24_000
 /** One output frame: 20 ms at 24 kHz. */
 export const OUTPUT_FRAME = 480
-/** At most 2 s of Sophia's speech waits for the room; beyond it the oldest frames are dropped and counted. */
-export const OUTPUT_BACKLOG_FRAMES = 100
+/**
+ * How much of Sophia's speech may wait for the room: three minutes. Google streams a reply faster than it plays, so
+ * the whole of a long reply has to fit (CX-0045: a 2 s bound dropped the middle of every longer reply). Beyond it
+ * the newest frames are refused and counted: a reply that long loses its end, never its middle. Stop Speaking and
+ * barge-in still clear everything queued at once.
+ */
+export const OUTPUT_BACKLOG_FRAMES = 9000
+const OUTPUT_FRAME_MS = 20
+const OUTPUT_SAMPLES_PER_MS = OUTPUT_RATE / 1000
 
 export class FormatError extends Error {}
 
@@ -94,21 +101,22 @@ export interface OutputFrame {
 /** Splits Sophia's PCM into 20 ms frames; frames of an older generation are dropped when the generation moves. */
 export class OutputFramer {
   private readonly queue: OutputFrame[] = []
-  private carry: { generation: number; samples: number[] } = { generation: 0, samples: [] }
-  /** Frames dropped for backpressure (never for a generation change, which is intended). */
+  private carry: { generation: number; samples: Int16Array } = { generation: 0, samples: new Int16Array(0) }
+  /** Frames refused because the backlog was full (never for a generation change, which is intended). */
   dropped = 0
 
   push(samples: Int16Array, generation: number): void {
-    if (this.carry.generation !== generation) this.carry = { generation, samples: [] }
-    for (const s of samples) this.carry.samples.push(s)
-    while (this.carry.samples.length >= OUTPUT_FRAME) {
-      this.queue.push({ generation, samples: Int16Array.from(this.carry.samples.slice(0, OUTPUT_FRAME)) })
-      this.carry.samples = this.carry.samples.slice(OUTPUT_FRAME)
+    if (this.carry.generation !== generation) this.carry = { generation, samples: new Int16Array(0) }
+    const all = new Int16Array(this.carry.samples.length + samples.length)
+    all.set(this.carry.samples)
+    all.set(samples, this.carry.samples.length)
+    let at = 0
+    for (; at + OUTPUT_FRAME <= all.length; at += OUTPUT_FRAME) {
+      if (this.queue.length < OUTPUT_BACKLOG_FRAMES)
+        this.queue.push({ generation, samples: all.slice(at, at + OUTPUT_FRAME) })
+      else this.dropped += 1
     }
-    while (this.queue.length > OUTPUT_BACKLOG_FRAMES) {
-      this.queue.shift()
-      this.dropped += 1
-    }
+    this.carry.samples = all.slice(at)
   }
 
   /** The next frame of `generation`; frames of any other generation are discarded on the way. */
@@ -123,10 +131,75 @@ export class OutputFramer {
   /** Stop Speaking or barge-in: nothing queued is played. */
   clear(): void {
     this.queue.length = 0
-    this.carry = { generation: 0, samples: [] }
+    this.carry = { generation: 0, samples: new Int16Array(0) }
   }
 
   get queued(): number {
     return this.queue.length
+  }
+}
+
+/** Why a reply's audio ended: it all played, or it was cut (Stop Speaking, a pause, a handoff, barge-in, a reconnect). */
+export type ReplyEnd = 'played' | 'stopped' | 'interrupted' | 'recovered'
+
+interface ReplyTally {
+  startedAt: number
+  lastAt: number
+  receivedSamples: number
+  playedFrames: number
+  droppedBefore: number
+  maxQueued: number
+  generated: boolean
+}
+
+/**
+ * The continuity of one reply's audio, content-free (CX-0045): how much arrived and over how long, how much played,
+ * how much was refused for backlog or cleared by a cut, and the deepest the queue got. Durations in ms.
+ */
+export class ReplyAudio {
+  private reply: ReplyTally | null = null
+
+  received(samples: number, queued: number, droppedTotal: number, now: number): void {
+    this.reply ??= {
+      startedAt: now,
+      lastAt: now,
+      receivedSamples: 0,
+      playedFrames: 0,
+      droppedBefore: droppedTotal,
+      maxQueued: 0,
+      generated: false,
+    }
+    this.reply.receivedSamples += samples
+    this.reply.lastAt = now
+    this.reply.maxQueued = Math.max(this.reply.maxQueued, queued)
+  }
+
+  played(): void {
+    if (this.reply) this.reply.playedFrames += 1
+  }
+
+  /** Google finished the turn; what is queued still plays. */
+  generated(): void {
+    if (this.reply) this.reply.generated = true
+  }
+
+  get complete(): boolean {
+    return this.reply?.generated ?? false
+  }
+
+  /** The reply's figures, once: null when no audio arrived since the last end. */
+  end(how: ReplyEnd, queued: number, droppedTotal: number): Record<string, unknown> | null {
+    const r = this.reply
+    this.reply = null
+    if (!r) return null
+    return {
+      ended: how,
+      receivedMs: Math.round(r.receivedSamples / OUTPUT_SAMPLES_PER_MS),
+      arrivalMs: r.lastAt - r.startedAt,
+      playedMs: r.playedFrames * OUTPUT_FRAME_MS,
+      droppedMs: (droppedTotal - r.droppedBefore) * OUTPUT_FRAME_MS,
+      clearedMs: queued * OUTPUT_FRAME_MS,
+      maxQueuedMs: r.maxQueued * OUTPUT_FRAME_MS,
+    }
   }
 }

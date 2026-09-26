@@ -55,9 +55,21 @@ class FakeRoom implements RoomLink {
   }
 
   people = () => this.present
+  /** When set, each frame waits until the test releases it: the AudioSource's 200 ms queue is full. */
+  holding = false
+  private readonly held: Array<() => void> = []
   play = async (samples: Int16Array) => {
-    await Promise.resolve()
+    if (this.holding) await new Promise<void>((resolve) => this.held.push(resolve))
+    else await Promise.resolve()
     this.played.push(samples)
+  }
+
+  /** The room plays `n` held frames, one after the other, as real time passes. */
+  async release(n: number): Promise<void> {
+    for (let i = 0; i < n; i++) {
+      this.held.shift()?.()
+      await new Promise((resolve) => setImmediate(resolve))
+    }
   }
   clearPlayback = () => {
     this.clears += 1
@@ -166,6 +178,10 @@ const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
 const voice16k = (n = 1600) => new Int16Array(n).fill(2000)
 const speech = (frames = 2) => pcmToBase64(new Int16Array(OUTPUT_FRAME * frames).fill(300))
 const OUT = 'audio/pcm;rate=24000'
+/** `frames` 20 ms frames of Sophia's speech; frame k carries the value first + k + 1, so order and gaps show. */
+const marked = (first: number, frames: number) =>
+  pcmToBase64(Int16Array.from({ length: OUTPUT_FRAME * frames }, (_, j) => first + Math.floor(j / OUTPUT_FRAME) + 1))
+const replyLog = () => logs.find(([event]) => event === 'audio.reply')?.[1]
 
 let clock: number
 let service: FakeService
@@ -294,6 +310,59 @@ describe('room session: who Google hears (cases A10, A11)', () => {
 })
 
 describe('room session: Sophia’s output (case A09)', () => {
+  it('a long reply that arrives faster than it plays is heard whole and in order (CX-0045)', async () => {
+    const { room, live } = await ready()
+    room.holding = true
+    const frames = 10 * 50
+    // Google's burst: 10 s of speech in 40 ms chunks, all before the room has played a frame; then its turn ends.
+    for (let i = 0; i < frames; i += 2) live.events.audio(marked(i, 2), OUT)
+    live.events.turnComplete()
+    await flush()
+    assert.equal(replyLog(), undefined, 'not logged while the reply is still playing')
+    await room.release(frames)
+    assert.equal(room.played.length, frames)
+    assert.deepEqual(
+      room.played.map((f) => f[0]),
+      Array.from({ length: frames }, (_, i) => i + 1),
+      'every frame played once, in order',
+    )
+    const figures = replyLog()
+    assert.ok(figures)
+    assert.deepEqual(
+      { ...figures, maxQueuedMs: Number(figures.maxQueuedMs) >= 9900 },
+      {
+        exchangeId: EXCHANGE,
+        ended: 'played',
+        receivedMs: 10_000,
+        arrivalMs: 0,
+        playedMs: 10_000,
+        droppedMs: 0,
+        clearedMs: 0,
+        maxQueuedMs: true,
+      },
+    )
+  })
+
+  it('Stop Speaking in the middle of a long reply still silences it at once, and the log says what was cut', async () => {
+    const { session, room, live } = await ready()
+    room.holding = true
+    for (let i = 0; i < 500; i += 2) live.events.audio(marked(i, 2), OUT)
+    await room.release(10)
+    session.update(assignment({ playbackEpoch: 2 }))
+    await room.release(20)
+    assert.ok(room.played.length <= 11, 'at most the frame already handed to the room plays after the stop')
+    assert.deepEqual(replyLog(), {
+      exchangeId: EXCHANGE,
+      ended: 'stopped',
+      receivedMs: 10_000,
+      arrivalMs: 0,
+      playedMs: 200,
+      droppedMs: 0,
+      clearedMs: (500 - 10 - 1) * 20,
+      maxQueuedMs: (500 - 1) * 20,
+    })
+  })
+
   it('plays at 24 kHz and reports playing only once frames reached the room', async () => {
     const { session, room, live } = await ready()
     live.events.audio(speech(2), OUT)

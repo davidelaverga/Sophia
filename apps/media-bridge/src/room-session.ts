@@ -15,7 +15,17 @@
 //    participant's attributes, so the room's light shows what is actually happening.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
 import type { MediaAssignment } from '@sophia/contracts'
-import { base64ToPcm, FormatError, InputChunker, isAudible, OUTPUT_RATE, OutputFramer, pcmRate } from './audio.ts'
+import {
+  base64ToPcm,
+  FormatError,
+  InputChunker,
+  isAudible,
+  OUTPUT_RATE,
+  OutputFramer,
+  pcmRate,
+  ReplyAudio,
+  type ReplyEnd,
+} from './audio.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { type ConnectLive, type LiveEvents, type LiveLink, systemInstruction } from './live-session.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
@@ -186,6 +196,8 @@ export class RoomSession {
   private people: RoomPerson[] = []
   private readonly chunker = new InputChunker()
   private readonly framer = new OutputFramer()
+  /** Content-free continuity of the reply being played, logged as `audio.reply` when it ends (CX-0045). */
+  private readonly reply = new ReplyAudio()
   private readonly sampler = new FrameSampler()
   /** The model is producing audio for a turn that has not ended. */
   private responding = false
@@ -318,7 +330,7 @@ export class RoomSession {
       this.deps.log('assignment.changed', { exchangeId: this.exchangeId, ...epochs(next), ...change })
     }
     if (change.handoff) this.handoff()
-    if (change.stopSpeaking) this.silence(pending)
+    if (change.stopSpeaking) this.silence(pending, 'stopped')
     if (change.lookChanged) {
       this.sampler.clear()
       this.room?.watch(next.looking)
@@ -414,7 +426,8 @@ export class RoomSession {
    * that may still be on its way is fenced; the log says why, since a fence set on sound alone can also drop the
    * next reply when nothing was pending (the stale reply playing after a stop would be worse).
    */
-  private silence(pending: PendingReply | null): void {
+  private silence(pending: PendingReply | null, how: ReplyEnd): void {
+    this.logReply(how)
     this.room?.clearPlayback()
     this.framer.clear()
     this.playingUntil = 0
@@ -446,7 +459,7 @@ export class RoomSession {
     this.sampler.clear()
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
-    this.silence(this.pendingReply(this.deps.now()))
+    this.silence(this.pendingReply(this.deps.now()), 'stopped')
   }
 
   /**
@@ -610,7 +623,7 @@ export class RoomSession {
     if (failedBeforeReady && this.attempts >= 1) this.handle = null
     this.chunker.clear()
     this.state.bumpGeneration()
-    this.silence(null)
+    this.silence(null, 'recovered')
     this.endTurn()
     const delay = RECONNECT_DELAYS_MS[this.attempts]
     this.attempts += 1
@@ -623,12 +636,24 @@ export class RoomSession {
 
   private bargeIn(): void {
     this.state.bumpGeneration()
-    this.silence(null)
+    this.silence(null, 'interrupted')
     this.endTurn()
   }
 
   private turnComplete(): void {
+    this.reply.generated()
     this.endTurn()
+    this.replyDrained()
+  }
+
+  /** The reply Google finished has played to its last frame. */
+  private replyDrained(): void {
+    if (this.reply.complete && !this.pumping && this.framer.queued === 0) this.logReply('played')
+  }
+
+  private logReply(how: ReplyEnd): void {
+    const figures = this.reply.end(how, this.framer.queued, this.framer.dropped)
+    if (figures) this.deps.log('audio.reply', { exchangeId: this.exchangeId, ...figures })
   }
 
   private endTurn(): void {
@@ -662,6 +687,7 @@ export class RoomSession {
     }
     this.responding = true
     this.framer.push(samples, generation)
+    this.reply.received(samples.length, this.framer.queued, this.framer.dropped, this.deps.now())
     void this.pump()
   }
 
@@ -677,12 +703,14 @@ export class RoomSession {
         if (!frame) break
         await room.play(frame)
         this.playingUntil = this.deps.now() + PLAYING_TAIL_MS
+        this.reply.played()
         this.noticeHeard()
       }
     } catch (err: unknown) {
       this.deps.log('audio.playback_failed', { error: message(err) })
     } finally {
       this.pumping = false
+      this.replyDrained()
     }
   }
 
@@ -760,7 +788,7 @@ export class RoomSession {
     const pending = this.pendingReply(now)
     if (this.wasSettling && !settling && pending) {
       this.state.bumpGeneration()
-      this.silence(pending)
+      this.silence(pending, 'stopped')
     }
     this.wasSettling = settling
   }

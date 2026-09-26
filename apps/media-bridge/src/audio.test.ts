@@ -68,13 +68,12 @@ describe('audio framing', () => {
     assert.equal(f.queued, 0)
   })
 
-  it('bounds the output backlog', () => {
+  it('holds a whole long reply, and past the bound refuses the newest frames, never the oldest', () => {
     const f = new OutputFramer()
     f.push(ramp(OUTPUT_FRAME * (OUTPUT_BACKLOG_FRAMES + 3)), 1)
     assert.equal(f.queued, OUTPUT_BACKLOG_FRAMES)
     assert.equal(f.dropped, 3)
-    f.clear()
-    assert.equal(f.next(1), undefined)
+    assert.deepEqual(f.next(1)?.slice(0, 2), ramp(OUTPUT_FRAME).slice(0, 2), 'the reply still starts at its start')
   })
 
   it('tells sound Google may answer from a quiet room by its RMS level', () => {

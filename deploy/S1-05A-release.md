@@ -43,6 +43,15 @@ Every line carries ids and codes only: no audio, transcripts, brief text, tokens
   - `assignment.changed`: the input, playback and observation epochs.
   - `tool.answered`: the name, the status, and the `workId`/`commandId` it started or a refusal `code`. Also `tool.dropped` and `tool.failed`.
   - `audio.reply_fenced`: why a stop dropped a reply (`responding`, `transcript` or `sound`).
+  - `audio.reply`: one line per reply, with no content, all figures in ms:
+    - `ended`: `played`, `stopped`, `interrupted` or `recovered`;
+    - `receivedMs` and `arrivalMs`: how much audio Google sent, and over how long;
+    - `playedMs`: how much reached the room;
+    - `droppedMs`: refused because the three-minute backlog was full;
+    - `clearedMs`: queued when the reply was cut;
+    - `maxQueuedMs`: the deepest the queue got.
+
+    A reply whose `playedMs` is short of `receivedMs` with `ended: played` lost audio.
   - `announce.not_heard` and `announce.record_failed`.
   - `quiesce.ack_failed`, `presence.report_failed` and `holder.event_failed`.
 - **API.** Fastify JSON lines: one per request (`reqId`, method, URL, status, time).
@@ -84,6 +93,7 @@ LiveKit traces show the room. They do not show Google, the tool calls, the work,
 | Sophia never joins the room | Bridge `session.start`/`room.joined`/`session.unavailable`; API 401s on `/v1/media/*` (the bridge token and its hash differ); the LiveKit settings |
 | Sophia's voice reads unavailable or recovering | Bridge `provider.recover` reasons: the key, the model name, Google's close reason |
 | "Sophia paused: … is not in the room" when nobody left | Bridge `holder.absent` (`departed`) and `room.joined` (`people`), then the holder's join and leave times in the LiveKit trace |
+| Sophia skips words or jumps in a longer reply | Bridge `audio.reply` for that reply: `droppedMs` above 0, or `playedMs` below `receivedMs`. Many `interrupted` endings mean Google heard barge-in (echo, or someone speaking) |
 | Stop Speaking did not silence a reply, or a reply went missing after a stop | Bridge `audio.reply_fenced` and `assignment.changed` (the playback epoch) |
 | A brief stays queued | The task's reason in the Studio ("waiting for Sophia's runtime to connect / report ready / reconnect"); worker `deferred` lines; the runtime host's events |
 | A brief fails | The task's reason (`the native turn ended: …`); the runtime host's events; the model key |
