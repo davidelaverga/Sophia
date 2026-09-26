@@ -84,7 +84,7 @@ Codex's finding on the diagnostic's public output was fixed at `833221c`. Claude
 - **Amendments A04–A07 and migrations 0012–0015**, all append-only. These functions are replaced with `CREATE OR REPLACE`:
   - `admit_goal_command`, for native bindings;
   - `transfer_input_floor` and `decide_lobby_entry`, for the exchange epoch and the removal obligation;
-  - in 0015, `request_guest_quiesce`, `start_exchange` and `control_exchange` (0013's own), so that a guest who has asked for a token but is not yet in the room keeps Sophia from opening or resuming for two minutes.
+  - in 0015, `request_guest_quiesce`, `start_exchange` and `control_exchange` (0013's own), so that a guest who has asked for a token but is not yet in the room keeps Sophia from opening or resuming until that token has expired (ten minutes).
 - **Viewers publish and may hold the floor (A06).** Work still needs an editor. The expectations changed in `room.db.test.ts`, `rooms.db.test.ts` and `room-view.test.ts` are marked "Changed by amendment A06".
 - **Participants of unsigned standing count as guests** everywhere.
 - **Studio changes:**
@@ -110,7 +110,7 @@ Its inputs are already fixed by this branch:
 | `0012_runtime_service.sql` | `0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f` |
 | `0013_room_exchange.sql` | `44ac2a681e4179a2a7649d632f0382fff32b412a9d113d3d9b1db62521bad221` |
 | `0014_room_removals.sql` | `55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2` |
-| `0015_guest_joining.sql` | `a2ca2257ebffaaebd43d319233a53ba2dc70b291d596636f5f41a67615d4678d` |
+| `0015_guest_joining.sql` | `d900c07992a0e62a722e1330f8893e524263b13770315a9b0c5974c16d05079c` |
 
 0012–0014 were applied in OP-0002 (E1). 0015 came after the release, from Codex's review of `fa97a1a`, and applies alone in OP-0006 ([CC-0021](../coordination/S1-05A/S1-05A-CC-0021.md)).
 

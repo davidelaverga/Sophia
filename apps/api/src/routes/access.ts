@@ -325,11 +325,10 @@ function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
       const quiesce = await withActor(deps.pool, req.actorId, 'write', (c) =>
         requestGuestQuiesce(c, req.params.entryId),
       )
-      if (quiesce) {
-        await awaitQuiescence(deps, quiesce, access.roomId)
-        // The wait can take seconds: an editor may have declined or blocked the guest meanwhile.
-        access = await authorize()
-      }
+      if (quiesce) await awaitQuiescence(deps, quiesce, access.roomId)
+      // An editor may have declined or blocked the guest since the first check (during the wait, or just after the
+      // quiesce committed): authorize again immediately before the token is minted, on every path.
+      access = await authorize()
       return issueRoomToken(deps.livekit, {
         roomId: access.roomId,
         identity: req.actorId,

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { jwtVerify, SignJWT } from 'jose'
-import type pg from 'pg'
+import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
@@ -151,6 +151,33 @@ describe('guest invitations', () => {
     // Declined a moment ago: asking again waits the minute (A03).
     const tooSoon = await call('/api/v1/join/knock', { bearer: guest, body: { ...link, displayName: 'Ana' } })
     assert.equal(tooSoon.status, 409)
+  })
+
+  it('a guest declined just after the quiesce check, with no exchange to pause, still gets no token', async () => {
+    const inv = parseInvitation((await invite(B, { kind: 'guest' })).json)
+    const guest = await guestToken(randomUUID())
+    const knocked = parseLobbyEntry(
+      (await call('/api/v1/join/knock', { bearer: guest, body: { token: tokenOf(inv.url), displayName: 'Eva' } })).json,
+    )
+    await call(`/api/v1/lobby/${knocked.id}/decision`, { bearer: await token(B), body: { decision: 'admit' } })
+    // The editor's decline lands inside the quiesce's own transaction, after its admission check: it is committed
+    // before the token would be minted, and nothing but a last check can see it.
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(`CREATE FUNCTION sophia.test_decline_now() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN NEW.status := 'denied'; RETURN NEW; END $$`)
+      await owner.query(
+        `CREATE TRIGGER test_decline_now BEFORE UPDATE OF token_requested_at ON sophia.room_lobby FOR EACH ROW
+         WHEN (NEW.id = '${knocked.id}') EXECUTE FUNCTION sophia.test_decline_now()`,
+      )
+      const res = await call(`/api/v1/lobby/${knocked.id}/room-token`, { bearer: guest })
+      assert.equal(res.status, 409, 'declined before the mint: no token')
+    } finally {
+      await owner.query(`DROP TRIGGER IF EXISTS test_decline_now ON sophia.room_lobby`)
+      await owner.query(`DROP FUNCTION IF EXISTS sophia.test_decline_now()`)
+      await owner.end()
+    }
   })
 
   it('blocks a guest for good until someone unblocks them (A03)', async () => {

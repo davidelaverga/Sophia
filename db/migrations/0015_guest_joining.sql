@@ -3,18 +3,19 @@
 --   lists them, neither the API's presence check nor the bridge's report can see them, so an exchange opened, or a
 --   pause resumed, in that gap was never quiesced for them: only the bridge's own pause on their arrival guarded it.
 -- * A token request is now recorded in the transaction that quiesces any live exchange, under the project lock that
---   opening and resuming also take. For two minutes after it (the freshness the presence check already uses),
---   opening and resuming refuse, as they do for a guest who is present. Once LiveKit lists the guest, those checks
---   take over.
+--   opening and resuming also take. For ten minutes after it, the lifetime of the room token it leads to
+--   (ROOM_TOKEN_TTL_SECONDS in the API), opening and resuming refuse, as they do for a guest who is present: until the
+--   token expires, its holder may connect at any moment.
 -- * The contract is unchanged: the refusal is the same invalid_state a present guest gets.
 -- 0001–0014 are not edited; request_guest_quiesce, start_exchange and control_exchange (0013) are replaced.
 BEGIN;
 
 ALTER TABLE sophia.room_lobby ADD COLUMN token_requested_at timestamptz;
 
--- A guest asked for a token to this room in the last two minutes: they may connect at any moment.
+-- A guest asked for a token to this room within a token's lifetime (ROOM_TOKEN_TTL_SECONDS, ten minutes): they may
+-- connect at any moment.
 CREATE FUNCTION sophia.guest_joining(p_room uuid) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
- SELECT EXISTS(SELECT 1 FROM sophia.room_lobby WHERE room_id=p_room AND token_requested_at>now()-interval '2 minutes') $$;
+ SELECT EXISTS(SELECT 1 FROM sophia.room_lobby WHERE room_id=p_room AND token_requested_at>now()-interval '10 minutes') $$;
 REVOKE ALL ON FUNCTION sophia.guest_joining(uuid) FROM PUBLIC;
 
 -- request_guest_quiesce (0013), replaced: the same, and the request is recorded.
@@ -60,7 +61,7 @@ BEGIN
  IF FOUND AND pres.guests_present AND pres.reported_at>now()-interval '2 minutes' THEN
   RAISE EXCEPTION 'A guest is in the room: Sophia joins when the room is member-only' USING ERRCODE='40001'; END IF;
  IF sophia.guest_joining(p_room) THEN
-  RAISE EXCEPTION 'A guest is joining: Sophia joins when the room is member-only' USING ERRCODE='40001'; END IF;
+  RAISE EXCEPTION 'A guest may still be joining: Sophia joins when the room is member-only' USING ERRCODE='40001'; END IF;
  IF r.input_actor_id IS NULL THEN
   UPDATE sophia.room_state SET input_actor_id=a, revision=revision+1 WHERE id=p_room RETURNING * INTO r;
   PERFORM sophia.emit_project_event(p,'room.input_floor_changed','room',p_room,r.revision,'room.input_floor');
@@ -103,7 +104,7 @@ BEGIN
  ELSE -- resume
   IF e.state<>'paused' THEN RETURN sophia.exchange_json(e); END IF;
   IF sophia.guest_joining(e.room_id) THEN
-   RAISE EXCEPTION 'A guest is joining: Sophia resumes when the room is member-only again' USING ERRCODE='40001'; END IF;
+   RAISE EXCEPTION 'A guest may still be joining: Sophia resumes when the room is member-only again' USING ERRCODE='40001'; END IF;
   IF e.pause_reason='guest' THEN
    SELECT * INTO pres FROM sophia.room_ai_presence WHERE room_id=e.room_id;
    IF NOT FOUND OR pres.guests_present OR pres.reported_at<now()-interval '30 seconds' THEN

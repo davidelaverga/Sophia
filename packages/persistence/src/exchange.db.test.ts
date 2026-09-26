@@ -148,11 +148,11 @@ async function guestAsksForToken() {
   return { projectId, exchangeId, roomId, requestId }
 }
 
-/** The guest's token request happened long enough ago that they would be listed by now if they came. */
-const ageTokenRequests = (roomId: string) =>
+/** Moves the room's token requests `seconds` back, as the owner. A guest token lives 600 s (ROOM_TOKEN_TTL_SECONDS). */
+const ageTokenRequests = (roomId: string, seconds: number) =>
   ownerQuery(
-    `UPDATE sophia.room_lobby SET token_requested_at = token_requested_at - interval '121 seconds' WHERE room_id = $1`,
-    [roomId],
+    `UPDATE sophia.room_lobby SET token_requested_at = token_requested_at - make_interval(secs => $2) WHERE room_id = $1`,
+    [roomId, seconds],
   )
 
 describe('opening and controlling the exchange', () => {
@@ -268,16 +268,23 @@ describe('guests and a project-aware Sophia (case A12)', () => {
     const entryId = await letGuestIn(projectId)
     assert.equal(await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entryId)), null, 'nothing to pause')
     assert.equal(await codeOf(open(E, projectId)), 'invalid_state', 'the token is minted; they connect any moment')
-    await ageTokenRequests((await room(projectId)).id)
+    const roomId = (await room(projectId)).id
+    await ageTokenRequests(roomId, 590)
+    assert.equal(
+      await codeOf(open(E, projectId)),
+      'invalid_state',
+      'nor late in the token’s life: it still admits them',
+    )
+    await ageTokenRequests(roomId, 11)
     const { exchangeId } = await open(E, projectId)
-    assert.ok(exchangeId, 'once they would be listed, the presence checks decide')
+    assert.ok(exchangeId, 'once the token has expired, the presence checks decide')
   })
 
   it('a guest on their way in keeps a guest pause from being resumed, though the room still reads member-only', async () => {
     const { roomId, exchangeId } = await guestAsksForToken()
     await present(roomId, exchangeId, [{ identity: E, standing: 'editor' }])
     assert.equal(await codeOf(control(E, exchangeId, 'resume')), 'invalid_state')
-    await ageTokenRequests(roomId)
+    await ageTokenRequests(roomId, 601)
     const resumed = await control(E, exchangeId, 'resume')
     assert.equal(resumed.state, 'open')
   })
