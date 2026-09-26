@@ -29,7 +29,7 @@ Optional: `INVITE_TOKEN_SECRET`, `STUDIO_URL`, `RESEND_API_KEY` and `INVITE_FROM
 - **`SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256` is the capability's hash, never the capability.** Both are 64 lowercase hex, so check the value by equality. Uppercase stops the API at start.
 - **Studio has no Git connection on Vercel.** Build at the exact commit with `pnpm --filter @sophia/studio build` and the Production `VITE_` values. Then upload `apps/studio/dist` with `vercel deploy … --prod --meta commit=<sha>`; `vercel.json` travels inside `dist`.
 
-**Before the API runs this candidate**, the hosted database needs migrations 0012–0015 (0012–0014 were applied in OP-0002; 0015 applies alone, and the API at `ce8bb8f` runs unchanged on it). Apply them with the owner connection: `SOPHIA_MIGRATION_DATABASE_URL=… pnpm db:migrate -- --dry-run`, then again without `--dry-run`. `scripts/register-runtime.ts <projectId> <adminEmail>` registers the runtime and prints its capability once.
+**Before the API runs this candidate**, the hosted database needs migrations 0012–0016 (0012–0014 were applied in OP-0002; 0015 and 0016 apply on their own, and the API at `ce8bb8f` runs unchanged on both). Apply them with the owner connection: `SOPHIA_MIGRATION_DATABASE_URL=… pnpm db:migrate -- --dry-run`, then again without `--dry-run`. `scripts/register-runtime.ts <projectId> <adminEmail>` registers the runtime and prints its capability once.
 
 ## What each process records
 
@@ -90,7 +90,7 @@ LiveKit traces show the room. They do not show Google, the tool calls, the work,
 |---|---|
 | The API does not start | The start log: a missing `LIVEKIT_API_KEY`/`SECRET` while `LIVEKIT_URL` is set, `SUPABASE_JWT_ISSUER`, the format of `SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256`, or the role-safety check |
 | Studio calls fail in the browser | `STUDIO_ORIGINS` (CORS), `VITE_API_URL` |
-| `/ready` is 503 with `schema` | Migrations 0012–0015 are not all applied |
+| `/ready` is 503 with `schema` | Migrations 0012–0016 are not all applied |
 | Sophia never joins the room | Bridge `session.start`/`room.joined`/`session.unavailable`; API 401s on `/v1/media/*` (the bridge token and its hash differ); the LiveKit settings |
 | Sophia's voice reads unavailable or recovering | Bridge `provider.recover` reasons: the key, the model name, Google's close reason |
 | "Sophia paused: … is not in the room" when nobody left | Bridge `holder.absent` (`departed`) and `room.joined` (`people`), then the holder's join and leave times in the LiveKit trace |

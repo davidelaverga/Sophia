@@ -81,10 +81,11 @@ Codex's finding on the diagnostic's public output was fixed at `833221c`. Claude
 
 ## For review (Luis)
 
-- **Amendments A04–A07 and migrations 0012–0015**, all append-only. These functions are replaced with `CREATE OR REPLACE`:
+- **Amendments A04–A07 and migrations 0012–0016**, all append-only. These functions are replaced with `CREATE OR REPLACE`:
   - `admit_goal_command`, for native bindings;
   - `transfer_input_floor` and `decide_lobby_entry`, for the exchange epoch and the removal obligation;
-  - in 0015, `request_guest_quiesce`, `start_exchange` and `control_exchange` (0013's own), so that a guest who has asked for a token but is not yet in the room keeps Sophia from opening or resuming until that token has expired: 630 s from the stamp made just before its mint (`guest_token_minting`, new).
+  - in 0015, `request_guest_quiesce`, `start_exchange` and `control_exchange` (0013's own), so that a guest who has asked for a token but is not yet in the room keeps Sophia from opening or resuming until that token has expired: 630 s from the stamp made just before its mint (`guest_token_minting`, new);
+  - in 0016 (Codex's review of `aba31d5`), `capture_native_result`, `runtime_record_receipts`, `runtime_poll`, `compile_brief_manifest`, `admit_native_task` (0012's) and `decide_lobby_entry` (0014's). A result is captured only under the goal's current authority; the command poll reads the queue under the instance row's lock; a manifest carries only eligible decisions, as dependencies; a removal watches for 630 s.
 - **Viewers publish and may hold the floor (A06).** Work still needs an editor. The expectations changed in `room.db.test.ts`, `rooms.db.test.ts` and `room-view.test.ts` are marked "Changed by amendment A06".
 - **Participants of unsigned standing count as guests** everywhere.
 - **Studio changes:**
@@ -111,8 +112,9 @@ Its inputs are already fixed by this branch:
 | `0013_room_exchange.sql` | `44ac2a681e4179a2a7649d632f0382fff32b412a9d113d3d9b1db62521bad221` |
 | `0014_room_removals.sql` | `55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2` |
 | `0015_guest_joining.sql` | `07eff40148b861705e3e6bf4e44975ff40934af5ec2321a22b0d5b007800712c` |
+| `0016_review_fences.sql` | `3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c` |
 
-0012–0014 were applied in OP-0002 (E1). 0015 came after the release, from Codex's review of `fa97a1a`, and applies alone in OP-0006 ([CC-0021](../coordination/S1-05A/S1-05A-CC-0021.md)).
+0012–0014 were applied in OP-0002 (E1). 0015 and 0016 came after the release, from Codex's reviews, and apply on their own (0015 in OP-0007; 0016 in a later request).
 
 The effects it will name, in order:
 

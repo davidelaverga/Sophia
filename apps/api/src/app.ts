@@ -66,7 +66,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.admit_native_task(uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.start_exchange(uuid,bigint,boolean,text)') IS NOT NULL
   AND to_regprocedure('sophia.claim_room_removals(text,integer,integer)') IS NOT NULL
-  AND to_regprocedure('sophia.guest_token_minting(uuid)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.guest_token_minting(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.capture_completed_turns(uuid,uuid)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({

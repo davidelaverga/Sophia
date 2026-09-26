@@ -102,6 +102,11 @@ describe('removal obligations (amendment A07)', () => {
     const { projectId, entryId, guest } = await guestIn()
     await decide(E, entryId, 'deny')
     assert.deepEqual(await removalOf(projectId, entryId), { state: 'pending', attempts: 0, lastError: null })
+    const watch = await owner.query<{ s: number }>(
+      `SELECT extract(epoch FROM guard_until - now())::int AS s FROM sophia.room_removals WHERE lobby_entry_id = $1`,
+      [entryId],
+    )
+    assert.ok((watch.rows[0]?.s ?? 0) >= 625, 'it watches through the padded token lifetime (630 s, as 0015 fences)')
     const open = await withActor(pool, A, 'read', (c) => pendingRemoval(c, entryId))
     assert.equal(open?.identity, guest)
 

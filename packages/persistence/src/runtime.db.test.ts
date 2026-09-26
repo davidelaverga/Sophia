@@ -572,6 +572,141 @@ describe('the runtime service', () => {
     assert.equal(state.state, 'checked', 'delivered and incorporated are distinct, and both were recorded')
   })
 
+  it('a result from before a Hold, replayed after the Resume, stays withheld; a turn under the Resume is captured', async () => {
+    const w = await world()
+    const { admitted, create } = await admittedAndQueued(w)
+    await withService(pool, (c) =>
+      recordRuntimeReceipts(c, w.who, [receipt(create, 'delivered', { nativeSequence: 3 })]),
+    )
+    const control = (kind: 'hold' | 'resume', epoch: number) =>
+      withActor(pool, E, 'write', (c) =>
+        admitGoalCommand(c, w.project.projectId, randomUUID(), {
+          kind,
+          goalId: admitted.goalId,
+          expectedGoalRevision: 1,
+          expectedAuthorityEpoch: epoch,
+          bodySourceId: null,
+        }),
+      )
+    await control('hold', 1)
+    await dispatchAll(w.project.projectId)
+    const hold = (await withService(pool, (c) => runtimePoll(c, w.who, 1))).commands[0]?.command as RuntimeCommand
+    await withService(pool, (c) => recordRuntimeReceipts(c, w.who, [receipt(hold, 'checked', { nativeSequence: 9 })]))
+    // Resumed while the runtime was away: the goal runs again under epoch 3, and nothing has been delivered yet.
+    await control('resume', 2)
+    // The runtime comes back and replays a turn it finished before the Hold and never had acknowledged.
+    await withService(pool, (c) =>
+      recordRuntimeObservations(c, w.who, [
+        observation(create, w.rt, 7, 'assistant/message', { text: 'PRE-HOLD brief', interrupted: false }),
+        observation(create, w.rt, 8, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      ]),
+    )
+    const read = () => withActor(pool, E, 'read', (c) => readNativeTask(c, w.project.projectId, admitted.taskId))
+    let detail = await read()
+    assert.equal(detail.result, null, 'the retired authority’s result is not published')
+    assert.match(detail.task.reason ?? '', /earlier authority/)
+    await dispatchAll(w.project.projectId)
+    const resume = (await withService(pool, (c) => runtimePoll(c, w.who, 2))).commands[0]?.command as RuntimeCommand
+    assert.equal(resume.kind, 'resume')
+    await withService(pool, (c) =>
+      recordRuntimeReceipts(c, w.who, [receipt(resume, 'delivered', { nativeSequence: 12 })]),
+    )
+    assert.equal((await read()).result, null, 'the Resume’s receipt judges the old turn again, and still withholds it')
+    await withService(pool, (c) =>
+      recordRuntimeObservations(c, w.who, [
+        observation(create, w.rt, 14, 'assistant/message', { text: 'POST-RESUME brief', interrupted: false }),
+        observation(create, w.rt, 15, 'turn/end', { turn: 2, reason: { kind: 'completed' } }),
+      ]),
+    )
+    detail = await read()
+    assert.deepEqual([detail.task.phase, detail.result?.markdown], ['result_ready', 'POST-RESUME brief'])
+  })
+
+  it('a completed turn that arrives before its command’s receipt is captured once the receipt is recorded', async () => {
+    const w = await world()
+    const { admitted, create } = await admittedAndQueued(w)
+    await withService(pool, (c) =>
+      recordRuntimeObservations(c, w.who, [
+        observation(create, w.rt, 7, 'assistant/message', { text: 'Out of order brief', interrupted: false }),
+        observation(create, w.rt, 8, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      ]),
+    )
+    const read = () => withActor(pool, E, 'read', (c) => readNativeTask(c, w.project.projectId, admitted.taskId))
+    assert.equal((await read()).result, null, 'nothing is decided before the command that began the turn has settled')
+    // A new session reports no position yet: its create settles before anything in it.
+    await withService(pool, (c) =>
+      recordRuntimeReceipts(c, w.who, [receipt(create, 'delivered', { nativeSequence: null })]),
+    )
+    assert.equal((await read()).result?.markdown, 'Out of order brief')
+  })
+
+  it('a bridge superseded while its poll is under way never reads the queue', async () => {
+    const w = await world()
+    await brief(E, w.project.projectId, w.inputs)
+    await dispatchAll(w.project.projectId)
+    const hello = new pg.Client({ connectionString: db.ownerUrl })
+    await hello.connect()
+    try {
+      // A hello for a replacement bridge, mid-flight: it holds the instance row and has moved the lease.
+      await hello.query('BEGIN')
+      await hello.query(
+        `UPDATE sophia.runtime_instances SET bridge_instance_id=$2, lease_epoch=lease_epoch+1 WHERE token_sha256=$1`,
+        [runtimeTokenHash(w.rt.token), randomUUID()],
+      )
+      const polled = codeOf(withService(pool, (c) => runtimePoll(c, w.who, 0)))
+      for (let i = 0; i < 200; i += 1) {
+        const waiting = await one<{ n: number }>(`SELECT count(*)::int AS n FROM pg_locks WHERE NOT granted`, [])
+        if (waiting.n > 0) break
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await hello.query('COMMIT')
+      assert.equal(
+        await polled,
+        'invalid_state',
+        'the superseded bridge is told to say hello again, and gets no command',
+      )
+    } finally {
+      await hello.end()
+    }
+  })
+
+  it('the manifest carries only accepted decisions from released project sources, and each one is a dependency', async () => {
+    const w = await world()
+    const shared = await say(E, w.project.projectId, 'DECISION: the room ships first.')
+    const mine = await say(A, w.project.projectId, 'PRIVATE: only my own notes.')
+    await owner(async (c) => {
+      await c.query(`UPDATE sophia.source_objects SET scope='private', eligible=false WHERE project_id=$1 AND id=$2`, [
+        w.project.projectId,
+        mine.sourceId,
+      ])
+      // No write path makes decisions yet (they arrive with S1-08): seeded here as accepted.
+      await c.query(
+        `INSERT INTO sophia.decisions(project_id,kind,state,body_source_id,accepted_by)
+         VALUES ($1,'product','accepted',$2,$4), ($1,'product','accepted',$3,$4)`,
+        [w.project.projectId, shared.sourceId, mine.sourceId, A],
+      )
+    })
+    const admitted = await brief(E, w.project.projectId, w.inputs)
+    const manifest = await one<{ body: string; shared: boolean }>(
+      `SELECT t.body, EXISTS(SELECT 1 FROM sophia.source_dependencies d WHERE d.project_id=t.project_id
+         AND d.source_id=$3 AND d.derived_source_id=t.source_id) AS shared
+       FROM sophia.source_texts t WHERE t.project_id=$1 AND t.source_id=$2`,
+      [w.project.projectId, admitted.contextSourceId, shared.sourceId],
+    )
+    assert.match(manifest.body, /the room ships first/)
+    assert.doesNotMatch(manifest.body, /only my own notes/, 'another person’s private source never reaches the model')
+    assert.equal(manifest.shared, true, 'the decision it carries is a dependency')
+    await owner((c) =>
+      c.query(`UPDATE sophia.source_objects SET state='blocked' WHERE project_id=$1 AND id=$2`, [
+        w.project.projectId,
+        shared.sourceId,
+      ]),
+    )
+    assert.deepEqual(await dispatchAll(w.project.projectId), [
+      { result: 'denied', reason: 'an input it was admitted with is no longer eligible' },
+    ])
+  })
+
   it('denies a queued delivery that became ineligible, explicitly, instead of leaving it pending', async () => {
     const w = await world()
     const admitted = await brief(E, w.project.projectId, w.inputs)
