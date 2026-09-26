@@ -248,7 +248,10 @@ async function database(url: string): Promise<Record<string, unknown>> {
     for (const section of SECTIONS) {
       await client.query('BEGIN READ ONLY')
       try {
-        const { rows } = await client.query<Record<string, unknown>>(section.sql(), params())
+        // Only a query scoped to the project takes its id: the ledger is global, and Postgres refuses a parameter a
+        // statement does not use (08P01), which lost the migrations section whenever --project was given (CX-0060).
+        const sql = section.sql()
+        const { rows } = await client.query<Record<string, unknown>>(sql, sql.includes('$1') ? params() : [])
         out[section.name] = rows.map((row) => sanitizeRow(row, section.schema))
       } catch (err: unknown) {
         out[section.name] = failure(err)
