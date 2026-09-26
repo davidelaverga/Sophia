@@ -6,4 +6,4 @@ export {
   type EmptyDatabase,
   type TestDatabase,
 } from './database.ts'
-export { seedProject, type SeededProject } from './seed.ts'
+export { registerRuntime, seedProject, type RegisteredRuntime, type SeededProject } from './seed.ts'

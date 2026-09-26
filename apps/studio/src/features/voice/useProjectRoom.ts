@@ -1,12 +1,14 @@
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
 // page leaves the room; nothing here touches goals or work.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
+import { CallFence } from './call-fence.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
-import { listensOnly, type DockStatus, type RoomParticipant } from './room-view.ts'
+import type { DockStatus, RoomParticipant } from './room-view.ts'
+import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
 
@@ -17,6 +19,10 @@ export interface ProjectRoom {
   mediaError: string | null
   participants: RoomParticipant[]
   feeds: VideoFeed[]
+  /** Sophia's participant as this browser observes it; null when she is not in the room. */
+  sophia: SophiaSignal | null
+  audioBlocked: boolean
+  startAudio: () => Promise<void>
   join: () => Promise<void>
   leave: () => Promise<void>
   setMicrophone: (on: boolean) => Promise<void>
@@ -57,8 +63,10 @@ function joinMessage(err: unknown): string {
 interface People {
   participants: RoomParticipant[]
   feeds: VideoFeed[]
+  sophia: SophiaSignal | null
+  audioBlocked: boolean
 }
-const NOBODY: People = { participants: [], feeds: [] }
+const NOBODY: People = { participants: [], feeds: [], sophia: null, audioBlocked: false }
 
 /** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
 export type IssueToken = () => Promise<RoomToken>
@@ -71,10 +79,10 @@ async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
 }
 
 /**
- * The microphone on joining: never for a viewer (their token cannot publish, so no browser prompt asks), and
- * otherwise as this device left it last time.
+ * The microphone on joining: as this device left it last time. Changed by amendment A06 (S1-05A): viewers
+ * publish too, so no one is left without a microphone.
  */
-const micOnArrival = (c: RoomConnection) => !listensOnly(c.participants().find((p) => p.local)) && micOnJoin()
+const micOnArrival = () => micOnJoin()
 
 /** A member's room: the token names this project's room and the audience revision the member saw. */
 export function useProjectRoom(projectId: string, token: string, snapshot: Snapshot | undefined): ProjectRoom {
@@ -93,8 +101,10 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     if (!c) return
     try {
       await change(c)
-      setMediaError(null)
+      if (connection.current === c) setMediaError(null)
     } catch (err: unknown) {
+      // A call left while the browser was still asking for the device says nothing about the next one.
+      if (connection.current !== c) return
       setMediaError(mediaMessage(err, device))
       refresh()
     }
@@ -114,25 +124,33 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
 
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
-  const connection = useRef<RoomConnection | null>(null)
-  /** Which call is current: an 'ended' from a call this person already left is expected, not a drop. */
-  const calls = useRef(0)
+  /**
+   * The call, and which join is current. An 'ended' from a call this person already left is expected, not a drop;
+   * a join that Leave, the page going away or a newer join overtook is left as soon as it connects.
+   */
+  const [calls] = useState(() => new CallFence<RoomConnection>())
   const [status, setStatus] = useState<DockStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [people, setPeople] = useState<People>(NOBODY)
 
-  useEffect(() => () => void connection.current?.leave(), [])
+  useEffect(() => () => void calls.end(), [calls])
 
-  const refresh = () =>
-    setPeople({ participants: connection.current?.participants() ?? [], feeds: connection.current?.feeds() ?? [] })
-  const { clearNote, arrive, ...devices } = useDevices(connection, refresh)
+  const refresh = () => {
+    const c = calls.current
+    setPeople(
+      c
+        ? { participants: c.participants(), feeds: c.feeds(), sophia: c.sophia(), audioBlocked: c.audioBlocked() }
+        : NOBODY,
+    )
+  }
+  const { clearNote, arrive, ...devices } = useDevices(calls, refresh)
 
   /**
    * Out of the call: nobody is shown as still here. A call that ended without this person leaving (a
    * network drop, the room taken away) says so and offers to rejoin, instead of silently resetting.
    */
   const outOfCall = (dropped: boolean) => {
-    connection.current = null
+    calls.current = null
     setPeople(NOBODY)
     clearNote()
     setStatus(dropped ? 'failed' : 'idle')
@@ -140,34 +158,40 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   }
 
   const join = async () => {
-    if (!issue) return
-    const call = ++calls.current
+    // Already in the call: a second connection would be a second microphone nobody sees.
+    if (!issue || calls.current) return
+    const call = calls.begin()
     setStatus('joining')
     setError(null)
     try {
-      connection.current = await openRoom(issue, {
+      const opened = await openRoom(issue, {
         onChange: refresh,
         onStatus: (s) => {
-          if (call !== calls.current) return
+          if (!calls.isCurrent(call)) return
           if (s === 'ended') outOfCall(true)
           else setStatus(s)
         },
       })
+      // Left, gone or joined again while this join was under way: it has been left, and the screen stays as it is.
+      if (!calls.adopt(call, opened)) return
       setStatus('live')
       refresh()
-      if (micOnArrival(connection.current)) await arrive()
+      if (micOnArrival()) await arrive()
     } catch (err: unknown) {
-      connection.current = null
+      if (!calls.isCurrent(call)) return
       setStatus('failed')
       setError(joinMessage(err))
     }
   }
 
   const leave = async () => {
-    calls.current += 1
-    await connection.current?.leave()
+    await calls.end()
     outOfCall(false)
   }
 
-  return { status, error, ...people, ...devices, join, leave }
+  const startAudio = async () => {
+    await calls.current?.startAudio()
+  }
+
+  return { status, error, ...people, ...devices, startAudio, join, leave }
 }

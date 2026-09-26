@@ -13,6 +13,8 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { MiniDock } from '../voice/MiniDock.tsx'
+import { shortName } from '../voice/room-view.ts'
+import { lookingText } from '../voice/sophia-view.ts'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -233,9 +235,20 @@ function ProjectBody(props: BodyProps) {
         )}
         {work && pulse}
       </main>
-      <MiniDock room={room} onOpen={() => onShow('studio')} />
+      <MiniDock
+        room={room}
+        looking={lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))}
+        onOpen={() => onShow('studio')}
+      />
     </>
   )
+}
+
+/** A person's short name in the room ('you' for yourself), for the observation indicator. */
+function nameIn(room: ProjectRoom, identity: string): string {
+  const p = room.participants.find((q) => q.identity === identity)
+  if (!p) return 'someone'
+  return p.local ? 'you' : shortName(p.name)
 }
 
 /** Copies the Studio link, not the current view: the other person opens the shared room. */

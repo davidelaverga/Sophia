@@ -299,7 +299,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Receipt"
+                  "$ref": "#/components/schemas/ContributionReceipt"
                 }
               }
             }
@@ -355,7 +355,7 @@
           }
         },
         "x-sophia-implementation": "contract_only",
-        "x-sophia-release-goal": "S1-04"
+        "x-sophia-release-goal": "S1-05A"
       }
     },
     "/api/v1/projects/{projectId}/commands": {
@@ -742,7 +742,7 @@
     "/api/v1/rooms/{roomId}/exchanges": {
       "post": {
         "operationId": "startExchange",
-        "summary": "Open one attributed exchange against current room revision.",
+        "summary": "Open the room's one exchange with Sophia against the current room revision. Any member may open it (a viewer's exchange can converse and read, never start or control work); it is refused while a guest is in the room. Joining the room never opens it.",
         "tags": [
           "rooms"
         ],
@@ -834,13 +834,13 @@
           }
         },
         "x-sophia-implementation": "contract_only",
-        "x-sophia-release-goal": "S1-05"
+        "x-sophia-release-goal": "S1-05A"
       }
     },
     "/api/v1/rooms/{roomId}/input-floor": {
       "post": {
         "operationId": "transferInputFloor",
-        "summary": "Permission to talk is not a resource-owner grant.",
+        "summary": "Pass who may address Sophia. Permission to talk is not a resource-owner grant: any member (viewers included, since S1-05A) may hold it, and holding it never lets a viewer start or control work. With an exchange open, the new holder takes effect only after the previous holder's turn settles, under a new input epoch.",
         "tags": [
           "rooms"
         ],
@@ -4137,6 +4137,1380 @@
         "x-sophia-implementation": "contract_only",
         "x-sophia-release-goal": "S1-04A"
       }
+    },
+    "/v1/runtime/hello": {
+      "post": {
+        "operationId": "runtimeHello",
+        "summary": "A runtime instance opens (or takes over) its lease; the reply names the bindings it must own and where to resume reading commands.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeHello"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The lease this bridge instance now holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeHelloReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The capability is revoked or names another runtime unit"
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/v1/runtime/commands": {
+      "get": {
+        "operationId": "runtimeCommands",
+        "summary": "Commands admitted for this runtime after the cursor, in order; waits up to waitMs when there are none.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": true,
+            "description": "The cursor: decimal digits of a safe integer",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,15})$"
+            }
+          },
+          {
+            "name": "waitMs",
+            "in": "query",
+            "required": true,
+            "description": "How long to wait for a command, in milliseconds; at most 25000",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,4})$"
+            }
+          },
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A batch, possibly empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeCommandBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The capability is revoked or names another runtime unit"
+          },
+          "409": {
+            "description": "Another bridge instance holds the lease; say hello again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/v1/runtime/receipts": {
+      "post": {
+        "operationId": "runtimeReceipts",
+        "summary": "What the bridge observed for commands delivered to it. Idempotent per command and stage; a receipt for a command this runtime was never sent is refused.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeReceiptBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded (or already recorded)"
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "A receipt names a command, attempt or native session this runtime does not own"
+          },
+          "409": {
+            "description": "Another bridge instance holds the lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/v1/runtime/observations": {
+      "post": {
+        "operationId": "runtimeObservations",
+        "summary": "Durable native session events of attempts bound to this runtime, once per (runtime unit, native session, native seq). Observations are evidence: they never act as a member or accept work.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeObservationBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded (or already recorded)"
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "An observation names an attempt or native session this runtime does not own"
+          },
+          "409": {
+            "description": "Another bridge instance holds the lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/v1/runtime/ready": {
+      "post": {
+        "operationId": "runtimeReady",
+        "summary": "Bridge readiness for this lease, with the bindings reconciliation could not restore. Ready means the bridge and service are connected, not that the product is ready.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeReady"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The capability is revoked or names another runtime unit"
+          },
+          "409": {
+            "description": "Another bridge instance holds the lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/api/v1/projects/{projectId}/native-tasks": {
+      "post": {
+        "operationId": "admitNativeTask",
+        "summary": "Admit one typed native task (draft_brief) for the dsh runtime: goal, attempt, binding, command, job and outbox in one transaction. 202 with a receipt, never a finished result.",
+        "tags": [
+          "commands"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Admitted; delivery and result are observed through events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeTaskReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (viewers and guests cannot admit work) or an input is not eligible"
+          },
+          "409": {
+            "description": "Stale mission revision or idempotency mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No native runtime is registered for this project, or a dependent service is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/api/v1/projects/{projectId}/native-tasks/{taskId}": {
+      "get": {
+        "operationId": "getNativeTask",
+        "summary": "One native task with its instruction and, once captured, its source-backed result.",
+        "tags": [
+          "commands"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeTaskDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "422": {
+            "description": "Unknown task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/api/v1/exchanges/{exchangeId}/end": {
+      "post": {
+        "operationId": "endExchange",
+        "summary": "End the exchange. The room, the people in it and any admitted work continue.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exchange as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not a member of this room's project, or not the person sharing this source"
+          },
+          "409": {
+            "description": "The exchange is not in a state that allows this (ended, paused for a guest, or another person's floor)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The media service needed to confirm this is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/api/v1/exchanges/{exchangeId}/stop-speaking": {
+      "post": {
+        "operationId": "stopSophiaSpeaking",
+        "summary": "Stop Sophia's current speech: a new playback epoch; queued and late audio of the old one is never played. Work is not touched.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exchange as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not a member of this room's project, or not the person sharing this source"
+          },
+          "409": {
+            "description": "The exchange is not in a state that allows this (ended, paused for a guest, or another person's floor)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The media service needed to confirm this is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/api/v1/exchanges/{exchangeId}/look": {
+      "post": {
+        "operationId": "showSophia",
+        "summary": "Show Sophia your own screen or camera, explicitly: a new observation epoch for that one source. Only the person sharing it can select it.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exchange as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not a member of this room's project, or not the person sharing this source"
+          },
+          "409": {
+            "description": "The exchange is not in a state that allows this (ended, paused for a guest, or another person's floor)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The media service needed to confirm this is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exchanges/{exchangeId}/stop-looking": {
+      "post": {
+        "operationId": "stopSophiaLooking",
+        "summary": "Stop Looking: a new observation epoch with no source. No later frame of the old epoch is sent, across reconnects.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exchange as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not a member of this room's project, or not the person sharing this source"
+          },
+          "409": {
+            "description": "The exchange is not in a state that allows this (ended, paused for a guest, or another person's floor)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The media service needed to confirm this is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/api/v1/exchanges/{exchangeId}/resume": {
+      "post": {
+        "operationId": "resumeExchange",
+        "summary": "Resume a paused exchange by explicit member action: after a guest left (the room's trusted presence must be member-only) or after the holder left and came back.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "exchangeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exchange as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not a member of this room's project, or not the person sharing this source"
+          },
+          "409": {
+            "description": "The exchange is not in a state that allows this (ended, paused for a guest, or another person's floor)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The media service needed to confirm this is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/v1/media/assignments": {
+      "get": {
+        "operationId": "mediaAssignments",
+        "summary": "The exchanges the bridge must serve, with a room token for each; waits up to waitMs for a change after `after`.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "waitMs",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,4})$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssignmentBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "409": {
+            "description": "Stale: the exchange or epoch moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A"
+      }
+    },
+    "/v1/media/presence": {
+      "post": {
+        "operationId": "mediaPresence",
+        "summary": "The bridge's view of one room: provider state and the trusted participant list. A guest in the room pauses a project-aware exchange.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "409": {
+            "description": "Stale: the exchange or epoch moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaPresenceReport"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/quiesce-acks": {
+      "post": {
+        "operationId": "mediaQuiesceAck",
+        "summary": "The bridge confirms it closed Google input and cleared Sophia's output before a guest is admitted.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "409": {
+            "description": "Stale: the exchange or epoch moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaQuiesceAck"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/holder": {
+      "post": {
+        "operationId": "mediaHolderEvent",
+        "summary": "The input holder left the room (input pauses at once) or stayed gone past the reconnect grace (the floor is cleared by compare-and-set against that holder and epoch).",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "409": {
+            "description": "Stale: the exchange or epoch moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaHolderEvent"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/announced": {
+      "post": {
+        "operationId": "mediaAnnounced",
+        "summary": "The bridge told the room about a finished background result, once: it is recorded so no reconnect or restart announces it again.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "409": {
+            "description": "Stale: the exchange or epoch moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaAnnounced"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/tool-calls": {
+      "post": {
+        "operationId": "mediaToolCall",
+        "summary": "One Gemini Live tool call, executed for the speaker bound to its input epoch and under that speaker's role. Idempotent per exchange, connection generation and call id.",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaToolResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "409": {
+            "description": "Stale: the exchange or epoch moved on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05A",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaToolCall"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4145,6 +5519,16 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      },
+      "runtimeCapability": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A runtime capability: an opaque secret held by the execution host and stored by the service only as SHA-256. It is bound to one project, executor resource and runtime unit, and it is not a member identity."
+      },
+      "mediaBridgeCapability": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The media bridge's capability: an opaque secret on the bridge host; the API holds only its SHA-256. It names no member and grants no member authority: tool calls act for the speaker the exchange's input epoch binds, under that speaker's own role."
       }
     },
     "schemas": {
@@ -4881,6 +6265,20 @@
             "items": {
               "$ref": "#/components/schemas/RoomSession"
             }
+          },
+          "discussion": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/DiscussionEntry"
+            }
+          },
+          "work": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/NativeTask"
+            }
           }
         },
         "required": [
@@ -4897,7 +6295,9 @@
           "sharedFocus",
           "room",
           "lobby",
-          "sessions"
+          "sessions",
+          "discussion",
+          "work"
         ]
       },
       "ProjectCreate": {
@@ -4985,7 +6385,26 @@
         "additionalProperties": false,
         "properties": {
           "source": {
-            "$ref": "#/components/schemas/SourceRef"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "threadId": {
             "anyOf": [
@@ -5020,6 +6439,7 @@
         },
         "required": [
           "source",
+          "text",
           "threadId",
           "artifactVersionId",
           "intent"
@@ -5945,13 +7365,17 @@
               "invoked",
               "follow_discussion"
             ]
+          },
+          "sophia": {
+            "$ref": "#/components/schemas/SophiaPresence"
           }
         },
         "required": [
           "id",
           "revision",
           "inputActorId",
-          "mode"
+          "mode",
+          "sophia"
         ]
       },
       "RoomSession": {
@@ -6338,6 +7762,47 @@
           "knocks": {
             "type": "integer",
             "minimum": 1
+          },
+          "removal": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "removed",
+                      "absent"
+                    ]
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "lastError": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "state",
+                  "attempts",
+                  "lastError"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -6400,6 +7865,1550 @@
         "required": [
           "actorId",
           "role"
+        ]
+      },
+      "RuntimeWorkBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "goalId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "resourceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "runtimeUnitId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+          }
+        },
+        "required": [
+          "projectId",
+          "goalId",
+          "goalRevision",
+          "attemptId",
+          "resourceId",
+          "authorityEpoch",
+          "runtimeUnitId"
+        ]
+      },
+      "RuntimeCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "const": "sophia.runtime-command.v1"
+          },
+          "commandId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "binding": {
+            "$ref": "#/components/schemas/RuntimeWorkBinding"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "create",
+              "resume",
+              "input",
+              "steer",
+              "hold",
+              "stop",
+              "inspect"
+            ]
+          },
+          "expectedNativeSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contextPacketId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string",
+                "maxLength": 200000
+              },
+              "role": {
+                "type": "string",
+                "pattern": "^sophia-[a-z]+-v[0-9]+$"
+              }
+            }
+          }
+        },
+        "required": [
+          "schema",
+          "commandId",
+          "binding",
+          "kind",
+          "expectedNativeSessionId",
+          "contextPacketId",
+          "payload"
+        ]
+      },
+      "RuntimeReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "attemptId": {
+            "type": "string",
+            "pattern": "^([A-Za-z0-9][A-Za-z0-9_-]{0,63})?$"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "delivered",
+              "incorporation_observed",
+              "checked",
+              "rejected",
+              "failed",
+              "outcome_unknown"
+            ]
+          },
+          "nativeSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nativeSequence": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "observedAt": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "commandId",
+          "attemptId",
+          "stage",
+          "nativeSessionId",
+          "nativeSequence",
+          "evidenceRefs",
+          "observedAt",
+          "reason"
+        ]
+      },
+      "RuntimeObservation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runtimeUnitId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+          },
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "nativeSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "type": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_/.-]{0,63}$"
+          },
+          "durable": {
+            "const": true
+          },
+          "data": {}
+        },
+        "required": [
+          "runtimeUnitId",
+          "attemptId",
+          "nativeSessionId",
+          "nativeSeq",
+          "type",
+          "durable",
+          "data"
+        ]
+      },
+      "RuntimeHello": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "bundle": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "protocolVersion": {
+            "const": 1
+          },
+          "dshVersion": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "bundle",
+          "protocolVersion",
+          "dshVersion"
+        ]
+      },
+      "RuntimeServiceBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "held",
+              "stopped"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "authorityEpoch",
+          "state"
+        ]
+      },
+      "RuntimeHelloReply": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "leaseId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "bindings": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/RuntimeServiceBinding"
+            }
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "projectId",
+          "leaseId",
+          "authorityEpoch",
+          "bindings",
+          "cursor"
+        ]
+      },
+      "RuntimeCommandBatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commands": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "seq": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "command": {}
+              },
+              "required": [
+                "seq",
+                "command"
+              ]
+            }
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "commands",
+          "cursor"
+        ]
+      },
+      "RuntimeReceiptBatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receipts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/RuntimeReceipt"
+            }
+          }
+        },
+        "required": [
+          "receipts"
+        ]
+      },
+      "RuntimeObservationBatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "observations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/RuntimeObservation"
+            }
+          }
+        },
+        "required": [
+          "observations"
+        ]
+      },
+      "RuntimeReady": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "not_ready"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unrecovered": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "attemptId": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "attemptId",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "state",
+          "reason",
+          "unrecovered"
+        ]
+      },
+      "ContributionReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "contributionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "discuss",
+              "ask_sophia",
+              "propose_work"
+            ]
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "stage": {
+            "const": "recorded"
+          }
+        },
+        "required": [
+          "contributionId",
+          "projectId",
+          "sourceId",
+          "sha256",
+          "intent",
+          "cursor",
+          "stage"
+        ]
+      },
+      "DiscussionEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "discuss",
+              "ask_sophia",
+              "propose_work"
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "composer",
+              "voice"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "actorId",
+          "intent",
+          "origin",
+          "text",
+          "sourceId",
+          "sha256",
+          "createdAt"
+        ]
+      },
+      "NativeTaskRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "draft_brief"
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "contributionIds": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "expectedMissionRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "kind",
+          "instruction",
+          "contributionIds",
+          "expectedMissionRevision"
+        ]
+      },
+      "NativeTaskReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "const": "draft_brief"
+          },
+          "stage": {
+            "const": "admitted"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "contextSourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "taskId",
+          "commandId",
+          "goalId",
+          "attemptId",
+          "projectId",
+          "kind",
+          "stage",
+          "cursor",
+          "goalRevision",
+          "authorityEpoch",
+          "contextSourceId"
+        ]
+      },
+      "NativeTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "const": "draft_brief"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "outcome_unknown"
+            ]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "dispatched",
+              "running",
+              "result_ready",
+              "holding",
+              "held",
+              "stopping",
+              "stopped",
+              "denied",
+              "failed",
+              "outcome_unknown"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contextSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inputSourceIds": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "resultSourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "goalId",
+          "attemptId",
+          "commandId",
+          "actorId",
+          "state",
+          "phase",
+          "createdAt",
+          "contextSourceId",
+          "inputSourceIds",
+          "resultSourceId",
+          "reason"
+        ]
+      },
+      "NativeTaskDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/NativeTask"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "markdown": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "inputTokens": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "outputTokens": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "capturedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "sourceId",
+                  "sha256",
+                  "markdown",
+                  "provider",
+                  "model",
+                  "inputTokens",
+                  "outputTokens",
+                  "capturedAt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "task",
+          "instruction",
+          "result"
+        ]
+      },
+      "SophiaPresence": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exchange": {
+            "type": "string",
+            "enum": [
+              "none",
+              "open",
+              "paused"
+            ]
+          },
+          "pauseReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "guest",
+                  "holder_left"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "not_connected",
+              "connecting",
+              "ready",
+              "recovering",
+              "unavailable"
+            ]
+          },
+          "inputActorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputEpoch": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "playbackEpoch": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observationEpoch": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowVision": {
+            "type": "boolean"
+          },
+          "looking": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "participantIdentity": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "screen",
+                      "camera"
+                    ]
+                  }
+                },
+                "required": [
+                  "participantIdentity",
+                  "source"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "exchangeId",
+          "exchange",
+          "pauseReason",
+          "voice",
+          "inputActorId",
+          "inputEpoch",
+          "playbackEpoch",
+          "observationEpoch",
+          "allowVision",
+          "looking",
+          "reason",
+          "reportedAt"
+        ]
+      },
+      "LookRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "screen",
+              "camera"
+            ]
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
+      "ExchangeState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused",
+              "ended"
+            ]
+          },
+          "pauseReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "guest",
+                  "holder_left"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "playbackEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "observationEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "exchangeId",
+          "roomId",
+          "state",
+          "pauseReason",
+          "inputEpoch",
+          "playbackEpoch",
+          "observationEpoch",
+          "revision"
+        ]
+      },
+      "MediaRoomToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "serverUrl": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverUrl",
+          "token",
+          "expiresAt"
+        ]
+      },
+      "MediaAssignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "roomId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused"
+            ]
+          },
+          "pauseReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "guest",
+                  "holder_left"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "inputActorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "playbackEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "observationEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "allowVision": {
+            "type": "boolean"
+          },
+          "looking": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "participantIdentity": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "screen",
+                      "camera"
+                    ]
+                  }
+                },
+                "required": [
+                  "participantIdentity",
+                  "source"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roomRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "quiesceRequestId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roomToken": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MediaRoomToken"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f-]{36}$"
+                },
+                "resultRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "kind": {
+                  "const": "draft_brief"
+                }
+              },
+              "required": [
+                "taskId",
+                "resultRevision",
+                "kind"
+              ]
+            }
+          }
+        },
+        "required": [
+          "exchangeId",
+          "projectId",
+          "roomId",
+          "state",
+          "pauseReason",
+          "inputEpoch",
+          "inputActorId",
+          "playbackEpoch",
+          "observationEpoch",
+          "allowVision",
+          "looking",
+          "roomRevision",
+          "quiesceRequestId",
+          "roomToken",
+          "results"
+        ]
+      },
+      "MediaAssignmentBatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/MediaAssignment"
+            }
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "assignments",
+          "version"
+        ]
+      },
+      "MediaPresenceReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "exchangeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f-]{36}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bridgeInstanceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "connecting",
+              "ready",
+              "recovering",
+              "unavailable"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "participants": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "identity": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "standing": {
+                  "type": "string",
+                  "enum": [
+                    "admin",
+                    "editor",
+                    "viewer",
+                    "guest",
+                    "unknown"
+                  ]
+                }
+              },
+              "required": [
+                "identity",
+                "standing"
+              ]
+            }
+          }
+        },
+        "required": [
+          "roomId",
+          "exchangeId",
+          "bridgeInstanceId",
+          "voice",
+          "reason",
+          "participants"
+        ]
+      },
+      "MediaQuiesceAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "bridgeInstanceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "inputClosed": {
+            "const": true
+          },
+          "outputCleared": {
+            "const": true
+          }
+        },
+        "required": [
+          "requestId",
+          "bridgeInstanceId",
+          "inputClosed",
+          "outputCleared"
+        ]
+      },
+      "MediaHolderEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "actorId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "inputEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "left",
+              "gone"
+            ]
+          }
+        },
+        "required": [
+          "exchangeId",
+          "actorId",
+          "inputEpoch",
+          "event"
+        ]
+      },
+      "MediaToolCall": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "connectionGeneration": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+          },
+          "name": {
+            "type": "string",
+            "enum": [
+              "project_status",
+              "read_selected_source",
+              "start_brief",
+              "control_work"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "inputEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "actorId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          }
+        },
+        "required": [
+          "exchangeId",
+          "connectionGeneration",
+          "callId",
+          "name",
+          "args",
+          "inputEpoch",
+          "actorId"
+        ]
+      },
+      "MediaAnnounced": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f-]{36}$"
+          },
+          "resultRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "exchangeId",
+          "taskId",
+          "resultRevision"
+        ]
+      },
+      "MediaToolResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "admitted",
+              "refused",
+              "clarify",
+              "error"
+            ]
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "status",
+          "output"
         ]
       }
     }

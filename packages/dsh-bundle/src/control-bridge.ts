@@ -34,6 +34,7 @@ import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
 import type { ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
+import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
@@ -41,6 +42,7 @@ import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
+import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
 
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
@@ -137,6 +139,12 @@ class RetainedQueue<T> {
 }
 
 const ATTEMPT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+/** The contract's id shape (A04): a command id the service could not have sent is not answered. */
+const WIRE_ID = ATTEMPT_ID
+/** Observation types the contract carries; anything else stays in the native log only. */
+const OBSERVATION_TYPE = /^[a-z][a-z0-9_/.-]{0,63}$/
+/** Upper bound of a receipt reason on the wire (A04). */
+const REASON_LIMIT = 16_000
 
 /** Readiness as reported to the Sophia service and to the startup log. */
 export type BridgeReadiness = { state: 'ready' } | { state: 'not_ready'; reason: string }
@@ -254,7 +262,7 @@ export class ControlBridge {
   private async pollLoop(): Promise<void> {
     const transport = this.transport!
     while (!this.stopping.signal.aborted) {
-      let batch: { commands: { seq: number; command: unknown }[]; cursor: number }
+      let batch: RuntimeCommandBatch
       try {
         batch = await transport.poll(this.cursor, this.settings.pollWaitMs, this.stopping.signal)
       } catch (error) {
@@ -306,8 +314,12 @@ export class ControlBridge {
       command = parseCommand(raw)
     } catch (error) {
       const record = (raw ?? {}) as { commandId?: unknown; binding?: { attemptId?: unknown } }
-      if (typeof record.commandId === 'string') {
-        this.send(this.receipt(String(record.binding?.attemptId ?? ''), record.commandId, 'rejected', null, null, (error as Error).message))
+      // Answer only what the service could correlate; a malformed id cannot be named in a valid receipt.
+      if (typeof record.commandId === 'string' && WIRE_ID.test(record.commandId)) {
+        const attemptId = typeof record.binding?.attemptId === 'string' && ATTEMPT_ID.test(record.binding.attemptId) ? record.binding.attemptId : ''
+        this.send(this.receipt(attemptId, record.commandId, 'rejected', null, null, (error as Error).message))
+      } else {
+        this.settings.log(`dropped a command without a valid commandId: ${(error as Error).message}`)
       }
       return
     }
@@ -320,11 +332,22 @@ export class ControlBridge {
   }
 
   private receipt(attemptId: string, commandId: string, stage: ReceiptStage, sessionId: string | null, seq: number | null, reason: string | null, evidence: string[] = []): RuntimeReceipt {
-    return { commandId, attemptId, stage, nativeSessionId: sessionId, nativeSequence: seq, evidenceRefs: evidence, observedAt: new Date().toISOString(), reason }
+    const bounded = reason !== null && reason.length > REASON_LIMIT ? `${reason.slice(0, REASON_LIMIT - 1)}…` : reason
+    return { commandId, attemptId, stage, nativeSessionId: sessionId, nativeSequence: seq, evidenceRefs: evidence, observedAt: new Date().toISOString(), reason: bounded }
   }
 
+  /**
+   * Queue receipts for delivery. Each is checked against the contract here,
+   * not at send time: the queue retries until acknowledged, so an invalid
+   * item would otherwise block every receipt behind it.
+   */
   private send(...receipts: RuntimeReceipt[]): void {
-    if (this.transport) this.receiptQueue.push(...receipts)
+    if (!this.transport) return
+    for (const receipt of receipts) {
+      const { commandId } = receipt
+      if (wire.RuntimeReceipt(receipt)) this.receiptQueue.push(receipt)
+      else this.settings.log(`dropped a receipt for ${commandId} that breaks the runtime contract`)
+    }
   }
 
   /** Execute one command; always resolves to the receipts it produced. */
@@ -830,8 +853,8 @@ export class ControlBridge {
   }
 
   private enqueueObservation(attempt: AttemptState, event: SessionEvent): void {
-    if (!this.transport) return
-    this.observationQueue.push({
+    if (!this.transport || !OBSERVATION_TYPE.test(event.type)) return
+    const observation: Observation = {
       runtimeUnitId: this.settings.runtimeUnitId,
       attemptId: attempt.attemptId,
       nativeSessionId: attempt.sessionId,
@@ -839,7 +862,13 @@ export class ControlBridge {
       type: event.type,
       durable: true,
       data: summarize(event),
-    })
+    }
+    // Checked before queueing, for the same reason as receipts.
+    if (!wire.RuntimeObservation(observation)) {
+      this.settings.log(`dropped observation ${attempt.sessionId}#${event.seq} that breaks the runtime contract`)
+      return
+    }
+    this.observationQueue.push(observation)
   }
 
   /** Journal acknowledged incorporation receipts, so a restart re-sends only the ones the service lacks. */
@@ -859,7 +888,25 @@ export class ControlBridge {
   }
 }
 
-/** A bounded, model-free projection of one durable event for the service. */
+/** Upper bound of a step's assistant text forwarded to the service (a drafted brief fits well within it). */
+const ASSISTANT_TEXT_LIMIT = 120_000
+
+type AssistantEventData = {
+  stream: Parameters<typeof expandAssistantStream>[0]
+  message?: { source?: { provider?: unknown; model?: unknown } }
+  usage?: { inputTokens?: unknown; outputTokens?: unknown }
+  interrupted?: true
+}
+
+const count = (value: unknown): number | null => (Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : null)
+const label = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value.slice(0, 200) : null)
+
+/**
+ * A bounded, model-free projection of one durable event for the service. An
+ * assistant message also names the provider and model that produced it and
+ * the usage the adapter reported (null when it reported none), so the
+ * service keeps the actual model identity with a captured result.
+ */
 function summarize(event: SessionEvent): unknown {
   switch (event.type) {
     case 'user/message': {
@@ -868,10 +915,19 @@ function summarize(event: SessionEvent): unknown {
     }
     case 'assistant/message':
     case 'assistant/attempt': {
-      const data = event.data as { stream: Parameters<typeof expandAssistantStream>[0] }
+      const data = event.data as AssistantEventData
       let text = ''
       for (const { chunk } of expandAssistantStream(data.stream)) if (chunk.type === 'text-delta') text += chunk.text
-      return { text: text.slice(0, 4000) }
+      if (event.type === 'assistant/attempt') return { text: text.slice(0, 4000) }
+      return {
+        text: text.slice(0, ASSISTANT_TEXT_LIMIT),
+        truncated: text.length > ASSISTANT_TEXT_LIMIT,
+        provider: label(data.message?.source?.provider),
+        model: label(data.message?.source?.model),
+        inputTokens: count(data.usage?.inputTokens),
+        outputTokens: count(data.usage?.outputTokens),
+        interrupted: data.interrupted === true,
+      }
     }
     case 'turn/start':
     case 'turn/end':

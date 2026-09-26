@@ -51,7 +51,11 @@ const PRIMITIVES: Partial<Record<NonNullable<Schema['type']>, string>> = {
   boolean: 'boolean',
 }
 
+/** `{}`: any JSON value (a runtime observation's data, a batch item validated on its own). */
+const isAny = (s: Schema) => Object.keys(s).length === 0
+
 function typeOf(s: Schema): string {
+  if (isAny(s)) return 'unknown'
   if (s.$ref) return s.$ref.split('/').at(-1) ?? s.$ref
   if ('const' in s) return dumps(s.const)
   if (s.enum) return s.enum.map(dumps).join(' | ')
@@ -65,11 +69,13 @@ function typeOf(s: Schema): string {
 
 function operationLine(path: string, method: string, op: Operation): string {
   const request = op.requestBody?.content?.['application/json']?.schema
-  const success = Object.entries(op.responses).find(([status]) => status.startsWith('2'))?.[1]
+  const [status, success] = Object.entries(op.responses).find(([code]) => code.startsWith('2')) ?? []
   const response = success?.content?.['application/json']?.schema
+  // A 204 has no body; any other success without a JSON schema is the event stream.
+  const responseType = response ? typeOf(response) : status === '204' ? 'undefined' : STREAM_RESPONSE
   return (
     `  ${dumps(op.operationId)}: { method: ${dumps(method.toUpperCase())}; path: ${dumps(path)}; ` +
-    `request: ${request ? typeOf(request) : 'undefined'}; response: ${response ? typeOf(response) : STREAM_RESPONSE}; };`
+    `request: ${request ? typeOf(request) : 'undefined'}; response: ${responseType}; };`
   )
 }
 

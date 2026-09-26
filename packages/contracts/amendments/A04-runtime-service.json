@@ -1,0 +1,530 @@
+{
+  "id": "A04",
+  "goal": "S1-05A",
+  "title": "The private runtime service: /v1/runtime/* between the Sophia service and the dsh control bridge",
+  "why": [
+    "The merged S1-03 bridge (packages/dsh-bundle/src/transport.ts) calls POST /v1/runtime/hello, GET /v1/runtime/commands, POST /v1/runtime/receipts, /observations and /ready, but no API registered them; only a labelled fixture answered. S1-05A closes that boundary with the transport the code already implements instead of renaming it.",
+    "These operations are for one registered runtime instance, not for people. They sit outside /api/v1 and authenticate with a runtime capability (a bearer secret bound server-side to one project, executor resource and runtime unit), never with a member JWT, and never grant a member identity. The API checks them as an exact list of routes, not by prefix.",
+    "The shapes were a local copy of the pack's interfaces.ts in the bundle. They are canonical here; the bundle's validators are generated from these schemas (scripts/generate-runtime-wire.ts), so both sides validate the same shapes and the bridge no longer casts replies.",
+    "The command cursor is the runtime's own counter, a safe integer, separate from the project event sequence (a decimal string). A batch validates each command on its own, so one malformed command earns its own rejected receipt instead of blocking the queue."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/securitySchemes/runtimeCapability",
+      "value": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A runtime capability: an opaque secret held by the execution host and stored by the service only as SHA-256. It is bound to one project, executor resource and runtime unit, and it is not a member identity."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeWorkBinding",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "goalId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "goalRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "attemptId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "resourceId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "authorityEpoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "runtimeUnitId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$" }
+        },
+        "required": [
+          "projectId",
+          "goalId",
+          "goalRevision",
+          "attemptId",
+          "resourceId",
+          "authorityEpoch",
+          "runtimeUnitId"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeCommand",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema": { "const": "sophia.runtime-command.v1" },
+          "commandId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "binding": { "$ref": "#/components/schemas/RuntimeWorkBinding" },
+          "kind": { "type": "string", "enum": ["create", "resume", "input", "steer", "hold", "stop", "inspect"] },
+          "expectedNativeSessionId": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" }, { "type": "null" }]
+          },
+          "contextPacketId": { "anyOf": [{ "type": "string", "maxLength": 64 }, { "type": "null" }] },
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "text": { "type": "string", "maxLength": 200000 },
+              "role": { "type": "string", "pattern": "^sophia-[a-z]+-v[0-9]+$" }
+            }
+          }
+        },
+        "required": ["schema", "commandId", "binding", "kind", "expectedNativeSessionId", "contextPacketId", "payload"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commandId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "attemptId": { "type": "string", "pattern": "^([A-Za-z0-9][A-Za-z0-9_-]{0,63})?$" },
+          "stage": {
+            "type": "string",
+            "enum": ["delivered", "incorporation_observed", "checked", "rejected", "failed", "outcome_unknown"]
+          },
+          "nativeSessionId": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" }, { "type": "null" }]
+          },
+          "nativeSequence": {
+            "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, { "type": "null" }]
+          },
+          "evidenceRefs": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 256 } },
+          "observedAt": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$" },
+          "reason": { "anyOf": [{ "type": "string", "maxLength": 16000 }, { "type": "null" }] }
+        },
+        "required": [
+          "commandId",
+          "attemptId",
+          "stage",
+          "nativeSessionId",
+          "nativeSequence",
+          "evidenceRefs",
+          "observedAt",
+          "reason"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeObservation",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runtimeUnitId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$" },
+          "attemptId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "nativeSessionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" },
+          "nativeSeq": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "type": { "type": "string", "pattern": "^[a-z][a-z0-9_/.-]{0,63}$" },
+          "durable": { "const": true },
+          "data": {}
+        },
+        "required": ["runtimeUnitId", "attemptId", "nativeSessionId", "nativeSeq", "type", "durable", "data"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeHello",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "bundle": { "type": "string", "maxLength": 200 },
+          "protocolVersion": { "const": 1 },
+          "dshVersion": { "type": "string", "maxLength": 100 }
+        },
+        "required": ["bundle", "protocolVersion", "dshVersion"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeServiceBinding",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "nativeSessionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" },
+          "authorityEpoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "state": { "type": "string", "enum": ["active", "held", "stopped"] }
+        },
+        "required": ["attemptId", "nativeSessionId", "authorityEpoch", "state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeHelloReply",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "leaseId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+          "authorityEpoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "bindings": {
+            "type": "array",
+            "maxItems": 500,
+            "items": { "$ref": "#/components/schemas/RuntimeServiceBinding" }
+          },
+          "cursor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["projectId", "leaseId", "authorityEpoch", "bindings", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeCommandBatch",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commands": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "seq": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                "command": {}
+              },
+              "required": ["seq", "command"]
+            }
+          },
+          "cursor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["commands", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeReceiptBatch",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receipts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": { "$ref": "#/components/schemas/RuntimeReceipt" }
+          }
+        },
+        "required": ["receipts"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeObservationBatch",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "observations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": { "$ref": "#/components/schemas/RuntimeObservation" }
+          }
+        },
+        "required": ["observations"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeReady",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": { "type": "string", "enum": ["ready", "not_ready"] },
+          "reason": { "anyOf": [{ "type": "string", "maxLength": 2000 }, { "type": "null" }] },
+          "unrecovered": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "attemptId": { "type": "string", "maxLength": 64 },
+                "reason": { "type": "string", "maxLength": 2000 }
+              },
+              "required": ["attemptId", "reason"]
+            }
+          }
+        },
+        "required": ["state", "reason", "unrecovered"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1hello",
+      "value": {
+        "post": {
+          "operationId": "runtimeHello",
+          "summary": "A runtime instance opens (or takes over) its lease; the reply names the bindings it must own and where to resume reading commands.",
+          "tags": ["runtime"],
+          "security": [{ "runtimeCapability": [] }],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 160 }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 64 }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "enum": ["1"] }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimeHello" } } }
+          },
+          "responses": {
+            "200": {
+              "description": "The lease this bridge instance now holds",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimeHelloReply" } } }
+            },
+            "401": { "description": "No or unknown runtime capability" },
+            "403": { "description": "The capability is revoked or names another runtime unit" },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "503": { "description": "Dependent service unavailable" }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1commands",
+      "value": {
+        "get": {
+          "operationId": "runtimeCommands",
+          "summary": "Commands admitted for this runtime after the cursor, in order; waits up to waitMs when there are none.",
+          "tags": ["runtime"],
+          "security": [{ "runtimeCapability": [] }],
+          "parameters": [
+            {
+              "name": "after",
+              "in": "query",
+              "required": true,
+              "description": "The cursor: decimal digits of a safe integer",
+              "schema": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,15})$" }
+            },
+            {
+              "name": "waitMs",
+              "in": "query",
+              "required": true,
+              "description": "How long to wait for a command, in milliseconds; at most 25000",
+              "schema": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,4})$" }
+            },
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 160 }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 64 }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "enum": ["1"] }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "A batch, possibly empty",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimeCommandBatch" } } }
+            },
+            "401": { "description": "No or unknown runtime capability" },
+            "403": { "description": "The capability is revoked or names another runtime unit" },
+            "409": {
+              "description": "Another bridge instance holds the lease; say hello again",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "503": { "description": "Dependent service unavailable" }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1receipts",
+      "value": {
+        "post": {
+          "operationId": "runtimeReceipts",
+          "summary": "What the bridge observed for commands delivered to it. Idempotent per command and stage; a receipt for a command this runtime was never sent is refused.",
+          "tags": ["runtime"],
+          "security": [{ "runtimeCapability": [] }],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 160 }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 64 }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "enum": ["1"] }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimeReceiptBatch" } } }
+          },
+          "responses": {
+            "204": { "description": "Recorded (or already recorded)" },
+            "401": { "description": "No or unknown runtime capability" },
+            "403": { "description": "A receipt names a command, attempt or native session this runtime does not own" },
+            "409": {
+              "description": "Another bridge instance holds the lease",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "503": { "description": "Dependent service unavailable" }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1observations",
+      "value": {
+        "post": {
+          "operationId": "runtimeObservations",
+          "summary": "Durable native session events of attempts bound to this runtime, once per (runtime unit, native session, native seq). Observations are evidence: they never act as a member or accept work.",
+          "tags": ["runtime"],
+          "security": [{ "runtimeCapability": [] }],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 160 }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 64 }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "enum": ["1"] }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimeObservationBatch" } } }
+          },
+          "responses": {
+            "204": { "description": "Recorded (or already recorded)" },
+            "401": { "description": "No or unknown runtime capability" },
+            "403": { "description": "An observation names an attempt or native session this runtime does not own" },
+            "409": {
+              "description": "Another bridge instance holds the lease",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "503": { "description": "Dependent service unavailable" }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1ready",
+      "value": {
+        "post": {
+          "operationId": "runtimeReady",
+          "summary": "Bridge readiness for this lease, with the bindings reconciliation could not restore. Ready means the bridge and service are connected, not that the product is ready.",
+          "tags": ["runtime"],
+          "security": [{ "runtimeCapability": [] }],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 160 }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "maxLength": 64 }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": { "type": "string", "enum": ["1"] }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimeReady" } } }
+          },
+          "responses": {
+            "204": { "description": "Recorded" },
+            "401": { "description": "No or unknown runtime capability" },
+            "403": { "description": "The capability is revoked or names another runtime unit" },
+            "409": {
+              "description": "Another bridge instance holds the lease",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+            },
+            "503": { "description": "Dependent service unavailable" }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "S1-05A"
+        }
+      }
+    }
+  ]
+}

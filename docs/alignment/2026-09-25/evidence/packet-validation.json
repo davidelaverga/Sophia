@@ -1,0 +1,115 @@
+{
+  "local_markdown_links_checked": 21,
+  "reader_internal_links_checked": 35,
+  "reader_links_rewritten": 21,
+  "errors": [],
+  "application_tests_run": false,
+  "hosted_operations_performed": false,
+  "checks": [
+    {
+      "from": "PROGRESS_AND_ALIGNMENT_LEDGER.md",
+      "href": "SOURCE_REGISTER.md",
+      "exists": true
+    },
+    {
+      "from": "PROGRESS_AND_ALIGNMENT_LEDGER.md",
+      "href": "evidence/BRANCH_COMMIT_REGISTER.md",
+      "exists": true
+    },
+    {
+      "from": "PROGRESS_AND_ALIGNMENT_LEDGER.md",
+      "href": "evidence/VIDEO_REVIEW.md",
+      "exists": true
+    },
+    {
+      "from": "PROGRESS_AND_ALIGNMENT_LEDGER.md",
+      "href": "S1-05A_GOAL_SPEC.md",
+      "exists": true
+    },
+    {
+      "from": "PROGRESS_AND_ALIGNMENT_LEDGER.md",
+      "href": "CLAUDE_CODEX_PROTOCOL.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "PROGRESS_AND_ALIGNMENT_LEDGER.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "S1-05A_GOAL_SPEC.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "CLAUDE_CODE_LAUNCH.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "S1-05A_GOAL_SPEC.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "GOAL_SPEC_AMENDMENTS.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "CODEX_OPERATOR_LAUNCH.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "CLAUDE_CODEX_PROTOCOL.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "SOURCE_REGISTER.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "evidence/BRANCH_COMMIT_REGISTER.md",
+      "exists": true
+    },
+    {
+      "from": "00_START_HERE.md",
+      "href": "evidence/VIDEO_REVIEW.md",
+      "exists": true
+    },
+    {
+      "from": "S1-05A_GOAL_SPEC.md",
+      "href": "GOAL_SPEC_AMENDMENTS.md",
+      "exists": true
+    },
+    {
+      "from": "S1-05A_GOAL_SPEC.md",
+      "href": "CLAUDE_CODE_LAUNCH.md",
+      "exists": true
+    },
+    {
+      "from": "S1-05A_GOAL_SPEC.md",
+      "href": "CODEX_OPERATOR_LAUNCH.md",
+      "exists": true
+    },
+    {
+      "from": "S1-05A_GOAL_SPEC.md",
+      "href": "CLAUDE_CODEX_PROTOCOL.md",
+      "exists": true
+    },
+    {
+      "from": "SOURCE_REGISTER.md",
+      "href": "evidence/VIDEO_REVIEW.md",
+      "exists": true
+    },
+    {
+      "from": "evidence/VIDEO_REVIEW.md",
+      "href": "video-source-register.json",
+      "exists": true
+    }
+  ]
+}

@@ -1,0 +1,1989 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sophia — progress and next goal</title><style>
+:root{color-scheme:light;--ink:#1b2934;--muted:#586876;--line:#dce3e7;--accent:#166c68;--paper:#fff;--page:#f3f6f7}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;font:16px/1.62 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--page)}header{padding:35px 5vw 28px;background:#152f36;color:#fff}header h1{font-size:clamp(27px,4vw,41px);line-height:1.15;margin:8px 0 13px;letter-spacing:-.035em}header p{max-width:850px;margin:6px 0;color:#dce8e9}.eyebrow{font-size:12px;letter-spacing:.13em;text-transform:uppercase}.layout{display:grid;grid-template-columns:275px minmax(0,1000px);gap:30px;max-width:1370px;margin:30px auto;padding:0 25px}nav{position:sticky;top:20px;align-self:start;max-height:calc(100vh - 40px);overflow:auto;font-size:13px}nav a{display:block;padding:9px 12px;border-left:2px solid var(--line);text-decoration:none;color:var(--muted);line-height:1.35}nav a:hover,nav a:focus{background:#e6eeee;color:var(--accent);border-color:var(--accent)}main{min-width:0}.chapter{padding:36px 42px;margin-bottom:30px;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}.chapter-meta{font:11px/1.4 ui-monospace,monospace;color:var(--muted);margin-bottom:17px;letter-spacing:.03em}.chapter h1{font-size:29px;line-height:1.2;letter-spacing:-.025em;margin:5px 0 23px}.chapter h2{font-size:23px;line-height:1.3;margin:34px 0 14px}.chapter h3{font-size:19px;line-height:1.35;margin-top:28px}a{color:var(--accent);text-underline-offset:3px}table{display:block;width:100%;overflow-x:auto;border-collapse:collapse;font-size:14px;line-height:1.48;margin:23px 0}th,td{border-bottom:1px solid var(--line);padding:12px 13px;text-align:left;vertical-align:top;min-width:120px}th{background:#edf3f3}th:first-child,td:first-child{min-width:90px}pre{font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;background:#f0f4f5;padding:19px;border-radius:7px;overflow-x:auto;white-space:pre-wrap;word-break:break-word}code{font: .88em ui-monospace,SFMono-Regular,Consolas,monospace}li{margin:6px 0}blockquote{border-left:3px solid var(--accent);padding:2px 20px;margin-left:0;color:#304d51}.top{font-size:12px}.notice{border:1px solid #bdd3d2;border-radius:7px;padding:12px 16px;font-size:14px;margin-top:18px;max-width:930px}@media(max-width:850px){.layout{display:block;padding:0 13px;margin-top:18px}nav{position:static;max-height:270px;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:20px;background:#fff}.chapter{padding:25px 20px}header{padding:28px 23px}.chapter h1{font-size:26px}table{font-size:13px}.chapter h2{font-size:21px}}@media print{nav{display:none}.layout{display:block;max-width:none;padding:0}header{color:#000;background:#fff}.chapter{border:0;padding:15px 0;break-before:page}a{color:#000}pre{white-space:pre-wrap}}
+</style></head><body id="top"><header><div class="eyebrow">Sophia · implementation alignment · 25 September 2026</div><h1>Keep the progress. Connect the product.</h1><p>A source-grounded review of the runtime and Luis’s Studio stack, with the next integrated goal and a bounded Claude-to-Codex operations handoff.</p><div class="notice">Review and planning packet · no repository or hosted changes performed · native/runtime tests and hosted acceptance remain explicitly distinguished.</div></header><div class="layout"><nav aria-label="Document navigation"><a href="#doc-00-start-here-md">Sophia — current progress and next integration goal</a><a href="#doc-progress-and-alignment-ledger-md">Sophia — progress, Luis changes and alignment ledger</a><a href="#doc-s1-05a-goal-spec-md">S1-05A — Make the shared room a real Sophia conversation with durable work</a><a href="#doc-goal-spec-amendments-md">Proposed goal-spec amendments — S1-05A alignment</a><a href="#doc-claude-codex-protocol-md">Claude ↔ Codex development handoff protocol</a><a href="#doc-claude-code-launch-md">Claude Code launch — S1-05A</a><a href="#doc-codex-operator-launch-md">Codex launch — independent scoped operator for S1-05A</a><a href="#doc-source-register-md">Source register and evidence classes</a><a href="#doc-evidence-branch-commit-register-md">Repository register — 25 September 2026</a><a href="#doc-evidence-video-review-md">Visual review of the two supplied recordings</a><a href="#doc-evidence-branch-commit-register-json">branch-commit-register.json</a><a href="#doc-evidence-video-source-register-json">video-source-register.json</a><a href="#doc-evidence-input-source-register-json">input-source-register.json</a></nav><main><section class="chapter" id="doc-00-start-here-md"><div class="chapter-meta">00_START_HERE.md</div><h1 id="doc-00-start-here-md-h0">Sophia — current progress and next integration goal</h1>
+<p><strong>25 September 2026 · v1.0 · review and executable planning packet</strong></p>
+<h2 id="doc-00-start-here-md-h1">Start here</h2>
+<p>For Davide and Luis: <a href="#doc-progress-and-alignment-ledger-md">progress and alignment ledger</a>, followed by <a href="#doc-s1-05a-goal-spec-md">the next goal</a>.</p>
+<p>For the implementation agent: <a href="#doc-claude-code-launch-md">Claude launch</a>, <a href="#doc-s1-05a-goal-spec-md">S1-05A</a>, <a href="#doc-goal-spec-amendments-md">goal amendments</a>, then the original source-linked repository instructions/specs.</p>
+<p>For the authorized operations agent: <a href="#doc-codex-operator-launch-md">Codex launch</a> and <a href="#doc-claude-codex-protocol-md">communication protocol</a>.</p>
+<p>For verification: <a href="#doc-source-register-md">source register</a>, <a href="#doc-evidence-branch-commit-register-md">branch/commit register</a>, and <a href="#doc-evidence-video-review-md">video review</a>.</p>
+<h2 id="doc-00-start-here-md-h2">The recommended next step</h2>
+<p><strong>Make the existing room useful through real conversation and one durable dsh task.</strong> Preserve Luis's additions, close the real API/runtime integration, bind the visual presence to actual media state, and keep hosted effects on the explicitly authorized operator path.</p>
+<p>Current inspection anchors: <code>main@01d9117b</code>, <code>studio/qol@29a570c3</code>. The stack contains 45 additional commits above main. Main is not the full product; the draft stack is not automatically approved; a reported hosted commit is not a freshly verified deployment.</p>
+<h2 id="doc-00-start-here-md-h3">Scope and delivery</h2>
+<p>This packet adds a proposed S1-05A goal and amendment crosswalk. It does not edit the repository or imported plan. It creates no issues, PRs, merges, tasks, deployments, migrations or new authority grants. The exact next launch may adopt its proposed product decisions; until then they are recommendations.</p>
+<p>Copy the entire packet into a repository-owned documentation folder such as <code>docs/alignment/2026-09-25/</code> when implementing. Preserve relative links between its files; original repository references use pinned GitHub URLs. Do not copy it into the byte-frozen <code>docs/pack/</code> directory. Ignore older superseded planning approaches when they conflict with the selected dsh/voice-first architecture.</p>
+<p>The ZIP is the portable coding-agent handoff. <code>READER.html</code> is a self-contained human reader; its navigation works without extracting supporting Markdown files. Local validation checks cover links and file integrity, not live application correctness.</p>
+</section><section class="chapter" id="doc-progress-and-alignment-ledger-md"><div class="chapter-meta">PROGRESS_AND_ALIGNMENT_LEDGER.md</div><h1 id="doc-progress-and-alignment-ledger-md-h0">Sophia — progress, Luis changes and alignment ledger</h1>
+<p><strong>Version:</strong> 1.0 · <strong>Date:</strong> 25 September 2026 · <strong>State:</strong> source-grounded assessment and proposed next assignment; not executed.</p>
+<p><strong>Repository:</strong> <code>https://github.com/davidelaverga/Sophia</code>. <strong>Main inspected:</strong> <code>01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3</code>. <strong>Cumulative integration head:</strong> <code>29a570c33feb97a6bc04ea357c84087a47c9b055</code> (<code>studio/qol</code>).</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h1">1. Decision summary</h2>
+<p>Preserve the existing runtime repairs and Luis's Studio work. The next product goal is <strong>S1-05A: a real shared Sophia conversation that starts and follows one authorized dsh task inside Luis's room</strong>. It closes the actual API/runtime boundary, reuses A01–A03 and the new room, and adds the first real media integration. It does not restart the architecture, duplicate the room or reopen the harness selection.</p>
+<p>The immediate operational risk is the reported Render auto-deploy branch: it still points to a pre-room branch. The immediate implementation gap is equally specific: the merged dsh bridge calls <code>/v1/runtime/*</code> endpoints not registered by the cumulative API. The visible room and passing native-loop fixtures therefore do not yet form a working product path.</p>
+<p>Claude Code is the implementation lead under its current permissions. Codex is a separately initialized, owner-authorized operations executor for scoped hosted changes. Luis reviews integrations and visual changes. This division is a temporary development workflow, not a claim that Sophia's S1-09/S1-10 executor orchestration already exists.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h2">2. What was examined</h2>
+<p>All 12 visible remote branch heads; 64 unique reachable commit records; all PR descriptions #1–#12; current working-head CI; the key runtime, API, room and access code; the original goals and active v0.4 bindings; all six pages of Luis's PDF; the complete mailbox reference; visual samples spanning both supplied clips.</p>
+<p>See <a href="#doc-source-register-md">source register</a>, <a href="#doc-evidence-branch-commit-register-md">full branch/commit register</a>, and <a href="#doc-evidence-video-review-md">video review</a>. A metadata/source audit is not full execution verification. No tests, provider calls, deployment or schema changes were run by this review.</p>
+<p>The older <code>Sophia-Agent</code> repository is not this target. Its unresolved obligations are neither inherited nor declared closed by editing this new repository.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h3">3. Repository and deployment truth</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Observed or reported state</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Main</td>
+<td>PRs #1 and #2 merged; head <code>01d9117b</code></td>
+<td>Reproducible runtime and S1-03 control/supervisor code. Main does not contain Luis's complete API/Studio stack.</td>
+</tr>
+<tr>
+<td>Cumulative working branch</td>
+<td><code>studio/qol</code> at <code>29a570c3</code>; 45 commits ahead, zero behind main</td>
+<td>Contains main plus all other visible branch heads. It is the correct inspection/base reference for preserving completed work.</td>
+</tr>
+<tr>
+<td>Review stack</td>
+<td>#3–#7 open; #8–#12 draft</td>
+<td>Feature code existing and CI passing is not merge approval. Review and integrate in the existing dependency order.</td>
+</tr>
+<tr>
+<td>CI</td>
+<td>Successful runtime-unit, PostgreSQL and local-Supabase-auth jobs at working head</td>
+<td>Meaningful execution evidence for those scopes; not actual Gemini audio or production runtime integration.</td>
+</tr>
+<tr>
+<td>Hosted API/Studio</td>
+<td>Luis's PDF reports both at <code>29a570c3</code> and migrations 0009–0011 applied</td>
+<td>Latest supplied operator report, not independently confirmed here.</td>
+</tr>
+<tr>
+<td>Auto-deploy</td>
+<td>PDF reports Render still tracks <code>deploy/render-vercel</code></td>
+<td>A later push can replace the new API with an older one. Operator must inspect and correct this before release-related pushes.</td>
+</tr>
+<tr>
+<td>Owner settings</td>
+<td>LiveKit Cloud, invitation secret, guest auth and optional email configuration still need owner actions in the report</td>
+<td>A deployed web shell does not establish a usable hosted media room.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Read-time is not event-time.</strong> An older runbook retrieved today does not outweigh a later dated deployment report. Preserve disagreements in the record and ask the operator to resolve them against actual service/deployment/migration receipts.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h4">4. Progress against the existing goals</h2>
+<table>
+<thead>
+<tr>
+<th>Goal/work</th>
+<th>Assessment</th>
+<th>Remaining boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1-01</td>
+<td>Implemented and merged; reproducible unit and pin checks have recorded evidence</td>
+<td>Preserve identity and toolchain while changing the bundle; do not treat runtime identity as product readiness.</td>
+</tr>
+<tr>
+<td>S1-02</td>
+<td>Substantial implementation in PRs #3/#4/#6/#7: schema, restricted DB access, JWTs, admission, snapshot/SSE, response validation and hosted auth</td>
+<td>Integrate the stack; complete actual runtime dispatch and any domain operations needed for the next real task.</td>
+</tr>
+<tr>
+<td>S1-03</td>
+<td>Merged implementation: public Agent bridge, role guards, journal, leases, cancellation and recovery; two rounds of independent review fixes</td>
+<td>PR explicitly leaves live acceptance open. The API half, actual source/context delivery, and real-provider integrated evidence are not established.</td>
+</tr>
+<tr>
+<td>S1-04</td>
+<td>Studio, viewer-local lenses/drafts, project feed, human room and input-floor implementation exist on stack</td>
+<td>Actual two-founder audio and connection to AI remain to be exercised. Contribution composer is not a working conversation yet.</td>
+</tr>
+<tr>
+<td>S1-04A</td>
+<td>New implemented room access goal: guest/member invitations, lobby and sessions</td>
+<td>Confirm hosted owner setup; address live removal/audience consequences before project-aware AI speaks.</td>
+</tr>
+<tr>
+<td>S1-05</td>
+<td>Media bridge and Google connection are not implemented at inspected head</td>
+<td>Implement the next bounded voice/work episode; do not start the room or floor again.</td>
+</tr>
+<tr>
+<td>S1-06–S1-08</td>
+<td>Images, prototypes and broader imports/context remain future implementation</td>
+<td>Existing placeholders are not completed capabilities; use minimal current authorized context for this next slice.</td>
+</tr>
+<tr>
+<td>S1-09–S1-11</td>
+<td>External-resource adapters, peer integration and product supervision are not delivered</td>
+<td>This packet's Claude/Codex operations protocol is not a substitute for those product goals.</td>
+</tr>
+<tr>
+<td>S1-12–S1-14</td>
+<td>Full app co-review, renderers and integrated founder release remain future work</td>
+<td>Early hosted deployment does not close all release criteria.</td>
+</tr>
+</tbody>
+</table>
+<p>Do not compute a sprint completion percentage from merged PR count or code volume. Track accepted user episodes and explicit remaining boundaries. Frozen <code>docs/pack/delivery/planning.json</code> status is a design baseline; write current progress outside the byte-frozen pack.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h5">5. Luis's changes: disposition</h2>
+<h3 id="doc-progress-and-alignment-ledger-md-h6">Keep and incorporate</h3>
+<p><strong>A01 / migration 0009:</strong> moving <code>transferInputFloor</code> and room state into S1-04 is justified by the shell's own acceptance needs. S1-05 must consume this implementation rather than create another floor owner.</p>
+<p><strong>A02 / migration 0010:</strong> room links, email-bound member invitations, guests, lobby and sessions make the room accessible. Preserve the narrow guest routes and separation from project records.</p>
+<p><strong>A03 / migration 0011:</strong> decline versus block is clearer than one ambiguous refusal. Keep the one-minute re-request behavior, undo affordance and explicit unblock. Do not describe an anonymous-identity block as permanently banning a real person across devices/accounts.</p>
+<p><strong>Visual language:</strong> keep Geist/Mono, the restrained dark surface, squared controls, tips/shortcuts, the light, gallery/presentation modes and the persistent mini dock. Avoid a parallel redesign. The light should later make space for the actual artifact.</p>
+<p><strong>QOL and correctness:</strong> keep readable sign-in failures, cross-device codes, invitation context, copy-link fallback, exact CORS, SSE cleanup/recovery and generated response validators. Keep scoped clean-code checks without reformatting runtime-owner areas as an incidental task.</p>
+<h3 id="doc-progress-and-alignment-ledger-md-h7">Change the integration meaning, not the feature</h3>
+<p>Camera/screen publication to humans is not permission to send those tracks to Google. Room participation, publishing media, speaking to Sophia, reading project context, changing project state and deploying are different permissions.</p>
+<p>The animated light's current <code>listen</code> mode is derived from LiveKit room status. Connect it to actual exchange/input/playback state before using it as an indicator that Sophia hears someone. A reconnecting room must not claim that a model is listening successfully.</p>
+<p>A03 commits a database denial/block and then requests provider removal. Failure of the removal helper is not surfaced as a durable unfinished obligation. Add denial of future tokens immediately plus reliable provider-removal reconciliation and honest pending UI. A 600-second join-token TTL is not a deadline that automatically removes an already connected participant. [R07–R09, E01]</p>
+<p>Guest isolation currently protects project-record HTTP access. It does not prevent a guest subscribed to the room from hearing a future project-aware Sophia audio track. Address this before activating the voice bridge. [R07–R08]</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h8">6. Explicit product decisions proposed for this assignment</h2>
+<p>These are recommendations recorded for approval with the goal launch, not retroactive statements of what Luis or Davide already accepted.</p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Proposed decision</th>
+<th>Implementation timing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Can viewer members speak?</td>
+<td>Yes, in the human room. They can address Sophia for authorized read-only conversation. They cannot admit work, accept decisions or control a worker through voice.</td>
+<td>Next goal, through a reviewed amendment and role tests.</td>
+</tr>
+<tr>
+<td>Can guests speak/share?</td>
+<td>Retain human-room participation. Guest arrival suspends project-aware Sophia input/output before the guest token is issued. Project-aware exchanges resume only when the room is again member-only and someone explicitly starts one.</td>
+<td>Next goal. A separate guest-safe context mode is future work.</td>
+</tr>
+<tr>
+<td>What is the floor called?</td>
+<td>Use “Speak with Sophia” and “Sophia listens to …” only when the real exchange is active. Before that show “Sophia voice not connected”; keep internal floor terms out of routine UI.</td>
+<td>Next goal.</td>
+</tr>
+<tr>
+<td>Holder leaves?</td>
+<td>Stop forwarding its track immediately. Reconcile confirmed departure with the current revision/epoch, with a short reconnect grace; no stale leave callback may clear a new holder. Require explicit transfer/resume.</td>
+<td>Next goal.</td>
+</tr>
+<tr>
+<td>Composer?</td>
+<td>Preserve local draft. Wire attributed discussion with an actual receipt; explicit work intent is separately admitted. No fake send success, and no silent build from a discussion sentence.</td>
+<td>Next goal.</td>
+</tr>
+<tr>
+<td>Coming pages/lenses?</td>
+<td>Keep stable routes and the three-lens structure. Do not emphasize nonfunctional top-level destinations; show a compact availability explanation and a useful way back. Restore destinations when real records exist.</td>
+<td>Small next-goal integration, not a redesign.</td>
+</tr>
+<tr>
+<td>Invite-only?</td>
+<td>Founder pilot remains invite-only. Existing owners provision member accounts; project invitations attach approved users. Do not enable general public account/project signup as a side effect. Anonymous guest mode is separately owner-enabled with its narrow scope.</td>
+<td>Operator configuration; record actual chosen Auth settings.</td>
+</tr>
+<tr>
+<td>Cross-device project list?</td>
+<td>Add an authenticated membership-scoped list in a small S1-04 follow-up; per-device recents can remain a cache. It is not a blocker for the first voice/work episode.</td>
+<td>Named follow-up after next goal.</td>
+</tr>
+<tr>
+<td>Session/calendar invitations?</td>
+<td>Keep optional, explicit session binding. Do not start provider listening or recording because a scheduled session time arrived.</td>
+<td>Preserve implementation; widen calendar behavior later.</td>
+</tr>
+</tbody>
+</table>
+<p>The guest policy intentionally distinguishes consent to a human call from access to stored project knowledge. It does not prevent people from choosing what they say in front of their guests. Its cost is one explicit pause/resume boundary for project-aware AI, rather than an accidental disclosure path.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h9">7. Source-level gaps that determine the next goal</h2>
+<h3 id="doc-progress-and-alignment-ledger-md-h10">7.1 Production runtime control has two unmatched halves</h3>
+<p><code>packages/dsh-bundle/src/transport.ts</code> expects <code>/v1/runtime/hello</code>, <code>/commands</code>, <code>/receipts</code>, <code>/observations</code> and <code>/ready</code>. <code>apps/api/src/app.ts</code> does not register them. The bridge's fixture service is useful proof of native-loop mechanics, not a production API.</p>
+<p>Implement the server side and dispatch adapter using the existing protocol shapes, then make those schemas canonical. Validate both directions. Do not build another agent loop or rename the entire native transport to hide the missing boundary.</p>
+<h3 id="doc-progress-and-alignment-ledger-md-h11">7.2 Durable admission is not dispatch</h3>
+<p>Existing SQL can admit selected control commands and publish events. It does not itself start a native job. Connect an authenticated, current assignment to the runtime, recheck authority at dispatch, and record both delivery and incorporation/settlement.</p>
+<p>Create one explicit bounded task admission operation using the existing goal/attempt/binding/job records. Do not use a permanently seeded test goal or raw SQL in the release demonstration.</p>
+<h3 id="doc-progress-and-alignment-ledger-md-h12">7.3 The first result must be real, but need not be the whole future creative platform</h3>
+<p>Use a <strong>draft implementation brief</strong> from current accepted project facts and two explicitly shared user inputs. Run it on the real configured dsh model, retain the Markdown result, and show it while the conversation continues. It is drafting, not web research or a complete PM implementation.</p>
+<p>No image/prototype tools are exposed until those adapters exist. This is a genuine partial S1-05 episode, with remaining original criteria retained—not a declaration that all image/prototype work is done.</p>
+<h3 id="doc-progress-and-alignment-ledger-md-h13">7.4 Presence and recording must follow actual behavior</h3>
+<p>Input forwarding, provider generation, actual playback, background work and connection recovery have separate state. Model text or a room connection cannot prove another state. The new media bridge must publish those events to Luis's existing light and controls.</p>
+<p>Keep project-aware input member-scoped, bind speech actions to the original authenticated speaker/epoch, and suppress stale output after a transfer/Stop. End exchange does not cancel independently admitted work.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h14">8. How to continue</h2>
+<p><strong>First, establish one reviewed baseline.</strong> Branch from the cumulative head (or a newer reconciled descendant), preserve all source fixes, and coordinate with Luis. Review #3–#12 in dependency order. Do not blindly squash/reset the stack, mark draft work approved, or push the old deploy branch.</p>
+<p><strong>Second, build the next integrated episode.</strong> See <a href="#doc-s1-05a-goal-spec-md">S1-05A spec</a>. The backend/runtime crossing and basic media work can be developed in parallel after their contract is agreed. Test the actual crossing before claiming product acceptance.</p>
+<p><strong>Third, use Codex for operations only when needed.</strong> Start with read-only configuration/deployment/schema inventory. Claude prepares tested source and an exact operation request; Codex checks owner authority and executes only that request's approved effects. The app's external executor platform is not required just to coordinate its own developers. See <a href="#doc-claude-codex-protocol-md">protocol</a>.</p>
+<p><strong>Fourth, continue the existing release graph.</strong> Once this episode works, S1-06 image work and S1-07 prototype work attach to the actual room/job path. S1-09/S1-10 attach the three real engineering resources. S1-11 adds richer leadership/review. S1-12 uses the same selected-target/steering contracts. Do not let further lobby polish displace those outcomes.</p>
+<h2 id="doc-progress-and-alignment-ledger-md-h15">9. What this packet changes</h2>
+<table>
+<thead>
+<tr>
+<th>Deliverable</th>
+<th>Purpose</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>This ledger</td>
+<td>Progress, evidence boundaries, Luis dispositions and the recommended next step</td>
+<td>Created; not project-state authority by itself</td>
+</tr>
+<tr>
+<td>GOAL_SPEC_AMENDMENTS.md</td>
+<td>Original-goal crosswalk and explicit changes without rewriting the frozen pack</td>
+<td>Created; adoption proposed</td>
+</tr>
+<tr>
+<td>S1-05A_GOAL_SPEC.md</td>
+<td>One bounded integrated goal and acceptance criteria</td>
+<td>Created; not started</td>
+</tr>
+<tr>
+<td>CLAUDE_CODEX_PROTOCOL.md</td>
+<td>Practical current-development delegation and operator receipts</td>
+<td>Created; no automated bus installed</td>
+</tr>
+<tr>
+<td>CLAUDE_CODE_LAUNCH.md</td>
+<td>Implementation prompt with restricted operations</td>
+<td>Ready to paste</td>
+</tr>
+<tr>
+<td>CODEX_OPERATOR_LAUNCH.md</td>
+<td>Separate operator prompt, bounded authority and reconciliation</td>
+<td>Ready to paste</td>
+</tr>
+<tr>
+<td>Evidence registers</td>
+<td>All inspected refs/commit summaries and visual-source coverage</td>
+<td>Created</td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-progress-and-alignment-ledger-md-h16">10. Unknowns and update rules</h2>
+<p>The actual hosted deployment tuple, migration checksums, Auth configuration, LiveKit credentials/readiness and current auto-deploy setting require authorized inspection. Available provider keys, a paid-test allowance, and the execution host's actual identity/capacity are not established by this audit.</p>
+<p>On each implementation handoff, update current refs, exact commands and results, deployment receipts, remaining adverse cases and next action. Do not erase the original report when new evidence supersedes it. Mark which claim changed and why.</p>
+<p>No claim of full Sprint 1 completion, real multi-person AI audio, production S1-03 readiness or installed peer orchestration is made here.</p>
+</section><section class="chapter" id="doc-s1-05a-goal-spec-md"><div class="chapter-meta">S1-05A_GOAL_SPEC.md</div><h1 id="doc-s1-05a-goal-spec-md-h0">S1-05A — Make the shared room a real Sophia conversation with durable work</h1>
+<p><strong>Version:</strong> 1.0 · <strong>Prepared:</strong> 25 September 2026 · <strong>Implementation state:</strong> not started.</p>
+<p><strong>Human goal owner:</strong> Davide. <strong>Implementation lead:</strong> Claude Code under Davide's existing development authority. <strong>Integration/UX reviewer:</strong> Luis. <strong>Operations executor:</strong> separately initialized Codex, only for explicitly authorized hosted operations.</p>
+<p><strong>Target:</strong> <code>https://github.com/davidelaverga/Sophia</code>. <strong>Inspected integrated baseline:</strong> <code>studio/qol@29a570c33feb97a6bc04ea357c84087a47c9b055</code>. <strong>Inspected main:</strong> <code>01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3</code>. Reconcile newer changes before editing; never start from old main and reconstruct Luis's stack manually.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h1">1. User outcome</h2>
+<p>Davide and Luis join the existing Studio room, explicitly open an exchange with Sophia, take turns speaking and hear the same real Gemini response. They can share a selected screen with Sophia deliberately. One asks Sophia to draft an implementation brief from the project and two agreed inputs. The request is admitted once and runs on the real configured dsh worker while conversation continues. The returned brief appears in the project and is announced once when appropriate. They can inspect, steer, Hold or Stop the work without confusing those actions with ending speech.</p>
+<p>This is a useful, bounded internal product episode. It is not merely a media echo demo and not the full completion of images, prototypes, external engineering, memory or project leadership.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h2">2. Original specifications retained and amended</h2>
+<p>Read the frozen <a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-02.md" rel="noopener noreferrer">S1-02</a>, <a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-03.md" rel="noopener noreferrer">S1-03</a>, <a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-04.md" rel="noopener noreferrer">S1-04</a>, <a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-05.md" rel="noopener noreferrer">S1-05</a>, <a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/architecture/06_VOICE_AND_VISION.md" rel="noopener noreferrer">voice contract</a> and <a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/architecture/12_DATA_AND_API_BINDINGS.md" rel="noopener noreferrer">data/API bindings</a>. Read the actual A01–A03 amendments and Luis's S1-04A handoff at the execution checkout.</p>
+<p>The exact changes are in <a href="#doc-goal-spec-amendments-md">GOAL_SPEC_AMENDMENTS.md</a>. This goal adds the missing integration and a partial S1-05 acceptance episode. It does not rewrite <code>docs/pack/</code>, renumber old goals, remove their unmet criteria, or count a fixture run as their live completion.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h3">3. Baseline and operating rules</h2>
+<ol>
+<li>Recover current refs, active worktrees, PR bases, checks and owners. Start a dedicated <code>claude/s1-05a-room-to-work</code> branch from the agreed cumulative baseline. Preserve Luis's visual/UI work, A01–A03, all applied migrations and the merged runtime recovery fixes.</li>
+<li>Review/land the existing stack with Luis in dependency order. This spec does not authorize blind merging of drafts. Work may proceed on the dedicated branch while review completes; shared writes must have an explicit owner.</li>
+<li>Keep Node <strong>24.21.0</strong>, pnpm <strong>11.7.0</strong> and the current runtime unit unless an explicit compatibility change is approved. Use frozen install; refresh recorded digests only for intentional reviewed source/dependency changes.</li>
+<li>Preserve the current S1-03 development model route. Application model choice is not the coding agent used to implement it. Real paid tests require an explicitly recorded owner allowance and a provider credential on the authorized execution host, never a credential copied into Claude's transcript.</li>
+<li>No work on old Sophia-Agent, broad schema reset, destructive down-migration, vendor credential import, auto-deploy bypass or unreviewed framework upgrade.</li>
+<li>Record a single S1-05A goal with checkpoint handoffs. New chats are new attempts, not fresh scope or spending authority.</li>
+</ol>
+<h2 id="doc-s1-05a-goal-spec-md-h4">4. Checkpoint A — Reconcile the hosted baseline and contracts</h2>
+<p><strong>Claude:</strong> inspect the cumulative diff, existing amendments, runtime protocol, migrations and deployment runbooks. Prepare the integration branch and an exact source/contract crosswalk. Do not change production.</p>
+<p><strong>Codex:</strong> using the operator protocol, inspect the actual API/Studio deployment IDs/commits, migration ledger/checksums, Render branch/auto-deploy mode, LiveKit readiness and necessary owner settings. Start read-only. Luis's report that <code>29a570c3</code> and 0009–0011 are deployed is the comparison baseline, not a command to reapply them.</p>
+<p>Before any release-related push or merge can trigger a stale deployment, request a bounded operator action to disable the old auto-deploy path or rebind it to the explicitly approved integration source. The target after stack integration is the reviewed main/release commit, not today's old main. Keep auto-deploy off during the alignment release; deploy exact approved commits. Record this as a temporary release procedure, not a new permanent environment policy.</p>
+<p>Register new schema and wire changes as reviewed contract amendments after A03, and append new SQL migrations after the actual current ledger. Reserve names/numbers with Luis before parallel authors create them. Do not mutate A01–A03 or migrations 0001–0011 to make hosted state fit.</p>
+<p><strong>Checkpoint evidence:</strong> current source graph; agreed writable scope; actual hosted tuple or explicitly unavailable fields; amendment inventory; operator request/receipt IDs. Unknown settings do not block ordinary local implementation.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h5">5. Checkpoint B — Close the real API ↔ dsh boundary</h2>
+<h3 id="doc-s1-05a-goal-spec-md-h6">5.1 Use the transport the code already implements</h3>
+<p>The canonical private runtime namespace for this goal is <strong><code>/v1/runtime/*</code></strong>, matching <code>packages/dsh-bundle/src/transport.ts</code>. Public user operations remain under <code>/api/v1</code>. Do not duplicate both namespaces or introduce another root agent loop.</p>
+<p>Implement these exact server operations:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Required behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /v1/runtime/hello</code></td>
+<td>Authenticate the registered runtime instance, project, lease, protocol version and runtime unit; return authorized bindings, current authority and replay cursor.</td>
+</tr>
+<tr>
+<td><code>GET /v1/runtime/commands</code></td>
+<td>Deliver eligible commands after the acknowledged cursor, bounded long poll, preserving per-attempt order. Hold/Stop controls do not wait for a model turn.</td>
+</tr>
+<tr>
+<td><code>POST /v1/runtime/receipts</code></td>
+<td>Validate and idempotently persist actual native receipt stages; reject foreign binding/session/runtime references.</td>
+</tr>
+<tr>
+<td><code>POST /v1/runtime/observations</code></td>
+<td>Persist authorized observations and native sequence references once; project event sequence remains its own decimal-string namespace.</td>
+</tr>
+<tr>
+<td><code>POST /v1/runtime/ready</code></td>
+<td>Record readiness for this instance/lease and any unrecovered bindings. Ready means bridge/service readiness, not complete product readiness.</td>
+</tr>
+</tbody>
+</table>
+<p>Create canonical schemas in the product contract package; the bundle imports/generated-validates them rather than retaining a divergent local copy. Validate responses too, replacing the transport's unchecked type assertion. Keep fixture-service tests, but add tests against the real Fastify application and database.</p>
+<p>Machine authentication must be explicit and separate from a Supabase member JWT. Do not add a broad unprotected <code>/v1/*</code> exception to the current route-auth checks. A narrowly scoped runtime capability may address only its bound project/attempts. The secret value stays on the service/execution host. Native observations never impersonate a member or grant themselves acceptance.</p>
+<h3 id="doc-s1-05a-goal-spec-md-h7">5.2 Reuse existing persistence and cancellation semantics</h3>
+<p>Implement the actual dispatch worker using the existing outbox/job/attempt/binding records and current lock order. Recheck actor/grant, source eligibility, goal revision, authority epoch, runtime unit and lease at dispatch. An ineligible queued row gets an explicit terminal denial/supersession outcome; it must not remain a repeatedly claimed pending row.</p>
+<p>A dispatch whose outcome is uncertain is reconciled, not resent as a fresh prompt. Preserve service-side desired state and native observations separately. The existing journal, queued command ordering, replayed incorporation receipts and stop-settlement fixes must retain their regression tests.</p>
+<p>Hold closes work admission/continuation and cancels active native execution while retaining the agreed pending input. Stop fences old work and prevents late completion from publishing or resuming it. Releasing a browser connection or ending voice does neither.</p>
+<h3 id="doc-s1-05a-goal-spec-md-h8">5.3 Admit one useful native task through the application</h3>
+<p>Add a new, explicitly documented product operation:</p>
+<p><code>POST /api/v1/projects/{projectId}/native-tasks</code></p>
+<p>This route is <strong>proposed by this goal</strong>, not an already-existing API. Its first supported kind is <code>draft_brief</code>. It accepts validated substantive input and expected project state under an idempotency key, derives the actor from authentication, and creates the ordinary goal/attempt/binding/job records atomically. It must not bypass S1-02 with raw seed SQL or a special demo-only execution path.</p>
+<p>The initial brief input consists of the current accepted project facts and specifically shared contributions. Construct a small source-bound context manifest for these inputs. No broad personal memory, corpus ingestion, vector index or arbitrary SQL capability is required. Empty or absent facts stay unknown. Mark this as the seed context compiler, not completion of S1-08.</p>
+<p>Use the existing scoped role mechanism with only the tools needed for this task. The result is Markdown with: intended outcome, retained decisions, proposed next implementation step, open questions and cited input IDs. Capture it from the actual run, store it as a source-backed result using existing records, and show a result card in the Studio. This is a candidate brief, not an accepted roadmap or proof that implementation is complete.</p>
+<p>Wire the designed <code>submitContribution</code> route to persist attributed discussion. Discussion never silently starts work. An explicit voice or UI request for the brief uses the new admission service. The same explicit client intent is not admitted twice after retry/reconnect.</p>
+<p><strong>Checkpoint evidence:</strong> real API/database/native-runtime test; authorized and denied cases; one real-model brief without fixture service; correct delivery/incorporation/result states; a local fault-recovery run. Paid evidence remains pending until the owner authorizes it.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h9">6. Checkpoint C — Add the real room media bridge</h2>
+<h3 id="doc-s1-05a-goal-spec-md-h10">6.1 Chosen provider path</h3>
+<p>Use <strong>Gemini API <code>gemini-3.8-live</code></strong> and the pack's pinned <strong><code>@google/genai</code> 2.24.0</strong>, with <strong>raw LiveKit RTC</strong>. Add the server SDK versions recorded by the source register, verify the actual package APIs, and commit exact dependency pins. Do not add LiveKit Agents as a second project brain, switch to Vertex, or substitute Extended Thinking silently.</p>
+<p>Ordinary dialogue uses Live directly. dsh receives bounded delegated work. Expose only implemented tools: project status, eligible selected-source read, brief admission and current work controls. Do not register image, prototype or full technical-lead tools that can only return placeholders.</p>
+<h3 id="doc-s1-05a-goal-spec-md-h11">6.2 Exchange and membership are not the same state</h3>
+<p>Reuse A01 room/floor records and existing token routes. Implement the already-designed exchange-start route and explicit end/stop-speaking/stop-looking controls through reviewed schemas. A room join does not start Google input or recording.</p>
+<p>Bind every admitted utterance to project, authenticated member, room/exchange, input epoch and track identity. A model-provided name is not identity. Track handoff settles/cancels the current input generation before the new holder is effective. An older completion retains its original actor or is rejected; it is never reassigned to the new speaker.</p>
+<p>Viewer members may publish in the human room and invoke an authorized <strong>read-only</strong> exchange. All work admission and controls independently require the appropriate editor/admin/current grant. Guest identities cannot acquire project-read or work authority.</p>
+<h3 id="doc-s1-05a-goal-spec-md-h12">6.3 Guest-safe first behavior</h3>
+<p>Preserve the guest room feature. Before admitting a guest into a room with a project-aware exchange, quiesce that exchange, stop new Google input, clear queued Sophia output and receive the bridge's stopped-output acknowledgement. Only then issue the guest token. If the bridge is unreachable, do not claim the protected output is muted and issue the token anyway.</p>
+<p>While any guest is present/admitted for the current room audience, project-aware Sophia remains paused; human audio/video/screenshare continues. When the room is member-only again, resuming Sophia requires explicit member action. A later guest-safe conversational context is an extension, not a workaround inside this goal.</p>
+<p>Never use ordinary LiveKit subscription permission as permission to disclose the entire project's stored context. Use trusted room presence and admission state rather than a client claiming that all guests left.</p>
+<h3 id="doc-s1-05a-goal-spec-md-h13">6.4 Media details</h3>
+<ul>
+<li>Forward only the admitted member's microphone stream: mono signed 16-bit PCM at 16 kHz. Do not relabel Opus/WebM as PCM.</li>
+<li>Publish one shared Sophia audio track at the provider's declared output rate (initial route 24 kHz mono), with bounded buffering and backpressure. Record interruption-tail observations; do not promise zero latency.</li>
+<li>Stop Speaking/barge-in increments playback generation, clears server/client queues and rejects stale output. It does not cancel the brief job.</li>
+<li>Room camera/screenshare remains for humans by default. “Show Sophia this” explicitly selects a source/track/target. Forward at most the latest frame per second with capture time, observation epoch and source/preview identity where available. Do not forward room screen audio as user instructions.</li>
+<li>Stop Looking fences future frames and related analysis, across reconnect. Exact text/source reads supplement pixels for precise values.</li>
+<li>Process multi-field Google messages without dropping tool calls, cancellations, transcriptions, audio or resumption updates.</li>
+<li>Finish brief-admission tool calls promptly with a real work ID. <code>scheduling</code> and <code>willContinue</code> remain top-level <code>FunctionResponse</code> fields; long results arrive through project events, not an hours-long pending tool call.</li>
+<li>Resume only into a matching eligible room/context scope. Cold rebuild uses current permitted records; reconnect never replays a job-admission effect.</li>
+</ul>
+<h3 id="doc-s1-05a-goal-spec-md-h14">6.5 Truthful UI integration</h3>
+<p>Retain Luis's light engine, typography, layout and dock. Change its production input to an explicit state projection: unavailable, connected/idle, input admitted, responding, actually playing, background work, recovery. Use existing animation names internally where convenient; visible labels must match observed state.</p>
+<p>Do not select “listening” merely because the human room is live. Do not select “speaking” from received text while playback failed. Keep demo state controls in development fixtures only. Provide accessible text status and reduced-motion/non-WebGL fallback.</p>
+<p>The composer sends a real attributed contribution or retains an explicitly labeled local draft. Local lens switches remain local. The mini dock persists across views. The selected screen/target and its observation indicator remain visible while the user navigates elsewhere.</p>
+<p><strong>Checkpoint evidence:</strong> two independently authenticated humans each receive a coherent audible response; the shared output is one Sophia; floor handoff and selected visual input are real; guest admission/read-only roles are exercised.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h15">7. Checkpoint D — Close the existing access and recovery gaps</h2>
+<p>Extend the current lobby block/remove behavior without rewriting applied migrations. Database denial prevents new joins immediately. Provider removal becomes a durable, retried/reconciled obligation with a visible pending state. Do not treat the removal helper returning false as success, or rely on token expiry to disconnect an existing participant.</p>
+<p>On trusted holder departure, stop forwarding immediately and reconcile the current floor. Use a five-second reconnect grace for clearing the holder; a reconnect during it does not silently reopen listening. Clearing is compare-and-set against the old holder/epoch. A stale callback cannot clear a newly transferred floor.</p>
+<p>Keep member and guest scopes distinct in snapshot/SSE, transcript/result publication, room admission and model context. Do not put private content in generic presence broadcasts or public coordination messages.</p>
+<p>During this goal, full public onboarding remains out of scope. Codex may provision the agreed founder accounts and separately enable the authorized anonymous-guest test route. Do not push local Supabase configuration to hosted or enable public project creation as a side effect of invitations.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h16">8. Required acceptance cases</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Case and expected evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A01</td>
+<td>Current stack baseline and hosted tuple are recorded; no old-branch automatic deployment can replace the approved API.</td>
+</tr>
+<tr>
+<td>A02</td>
+<td>Actual Fastify/database runtime service exchanges hello/commands/receipts/observations with the real pinned dsh instance; foreign project/lease/unit is refused.</td>
+</tr>
+<tr>
+<td>A03</td>
+<td>A member submits discussion and explicitly admits one brief task; retries return the same admission. No seed-only task path is used.</td>
+</tr>
+<tr>
+<td>A04</td>
+<td>A real configured model produces a source-backed brief from the admitted inputs; result and actual usage/model identity are retained.</td>
+</tr>
+<tr>
+<td>A05</td>
+<td>Davide and Luis each speak to real Gemini in the same room and hear one shared Sophia. Transcription and frame samples are retained only under the test's explicit scope.</td>
+</tr>
+<tr>
+<td>A06</td>
+<td>A voice request starts the brief once while the participants continue talking. A worker result is surfaced once at an appropriate boundary.</td>
+</tr>
+<tr>
+<td>A07</td>
+<td>A voice/text steer made during a bounded controlled tool step is delivered and incorporated at the supported native boundary; evidence distinguishes sent, delivered and incorporated. Reuse the actual S1-03 steer harness, not a fake UI receipt.</td>
+</tr>
+<tr>
+<td>A08</td>
+<td>Hold/Stop during work and delayed provider/native replies cannot restart work or publish a new candidate under the stopped authority.</td>
+</tr>
+<tr>
+<td>A09</td>
+<td>Stop Speaking clears old output without stopping independent work; End exchange leaves the job and human room intact.</td>
+</tr>
+<tr>
+<td>A10</td>
+<td>Floor transfer preserves utterance actor; a stale departure or provider result cannot act as the new holder.</td>
+</tr>
+<tr>
+<td>A11</td>
+<td>An explicitly selected screen is discussed; unselected camera/screen/audio is not forwarded; Stop Looking prevents later frames after reconnect.</td>
+</tr>
+<tr>
+<td>A12</td>
+<td>Guest admission pauses project-aware AI before guest media access. Guest cannot read project records or admit work. Failed removal stays pending and is reconciled.</td>
+</tr>
+<tr>
+<td>A13</td>
+<td>Viewer can converse/read permitted state but cannot start/control work or accept decisions.</td>
+</tr>
+<tr>
+<td>A14</td>
+<td>Forced Google reconnect and one runtime restart preserve admitted work, current authority and result identity without duplicate admission.</td>
+</tr>
+<tr>
+<td>A15</td>
+<td>UI status/light reflects actual media/work state, including unavailable microphone, provider and playback; development demos are not represented as real behavior.</td>
+</tr>
+</tbody>
+</table>
+<p>Fixture tests are appropriate for rare races and error paths. The positive user episode must use the actual API, database, room, provider and native runtime. Two browser tabs with simulated people do not establish two-human audio. Do not run a long soak, integrate every future creative tool or build a general notification platform as a condition of this goal.</p>
+<p>Original S1-03/S1-05 requirements not covered here remain explicitly open. In particular, image/prototype job admission and full creative review remain with S1-06/S1-07/S1-12; S1-05 is not marked fully accepted just because this first integrated slice succeeds.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h17">9. Code destinations and reuse</h2>
+<table>
+<thead>
+<tr>
+<th>Destination</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/contracts/amendments/</code> and generation inputs</td>
+<td>Add reviewed runtime/media/role operations after A03; regenerate OpenAPI/types/validators. Do not hand-edit generated code.</td>
+</tr>
+<tr>
+<td><code>packages/dsh-bundle/src/protocol.ts</code>, <code>transport.ts</code></td>
+<td>Bind canonical schemas and validate both directions; preserve existing semantics/tests.</td>
+</tr>
+<tr>
+<td><code>packages/dsh-bundle/src/</code> role/tool modules</td>
+<td>Add only the brief/context capabilities and current authorization checks needed here.</td>
+</tr>
+<tr>
+<td><code>apps/api/src/routes/runtime/</code> (new), runtime auth</td>
+<td>Implement the real private bridge-service endpoints; explicit machine principal.</td>
+</tr>
+<tr>
+<td><code>apps/api/src/routes/conversations.ts</code> (new), <code>native-tasks.ts</code> (new)</td>
+<td>Attributed discussion and typed brief admission using current product records.</td>
+</tr>
+<tr>
+<td><code>apps/api/src/routes/rooms.ts</code>, <code>access.ts</code>, <code>livekit.ts</code></td>
+<td>Exchange/media state, viewer separation, guest quiescence and real removal settlement.</td>
+</tr>
+<tr>
+<td><code>packages/persistence/</code>, <code>packages/domain/</code>, append-only <code>db/migrations/</code></td>
+<td>Reuse current locking/admission/state patterns; add minimal runtime/exchange delivery state absent today.</td>
+</tr>
+<tr>
+<td><code>apps/worker/src/runtime-dispatch.ts</code> (new)</td>
+<td>Claim/reconcile native deliveries and access-cleanup jobs; no second reasoning loop.</td>
+</tr>
+<tr>
+<td><code>apps/media-bridge/</code> (new)</td>
+<td>RTC/Google connection, input selection, output, tools, vision, resumption and presence projection.</td>
+</tr>
+<tr>
+<td><code>apps/studio/src/features/voice/</code>, <code>light/</code>, project feed/composer</td>
+<td>Wire actual state and current commands into Luis's components.</td>
+</tr>
+<tr>
+<td><code>apps/execution-host/</code></td>
+<td>Connect existing supervisor to service bindings; isolated runtime execution and measured readiness.</td>
+</tr>
+<tr>
+<td>Tests and <code>docs/evidence/S1-05A/</code>, <code>docs/handoffs/</code></td>
+<td>Regression/additional cases, source-bound live evidence and staged handoffs.</td>
+</tr>
+</tbody>
+</table>
+<p>Do not create a new project-state database, generic message broker, vendor credential proxy, execution-team product, or alternate voice reasoning layer for this goal.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h18">10. Validation and release sequence</h2>
+<p>From the exact integration checkout, use existing commands:</p>
+<pre><code class="language-bash">pnpm install --frozen-lockfile
+pnpm --filter @sophia/contracts generate
+pnpm contracts:check
+pnpm check
+pnpm test:sql
+pnpm test:db
+</code></pre>
+<p>Run the local Supabase suite through its existing setup; <code>test:supabase</code> requires the configured local env. Native/live tests run only with an approved key/allowance on the appropriate host. Do not edit test expectations or record new artifact identities merely to hide a mismatch. A known Windows-only failure is recorded with its actual scope; execute the supported Linux CI path rather than claiming it was fixed.</p>
+<p>Claude runs local tests and prepares a candidate PR. Luis reviews shared contracts/UX and authorizes merge. Codex receives an immutable release request naming the approved commit and changed migration checksums. It dry-runs migrations, applies only missing authorized migrations, deploys exact compatible API/worker/media/Studio artifacts, then returns actual IDs and health evidence. Roll back code only to a schema-compatible version; no destructive schema reversal by default.</p>
+<p>Final evidence records source commit/tree, runtime unit, contract/amendment digest, schema ledger, deployment IDs, actual model/SDK IDs, participants/test scope, usage/allowance, receipts and unresolved results. Secret values, raw private conversation and active invitation links stay out of Git/public comments.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h19">11. Session handoffs and bounded completion</h2>
+<p>Use checkpoints A–D as work boundaries, not independent fresh goals. Each handoff states what actually works, exactly which acceptance cases passed, the next failing boundary, and the smallest useful continuation. A session may finish with implementation complete but operator execution pending; this is not full goal completion.</p>
+<p>The final verdict is one of: <strong>accepted integrated slice</strong>, <strong>candidate ready / hosted acceptance pending</strong>, or <strong>blocked at a named boundary</strong>. Do not call the work complete from a green room screenshot, mock provider output or accepted asynchronous receipt.</p>
+<p>Keep cross-device project listing, richer guest-safe AI context, full onboarding, next-stage notifications, image/prototype integrations and external engineer coordination in the named original/follow-up goals. This goal should make the existing room useful now, not absorb the entire sprint.</p>
+<h2 id="doc-s1-05a-goal-spec-md-h20">12. Launch and operations</h2>
+<p>Start with <a href="#doc-claude-code-launch-md">Claude implementation launch</a>. Initialize <a href="#doc-codex-operator-launch-md">Codex operator launch</a> separately and use the <a href="#doc-claude-codex-protocol-md">communication protocol</a>.</p>
+<p>A message is not an authorization escalation. When current tools or owner grants are missing, prepare the request and continue independent local work. Do not route a platform-denied operation through a different identity to defeat the denial.</p>
+</section><section class="chapter" id="doc-goal-spec-amendments-md"><div class="chapter-meta">GOAL_SPEC_AMENDMENTS.md</div><h1 id="doc-goal-spec-amendments-md-h0">Proposed goal-spec amendments — S1-05A alignment</h1>
+<p><strong>Baseline:</strong> cumulative v0.4 Part 2 at <code>29a570c33feb97a6bc04ea357c84087a47c9b055</code>. <strong>State:</strong> proposed for acceptance with the next assignment. Existing A01–A03 are Luis's implemented contract amendments; the new entries below do not silently amend them.</p>
+<h2 id="doc-goal-spec-amendments-md-h1">1. Rule for source-of-truth changes</h2>
+<p>Keep <code>docs/pack/</code> byte-identical. Install this packet under <code>docs/alignment/2026-09-25/</code> or another explicitly recorded repository path. Add the new goal and current progress as repository-owned records; update the goal index/source/destination maps outside the frozen pack. Register reviewed JSON Patch amendments through the existing contract-generation machinery and append SQL migrations. Never edit deployed migration bytes or generated validators manually.</p>
+<p>Before reserving a new amendment or migration number, refresh the branch and ledger. “After A03 / after 0011” describes the inspected ordering, not permission to collide with work that arrived later.</p>
+<h2 id="doc-goal-spec-amendments-md-h2">2. Exact old-to-new disposition</h2>
+<table>
+<thead>
+<tr>
+<th>Original goal or area</th>
+<th>Retained</th>
+<th>Adjustment</th>
+<th>Evidence/closure rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1-01</td>
+<td>Exact toolchain, pinned dsh, artifact identity and composition gate</td>
+<td>Reflect the actual new bundle/dependency identity after intentional changes; do not redo scaffolding</td>
+<td>Existing evidence retained; new identity diff explained</td>
+</tr>
+<tr>
+<td>S1-02</td>
+<td>Current JWT/DB/RLS/admission/snapshot/SSE/validator work</td>
+<td>Add canonical private runtime protocol and the minimum actual job/discussion operations required by S1-05A</td>
+<td>Production service tests are additional, not a replacement for current adversarial cases</td>
+</tr>
+<tr>
+<td>S1-03</td>
+<td>Merged Agent bridge, journal, scoped roles, supervisor and Codex review repairs</td>
+<td>Close actual API/dispatch/context binding; use real provider; validate transport payloads; do not run fixture service in production</td>
+<td>Mark each original criterion separately; live acceptance remains open until demonstrated</td>
+</tr>
+<tr>
+<td>S1-04</td>
+<td>Luis's shell, lenses, drafts, controls and room</td>
+<td>Accept A01's earlier floor implementation; consume it in S1-05 instead of implementing another floor. Bind composer/presence to real events</td>
+<td>Two-real-human room evidence required; simulated identities alone are not it</td>
+</tr>
+<tr>
+<td>S1-04A</td>
+<td>Links, invitations, lobby, sessions and A02/A03</td>
+<td>Add durable provider removal and explicit AI-audience behavior; retain decline/block semantics</td>
+<td>Block denies new tokens immediately; pending disconnection is visible until reconciled</td>
+</tr>
+<tr>
+<td>S1-05</td>
+<td>Gemini 3.8 Live, raw RTC, independent lifecycles, selected vision and recovery</td>
+<td>Start with supported status/source/brief/control tools only; S1-05A provides first integrated episode</td>
+<td>Full image/prototype criteria stay open for S1-06/S1-07 integrations</td>
+</tr>
+<tr>
+<td>S1-06/S1-07</td>
+<td>Image generation and native UI prototypes</td>
+<td>Plug into the real media/job/event path created here; no change to chosen provider direction</td>
+<td>Remain their own goals</td>
+</tr>
+<tr>
+<td>S1-08</td>
+<td>Imports, broader project memory/context and source eligibility</td>
+<td>Reuse a minimal explicit-input context compiler from S1-05A; do not declare broader retrieval solved</td>
+<td>Separate release cases remain</td>
+</tr>
+<tr>
+<td>S1-09/S1-10</td>
+<td>Three contributed coding resources and live peer collaboration</td>
+<td>Development-time Claude/Codex operator handoff is temporary tooling, not product implementation</td>
+<td>Do not claim these goals complete from a successful manual handoff</td>
+</tr>
+<tr>
+<td>S1-11</td>
+<td>Technical lead, periodic/manual review and replanning</td>
+<td>Brief drafting does not constitute the complete PM or scheduler</td>
+<td>Continue original goal after work path functions</td>
+</tr>
+<tr>
+<td>S1-12</td>
+<td>Full preview co-review and review-to-steer</td>
+<td>Reuse selected observation/source/authority semantics from this goal</td>
+<td>No mechanically exact artifact-edit claim in S1-05A</td>
+</tr>
+<tr>
+<td>S1-13</td>
+<td>v0.4 web/PDF and web/deck renderer direction</td>
+<td>Do not restore older Python-renderer assumptions from pre-v0.4 notes</td>
+<td>Independent renderer acceptance</td>
+</tr>
+<tr>
+<td>S1-14</td>
+<td>Complete founder episode and relevant recovery/ownership checks</td>
+<td>Early deployment is retained as evidence, not full release completion</td>
+<td>Test integrated capabilities as they land</td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-goal-spec-amendments-md-h3">3. New amendments to author</h2>
+<p><strong>Runtime service binding:</strong> declare <code>/v1/runtime/*</code> separately from member APIs; bound machine principal, canonical command/receipt/observation/ready types, cursor translation, transport validation and runtime-unit compatibility. Changes belong in the existing schema-generation path and source map.</p>
+<p><strong>Room/exchange participation:</strong> separate member role, media publication, read-only AI interaction and work authority. Viewer human speech is allowed; work control still requires editor/admin/current grant. Guest project context remains forbidden.</p>
+<p><strong>AI-audience transition:</strong> project-aware output is quiesced before guest admission; active guest room means human-only operation until explicit member-only resume. Room presence and project audience revisions must not be conflated.</p>
+<p><strong>Access settlement:</strong> denial/block and actual LiveKit disconnection have separate states, a durable pending operation and reconciliation. Failed media removal cannot be returned as complete disconnection.</p>
+<p><strong>Presence projection:</strong> room connected, AI available, admitted listening, responding, playback and work are distinct. Production light follows observed state; demo controls remain development-only.</p>
+<p><strong>Bounded native task:</strong> explicit <code>draft_brief</code> admission via existing goal/attempt/job records; immutable input references, idempotency, actual output and current control authority. It is not a hidden arbitrary-shell endpoint or the complete planning system.</p>
+<p>These amendments must be reviewed with Luis. The plan resolves the desired behavior; the implementing agent validates exact schema names and reuses existing fields before adding redundant records.</p>
+<h2 id="doc-goal-spec-amendments-md-h4">4. Named follow-ups, not next-goal blockers</h2>
+<p>A membership-scoped cross-device project-list endpoint; more complete onboarding; reusable guest-safe AI context; richer cooperation cards; automated peer wake-up infrastructure; broader route/model/skill optimization; exact component-preserving edits and full scenario testing. Keep these in the release graph, not in a new unbounded cleanup task.</p>
+<h2 id="doc-goal-spec-amendments-md-h5">5. Acceptance-status update</h2>
+<p>Create/update a repository progress record with separate fields for implemented source, tests, hosted evidence and human acceptance. Do not modify frozen <code>planning.json</code> to pretend the imported archive always knew the current state. Record the source pin and evidence that caused each status transition.</p>
+<p>This packet itself creates no source changes, reviews, merges, deployments, migrations or approved operator grants.</p>
+</section><section class="chapter" id="doc-claude-codex-protocol-md"><div class="chapter-meta">CLAUDE_CODEX_PROTOCOL.md</div><h1 id="doc-claude-codex-protocol-md-h0">Claude ↔ Codex development handoff protocol</h1>
+<p><strong>Version:</strong> 1.0 · <strong>Scope:</strong> development of S1-05A in <code>https://github.com/davidelaverga/Sophia</code>. <strong>Not:</strong> the future Sophia agent-to-agent platform.</p>
+<h2 id="doc-claude-codex-protocol-md-h1">1. Purpose and role boundary</h2>
+<p>Claude Code owns implementation, local tests, candidate source, requested operational steps and interpretation of returned evidence. Codex owns only the explicitly authorized hosted inspection/execution assigned to it. Luis owns the agreed integration/merge review. Davide supplies product and operational authority within his own accounts.</p>
+<p>The user has said Claude currently lacks production-deploy and hosted-schema permissions. Preserve that separation. Do not give Claude Codex's credentials, make Claude spawn a higher-privilege child to defeat a denial, or represent the handoff itself as a grant.</p>
+<p>An authorized independent operator can perform an approved task that the implementer's environment cannot. A task prohibited by a higher-priority rule stays prohibited through every route.</p>
+<h2 id="doc-claude-codex-protocol-md-h2">2. Transport: one explicit GitHub coordination thread</h2>
+<p>Use a single owner-created or owner-approved <strong>coordination issue</strong> in this repository for this goal, with links to its implementation/release PRs. Record the actual issue number once it exists. It is currently <strong>not created</strong>; this packet invents no live issue or session ID.</p>
+<p>Both agents use their own existing authorized GitHub connection to read/post there. The public repository means the thread is public: post sanitized metadata, commit IDs, checksums, decisions and evidence references only. Sensitive host values, participant data and private evidence stay in the owner's existing private store. Do not put signed invite links, bearer tokens, passwords, <code>.env</code> contents, raw database output or raw conversation in comments.</p>
+<p>No shared filesystem is assumed. The old attachment's Sophia-Agent path is not reused. Repository source travels by exact commit, not by an absolute path on the other computer.</p>
+<p>Before coordination starts, record:</p>
+<ul>
+<li>goal ID, coordination issue URL, implementation PR and candidate branch;</li>
+<li>authorized human owners and each agent's actual native session identifier (private reference when necessary);</li>
+<li>each agent's writable code scope;</li>
+<li>permitted read-only inspections and any separately granted effect envelope;</li>
+<li>the operator's actual target-environment mapping, retained privately where appropriate.</li>
+</ul>
+<p>This metadata is a coordination agreement, not an ACL-enforcement service.</p>
+<h2 id="doc-claude-codex-protocol-md-h3">3. Wake-up behavior and economy</h2>
+<p>An immutable GitHub comment is a durable message; it does not automatically wake an idle Claude or Codex session.</p>
+<p>Start both sessions explicitly. While an agent is already doing useful work, it checks the thread at meaningful boundaries and at most every two to five minutes when a response matters. It does not run an empty model loop or flood the thread with acknowledgements. A native supported event hook may be added later; it is not assumed installed by this protocol.</p>
+<p>When the recipient is idle, Davide gives one short trigger: “Read coordination message <code>&lt;id&gt;</code> in <code>&lt;issue&gt;</code> and follow your existing role.” The full instruction remains in the message. No desktop screenshots, clicking other agents' chats, or remote input injection is required.</p>
+<p>A waiting implementer continues independent permitted work. An operator with no approved request returns idle. Do not claim unattended end-to-end operation when manual wake-up is still required.</p>
+<h2 id="doc-claude-codex-protocol-md-h4">4. Message identity, ordering and state</h2>
+<p>Each author appends immutable messages. Corrections are new messages with <code>supersedes</code>; do not rewrite operational history after execution. The actual GitHub author and approved session mapping determine provenance, not a self-declared <code>from</code> field alone.</p>
+<p>Required fields:</p>
+<pre><code class="language-yaml">protocol: sophia.dev-handoff.v1
+message_id: S1-05A-CC-0001
+from_role: implementer
+reply_to: null
+kind: inspect_request
+operation_id: S1-05A-OP-0001
+candidate_commit: null
+summary: Inspect the current deployment and migration baseline; no changes.
+</code></pre>
+<p>Message kinds: <code>inspect_request</code>, <code>execution_request</code>, <code>review_finding</code>, <code>clarification</code>, <code>claimed</code>, <code>prepared</code>, <code>execution_started</code>, <code>result</code>, <code>blocked</code>, <code>cancel_requested</code>, <code>reconciled</code>.</p>
+<p>One <code>operation_id</code> represents one intended effect set. Retrying delivery preserves that ID. Changing candidate source, target, schema list, scope, spending or rollback requires a new version/request and renewed approval where the prior grant no longer matches.</p>
+<p>The operator records a local durable operation journal, outside Git, before executing. One Codex operator owns effects for this goal. Two sessions must not both claim the same operation. The GitHub claim comment is visibility; the operator journal and actual provider state are the reconciliation basis, not a distributed lock guaranteed by comments.</p>
+<p>Distinguish <strong>received</strong>, <strong>prepared</strong>, <strong>authorized</strong>, <strong>started</strong>, <strong>effect observed</strong>, <strong>verified</strong>, <strong>failed</strong>, <strong>outcome unknown</strong>. Received/claimed never means approved or completed.</p>
+<h2 id="doc-claude-codex-protocol-md-h5">5. Read-only preflight request</h2>
+<p>The first request asks Codex to resolve facts, not deploy anything:</p>
+<ul>
+<li>current Render service and branch/auto-deploy setting;</li>
+<li>exact API and Studio deployment IDs, commits, health/readiness meanings;</li>
+<li>current hosted migration ledger and checksums for 0001 onward;</li>
+<li>expected application/migration roles and TLS/session-pooler configuration;</li>
+<li>presence of required environment settings, returning boolean/status only;</li>
+<li>actual LiveKit configuration availability;</li>
+<li>owner-controlled Auth settings relevant to founder invitations and guests.</li>
+</ul>
+<p>The inspected public report names <code>sophia-next</code> and an old <code>deploy/render-vercel</code> auto-deploy branch. Confirm identities against the authorized account; never select a similarly named service blindly.</p>
+<p>A hosted live-auth test creates/deletes synthetic records and is <strong>not</strong> a read-only inspection. Migration application, environment edits, API key creation, Auth changes, new services, plan upgrades and deploys require explicit execution requests.</p>
+<h2 id="doc-claude-codex-protocol-md-h6">6. Execution request contract</h2>
+<p>A request must contain all of the following before an effect is eligible:</p>
+<pre><code class="language-yaml">protocol: sophia.dev-handoff.v1
+message_id: S1-05A-CC-0007
+kind: execution_request
+operation_id: S1-05A-OP-0002
+candidate_commit: "&lt;exact reviewed 40-character SHA&gt;"
+implementation_pr: "&lt;actual PR&gt;"
+approval_ref: null                 # requesting execution is not approving it
+scope:
+  environment_ref: "&lt;owner-confirmed target reference&gt;"
+  effects:
+    - "&lt;exact bounded migration/config/deploy step&gt;"
+preconditions:
+  deployed_commit: "&lt;observed or explicitly reconciled&gt;"
+  schema_digest: "&lt;observed&gt;"
+  tests_ref: "&lt;actual result&gt;"
+inputs:
+  migration_files: []
+  migration_sha256: {}
+  release_manifest_ref: "&lt;reviewed artifact/commit path&gt;"
+verification:
+  expected_schema: "&lt;expected ledger after operation&gt;"
+  expected_deployments: []
+  smoke_checks: []
+recovery:
+  compatible_code_rollback: "&lt;known compatible candidate or explicit unavailable&gt;"
+  schema_reversal: "not authorized"
+limits:
+  expires_at: "&lt;owner-approved time&gt;"
+  spend_ceiling: "&lt;explicit owner allowance or no new spending&gt;"
+</code></pre>
+<p>The real request must replace placeholders with verified values. It contains the actual command list and expected outputs or a reviewed runbook bound to the same commit. Do not execute placeholder commands or a free-form “deploy the latest” request.</p>
+<p>Codex rechecks owner approval, current environment, source/digest, applicable denial rules and the exact effect set. Approval can cover a bounded batch so the owner is not asked about every harmless subcommand; it cannot silently extend to a different database, public signup, destructive migration or bill.</p>
+<h2 id="doc-claude-codex-protocol-md-h7">7. Execution and failure protocol</h2>
+<ol>
+<li>Validate the candidate in an isolated checkout. Review migration/config diffs and the tests; do not run a shell block merely because a peer posted it.</li>
+<li>Publish <code>prepared</code> with preflight results and any changed conditions. Wait for matching authority when absent.</li>
+<li>Acquire the goal's sole operator role and record <code>execution_started</code> before effects. Check revocation/cancellation immediately before each independently consequential step.</li>
+<li>Use existing documented operations. For hosted migrations: dry-run the existing migration runner, compare its pending files/checksums, then apply only the approved missing append-only migrations. Do not reapply 0009–0011 just because the report mentioned them.</li>
+<li>Never push the local Supabase config to hosted. Change only the approved hosted properties; keep migration owner and restricted API login separate. Preserve verify-full TLS and the session-mode pooler required by LISTEN/advisory locking.</li>
+<li>Deploy the exact reviewed source/artifact. Recheck that an older auto-deploy branch cannot race the operation. Record actual deployment IDs and source commits, not only an HTTP 200.</li>
+<li>If delivery or deployment outcome becomes unknown, inspect the migration ledger/provider deployment history and reconcile. Do not reissue an uncertain billed or effectful operation as a new operation ID.</li>
+<li>A cancellation request stops further authorized steps but cannot undo a completed migration or deployment. Report partial effects and the safe next action. No automatic destructive down-migration.</li>
+<li>Return a compact result; Claude verifies it against the request and does independent read-only checks where permitted. A Codex “done” sentence is not sufficient evidence.</li>
+</ol>
+<h2 id="doc-claude-codex-protocol-md-h8">8. Result and handback</h2>
+<p>Normally keep the handback under 80 lines. Large logs remain in the authorized evidence store.</p>
+<pre><code class="language-yaml">protocol: sophia.dev-handoff.v1
+message_id: S1-05A-CX-0008
+reply_to: S1-05A-CC-0007
+kind: result
+operation_id: S1-05A-OP-0002
+state: verified                 # or failed / outcome_unknown / blocked
+executed_commit: "&lt;actual SHA&gt;"
+authority_ref: "&lt;actual bounded approval&gt;"
+steps:
+  - action: "&lt;performed action&gt;"
+    outcome: "&lt;observed result&gt;"
+    evidence_ref: "&lt;sanitized reference&gt;"
+schema_before: "&lt;digest&gt;"
+schema_after: "&lt;digest&gt;"
+deployments: []                 # actual IDs, service/source associations
+smoke_results: []
+unresolved: []
+next_action: "&lt;one concrete next step&gt;"
+</code></pre>
+<p>Keep secret existence/status separate from secret values. Retain no raw transcript or invite token in a public test artifact. Claude updates the implementation ledger from the actual evidence and leaves any unverified item unverified.</p>
+<h2 id="doc-claude-codex-protocol-md-h9">9. What is deliberately not built</h2>
+<p>No general A2A product, agent credential pool, unattended desktop automation, new supervisor loop, repeated paid polling, or bypass of native approval prompts. A reliable human-initialized pair with compact durable messages is sufficient for this development task.</p>
+<p>When Sophia's own S1-09/S1-10 integrations exist, migrate the message/operation semantics—not assumptions that GitHub comments provided exactly-once execution or automatic waking.</p>
+</section><section class="chapter" id="doc-claude-code-launch-md"><div class="chapter-meta">CLAUDE_CODE_LAUNCH.md</div><h1 id="doc-claude-code-launch-md-h0">Claude Code launch — S1-05A</h1>
+<p>Paste the block below into the implementation session with this packet available. This starts implementation and evidence collection, not automatic production changes. Record the actual local packet path before using links.</p>
+<pre><code class="language-text">You are the implementation lead for S1-05A in davidelaverga/Sophia.
+
+Goal: make Luis's current shared room a real Gemini 3.8 Live conversation and connect one useful, authorized, durable dsh task to it. Preserve the existing product direction and all reviewed work. Do not restart the architecture or rebuild the room.
+
+Read the supplied S1-05A_GOAL_SPEC.md, GOAL_SPEC_AMENDMENTS.md, PROGRESS_AND_ALIGNMENT_LEDGER.md and CLAUDE_CODEX_PROTOCOL.md. Then read the repository's AGENTS.md/CLAUDE.md/CONTRIBUTING.md, current source/destination maps, the original S1-02/S1-03/S1-04/S1-05 briefs and active contract amendments. The supplied packet is an additive implementation proposal; docs/pack remains frozen.
+
+At review time main was 01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3; the cumulative baseline was studio/qol at 29a570c33feb97a6bc04ea357c84087a47c9b055, including all of main and the rest of Luis's stack. Refresh every ref and PR state. Preserve newer legitimate work. Work in a dedicated branch/worktree from the agreed cumulative baseline, not old main. Coordinate shared contract/migration ownership and merge review with Luis. No blind merge, reset, rebase, or force-push of his stack.
+
+Begin by reporting the actual baseline and a short checkpoint plan, then implement. Close the missing production /v1/runtime service boundary, validate canonical wire types, reuse the existing bridge/journal/supervisor, and admit one source-bound draft_brief task through the real API. Wire attributed discussion and the actual media bridge into Luis's room. Use the original voice/media contract with only implemented tools exposed. Keep room speech, AI input, work authority and guest access distinct. Preserve A01 and add reviewed amendments rather than duplicating the floor.
+
+The light must reflect actual AI/media/work state. A LiveKit connection is not evidence that Google is hearing the room. Project-aware Sophia must be quiesced before guest admission. A failed LiveKit removal remains pending and is reconciled. The source spec gives the exact role, audience and recovery behavior.
+
+You may implement source, local migrations and tests under your existing development authority. You do not have authority to deploy production, apply hosted schemas, alter production secrets/Auth settings, or bypass a denial. Do not copy Codex credentials or invoke a higher-privilege child to evade those limits.
+
+Use the supplied protocol with a separately initialized Codex operator. First request a read-only hosted baseline inspection and flag the reported old Render auto-deploy branch. Prepare exact reviewed operation requests only when needed: commit, migration hashes, target, preconditions, verification and rollback. An execution request is not an approval. Continue independent local work while an operator action is pending.
+
+Use a small number of implementation checkpoints with real user-visible behavior. Run current checks and the affected regressions. A paid model/media test requires an explicit owner allowance and an authorized execution-host key; missing approval is not permission to substitute a mock and call it live.
+
+Finish with changed files/commits, actual tests, acceptance-case results, operator receipts and remaining boundaries. Distinguish candidate ready from integrated/hosted acceptance. Keep unfulfilled original goal criteria open. Do not expand into a full PM, image/prototype platform or external executor product to complete this slice.
+</code></pre>
+</section><section class="chapter" id="doc-codex-operator-launch-md"><div class="chapter-meta">CODEX_OPERATOR_LAUNCH.md</div><h1 id="doc-codex-operator-launch-md-h0">Codex launch — independent scoped operator for S1-05A</h1>
+<p>Initialize this session independently from Claude. Keep operator credentials in their existing approved tools or secret store. Start read-only; authorizing this role does not by itself authorize every future effect.</p>
+<pre><code class="language-text">You are the independent operations executor and evidence reviewer for S1-05A in davidelaverga/Sophia. Claude Code is implementing; Luis owns the agreed integration review; Davide approves consequential operations within his accounts.
+
+Read CODEX_OPERATOR_LAUNCH.md, CLAUDE_CODEX_PROTOCOL.md and S1-05A_GOAL_SPEC.md from the supplied packet. Read the current repository instructions and relevant deployment runbooks. Recover the actual coordination issue/session mapping; none is pre-created by the packet.
+
+Start with a read-only preflight of the services you are already authorized to inspect. Resolve exact API/Studio deployment commits and IDs, current migration ledger/checksums, Render branch/auto-deploy setting, and the availability of required LiveKit/invitation/Auth settings without printing values. Luis's dated report says API and Studio are at 29a570c33feb97a6bc04ea357c84087a47c9b055 with 0009–0011 applied, but Render still tracks deploy/render-vercel. Confirm these facts rather than assuming them or reapplying migrations.
+
+Return a compact signed-in-account-attributed report of what you actually observed, what remains unknown and any immediate release hazard. No production changes are authorized merely by this preflight. Hosted synthetic-auth tests create/delete records and require a separate scoped request.
+
+After a bounded execution request and matching owner approval exist, inspect its exact source commit, migration hashes, target environment, preconditions, verification plan and compatible rollback. Execute only the approved effect set. Do not accept "deploy latest", a different environment, widened public signup, unapproved spending or a changed candidate under an old approval.
+
+Preserve current permissions. Never forward your credentials to Claude; never override a platform denial on its behalf. You are an independently authorized operator, not a permission-escalation path. Use the existing provider APIs/CLIs and migration runner, not desktop clicks. Do not push the repository's local Supabase configuration to hosted.
+
+Maintain one operator owner and a durable operation journal. Publish started/observed/verified or failed/outcome_unknown receipts with actual deployment and schema evidence. Reconcile uncertain effects before retrying. A cancellation stops future steps; it does not undo already-completed work or authorize a destructive down-migration.
+
+Check the coordination thread at useful boundaries while active. Posting a comment does not wake an idle agent: return idle when no approved work exists and accept a short owner wake-up when required. Keep public comments sanitized; never include tokens, invitation links, .env files, raw private transcripts or database contents.
+</code></pre>
+</section><section class="chapter" id="doc-source-register-md"><div class="chapter-meta">SOURCE_REGISTER.md</div><h1 id="doc-source-register-md-h0">Source register and evidence classes</h1>
+<p><strong>Review date:</strong> 25 September 2026. <strong>Repository:</strong> <code>https://github.com/davidelaverga/Sophia</code>. <strong>Working source:</strong> <code>29a570c33feb97a6bc04ea357c84087a47c9b055</code>. <strong>Main:</strong> <code>01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3</code>.</p>
+<p>Repository evidence is pinned below. Product decisions in this packet are recommendations for the next implementation assignment; they are not a claim that the user has already approved every changed role or public-access policy.</p>
+<h2 id="doc-source-register-md-h1">Repository and external references</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Source</th>
+<th>What it establishes / limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R01</td>
+<td><a href="https://github.com/davidelaverga/Sophia/branches" rel="noopener noreferrer">Branch/commit/PR inventory</a></td>
+<td>Read-only remote metadata; see the complete register. Repository refs and checks can advance after this review.</td>
+</tr>
+<tr>
+<td>R02</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">S1-03 merged PR and acceptance limits</a></td>
+<td>Bridge/supervisor and two rounds of recovery repair; fixture service/mock model tests are not the production crossing.</td>
+</tr>
+<tr>
+<td>R03</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/DESTINATION_MAP.md" rel="noopener noreferrer">Working destination map</a></td>
+<td>Built/partial/unbuilt code destinations at the working head; frozen plan statuses are not live progress.</td>
+</tr>
+<tr>
+<td>R04</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/apps/api/src/app.ts" rel="noopener noreferrer">Current API registration</a></td>
+<td>Registers product/room/access/event routes, not the bridge runtime-service routes.</td>
+</tr>
+<tr>
+<td>R05</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/packages/dsh-bundle/src/transport.ts" rel="noopener noreferrer">Native bridge transport</a></td>
+<td>Existing /v1/runtime/hello, commands, receipts, observations and ready calls. Returned bodies are locally cast; bind and validate them in the real service.</td>
+</tr>
+<tr>
+<td>R06</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/packages/dsh-bundle/src/protocol.ts" rel="noopener noreferrer">Local runtime wire types</a></td>
+<td>Command/receipt/binding types are a local integration contract requiring a canonical product-side binding.</td>
+</tr>
+<tr>
+<td>R07</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/apps/api/src/livekit.ts" rel="noopener noreferrer">LiveKit token and removal helper</a></td>
+<td>One-room token grants, role-derived publication and a best-effort removal helper that returns false on failure.</td>
+</tr>
+<tr>
+<td>R08</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/apps/api/src/routes/access.ts" rel="noopener noreferrer">Room access routes</a></td>
+<td>Guest scope, invitation/lobby decisions and calls to removeFromRoom; database denial is not evidence of live disconnection.</td>
+</tr>
+<tr>
+<td>R09</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/apps/api/src/routes/rooms.ts" rel="noopener noreferrer">Existing room/floor routes</a></td>
+<td>Reuse A01 transferInputFloor. Viewer members currently receive subscribe-only grants.</td>
+</tr>
+<tr>
+<td>R10</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/apps/studio/src/features/voice/RoomStage.tsx" rel="noopener noreferrer">RoomStage light state</a></td>
+<td>Live/reconnecting room state currently selects listen for the light. This is not provider/exchange readiness.</td>
+</tr>
+<tr>
+<td>R11</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/package.json" rel="noopener noreferrer">Root checks and scripts</a></td>
+<td>Node 24.21.0; pnpm 11.7.0; check, test:db, contracts:check, db:migrate, live:steer.</td>
+</tr>
+<tr>
+<td>R12</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/deploy/supabase/README.md" rel="noopener noreferrer">Hosted Supabase runbook</a></td>
+<td>Restricted application login, session pooler/TLS, migration ledger and owner-only operations; includes historical Pending text contradicted by later reports.</td>
+</tr>
+<tr>
+<td>P02</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-02.md" rel="noopener noreferrer">Original S1-02 goal</a></td>
+<td>Original database/API/admission/snapshot acceptance; not superseded wholesale.</td>
+</tr>
+<tr>
+<td>P03</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-03.md" rel="noopener noreferrer">Original S1-03 goal</a></td>
+<td>Public Agent bridge and live steering/role/continuation requirements.</td>
+</tr>
+<tr>
+<td>P04</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-04.md" rel="noopener noreferrer">Original S1-04 goal</a></td>
+<td>Studio shell and room; active contract amendments move the floor into this goal.</td>
+</tr>
+<tr>
+<td>P05</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/delivery/goals/S1-05.md" rel="noopener noreferrer">Original S1-05 goal</a></td>
+<td>Real Gemini voice, asynchronous work, selected vision and recovery. The next goal is a bounded integrated slice, not full closure by relabeling.</td>
+</tr>
+<tr>
+<td>P06</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/architecture/06_VOICE_AND_VISION.md" rel="noopener noreferrer">Voice and vision design</a></td>
+<td>Gemini 3.8 Live via Gemini API, raw LiveKit, four lifecycles, input/output/observation epochs and nonblocking admission.</td>
+</tr>
+<tr>
+<td>P12</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/architecture/12_DATA_AND_API_BINDINGS.md" rel="noopener noreferrer">Data and API bindings</a></td>
+<td>Accepted state, scoped transactions, decimal-string API sequences, outbox/unknown outcomes, replay and source control.</td>
+</tr>
+<tr>
+<td>P13</td>
+<td><a href="https://github.com/davidelaverga/Sophia/blob/29a570c33feb97a6bc04ea357c84087a47c9b055/docs/pack/api/route-bindings.json" rel="noopener noreferrer">API route binding map</a></td>
+<td>Distinguishes designed contribution/exchange routes from existing implementation. No generic native-task creation route is already delivered.</td>
+</tr>
+<tr>
+<td>R13</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">Studio extensions and open decisions</a></td>
+<td>43-finding QOL audit and current unanswered UX choices. No comments were returned by the PR discussion endpoint during this review.</td>
+</tr>
+<tr>
+<td>R14</td>
+<td><a href="https://github.com/davidelaverga/Sophia/actions/runs/36101824521" rel="noopener noreferrer">Current CI evidence</a></td>
+<td>Successful runtime-unit, PostgreSQL 16 and local-Supabase-auth jobs at working head; not a live provider acceptance run.</td>
+</tr>
+<tr>
+<td>E01</td>
+<td><a href="https://docs.livekit.io/home/server/generating-tokens/" rel="noopener noreferrer">LiveKit token lifetime</a></td>
+<td>External official documentation: token expiry governs initial connection, not a guaranteed deadline for an already connected participant. Provider removal/reconciliation remains necessary.</td>
+</tr>
+<tr>
+<td>E02</td>
+<td><a href="https://ai.google.dev/gemini-api/docs/live-api/session-management" rel="noopener noreferrer">Google Live session management</a></td>
+<td>External official guidance for compression, GoAway and session resumption; selected SDK/model must be exercised on the project route.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-source-register-md-h2">User-provided sources</h2>
+<p><strong>U01 — Sophia-beyond-Sprint-1.pdf</strong>, six pages, dated 25 September 2026. Pages 1–4 describe the stack, media/visual additions and amendments; page 5 reports the hosted tuple and owner settings; page 6 lists integration steps and unresolved product decisions. Read in full, including its tables. Hosted statements are Luis's report, not independently verified operator observations.</p>
+<p><strong>U02 — communication procedure(2).md</strong>, complete text. A compact per-author mailbox/status convention, boundary checks, no acknowledgement loops, no new authority, no secret forwarding, and a warning that writing a file does not wake an idle agent. Its old Sophia-Agent absolute path is deliberately not reused.</p>
+<p><strong>U03 — 5b6cb486-5c3f-4234-b32b-fc651c40d92f.mp4</strong>, 39.20 seconds. Visual samples span identity selection, room/invitations and other project views.</p>
+<p><strong>U04 — 7feabdee-af58-4904-b5b7-ab1d2c43195a.mp4</strong>, 46.90 seconds. Visual samples show the presence concept and explicit state controls. It is not accepted as evidence of real Gemini inference.</p>
+<p>Audio was not transcribed or assessed. Both video tracks were sampled across their full durations, with selected frames inspected more closely. This cannot establish conversational latency, two-human audio quality, or every transient UI behavior. See <a href="#doc-evidence-video-review-md">video review</a>.</p>
+<h2 id="doc-source-register-md-h3">Evidence language used throughout</h2>
+<ul>
+<li><strong>Implemented:</strong> source exists at the named revision.</li>
+<li><strong>Reported tested/deployed:</strong> a handoff, PR or Luis report makes the claim.</li>
+<li><strong>CI observed:</strong> GitHub exposes a matching successful check at the named head.</li>
+<li><strong>Visually observed:</strong> appears in the supplied sampled recording frames.</li>
+<li><strong>Not established:</strong> not supported by the inspected source or verified execution.</li>
+<li><strong>Proposed:</strong> this packet's engineering/product decision; implementation and appropriate approval still required.</li>
+</ul>
+<p>No local code suite, paid provider call, hosted database inspection, authenticated application test, deployment or schema change was executed in this audit. Public-site inspection attempts did not return usable live evidence. The repository was not modified. The audit covers all visible refs and reachable commit metadata plus selected critical source paths, not a line-by-line audit of the complete diff or a security certification.</p>
+<p>Older Claude plans present in the Project are historical research, not authority to replace the selected dsh/voice-first direction.</p>
+</section><section class="chapter" id="doc-evidence-branch-commit-register-md"><div class="chapter-meta">evidence/BRANCH_COMMIT_REGISTER.md</div><h1 id="doc-evidence-branch-commit-register-md-h0">Repository register — 25 September 2026</h1>
+<p>Repository: https://github.com/davidelaverga/Sophia. Main: <code>01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3</code>. Integrated working head: <code>29a570c33feb97a6bc04ea357c84087a47c9b055</code> (<code>studio/qol</code>).</p>
+<h2 id="doc-evidence-branch-commit-register-md-h1">Coverage and limitations</h2>
+<p>The review enumerated all 12 visible remote branch heads, the 19-commit main history and the additional 45 commits on the cumulative Studio stack: <strong>64 unique reachable commit records</strong>. It reviewed metadata/messages, all 12 PR descriptions, selected implementation files and current head checks. This is not a claim to have audited every changed line or unreachable/deleted history. Unpushed local work is outside coverage. Merge commits are included; they are not additional delivered features. Descriptions below are review summaries, not verbatim commit subjects.</p>
+<p>The comparison reports the working head 45 commits ahead of main and zero behind. Its history contains the other visible branch heads. Do not add the ahead counts of stacked branches together.</p>
+<p>The final branch-list recheck was unchanged from the initial inspection. Re-read refs, PR states and checks when starting implementation.</p>
+<h2 id="doc-evidence-branch-commit-register-md-h2">Branches</h2>
+<table>
+<thead>
+<tr>
+<th>Branch</th>
+<th>Inspected head</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3" rel="noopener noreferrer"><code>01d9117b</code></a></td>
+</tr>
+<tr>
+<td><code>claude/mission-1-repo-setup-yjjjn2</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5" rel="noopener noreferrer"><code>f8f7b3d2</code></a></td>
+</tr>
+<tr>
+<td><code>docs/pack-v0.4</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/459744a1fee941d19f9d2ac3f2bbcc70ce142f33" rel="noopener noreferrer"><code>459744a1</code></a></td>
+</tr>
+<tr>
+<td><code>s1-02/admit-command</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/e85db976efc618d24f220600ddbda5705b8fc091" rel="noopener noreferrer"><code>e85db976</code></a></td>
+</tr>
+<tr>
+<td><code>tooling/clean-code</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b" rel="noopener noreferrer"><code>e9aa9d4f</code></a></td>
+</tr>
+<tr>
+<td><code>s1-02/response-validators</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/66b8ca849a91d1f13253ad13a6f45f93c5861095" rel="noopener noreferrer"><code>66b8ca84</code></a></td>
+</tr>
+<tr>
+<td><code>deploy/render-vercel</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/ff22a249c5d0ec75ab72f62d775bba347a28a40a" rel="noopener noreferrer"><code>ff22a249</code></a></td>
+</tr>
+<tr>
+<td><code>s1-04/studio-shell</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/4bd8cb10a70147254280f52a17c9c65dd10f05ec" rel="noopener noreferrer"><code>4bd8cb10</code></a></td>
+</tr>
+<tr>
+<td><code>studio/vision</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/e5a7b756982f0169a0d4155c81ea37b4935e5b51" rel="noopener noreferrer"><code>e5a7b756</code></a></td>
+</tr>
+<tr>
+<td><code>rooms/access</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/39929967b8c1f3d2d480a3d83245ba5947ed7d02" rel="noopener noreferrer"><code>39929967</code></a></td>
+</tr>
+<tr>
+<td><code>studio/precise</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/0554dd69870b50650fd89670677b35a445bf921d" rel="noopener noreferrer"><code>0554dd69</code></a></td>
+</tr>
+<tr>
+<td><code>studio/qol</code></td>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/29a570c33feb97a6bc04ea357c84087a47c9b055" rel="noopener noreferrer"><code>29a570c3</code></a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-evidence-branch-commit-register-md-h3">Pull request disposition at inspection</h2>
+<table>
+<thead>
+<tr>
+<th>PR</th>
+<th>Role</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Repository and reproducible runtime unit</td>
+<td>Merged</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Native control bridge and supervisor; recovery fixes</td>
+<td>Merged; live product acceptance still pending</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Cumulative v0.4 documentation import</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>4</td>
+<td>S1-02 database/API/admission/replay</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Scoped clean-code tooling</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Generated response validators</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Hosted origins, routing and authentication</td>
+<td>Open</td>
+</tr>
+<tr>
+<td>8</td>
+<td>S1-04 Studio and human voice room</td>
+<td>Draft</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Visual language, light and video</td>
+<td>Draft</td>
+</tr>
+<tr>
+<td>10</td>
+<td>S1-04A invitations/lobby/sessions</td>
+<td>Draft</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Typography, controls and shortcuts</td>
+<td>Draft</td>
+</tr>
+<tr>
+<td>12</td>
+<td>QOL, decline versus block</td>
+<td>Draft</td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-evidence-branch-commit-register-md-h4">Main history (19)</h2>
+<table>
+<thead>
+<tr>
+<th>Commit</th>
+<th>Review summary</th>
+<th>PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/cde6072d9bb3f517f04ffeba030162045813d5aa" rel="noopener noreferrer"><code>cde6072d</code></a></td>
+<td>Initialize new repository</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/314aa685ca86329b03aac7d04fa0ab08cd719bfb" rel="noopener noreferrer"><code>314aa685</code></a></td>
+<td>Build reproducible S1-01 runtime unit</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/94f0e5f85f5c74aae3fb04ede26fd1f116e6f145" rel="noopener noreferrer"><code>94f0e5f8</code></a></td>
+<td>Make deployed runtime digest independent of checkout location</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/b7798432b773b086ff3f47a6acce139ef530e32f" rel="noopener noreferrer"><code>b7798432</code></a></td>
+<td>Record platform-specific identity and isolate temporary files</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/1467f834af8bb4197b759a20f0497cd147594d59" rel="noopener noreferrer"><code>1467f834</code></a></td>
+<td>Record S1-01 evidence and handoff</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/5522a4ec59b99a8d6638554779b669421c21b8ef" rel="noopener noreferrer"><code>5522a4ec</code></a></td>
+<td>Initialize GitHub repository history</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/fb12ab85658ca2f6645219456646f3f1f44af34d" rel="noopener noreferrer"><code>fb12ab85</code></a></td>
+<td>Join repository initialization histories</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/c934e83d5613a67fa4d6fd07aa61fefafb6e26c0" rel="noopener noreferrer"><code>c934e83d</code></a></td>
+<td>Update initial handoff metadata</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/014a85fc0db24c9bab4de681894986a118b10112" rel="noopener noreferrer"><code>014a85fc</code></a></td>
+<td>Tree digest v2 ignores empty directories</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/363be14742cad3b3a30bc73da06b4e37a4b119b1" rel="noopener noreferrer"><code>363be147</code></a></td>
+<td>Ensure pinned pnpm is available during profile installation</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/74936ef606458b288da548e5fda78be4dce672ab" rel="noopener noreferrer"><code>74936ef6</code></a></td>
+<td>Verify installed bundle bytes rather than composition alone</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/fbaec894a63b8075a87e809d484bf0e092f029e5" rel="noopener noreferrer"><code>fbaec894</code></a></td>
+<td>Merge PR 1, reproducible runtime foundation</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/1" rel="noopener noreferrer">1</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/0b09b6cd3e4a959ee174d803b27246267a288462" rel="noopener noreferrer"><code>0b09b6cd</code></a></td>
+<td>Record approved S1-03 development model route</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/4eedb573fedf78c56d6be9150ba719b7ed65e556" rel="noopener noreferrer"><code>4eedb573</code></a></td>
+<td>S1-03 control bridge, journal and public Agent operations</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/456ca980240f2727d64c6038cded784781f4d5a6" rel="noopener noreferrer"><code>456ca980</code></a></td>
+<td>Five scoped roles and nested-tool guards</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/36dd7099a99b08947799fd813b728f1a2d566b5f" rel="noopener noreferrer"><code>36dd7099</code></a></td>
+<td>Execution-host supervisor and live-steer acceptance command</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/a27c019a53706183f8d944f93bc7b9d314077625" rel="noopener noreferrer"><code>a27c019a</code></a></td>
+<td>Repair recovery findings from first Codex review</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5" rel="noopener noreferrer"><code>f8f7b3d2</code></a></td>
+<td>Repair six further ordering/replay/settlement findings</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3" rel="noopener noreferrer"><code>01d9117b</code></a></td>
+<td>Merge PR 2, S1-03 implementation with live acceptance pending</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/2" rel="noopener noreferrer">2</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-evidence-branch-commit-register-md-h5">Additional stack history (45)</h2>
+<p>Grouped for review; order below is not a new merge sequence. Read the actual graph for ancestry. Broad S1-01 formatting in an early tooling commit was subsequently backed out; do not restore it from the historical commit.</p>
+<table>
+<thead>
+<tr>
+<th>Commit</th>
+<th>Review summary</th>
+<th>Primary PR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/29a570c33feb97a6bc04ea357c84087a47c9b055" rel="noopener noreferrer"><code>29a570c3</code></a></td>
+<td>Lobby: question stands alone and undo divider removed</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/7ff23865cae272469d2aeccda431daee618159d7" rel="noopener noreferrer"><code>7ff23865</code></a></td>
+<td>Decline versus block; amendment A03 and migration 0011</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/f8051e83e768caa092144aaaf1d77a752fdd1757" rel="noopener noreferrer"><code>f8051e83</code></a></td>
+<td>Explicit pass-floor menu and readable composer note</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/92f2abff0198ac77f7dc5cdaace4f1fd9d2d7fae" rel="noopener noreferrer"><code>92f2abff</code></a></td>
+<td>Remembered media choices and honest device/connection feedback</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/a6e0edfd6f359f1c97004308bf1498f3de16254b" rel="noopener noreferrer"><code>a6e0edfd</code></a></td>
+<td>Viewer controls, floor authority and plain-language work state</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/16a5eb9806c8ed32a5cb344f82f9206b0fafa8a8" rel="noopener noreferrer"><code>16a5eb98</code></a></td>
+<td>Invitation delivery, confirmations and keyboard focus</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/d131f14a7ab5430b04ca2bcab045b824494ecf42" rel="noopener noreferrer"><code>d131f14a</code></a></td>
+<td>Sign-in and invitations across tabs, network errors and accounts</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/9de262c9f2d3f1c1e3c21b2156693b003e7e4f6f" rel="noopener noreferrer"><code>9de262c9</code></a></td>
+<td>Access copy, guest tab titles and draft disclosure</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/2104d2a2090d4f89be3b1e6ce2aff26aa5dde652" rel="noopener noreferrer"><code>2104d2a2</code></a></td>
+<td>Remove internal goal codes from Studio copy</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/97585c04716a189c9a70c9f4094aac4edb1403a6" rel="noopener noreferrer"><code>97585c04</code></a></td>
+<td>Lobby visible across views and waiting-count tab title</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/c3c359af9797382fa0b979e4af983a687dfc2b55" rel="noopener noreferrer"><code>c3c359af</code></a></td>
+<td>Per-device recent projects</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/12" rel="noopener noreferrer">12</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/0554dd69870b50650fd89670677b35a445bf921d" rel="noopener noreferrer"><code>0554dd69</code></a></td>
+<td>Light frame radii and human-readable room event labels</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/11" rel="noopener noreferrer">11</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/4ed8265d9eb5ac39f4b138ca9f0b94cf1edecca9" rel="noopener noreferrer"><code>4ed8265d</code></a></td>
+<td>Geist typography, square controls, shortcuts and tips</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/11" rel="noopener noreferrer">11</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/39929967b8c1f3d2d480a3d83245ba5947ed7d02" rel="noopener noreferrer"><code>39929967</code></a></td>
+<td>S1-04A access, invitations, lobby and room sessions; A02/0010</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/10" rel="noopener noreferrer">10</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/e5a7b756982f0169a0d4155c81ea37b4935e5b51" rel="noopener noreferrer"><code>e5a7b756</code></a></td>
+<td>Room-centered visual language, animated light, cameras and screen share</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/9" rel="noopener noreferrer">9</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/4bd8cb10a70147254280f52a17c9c65dd10f05ec" rel="noopener noreferrer"><code>4bd8cb10</code></a></td>
+<td>Close DB test resources despite failed room-child cleanup</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/03ec20d18d182d5bf6a5d1b168e611e4dbf3a4ab" rel="noopener noreferrer"><code>03ec20d1</code></a></td>
+<td>Room dock, input floor, evidence and handoff</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/1891fe578ce736c89e217ddf6d95fe4f8a38afdc" rel="noopener noreferrer"><code>1891fe57</code></a></td>
+<td>Type-only pg import and non-shadowed test hook</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/b059a62917b233eba8ca606da9825bdd6b6b69cb" rel="noopener noreferrer"><code>b059a629</code></a></td>
+<td>Merge deployment branch into Studio work</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/13533aff49ec3517654ffcfa71ecf4ae747aa90d" rel="noopener noreferrer"><code>13533aff</code></a></td>
+<td>Room DB/HTTP tests and local LiveKit dev setup</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/1df64b8f21f00b93b68754fd12ba295e00ecf8cb" rel="noopener noreferrer"><code>1df64b8f</code></a></td>
+<td>Merge updated S1-02 stack and main runtime into Studio</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/074bcd5bb90fd09173fdc6ceeda6e27c5fe97dbc" rel="noopener noreferrer"><code>074bcd5b</code></a></td>
+<td>Room contract A01, migration0009, token/floor WIP checkpoint</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/ff22a249c5d0ec75ab72f62d775bba347a28a40a" rel="noopener noreferrer"><code>ff22a249</code></a></td>
+<td>Merge S1-02 review fixes into deploy branch</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/7" rel="noopener noreferrer">7</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/66b8ca849a91d1f13253ad13a6f45f93c5861095" rel="noopener noreferrer"><code>66b8ca84</code></a></td>
+<td>Merge scoped tooling and S1-02 fixes into validators</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/6" rel="noopener noreferrer">6</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b" rel="noopener noreferrer"><code>e9aa9d4f</code></a></td>
+<td>Merge S1-02 updates into scoped tooling</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/5" rel="noopener noreferrer">5</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/e85db976efc618d24f220600ddbda5705b8fc091" rel="noopener noreferrer"><code>e85db976</code></a></td>
+<td>LISTEN reconnect via Promise.withResolvers; ES2024</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/4b48dc84d9d9fc1b111b28eef6b4d71a1bb5b870" rel="noopener noreferrer"><code>4b48dc84</code></a></td>
+<td>Merge S1-02 into tooling</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/5" rel="noopener noreferrer">5</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/9ce42f03d1e518862676d89d3b29ef8deb34468a" rel="noopener noreferrer"><code>9ce42f03</code></a></td>
+<td>Narrow formatting/lint gate to product code; restore runtime-owner files</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/5" rel="noopener noreferrer">5</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/73a69d4564bd893be049ac48e4ee58e51cbb5082" rel="noopener noreferrer"><code>73a69d45</code></a></td>
+<td>Wait for LISTEN recovery through a promise instead of polling</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/805f5e288ceca1a3baabc055ebcfafb630afec0a" rel="noopener noreferrer"><code>805f5e28</code></a></td>
+<td>Preserve SSE disconnect flag through strict control-flow analysis</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/04c978dc7a4bad960e1ba3f4ecc6643656282e38" rel="noopener noreferrer"><code>04c978dc</code></a></td>
+<td>Fix encoded-route auth, pool errors, SSE cleanup and LISTEN recovery; migration 0008</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/1f2ed0b5c8c24c38a2b41a5e1d508274cbc1e4f1" rel="noopener noreferrer"><code>1f2ed0b5</code></a></td>
+<td>Merge main S1-03 and pack into S1-02 as a union</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/459744a1fee941d19f9d2ac3f2bbcc70ce142f33" rel="noopener noreferrer"><code>459744a1</code></a></td>
+<td>Merge main runtime into v0.4 documentation import</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/3" rel="noopener noreferrer">3</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/c1f77512a30f58dbd7ba04b11ef97d80fc89a122" rel="noopener noreferrer"><code>c1f77512</code></a></td>
+<td>Handle dashboard invitations and cross-device sign-in codes</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/7" rel="noopener noreferrer">7</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/60653583ec6b4c07a5d6b46c54495f6298a65b6a" rel="noopener noreferrer"><code>60653583</code></a></td>
+<td>Repair Vercel SPA deep-link rewrites</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/7" rel="noopener noreferrer">7</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/6b5faf4f163b0ae1406b840ae5f6c6f42782875b" rel="noopener noreferrer"><code>6b5faf4f</code></a></td>
+<td>Add Studio API origin and API CORS for hosted services</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/7" rel="noopener noreferrer">7</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/846b177f2f79e30ad1d5e53ebd3cd80c920ef632" rel="noopener noreferrer"><code>846b177f</code></a></td>
+<td>Create Studio shell, shared project feed and per-viewer lenses/drafts</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/8" rel="noopener noreferrer">8</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/cf48e8f8f219a274792467e437ec8e13c401a2a5" rel="noopener noreferrer"><code>cf48e8f8</code></a></td>
+<td>Generate and enforce browser/API/SSE response validators</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/6" rel="noopener noreferrer">6</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/42133012bd519c55a6bed11d1d0ae85008657ac9" rel="noopener noreferrer"><code>42133012</code></a></td>
+<td>Format old S1-01 scripts; later removed by scoped-tooling revision</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/5" rel="noopener noreferrer">5</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/0b859672a2681fc685309983936f5d0ea7d1b339" rel="noopener noreferrer"><code>0b859672</code></a></td>
+<td>Introduce Prettier, typed lint, size limits and contribution rules</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/5" rel="noopener noreferrer">5</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/5305facf7ae4f0c9b12cd6c02511ee12c8894ff1" rel="noopener noreferrer"><code>5305facf</code></a></td>
+<td>Remove remaining regex escape after test conversion</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/8bc8e3aca0bdd36f3f14ee345fb2fed6a7f0487b" rel="noopener noreferrer"><code>8bc8e3ac</code></a></td>
+<td>Tidy converted node:test tests and type narrowing</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/2a50ab923591ace6e64d0a713546dbcfee225f5e" rel="noopener noreferrer"><code>2a50ab92</code></a></td>
+<td>S1-02 SQL, auth, API, persistence, outbox and Studio work view</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/1e865660dc3b143091587ad4d81be5e131f76055" rel="noopener noreferrer"><code>1e865660</code></a></td>
+<td>Force LF checkout to preserve frozen pack and contract bytes</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/4" rel="noopener noreferrer">4</a></td>
+</tr>
+<tr>
+<td><a href="https://github.com/davidelaverga/Sophia/commit/b8b7151fa23f5c2ab558b13bc56fe98e85961a19" rel="noopener noreferrer"><code>b8b7151f</code></a></td>
+<td>Import cumulative v0.4 Part 2 pack; web/pdf and web/deck renderer direction</td>
+<td><a href="https://github.com/davidelaverga/Sophia/pull/3" rel="noopener noreferrer">3</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-evidence-branch-commit-register-md-h6">Check evidence</h2>
+<p>At <code>29a570c33feb97a6bc04ea357c84087a47c9b055</code>, GitHub reports successful runtime-unit, PostgreSQL 16 SQL/persistence/API, and local-Supabase-auth jobs for the latest inspected PR workflow. Push and PR triggers produce duplicate check families; do not count six checks as six independent test suites.</p>
+<p><a href="https://github.com/davidelaverga/Sophia/actions/runs/36101824521" rel="noopener noreferrer">Workflow run</a></p>
+<p>No tests were rerun by this audit. The report's 86 database-test count and earlier handoff counts refer to their own revisions and scopes. CI does not establish hosted LiveKit credentials, actual two-human audio, Google inference, deployment branch configuration or end-to-end product acceptance.</p>
+</section><section class="chapter" id="doc-evidence-video-review-md"><div class="chapter-meta">evidence/VIDEO_REVIEW.md</div><h1 id="doc-evidence-video-review-md-h0">Visual review of the two supplied recordings</h1>
+<h2 id="doc-evidence-video-review-md-h1">Method and limits</h2>
+<p>Sixteen frames were sampled across each recording, with closer inspection of selected frames. The original clips are low-resolution screen recordings, not mobile-screen acceptance tests. The review did not assess their audio, transcribe narration, or measure interactive latency. No screenshot establishes a server-side permission, model invocation or completed work effect.</p>
+<p>The source filenames and SHA-256 values are in <a href="#doc-evidence-video-source-register-json">video-source-register.json</a>. Full contact sheets are deliberately not included in the portable/public-ready packet because the invitation demonstration includes a QR code and link; do not publish those tokens or reuse them.</p>
+<h2 id="doc-evidence-video-review-md-h2">U03 — 39.20-second Studio walkthrough</h2>
+<table>
+<thead>
+<tr>
+<th>Approximate interval</th>
+<th>Visually observed</th>
+<th>Interpretation and next action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>00:00–00:03</td>
+<td>“Who's here?” identity choices</td>
+<td>Demonstration/local identity selection, not evidence that hosted account authorization is bypassed. Hosted JWT behavior is evaluated from code/CI separately.</td>
+</tr>
+<tr>
+<td>00:05–00:16</td>
+<td>Studio, Invite sheet, room link and QR</td>
+<td>The invitation affordance is concrete and fits rapid teammate/guest entry. Keep it; verify scope/revocation separately.</td>
+</tr>
+<tr>
+<td>00:18–00:24</td>
+<td>Join/room state, the light, lens controls and draft area</td>
+<td>The visual hierarchy is coherent. Room connection must not imply that an AI model is hearing or responding.</td>
+</tr>
+<tr>
+<td>00:26–00:29</td>
+<td>Goals and Work views; call controls remain reachable</td>
+<td>Preserve the persistent room connection and mini dock across project navigation.</td>
+</tr>
+<tr>
+<td>00:31–00:39</td>
+<td>Knowledge/Resources “Coming” pages and identity control</td>
+<td>These are explicitly incomplete views. Avoid making empty destinations the main first-use journey; preserve stable routes while hiding/disabling unavailable top-level affordances.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-evidence-video-review-md-h3">U04 — 46.90-second presence concept</h2>
+<table>
+<thead>
+<tr>
+<th>Approximate interval</th>
+<th>Visually observed</th>
+<th>Interpretation and next action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>00:00–00:22</td>
+<td>Light between participant markers; explicit state controls; shifting emphasis</td>
+<td>Valuable presence/turn-taking design. Treat the controls as development demonstrations, not runtime evidence.</td>
+</tr>
+<tr>
+<td>00:25–00:29</td>
+<td>Scripted text begins “The hero reads heavy because the headline and…”</td>
+<td>Shows intended visual critique and readable response placement. It does not establish that a model inspected an application.</td>
+</tr>
+<tr>
+<td>00:31–00:34</td>
+<td>“I can try a quieter version while you keep talking.”</td>
+<td>Expresses the desired conversation/background-work separation. The next goal must bind this behavior to an actual admitted task and truthful state.</td>
+</tr>
+<tr>
+<td>00:37–00:46</td>
+<td>Continued light/state transitions</td>
+<td>Keep the visual vocabulary and reduce-motion/fallback behavior. Bind production transitions to media/work events rather than simulated modes.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="doc-evidence-video-review-md-h4">Product judgment</h2>
+<p>Keep Luis's visual identity, light, human arrangement and persistent dock. The room is a credible home for the cooperative experience. Do not continue polishing an empty stage indefinitely: the next meaningful improvement is a real shared conversation, a real background result and an inspectable action/receipt in this room.</p>
+<p>When prototypes and application previews arrive, the current work should take center stage. The light becomes a compact presence element rather than competing with the artifact. Local viewing/lens changes remain local and do not retask workers.</p>
+</section><section class="chapter" id="doc-evidence-branch-commit-register-json"><div class="chapter-meta">evidence/branch-commit-register.json</div><h1 id="doc-evidence-branch-commit-register-json-h0">branch-commit-register.json</h1><pre><code>{
+  "review_date": "2026-09-25",
+  "repo": "https://github.com/davidelaverga/Sophia",
+  "main": "01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3",
+  "working_head": "29a570c33feb97a6bc04ea357c84087a47c9b055",
+  "scope": "all visible remote branches and reachable commit metadata; selected source review",
+  "branches": [
+    {
+      "name": "main",
+      "sha": "01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3"
+    },
+    {
+      "name": "claude/mission-1-repo-setup-yjjjn2",
+      "sha": "f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5"
+    },
+    {
+      "name": "docs/pack-v0.4",
+      "sha": "459744a1fee941d19f9d2ac3f2bbcc70ce142f33"
+    },
+    {
+      "name": "s1-02/admit-command",
+      "sha": "e85db976efc618d24f220600ddbda5705b8fc091"
+    },
+    {
+      "name": "tooling/clean-code",
+      "sha": "e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b"
+    },
+    {
+      "name": "s1-02/response-validators",
+      "sha": "66b8ca849a91d1f13253ad13a6f45f93c5861095"
+    },
+    {
+      "name": "deploy/render-vercel",
+      "sha": "ff22a249c5d0ec75ab72f62d775bba347a28a40a"
+    },
+    {
+      "name": "s1-04/studio-shell",
+      "sha": "4bd8cb10a70147254280f52a17c9c65dd10f05ec"
+    },
+    {
+      "name": "studio/vision",
+      "sha": "e5a7b756982f0169a0d4155c81ea37b4935e5b51"
+    },
+    {
+      "name": "rooms/access",
+      "sha": "39929967b8c1f3d2d480a3d83245ba5947ed7d02"
+    },
+    {
+      "name": "studio/precise",
+      "sha": "0554dd69870b50650fd89670677b35a445bf921d"
+    },
+    {
+      "name": "studio/qol",
+      "sha": "29a570c33feb97a6bc04ea357c84087a47c9b055"
+    }
+  ],
+  "commits": [
+    {
+      "sha": "29a570c33feb97a6bc04ea357c84087a47c9b055",
+      "description": "Lobby: question stands alone and undo divider removed",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "7ff23865cae272469d2aeccda431daee618159d7",
+      "description": "Decline versus block; amendment A03 and migration 0011",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "f8051e83e768caa092144aaaf1d77a752fdd1757",
+      "description": "Explicit pass-floor menu and readable composer note",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "92f2abff0198ac77f7dc5cdaace4f1fd9d2d7fae",
+      "description": "Remembered media choices and honest device/connection feedback",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "a6e0edfd6f359f1c97004308bf1498f3de16254b",
+      "description": "Viewer controls, floor authority and plain-language work state",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "16a5eb9806c8ed32a5cb344f82f9206b0fafa8a8",
+      "description": "Invitation delivery, confirmations and keyboard focus",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "d131f14a7ab5430b04ca2bcab045b824494ecf42",
+      "description": "Sign-in and invitations across tabs, network errors and accounts",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "9de262c9f2d3f1c1e3c21b2156693b003e7e4f6f",
+      "description": "Access copy, guest tab titles and draft disclosure",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "2104d2a2090d4f89be3b1e6ce2aff26aa5dde652",
+      "description": "Remove internal goal codes from Studio copy",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "97585c04716a189c9a70c9f4094aac4edb1403a6",
+      "description": "Lobby visible across views and waiting-count tab title",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "c3c359af9797382fa0b979e4af983a687dfc2b55",
+      "description": "Per-device recent projects",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "0554dd69870b50650fd89670677b35a445bf921d",
+      "description": "Light frame radii and human-readable room event labels",
+      "pr": 11,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "4ed8265d9eb5ac39f4b138ca9f0b94cf1edecca9",
+      "description": "Geist typography, square controls, shortcuts and tips",
+      "pr": 11,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "39929967b8c1f3d2d480a3d83245ba5947ed7d02",
+      "description": "S1-04A access, invitations, lobby and room sessions; A02/0010",
+      "pr": 10,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "e5a7b756982f0169a0d4155c81ea37b4935e5b51",
+      "description": "Room-centered visual language, animated light, cameras and screen share",
+      "pr": 9,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "4bd8cb10a70147254280f52a17c9c65dd10f05ec",
+      "description": "Close DB test resources despite failed room-child cleanup",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "03ec20d18d182d5bf6a5d1b168e611e4dbf3a4ab",
+      "description": "Room dock, input floor, evidence and handoff",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1891fe578ce736c89e217ddf6d95fe4f8a38afdc",
+      "description": "Type-only pg import and non-shadowed test hook",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "b059a62917b233eba8ca606da9825bdd6b6b69cb",
+      "description": "Merge deployment branch into Studio work",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "13533aff49ec3517654ffcfa71ecf4ae747aa90d",
+      "description": "Room DB/HTTP tests and local LiveKit dev setup",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1df64b8f21f00b93b68754fd12ba295e00ecf8cb",
+      "description": "Merge updated S1-02 stack and main runtime into Studio",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "074bcd5bb90fd09173fdc6ceeda6e27c5fe97dbc",
+      "description": "Room contract A01, migration0009, token/floor WIP checkpoint",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "ff22a249c5d0ec75ab72f62d775bba347a28a40a",
+      "description": "Merge S1-02 review fixes into deploy branch",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "66b8ca849a91d1f13253ad13a6f45f93c5861095",
+      "description": "Merge scoped tooling and S1-02 fixes into validators",
+      "pr": 6,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b",
+      "description": "Merge S1-02 updates into scoped tooling",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "e85db976efc618d24f220600ddbda5705b8fc091",
+      "description": "LISTEN reconnect via Promise.withResolvers; ES2024",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "4b48dc84d9d9fc1b111b28eef6b4d71a1bb5b870",
+      "description": "Merge S1-02 into tooling",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "9ce42f03d1e518862676d89d3b29ef8deb34468a",
+      "description": "Narrow formatting/lint gate to product code; restore runtime-owner files",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "73a69d4564bd893be049ac48e4ee58e51cbb5082",
+      "description": "Wait for LISTEN recovery through a promise instead of polling",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "805f5e288ceca1a3baabc055ebcfafb630afec0a",
+      "description": "Preserve SSE disconnect flag through strict control-flow analysis",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "04c978dc7a4bad960e1ba3f4ecc6643656282e38",
+      "description": "Fix encoded-route auth, pool errors, SSE cleanup and LISTEN recovery; migration 0008",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1f2ed0b5c8c24c38a2b41a5e1d508274cbc1e4f1",
+      "description": "Merge main S1-03 and pack into S1-02 as a union",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "459744a1fee941d19f9d2ac3f2bbcc70ce142f33",
+      "description": "Merge main runtime into v0.4 documentation import",
+      "pr": 3,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "c1f77512a30f58dbd7ba04b11ef97d80fc89a122",
+      "description": "Handle dashboard invitations and cross-device sign-in codes",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "60653583ec6b4c07a5d6b46c54495f6298a65b6a",
+      "description": "Repair Vercel SPA deep-link rewrites",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "6b5faf4f163b0ae1406b840ae5f6c6f42782875b",
+      "description": "Add Studio API origin and API CORS for hosted services",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "846b177f2f79e30ad1d5e53ebd3cd80c920ef632",
+      "description": "Create Studio shell, shared project feed and per-viewer lenses/drafts",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "cf48e8f8f219a274792467e437ec8e13c401a2a5",
+      "description": "Generate and enforce browser/API/SSE response validators",
+      "pr": 6,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "42133012bd519c55a6bed11d1d0ae85008657ac9",
+      "description": "Format old S1-01 scripts; later removed by scoped-tooling revision",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "0b859672a2681fc685309983936f5d0ea7d1b339",
+      "description": "Introduce Prettier, typed lint, size limits and contribution rules",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "5305facf7ae4f0c9b12cd6c02511ee12c8894ff1",
+      "description": "Remove remaining regex escape after test conversion",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "8bc8e3aca0bdd36f3f14ee345fb2fed6a7f0487b",
+      "description": "Tidy converted node:test tests and type narrowing",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "2a50ab923591ace6e64d0a713546dbcfee225f5e",
+      "description": "S1-02 SQL, auth, API, persistence, outbox and Studio work view",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1e865660dc3b143091587ad4d81be5e131f76055",
+      "description": "Force LF checkout to preserve frozen pack and contract bytes",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "b8b7151fa23f5c2ab558b13bc56fe98e85961a19",
+      "description": "Import cumulative v0.4 Part 2 pack; web/pdf and web/deck renderer direction",
+      "pr": 3,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "cde6072d9bb3f517f04ffeba030162045813d5aa",
+      "description": "Initialize new repository",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "314aa685ca86329b03aac7d04fa0ab08cd719bfb",
+      "description": "Build reproducible S1-01 runtime unit",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "94f0e5f85f5c74aae3fb04ede26fd1f116e6f145",
+      "description": "Make deployed runtime digest independent of checkout location",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "b7798432b773b086ff3f47a6acce139ef530e32f",
+      "description": "Record platform-specific identity and isolate temporary files",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "1467f834af8bb4197b759a20f0497cd147594d59",
+      "description": "Record S1-01 evidence and handoff",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "5522a4ec59b99a8d6638554779b669421c21b8ef",
+      "description": "Initialize GitHub repository history",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "fb12ab85658ca2f6645219456646f3f1f44af34d",
+      "description": "Join repository initialization histories",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "c934e83d5613a67fa4d6fd07aa61fefafb6e26c0",
+      "description": "Update initial handoff metadata",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "014a85fc0db24c9bab4de681894986a118b10112",
+      "description": "Tree digest v2 ignores empty directories",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "363be14742cad3b3a30bc73da06b4e37a4b119b1",
+      "description": "Ensure pinned pnpm is available during profile installation",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "74936ef606458b288da548e5fda78be4dce672ab",
+      "description": "Verify installed bundle bytes rather than composition alone",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "fbaec894a63b8075a87e809d484bf0e092f029e5",
+      "description": "Merge PR 1, reproducible runtime foundation",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "0b09b6cd3e4a959ee174d803b27246267a288462",
+      "description": "Record approved S1-03 development model route",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "4eedb573fedf78c56d6be9150ba719b7ed65e556",
+      "description": "S1-03 control bridge, journal and public Agent operations",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "456ca980240f2727d64c6038cded784781f4d5a6",
+      "description": "Five scoped roles and nested-tool guards",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "36dd7099a99b08947799fd813b728f1a2d566b5f",
+      "description": "Execution-host supervisor and live-steer acceptance command",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "a27c019a53706183f8d944f93bc7b9d314077625",
+      "description": "Repair recovery findings from first Codex review",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5",
+      "description": "Repair six further ordering/replay/settlement findings",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3",
+      "description": "Merge PR 2, S1-03 implementation with live acceptance pending",
+      "pr": 2,
+      "group": "Main history"
+    }
+  ],
+  "counts": {
+    "branches": 12,
+    "main_commits": 19,
+    "additional_stack_commits": 45,
+    "unique_commits": 64
+  }
+}
+</code></pre></section><section class="chapter" id="doc-evidence-video-source-register-json"><div class="chapter-meta">evidence/video-source-register.json</div><h1 id="doc-evidence-video-source-register-json-h0">video-source-register.json</h1><pre><code>[
+  {
+    "id": "U03",
+    "filename": "5b6cb486-5c3f-4234-b32b-fc651c40d92f.mp4",
+    "duration_seconds": 39.2,
+    "sha256": "6bf8179117930d3900f1d3561a4874f4f135e188e7c45c168a588ad6afe5320b"
+  },
+  {
+    "id": "U04",
+    "filename": "7feabdee-af58-4904-b5b7-ab1d2c43195a.mp4",
+    "duration_seconds": 46.9,
+    "sha256": "a29ea44adeb828478deeb058135d928d6c1e60d98c4a52d0b5e7fee5ab627160"
+  }
+]
+</code></pre></section><section class="chapter" id="doc-evidence-input-source-register-json"><div class="chapter-meta">evidence/input-source-register.json</div><h1 id="doc-evidence-input-source-register-json-h0">input-source-register.json</h1><pre><code>[
+  {
+    "filename": "Sophia-beyond-Sprint-1.pdf",
+    "sha256": "b38a1bb560654218741e3c38bba98544394551d7d026040639f512932ab5266b",
+    "bytes": 423887
+  },
+  {
+    "filename": "communication procedure(2).md",
+    "sha256": "67226c425b509bc25d828ee926afb0daeccfa6f6009af08a2ad7e703f6875ff5",
+    "bytes": 3858
+  }
+]
+</code></pre></section><p class="top"><a href="#top">Back to top</a></p></main></div></body></html>

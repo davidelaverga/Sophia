@@ -11,13 +11,16 @@ import { Presences } from './Presences.tsx'
 import { canShareScreen, RoomDock } from './RoomDock.tsx'
 import {
   floorView,
-  listensOnly,
   orderParticipants,
   roomLine,
+  runningWork,
+  shortName,
   stageMode,
+  type FloorView,
   type RoomLine,
   type StageMode,
 } from './room-view.ts'
+import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { VideoStage } from './VideoStage.tsx'
@@ -127,8 +130,7 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
 /** J joins; in the room, M, V and S toggle microphone, camera and screen (the dock's tips show them). */
 function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
-  // A viewer has no microphone, camera or screen to toggle: their keys do nothing rather than fail.
-  const speaks = (room.status === 'live' || room.status === 'reconnecting') && !listensOnly(me)
+  const speaks = room.status === 'live' || room.status === 'reconnecting'
   useShortcuts({
     j: room.status === 'idle' || room.status === 'failed' ? () => void room.join() : undefined,
     m: speaks ? () => void room.setMicrophone(!me?.micOn) : undefined,
@@ -137,8 +139,25 @@ function useRoomKeys(room: ProjectRoom) {
   })
 }
 
-const runningGoals = (snapshot: Snapshot | undefined) =>
-  snapshot?.goals.filter((g) => g.status === 'running' || g.status === 'checking').length ?? 0
+/** Sophia as observed (sophia-view.ts): the light's mode and her line come from this, never from `live`. */
+function observedSophia(
+  room: ProjectRoom,
+  snapshot: Snapshot | undefined,
+  floor: FloorView,
+  working: boolean,
+): SophiaView {
+  const me = room.participants.find((p) => p.local)
+  const names = new Map(room.participants.map((p) => [p.identity, p.local ? 'you' : shortName(p.name)]))
+  return sophiaView(snapshot?.room.sophia, room.sophia, {
+    inCall: room.status === 'live' || room.status === 'reconnecting',
+    audioBlocked: room.audioBlocked,
+    holderName: floor.holder ? shortName(floor.holder.name) : null,
+    holderIsMe: floor.mine,
+    myMicOn: !!me?.micOn,
+    working,
+    nameOf: (identity) => names.get(identity) ?? 'someone',
+  })
+}
 
 export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line }: Props) {
   const stage = useRef<HTMLElement>(null)
@@ -148,7 +167,8 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
   const holder = snapshot?.room.inputActorId ?? null
   const floor = floorView(holder, room.participants)
   const mode = stageMode(room.feeds)
-  const running = runningGoals(snapshot)
+  const running = runningWork(snapshot)
+  const sophia = observedSophia(room, snapshot, floor, running > 0)
   const live = room.status === 'live' || room.status === 'reconnecting'
   const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
@@ -164,7 +184,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
     >
       <SophiaLight
         ref={light}
-        mode={live ? 'listen' : 'rest'}
+        mode={sophia.light}
         target={geometry.target}
         attention={geometry.attention}
         working={running > 0}
@@ -174,7 +194,10 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
           {/* Lenses shape what sits under the light; with video on the stage there is nothing for them to change. */}
           <div className="stage-top">{lensBar}</div>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
-          <SophiaLine line={line ?? roomLine(room.status, floor, running)} session={sessionNote(snapshot, now)} />
+          <SophiaLine
+            line={line ?? roomLine(room.status, floor, running, sophia)}
+            session={sessionNote(snapshot, now)}
+          />
           <div className="stage-body">{lensBody}</div>
         </>
       ) : (
@@ -186,6 +209,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
         projectId={projectId}
         identity={identity}
         snapshot={snapshot}
+        sophia={sophia}
         onPassed={passed}
       />
     </section>

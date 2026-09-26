@@ -47,7 +47,8 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
         roomId,
         identity: req.actorId,
         name: req.actorName,
-        canPublish: access.role !== 'viewer',
+        // Viewers speak in the human room too (amendment A06): talking is not a work grant.
+        canPublish: true,
         standing: { role: access.role },
       })
     },

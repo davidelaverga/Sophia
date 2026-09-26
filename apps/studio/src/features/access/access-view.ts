@@ -1,6 +1,6 @@
 // Room access in the Studio, as plain rules: invitation links, the room calendar and the QR code's shape.
 // Pure, so they are unit-tested; the components only render them.
-import type { Invitation, RoomSession, SessionCreate } from '@sophia/contracts'
+import type { Invitation, LobbyEntry, RoomSession, SessionCreate } from '@sophia/contracts'
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
@@ -26,6 +26,17 @@ export const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(
 export function knockNote(knocks: number): string {
   if (knocks < 2) return ''
   return knocks === 2 ? 'asked again' : `asked ${knocks} times`
+}
+
+/**
+ * A guest's removal from the call, in words (amendment A07): pending until the room server confirms it, with how
+ * often it was tried; empty when there is nothing to say (none, or they were never in the call).
+ */
+export function removalNote(removal: LobbyEntry['removal']): string {
+  if (!removal || removal.state === 'absent') return ''
+  if (removal.state === 'removed') return 'out of the call'
+  if (removal.attempts === 0) return 'taking them out of the call…'
+  return `not out of the call yet · tried ${removal.attempts} ${removal.attempts === 1 ? 'time' : 'times'}`
 }
 
 /** How long an opened invitation link waits on this device for its sign-in round trip. */

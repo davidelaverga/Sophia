@@ -1228,13 +1228,27 @@ button.mark:hover {
   text-transform: uppercase;
   text-wrap: balance;
 }
+/*
+ * The lens body sits between Sophia's line and the dock, anchored to the dock: it never covers her line (whose
+ * words are the room's state), and what does not fit scrolls inside it instead.
+ */
 .stage-body {
   position: absolute;
+  top: calc(var(--ly) + var(--lr) * 0.46 + 56px);
   left: 50%;
   bottom: 88px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   width: min(38rem, calc(100% - 2 * var(--gutter)));
   transform: translateX(-50%);
+  pointer-events: none;
+}
+.stage-body > * {
+  min-height: 0;
+  max-height: 100%;
+  pointer-events: auto;
 }
 .composer {
   display: grid;
@@ -1255,11 +1269,109 @@ button.mark:hover {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
-/* Read, not decoration: it says what the box can and cannot do yet. */
+/* Read, not decoration: it says what sending does and does not do. */
 .composer-note {
   color: var(--text-3);
   font-size: 12px;
   text-align: center;
+}
+.composer-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* The Converse lens: recent discussion, one explicit brief request, the task in motion, the composer. */
+.conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(640px, 100%);
+  margin: 0 auto;
+  /* A short window: the lens scrolls inside its bounds rather than slipping behind the dock. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.conversation > * {
+  flex: none;
+}
+/* The discussion gives way first: it scrolls, the brief request and composer stay in reach. */
+.conversation > .discussion {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.discussion {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.contribution {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.contribution-author {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.contribution-text {
+  overflow-wrap: anywhere;
+}
+.brief-request {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.brief-request input {
+  flex: 1 1 220px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.task-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.brief {
+  display: grid;
+  gap: 6px;
+  max-height: 40cqh;
+  overflow: auto;
+}
+.brief h4 {
+  margin-top: 6px;
+  font-size: 14px;
+}
+.brief-note,
+.brief-source {
+  font-size: 12px;
+}
+.view-subhead {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--text-2);
 }
 .coming {
   display: grid;
@@ -1393,16 +1505,50 @@ button.mark:hover {
 .pass-list button:focus-visible {
   background: rgba(241, 220, 199, 0.08);
 }
-/* A viewer's place in the dock: they listen and watch. */
-.dock-listening {
+/* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
+.sophia-controls {
+  gap: 6px;
+}
+/* The observation indicator: while Sophia is looking at anything, every view says what. */
+.sophia-looking {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 36px;
-  padding: 0 10px;
-  color: var(--text-2);
-  font-size: 13px;
+  gap: 8px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(241, 220, 199, 0.28);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--warm);
+  font-size: 12.5px;
   font-weight: 500;
+}
+.sophia-looking-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warm);
+  animation: sophia-looking 1.6s ease-in-out infinite;
+}
+@keyframes sophia-looking {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sophia-looking-dot {
+    animation: none;
+  }
+}
+.mini-dock .sophia-looking {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+}
+.mini-dock:has(.mini-note) .sophia-looking {
+  bottom: calc(100% + 48px);
 }
 .floor-error {
   position: absolute;

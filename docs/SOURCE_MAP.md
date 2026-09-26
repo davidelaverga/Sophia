@@ -97,6 +97,19 @@ shape exactly.
 
 **Contract amendments.** `packages/contracts/openapi/openapi.json` is the pack's contract plus the JSON Patches in [`packages/contracts/amendments/`](../packages/contracts/amendments/), applied in file order and checked by `pnpm contracts:check`. The pack's own generated types still come out byte-for-byte from the pack's contract. A01 (S1-04) exposes the project room in the snapshot and ships `transferInputFloor` with S1-04. Its reasons are in the file.
 
+## 2b. Sources and amendments at S1-05A
+
+| What | Version / identity | Used for | Sophia files |
+|---|---|---|---|
+| `@google/genai` (GG-01, G-01–G-06) | 2.24.0 (npm) | `ai.live.connect` on the Gemini API (never Vertex), model `gemini-3.8-live`; audio responses, input and output transcription, context-window compression (`triggerTokens` `'25000'`, sliding window `'8000'`; strings in this SDK), session resumption, NON_BLOCKING tools with top-level `scheduling`/`willContinue` | `apps/media-bridge/src/live-session.ts`, `tools.ts`, `live-messages.ts` |
+| `@livekit/rtc-node` (LK-01–LK-03) | 1.1.0 (npm; FFI bindings 0.12.73) | Raw RTC as the `sophia` participant: `AudioStream(track, 16000, 1)` for members' microphones, `AudioSource(24000, 1, 200)` + `LocalAudioTrack` for her one track, `VideoStream` only for the looked-at source, `setAttributes` for observed state | `apps/media-bridge/src/rtc.ts` |
+| `jpeg-js` | 0.4.4 (npm) | Encodes the sampled still (≤1 fps, ≤1024 px wide) | `apps/media-bridge/src/vision.ts` |
+| `livekit/livekit-server` | v1.13.7 (Docker image, dev mode) | The real server for `pnpm test:livekit` and the CI `room-media` job | `scripts/livekit-test.ts`, `apps/media-bridge/src/rtc.livekit.test.ts` |
+
+Observed in these SDKs, not in the pack: `sendClientContent` mid-conversation is for seeding initial history on the 3.x Live route (`historyConfig.initialHistoryInClientContent`), so a finished-result notice goes as realtime text; a LiveKit participant can set its own attributes only when its grant has `canUpdateOwnMetadata` (the API's bridge token does, people's tokens do not); `@livekit/rtc-node` logs at debug level unless `NODE_ENV=production`.
+
+**Contract amendments.** A04 (the private runtime service), A05 (discussion and native tasks), A06 (the room exchange, the bridge's private `/v1/media/*` routes, `room.sophia` in the snapshot; viewers publish and may hold the floor) and A07 (a lobby entry's durable removal from the call) are in [`packages/contracts/amendments/`](../packages/contracts/amendments/), each with its reasons. A01 stays as it was; A06 amends it rather than duplicating the floor.
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

@@ -18,6 +18,7 @@
     "test:sql": "node scripts/db-test.ts",
     "test:db": "node scripts/with-postgres.ts node --test \"packages/*/src/**/*.db.test.ts\" \"apps/*/src/**/*.db.test.ts\"",
     "test:supabase": "node --env-file=.env.supabase.local --test \"apps/*/src/**/*.live.test.ts\"",
+    "test:livekit": "node scripts/livekit-test.ts",
     "dsh:source": "node scripts/dsh-source.mjs",
     "artifacts": "node scripts/build-artifacts.mjs",
     "artifacts:record": "node scripts/build-artifacts.mjs --record",

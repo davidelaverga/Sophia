@@ -1,6 +1,10 @@
 // invoke / mic → RoomAudio (frontend bindings): one LiveKit room connection, outside React. The room is
 // transport only: joining, muting, sharing a camera or a screen, or leaving never touches project work
 // (architecture 06 §2). Video is attached by the Studio's tiles through `feeds()`.
+//
+// Sophia (the media bridge, identity `sophia`, standing signed by the API) is not one of the people: she is
+// read separately through `sophia()`, from the attributes the bridge sets and from whether her sound actually
+// reaches this browser (S1-05A §6.5).
 import {
   Room,
   RoomEvent,
@@ -11,6 +15,7 @@ import {
   type TrackPublication,
 } from 'livekit-client'
 import { standingOf, type RoomParticipant } from './room-view.ts'
+import type { SophiaSignal } from './sophia-view.ts'
 
 export type RoomStatus = 'live' | 'reconnecting' | 'ended'
 
@@ -27,6 +32,11 @@ export interface VideoFeed {
 
 export interface RoomConnection {
   participants: () => RoomParticipant[]
+  /** The `sophia` participant as observed here, or null when she is not in the room. */
+  sophia: () => SophiaSignal | null
+  /** The browser blocked audio until the person interacts (autoplay). */
+  audioBlocked: () => boolean
+  startAudio: () => Promise<void>
   feeds: () => VideoFeed[]
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
@@ -50,6 +60,27 @@ const toView = (p: Participant, local: boolean): RoomParticipant => ({
   local,
   standing: standingOf(p.metadata),
 })
+
+/** The bridge: the identity no person can be issued, with the standing only the API signs (amendment A06). */
+function isSophia(p: Participant): boolean {
+  if (p.identity !== 'sophia') return false
+  try {
+    const value: unknown = JSON.parse(p.metadata ?? 'null')
+    return typeof value === 'object' && value !== null && 'sophia' in value && value.sophia === true
+  } catch {
+    return false
+  }
+}
+
+function sophiaSignal(p: Participant | undefined): SophiaSignal | null {
+  if (!p) return null
+  const track = p.getTrackPublication(Track.Source.Microphone)
+  return {
+    input: p.attributes['sophia.input'],
+    output: p.attributes['sophia.output'],
+    audible: !!track?.track && !track.isMuted && p.isSpeaking,
+  }
+}
 
 type Feeds = (p: Participant, local: boolean) => VideoFeed[]
 
@@ -108,6 +139,8 @@ const CHANGES = [
   RoomEvent.LocalTrackUnpublished,
   RoomEvent.TrackSubscribed,
   RoomEvent.TrackUnsubscribed,
+  RoomEvent.ParticipantAttributesChanged,
+  RoomEvent.AudioPlaybackStatusChanged,
 ] as const
 
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
@@ -132,15 +165,13 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     await change
     cb.onChange()
   }
+  const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
   return {
-    participants: () => [
-      toView(room.localParticipant, true),
-      ...[...room.remoteParticipants.values()].map((p) => toView(p, false)),
-    ],
-    feeds: () => [
-      ...feedsOf(room.localParticipant, true),
-      ...[...room.remoteParticipants.values()].flatMap((p) => feedsOf(p, false)),
-    ],
+    participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],
+    sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
+    audioBlocked: () => !room.canPlaybackAudio,
+    startAudio: () => after(room.startAudio()),
+    feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
     setMicrophone: (on) => after(room.localParticipant.setMicrophoneEnabled(on)),
     setCamera: (on) => after(room.localParticipant.setCameraEnabled(on)),
     // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.

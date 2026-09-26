@@ -3,6 +3,8 @@ import type { Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
+import { readSophia } from './exchange.ts'
+import { readDiscussion, readNativeTasks } from './native-tasks.ts'
 import { onlyRow } from './rows.ts'
 
 interface ProjectRow {
@@ -32,6 +34,14 @@ interface ResourceRow {
   harness: Resource['harness']
   state: Resource['authorityState']
   allowed_operations: string[]
+  /** A registered dsh runtime's bridge readiness (0012); null for any other resource. */
+  ready_state: 'ready' | 'not_ready' | null
+  ready_at: Date | null
+  /** Its last hello, ready report or command poll. */
+  seen_at: Date | null
+  /** Ready on its current lease and seen within 90 s: what dispatch requires (0012 runtime_unavailable). */
+  available: boolean | null
+  running: boolean
 }
 
 interface RoomRow {
@@ -57,6 +67,9 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const room = await readRoom(c, projectId)
   const lobby = await readLobby(c, projectId)
   const sessions = await readUpcomingSessions(c, projectId)
+  const discussion = await readDiscussion(c, projectId)
+  const work = await readNativeTasks(c, projectId)
+  const sophia = await readSophia(c, room.id)
   return {
     projectId: project.id,
     title: project.title,
@@ -74,9 +87,12 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
       revision: safeInt(room.revision, 'room.revision'),
       inputActorId: room.input_actor_id,
       mode: room.mode,
+      sophia,
     },
     lobby,
     sessions,
+    discussion,
+    work,
   }
 }
 
@@ -108,11 +124,31 @@ async function readGoals(c: pg.PoolClient, projectId: string): Promise<Goal[]> {
   }))
 }
 
-/** Registration exists from S1-09; live host/native observation does not yet, so it is reported as unknown. */
+/**
+ * External resources (S1-09) have no live observation yet, so they report unknown. A dsh runtime reports what
+ * its bridge last said (0012): online only while its ready report stands and it was seen within 90 s (the rule
+ * dispatch uses), running while one of its bindings runs. A ready bridge that stopped being seen, or one that
+ * said not_ready, is offline; a bridge that never said ready is unknown.
+ */
+function runtimeStates(r: ResourceRow): Pick<Resource, 'hostState' | 'nativeState' | 'observedAt'> {
+  const seen = r.seen_at ?? r.ready_at
+  const observedAt = seen ? seen.toISOString() : null
+  if (r.ready_state === 'ready' && r.available) {
+    return { hostState: 'online', nativeState: r.running ? 'running' : 'idle', observedAt }
+  }
+  const offline = r.ready_state === 'ready' || (r.ready_state === 'not_ready' && r.ready_at !== null)
+  return { hostState: offline ? 'offline' : 'unknown', nativeState: 'unknown', observedAt }
+}
+
 async function readResources(c: pg.PoolClient, projectId: string): Promise<Resource[]> {
   const { rows } = await c.query<ResourceRow>(
-    `SELECT id, owner_id, label, harness, state, allowed_operations
-       FROM sophia.executor_resources WHERE project_id = $1 ORDER BY label, id`,
+    `SELECT r.id, r.owner_id, r.label, r.harness, r.state, r.allowed_operations, rs.ready_state, rs.ready_at,
+            rs.seen_at, rs.available,
+            EXISTS (SELECT 1 FROM sophia.execution_bindings b WHERE b.project_id = r.project_id AND b.resource_id = r.id
+                      AND b.state IN ('launching', 'running')) AS running
+       FROM sophia.executor_resources r
+       LEFT JOIN sophia.runtime_status($1) rs ON rs.resource_id = r.id
+      WHERE r.project_id = $1 ORDER BY r.label, r.id`,
     [projectId],
   )
   return rows.map((r) => ({
@@ -121,9 +157,7 @@ async function readResources(c: pg.PoolClient, projectId: string): Promise<Resou
     ownerId: r.owner_id,
     label: r.label,
     harness: r.harness,
-    hostState: 'unknown',
-    nativeState: 'unknown',
-    observedAt: null,
+    ...runtimeStates(r),
     model: null,
     effort: null,
     authorityState: r.state,

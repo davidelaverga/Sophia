@@ -10,7 +10,9 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
-import { listensOnly, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
+import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
+import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
+import type { SophiaView } from './sophia-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 interface Props {
@@ -19,6 +21,8 @@ interface Props {
   projectId: string
   identity: Identity
   snapshot: Snapshot | undefined
+  /** Sophia as observed: what the dock offers her (sophia-view.ts). */
+  sophia: SophiaView
   /** The floor was passed and the receipt says to whom: the stage shows it leave at once. */
   onPassed: (nextActorId: string) => void
 }
@@ -31,6 +35,7 @@ export function RoomDock(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   return (
     <div className="dock-wrap">
+      <LookingIndicator text={props.sophia.looking} />
       {(room.mediaError ?? (room.status === 'failed' ? room.error : null)) && (
         <p className="dock-note" role="alert">
           {room.mediaError ?? room.error}
@@ -109,26 +114,27 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
   )
 }
 
-/** A viewer in the call listens and watches: no controls that would only fail, and why, on hover. */
-function Listening() {
-  return (
-    <span className="dock-listening has-tip">
-      <Icon name="micOff" />
-      Listening
-      <span className="sr-only">. Viewers listen and watch. An admin can make you an editor so you can talk.</span>
-      <Tip label="Viewers listen and watch. An admin can make you an editor." />
-    </span>
-  )
-}
-
-function LiveControls({ room, floor, projectId, identity, snapshot, onPassed }: Props) {
+function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPassed }: Props) {
   const me = room.participants.find((p) => p.local)
   return (
     <>
-      {listensOnly(me) ? <Listening /> : <MediaToggles room={room} me={me} />}
+      <MediaToggles room={room} me={me} />
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />
+      )}
+      {snapshot && (
+        <>
+          <span className="dock-sep" aria-hidden />
+          <SophiaControls
+            view={sophia}
+            snapshot={snapshot}
+            projectId={projectId}
+            identity={identity}
+            me={me}
+            onAllowAudio={() => void room.startAudio()}
+          />
+        </>
       )}
       <span className="dock-sep" aria-hidden />
       <button

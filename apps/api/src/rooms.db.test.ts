@@ -106,9 +106,13 @@ describe('room tokens', () => {
     assert.equal((grant.exp ?? 0) - (grant.nbf ?? 0), 600)
   })
 
-  it('let viewers listen and watch without publishing', async () => {
+  // Changed by amendment A06 (S1-05A, for Luis's review): viewers speak in the human room too.
+  it('let viewers publish in the human room (amendment A06)', async () => {
     const grant = await grantOf(parseRoomToken((await roomToken(V)).json).token)
-    assert.deepEqual([grant.video?.canPublish, grant.video?.canPublishSources], [false, []])
+    assert.deepEqual(
+      [grant.video?.canPublish, grant.video?.canPublishSources],
+      [true, ['microphone', 'camera', 'screen_share', 'screen_share_audio']],
+    )
   })
 
   it('refuse outsiders, another project’s room, a changed audience and a missing key', async () => {
@@ -143,7 +147,8 @@ describe('room tokens', () => {
 })
 
 describe('input floor over HTTP', () => {
-  it('passes the floor with a contract receipt and refuses a viewer', async () => {
+  // Changed by amendment A06: a viewer may hold the floor, but cannot take it from someone else.
+  it('passes the floor with a contract receipt; a viewer cannot take it from its holder (amendment A06)', async () => {
     const res = await post(app, A, `/api/v1/rooms/${roomId}/input-floor`, { nextActorId: B, expectedRoomRevision: 1 })
     assert.equal(res.status, 200)
     assert.deepEqual(
@@ -154,6 +159,6 @@ describe('input floor over HTTP', () => {
       nextActorId: V,
       expectedRoomRevision: 2,
     })
-    assert.equal(viewer.status, 403)
+    assert.equal(viewer.status, 409)
   })
 })

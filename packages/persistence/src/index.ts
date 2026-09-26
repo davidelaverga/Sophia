@@ -1,6 +1,14 @@
 // @sophia/persistence — Postgres access for the API and worker.
 // Runs as a login granted `sophia_api` (never the migration owner or a service-role key).
-export { createPool, checkRoleSafety, withActor, withoutActor, type PoolOptions, type TxMode } from './tx.ts'
+export {
+  createPool,
+  checkRoleSafety,
+  withActor,
+  withoutActor,
+  withService,
+  type PoolOptions,
+  type TxMode,
+} from './tx.ts'
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
@@ -10,6 +18,7 @@ export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.t
 export {
   acceptRoomInvitation,
   authorizeGuestJoin,
+  guestTokenMinting,
   cancelRoomSession,
   createRoomInvitation,
   decideLobbyEntry,
@@ -30,4 +39,54 @@ export {
 } from './access.ts'
 export { claimOutbox, expireDispatchLeases, recordDispatchResult, type OutboxRow } from './outbox.ts'
 export { readEventFrames, type EventFrame, type EventPage } from './events.ts'
-export { ProjectEventListener, PROJECT_EVENTS_CHANNEL, type ListenHandlers } from './listen.ts'
+export {
+  ChannelListener,
+  ProjectEventListener,
+  PROJECT_EVENTS_CHANNEL,
+  RUNTIME_COMMANDS_CHANNEL,
+  type ChannelHandlers,
+  type ListenHandlers,
+} from './listen.ts'
+export {
+  recordRuntimeObservations,
+  recordRuntimeReady,
+  recordRuntimeReceipts,
+  runtimeHello,
+  runtimePoll,
+  runtimeTokenHash,
+  type RuntimeCaller,
+} from './runtime.ts'
+export {
+  admitNativeTask,
+  readDiscussion,
+  readNativeTask,
+  readNativeTasks,
+  submitContribution,
+  type ContributionOrigin,
+} from './native-tasks.ts'
+export { claimRuntimeOutbox, dispatchRuntimeOutbox, reconcileRuntimeOutbox, type DispatchOutcome } from './dispatch.ts'
+export {
+  ackQuiesce,
+  controlExchange,
+  holderEvent,
+  mediaAssignments,
+  PRESENCE_FRESH_SECONDS,
+  quiesceAcked,
+  readSophia,
+  recordAnnounced,
+  reportPresence,
+  requestGuestQuiesce,
+  startExchange,
+  toolSpeaker,
+  type ExchangeAction,
+  type PresenceReport,
+} from './exchange.ts'
+export {
+  claimRoomRemovals,
+  pendingRemoval,
+  readRemoval,
+  settleRoomRemoval,
+  type RemovalClaim,
+  type RemovalOutcome,
+  type RemovalState,
+} from './removals.ts'

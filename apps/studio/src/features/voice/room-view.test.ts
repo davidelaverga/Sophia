@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
-  listensOnly,
   orderParticipants,
   presenceSlots,
   roomLine,
+  runningWork,
   shortName,
   stageMode,
   standingOf,
@@ -48,17 +49,13 @@ describe('floor view', () => {
     assert.equal(floorView('b', [{ ...luis, standing: 'admin' }]).canTake, true)
   })
 
-  it('knows who only listens', () => {
-    assert.equal(listensOnly({ ...luis, standing: 'viewer' }), true)
-    assert.equal(listensOnly(luis), false)
-    assert.equal(listensOnly(undefined), false)
-  })
-
-  it('never offers the floor to a guest or a viewer, and never lets them take it', () => {
+  // Changed by amendment A06 (S1-05A, for Luis's review): viewers hold the floor and talk with Sophia; guests never do.
+  it('never offers the floor to a guest, and never lets one take it; viewers may hold it (amendment A06)', () => {
     const ana = { ...person('g', 'Ana'), standing: 'guest' as const }
     const vera = { ...person('v', 'vera@sophia.test'), standing: 'viewer' as const }
-    assert.deepEqual(floorView('a', [luis, davide, ana, vera]).passTargets, [davide])
+    assert.deepEqual(floorView('a', [luis, davide, ana, vera]).passTargets, [davide, vera])
     assert.equal(floorView(null, [{ ...luis, standing: 'guest' }]).canTake, false)
+    assert.equal(floorView(null, [{ ...luis, standing: 'viewer' }]).canTake, true)
   })
 
   it('reads only the standing the API signed into the token', () => {
@@ -106,17 +103,79 @@ describe('room stage', () => {
     )
   })
 
+  // Changed by amendment A06 (S1-05A): Sophia's voice exists now; the idle note says how she joins, and work
+  // counts tasks as well as goals.
   it('says only what is true about the room', () => {
     const free = floorView(null, [luis, davide])
     assert.deepEqual(roomLine('idle', free, 0), {
       text: 'The room is ready',
-      note: 'Sophia’s voice is on its way. For now, the room carries yours.',
+      note: 'Sophia joins the conversation when someone asks her in.',
     })
     assert.equal(roomLine('live', free, 0).text, 'The floor is open')
     assert.equal(roomLine('live', floorView('a', [luis, davide]), 0).text, 'You have the floor')
     assert.equal(roomLine('live', floorView('b', [luis, davide]), 0).text, 'Davide has the floor')
     assert.equal(roomLine('live', floorView('b', [luis]), 0).text, 'Someone has the floor but isn’t here')
-    assert.equal(roomLine('live', free, 2).note, 'Working on 2 goals in the background')
-    assert.equal(roomLine('idle', free, 1).note, 'Working on 1 goal in the background')
+    assert.equal(roomLine('live', free, 2).note, 'Working on 2 tasks in the background')
+    assert.equal(roomLine('idle', free, 1).note, 'Working on 1 task in the background')
+  })
+
+  it('while Sophia is in the conversation, her line is what the bridge observes', () => {
+    const free = floorView(null, [luis, davide])
+    const sophia = { inConversation: true, label: 'Sophia is listening to Luis', note: null }
+    assert.deepEqual(roomLine('live', free, 0, sophia), {
+      text: 'Sophia is listening to Luis',
+      note: 'The floor is open',
+    })
+    assert.equal(roomLine('live', free, 1, sophia).note, 'Working on 1 task in the background')
+    assert.equal(roomLine('live', free, 0, { ...sophia, inConversation: false }).text, 'The floor is open')
+  })
+})
+
+const goal = (id: string, status: Goal['status']): Goal => ({
+  id,
+  projectId: 'p',
+  title: 'Draft a brief',
+  revision: 1,
+  authorityEpoch: 1,
+  status,
+  outcome: '',
+  criteria: [],
+  stateRevision: 1,
+})
+const task = (goalId: string, phase: NativeTask['phase']): NativeTask => ({
+  id: `task-${goalId}`,
+  kind: 'draft_brief',
+  goalId,
+  attemptId: 'a',
+  commandId: 'c',
+  actorId: 'u',
+  state: 'running',
+  phase,
+  createdAt: '2026-09-25T00:00:00Z',
+  contextSourceId: 's',
+  inputSourceIds: [],
+  resultSourceId: null,
+  reason: null,
+})
+
+describe('work in progress', () => {
+  it('counts a brief once, although it is both a goal and a task', () => {
+    assert.equal(runningWork({ goals: [goal('g1', 'running')], work: [task('g1', 'running')] }), 1)
+    assert.equal(roomLine('live', floorView(null, []), 1).note, 'Working on 1 task in the background')
+  })
+
+  it('counts a queued brief before its goal runs, and separate goals separately', () => {
+    assert.equal(runningWork({ goals: [goal('g1', 'ready')], work: [task('g1', 'queued')] }), 1)
+    assert.equal(
+      runningWork({ goals: [goal('g1', 'running'), goal('g2', 'checking')], work: [task('g1', 'running')] }),
+      2,
+    )
+  })
+
+  it('does not count finished or held work', () => {
+    assert.equal(
+      runningWork({ goals: [goal('g1', 'held')], work: [task('g1', 'held'), task('g2', 'result_ready')] }),
+      0,
+    )
   })
 })

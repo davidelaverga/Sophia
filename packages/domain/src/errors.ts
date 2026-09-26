@@ -14,6 +14,9 @@ export type ErrorCode =
   | 'projection_unavailable'
   | 'outcome_unknown'
   | 'unavailable'
+  | 'runtime_capability_required'
+  | 'media_capability_required'
+  | 'native_capability_unavailable'
 
 export type Retry = ApiError['retry']
 
@@ -31,6 +34,12 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   // The write may or may not have committed: retry with the SAME Idempotency-Key.
   outcome_unknown: { status: 503, retry: 'same_admission_key' },
   unavailable: { status: 503, retry: 'safe_read' },
+  // A /v1/runtime/* call without a recognized runtime capability (A04). Never a member identity.
+  runtime_capability_required: { status: 401, retry: 'reauthorize' },
+  // A /v1/media/* call without the media bridge's capability (A06). Never a member identity.
+  media_capability_required: { status: 401, retry: 'reauthorize' },
+  // The project has no registered native runtime to run the work on: admitting it would only fail later.
+  native_capability_unavailable: { status: 503, retry: 'never' },
 }
 
 export class DomainError extends Error {

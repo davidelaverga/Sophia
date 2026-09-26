@@ -73,11 +73,13 @@ describe('every project has one room', () => {
     const seeded = await seedProject(db.ownerUrl, { admin: A })
     const created = await withActor(pool, A, 'write', (c) => createProject(c, randomUUID(), { title: 'Room project' }))
     for (const projectId of [seeded.projectId, created.projectId]) {
-      const room = await roomOf(A, projectId)
+      const { sophia, ...room } = await roomOf(A, projectId)
       assert.deepEqual(
         { ...room, id: typeof room.id },
         { id: 'string', revision: 1, inputActorId: null, mode: 'invoked' },
       )
+      // A06: no exchange yet, so Sophia's voice is not connected (never "listening" because the room exists).
+      assert.deepEqual([sophia.exchange, sophia.voice, sophia.exchangeId], ['none', 'not_connected', null])
     }
     assert.notEqual((await roomOf(A, seeded.projectId)).id, (await roomOf(A, created.projectId)).id)
   })
@@ -140,12 +142,21 @@ describe('input floor', () => {
     assert.equal(handed.inputActorId, B)
   })
 
-  it('keeps viewers listening: they cannot pass it or receive it', async () => {
-    const room = await roomOf(V, seed.projectId)
-    assert.equal(await codeOf(pass(V, room.id, { nextActorId: V, expectedRoomRevision: room.revision })), 'forbidden')
+  // Changed by amendment A06 (S1-05A, for Luis's review): S1-04 kept viewers listening; viewers now hold the
+  // floor for a read-only exchange, because talking is not a work grant. Work stays editor/admin-only.
+  it('lets a viewer receive and pass the floor, but never a non-member (amendment A06)', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    let room = await roomOf(V, fresh.projectId)
+    await pass(B, room.id, { nextActorId: V, expectedRoomRevision: room.revision })
+    room = await roomOf(V, fresh.projectId)
+    assert.equal(room.inputActorId, V)
+    await pass(V, room.id, { nextActorId: B, expectedRoomRevision: room.revision })
+    room = await roomOf(V, fresh.projectId)
+    assert.equal(room.inputActorId, B)
     assert.equal(
-      await codeOf(pass(B, room.id, { nextActorId: V, expectedRoomRevision: room.revision })),
+      await codeOf(pass(B, room.id, { nextActorId: C, expectedRoomRevision: room.revision })),
       'invalid_request',
+      'an outsider cannot receive it',
     )
   })
 
