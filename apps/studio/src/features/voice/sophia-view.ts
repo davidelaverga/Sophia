@@ -75,7 +75,7 @@ function notHearing(presence: SophiaPresence, ctx: SophiaContext): Base | null {
       return view(rest, 'Sophia is paused while a guest is here', 'Resume when the room is members only')
     return view(
       rest,
-      `Sophia paused: ${ctx.holderName ?? 'the speaker'} left the room`,
+      `Sophia paused: ${ctx.holderName ?? 'the speaker'} is not in the room`,
       'Resume to talk with her again',
     )
   }

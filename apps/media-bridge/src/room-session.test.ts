@@ -8,7 +8,7 @@ import { beforeEach, describe, it } from 'node:test'
 import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
-import { HOLDER_GRACE_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
+import { HOLDER_ARRIVAL_MS, HOLDER_GRACE_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
 import type { MediaService } from './service.ts'
 
@@ -134,8 +134,14 @@ class FakeService implements MediaService {
     await Promise.resolve()
     this.acks.push(a.requestId)
   }
+  /** How many holder events fail before one is recorded (the API unreachable for a moment). */
+  holderFailures = 0
   holder = async (e: Parameters<MediaService['holder']>[0]) => {
     await Promise.resolve()
+    if (this.holderFailures > 0) {
+      this.holderFailures -= 1
+      throw new Error('API unreachable')
+    }
     this.holders.push(e)
   }
   announced = async (e: Parameters<MediaService['announced']>[0]) => {
@@ -770,6 +776,80 @@ describe('room session: holder departure (S1-05A §7)', () => {
     clock += 2000
     room.join([member(LUIS), member(DAVIDE)])
     clock += HOLDER_GRACE_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => h.event),
+      ['left'],
+    )
+  })
+
+  it('a holder not in the room when the bridge joins is given time to arrive, not reported as leaving (CX-0044)', async () => {
+    const { session, room } = await ready({}, [member(DAVIDE)])
+    await flush()
+    assert.deepEqual(service.holders, [], 'no left the moment the bridge joins')
+    clock += HOLDER_ARRIVAL_MS - 1
+    session.tick()
+    await flush()
+    assert.deepEqual(service.holders, [])
+    room.join([member(LUIS), member(DAVIDE)])
+    clock += HOLDER_ARRIVAL_MS + HOLDER_GRACE_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(service.holders, [], 'arrived in time: never paused')
+  })
+
+  it('a holder who never arrives is reported left after the arrival grace, then gone, and the log says so', async () => {
+    const { session } = await ready({}, [member(DAVIDE)])
+    clock += HOLDER_ARRIVAL_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => [h.event, h.actorId, h.inputEpoch]),
+      [['left', LUIS, 1]],
+    )
+    assert.deepEqual(logs.find(([event]) => event === 'holder.absent')?.[1], {
+      exchangeId: EXCHANGE,
+      inputEpoch: 1,
+      departed: false,
+      people: 1,
+    })
+    clock += HOLDER_GRACE_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => h.event),
+      ['left', 'gone'],
+    )
+  })
+
+  it('judges no one while its own room link is down; after it, the holder gets the arrival grace', async () => {
+    const { session, room } = await ready()
+    room.events.connection('reconnecting', null)
+    room.join([member(DAVIDE)])
+    clock += HOLDER_GRACE_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(service.holders, [], 'nothing reported while the bridge itself was reconnecting')
+    room.events.connection('connected', null)
+    session.tick()
+    await flush()
+    assert.deepEqual(service.holders, [], 'back, but the holder not listed yet: an arrival, not a departure')
+    room.join([member(LUIS), member(DAVIDE)])
+    clock += HOLDER_ARRIVAL_MS
+    session.tick()
+    await flush()
+    assert.deepEqual(service.holders, [])
+  })
+
+  it('a left the API did not record is sent again, once', async () => {
+    const { session, room } = await ready()
+    service.holderFailures = 1
+    room.join([member(DAVIDE)])
+    await flush()
+    assert.equal(service.holders.length, 0, 'the first attempt failed')
+    session.tick()
+    await flush()
     session.tick()
     await flush()
     assert.deepEqual(

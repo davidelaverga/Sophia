@@ -50,6 +50,11 @@ export const TICK_MS = 100
 export const PRESENCE_EVERY_MS = 5000
 /** A holder who left gets this long to come back before the floor is cleared (compare-and-set, A15). */
 export const HOLDER_GRACE_MS = 5000
+/**
+ * A holder the bridge has not seen in the room yet gets this long to appear before input is paused: the bridge may
+ * have just joined or rejoined, or the floor may have passed to someone still arriving (CX-0044).
+ */
+export const HOLDER_ARRIVAL_MS = 5000
 /** How long after the last frame handed to the AudioSource the room still hears Sophia (its 200 ms queue). */
 const PLAYING_TAIL_MS = 250
 const RECONNECT_DELAYS_MS = [250, 1000, 2000, 4000, 8000]
@@ -135,12 +140,22 @@ export interface Observed {
   generation: number
 }
 
-interface HolderAbsence {
+interface HolderRef {
   actorId: string
   inputEpoch: number
-  since: number
+}
+
+interface HolderAbsence extends HolderRef {
+  /** Seen in this room since the bridge joined: a departure, reported at once. Otherwise an arrival still owed. */
+  departed: boolean
+  /** When `left` is due: now for a departure, after HOLDER_ARRIVAL_MS for a holder not seen yet. */
+  leftAt: number
+  leftReported: boolean
   goneReported: boolean
 }
+
+const sameHolder = (ref: HolderRef | null, actorId: string, inputEpoch: number) =>
+  ref?.actorId === actorId && ref.inputEpoch === inputEpoch
 
 export class RoomSession {
   readonly exchangeId: string
@@ -196,6 +211,8 @@ export class RoomSession {
   private pauseApplied = false
   private wasSettling = false
   private absence: HolderAbsence | null = null
+  /** The holder (and epoch) last seen in the room over a live room link; forgotten while the link is down. */
+  private holderSeen: HolderRef | null = null
   private lastReport = 0
   private reportDirty = true
   private reporting = false
@@ -351,8 +368,10 @@ export class RoomSession {
 
   private onRoomConnection(state: 'connected' | 'reconnecting' | 'disconnected', reason: string | null): void {
     this.deps.log('room.connection', { exchangeId: this.exchangeId, state, reason })
-    // Until the room is back its presence is unknown: treat it as not member-only, locally (no report).
+    // Until the room is back its presence is unknown: treat it as not member-only, locally (no report), and judge
+    // no holder's absence; once back, a holder not yet seen again gets the arrival grace.
     this.roomDown = state !== 'connected'
+    if (this.roomDown) this.holderSeen = null
     this.onPeople(this.room?.people() ?? [])
     if (state === 'disconnected' && !this.lost) {
       this.lost = true
@@ -452,21 +471,38 @@ export class RoomSession {
     })
   }
 
-  /** The holder left: pause at once; still gone after the grace, clear the floor by compare-and-set (S1-05A §7). */
+  /**
+   * The holder left: pause at once; still gone after the grace, clear the floor by compare-and-set (S1-05A §7).
+   * Only a holder seen in the room can leave it. One the bridge has not seen yet gets HOLDER_ARRIVAL_MS to appear,
+   * and while the bridge's own room link is down nothing is judged (CX-0044).
+   */
   private checkHolder(): void {
     const actorId = this.assignment.inputActorId
     const inputEpoch = this.assignment.inputEpoch
-    if (!this.room || !actorId || this.people.some((p) => p.identity === actorId)) {
+    if (!this.room || this.roomDown || !actorId) return void (this.absence = null)
+    if (this.people.some((p) => p.identity === actorId)) {
+      this.holderSeen = { actorId, inputEpoch }
       this.absence = null
       return
     }
     const now = this.deps.now()
-    const same = this.absence?.actorId === actorId && this.absence.inputEpoch === inputEpoch
-    if (!this.absence || !same) {
-      this.absence = { actorId, inputEpoch, since: now, goneReported: false }
+    if (!this.absence || !sameHolder(this.absence, actorId, inputEpoch)) {
+      const departed = sameHolder(this.holderSeen, actorId, inputEpoch)
+      const leftAt = departed ? now : now + HOLDER_ARRIVAL_MS
+      this.absence = { actorId, inputEpoch, departed, leftAt, leftReported: false, goneReported: false }
+    }
+    this.reportAbsence(this.absence, now)
+  }
+
+  private reportAbsence(absence: HolderAbsence, now: number): void {
+    if (!absence.leftReported) {
+      if (now < absence.leftAt) return
+      absence.leftReported = true
+      const { departed, inputEpoch } = absence
+      this.deps.log('holder.absent', { exchangeId: this.exchangeId, inputEpoch, departed, people: this.people.length })
       this.holderEvent('left')
-    } else if (!this.absence.goneReported && now - this.absence.since >= HOLDER_GRACE_MS) {
-      this.absence.goneReported = true
+    } else if (!absence.goneReported && now - absence.leftAt >= HOLDER_GRACE_MS) {
+      absence.goneReported = true
       this.holderEvent('gone')
     }
   }
@@ -476,7 +512,10 @@ export class RoomSession {
     if (!absence) return
     const body = { exchangeId: this.exchangeId, actorId: absence.actorId, inputEpoch: absence.inputEpoch, event }
     this.deps.service.holder(body).catch((err: unknown) => {
-      if (event === 'gone' && this.absence === absence) absence.goneReported = false
+      if (this.absence === absence) {
+        if (event === 'left') absence.leftReported = false
+        else absence.goneReported = false
+      }
       this.deps.log('holder.event_failed', { event, error: message(err) })
     })
   }

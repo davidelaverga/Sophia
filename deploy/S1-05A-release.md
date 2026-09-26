@@ -38,6 +38,7 @@ Every line carries ids and codes only: no audio, transcripts, brief text, tokens
 - **Media bridge.** JSON lines of the form `{"at", "event", …}`.
   - `session.start` carries `exchangeId` and `roomId`.
   - Joining the room: `room.joined`, `room.connection` (with LiveKit's reason) and `session.lost`.
+  - `holder.absent`: the floor holder was reported absent, with `departed`. `true` means the bridge saw them in the room and then leave, and it pauses at once. `false` means they did not appear within 5 s of the bridge joining, rejoining or the floor passing to them.
   - Google: `provider.ready`, `provider.recover` (with Google's close reason), `session.unavailable` and `provider.usage`.
   - `assignment.changed`: the input, playback and observation epochs.
   - `tool.answered`: the name, the status, and the `workId`/`commandId` it started or a refusal `code`. Also `tool.dropped` and `tool.failed`.
@@ -82,6 +83,7 @@ LiveKit traces show the room. They do not show Google, the tool calls, the work,
 | `/ready` is 503 with `schema` | Migrations 0012–0014 are not applied |
 | Sophia never joins the room | Bridge `session.start`/`room.joined`/`session.unavailable`; API 401s on `/v1/media/*` (the bridge token and its hash differ); the LiveKit settings |
 | Sophia's voice reads unavailable or recovering | Bridge `provider.recover` reasons: the key, the model name, Google's close reason |
+| "Sophia paused: … is not in the room" when nobody left | Bridge `holder.absent` (`departed`) and `room.joined` (`people`), then the holder's join and leave times in the LiveKit trace |
 | Stop Speaking did not silence a reply, or a reply went missing after a stop | Bridge `audio.reply_fenced` and `assignment.changed` (the playback epoch) |
 | A brief stays queued | The task's reason in the Studio ("waiting for Sophia's runtime to connect / report ready / reconnect"); worker `deferred` lines; the runtime host's events |
 | A brief fails | The task's reason (`the native turn ended: …`); the runtime host's events; the model key |
