@@ -294,7 +294,11 @@ export class RoomSession {
         people: (people) => this.onPeople(people),
         audio: (identity, samples, rate, channels) => this.onAudio(identity, samples, rate, channels),
         frame: (identity, source, frame, at) => this.onFrame(identity, source, frame, at),
-        connection: (state, reason) => this.onRoomConnection(state, reason),
+        // Leaving the room reports LiveKit's own disconnect: after close() that is the leave itself, not a loss to
+        // recover from (it logged session.lost and made the bridge re-read its assignments at every end, CX-0062).
+        connection: (state, reason) => {
+          if (!this.isClosed()) this.onRoomConnection(state, reason)
+        },
       })
     } catch (err: unknown) {
       return this.joinFailed(`Sophia could not join the room: ${message(err)}`)
@@ -353,6 +357,7 @@ export class RoomSession {
 
   /** The exchange ended or moved away: leave the room and close Google. Work is untouched. */
   async close(): Promise<void> {
+    if (this.closed) return
     this.deps.log('session.close', { exchangeId: this.exchangeId, lost: this.lost })
     this.closed = true
     this.stopTicking?.()

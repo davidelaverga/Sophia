@@ -1250,6 +1250,17 @@ button.mark:hover {
   max-height: 100%;
   pointer-events: auto;
 }
+/*
+ * The lens panel hands that bound on to its lens. Without it the Converse lens grew to its full height inside the
+ * panel, never scrolled, and an opened brief ran under the dock and off the stage (CX-0061).
+ */
+.lens-body {
+  display: flex;
+  flex-direction: column;
+}
+.lens-body > * {
+  min-height: 0;
+}
 .composer {
   display: grid;
   gap: 8px;
@@ -1359,6 +1370,11 @@ button.mark:hover {
   gap: 6px;
   max-height: 40cqh;
   overflow: auto;
+}
+/* In the room the conversation is the one scroller: a brief nested in its own would be a window in a window. */
+.conversation .brief {
+  max-height: none;
+  overflow: visible;
 }
 .brief h4 {
   margin-top: 6px;

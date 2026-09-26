@@ -490,6 +490,24 @@ describe('room session: Sophia’s output (case A09)', () => {
     )
   })
 
+  it('a session that closes itself is not lost: its own disconnect is expected (CX-0062)', async () => {
+    const { session, room } = await ready()
+    const leave = room.close
+    // As rtc.ts does: leaving the room reports LiveKit's Disconnected, reason 1 (the client's own).
+    room.close = async () => {
+      room.events.connection('disconnected', 'livekit: 1')
+      await leave()
+    }
+    await session.close()
+    await session.close() // the bridge's stop and its assignment loop may both close a session
+    await flush()
+    assert.equal(session.lost, false)
+    assert.deepEqual(
+      logs.filter(([event]) => ['session.close', 'room.connection', 'session.lost'].includes(event)).map(([e]) => e),
+      ['session.close'],
+    )
+  })
+
   it('closing the session mid-reply logs what was cut', async () => {
     const { session, room, live } = await ready()
     room.holding = true

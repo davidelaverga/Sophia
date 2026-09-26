@@ -172,6 +172,24 @@ describe('work in progress', () => {
     )
   })
 
+  it('does not count a finished brief whose result waits for review (CX-0061)', () => {
+    // Capturing a brief's result moves its goal to `checking`; the task is result_ready. Nothing is running.
+    const finished = {
+      goals: [goal('g1', 'checking'), goal('g2', 'checking')],
+      work: [task('g1', 'result_ready'), task('g2', 'result_ready')],
+    }
+    assert.equal(runningWork(finished), 0)
+    assert.equal(roomLine('live', floorView(null, []), runningWork(finished)).note, null)
+    // A brief still running next to a finished one counts once.
+    assert.equal(
+      runningWork({
+        goals: [goal('g1', 'checking'), goal('g2', 'running')],
+        work: [task('g1', 'result_ready'), task('g2', 'running')],
+      }),
+      1,
+    )
+  })
+
   it('does not count finished or held work', () => {
     assert.equal(
       runningWork({ goals: [goal('g1', 'held')], work: [task('g1', 'held'), task('g2', 'result_ready')] }),

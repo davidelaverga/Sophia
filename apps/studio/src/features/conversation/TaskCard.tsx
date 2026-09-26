@@ -1,7 +1,7 @@
 // A native task (A05) as the team sees it: its observed phase, and once captured, the drafted brief with the model
 // that produced it. The brief is a candidate for review; Hold and Stop live on its goal (WorkControls).
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
@@ -57,10 +57,22 @@ function BriefDetail({
   return <BriefView result={detail.data.result} />
 }
 
+/**
+ * In the room a brief opens inside the conversation's short scrolling window, below the discussion: bring its start
+ * to the top of that window, scrolling nothing else (CX-0061). In the Work view there is no such window.
+ */
+function revealInConversation(el: HTMLElement | null): void {
+  const scroller = el?.closest<HTMLElement>('.conversation')
+  if (!el || !scroller) return
+  scroller.scrollTop += el.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+}
+
 function BriefView({ result }: { result: NonNullable<NativeTaskDetail['result']> }) {
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => revealInConversation(ref.current), [])
   const by = [result.provider, result.model].filter(Boolean).join(' / ') || 'a model the runtime did not name'
   return (
-    <article className="brief" aria-label="Drafted brief">
+    <article ref={ref} className="brief" aria-label="Drafted brief">
       <p className="brief-note">
         <Tag tone="lav">Candidate</Tag> Drafted by {by}. For the team to review; not an accepted plan.
       </p>
