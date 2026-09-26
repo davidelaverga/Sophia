@@ -458,6 +458,9 @@ export class RoomSession {
     this.room?.clearPlayback()
     this.framer.clear()
     this.playingUntil = 0
+    // The room hears nothing more of this reply, so it reads idle at once; the fence below drops whatever of the
+    // turn Google still sends.
+    this.responding = false
     if (!pending) return
     this.fence = { beginBy: this.deps.now() + STOPPED_REPLY_WAIT_MS, begun: pending === 'responding' }
     this.deps.log('audio.reply_fenced', { exchangeId: this.exchangeId, because: pending })
@@ -654,7 +657,7 @@ export class RoomSession {
       this.state.bumpGeneration()
       this.silence(null, 'recovered')
     }
-    this.endTurn()
+    this.endTurn(true)
     const delay = RECONNECT_DELAYS_MS[this.attempts]
     this.attempts += 1
     this.state.provider = delay === undefined ? 'unavailable' : 'recovering'
@@ -701,8 +704,10 @@ export class RoomSession {
     if (figures) this.deps.log('audio.reply', { exchangeId: this.exchangeId, ...figures })
   }
 
-  private endTurn(): void {
-    this.state.turnEnded()
+  /** The model turn ended; when the connection was lost instead, its speaker stands for a resumed repeat. */
+  private endTurn(connectionLost = false): void {
+    if (connectionLost) this.state.connectionLost()
+    else this.state.turnEnded()
     this.responding = false
     this.awaitingReply = false
     this.heardAt = null
@@ -714,7 +719,7 @@ export class RoomSession {
     const generation = this.state.currentGeneration()
     if (this.fence) {
       // The stopped reply is (still) arriving: drop it until its turn ends. One that never began in time is over.
-      if (this.fence.begun || this.deps.now() < this.fence.beginBy) {
+      if (this.fenced(this.deps.now())) {
         this.fence.begun = true
         return
       }
@@ -878,8 +883,13 @@ export class RoomSession {
    * hears belongs to whatever is sent now.
    */
   private silent(now: number): boolean {
-    if (this.responding || this.awaitingReply || this.notice !== null) return false
+    if (this.responding || this.awaitingReply || this.notice !== null || this.fenced(now)) return false
     return !this.playing(now)
+  }
+
+  /** A stopped turn is still arriving, or may still begin: whatever is sent now would be dropped with it. */
+  private fenced(now: number): boolean {
+    return this.fence !== null && (this.fence.begun || now < this.fence.beginBy)
   }
 
   /** Some of Sophia's audio is still queued here, or still in the room's 200 ms queue. */

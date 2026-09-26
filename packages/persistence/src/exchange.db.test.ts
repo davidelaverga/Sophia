@@ -113,10 +113,8 @@ async function ownerQuery(sql: string, params: unknown[]): Promise<void> {
   }
 }
 
-/** A project with a live exchange whose admitted guest asks for a room token: the quiesce request it opens. */
-async function guestAsksForToken() {
-  const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
-  const { exchangeId, roomId } = await open(E, projectId)
+/** An admitted guest of the project's room: the lobby entry they ask for a token with. */
+async function letGuestIn(projectId: string): Promise<string> {
   const hash = randomBytes(32)
   await withActor(pool, A, 'write', (c) =>
     createRoomInvitation(c, {
@@ -137,10 +135,25 @@ async function guestAsksForToken() {
   )
   const entry = await withActor(pool, G, 'write', (c) => knockRoom(c, hash, 'Guest'))
   await withActor(pool, E, 'write', (c) => decideLobbyEntry(c, entry.id, 'admit'))
-  const requestId = await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entry.id))
+  return entry.id
+}
+
+/** A project with a live exchange whose admitted guest asks for a room token: the quiesce request it opens. */
+async function guestAsksForToken() {
+  const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+  const { exchangeId, roomId } = await open(E, projectId)
+  const entryId = await letGuestIn(projectId)
+  const requestId = await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entryId))
   assert.ok(requestId)
   return { projectId, exchangeId, roomId, requestId }
 }
+
+/** The guest's token request happened long enough ago that they would be listed by now if they came. */
+const ageTokenRequests = (roomId: string) =>
+  ownerQuery(
+    `UPDATE sophia.room_lobby SET token_requested_at = token_requested_at - interval '121 seconds' WHERE room_id = $1`,
+    [roomId],
+  )
 
 describe('opening and controlling the exchange', () => {
   it('opens once per room for any member, gives a free floor to the opener, and retries idempotently', async () => {
@@ -248,6 +261,25 @@ describe('guests and a project-aware Sophia (case A12)', () => {
     assert.equal((await snapshotOf(A, projectId)).room.sophia.exchange, 'paused', 'a guest leaving does not resume her')
     const resumed = await control(E, exchangeId, 'resume')
     assert.deepEqual([resumed.state, resumed.inputEpoch], ['open', 2], 'resume is a new input generation')
+  })
+
+  it('a guest on their way in (token asked for, not yet listed) keeps Sophia from opening', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+    const entryId = await letGuestIn(projectId)
+    assert.equal(await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entryId)), null, 'nothing to pause')
+    assert.equal(await codeOf(open(E, projectId)), 'invalid_state', 'the token is minted; they connect any moment')
+    await ageTokenRequests((await room(projectId)).id)
+    const { exchangeId } = await open(E, projectId)
+    assert.ok(exchangeId, 'once they would be listed, the presence checks decide')
+  })
+
+  it('a guest on their way in keeps a guest pause from being resumed, though the room still reads member-only', async () => {
+    const { roomId, exchangeId } = await guestAsksForToken()
+    await present(roomId, exchangeId, [{ identity: E, standing: 'editor' }])
+    assert.equal(await codeOf(control(E, exchangeId, 'resume')), 'invalid_state')
+    await ageTokenRequests(roomId)
+    const resumed = await control(E, exchangeId, 'resume')
+    assert.equal(resumed.state, 'open')
   })
 
   it('opens a quiesce request when a guest asks for a token, and records the bridge’s acknowledgement', async () => {

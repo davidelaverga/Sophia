@@ -81,9 +81,10 @@ Codex's finding on the diagnostic's public output was fixed at `833221c`. Claude
 
 ## For review (Luis)
 
-- **Amendments A04–A07 and migrations 0012–0014**, all append-only. Two functions are replaced with `CREATE OR REPLACE`:
+- **Amendments A04–A07 and migrations 0012–0015**, all append-only. These functions are replaced with `CREATE OR REPLACE`:
   - `admit_goal_command`, for native bindings;
-  - `transfer_input_floor` and `decide_lobby_entry`, for the exchange epoch and the removal obligation.
+  - `transfer_input_floor` and `decide_lobby_entry`, for the exchange epoch and the removal obligation;
+  - in 0015, `request_guest_quiesce`, `start_exchange` and `control_exchange` (0013's own), so that a guest who has asked for a token but is not yet in the room keeps Sophia from opening or resuming for two minutes.
 - **Viewers publish and may hold the floor (A06).** Work still needs an editor. The expectations changed in `room.db.test.ts`, `rooms.db.test.ts` and `room-view.test.ts` are marked "Changed by amendment A06".
 - **Participants of unsigned standing count as guests** everywhere.
 - **Studio changes:**

@@ -503,6 +503,25 @@ describe('room session: Sophia’s output (case A09)', () => {
     })
   })
 
+  it('Stop Speaking mid-reply reads idle at once, and nothing is announced while the stopped turn arrives', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
+    const { session, live } = await ready({ results })
+    live.events.audio(speech(), OUT)
+    assert.equal(session.observed().output, 'responding')
+    session.update(assignment({ results, playbackEpoch: 2 }))
+    await flush()
+    clock += 1000
+    assert.equal(session.observed().output, 'idle', 'the room is not told she is still answering')
+    live.events.audio(speech(), OUT)
+    assert.equal(session.observed().output, 'idle', 'the rest of the stopped turn changes nothing')
+    clock += 20_000
+    session.tick()
+    assert.equal(live.notices.length, 0, 'a notice now would be dropped with the stopped turn')
+    live.events.turnComplete()
+    session.tick()
+    assert.equal(live.notices.length, 1)
+  })
+
   it('plays at 24 kHz and reports playing only once frames reached the room', async () => {
     const { session, room, live } = await ready()
     live.events.audio(speech(2), OUT)
@@ -674,6 +693,21 @@ describe('room session: tools (cases A10, A13)', () => {
       'the log ties the call to the work it started, without its text',
     )
     assert.equal(JSON.stringify(logs).includes('Draft the brief'), false)
+  })
+
+  it('a call after the turn ended, before the holder is heard again, is a question, never an action', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.audio(speech(), OUT)
+    live.events.turnComplete()
+    live.events.toolCalls([{ id: 'after-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    await flush()
+    assert.equal(service.calls.length, 0, 'not bound to the speaker of the turn that ended')
+    assert.equal(statusOf(live.responses[0]), 'clarify')
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'next-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    await flush()
+    assert.equal(service.calls[0]?.actorId, LUIS, 'heard again: the next turn is theirs')
   })
 
   it('an unattributed call is a question, never an action', async () => {

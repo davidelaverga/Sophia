@@ -81,8 +81,20 @@ export class ExchangeState {
     return { handoff, stopSpeaking, lookChanged: this.assignment.observationEpoch > prev.observationEpoch }
   }
 
-  /** The old holder's model turn ended (turnComplete or interrupted): a pending handoff takes effect now. */
+  /**
+   * The model turn ended (turnComplete or interrupted): a pending handoff takes effect now, and the turn's speaker
+   * with it. A call that comes before the holder is heard again answers no one's audio: it is unattributed.
+   */
   turnEnded(): void {
+    this.connectionLost()
+    this.turn = null
+  }
+
+  /**
+   * The provider connection dropped mid-turn: a pending handoff takes effect now, but the turn's speaker stands,
+   * since a resumed connection may repeat that turn's call (A14).
+   */
+  connectionLost(): void {
     this.settleUntil = 0
     this.forwardedSinceTurn = false
   }

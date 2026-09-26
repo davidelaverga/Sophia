@@ -410,6 +410,18 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       const r = await owner.query<{ g: boolean }>('SELECT guests_present AS g FROM sophia.room_ai_presence')
       return r.rows[0]?.g === false
     })
+    // Changed by migration 0015: a token asked for in the last two minutes may still be connecting, so the room
+    // reading member-only is not enough yet.
+    const early = await call(`/api/v1/exchanges/${exchangeId}/resume`, {
+      at: presentBase,
+      bearer: await token(E),
+      body: {},
+    })
+    assert.equal(early.status, 409, 'not while a guest who just asked for a token may still connect')
+    await owner.query(
+      `UPDATE sophia.room_lobby SET token_requested_at = token_requested_at - interval '121 seconds' WHERE id = $1`,
+      [entry.id],
+    )
     const resumed = await call(`/api/v1/exchanges/${exchangeId}/resume`, {
       at: presentBase,
       bearer: await token(E),
@@ -497,7 +509,14 @@ describe('holder departure through the real API (S1-05A §7)', () => {
     const snap = await snapshot()
     const exchangeId = snap.room.sophia.exchangeId
     assert.ok(exchangeId)
-    await call(`/api/v1/exchanges/${exchangeId}/resume`, { at: presentBase, bearer: await token(E), body: {} })
+    // Changed by migration 0015: the guests of the tests above asked for tokens seconds ago; let that pass first.
+    await owner.query(`UPDATE sophia.room_lobby SET token_requested_at = token_requested_at - interval '121 seconds'`)
+    const resumed = await call(`/api/v1/exchanges/${exchangeId}/resume`, {
+      at: presentBase,
+      bearer: await token(E),
+      body: {},
+    })
+    assert.equal(resumed.status, 200)
     rooms.length = 0
     lives.length = 0
     bridge = new MediaBridge({

@@ -102,6 +102,20 @@ describe('exchange state: floor handoff (case A10)', () => {
     assert.throws(() => ready().update(base({ exchangeId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }), 0))
   })
 
+  it('a turn that ended takes its speaker with it; a lost connection does not', () => {
+    const s = ready()
+    s.forwarded()
+    s.turnEnded()
+    assert.equal(s.attribution(), null, 'a call after the turn ended answers no one’s audio')
+    s.forwarded()
+    s.connectionLost()
+    assert.deepEqual(
+      s.attribution(),
+      { inputEpoch: 1, actorId: LUIS },
+      'a resumed connection may repeat the turn’s call',
+    )
+  })
+
   it('a system turn (a result notice) is unattributed until the holder is heard again', () => {
     const s = ready()
     s.forwarded()
