@@ -8,9 +8,9 @@ This covers the five processes that make Sophia's room voice and her briefs work
 |---|---|---|---|---|
 | API | Render web service `sophia-next-api` | `node apps/api/src/server.ts` | See the note below this table | `GET /health` means the process is alive. `GET /ready` means the database role is safe and the functions from migrations 0009–0014 exist |
 | Studio | Vercel `sophia-studio` | `vite build` in `apps/studio` | `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | The room page loads and the snapshot request returns 200 |
-| Worker | Always-on background process | `node apps/worker/src/server.ts` | `SOPHIA_WORKER_DATABASE_URL`, a login granted `sophia_worker`; `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Logs `[sophia-worker] runtime dispatch started` |
-| Media bridge | Always-on background process, **one instance** | `node apps/media-bridge/src/server.ts` | `SOPHIA_SERVICE_URL`, `SOPHIA_MEDIA_BRIDGE_TOKEN`, `GEMINI_API_KEY`, `SOPHIA_LIVE_MODEL` (`gemini-3.8-live`), `NODE_ENV=production`, optional `SOPHIA_BRIDGE_INSTANCE` | Logs a banner, then `session.start` per exchange. The room shows Sophia's voice state |
-| Runtime host | Always-on process with a durable disk | `pnpm build && pnpm artifacts` (Node exactly 24.21.0), then `node scripts/runtime-host.mjs --root <disk>/<projectId>` | `SOPHIA_SERVICE_URL`, `SOPHIA_RUNTIME_TOKEN`, `OPENAI_API_KEY` (the model route: `openai/gpt-6-luna`, high) | The Studio's runtime resource reads online. Its JSON events report ready |
+| Worker | Render background worker `sophia-next-worker` | `node apps/worker/src/server.ts` | `SOPHIA_WORKER_DATABASE_URL`, a login granted `sophia_worker`; `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Logs `[sophia-worker] runtime dispatch started` |
+| Media bridge | Render background worker `sophia-next-bridge`, **one instance** | `node apps/media-bridge/src/server.ts` | `SOPHIA_SERVICE_URL`, `SOPHIA_MEDIA_BRIDGE_TOKEN`, `GEMINI_API_KEY`, `SOPHIA_LIVE_MODEL` (`gemini-3.8-live`), `NODE_ENV=production`, optional `SOPHIA_BRIDGE_INSTANCE` | Logs a banner, then `session.start` per exchange. The room shows Sophia's voice state |
+| Runtime host | Render background worker `sophia-next-runtime` with a 1 GB disk at `/var/data` | `pnpm build && pnpm artifacts` (Node exactly 24.21.0), then `PATH="$PWD/.render-tools/node_modules/.bin:$PATH" node scripts/runtime-host.mjs --root /var/data/sophia/<projectId>` | `SOPHIA_SERVICE_URL`, `SOPHIA_RUNTIME_TOKEN`, `OPENAI_API_KEY` (the model route: `openai/gpt-6-luna`, high) | The Studio's runtime resource reads online. Its JSON events report ready |
 
 **API settings.** Required at start:
 - `SOPHIA_API_DATABASE_URL`: a login granted `sophia_api`, over the session pooler with `verify-full`.
@@ -21,6 +21,13 @@ This covers the five processes that make Sophia's room voice and her briefs work
 - `HOST=0.0.0.0` on Render. The default binds to localhost.
 
 Optional: `INVITE_TOKEN_SECRET`, `STUDIO_URL`, `RESEND_API_KEY` and `INVITE_FROM`, for invitations. `RESEND_API_KEY` without `INVITE_FROM` logs a warning at start and turns invitation emails off; invitations still carry their link and QR code.
+
+**On Render** (as released in OP-0002; see [CC-0012](../docs/coordination/S1-05A/S1-05A-CC-0012.md) and [CC-0013](../docs/coordination/S1-05A/S1-05A-CC-0013.md)):
+- **Builds pin pnpm themselves.** Render ignores `packageManager`, and the runtime host checks `pnpm --version` at every start. Each build therefore starts with `npm install --no-save --no-audit --no-fund --prefix .render-tools pnpm@11.7.0 && export PATH="$PWD/.render-tools/node_modules/.bin:$PATH"`, and the runtime host's start command puts the same folder on `PATH`. Every service sets `NODE_VERSION=24.21.0`.
+- **The API runs on a free instance.** It sleeps when idle; the first request after a sleep can take longer than 15 s. The bridge and runtime host reach it at its **public** URL (`SOPHIA_SERVICE_URL`, the same value as Studio's `VITE_API_URL`), and their long polls keep it awake.
+- **Database URLs name the CA by its repository-relative path,** `sslrootcert=deploy/supabase/prod-ca-2021.crt`. `pg` resolves it from the working directory, which is the repository root on Render.
+- **`SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256` is the capability's hash, never the capability.** Both are 64 lowercase hex, so check the value by equality. Uppercase stops the API at start.
+- **Studio has no Git connection on Vercel.** Build at the exact commit with `pnpm --filter @sophia/studio build` and the Production `VITE_` values. Then upload `apps/studio/dist` with `vercel deploy … --prod --meta commit=<sha>`; `vercel.json` travels inside `dist`.
 
 **Before the API runs this candidate**, the hosted database needs migrations 0012–0014. Apply them with the owner connection: `SOPHIA_MIGRATION_DATABASE_URL=… pnpm db:migrate -- --dry-run`, then again without `--dry-run`. `scripts/register-runtime.ts <projectId> <adminEmail>` registers the runtime and prints its capability once.
 
