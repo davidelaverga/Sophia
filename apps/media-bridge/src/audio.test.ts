@@ -13,6 +13,7 @@ import {
   OutputFramer,
   pcmRate,
   pcmToBase64,
+  ReplyAudio,
 } from './audio.ts'
 
 const ramp = (n: number, from = 0) => Int16Array.from({ length: n }, (_, i) => ((from + i) % 32767) - 16000)
@@ -74,6 +75,91 @@ describe('audio framing', () => {
     assert.equal(f.queued, OUTPUT_BACKLOG_FRAMES)
     assert.equal(f.dropped, 3)
     assert.deepEqual(f.next(1)?.slice(0, 2), ramp(OUTPUT_FRAME).slice(0, 2), 'the reply still starts at its start')
+    f.clear()
+    assert.equal(f.next(1), undefined, 'a clear leaves nothing to play')
+  })
+
+  it('once a turn overflows, the rest of it is refused whole, not let through in holes as the queue drains', () => {
+    const f = new OutputFramer()
+    f.push(ramp(OUTPUT_FRAME * (OUTPUT_BACKLOG_FRAMES + 1)), 1)
+    assert.equal(f.dropped, 1)
+    f.next(1)
+    f.next(1)
+    f.push(ramp(OUTPUT_FRAME * 2), 1)
+    assert.equal(f.queued, OUTPUT_BACKLOG_FRAMES - 2, 'room freed by playback does not take the rest of that turn')
+    assert.equal(f.dropped, 3)
+    f.flush(1)
+    f.push(ramp(OUTPUT_FRAME), 1)
+    assert.equal(f.queued, OUTPUT_BACKLOG_FRAMES - 1, 'the next turn is queued again')
+    f.push(ramp(OUTPUT_FRAME * 2), 1)
+    assert.equal(f.dropped, 4, 'and refused again once the backlog is full')
+    f.next(1)
+    f.push(ramp(OUTPUT_FRAME), 2)
+    assert.equal(f.queued, OUTPUT_BACKLOG_FRAMES, 'a new generation is a new reply')
+  })
+
+  it('at a turn’s end, queues its last partial frame padded with silence, and splices nothing onto the next', () => {
+    const f = new OutputFramer()
+    f.push(new Int16Array(OUTPUT_FRAME + 10).fill(7), 1)
+    assert.equal(f.queued, 1)
+    assert.equal(f.flush(1), true)
+    assert.equal(f.flush(1), false, 'nothing left to flush')
+    f.next(1)
+    const last = f.next(1)
+    assert.deepEqual(
+      [last?.length, last?.[9], last?.[10], last?.[OUTPUT_FRAME - 1]],
+      [OUTPUT_FRAME, 7, 0, 0],
+      'the tail, then silence',
+    )
+    f.push(new Int16Array(OUTPUT_FRAME).fill(9), 1)
+    assert.equal(f.next(1)?.[0], 9, 'the next reply starts with its own audio')
+    f.push(new Int16Array(10).fill(7), 1)
+    assert.equal(f.flush(2), false, 'a tail of a generation since cut is not played')
+    assert.equal(f.queued, 0)
+  })
+
+  it('tallies one reply’s continuity: received, played, dropped and cleared, in ms, once', () => {
+    const r = new ReplyAudio()
+    assert.equal(r.end('played', 0, 0), null, 'no audio, no line')
+    r.received(OUTPUT_FRAME * 3, 3, 5, 1000)
+    r.received(OUTPUT_FRAME + 240, 4, 5, 1040)
+    r.played()
+    r.played()
+    assert.equal(r.complete, false)
+    r.generated()
+    assert.equal(r.complete, true)
+    assert.deepEqual(r.end('stopped', 2, 6), {
+      ended: 'stopped',
+      turns: 1,
+      receivedMs: 90,
+      arrivalMs: 40,
+      playedMs: 40,
+      droppedMs: 20,
+      clearedMs: 40,
+      maxQueuedMs: 80,
+    })
+    assert.equal(r.end('played', 0, 6), null, 'logged once')
+  })
+
+  it('a turn that begins before the last one played out joins its reply, which is complete only when both are', () => {
+    const r = new ReplyAudio()
+    r.received(OUTPUT_FRAME, 1, 0, 1000)
+    r.generated()
+    r.received(OUTPUT_FRAME, 2, 0, 1500)
+    assert.equal(r.complete, false, 'the second turn has not ended')
+    r.played()
+    r.played()
+    r.generated()
+    assert.deepEqual(r.end('played', 0, 0), {
+      ended: 'played',
+      turns: 2,
+      receivedMs: 40,
+      arrivalMs: 500,
+      playedMs: 40,
+      droppedMs: 0,
+      clearedMs: 0,
+      maxQueuedMs: 40,
+    })
   })
 
   it('tells sound Google may answer from a quiet room by its RMS level', () => {

@@ -8,7 +8,7 @@ import { beforeEach, describe, it } from 'node:test'
 import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
-import { HOLDER_ARRIVAL_MS, HOLDER_GRACE_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
+import { HOLDER_ARRIVAL_MS, HOLDER_GRACE_MS, HOLDER_RETRY_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
 import type { MediaService } from './service.ts'
 
@@ -182,6 +182,9 @@ const OUT = 'audio/pcm;rate=24000'
 const marked = (first: number, frames: number) =>
   pcmToBase64(Int16Array.from({ length: OUTPUT_FRAME * frames }, (_, j) => first + Math.floor(j / OUTPUT_FRAME) + 1))
 const replyLog = () => logs.find(([event]) => event === 'audio.reply')?.[1]
+const replyEnds = () => logs.filter(([event]) => event === 'audio.reply').map(([, fields]) => fields.ended)
+const pick = (fields: Record<string, unknown> | undefined, ...keys: string[]) =>
+  Object.fromEntries(keys.map((k) => [k, fields?.[k]]))
 
 let clock: number
 let service: FakeService
@@ -307,6 +310,43 @@ describe('room session: who Google hears (cases A10, A11)', () => {
     await flush()
     assert.equal(room.played.length, played, 'the rest of the cancelled turn is dropped')
   })
+
+  it('a handoff cuts what is still playing of the old holder’s finished reply once it settles', async () => {
+    const { session, room, live } = await ready()
+    room.holding = true
+    // Google streamed the whole 10 s reply and ended its turn: nothing is pending, but most of it is still to play.
+    for (let i = 0; i < 500; i += 2) live.events.audio(marked(i, 2), OUT)
+    live.events.turnComplete()
+    await room.release(10)
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE }))
+    session.tick()
+    const clears = room.clears
+    clock += SETTLE_MS - 1
+    session.tick()
+    assert.equal(room.clears, clears, 'it plays on while the handoff settles')
+    clock += 1
+    session.tick()
+    assert.equal(room.clears, clears + 1, 'and not over the new holder')
+    await room.release(20)
+    assert.ok(room.played.length <= 11, 'at most the frame already handed to the room plays after the cut')
+    assert.deepEqual(pick(replyLog(), 'ended', 'playedMs', 'clearedMs'), {
+      ended: 'stopped',
+      playedMs: 200,
+      clearedMs: (500 - 10 - 1) * 20,
+    })
+  })
+
+  it('a handoff whose old turn ends before the next tick still cuts what of it is left to play', async () => {
+    const { session, room, live } = await ready()
+    room.holding = true
+    for (let i = 0; i < 500; i += 2) live.events.audio(marked(i, 2), OUT)
+    await room.release(10)
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE }))
+    live.events.turnComplete()
+    const clears = room.clears
+    session.tick()
+    assert.equal(room.clears, clears + 1)
+  })
 })
 
 describe('room session: Sophia’s output (case A09)', () => {
@@ -333,6 +373,7 @@ describe('room session: Sophia’s output (case A09)', () => {
       {
         exchangeId: EXCHANGE,
         ended: 'played',
+        turns: 1,
         receivedMs: 10_000,
         arrivalMs: 0,
         playedMs: 10_000,
@@ -354,12 +395,111 @@ describe('room session: Sophia’s output (case A09)', () => {
     assert.deepEqual(replyLog(), {
       exchangeId: EXCHANGE,
       ended: 'stopped',
+      turns: 1,
       receivedMs: 10_000,
       arrivalMs: 0,
       playedMs: 200,
       droppedMs: 0,
       clearedMs: (500 - 10 - 1) * 20,
       maxQueuedMs: (500 - 1) * 20,
+    })
+  })
+
+  it('the holder talking over a finished reply that is still playing cuts the rest of it, as barge-in would', async () => {
+    const { room, live } = await ready()
+    room.holding = true
+    for (let i = 0; i < 500; i += 2) live.events.audio(marked(i, 2), OUT)
+    live.events.turnComplete()
+    await room.release(10)
+    const clears = room.clears
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(room.clears, clears, 'sound alone does not cut her')
+    live.events.inputTranscript('wait, one thing', false)
+    assert.equal(room.clears, clears + 1, 'words over her reply cut it at once: Google sends no interrupted now')
+    await room.release(20)
+    assert.ok(room.played.length <= 11)
+    assert.deepEqual(pick(replyLog(), 'ended', 'playedMs'), { ended: 'interrupted', playedMs: 200 })
+    room.holding = false
+    const played = room.played.length
+    live.events.audio(speech(2), OUT)
+    await flush()
+    await flush()
+    assert.equal(room.played.length, played + 2, 'the answer to what they said plays')
+  })
+
+  it('a transcript that arrives after the turn ended, with no sound from the holder since, cuts nothing', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    room.holding = true
+    for (let i = 0; i < 50; i += 2) live.events.audio(marked(i, 2), OUT)
+    live.events.turnComplete()
+    const clears = room.clears
+    live.events.inputTranscript('what is the status', true)
+    await room.release(50)
+    assert.equal(room.clears, clears)
+    assert.equal(room.played.length, 50)
+    assert.equal(replyLog()?.ended, 'played')
+  })
+
+  it('a turn that starts before the last one played out is logged with it, once both have played', async () => {
+    const { room, live } = await ready()
+    room.holding = true
+    live.events.audio(marked(0, 4), OUT)
+    live.events.turnComplete()
+    live.events.audio(marked(4, 2), OUT)
+    await room.release(6)
+    assert.deepEqual(
+      room.played.map((f) => f[0]),
+      [1, 2, 3, 4, 5, 6],
+    )
+    assert.equal(replyLog(), undefined, 'the second turn has not ended: nothing is logged early')
+    live.events.turnComplete()
+    assert.deepEqual(replyLog(), {
+      exchangeId: EXCHANGE,
+      ended: 'played',
+      turns: 2,
+      receivedMs: 120,
+      arrivalMs: 0,
+      playedMs: 120,
+      droppedMs: 0,
+      clearedMs: 0,
+      maxQueuedMs: 100,
+    })
+  })
+
+  it('a reply’s last partial frame plays, padded with silence, and nothing of it reaches the next reply', async () => {
+    const { room, live } = await ready()
+    live.events.audio(pcmToBase64(new Int16Array(OUTPUT_FRAME * 2 + 240).fill(300)), OUT)
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    assert.equal(room.played.length, 3)
+    assert.deepEqual([room.played[2]?.[239], room.played[2]?.[240]], [300, 0])
+    assert.deepEqual(pick(replyLog(), 'ended', 'receivedMs', 'playedMs'), {
+      ended: 'played',
+      receivedMs: 50,
+      playedMs: 60,
+    })
+    live.events.audio(marked(100, 1), OUT)
+    await flush()
+    await flush()
+    assert.deepEqual(
+      [room.played.length, room.played[3]?.[0]],
+      [4, 101],
+      'the next reply starts with its own first sample',
+    )
+  })
+
+  it('closing the session mid-reply logs what was cut', async () => {
+    const { session, room, live } = await ready()
+    room.holding = true
+    live.events.audio(marked(0, 10), OUT)
+    await room.release(2)
+    await session.close()
+    assert.deepEqual(pick(replyLog(), 'ended', 'playedMs', 'clearedMs'), {
+      ended: 'closed',
+      playedMs: 40,
+      clearedMs: 140,
     })
   })
 
@@ -618,6 +758,29 @@ describe('room session: provider recovery (case A14)', () => {
     live.events.toolCalls([{ id: 'stale', name: 'project_status', args: {} }])
     await flush()
     assert.equal(service.calls.length, 0, 'events of the old connection are ignored')
+  })
+
+  it('a reconnect lets a reply Google finished play out, and cuts one it was still sending', async () => {
+    const { session, room, live } = await ready()
+    room.holding = true
+    for (let i = 0; i < 100; i += 2) live.events.audio(marked(i, 2), OUT)
+    live.events.turnComplete()
+    await room.release(10)
+    const clears = room.clears
+    live.events.goAway('10s')
+    assert.equal(room.clears, clears, 'the finished reply is already here')
+    await room.release(100)
+    assert.equal(room.played.length, 100)
+    clock += 1000
+    session.tick()
+    await flush()
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    next.events.audio(speech(4), OUT)
+    next.events.goAway('10s')
+    assert.equal(room.clears, clears + 1, 'a reply cut off mid-turn stops')
+    assert.deepEqual(replyEnds(), ['played', 'recovered'])
   })
 
   it('a call Google repeats on a resumed connection keeps its identity, so the API admits it once', async () => {
@@ -911,12 +1074,17 @@ describe('room session: holder departure (S1-05A §7)', () => {
     assert.deepEqual(service.holders, [])
   })
 
-  it('a left the API did not record is sent again, once', async () => {
+  it('a left the API did not record is sent again after a wait, once', async () => {
     const { session, room } = await ready()
     service.holderFailures = 1
     room.join([member(DAVIDE)])
     await flush()
     assert.equal(service.holders.length, 0, 'the first attempt failed')
+    clock += HOLDER_RETRY_MS - 1
+    session.tick()
+    await flush()
+    assert.equal(service.holders.length, 0, 'not again on every tick')
+    clock += 1
     session.tick()
     await flush()
     session.tick()
@@ -924,6 +1092,55 @@ describe('room session: holder departure (S1-05A §7)', () => {
     assert.deepEqual(
       service.holders.map((h) => h.event),
       ['left'],
+    )
+  })
+
+  it('a flapping room link neither repeats a reported left nor puts off the gone', async () => {
+    const { session, room } = await ready()
+    room.join([member(DAVIDE)])
+    for (let i = 0; i < 5; i += 1) {
+      room.events.connection('reconnecting', null)
+      clock += 500
+      session.tick()
+      room.events.connection('connected', null)
+      clock += 500
+      session.tick()
+    }
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => h.event),
+      ['left', 'gone'],
+    )
+  })
+
+  it('a holder still awaited when the link blips is not judged on the time the bridge could not see', async () => {
+    const { session, room } = await ready({}, [member(DAVIDE)])
+    clock += HOLDER_ARRIVAL_MS - 1000
+    room.events.connection('reconnecting', null)
+    clock += 500
+    room.events.connection('connected', null)
+    clock += 999
+    session.tick()
+    await flush()
+    assert.equal(service.holders.length, 0, 'the half second the link was down does not count')
+    clock += 1
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => h.event),
+      ['left'],
+      'but a flapping link does not put it off for good',
+    )
+  })
+
+  it('a new holder in the room at the handoff who then leaves is paused at once, not waited for', async () => {
+    const { session, room } = await ready()
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE }))
+    room.join([member(LUIS)])
+    await flush()
+    assert.deepEqual(
+      service.holders.map((h) => [h.event, h.actorId, h.inputEpoch]),
+      [['left', DAVIDE, 2]],
     )
   })
 })

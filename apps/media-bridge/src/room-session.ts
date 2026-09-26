@@ -5,12 +5,16 @@
 //    the room and the provider is ready. A handoff ends the old holder's audio stream and settles (or cancels)
 //    the model turn before the new holder is heard.
 //  - Stop Speaking and barge-in move the playback generation: queued output is cleared at the AudioSource, and
-//    the rest of an interrupted model turn is dropped. Neither touches background work.
+//    the rest of an interrupted model turn is dropped. Neither touches background work. Google streams a reply
+//    faster than it plays and sends no barge-in for a turn it has finished, so the holder talking over a reply
+//    that is still playing is a barge-in the bridge applies itself, and a handoff cuts whatever of the old
+//    holder's reply is still playing once it settles.
 //  - A tool call acts for the holder whose audio the turn answered (the API binds it to that input epoch); an
 //    unattributed call, or one arriving while paused, is answered with a question and never executed. A call
 //    from an older connection is never answered on a newer one.
-//  - GoAway or a lost connection: stale output stops, the latest resumption handle is used once the new
-//    connection is ready; a handle that fails is dropped and the next connection starts cold.
+//  - GoAway or a lost connection: a reply cut off mid-turn stops (one Google finished plays out), the latest
+//    resumption handle is used once the new connection is ready; a handle that fails is dropped and the next
+//    connection starts cold.
 //  - The room's state (what the bridge observes, never content) is reported to the API and set as the `sophia`
 //    participant's attributes, so the room's light shows what is actually happening.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
@@ -65,6 +69,8 @@ export const HOLDER_GRACE_MS = 5000
  * have just joined or rejoined, or the floor may have passed to someone still arriving (CX-0044).
  */
 export const HOLDER_ARRIVAL_MS = 5000
+/** A holder event the API did not take is sent again after this wait. */
+export const HOLDER_RETRY_MS = 2000
 /** How long after the last frame handed to the AudioSource the room still hears Sophia (its 200 ms queue). */
 const PLAYING_TAIL_MS = 250
 const RECONNECT_DELAYS_MS = [250, 1000, 2000, 4000, 8000]
@@ -162,6 +168,8 @@ interface HolderAbsence extends HolderRef {
   leftAt: number
   leftReported: boolean
   goneReported: boolean
+  /** A report failed: the next is not sent before this. */
+  retryAt: number
 }
 
 const sameHolder = (ref: HolderRef | null, actorId: string, inputEpoch: number) =>
@@ -191,6 +199,8 @@ export class RoomSession {
   private closed = false
   /** The room connection is down: nobody is heard or played to, and presence is not reported (it is unknown). */
   private roomDown = false
+  /** When the room connection went down, while it is down. */
+  private downAt: number | null = null
   /** LiveKit gave up on the room: the bridge replaces this session. */
   lost = false
   private people: RoomPerson[] = []
@@ -337,6 +347,7 @@ export class RoomSession {
     }
     this.applyPause()
     this.ackQuiesce()
+    this.checkHolder()
     this.reportDirty = true
   }
 
@@ -345,6 +356,8 @@ export class RoomSession {
     this.deps.log('session.close', { exchangeId: this.exchangeId, lost: this.lost })
     this.closed = true
     this.stopTicking?.()
+    this.logReply('closed')
+    this.framer.clear()
     this.connection += 1
     this.live?.close()
     this.live = null
@@ -381,9 +394,19 @@ export class RoomSession {
   private onRoomConnection(state: 'connected' | 'reconnecting' | 'disconnected', reason: string | null): void {
     this.deps.log('room.connection', { exchangeId: this.exchangeId, state, reason })
     // Until the room is back its presence is unknown: treat it as not member-only, locally (no report), and judge
-    // no holder's absence; once back, a holder not yet seen again gets the arrival grace.
+    // no holder's absence. Once back, a holder not yet seen again gets the arrival grace. A holder still awaited
+    // gets it for the time the link was up (the time it was down does not count against them); an absence already
+    // reported keeps its grace running, so a flapping link cannot hold the floor for someone who is gone.
+    const now = this.deps.now()
     this.roomDown = state !== 'connected'
-    if (this.roomDown) this.holderSeen = null
+    if (this.roomDown) {
+      this.holderSeen = null
+      this.downAt ??= now
+    } else if (this.downAt !== null) {
+      const absence = this.absence
+      if (absence && !absence.departed && !absence.leftReported) absence.leftAt += now - this.downAt
+      this.downAt = null
+    }
     this.onPeople(this.room?.people() ?? [])
     if (state === 'disconnected' && !this.lost) {
       this.lost = true
@@ -414,11 +437,15 @@ export class RoomSession {
     this.sampler.offer({ ...frame, capturedAt, observationEpoch: epoch })
   }
 
-  /** Nothing of the old holder reaches Google after the epoch moved: end their stream, drop what is buffered. */
+  /**
+   * Nothing of the old holder reaches Google after the epoch moved: end their stream, drop what is buffered. The
+   * settle starts now, so its end is acted on even if the old turn ends before the next tick.
+   */
   private handoff(): void {
     this.chunker.clear()
     this.live?.sendAudioStreamEnd()
     this.absence = null
+    if (this.state.input(this.deps.now()) === 'settling') this.wasSettling = true
   }
 
   /**
@@ -492,7 +519,8 @@ export class RoomSession {
   private checkHolder(): void {
     const actorId = this.assignment.inputActorId
     const inputEpoch = this.assignment.inputEpoch
-    if (!this.room || this.roomDown || !actorId) return void (this.absence = null)
+    if (!this.room || !actorId) return void (this.absence = null)
+    if (this.roomDown) return
     if (this.people.some((p) => p.identity === actorId)) {
       this.holderSeen = { actorId, inputEpoch }
       this.absence = null
@@ -502,33 +530,32 @@ export class RoomSession {
     if (!this.absence || !sameHolder(this.absence, actorId, inputEpoch)) {
       const departed = sameHolder(this.holderSeen, actorId, inputEpoch)
       const leftAt = departed ? now : now + HOLDER_ARRIVAL_MS
-      this.absence = { actorId, inputEpoch, departed, leftAt, leftReported: false, goneReported: false }
+      this.absence = { actorId, inputEpoch, departed, leftAt, leftReported: false, goneReported: false, retryAt: 0 }
     }
     this.reportAbsence(this.absence, now)
   }
 
   private reportAbsence(absence: HolderAbsence, now: number): void {
+    if (now < absence.retryAt) return
     if (!absence.leftReported) {
       if (now < absence.leftAt) return
       absence.leftReported = true
       const { departed, inputEpoch } = absence
       this.deps.log('holder.absent', { exchangeId: this.exchangeId, inputEpoch, departed, people: this.people.length })
-      this.holderEvent('left')
+      this.holderEvent(absence, 'left')
     } else if (!absence.goneReported && now - absence.leftAt >= HOLDER_GRACE_MS) {
       absence.goneReported = true
-      this.holderEvent('gone')
+      this.holderEvent(absence, 'gone')
     }
   }
 
-  private holderEvent(event: 'left' | 'gone'): void {
-    const absence = this.absence
-    if (!absence) return
+  /** Report the absence to the API; one it did not take is sent again after HOLDER_RETRY_MS. */
+  private holderEvent(absence: HolderAbsence, event: 'left' | 'gone'): void {
     const body = { exchangeId: this.exchangeId, actorId: absence.actorId, inputEpoch: absence.inputEpoch, event }
     this.deps.service.holder(body).catch((err: unknown) => {
-      if (this.absence === absence) {
-        if (event === 'left') absence.leftReported = false
-        else absence.goneReported = false
-      }
+      if (event === 'left') absence.leftReported = false
+      else absence.goneReported = false
+      absence.retryAt = this.deps.now() + HOLDER_RETRY_MS
       this.deps.log('holder.event_failed', { event, error: message(err) })
     })
   }
@@ -582,7 +609,7 @@ export class RoomSession {
       },
       // Transcripts are not retained or published (S1-05A A05: only under a test's explicit scope).
       inputTranscript: (text) => {
-        if (current() && text.trim()) this.awaitingReply = true
+        if (current() && text.trim()) this.wordsHeard()
       },
       outputTranscript: () => undefined,
       generationComplete: () => undefined,
@@ -622,8 +649,11 @@ export class RoomSession {
     // A handle that failed twice in a row before the connection was ready is dropped: the next start is cold.
     if (failedBeforeReady && this.attempts >= 1) this.handle = null
     this.chunker.clear()
-    this.state.bumpGeneration()
-    this.silence(null, 'recovered')
+    // A reply cut off mid-turn stops; one Google finished is already here and plays out.
+    if (this.responding) {
+      this.state.bumpGeneration()
+      this.silence(null, 'recovered')
+    }
     this.endTurn()
     const delay = RECONNECT_DELAYS_MS[this.attempts]
     this.attempts += 1
@@ -640,7 +670,22 @@ export class RoomSession {
     this.endTurn()
   }
 
+  /**
+   * Google transcribed the holder's words. If they made sound after Sophia's turn ended and her finished reply is
+   * still playing, they are talking over it: Google sends no `interrupted` for a turn it has ended, so the bridge
+   * cuts the rest itself, as Google's barge-in would. A reply to the words may now be on its way.
+   */
+  private wordsHeard(): void {
+    const now = this.deps.now()
+    if (!this.responding && this.heardAt !== null && this.playing(now)) {
+      this.state.bumpGeneration()
+      this.silence(null, 'interrupted')
+    }
+    this.awaitingReply = true
+  }
+
   private turnComplete(): void {
+    if (this.framer.flush(this.state.currentGeneration())) void this.pump()
     this.reply.generated()
     this.endTurn()
     this.replyDrained()
@@ -686,8 +731,9 @@ export class RoomSession {
       throw err
     }
     this.responding = true
+    const droppedBefore = this.framer.dropped
     this.framer.push(samples, generation)
-    this.reply.received(samples.length, this.framer.queued, this.framer.dropped, this.deps.now())
+    this.reply.received(samples.length, this.framer.queued, droppedBefore, this.deps.now())
     void this.pump()
   }
 
@@ -782,11 +828,14 @@ export class RoomSession {
     this.publish(now)
   }
 
-  /** A handoff that timed out while the old holder's turn was still speaking cancels that turn's output. */
+  /**
+   * A handoff has settled: nothing of the old holder's reply plays over the new holder. A turn still on its way is
+   * cut (the settle timed out), and so is the rest of a finished reply still playing, which Google streamed ahead.
+   */
   private settled(now: number): void {
     const settling = this.state.input(now) === 'settling'
     const pending = this.pendingReply(now)
-    if (this.wasSettling && !settling && pending) {
+    if (this.wasSettling && !settling && (pending || this.playing(now))) {
       this.state.bumpGeneration()
       this.silence(pending, 'stopped')
     }
@@ -830,7 +879,12 @@ export class RoomSession {
    */
   private silent(now: number): boolean {
     if (this.responding || this.awaitingReply || this.notice !== null) return false
-    return this.playingUntil <= now && !this.pumping && this.framer.queued === 0
+    return !this.playing(now)
+  }
+
+  /** Some of Sophia's audio is still queued here, or still in the room's 200 ms queue. */
+  private playing(now: number): boolean {
+    return this.playingUntil > now || this.pumping || this.framer.queued > 0
   }
 
   /** A frame reached the room while a notice waited: the room heard it, so it is announced, durably. */

@@ -89,7 +89,7 @@ describe('Sophia in the room', () => {
     const guest = sophiaView(presence({ exchange: 'paused', pauseReason: 'guest' }), signal(), ctx())
     assert.deepEqual([guest.light, guest.label], ['rest', 'Sophia is paused while a guest is here'])
     const left = sophiaView(presence({ exchange: 'paused', pauseReason: 'holder_left' }), signal(), ctx())
-    assert.equal(left.label, 'Sophia paused: Luis is not in the room')
+    assert.equal(left.label, 'Sophia paused: Luis was not in the room')
     assert.equal(sophiaView(presence(), signal({ input: 'paused' }), ctx()).light, 'rest', 'the bridge paused locally')
   })
 

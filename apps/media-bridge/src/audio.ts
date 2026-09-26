@@ -16,12 +16,12 @@ export const OUTPUT_FRAME = 480
 /**
  * How much of Sophia's speech may wait for the room: three minutes. Google streams a reply faster than it plays, so
  * the whole of a long reply has to fit (CX-0045: a 2 s bound dropped the middle of every longer reply). Beyond it
- * the newest frames are refused and counted: a reply that long loses its end, never its middle. Stop Speaking and
+ * the rest of that turn is refused and counted: a reply that long loses its end, never its middle. Stop Speaking and
  * barge-in still clear everything queued at once.
  */
 export const OUTPUT_BACKLOG_FRAMES = 9000
-const OUTPUT_FRAME_MS = 20
 const OUTPUT_SAMPLES_PER_MS = OUTPUT_RATE / 1000
+const OUTPUT_FRAME_MS = OUTPUT_FRAME / OUTPUT_SAMPLES_PER_MS
 
 export class FormatError extends Error {}
 
@@ -102,6 +102,11 @@ export interface OutputFrame {
 export class OutputFramer {
   private readonly queue: OutputFrame[] = []
   private carry: { generation: number; samples: Int16Array } = { generation: 0, samples: new Int16Array(0) }
+  /**
+   * The generation whose turn overflowed the backlog: the rest of that turn is refused whole, so a reply too long to
+   * hold loses its end cleanly instead of playing with holes as the queue drains and refills.
+   */
+  private refusing: number | null = null
   /** Frames refused because the backlog was full (never for a generation change, which is intended). */
   dropped = 0
 
@@ -111,12 +116,36 @@ export class OutputFramer {
     all.set(this.carry.samples)
     all.set(samples, this.carry.samples.length)
     let at = 0
-    for (; at + OUTPUT_FRAME <= all.length; at += OUTPUT_FRAME) {
-      if (this.queue.length < OUTPUT_BACKLOG_FRAMES)
-        this.queue.push({ generation, samples: all.slice(at, at + OUTPUT_FRAME) })
-      else this.dropped += 1
-    }
+    for (; at + OUTPUT_FRAME <= all.length; at += OUTPUT_FRAME)
+      this.enqueue(all.slice(at, at + OUTPUT_FRAME), generation)
     this.carry.samples = all.slice(at)
+  }
+
+  /**
+   * The model's turn ended: its last partial frame is padded with silence and queued, so nothing of it is held back
+   * or spliced onto the next reply. The next turn may fill the backlog again. True when a frame was queued.
+   */
+  flush(generation: number): boolean {
+    const rest = this.carry.generation === generation ? this.carry.samples : new Int16Array(0)
+    this.carry = { generation, samples: new Int16Array(0) }
+    let queued = false
+    if (rest.length > 0) {
+      const frame = new Int16Array(OUTPUT_FRAME)
+      frame.set(rest)
+      queued = this.enqueue(frame, generation)
+    }
+    this.refusing = null
+    return queued
+  }
+
+  private enqueue(samples: Int16Array, generation: number): boolean {
+    if (this.refusing !== generation && this.queue.length < OUTPUT_BACKLOG_FRAMES) {
+      this.queue.push({ generation, samples })
+      return true
+    }
+    this.refusing = generation
+    this.dropped += 1
+    return false
   }
 
   /** The next frame of `generation`; frames of any other generation are discarded on the way. */
@@ -132,6 +161,7 @@ export class OutputFramer {
   clear(): void {
     this.queue.length = 0
     this.carry = { generation: 0, samples: new Int16Array(0) }
+    this.refusing = null
   }
 
   get queued(): number {
@@ -139,12 +169,17 @@ export class OutputFramer {
   }
 }
 
-/** Why a reply's audio ended: it all played, or it was cut (Stop Speaking, a pause, a handoff, barge-in, a reconnect). */
-export type ReplyEnd = 'played' | 'stopped' | 'interrupted' | 'recovered'
+/**
+ * Why a reply's audio ended: it all played, or it was cut (Stop Speaking, a pause, a handoff, barge-in, a reconnect
+ * mid-reply) or its session closed.
+ */
+export type ReplyEnd = 'played' | 'stopped' | 'interrupted' | 'recovered' | 'closed'
 
 interface ReplyTally {
   startedAt: number
   lastAt: number
+  /** Model turns whose audio this play-out carried: more than one when a turn began before the last one had played. */
+  turns: number
   receivedSamples: number
   playedFrames: number
   droppedBefore: number
@@ -154,24 +189,31 @@ interface ReplyTally {
 
 /**
  * The continuity of one reply's audio, content-free (CX-0045): how much arrived and over how long, how much played,
- * how much was refused for backlog or cleared by a cut, and the deepest the queue got. Durations in ms.
+ * how much was refused for backlog or cleared by a cut, and the deepest the queue got. Durations in ms. A reply runs
+ * from its first audio until the queue has played out after its turn ended; a turn that begins before then joins it.
  */
 export class ReplyAudio {
   private reply: ReplyTally | null = null
 
-  received(samples: number, queued: number, droppedTotal: number, now: number): void {
-    this.reply ??= {
+  /** A chunk of the reply was queued; `droppedBefore` is the framer's drop count before this chunk. */
+  received(samples: number, queued: number, droppedBefore: number, now: number): void {
+    const r = (this.reply ??= {
       startedAt: now,
       lastAt: now,
+      turns: 1,
       receivedSamples: 0,
       playedFrames: 0,
-      droppedBefore: droppedTotal,
+      droppedBefore,
       maxQueued: 0,
       generated: false,
+    })
+    if (r.generated) {
+      r.generated = false
+      r.turns += 1
     }
-    this.reply.receivedSamples += samples
-    this.reply.lastAt = now
-    this.reply.maxQueued = Math.max(this.reply.maxQueued, queued)
+    r.receivedSamples += samples
+    r.lastAt = now
+    r.maxQueued = Math.max(r.maxQueued, queued)
   }
 
   played(): void {
@@ -183,17 +225,22 @@ export class ReplyAudio {
     if (this.reply) this.reply.generated = true
   }
 
+  /** Every turn of the reply has ended: once the queue is empty, it has played out. */
   get complete(): boolean {
     return this.reply?.generated ?? false
   }
 
-  /** The reply's figures, once: null when no audio arrived since the last end. */
+  /**
+   * The reply's figures, once: null when no audio arrived since the last end. A whole reply plays at least what it
+   * received: its last frame is padded to 20 ms.
+   */
   end(how: ReplyEnd, queued: number, droppedTotal: number): Record<string, unknown> | null {
     const r = this.reply
     this.reply = null
     if (!r) return null
     return {
       ended: how,
+      turns: r.turns,
       receivedMs: Math.round(r.receivedSamples / OUTPUT_SAMPLES_PER_MS),
       arrivalMs: r.lastAt - r.startedAt,
       playedMs: r.playedFrames * OUTPUT_FRAME_MS,
