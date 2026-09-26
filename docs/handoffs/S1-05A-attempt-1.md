@@ -114,7 +114,7 @@ Its inputs are already fixed by this branch:
 | `0015_guest_joining.sql` | `07eff40148b861705e3e6bf4e44975ff40934af5ec2321a22b0d5b007800712c` |
 | `0016_review_fences.sql` | `3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c` |
 
-0012–0014 were applied in OP-0002 (E1). 0015 and 0016 came after the release, from Codex's reviews, and apply on their own (0015 in OP-0007; 0016 in a later request).
+0012–0014 were applied in OP-0002 (E1). 0015 and 0016 came after the release, from Codex's reviews. Both were applied in OP-0007 revision 4, together with the API at `2d59884` (CX-0052).
 
 The effects it will name, in order:
 

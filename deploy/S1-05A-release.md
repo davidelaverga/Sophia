@@ -29,7 +29,7 @@ Optional: `INVITE_TOKEN_SECRET`, `STUDIO_URL`, `RESEND_API_KEY` and `INVITE_FROM
 - **`SOPHIA_MEDIA_BRIDGE_TOKEN_SHA256` is the capability's hash, never the capability.** Both are 64 lowercase hex, so check the value by equality. Uppercase stops the API at start.
 - **Studio has no Git connection on Vercel.** Build at the exact commit with `pnpm --filter @sophia/studio build` and the Production `VITE_` values. Then upload `apps/studio/dist` with `vercel deploy … --prod --meta commit=<sha>`; `vercel.json` travels inside `dist`.
 
-**Before the API runs this candidate**, the hosted database needs migrations 0012–0016 (0012–0014 were applied in OP-0002; 0015 and 0016 apply on their own, and the API at `ce8bb8f` runs unchanged on both). Apply them with the owner connection: `SOPHIA_MIGRATION_DATABASE_URL=… pnpm db:migrate -- --dry-run`, then again without `--dry-run`. `scripts/register-runtime.ts <projectId> <adminEmail>` registers the runtime and prints its capability once.
+**Before the API runs this candidate**, the hosted database needs migrations 0012–0016. In production all five are applied: 0012–0014 in OP-0002, and 0015 and 0016 in OP-0007 revision 4, before the API moved to `2d59884` (CX-0052). The API at `ce8bb8f` also runs unchanged on both. Apply them with the owner connection: `SOPHIA_MIGRATION_DATABASE_URL=… pnpm db:migrate -- --dry-run`, then again without `--dry-run`. `scripts/register-runtime.ts <projectId> <adminEmail>` registers the runtime and prints its capability once.
 
 ## What each process records
 
