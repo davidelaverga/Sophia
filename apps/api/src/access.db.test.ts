@@ -168,8 +168,8 @@ describe('guest invitations', () => {
       await owner.query(`CREATE FUNCTION sophia.test_decline_now() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN NEW.status := 'denied'; RETURN NEW; END $$`)
       await owner.query(
-        `CREATE TRIGGER test_decline_now BEFORE UPDATE OF token_requested_at ON sophia.room_lobby FOR EACH ROW
-         WHEN (NEW.id = '${knocked.id}') EXECUTE FUNCTION sophia.test_decline_now()`,
+        `CREATE TRIGGER test_decline_now BEFORE UPDATE OF guest_token_at ON sophia.room_lobby FOR EACH ROW
+         WHEN (NEW.id = '${knocked.id}' AND OLD.guest_token_at IS NULL) EXECUTE FUNCTION sophia.test_decline_now()`,
       )
       const res = await call(`/api/v1/lobby/${knocked.id}/room-token`, { bearer: guest })
       assert.equal(res.status, 409, 'declined before the mint: no token')

@@ -18,6 +18,7 @@ export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.t
 export {
   acceptRoomInvitation,
   authorizeGuestJoin,
+  guestTokenMinting,
   cancelRoomSession,
   createRoomInvitation,
   decideLobbyEntry,

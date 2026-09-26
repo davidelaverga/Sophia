@@ -2,23 +2,43 @@
 -- * A guest's room token is minted after the quiesce check, and they connect to LiveKit seconds later. Until LiveKit
 --   lists them, neither the API's presence check nor the bridge's report can see them, so an exchange opened, or a
 --   pause resumed, in that gap was never quiesced for them: only the bridge's own pause on their arrival guarded it.
--- * A token request is now recorded in the transaction that quiesces any live exchange, under the project lock that
---   opening and resuming also take. For ten minutes after it, the lifetime of the room token it leads to
---   (ROOM_TOKEN_TTL_SECONDS in the API), opening and resuming refuse, as they do for a guest who is present: until the
---   token expires, its holder may connect at any moment.
+-- * A guest's token is stamped twice, each time under the project lock that opening and resuming also take:
+--   - when they ask for it, in the transaction that quiesces any live exchange (request_guest_quiesce), which covers
+--     the seconds the API may wait before minting;
+--   - just before the API mints it, when their admission is checked again (guest_token_minting), so the fence lasts
+--     as long as the token does, however long that wait was (Codex, CX-0047).
+-- * For GUEST_FENCE (630 s) after the latest stamp, opening and resuming refuse, as they do for a guest who is present:
+--   until the token expires, its holder may connect at any moment. That is the token's 600 s from its mint
+--   (ROOM_TOKEN_TTL_SECONDS in the API), plus 30 s for the step from the stamp to the mint and for clock differences
+--   between the database, the API and LiveKit.
 -- * The contract is unchanged: the refusal is the same invalid_state a present guest gets.
 -- 0001–0014 are not edited; request_guest_quiesce, start_exchange and control_exchange (0013) are replaced.
 BEGIN;
 
-ALTER TABLE sophia.room_lobby ADD COLUMN token_requested_at timestamptz;
+-- When this guest last asked for a room token, or was about to be given one.
+ALTER TABLE sophia.room_lobby ADD COLUMN guest_token_at timestamptz;
 
--- A guest asked for a token to this room within a token's lifetime (ROOM_TOKEN_TTL_SECONDS, ten minutes): they may
--- connect at any moment.
+-- A guest of this room may still hold a live token: one was stamped within GUEST_FENCE (630 s).
 CREATE FUNCTION sophia.guest_joining(p_room uuid) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
- SELECT EXISTS(SELECT 1 FROM sophia.room_lobby WHERE room_id=p_room AND token_requested_at>now()-interval '10 minutes') $$;
+ SELECT EXISTS(SELECT 1 FROM sophia.room_lobby WHERE room_id=p_room AND guest_token_at>now()-interval '630 seconds') $$;
 REVOKE ALL ON FUNCTION sophia.guest_joining(uuid) FROM PUBLIC;
 
--- request_guest_quiesce (0013), replaced: the same, and the request is recorded.
+-- The API is about to mint a guest's room token: their admission is checked again under the project lock (a decline
+-- is either seen here or comes after the stamp, where the removal watch takes over), and the fence is stamped now.
+CREATE FUNCTION sophia.guest_token_minting(p_entry uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE e sophia.room_lobby;
+BEGIN
+ SELECT * INTO e FROM sophia.room_lobby WHERE id=p_entry AND actor_id=sophia.actor_id();
+ IF NOT FOUND THEN RAISE EXCEPTION 'Lobby entry not found' USING ERRCODE='22023'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=e.project_id FOR UPDATE;
+ UPDATE sophia.room_lobby SET guest_token_at=now() WHERE id=e.id RETURNING * INTO e;
+ IF e.status<>'admitted' THEN RAISE EXCEPTION 'Not admitted to the room' USING ERRCODE='40001'; END IF;
+ RETURN jsonb_build_object('roomId',e.room_id,'displayName',e.display_name);
+END $$;
+REVOKE ALL ON FUNCTION sophia.guest_token_minting(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.guest_token_minting(uuid) TO sophia_api;
+
+-- request_guest_quiesce (0013), replaced: the same, and the request is stamped.
 CREATE OR REPLACE FUNCTION sophia.request_guest_quiesce(p_entry uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE entry sophia.room_lobby; e sophia.room_exchanges; req uuid;
 BEGIN
@@ -26,7 +46,7 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Lobby entry not found' USING ERRCODE='22023'; END IF;
  IF entry.status<>'admitted' THEN RAISE EXCEPTION 'Not admitted to the room' USING ERRCODE='40001'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=entry.project_id FOR UPDATE;
- UPDATE sophia.room_lobby SET token_requested_at=now() WHERE id=entry.id;
+ UPDATE sophia.room_lobby SET guest_token_at=now() WHERE id=entry.id;
  SELECT * INTO e FROM sophia.room_exchanges WHERE room_id=entry.room_id AND state<>'ended' FOR UPDATE;
  IF NOT FOUND THEN RETURN jsonb_build_object('requestId',NULL); END IF;
  IF e.state='open' OR e.pause_reason<>'guest' THEN

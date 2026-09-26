@@ -17,6 +17,7 @@ import { DomainError } from '@sophia/domain'
 import {
   acceptRoomInvitation,
   authorizeGuestJoin,
+  guestTokenMinting,
   cancelRoomSession,
   createRoomInvitation,
   decideLobbyEntry,
@@ -319,16 +320,15 @@ function lobbyRoutes(app: FastifyInstance, deps: AccessDeps): void {
     { schema: { params: entryParams, response: { 200: ref('RoomToken') } } },
     async (req) => {
       if (!deps.livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
-      const authorize = () =>
-        withActor(deps.pool, req.actorId, 'read', (c) => authorizeGuestJoin(c, req.params.entryId))
-      let access = await authorize()
+      const admitted = await withActor(deps.pool, req.actorId, 'read', (c) => authorizeGuestJoin(c, req.params.entryId))
       const quiesce = await withActor(deps.pool, req.actorId, 'write', (c) =>
         requestGuestQuiesce(c, req.params.entryId),
       )
-      if (quiesce) await awaitQuiescence(deps, quiesce, access.roomId)
-      // An editor may have declined or blocked the guest since the first check (during the wait, or just after the
-      // quiesce committed): authorize again immediately before the token is minted, on every path.
-      access = await authorize()
+      if (quiesce) await awaitQuiescence(deps, quiesce, admitted.roomId)
+      // Immediately before the mint, on every path: the admission is checked again (an editor may have declined the
+      // guest during the wait, or just after the quiesce committed), and the guest fence is stamped, so it lasts as
+      // long as this token does.
+      const access = await withActor(deps.pool, req.actorId, 'write', (c) => guestTokenMinting(c, req.params.entryId))
       return issueRoomToken(deps.livekit, {
         roomId: access.roomId,
         identity: req.actorId,

@@ -12,6 +12,7 @@ import {
   createPool,
   createRoomInvitation,
   decideLobbyEntry,
+  guestTokenMinting,
   holderEvent,
   knockRoom,
   mediaAssignments,
@@ -148,10 +149,13 @@ async function guestAsksForToken() {
   return { projectId, exchangeId, roomId, requestId }
 }
 
-/** Moves the room's token requests `seconds` back, as the owner. A guest token lives 600 s (ROOM_TOKEN_TTL_SECONDS). */
+/**
+ * Moves the room's guest token stamps `seconds` back, as the owner. The fence lasts 630 s: a token's 600 s from its
+ * mint (ROOM_TOKEN_TTL_SECONDS) and 30 s for the step to the mint and clock differences.
+ */
 const ageTokenRequests = (roomId: string, seconds: number) =>
   ownerQuery(
-    `UPDATE sophia.room_lobby SET token_requested_at = token_requested_at - make_interval(secs => $2) WHERE room_id = $1`,
+    `UPDATE sophia.room_lobby SET guest_token_at = guest_token_at - make_interval(secs => $2) WHERE room_id = $1`,
     [roomId, seconds],
   )
 
@@ -269,22 +273,42 @@ describe('guests and a project-aware Sophia (case A12)', () => {
     assert.equal(await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entryId)), null, 'nothing to pause')
     assert.equal(await codeOf(open(E, projectId)), 'invalid_state', 'the token is minted; they connect any moment')
     const roomId = (await room(projectId)).id
-    await ageTokenRequests(roomId, 590)
+    await ageTokenRequests(roomId, 625)
     assert.equal(
       await codeOf(open(E, projectId)),
       'invalid_state',
       'nor late in the token’s life: it still admits them',
     )
-    await ageTokenRequests(roomId, 11)
+    await ageTokenRequests(roomId, 6)
     const { exchangeId } = await open(E, projectId)
     assert.ok(exchangeId, 'once the token has expired, the presence checks decide')
+  })
+
+  it('the mint stamps the fence again, so it lasts from the token’s mint however long the wait before it (CX-0047)', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+    const entryId = await letGuestIn(projectId)
+    await withActor(pool, G, 'write', (c) => requestGuestQuiesce(c, entryId))
+    const roomId = (await room(projectId)).id
+    // The API waited a long time between the request and the mint: the request's own stamp has run out.
+    await ageTokenRequests(roomId, 631)
+    await withActor(pool, G, 'write', (c) => guestTokenMinting(c, entryId))
+    assert.equal(await codeOf(open(E, projectId)), 'invalid_state', 'the token minted now is live for 600 s')
+    await ageTokenRequests(roomId, 631)
+    await withActor(pool, E, 'write', (c) => decideLobbyEntry(c, entryId, 'deny'))
+    assert.equal(
+      await codeOf(withActor(pool, G, 'write', (c) => guestTokenMinting(c, entryId))),
+      'invalid_state',
+      'a declined guest gets no token',
+    )
+    const { exchangeId } = await open(E, projectId)
+    assert.ok(exchangeId, 'and a refused mint stamps nothing')
   })
 
   it('a guest on their way in keeps a guest pause from being resumed, though the room still reads member-only', async () => {
     const { roomId, exchangeId } = await guestAsksForToken()
     await present(roomId, exchangeId, [{ identity: E, standing: 'editor' }])
     assert.equal(await codeOf(control(E, exchangeId, 'resume')), 'invalid_state')
-    await ageTokenRequests(roomId, 601)
+    await ageTokenRequests(roomId, 631)
     const resumed = await control(E, exchangeId, 'resume')
     assert.equal(resumed.state, 'open')
   })

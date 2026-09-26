@@ -205,6 +205,21 @@ export async function authorizeGuestJoin(
   return onlyRow(rows, 'authorize_guest_join').access
 }
 
+/**
+ * The same, just before the token is minted: the admission is checked again under the project lock, and the guest
+ * fence is stamped now, so it lasts as long as the token (migration 0015).
+ */
+export async function guestTokenMinting(
+  c: pg.PoolClient,
+  entryId: string,
+): Promise<{ roomId: string; displayName: string }> {
+  const { rows } = await c.query<{ access: { roomId: string; displayName: string } }>(
+    `SELECT sophia.guest_token_minting($1) AS access`,
+    [entryId],
+  )
+  return onlyRow(rows, 'guest_token_minting').access
+}
+
 /** The person a member invitation was sent to (their verified email) joins the project. */
 export async function acceptRoomInvitation(
   c: pg.PoolClient,

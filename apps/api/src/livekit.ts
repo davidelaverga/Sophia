@@ -13,6 +13,11 @@ export interface LiveKitConfig {
 
 /** Long enough to join and reconnect; a new token is requested for each join. */
 export const ROOM_TOKEN_TTL_SECONDS = 600
+/**
+ * How long the database keeps Sophia from opening or resuming after a guest's token is stamped, just before its mint
+ * (migration 0015's `630 seconds`): the token's life, plus 30 s for the step to the mint and clock differences.
+ */
+export const GUEST_FENCE_SECONDS = ROOM_TOKEN_TTL_SECONDS + 30
 
 /** Who a participant is in the room, as everyone else's client reads it: a member's role, a guest, or Sophia. */
 export type RoomStanding = { role: 'admin' | 'editor' | 'viewer' } | { guest: true } | { sophia: true }
