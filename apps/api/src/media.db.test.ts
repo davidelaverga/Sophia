@@ -615,7 +615,13 @@ describe('taking a declined guest out of the call (amendment A07)', () => {
     assert.equal(again.status, 409, 'no new token after the decision')
 
     // The worker retries once the backoff passes, and only the server's evidence settles it.
-    await owner.query(`UPDATE sophia.room_removals SET next_attempt_at = now() WHERE lobby_entry_id = $1`, [entry.id])
+    // Only this removal is due. The guest declined in an earlier test has a pending removal of its own, due 2 s after
+    // its failed first attempt; on a slow run it would join this pass.
+    await owner.query(
+      `UPDATE sophia.room_removals
+          SET next_attempt_at = CASE WHEN lobby_entry_id = $1 THEN now() ELSE now() + interval '1 hour' END`,
+      [entry.id],
+    )
     const workerPool = createPool(db.workerUrl, { max: 1 })
     try {
       const asked: string[] = []
