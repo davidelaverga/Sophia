@@ -89,6 +89,7 @@ export const SUMMARY: Record<string, string> = {
   'room.exchange_resume': 'Sophia resumed',
   'room.exchange_guest': 'Sophia paused for a guest',
   'room.exchange_holder_left': 'Sophia paused: the speaker was not in the room',
+  'room.exchange_empty': 'Sophia left: nobody was in the room',
   'room.input_floor_released': 'Input to Sophia released',
   'project.member': 'Member joined',
 }

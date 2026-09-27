@@ -157,8 +157,10 @@ const SECTIONS: readonly Section[] = [
                        (SELECT count(*) FROM jsonb_array_elements(participants))::int AS participants,
                        (SELECT count(*) FROM jsonb_array_elements(participants) p
                          WHERE p->>'standing' IN ('guest','unknown'))::int AS guest_like,
-                       reported_at, extract(epoch FROM now() - reported_at) AS age_seconds
-                  FROM sophia.room_ai_presence ${scope()}`,
+                       reported_at, extract(epoch FROM now() - reported_at) AS age_seconds,
+                       -- 0017's empty-room count; read through the row so a schema before 0017 still answers.
+                       extract(epoch FROM now() - (to_jsonb(pr)->>'empty_since')::timestamptz) AS empty_seconds
+                  FROM sophia.room_ai_presence pr ${scope()}`,
     schema: {
       project_id: 'id',
       room_id: 'id',
@@ -171,6 +173,7 @@ const SECTIONS: readonly Section[] = [
       guest_like: 'int',
       reported_at: 'time',
       age_seconds: 'seconds',
+      empty_seconds: 'seconds',
     },
   },
   {

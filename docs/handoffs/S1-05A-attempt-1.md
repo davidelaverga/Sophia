@@ -81,11 +81,12 @@ Codex's finding on the diagnostic's public output was fixed at `833221c`. Claude
 
 ## For review (Luis)
 
-- **Amendments A04–A07 and migrations 0012–0016**, all append-only. These functions are replaced with `CREATE OR REPLACE`:
+- **Amendments A04–A07 and migrations 0012–0017**, all append-only. These functions are replaced with `CREATE OR REPLACE`:
   - `admit_goal_command`, for native bindings;
   - `transfer_input_floor` and `decide_lobby_entry`, for the exchange epoch and the removal obligation;
   - in 0015, `request_guest_quiesce`, `start_exchange` and `control_exchange` (0013's own), so that a guest who has asked for a token but is not yet in the room keeps Sophia from opening or resuming until that token has expired: 630 s from the stamp made just before its mint (`guest_token_minting`, new);
   - in 0016 (Codex's review of `aba31d5`), `capture_native_result`, `runtime_record_receipts`, `runtime_poll`, `compile_brief_manifest`, `admit_native_task` (0012's) and `decide_lobby_entry` (0014's). A result is captured only under the goal's current authority; the command poll reads the queue under the instance row's lock; a manifest carries only eligible decisions, as dependencies; a removal watches for 630 s.
+  - in 0017 (Davide's production test, CX-0062), `media_report_presence` (0013's). The presence row records since when the bridge has seen nobody in the room (`empty_since`, new). After five minutes of that, the exchange it reported for ends as End would, by the service (`ended_by` null). Its work carries on.
 - **Viewers publish and may hold the floor (A06).** Work still needs an editor. The expectations changed in `room.db.test.ts`, `rooms.db.test.ts` and `room-view.test.ts` are marked "Changed by amendment A06".
 - **Participants of unsigned standing count as guests** everywhere.
 - **Studio changes:**
@@ -113,8 +114,9 @@ Its inputs are already fixed by this branch:
 | `0014_room_removals.sql` | `55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2` |
 | `0015_guest_joining.sql` | `07eff40148b861705e3e6bf4e44975ff40934af5ec2321a22b0d5b007800712c` |
 | `0016_review_fences.sql` | `3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c` |
+| `0017_empty_room.sql` | `0d0b929f8648ee26281799b9de3cf4f89a4b109e0733912bdeffd67d83ba2742` |
 
-0012–0014 were applied in OP-0002 (E1). 0015 and 0016 came after the release, from Codex's reviews. Both were applied in OP-0007 revision 4, together with the API at `2d59884` (CX-0052).
+0012–0014 were applied in OP-0002 (E1). 0015 and 0016 came after the release, from Codex's reviews. Both were applied in OP-0007 revision 4, together with the API at `2d59884` (CX-0052). 0017 came from Davide's production test (CX-0062) and is not applied yet.
 
 The effects it will name, in order:
 

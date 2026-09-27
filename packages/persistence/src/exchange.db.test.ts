@@ -372,6 +372,84 @@ describe('guests and a project-aware Sophia (case A12)', () => {
   })
 })
 
+describe('an exchange in an empty room (CX-0062)', () => {
+  const exchangeRow = async (exchangeId: string) => {
+    const c = new pg.Client({ connectionString: db.ownerUrl })
+    await c.connect()
+    try {
+      const { rows } = await c.query<{ state: string; ended_by: string | null; empty_since: Date | null }>(
+        `SELECT e.state, e.ended_by, p.empty_since FROM sophia.room_exchanges e
+           LEFT JOIN sophia.room_ai_presence p ON p.room_id=e.room_id WHERE e.id=$1`,
+        [exchangeId],
+      )
+      return rows[0]!
+    } finally {
+      await c.end()
+    }
+  }
+  const emptyFor = (roomId: string, age: string) =>
+    ownerQuery(`UPDATE sophia.room_ai_presence SET empty_since=now()-$2::interval WHERE room_id=$1`, [roomId, age])
+
+  it('ends once the bridge has seen nobody in the room for five minutes; anyone present starts the count again', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A })
+    const { exchangeId } = await open(A, projectId)
+    const r = await room(projectId)
+    await present(r.id, exchangeId, []) // everyone left without pressing End
+    assert.ok((await exchangeRow(exchangeId)).empty_since, 'the count starts at the first empty report')
+    await emptyFor(r.id, '4 minutes 50 seconds')
+    await present(r.id, exchangeId, [])
+    assert.equal((await exchangeRow(exchangeId)).state, 'open', 'not before five minutes')
+
+    await present(r.id, exchangeId, [{ identity: A, standing: 'admin' }]) // back in time
+    assert.equal((await exchangeRow(exchangeId)).empty_since, null)
+
+    await present(r.id, exchangeId, [])
+    await emptyFor(r.id, '5 minutes')
+    await present(r.id, exchangeId, [])
+    const ended = await exchangeRow(exchangeId)
+    assert.deepEqual(
+      [ended.state, ended.ended_by],
+      ['ended', null],
+      'ended by the service, as End would, work untouched',
+    )
+    const events = await withActor(pool, A, 'read', (c) =>
+      c.query<{ summary_code: string }>(
+        `SELECT summary_code FROM sophia.project_events WHERE project_id=$1 AND entity_id=$2 ORDER BY sequence DESC LIMIT 1`,
+        [projectId, exchangeId],
+      ),
+    )
+    assert.equal(events.rows[0]?.summary_code, 'room.exchange_empty')
+    assert.ok((await open(A, projectId)).exchangeId, 'she can be asked in again')
+  })
+
+  it('a report for another exchange, or a room with only a guest, does not end the live one', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A })
+    const { exchangeId } = await open(A, projectId)
+    const r = await room(projectId)
+    const stale = randomUUID() // a stale bridge still reporting an exchange that is not this room's live one
+    await present(r.id, stale, [])
+    await emptyFor(r.id, '10 minutes')
+    await present(r.id, stale, [])
+    assert.equal((await exchangeRow(exchangeId)).state, 'open')
+    await present(r.id, exchangeId, [{ identity: G, standing: 'guest' }])
+    await emptyFor(r.id, '10 minutes')
+    await present(r.id, exchangeId, [{ identity: G, standing: 'guest' }])
+    assert.equal((await exchangeRow(exchangeId)).state, 'paused', 'a guest is someone: the guest rule pauses instead')
+  })
+
+  it('a new exchange starts its own count, whatever the last one had reached', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A })
+    const first = await open(A, projectId)
+    const r = await room(projectId)
+    await present(r.id, first.exchangeId, [])
+    await emptyFor(r.id, '10 minutes')
+    await control(A, first.exchangeId, 'end') // ended by hand before the bridge reported again
+    const second = await open(A, projectId)
+    await present(r.id, second.exchangeId, [])
+    assert.equal((await exchangeRow(second.exchangeId)).state, 'open', 'Sophia was just asked in')
+  })
+})
+
 describe('the media bridge is a service, not a member', () => {
   it('refuses a bridge call that carries a member identity', async () => {
     assert.equal(await codeOf(withActor(pool, A, 'read', (c) => mediaAssignments(c))), 'forbidden')

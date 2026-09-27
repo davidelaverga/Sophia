@@ -151,7 +151,17 @@ export const EVENT_TYPES = [
 ]
 
 const COMMAND_KINDS = ['steer', 'request_review', 'hold', 'stop', 'resume', 'native_task', 'create', 'input', 'inspect']
-const EXCHANGE_CHANGES = ['opened', 'end', 'stop_speaking', 'look', 'stop_looking', 'resume', 'guest', 'holder_left']
+const EXCHANGE_CHANGES = [
+  'opened',
+  'end',
+  'stop_speaking',
+  'look',
+  'stop_looking',
+  'resume',
+  'guest',
+  'holder_left',
+  'empty',
+]
 const LOBBY_CHANGES = ['knock', 'admit', 'deny', 'block', 'unblock']
 const TASK_SUMMARIES = ['draft_brief', 'waiting', 'running', 'result_ready', 'denied', 'rejected', 'failed']
 const TASK_ENDINGS = ['outcome_unknown', 'error', 'max-tokens', 'blocked']
