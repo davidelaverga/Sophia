@@ -85,7 +85,15 @@ That is a gap in the reviewed history, not a known defect. B1 narrows it with th
 | **P1:** the Supabase CLI ran through `npx`, outside the frozen lockfile (AGENTS.md) | A locked root devDependency (`supabase@2.117.0`), run with `pnpm exec`. Only `workspace_lock_sha256` moves in `config/runtime-unit.json`. Verified with `pnpm supabase:local` (17 migrations) and `pnpm test:supabase` (3/3) |
 | **P2:** the worker could not stop while its first `LISTEN` was being retried, so a SIGTERM never reached `pool.end()` | The first wait races a stop signal, and `stop()` ends the listener's retries before awaiting the loop. `apps/worker/src/runtime-dispatch.test.ts` fails with the fix reverted ("not settled within 500 ms") |
 
-The worker fix is source only. The live worker stays at `2d59884` until a later release.
+**A second Codex review on #15, requested by Davide, on `e683751`.** One finding, confirmed and fixed in the commit that records this:
+
+| Finding | Fix |
+|---|---|
+| **P1:** the runtime bridge sent up to 500 retained observations per request, and each can carry 120,000 characters. After an outage, a batch could exceed the API's 8 MiB body limit, and the same 413 would repeat forever, holding back every later observation | The retained queue moves to `packages/dsh-bundle/src/retained-queue.ts`. Each batch is bounded by 500 items and 4 MiB of JSON, with at least one item. `tests/unit/retained-queue.test.mjs` sends a backlog of 120 maximum-size messages through an API that rejects bodies over 8 MiB, and it arrives in order. With the old batching it fails. The bundle's recorded identities are re-recorded (archive and artifact digest, and the profile lock), and every identity reproduces |
+
+A timing-dependent A07 removal test also failed once in CI on `e683751`: an earlier test's pending removal became due during a slow run. It is fixed at `09ad221` (`test:db` 147/147).
+
+The worker and bundle fixes are source only. The live worker and runtime host stay at `2d59884` until a later release. The runtime host's release carries the new bundle identity.
 
 ## 4. Checks
 

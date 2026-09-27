@@ -87,9 +87,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "85ed72827dbd87ab0ac3a599289ac06c82a4048a7bfcde2538def834b8debbc3",
-    "archive_integrity": "sha512-M77JKf3COrHAG5KRw14AYSZrrBhhKNsIeU8rinXeMDhjaYgumEk67gj4uUimSSRi1b614+Ubwi/g0wZ1IprZzQ==",
-    "artifact_digest": "sha256:85ed72827dbd87ab0ac3a599289ac06c82a4048a7bfcde2538def834b8debbc3",
+    "archive_sha256": "391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
+    "archive_integrity": "sha512-8TgUktxJ+tXMEYmXw/X2cQnVxTOcNG2Bn/PGw/vW1BnOu+skL9zl2xV49+oAWdXjXsZ+KdXXDa5/fWcotianKA==",
+    "artifact_digest": "sha256:391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },

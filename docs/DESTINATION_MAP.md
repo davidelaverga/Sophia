@@ -49,7 +49,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `packages/dsh-bundle/` | partial | S1-01, S1-03 | Built: manifest (`dsh.bundle.patch`), `cordis.patch.yml` (including the development model route), plugin entry, control bridge |
-| `packages/dsh-bundle/src/control-bridge.ts` | partial | S1-03, S1-02, S1-05A | Built: application command ↔ public Agent operations, a fenced Hold/Stop, a journal-backed dedupe, and restart reconciliation. S1-05A: bound to the real `/v1/runtime/*` service; every reply and item validated against the contract (A04); assistant messages carry model identity and usage |
+| `packages/dsh-bundle/src/control-bridge.ts` | partial | S1-03, S1-02, S1-05A | Built: application command ↔ public Agent operations, a fenced Hold/Stop, a journal-backed dedupe, and restart reconciliation. S1-05A: bound to the real `/v1/runtime/*` service; every reply and item validated against the contract (A04); assistant messages carry model identity and usage; receipts and observations are retained until acknowledged, in batches bounded by items and bytes (`retained-queue.ts`) |
 | `packages/dsh-bundle/src/role-registry.ts` | partial | S1-03, S1-02+ | Built: the versioned role presets (S1-05A adds `sophia-brief-v1`, which may run no native tool) with the S1-03 native-tool policy, enforced by agent-scoped visibility and a monotonic guard that also covers workflow child agents. Sophia domain tools join as later goals build them |
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |

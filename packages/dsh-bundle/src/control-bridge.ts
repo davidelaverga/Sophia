@@ -34,6 +34,7 @@ import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
 import type { ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
+import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
 import { roleOf } from './role-registry.js'
@@ -84,58 +85,6 @@ interface AttemptState {
   unrecovered: string | null
   /** The service binds this attempt to a different native session: nothing may resume it here. */
   identityMismatch: boolean
-}
-
-/**
- * In-order delivery to the service that keeps every item until the service
- * acknowledges it, retrying with bounded backoff. The service deduplicates
- * (receipts by command and stage, observations by native seq).
- */
-class RetainedQueue<T> {
-  private items: T[] = []
-  private running: Promise<void> | null = null
-  private backoffMs = 0
-
-  constructor(
-    private readonly label: string,
-    private readonly deliver: (batch: T[]) => Promise<void>,
-    private readonly options: { readonly delayMs: number; readonly signal: AbortSignal; readonly log: (line: string) => void; readonly onAck?: (batch: T[]) => void },
-  ) {}
-
-  push(...items: T[]): void {
-    if (items.length === 0) return
-    this.items.push(...items)
-    this.schedule(this.options.delayMs)
-  }
-
-  private schedule(delayMs: number): void {
-    this.running ??= new Promise<void>((resolve) => setTimeout(resolve, delayMs)).then(() => this.drain())
-  }
-
-  private async drain(): Promise<void> {
-    const batch = this.items.slice(0, 500)
-    try {
-      await this.deliver(batch)
-      this.items.splice(0, batch.length)
-      this.backoffMs = 0
-      try {
-        this.options.onAck?.(batch)
-      } catch (error) {
-        this.options.log(`${this.label} acknowledgement bookkeeping failed: ${(error as Error).message}`)
-      }
-    } catch (error) {
-      this.backoffMs = Math.min(Math.max(1000, this.backoffMs * 2), 10_000)
-      this.options.log(`${this.label} delivery failed (${batch.length} kept, retry in ${this.backoffMs} ms): ${(error as Error).message}`)
-    }
-    this.running = null
-    if (this.items.length > 0 && !this.options.signal.aborted) this.schedule(this.backoffMs || this.options.delayMs)
-  }
-
-  /** Best effort on shutdown: wait for the current attempt, then try once more. */
-  async flush(): Promise<void> {
-    await this.running
-    if (this.items.length > 0) await this.drain()
-  }
 }
 
 const ATTEMPT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
