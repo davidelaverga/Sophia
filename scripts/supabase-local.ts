@@ -16,13 +16,15 @@ import { apiLoginUrl, provisionApiLogin } from './lib/api-login.ts'
 import { pickStrings } from './lib/env-file.ts'
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)))
-const CLI = 'npx -y supabase@2.117.0'
+// The CLI is a locked root devDependency (package.json, pnpm-lock.yaml): its platform binary comes from the lock,
+// never from an unrecorded npx download.
+const CLI = 'pnpm exec supabase'
 const EXCLUDED_SERVICES = 'realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor'
 const SIGNING_KEYS = 'supabase/signing_keys.json'
 
 const STATUS_KEYS = ['API_URL', 'DB_URL', 'PUBLISHABLE_KEY', 'SECRET_KEY', 'MAILPIT_URL'] as const
 
-/** The CLI is an npx shim (a shell is needed on Windows); arguments are fixed constants. */
+/** Run through pnpm's shim (a shell is needed on Windows); arguments are fixed constants. */
 function supabase(args: string): string {
   const r = spawnSync(`${CLI} ${args}`, { encoding: 'utf8', shell: true })
   if (r.status !== 0) throw new Error(`supabase ${args} failed:\n${r.stderr || r.stdout}`)

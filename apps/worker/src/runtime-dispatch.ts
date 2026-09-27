@@ -66,6 +66,11 @@ export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): P
 export class RuntimeDispatcher {
   private stopped = false
   private wake: (() => void) | null = null
+  private halt: () => void = () => undefined
+  /** Resolves on stop(): the first LISTEN can wait forever while the database is down. */
+  private readonly halted = new Promise<void>((resolve) => {
+    this.halt = resolve
+  })
   private readonly listener: ProjectEventListener
   private loop: Promise<void> | null = null
   private readonly pool: pg.Pool
@@ -86,7 +91,7 @@ export class RuntimeDispatcher {
   }
 
   private async run(): Promise<void> {
-    await this.listener.listening
+    await Promise.race([this.listener.listening, this.halted])
     while (!this.stopped) {
       try {
         const pass = await dispatchOnce(this.pool, this.options)
@@ -108,8 +113,10 @@ export class RuntimeDispatcher {
 
   async stop(): Promise<void> {
     this.stopped = true
+    this.halt()
     this.wake?.()
-    await this.loop
+    // The listener first: it may still be retrying its first LISTEN, and its retries must end for the process to.
     await this.listener.stop()
+    await this.loop
   }
 }
