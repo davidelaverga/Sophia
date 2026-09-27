@@ -1,0 +1,282 @@
+
+> test
+> npm run build && node --test tests/*.test.mjs
+
+
+> build
+> tsc -p tsconfig.json
+
+TAP version 13
+# Subtest: device authorize is JSON, not a form
+ok 1 - device authorize is JSON, not a form
+  ---
+  duration_ms: 1.483631
+  type: 'test'
+  ...
+# Subtest: device exchange is a form with the RFC grant name
+ok 2 - device exchange is a form with the RFC grant name
+  ---
+  duration_ms: 0.315953
+  type: 'test'
+  ...
+# Subtest: refresh and revoke use actual refresh_token field
+ok 3 - refresh and revoke use actual refresh_token field
+  ---
+  duration_ms: 0.164045
+  type: 'test'
+  ...
+# Subtest: native message does not spoof created_by
+ok 4 - native message does not spoof created_by
+  ---
+  duration_ms: 0.12683
+  type: 'test'
+  ...
+# Subtest: multipart create is decoded separately from JSON create
+ok 5 - multipart create is decoded separately from JSON create
+  ---
+  duration_ms: 0.23362
+  type: 'test'
+  ...
+# Subtest: native hosts use hosts not data
+ok 6 - native hosts use hosts not data
+  ---
+  duration_ms: 0.12671
+  type: 'test'
+  ...
+# Subtest: a 2xx policy denial is not acceptance
+ok 7 - a 2xx policy denial is not acceptance
+  ---
+  duration_ms: 0.164075
+  type: 'test'
+  ...
+# Subtest: native control ack is not settlement
+ok 8 - native control ack is not settlement
+  ---
+  duration_ms: 0.088192
+  type: 'test'
+  ...
+# Subtest: unknown response shape fails instead of inventing success
+ok 9 - unknown response shape fails instead of inventing success
+  ---
+  duration_ms: 0.298216
+  type: 'test'
+  ...
+# Subtest: missing native resolution verdict stays unknown
+ok 10 - missing native resolution verdict stays unknown
+  ---
+  duration_ms: 0.309113
+  type: 'test'
+  ...
+# Subtest: explicit unanswered resolution is expiry, not denial
+ok 11 - explicit unanswered resolution is expiry, not denial
+  ---
+  duration_ms: 0.131156
+  type: 'test'
+  ...
+# Subtest: approval defaults to one-time and cannot add persist metadata
+ok 12 - approval defaults to one-time and cannot add persist metadata
+  ---
+  duration_ms: 0.101022
+  type: 'test'
+  ...
+# Subtest: launch uses host-owned absolute workspace and git shape
+ok 13 - launch uses host-owned absolute workspace and git shape
+  ---
+  duration_ms: 0.16744
+  type: 'test'
+  ...
+# Subtest: Hold fences first and waits for settlement
+ok 14 - Hold fences first and waits for settlement
+  ---
+  duration_ms: 0.154532
+  type: 'test'
+  ...
+# Subtest: Resume cannot overtake unsettled Hold
+ok 15 - Resume cannot overtake unsettled Hold
+  ---
+  duration_ms: 0.081833
+  type: 'test'
+  ...
+# Subtest: Resume reauthorizes after settled Hold with a new epoch
+ok 16 - Resume reauthorizes after settled Hold with a new epoch
+  ---
+  duration_ms: 0.061853
+  type: 'test'
+  ...
+# Subtest: Stop cannot settle while native effects are unknown
+ok 17 - Stop cannot settle while native effects are unknown
+  ---
+  duration_ms: 0.067612
+  type: 'test'
+  ...
+# Subtest: Stopped pursuit cannot be resumed by a late event
+ok 18 - Stopped pursuit cannot be resumed by a late event
+  ---
+  duration_ms: 0.071537
+  type: 'test'
+  ...
+# Subtest: expired dispatch becomes unknown, not retryable pending
+ok 19 - expired dispatch becomes unknown, not retryable pending
+  ---
+  duration_ms: 0.062744
+  type: 'test'
+  ...
+# Subtest: uncertain rotating refresh requires renewed authorization
+ok 20 - uncertain rotating refresh requires renewed authorization
+  ---
+  duration_ms: 0.060882
+  type: 'test'
+  ...
+# Subtest: only Sophia admission repeats its same key after ambiguous response
+ok 21 - only Sophia admission repeats its same key after ambiguous response
+  ---
+  duration_ms: 0.051547
+  type: 'test'
+  ...
+# Subtest: valid current dispatch is allowed
+ok 22 - valid current dispatch is allowed
+  ---
+  duration_ms: 0.121561
+  type: 'test'
+  ...
+# Subtest: old goal epoch is not allowed after Hold
+ok 23 - old goal epoch is not allowed after Hold
+  ---
+  duration_ms: 0.076435
+  type: 'test'
+  ...
+# Subtest: wrong project or binding is not admitted
+ok 24 - wrong project or binding is not admitted
+  ---
+  duration_ms: 0.07361
+  type: 'test'
+  ...
+# Subtest: revoked source or resource denies even a fresh queued dispatch
+ok 25 - revoked source or resource denies even a fresh queued dispatch
+  ---
+  duration_ms: 0.104737
+  type: 'test'
+  ...
+# Subtest: project member cannot resolve another owner permission
+ok 26 - project member cannot resolve another owner permission
+  ---
+  duration_ms: 0.089985
+  type: 'test'
+  ...
+# Subtest: stale permission fingerprint is refused
+ok 27 - stale permission fingerprint is refused
+  ---
+  duration_ms: 0.204726
+  type: 'test'
+  ...
+# Subtest: S1 approval remains native while S2 supported response is allowed
+ok 28 - S1 approval remains native while S2 supported response is allowed
+  ---
+  duration_ms: 0.096114
+  type: 'test'
+  ...
+# Subtest: SSE cursor remains exact above Number safe range
+ok 29 - SSE cursor remains exact above Number safe range
+  ---
+  duration_ms: 0.198036
+  type: 'test'
+  ...
+# Subtest: SSE duplicate does not mutate projection
+ok 30 - SSE duplicate does not mutate projection
+  ---
+  duration_ms: 0.125167
+  type: 'test'
+  ...
+# Subtest: gap requests snapshot instead of silently applying
+ok 31 - gap requests snapshot instead of silently applying
+  ---
+  duration_ms: 0.119569
+  type: 'test'
+  ...
+# Subtest: explicit authorized cursor advance accounts for hidden events
+ok 32 - explicit authorized cursor advance accounts for hidden events
+  ---
+  duration_ms: 0.075342
+  type: 'test'
+  ...
+# Subtest: lens navigation and reconnect preserve the unsaved draft
+ok 33 - lens navigation and reconnect preserve the unsaved draft
+  ---
+  duration_ms: 0.084807
+  type: 'test'
+  ...
+# Subtest: failed preview retains stable candidate
+ok 34 - failed preview retains stable candidate
+  ---
+  duration_ms: 0.065097
+  type: 'test'
+  ...
+# Subtest: path traversal, encoded traversal and absolute paths are refused
+ok 35 - path traversal, encoded traversal and absolute paths are refused
+  ---
+  duration_ms: 0.745606
+  type: 'test'
+  ...
+# Subtest: stale source-head and file hash both conflict
+ok 36 - stale source-head and file hash both conflict
+  ---
+  duration_ms: 0.178116
+  type: 'test'
+  ...
+# Subtest: valid patch and new file are accepted as source operations
+ok 37 - valid patch and new file are accepted as source operations
+  ---
+  duration_ms: 0.08679
+  type: 'test'
+  ...
+# Subtest: duplicate file targets conflict
+ok 38 - duplicate file targets conflict
+  ---
+  duration_ms: 0.09314
+  type: 'test'
+  ...
+# Subtest: unavailable overflow is unknown instead of zero
+ok 39 - unavailable overflow is unknown instead of zero
+  ---
+  duration_ms: 0.08656
+  type: 'test'
+  ...
+# Subtest: semantic hashing input is stable under property ordering
+ok 40 - semantic hashing input is stable under property ordering
+  ---
+  duration_ms: 0.141121
+  type: 'test'
+  ...
+# Subtest: canonical JSON rejects nonfinite values
+ok 41 - canonical JSON rejects nonfinite values
+  ---
+  duration_ms: 0.084116
+  type: 'test'
+  ...
+# Subtest: once a gap is observed, incremental application waits for resnapshot
+ok 42 - once a gap is observed, incremental application waits for resnapshot
+  ---
+  duration_ms: 0.056985
+  type: 'test'
+  ...
+# Subtest: host readiness is a nullable map and preserves named failure reasons
+ok 43 - host readiness is a nullable map and preserves named failure reasons
+  ---
+  duration_ms: 0.109534
+  type: 'test'
+  ...
+# Subtest: unreported or malformed host readiness remains unknown
+ok 44 - unreported or malformed host readiness remains unknown
+  ---
+  duration_ms: 0.077606
+  type: 'test'
+  ...
+1..44
+# tests 44
+# suites 0
+# pass 44
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 81.860327

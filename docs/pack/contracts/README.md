@@ -1,6 +1,6 @@
 # Initial contracts
 
-These are **Sophia-owned design contracts**, not upstream API signatures or finished SQL migrations. They make the first implementation slices agree on identity and transitions. Full database/RLS migrations and generated OpenAPI clients are the next installment.
+These are **Sophia-owned design contracts**, not upstream API signatures or finished SQL migrations. They make the first implementation slices agree on identity and transitions. The cumulative [API contract and generated types](../api/README.md) and [foundational SQL/RLS candidates](../db/README.md) are now supplied. They do not mean every product handler is implemented or that the SQL was executed.
 
 ## Identity and type boundaries
 
@@ -14,7 +14,7 @@ A `goalRevision` changes when the intended outcome or requirements change. A `st
 
 ## Admission and receipts
 
-The HTTP client supplies `clientRequestId`, intended action, target and expected revisions. The server obtains the actor from authenticated identity, checks the current grant, and records command plus outbox in one transaction. It returns the recorded command ID. A retry with the same identity and payload recovers the same result; changed content using the same key is rejected.
+The HTTP client supplies `Idempotency-Key`, intended action, target and expected revisions. The earlier logical clientRequestId is carried by that header, not by an extra rejected JSON field. The server obtains the actor from authenticated identity, checks the current grant, and records command plus outbox in one transaction. It returns the recorded command ID. A retry with the same identity and payload recovers the same result; changed content using the same key is rejected.
 
 Receipt stages are `admitted`, `delivered`, `incorporation_observed`, `checked`, plus `rejected`, `failed` and `outcome_unknown`. Not every adapter can prove every stage. A `delivered` receipt needs native transport/inbox evidence; model reassurance cannot provide it. A checked result names the exact source/version and check evidence.
 
@@ -37,3 +37,7 @@ Peer envelopes carry sender and target assignments, message ID, optional reply-t
 HumanAction binds actual native request, fingerprint, owner, requested effect, affected dependency, expiry and observed resolution. A text steer does not answer it. The same HumanAction drives every screen.
 
 ReviewIntent binds the actual preview/source/frame and contains `change`, `preserve` and the attributed user instruction. S1 hands it to the lead and assigned worker; S2 adds enforceable component mutation. Viewing or highlighting alone grants no write authority.
+
+## Contract layers
+
+The original record.schema.json/examples.json are labelled internal transport/domain specimens and may use example-prefixed identities. They are not HTTP request fixtures. The public HTTP contract in api/openapi.json uses UUID identities and its own payload schemas. RuntimeCommand/RuntimeReceipt remain the dsh bridge vocabulary; the expanded external delivery stages in architecture 11 are adapter observations mapped into those higher-level receipts. Do not copy an upstream method shape into either contract merely because a field name resembles it.

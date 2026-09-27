@@ -1,0 +1,4718 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sophia application API",
+    "version": "0.4.0-design",
+    "description": "Sophia-owned binding contract. Not the Omnigent OpenAPI and not a claim that these routes are deployed."
+  },
+  "paths": {
+    "/api/v1/projects": {
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a project and creator membership atomically.",
+        "tags": [
+          "projects"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-02"
+      }
+    },
+    "/api/v1/projects/{projectId}/snapshot": {
+      "get": {
+        "operationId": "getProjectSnapshot",
+        "summary": "Consistent authorized snapshot with replay cursor.",
+        "tags": [
+          "projections"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-02"
+      }
+    },
+    "/api/v1/projects/{projectId}/events": {
+      "get": {
+        "operationId": "followProjectEvents",
+        "summary": "Authorized replay then live SSE; event ID is a decimal sequence; not an Omnigent stream.",
+        "tags": [
+          "events"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected. Frames contain Event or CursorAdvance JSON. Membership is rechecked on resume and invalidation.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-02"
+      }
+    },
+    "/api/v1/projects/{projectId}/contributions": {
+      "post": {
+        "operationId": "submitContribution",
+        "summary": "Post attributed discussion; explicit intent distinguishes discussion from work admission.",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Contribution"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-04"
+      }
+    },
+    "/api/v1/projects/{projectId}/commands": {
+      "post": {
+        "operationId": "admitGoalCommand",
+        "summary": "Check current membership, revisions, epoch and idempotency; no provider I/O in transaction.",
+        "tags": [
+          "commands"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalCommand"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-02"
+      }
+    },
+    "/api/v1/projects/{projectId}/commands/{commandId}": {
+      "get": {
+        "operationId": "getCommandStatus",
+        "summary": "Delivery and settlement states are separate.",
+        "tags": [
+          "commands"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "commandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-02"
+      }
+    },
+    "/api/v1/projects/{projectId}/progress-reviews": {
+      "post": {
+        "operationId": "requestProgressReview",
+        "summary": "Coalesce scheduled/event/manual review while retaining the manual question.",
+        "tags": [
+          "reviews"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressReviewRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-11"
+      }
+    },
+    "/api/v1/projects/{projectId}/room-token": {
+      "post": {
+        "operationId": "issueRoomToken",
+        "summary": "Short-lived project room token, never a Google API key.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomTokenRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-04"
+      }
+    },
+    "/api/v1/rooms/{roomId}/exchanges": {
+      "post": {
+        "operationId": "startExchange",
+        "summary": "Open one attributed exchange against current room revision.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05"
+      }
+    },
+    "/api/v1/rooms/{roomId}/input-floor": {
+      "post": {
+        "operationId": "transferInputFloor",
+        "summary": "Permission to talk is not a resource-owner grant.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FloorRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-05"
+      }
+    },
+    "/api/v1/projects/{projectId}/source-imports": {
+      "post": {
+        "operationId": "createSourceImport",
+        "summary": "Parse selected sources only; imported instructions are evidence, not authority.",
+        "tags": [
+          "imports"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceImportRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/imports/{importId}/manifest": {
+      "get": {
+        "operationId": "getImportManifest",
+        "summary": "Report missing files, grouping and source coverage explicitly.",
+        "tags": [
+          "imports"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportManifest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/imports/{importId}/publish": {
+      "post": {
+        "operationId": "publishImport",
+        "summary": "Release selected source material and accept the corrected current frame as distinct checks.",
+        "tags": [
+          "imports"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishImport"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/execution-connections": {
+      "post": {
+        "operationId": "startExecutionConnection",
+        "summary": "Start fixed-server Omnigent device authorization; user signs in on Omnigent, not a vendor login.",
+        "tags": [
+          "connections"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionStart"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    },
+    "/api/v1/execution-connections/{connectionId}": {
+      "get": {
+        "operationId": "getExecutionConnection",
+        "summary": "Owner-only; backend polls native flow. Never return device/access/refresh secrets.",
+        "tags": [
+          "connections"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      },
+      "delete": {
+        "operationId": "revokeExecutionConnection",
+        "summary": "Fence new use first; reconcile native grant revocation and active jobs separately.",
+        "tags": [
+          "connections"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    },
+    "/api/v1/execution-connections/{connectionId}/hosts": {
+      "get": {
+        "operationId": "listConnectionHosts",
+        "summary": "Owner-only native host metadata, not a shared host-filesystem browser.",
+        "tags": [
+          "connections"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Host"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    },
+    "/api/v1/projects/{projectId}/resources": {
+      "post": {
+        "operationId": "registerResource",
+        "summary": "Require selected host ownership and a bounded repository mandate.",
+        "tags": [
+          "resources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceRegister"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    },
+    "/api/v1/resources/{resourceId}/status": {
+      "get": {
+        "operationId": "getResourceStatus",
+        "summary": "Current source timestamps; unavailable quota/cost is not zero.",
+        "tags": [
+          "resources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resource"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    },
+    "/api/v1/human-actions/{actionId}": {
+      "get": {
+        "operationId": "getHumanAction",
+        "summary": "Returns owner and exact native destination; S1 permissions are native-only.",
+        "tags": [
+          "actions"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "actionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HumanAction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    },
+    "/api/v1/human-actions/{actionId}/responses": {
+      "post": {
+        "operationId": "respondToHumanAction",
+        "summary": "S2: owner, request fingerprint and capability checked again before native resolution.",
+        "tags": [
+          "actions"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "actionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionResponse"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S2-04"
+      }
+    },
+    "/api/v1/projects/{projectId}/review-intents": {
+      "post": {
+        "operationId": "submitReviewIntent",
+        "summary": "Version-bound change/preserve brief, not direct arbitrary worker text.",
+        "tags": [
+          "reviewIntents"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIntent"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-12"
+      }
+    },
+    "/api/v1/artifacts/{artifactId}/versions": {
+      "get": {
+        "operationId": "listArtifactVersions",
+        "summary": "Return authorized source/preview versions; retain stable while candidate builds.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArtifactVersion"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-07"
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/patches": {
+      "post": {
+        "operationId": "submitSourcePatch",
+        "summary": "Compare expected source head and each file hash; no stale human-draft overwrite.",
+        "tags": [
+          "sources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourcePatch"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-07"
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/builds": {
+      "post": {
+        "operationId": "startSourceBuild",
+        "summary": "Fixed recipe over immutable source, no arbitrary command string.",
+        "tags": [
+          "builds"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-07"
+      }
+    },
+    "/api/v1/assets/image-jobs": {
+      "post": {
+        "operationId": "startImageJob",
+        "summary": "One explicit model route per job; preserve selected references.",
+        "tags": [
+          "images"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-06"
+      }
+    },
+    "/api/v1/sources/uploads": {
+      "post": {
+        "operationId": "createSourceUpload",
+        "summary": "Private upload staging; checksums and completed upload verified before use.",
+        "tags": [
+          "sources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceUploadReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceUploadRequest"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/sources/{sourceId}/complete": {
+      "post": {
+        "operationId": "completeSourceUpload",
+        "summary": "Server verifies received object length/hash, never trusts only the client claim.",
+        "tags": [
+          "sources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/sources/{sourceId}/content": {
+      "get": {
+        "operationId": "getSourceContent",
+        "summary": "Authorize each read and issue short-lived URL; redacted/forgotten source has no new URL.",
+        "tags": [
+          "sources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceContent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/sources/{sourceId}": {
+      "delete": {
+        "operationId": "forgetSource",
+        "summary": "Future-use fence first, derived/runtime/provider-copy cleanup tracked independently.",
+        "tags": [
+          "sources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-08"
+      }
+    },
+    "/api/v1/artifact-versions/{versionId}/publish": {
+      "post": {
+        "operationId": "publishArtifactCandidate",
+        "summary": "Trusted validation plus current goal/source and stable-head CAS; no automatic goal acceptance.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidatePublish"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-07"
+      }
+    },
+    "/api/v1/jobs/{jobId}": {
+      "get": {
+        "operationId": "getJob",
+        "summary": "Job state is not artifact acceptance or complete native effect settlement.",
+        "tags": [
+          "jobs"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-03"
+      }
+    },
+    "/api/v1/resources/{resourceId}/revoke": {
+      "post": {
+        "operationId": "revokeResource",
+        "summary": "Owner withdraws mandate; pending delivery retired, live work reconciled.",
+        "tags": [
+          "resources"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted response; semantic delivery state must be inspected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted"
+          },
+          "409": {
+            "description": "Stale target, idempotency mismatch or unresolved state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable; reconcile writes before retry"
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRevocation"
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "S1-09"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "supabaseBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "retry": {
+            "type": "string",
+            "enum": [
+              "safe_read",
+              "same_admission_key",
+              "reconcile_first",
+              "reauthorize",
+              "never"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "requestId",
+          "retry"
+        ]
+      },
+      "Receipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "admitted",
+              "rejected",
+              "outcome_unknown"
+            ]
+          },
+          "goalId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goalRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authorityEpoch": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "commandId",
+          "projectId",
+          "cursor",
+          "stage",
+          "goalId",
+          "goalRevision",
+          "authorityEpoch"
+        ]
+      },
+      "AcceptedJob": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "outcome_unknown"
+            ]
+          }
+        },
+        "required": [
+          "jobId",
+          "projectId",
+          "commandId",
+          "state"
+        ]
+      },
+      "SourceRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "eligibilityRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "eligibilityRevision"
+        ]
+      },
+      "Goal": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "running",
+              "holding",
+              "held",
+              "stopping",
+              "stopped",
+              "checking",
+              "completed"
+            ]
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "verification": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "description",
+                "required",
+                "verification"
+              ]
+            }
+          },
+          "stateRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "title",
+          "revision",
+          "authorityEpoch",
+          "status",
+          "outcome",
+          "criteria",
+          "stateRevision"
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "type": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entityRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "summaryCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "projectId",
+          "sequence",
+          "type",
+          "occurredAt",
+          "entityType",
+          "entityId",
+          "entityRevision",
+          "references",
+          "summaryCode"
+        ]
+      },
+      "CursorAdvance": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "const": "cursor.advanced",
+            "type": "string"
+          },
+          "sequence": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "projectId",
+          "type",
+          "sequence"
+        ]
+      },
+      "Resource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex-native",
+              "claude-native",
+              "dsh"
+            ]
+          },
+          "hostState": {
+            "type": "string",
+            "enum": [
+              "online",
+              "offline",
+              "unknown"
+            ]
+          },
+          "nativeState": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running",
+              "blocked",
+              "failed",
+              "unknown"
+            ]
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authorityState": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked",
+              "needs_connection"
+            ]
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "ownerId",
+          "label",
+          "harness",
+          "hostState",
+          "nativeState",
+          "observedAt",
+          "model",
+          "effort",
+          "authorityState",
+          "capabilities"
+        ]
+      },
+      "HumanAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bindingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nativeSessionId": {
+            "type": "string"
+          },
+          "nativeRequestId": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "permission",
+              "login",
+              "clarification",
+              "release",
+              "observation_gap"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired",
+              "resolved_unknown",
+              "superseded"
+            ]
+          },
+          "detailsRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nativeUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "responseMode": {
+            "type": "string",
+            "enum": [
+              "native_only",
+              "in_app_form",
+              "in_app_binary"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "ownerId",
+          "bindingId",
+          "nativeSessionId",
+          "nativeRequestId",
+          "fingerprint",
+          "kind",
+          "state",
+          "detailsRef",
+          "nativeUrl",
+          "expiresAt",
+          "responseMode"
+        ]
+      },
+      "ArtifactVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "candidate",
+              "validated",
+              "stable",
+              "rejected",
+              "superseded"
+            ]
+          },
+          "previewId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "html",
+              "pdf",
+              "pptx",
+              "ui"
+            ]
+          },
+          "exportEditability": {
+            "type": "string",
+            "enum": [
+              "source_editable",
+              "raster_pptx_with_source",
+              "original_only"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "artifactId",
+          "projectId",
+          "parentId",
+          "sourceId",
+          "sourceHash",
+          "state",
+          "previewId",
+          "format",
+          "exportEditability"
+        ]
+      },
+      "Snapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "missionRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "audienceRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "eligibilityRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "goals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Goal"
+            }
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Resource"
+            }
+          },
+          "humanActions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HumanAction"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactVersion"
+            }
+          },
+          "sharedFocus": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifactVersionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "guideId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "artifactVersionId",
+                  "revision",
+                  "guideId"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "projectId",
+          "title",
+          "cursor",
+          "missionRevision",
+          "audienceRevision",
+          "eligibilityRevision",
+          "goals",
+          "resources",
+          "humanActions",
+          "artifacts",
+          "sharedFocus"
+        ]
+      },
+      "ProjectCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "ProjectCreated": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "projectId",
+          "cursor"
+        ]
+      },
+      "GoalCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "steer",
+              "request_review",
+              "hold",
+              "stop",
+              "resume"
+            ]
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedGoalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expectedAuthorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "bodySourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "goalId",
+          "expectedGoalRevision",
+          "expectedAuthorityEpoch",
+          "bodySourceId"
+        ]
+      },
+      "Contribution": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "threadId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifactVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "discuss",
+              "ask_sophia",
+              "propose_work"
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "threadId",
+          "artifactVersionId",
+          "intent"
+        ]
+      },
+      "ProgressReviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "goalIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "questionSourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedMissionRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "goalIds",
+          "questionSourceId",
+          "expectedMissionRevision"
+        ]
+      },
+      "RoomTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedAudienceRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "roomId",
+          "expectedAudienceRevision"
+        ]
+      },
+      "RoomToken": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serverUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "roomId",
+          "serverUrl",
+          "token",
+          "expiresAt"
+        ]
+      },
+      "ExchangeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRoomRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "allowVision": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expectedRoomRevision",
+          "allowVision"
+        ]
+      },
+      "ExchangeReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "inputActorId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "exchangeId",
+          "roomId",
+          "revision",
+          "inputActorId"
+        ]
+      },
+      "FloorRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "nextActorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRoomRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "nextActorId",
+          "expectedRoomRevision"
+        ]
+      },
+      "SourceImportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "chatgpt_export",
+              "claude_export",
+              "files",
+              "portable_handoff",
+              "repository"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "private",
+              "project"
+            ]
+          }
+        },
+        "required": [
+          "sourceIds",
+          "origin",
+          "scope"
+        ]
+      },
+      "ImportManifest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "importId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "parsed",
+              "needs_review",
+              "published",
+              "failed"
+            ]
+          },
+          "includedSourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "missingEntries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parserVersion": {
+            "type": "string"
+          },
+          "candidateUnderstandingSourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "importId",
+          "projectId",
+          "state",
+          "includedSourceIds",
+          "missingEntries",
+          "parserVersion",
+          "candidateUnderstandingSourceId"
+        ]
+      },
+      "PublishImport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedManifestHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "acceptedUnderstandingSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "releaseSourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "expectedManifestHash",
+          "acceptedUnderstandingSourceId",
+          "releaseSourceIds"
+        ]
+      },
+      "ConnectionStart": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "omnigent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ]
+      },
+      "ConnectionReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "linked",
+              "expired",
+              "denied",
+              "revoked",
+              "rotation_unknown"
+            ]
+          },
+          "userCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verificationUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "connectionId",
+          "state",
+          "userCode",
+          "verificationUrl",
+          "expiresAt",
+          "ownerId"
+        ]
+      },
+      "Host": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "online",
+              "offline",
+              "unknown"
+            ]
+          },
+          "configuredHarnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "hostId",
+          "label",
+          "state",
+          "configuredHarnesses"
+        ]
+      },
+      "ResourceRegister": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string",
+            "enum": [
+              "codex-native",
+              "claude-native"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "repositoryRoot": {
+            "type": "string"
+          },
+          "allowedOperations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "observe",
+                "launch",
+                "steer",
+                "hold",
+                "stop",
+                "submit_result"
+              ]
+            }
+          },
+          "concurrencyLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          }
+        },
+        "required": [
+          "connectionId",
+          "hostId",
+          "harness",
+          "label",
+          "repositoryRoot",
+          "allowedOperations",
+          "concurrencyLimit"
+        ]
+      },
+      "ActionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedFingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "decline",
+              "cancel"
+            ]
+          },
+          "content": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "expectedFingerprint",
+          "action"
+        ]
+      },
+      "ReviewIntent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifactVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedGoalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expectedAuthorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "changeSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "preserveSourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "element",
+                  "region",
+                  "page",
+                  "slide",
+                  "file"
+                ]
+              },
+              "locator": {
+                "type": "string"
+              },
+              "viewportWidth": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "viewportHeight": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "kind",
+              "locator",
+              "viewportWidth",
+              "viewportHeight"
+            ]
+          }
+        },
+        "required": [
+          "goalId",
+          "artifactVersionId",
+          "previewId",
+          "expectedGoalRevision",
+          "expectedAuthorityEpoch",
+          "changeSourceId",
+          "preserveSourceIds",
+          "target"
+        ]
+      },
+      "SourcePatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedSourceVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "expectedSha256": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "replacementSourceId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "expectedSha256",
+                "replacementSourceId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "artifactId",
+          "expectedSourceVersionId",
+          "files"
+        ]
+      },
+      "BuildRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedSourceHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "recipe": {
+            "type": "string",
+            "enum": [
+              "ui-react-vite-v1",
+              "report-html-v1",
+              "deck-html-v1"
+            ]
+          }
+        },
+        "required": [
+          "sourceVersionId",
+          "expectedSourceHash",
+          "recipe"
+        ]
+      },
+      "ImageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "promptSourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referenceAssetIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "modelRoute": {
+            "type": "string",
+            "enum": [
+              "image-google",
+              "image-openai",
+              "image-google-pro",
+              "image-openai-flare"
+            ]
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "generate",
+              "edit"
+            ]
+          },
+          "outputCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "projectId",
+          "promptSourceId",
+          "referenceAssetIds",
+          "modelRoute",
+          "operation",
+          "outputCount"
+        ]
+      },
+      "CommandStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "admitted",
+              "dispatching",
+              "upstream_accepted",
+              "native_input_observed",
+              "checked",
+              "denied",
+              "outcome_unknown",
+              "superseded"
+            ]
+          },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "commandId",
+          "projectId",
+          "stage",
+          "evidenceRefs",
+          "updatedAt"
+        ]
+      },
+      "SourceUploadRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 104857600
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "private",
+              "project"
+            ]
+          }
+        },
+        "required": [
+          "projectId",
+          "filename",
+          "mime",
+          "byteLength",
+          "sha256",
+          "scope"
+        ]
+      },
+      "SourceUploadReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "sourceId",
+          "uploadUrl",
+          "expiresAt"
+        ]
+      },
+      "SourceContent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "mime",
+          "downloadUrl",
+          "expiresAt"
+        ]
+      },
+      "CandidatePublish": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedStableVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedGoalRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "expectedAuthorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "verificationSourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "expectedStableVersionId",
+          "expectedGoalRevision",
+          "expectedAuthorityEpoch",
+          "verificationSourceId"
+        ]
+      },
+      "GrantRevocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "expectedRevision"
+        ]
+      },
+      "Empty": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      }
+    }
+  }
+}

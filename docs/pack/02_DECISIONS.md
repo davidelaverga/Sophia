@@ -30,9 +30,21 @@
 | D24 | Learning begins with one accepted lesson used in the next relevant brief. | Procedure candidates are compared and promoted later. Forecast scoring is optional; no-change is legitimate. |
 | D25 | Notion/Supabase/Vercel management connectors are S2 additions; existing native engineer tools deploy in S1. | Product persistence is not postponed. Shared deployment ownership is still required even when credentials already exist. |
 
-## Firm behavior, incomplete low-level audit
+## Part 2 decisions and source-based refinements
 
-A clear decision does not require inventing an endpoint or a working test. The exact Omnigent HTTP/stream bindings, legacy renderer extraction closure, complete SQL/RLS migrations and detailed S2/S3 implementation briefs are the named Part 2 work. The chosen direction above is not conditional on comparing another framework.
+| ID | Decision | Why it is now explicit |
+|---|---|---|
+| D26 | One owner-approved Omnigent device grant per founder; normal engineer accounts, separate operator admin. | The native host/session owner checks remain intact. A single machine subject is not both founders. [OM-01, OM-09, OM-10, OM-11] |
+| D27 | Create a dormant session-scoped bundle, install assignment MCP, PATCH selected model/effort, then launch on the owner host and observe before prompting. | The native Claude adapter ignores per-turn tool/system-prompt injection. Exact multipart and JSON shapes differ. [OM-03, OM-04, OM-07, OM-12] |
+| D28 | S1 external Hold is controlled native Stop plus retained project/source handoff; Resume creates a fresh configured native attempt. | Upstream Stop is non-sticky and its receipt is not settlement. Drain/fence/reconcile prevents late messages reviving work. [OM-05] |
+| D29 | Native ambiguous writes become outcome_unknown, not automatic retries. Rotating-refresh uncertainty requires reconnection. | Native message correlation is not end-to-end deduplication; refresh reuse may revoke the grant. [OM-03, OM-09] |
+| D30 | Private Postgres schema, non-admin API/worker roles, normalized command equality, target outbox records and decimal-string event cursors. | The product state outlives every native session. Reference SQL is a foundational candidate, not all service implementations. [DB-01, DB-02] |
+| D31 | Actual Studio reference → production component/API map; one TanStack Query cache and a lazy CodeMirror source editor. | Preserve the product’s established experience without importing fixture outcomes as truth. [UI-01, UI-02] |
+| D32 | Reuse the three audited JavaScript renderer kernels; remove Python ToolRuntime orchestration from that path. Preserve notes, source and preview PNGs. | Rich PDF and image-based PPTX are concrete capabilities. Native editable PPTX objects are not provided by this compiler. [OLD-03–OLD-09] |
+| D33 | No automatic live Claude /model changes in S1/S2. Configure model/effort before launch and verify actual settings. | The audited adapter’s live switch changes the owner’s global future-session default. [OM-12] |
+| D34 | S1 supported app preview is team-owned, source-linked and explicitly frame-enabled for Studio. | Fix the preview configuration through the engineer; do not strip a third party’s security headers. Remote browser takeover is later browser work. |
+
+The direction is unchanged. Part 2 adds exact bindings and a tested local reference layer. Native account/session behavior, SQL/RLS execution, the production component implementation and deploy artifacts still need the finite implementation proof recorded in their goals.
 
 ## Resource policy
 

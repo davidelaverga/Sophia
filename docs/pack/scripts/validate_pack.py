@@ -73,7 +73,7 @@ for p in sorted(ROOT.rglob('*.md')):
         require(q.is_relative_to(ROOT), f'Link escapes pack: {p.relative_to(ROOT)} -> {target}')
         require(q.exists(), f'Broken link: {p.relative_to(ROOT)} -> {target}')
     # Explicit ID mentions; ranges retain their explicit end-point mentions.
-    for sid in re.findall(r'\b(?:DSH|OM|BZ|QM|LK|GG|OLD|G|OA|DS|IM|TEST|P)-\d{2}\b', text):
+    for sid in re.findall(r'\b(?:DSH|OM|BZ|QM|LK|GG|OLD|G|OA|DS|IM|TEST|P|DB|CC|UI)-\d{2}\b', text):
         source_refs_checked += 1
         require(sid in source_ids, f'Unregistered source {sid}: {p.relative_to(ROOT)}')
     require(text.count('```') % 2 == 0, f'Unbalanced code fences: {p.relative_to(ROOT)}')
@@ -91,7 +91,7 @@ for g in goals:
         require(dep in goal_map, f"Unknown dependency {dep}: {g['id']}")
     for sid in g.get('source_ids', []):
         require(sid in source_ids, f"Unknown source {sid}: {g['id']}")
-    if g.get('sprint') == 1:
+    if g.get('sprint') in (1, 2, 3):
         p = ROOT / 'delivery' / 'goals' / f"{g['id']}.md"
         require(p.exists(), f'Missing detailed goal: {g["id"]}')
         require(bool(g.get('acceptance')) and bool(g.get('adverse_checks')), f"Missing acceptance: {g['id']}")
@@ -162,7 +162,7 @@ report = {
                'detailed_sprint1_goals': sum(g.get('sprint') == 1 for g in goals),
                'local_links_checked': links_checked, 'source_mentions_checked': source_refs_checked},
     'contract_specimen_schema_validation': schema_validation,
-    'not_tested': ['external link availability', 'installed provider capability', 'TypeScript compilation',
+    'not_tested': ['external link availability', 'installed provider capability', 'production TypeScript implementation (reference tests are reported separately)',
                    'dsh boot', 'live audio or images', 'native engineering sessions', 'SQL migrations',
                    'application deployment', 'runtime configuration-schema acceptance'],
     'errors': ERRORS, 'warnings': WARNINGS,

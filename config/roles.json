@@ -97,6 +97,17 @@
       "model_configuration_write": false,
       "consumer_oauth": false,
       "scope": "current authorized project and assignment"
+    },
+    {
+      "id": "sophia-brief-v1",
+      "model_route": "native-work",
+      "effort": "high",
+      "tool_allowlist": [],
+      "goal_continuation": false,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "one admitted draft_brief task: the inputs named by its context manifest (S1-05A)"
     }
   ],
   "note": "Names are Sophia domain tools to implement; native tool guards enforce the allowlist including PTC. Model policy alone is not confinement."

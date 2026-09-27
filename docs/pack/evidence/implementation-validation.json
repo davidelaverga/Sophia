@@ -1,0 +1,56 @@
+{
+  "pack_version": "0.4 Part2",
+  "checked_at_utc": "2026-09-24T02:03:37.221345+00:00",
+  "status": "passed_with_explicit_unrun_integration_layers",
+  "scope": "local_reference_logic_not_product_acceptance",
+  "environment": {
+    "python": "3.13.5",
+    "node": "v22.16.0",
+    "typescript": "Version 5.8.3",
+    "product_target_node": "24",
+    "target_runtime_certified": false
+  },
+  "suites": [
+    {
+      "report": "evidence/reference-tests.tap",
+      "tests": 44,
+      "pass": 44,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0
+    },
+    {
+      "report": "evidence/api-client-tests.tap",
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0
+    }
+  ],
+  "totals": {
+    "tests": 48,
+    "passed": 48,
+    "failed": 0
+  },
+  "compile_checks": {
+    "reference_logic": "passed",
+    "api_generated_types_and_client": "passed",
+    "part1_contract_interfaces": "passed",
+    "python_helper_syntax": "passed"
+  },
+  "binding_checks": "part2-binding-validation.json",
+  "documentation_checks": "pack-validation.json",
+  "unrun": {
+    "postgresql_migrations_rls_and_concurrency": "not_run_no_server_or_client",
+    "native_three_resource_sessions": "not_run",
+    "dsh_boot_and_runtime_plugin": "not_run",
+    "google_openai_provider_calls": "not_run",
+    "live_voice_room": "not_run",
+    "renderer_extraction_and_rendering": "not_run",
+    "cloud_deployment": "not_run",
+    "full_production_route_handlers": "not_implemented"
+  },
+  "original_part1_zip_sha256": "6604230ad2905e21e27f81e31a605a06719c12161bdd669383ead973ad7b19ea",
+  "interpretation": "Passing a reference contract test does not close an implementation goal or establish provider performance, product economics, RLS enforcement, or native effect settlement."
+}

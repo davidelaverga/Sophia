@@ -14,11 +14,11 @@ Use separate secrets for Sophia API, model adapters, LiveKit service, native bri
 
 The dsh project token permits only that project's bounded tools. An external worker grant permits the named session and operations, not the owner's whole computer. Preview tokens are short-lived, audience-bound and cannot authorize source writes. Redact signed URLs and authorization headers from traces.
 
-Disable dsh's session-log/inventory/telemetry defaults explicitly as described in the runtime chapter. Disable unwanted Omnigent analytics and public-link sharing at the chosen release configuration; Part 2 verifies its exact current settings instead of blindly copying an old environment variable list.
+Disable dsh's session-log/inventory/telemetry defaults explicitly as described in the runtime chapter. Disable unwanted Omnigent analytics and public-link sharing at the chosen release configuration; The [operating map](../ops/DEPLOYMENT_BINDINGS.md) binds services, principals, secrets and readiness. Exact upstream deploy switches/image digests still require the S1-01 source checkout/build; an old environment list is not accepted as proof.
 
 ## 3. Build-container policy
 
-The host supervisor owns container creation. The model cannot choose an arbitrary image, host mount or Docker flag. Use a supported pinned Node/Vite image for prototypes, a separate pinned browser/render image and an isolated selected Python renderer image. Build source is mounted into the task workspace; other project homes are not mounted.
+The host supervisor owns container creation. The model cannot choose an arbitrary image, host mount or Docker flag. Use a supported pinned Node/Vite image for prototypes, a separate pinned browser/render image with the selected JavaScript renderer kernels. Build source is mounted into the task workspace; other project homes are not mounted.
 
 No privileged containers; non-root user; bounded CPU/memory/disk/time; explicit network access for dependency installation and the intended preview; no unrestricted host network or Docker socket. Record image digest and source bundle with each job. Native PTC's sandbox remains enabled, but is not our only cross-project isolation boundary.
 

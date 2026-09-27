@@ -1,0 +1,33 @@
+{
+  "protocol": "sophia.dev-handoff.v1.1",
+  "template_only": true,
+  "mission_id": null,
+  "message_id": null,
+  "kind": "support_request",
+  "operation_id": null,
+  "request_revision": 1,
+  "candidate_commit": null,
+  "question": null,
+  "already_established": [],
+  "source_refs": [],
+  "allowed_host_ref": null,
+  "test_commands_or_analysis_scope": [],
+  "write_scope": {
+    "mode": "read_only",
+    "allowed_paths": [],
+    "separate_branch": null
+  },
+  "hosted_effects": "none",
+  "paid_provider_calls": "none_without_separate_allowance",
+  "permitted_data_ref": null,
+  "limits": {
+    "time_or_work_bound": null,
+    "spend_ceiling": 0
+  },
+  "return": {
+    "summary_max_lines_target": 80,
+    "source_ranges_required": true,
+    "actual_commands_and_exit_codes_required_if_executed": true,
+    "large_logs_as_artifacts": true
+  }
+}

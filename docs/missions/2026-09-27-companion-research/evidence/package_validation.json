@@ -1,0 +1,17 @@
+{
+  "schema": "sophia.mission-pack-validation.v1",
+  "scope": "local_document_structure_only",
+  "relative_links_and_anchors_checked": 143,
+  "json_files_parsed": 8,
+  "feature_missions": 3,
+  "foundation_procedures": 1,
+  "goal_sessions": 19,
+  "named_acceptance_cases": 55,
+  "launch_prompts": 8,
+  "failures": [],
+  "passed": true,
+  "application_tests_run": false,
+  "external_links_network_checked": false,
+  "provider_calls_made": false,
+  "repository_or_hosted_effects_performed": false
+}

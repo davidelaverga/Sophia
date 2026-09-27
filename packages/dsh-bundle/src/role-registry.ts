@@ -14,13 +14,17 @@
  * - the PTC `workflow` runtime only for research and prototype. Its child
  *   agents are held to the parent attempt's role by the bridge's guard.
  *
+ * - `sophia-brief-v1` (S1-05A) drafts a brief from inputs the service puts in
+ *   its prompt (the source-bound context manifest). It needs no native tool,
+ *   so it may run none: every tool is hidden and the guard denies any call.
+ *
  * A role id is versioned. A session created under one role resumes under the
  * same id, and a bundle that no longer defines it refuses to resume
  * (02_DSH_BOOTSTRAP §7).
  * @module @sophia/dsh-bundle/role-registry
  */
 
-export type RoleId = 'sophia-guide-v1' | 'sophia-lead-v1' | 'sophia-research-v1' | 'sophia-prototype-v1' | 'sophia-review-v1'
+export type RoleId = 'sophia-guide-v1' | 'sophia-lead-v1' | 'sophia-research-v1' | 'sophia-prototype-v1' | 'sophia-review-v1' | 'sophia-brief-v1'
 
 export interface RolePreset {
   readonly id: RoleId
@@ -46,6 +50,7 @@ export const ROLE_PRESETS: Readonly<Record<RoleId, RolePreset>> = {
   'sophia-research-v1': preset('sophia-research-v1', true, ['todo_write', 'skill', ...READ_WORKSPACE, ...GOALS, 'workflow']),
   'sophia-prototype-v1': preset('sophia-prototype-v1', true, ['todo_write', 'skill', ...READ_WORKSPACE, ...GOALS, 'workflow']),
   'sophia-review-v1': preset('sophia-review-v1', false, [...READ_WORKSPACE]),
+  'sophia-brief-v1': preset('sophia-brief-v1', false, []),
 }
 
 /**

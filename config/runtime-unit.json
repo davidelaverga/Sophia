@@ -59,7 +59,7 @@
     "release_baseline": "D13: deepseek-official / deepseek-flash (unchanged; switching back is a bundle-patch change and a new recorded unit)",
     "live_verified": false
   },
-  "workspace_lock_sha256": "280f695a4a3d12f77dcf38a4efc6ea79ed86b717e2c8ea71a017d065a293dd75",
+  "workspace_lock_sha256": "b26b64e6fd020739386353b3aa474485ece563220e44449810862409a61468a4",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -87,9 +87,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "8577ffe4d5f2224828f633ec37738f3f7694ebbd556c21e3c9293224fa160712",
-    "archive_integrity": "sha512-hfQPRClUoQQLm8dzzhXWTziPD2hp1H4sX3MFe4VGmwG4XjGs1e5NZadj5dkRIYRNxUwK6EiOd3btmR6lyhL2HQ==",
-    "artifact_digest": "sha256:8577ffe4d5f2224828f633ec37738f3f7694ebbd556c21e3c9293224fa160712",
+    "archive_sha256": "391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
+    "archive_integrity": "sha512-8TgUktxJ+tXMEYmXw/X2cQnVxTOcNG2Bn/PGw/vW1BnOu+skL9zl2xV49+oAWdXjXsZ+KdXXDa5/fWcotianKA==",
+    "artifact_digest": "sha256:391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },

@@ -2,9 +2,17 @@
 
 | Path | What |
 |---|---|
-| [pack/](pack/00_START_HERE.md) | Sophia Implementation Pack v0.3 Part 1: design source of truth, imported byte-for-byte; do not edit |
+| [pack/](pack/00_START_HERE.md) | Sophia Implementation Pack v0.4 Part 2 (cumulative: includes Part 1): design source of truth, imported byte-for-byte; do not edit |
 | [SOURCE_MAP.md](SOURCE_MAP.md) | Which document governs what; which upstream files ground which Sophia files; facts learned at the pin |
 | [DESTINATION_MAP.md](DESTINATION_MAP.md) | Every planned source path: built / partial / unbuilt and its owning goal (test-enforced) |
 | [RUNTIME_UNIT.md](RUNTIME_UNIT.md) | The pinned runtime unit, its identities, the profile install and the composition gate |
 | [evidence/S1-01/](evidence/S1-01/) | Retained outputs from actual S1-01 runs (path-normalized, no credentials) |
-| [handoffs/](handoffs/S1-01-attempt-1.md) | Session handoffs per goal attempt |
+| [evidence/S1-02/](evidence/S1-02/2026-09-24-attempt-1.md) | The S1-02 attempt record: commands, counts, mutation checks, hosted steps |
+| [evidence/pack-v0.4/](evidence/pack-v0.4/verify-local.run.txt) | The v0.4 pack's own validators, run on a throwaway copy |
+| [handoffs/](handoffs/) | Session handoffs per goal attempt: [S1-01](handoffs/S1-01-attempt-1.md), [S1-02](handoffs/S1-02-attempt-1.md), [S1-05A](handoffs/S1-05A-attempt-1.md) |
+| [alignment/2026-09-25/](alignment/2026-09-25/00_START_HERE.md) | The 2026-09-25 progress ledger and the S1-05A goal packet (additive to the frozen pack; [installation record](alignment/2026-09-25/INSTALLED.md)) |
+| [progress/S1-05A.md](progress/S1-05A.md) | S1-05A acceptance cases: source, tests, hosted evidence and human acceptance kept apart |
+| [evidence/S1-05A/](evidence/S1-05A/checkpoint-A.md) | S1-05A checkpoint records |
+| [coordination/S1-05A/](coordination/S1-05A/README.md) | Claude ↔ Codex operator messages, posted on coordination issue [#14](https://github.com/davidelaverga/Sophia/issues/14) |
+| [missions/](missions/README.md) | Mission packs, installed byte for byte with their installation records. [2026-09-27-companion-research/](missions/2026-09-27-companion-research/00_START_HERE.md) covers R00 and M01–M03 (mission companion, dsh upgrade, research workflow), with protocol v1.1 |
+| [progress/R00-foundation.md](progress/R00-foundation.md) | R00: the PR stack graph, the review and CI disposition, the bottom-up merge plan and its one approval, the separate OP-0009 release, and the open acceptance cases |

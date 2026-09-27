@@ -1,0 +1,4 @@
+# LF in every checkout. docs/pack/ must stay byte-identical to the imported
+# archive (its SHA256SUMS), and the contract tests compare files byte for
+# byte; with core.autocrlf=true a Windows checkout would otherwise get CRLF.
+* text=auto eol=lf

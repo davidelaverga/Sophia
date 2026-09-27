@@ -1,0 +1,113 @@
+{
+  "status": "desired_deployment_map_not_deployed",
+  "runtime_unit": "../config/runtime-unit.json",
+  "units": [
+    {
+      "id": "studio",
+      "host": "vercel",
+      "artifact": "apps/studio/dist",
+      "entry": "static build",
+      "public": true,
+      "credentials": [
+        "public Supabase project URL/anonymous publishable configuration only"
+      ],
+      "readiness": "auth and snapshot route smoke",
+      "imageDigest": null
+    },
+    {
+      "id": "api",
+      "host": "render",
+      "artifact": "Sophia API OCI image",
+      "entry": "node apps/api/dist/server.js",
+      "public": true,
+      "credentials": [
+        "Supabase JWT validation configuration",
+        "sophia_api database login",
+        "LiveKit token-issuance secret",
+        "fixed Omnigent bridge origin"
+      ],
+      "readiness": "GET /ready checks schema version and required dispatch services",
+      "imageDigest": null
+    },
+    {
+      "id": "worker",
+      "host": "private_execution_vm",
+      "artifact": "Sophia worker OCI image",
+      "entry": "node apps/worker/dist/main.js",
+      "public": false,
+      "credentials": [
+        "sophia_worker scoped login",
+        "job-scoped services via credential broker"
+      ],
+      "readiness": "lease heartbeat plus actual worker registration",
+      "imageDigest": null
+    },
+    {
+      "id": "omnigent",
+      "host": "render",
+      "artifact": "build pinned upstream 7496d36b source",
+      "entry": "upstream supported server image entrypoint",
+      "public": true,
+      "credentials": [
+        "dedicated Omnigent database",
+        "accounts cookie secret",
+        "device client secret"
+      ],
+      "readiness": "native /health and actual host registration",
+      "imageDigest": null
+    },
+    {
+      "id": "execution_host",
+      "host": "private_execution_vm",
+      "artifact": "supervisor image",
+      "entry": "node apps/execution-host/dist/main.js",
+      "public": false,
+      "credentials": [
+        "scoped Sophia service credential",
+        "operator-owned container interface"
+      ],
+      "readiness": "start/settle a constrained fixture job; no model call required",
+      "imageDigest": null
+    },
+    {
+      "id": "dsh_project_runtime",
+      "host": "private_execution_vm",
+      "artifact": "pinned dsh plus Sophia bundle image",
+      "entry": "dsh --profile sophia-runtime",
+      "public": false,
+      "credentials": [
+        "selected model credentials through approved provider plane",
+        "project-scoped Sophia capability"
+      ],
+      "readiness": "control-plugin ready with expected runtime unit, project and composition",
+      "imageDigest": null
+    },
+    {
+      "id": "media_bridge",
+      "host": "private_execution_vm",
+      "artifact": "media OCI image",
+      "entry": "node apps/media-bridge/dist/main.js",
+      "public": false,
+      "credentials": [
+        "Google Gemini API key",
+        "restricted room participant token",
+        "scoped Sophia media capability"
+      ],
+      "readiness": "one active room owner, actual provider setup and output generation",
+      "imageDigest": null
+    },
+    {
+      "id": "build_render_jobs",
+      "host": "private_execution_vm",
+      "artifact": "fixed source-build and render image units",
+      "entry": "fixed supervisor-selected entrypoint",
+      "public": false,
+      "credentials": [
+        "none from API/native provider accounts; result upload scoped to this job"
+      ],
+      "readiness": "sandboxed browser/build smoke and output validation",
+      "imageDigest": null
+    }
+  ],
+  "nullDigestMeaning": "No deployment image was built or certified in this documentation environment."
+}

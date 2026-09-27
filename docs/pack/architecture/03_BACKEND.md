@@ -1,6 +1,6 @@
 # Backend, records and command processing
 
-**Concrete Sophia contract; new implementation.** The table/route names in this chapter are ours, not claims about upstream dsh or Omnigent. S1-02 implements the minimum transaction path. Part 2 supplies complete SQL/RLS migrations and the generated OpenAPI artifact.
+**Concrete Sophia contract; new implementation.** The table/route names in this chapter are ours, not claims about upstream dsh or Omnigent. S1-02 implements the minimum transaction path. Part 2 supplies [source-bound data/API detail](12_DATA_AND_API_BINDINGS.md), [foundational SQL/RLS candidates](../db/README.md) and the [generated API contract](../api/README.md). The specialized service handlers remain implementation work; the SQL has not been executed here.
 
 ## 1. Application modules
 

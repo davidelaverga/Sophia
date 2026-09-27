@@ -1,0 +1,54 @@
+{
+  "protocol": "sophia.dev-handoff.v1.1",
+  "template_only": true,
+  "mission_id": null,
+  "message_id": null,
+  "kind": "execution_request",
+  "from_role": "implementer",
+  "reply_to": null,
+  "supersedes": null,
+  "operation_id": null,
+  "request_revision": 1,
+  "candidate_commit": null,
+  "implementation_pr": null,
+  "summary": null,
+  "approval_ref": null,
+  "approval_provenance_verified": false,
+  "scope": {
+    "environment_ref": null,
+    "service_ids": [],
+    "database_ref": null,
+    "effects": [],
+    "excluded_effects": []
+  },
+  "preconditions": {
+    "current_deployments_ref": null,
+    "current_schema_digest": null,
+    "active_work_state_ref": null,
+    "tests_ref": null
+  },
+  "inputs": {
+    "migration_files": [],
+    "migration_sha256": {},
+    "configuration_key_names": [],
+    "source_bound_runbook_ref": null,
+    "artifact_manifest_ref": null
+  },
+  "verification": {
+    "expected_schema_ref": null,
+    "expected_deployment_tuple": [],
+    "smoke_checks": [],
+    "cleanup_checks": []
+  },
+  "recovery": {
+    "compatible_fallback_ref": null,
+    "schema_reversal": "not_authorized",
+    "unknown_outcome_reconciliation": null
+  },
+  "limits": {
+    "spend_ceiling": null,
+    "resource_ceiling_ref": null,
+    "expires_at_or_completion_boundary": null,
+    "permitted_test_data_ref": null
+  }
+}

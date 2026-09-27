@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "scope": "offline_contract_structure_and_binding_consistency",
+  "checked_at_utc": "2026-09-24T02:03:36.533156+00:00",
+  "counts": {
+    "api_local_references": 155,
+    "api_operations": 33,
+    "api_component_schemas": 40,
+    "declared_sql_tables": 31,
+    "frontend_source_bindings": 26,
+    "renderer_extraction_entries": 4,
+    "renderer_positive_examples": 1,
+    "renderer_negative_examples": 5,
+    "synthetic_native_wire_examples": 12,
+    "unexecuted_migration_candidates": 4
+  },
+  "generated_types": "matched",
+  "not_tested": [
+    "formal full OpenAPI conformance",
+    "Fastify route implementation",
+    "runtime response schema validation",
+    "PostgreSQL parsing/execution/RLS/concurrency",
+    "native device grant or native sessions",
+    "actual renderer extraction/rendering",
+    "target Node 24 runtime",
+    "cloud deployment"
+  ],
+  "errors": []
+}

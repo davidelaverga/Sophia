@@ -1,0 +1,56 @@
+{
+  "source_archive": "Sophia_Pass2_Research_and_DSH_Upgrade_2026-09-27.zip",
+  "all_reference_files_unchanged": true,
+  "files": [
+    {
+      "path": "references/pass2/DSH_UPGRADE_STRATEGY.md",
+      "sha256": "91d2f1a1017729b3835ca3b7e0f0b420c75ed8651237c37dc83abd5813b183f7",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/README.md",
+      "sha256": "911e0ed0fe7207d8cbc3faaa077cd32b55ffaab42eafc637faeae77f5364e6ab",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/RESEARCH_AGENT_IMPLEMENTATION_PLAN.md",
+      "sha256": "72e027b6392f81568de4737d2e2c3c8a5139cfed91f545dfaa964a36d2ebe263",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/SHA256SUMS",
+      "sha256": "c604ed1413cbcf463c5aefe0a5620919dfcc6b7460365f4cc9877d19cf5e8c0e",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/SOURCE_AUDIT.md",
+      "sha256": "dce1973e9857f28373ad5f2f2dc0330ce03325a3dfddc8376f2ddafbb67eca03",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/Sophia_Mission_Companion_and_Research_Ledger_v0.2_2026-09-27.md",
+      "sha256": "9d23b94cb938d27b833c12c07899fd3e80f982ad6c66d317d28a0885459b0e19",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/evidence/package_validation.json",
+      "sha256": "ee385337d4a1150afd56e95850f5fcf75244fa7a3b0e50519d91ca37a3c301a6",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/evidence/source_manifest.json",
+      "sha256": "2e0aa0081a90e0fc896e7b2a0917ad898d30c1b14b251d41311379f73bca4d37",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/prior/Sophia_Mission_Companion_and_Research_Ledger_v0.1_2026-09-27.md",
+      "sha256": "0760044e17344a03382c2080a0f9ea423487853d3a12f3de90045ec662f7f06a",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/prompts/RESEARCH_PROMPTS.md",
+      "sha256": "2ce051b4c25d1ad71c805f66ab502c50b295b948275252cee3604530ba7d04eb",
+      "unchanged": true
+    }
+  ]
+}

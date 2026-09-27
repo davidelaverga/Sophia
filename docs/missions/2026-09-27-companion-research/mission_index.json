@@ -1,0 +1,177 @@
+{
+  "schema": "sophia.three-pr-mission-pack.v1",
+  "version": "1.0",
+  "date": "2026-09-27",
+  "repository": "davidelaverga/Sophia",
+  "status": "specifications_prepared_not_executed",
+  "entry": "00_START_HERE.md",
+  "proposed_install_path": "docs/missions/2026-09-27-companion-research",
+  "default_merge_order": [
+    "R00",
+    "SMC-M01",
+    "SMC-M02",
+    "SMC-M03"
+  ],
+  "foundation": {
+    "id": "R00",
+    "feature_pr": false,
+    "spec": "02_FOUNDATION_MERGE_REVIEW.md",
+    "goals": [
+      "R00-G1",
+      "R00-G2",
+      "R00-G3",
+      "R00-G4"
+    ],
+    "claude_launch": "launch/R00_CLAUDE.md",
+    "codex_launch": "launch/R00_CODEX.md",
+    "actual_pr": 13,
+    "actual_coordination_issue": 14,
+    "status": "preflight_required"
+  },
+  "missions": [
+    {
+      "id": "SMC-M01",
+      "title": "mission-aware companion and project continuity",
+      "spec": "missions/M01_MISSION_COMPANION.md",
+      "branch_suggestion": "claude/smc-m01-mission-companion",
+      "dependencies": [
+        "R00"
+      ],
+      "goals": [
+        "M01-G1",
+        "M01-G2",
+        "M01-G3",
+        "M01-G4",
+        "M01-G5"
+      ],
+      "acceptance_tests": [
+        "M01-T01",
+        "M01-T02",
+        "M01-T03",
+        "M01-T04",
+        "M01-T05",
+        "M01-T06",
+        "M01-T07",
+        "M01-T08",
+        "M01-T09",
+        "M01-T10",
+        "M01-T11",
+        "M01-T12",
+        "M01-T13",
+        "M01-T14",
+        "M01-T15",
+        "M01-T16",
+        "M01-T17",
+        "M01-T18"
+      ],
+      "claude_launch": "launch/M01_CLAUDE.md",
+      "codex_launch": "launch/M01_CODEX.md",
+      "actual_pr": null,
+      "coordination_issue": null,
+      "candidate_commit": null,
+      "approval_ref": null,
+      "status": "planned"
+    },
+    {
+      "id": "SMC-M02",
+      "title": "qualified dsh upgrade and native preset binding",
+      "spec": "missions/M02_DSH_UPGRADE.md",
+      "branch_suggestion": "claude/smc-m02-dsh-upgrade",
+      "dependencies": [
+        "R00"
+      ],
+      "goals": [
+        "M02-G1",
+        "M02-G2",
+        "M02-G3",
+        "M02-G4",
+        "M02-G5"
+      ],
+      "acceptance_tests": [
+        "M02-T01",
+        "M02-T02",
+        "M02-T03",
+        "M02-T04",
+        "M02-T05",
+        "M02-T06",
+        "M02-T07",
+        "M02-T08",
+        "M02-T09",
+        "M02-T10",
+        "M02-T11",
+        "M02-T12",
+        "M02-T13",
+        "M02-T14",
+        "M02-T15"
+      ],
+      "claude_launch": "launch/M02_CLAUDE.md",
+      "codex_launch": "launch/M02_CODEX.md",
+      "actual_pr": null,
+      "coordination_issue": null,
+      "candidate_commit": null,
+      "approval_ref": null,
+      "status": "planned"
+    },
+    {
+      "id": "SMC-M03",
+      "title": "research workflow and Markdown/PDF delivery",
+      "spec": "missions/M03_RESEARCH_WORKFLOW.md",
+      "branch_suggestion": "claude/smc-m03-research",
+      "dependencies": [
+        "SMC-M01",
+        "SMC-M02"
+      ],
+      "goals": [
+        "M03-G1",
+        "M03-G2",
+        "M03-G3",
+        "M03-G4",
+        "M03-G5"
+      ],
+      "acceptance_tests": [
+        "M03-T01",
+        "M03-T02",
+        "M03-T03",
+        "M03-T04",
+        "M03-T05",
+        "M03-T06",
+        "M03-T07",
+        "M03-T08",
+        "M03-T09",
+        "M03-T10",
+        "M03-T11",
+        "M03-T12",
+        "M03-T13",
+        "M03-T14",
+        "M03-T15",
+        "M03-T16",
+        "M03-T17",
+        "M03-T18",
+        "M03-T19",
+        "M03-T20",
+        "M03-T21",
+        "M03-T22"
+      ],
+      "claude_launch": "launch/M03_CLAUDE.md",
+      "codex_launch": "launch/M03_CODEX.md",
+      "actual_pr": null,
+      "coordination_issue": null,
+      "candidate_commit": null,
+      "approval_ref": null,
+      "status": "planned"
+    }
+  ],
+  "shared": [
+    "shared/CONTRACT_BINDINGS.md",
+    "shared/CLAUDE_CODEX_PROTOCOL.md",
+    "shared/OPERATIONS_AND_RELEASE.md"
+  ],
+  "provider_direction": {
+    "search": "tavily",
+    "extraction": "jina_reader",
+    "fallback": "none_implicit",
+    "credentials_verified": false
+  },
+  "runtime_target": "selected_exactly_during_M02_G1_not_floating_latest",
+  "effects_performed_by_packet_author": []
+}

@@ -10,3 +10,5 @@ dist/
 .env
 .env.*
 !.env.example
+# Invitation emails written by the local dev stack (SOPHIA_MAIL_DIR), never sent.
+/.sophia-mail/

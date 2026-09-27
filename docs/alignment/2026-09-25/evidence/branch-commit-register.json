@@ -1,0 +1,449 @@
+{
+  "review_date": "2026-09-25",
+  "repo": "https://github.com/davidelaverga/Sophia",
+  "main": "01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3",
+  "working_head": "29a570c33feb97a6bc04ea357c84087a47c9b055",
+  "scope": "all visible remote branches and reachable commit metadata; selected source review",
+  "branches": [
+    {
+      "name": "main",
+      "sha": "01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3"
+    },
+    {
+      "name": "claude/mission-1-repo-setup-yjjjn2",
+      "sha": "f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5"
+    },
+    {
+      "name": "docs/pack-v0.4",
+      "sha": "459744a1fee941d19f9d2ac3f2bbcc70ce142f33"
+    },
+    {
+      "name": "s1-02/admit-command",
+      "sha": "e85db976efc618d24f220600ddbda5705b8fc091"
+    },
+    {
+      "name": "tooling/clean-code",
+      "sha": "e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b"
+    },
+    {
+      "name": "s1-02/response-validators",
+      "sha": "66b8ca849a91d1f13253ad13a6f45f93c5861095"
+    },
+    {
+      "name": "deploy/render-vercel",
+      "sha": "ff22a249c5d0ec75ab72f62d775bba347a28a40a"
+    },
+    {
+      "name": "s1-04/studio-shell",
+      "sha": "4bd8cb10a70147254280f52a17c9c65dd10f05ec"
+    },
+    {
+      "name": "studio/vision",
+      "sha": "e5a7b756982f0169a0d4155c81ea37b4935e5b51"
+    },
+    {
+      "name": "rooms/access",
+      "sha": "39929967b8c1f3d2d480a3d83245ba5947ed7d02"
+    },
+    {
+      "name": "studio/precise",
+      "sha": "0554dd69870b50650fd89670677b35a445bf921d"
+    },
+    {
+      "name": "studio/qol",
+      "sha": "29a570c33feb97a6bc04ea357c84087a47c9b055"
+    }
+  ],
+  "commits": [
+    {
+      "sha": "29a570c33feb97a6bc04ea357c84087a47c9b055",
+      "description": "Lobby: question stands alone and undo divider removed",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "7ff23865cae272469d2aeccda431daee618159d7",
+      "description": "Decline versus block; amendment A03 and migration 0011",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "f8051e83e768caa092144aaaf1d77a752fdd1757",
+      "description": "Explicit pass-floor menu and readable composer note",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "92f2abff0198ac77f7dc5cdaace4f1fd9d2d7fae",
+      "description": "Remembered media choices and honest device/connection feedback",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "a6e0edfd6f359f1c97004308bf1498f3de16254b",
+      "description": "Viewer controls, floor authority and plain-language work state",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "16a5eb9806c8ed32a5cb344f82f9206b0fafa8a8",
+      "description": "Invitation delivery, confirmations and keyboard focus",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "d131f14a7ab5430b04ca2bcab045b824494ecf42",
+      "description": "Sign-in and invitations across tabs, network errors and accounts",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "9de262c9f2d3f1c1e3c21b2156693b003e7e4f6f",
+      "description": "Access copy, guest tab titles and draft disclosure",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "2104d2a2090d4f89be3b1e6ce2aff26aa5dde652",
+      "description": "Remove internal goal codes from Studio copy",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "97585c04716a189c9a70c9f4094aac4edb1403a6",
+      "description": "Lobby visible across views and waiting-count tab title",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "c3c359af9797382fa0b979e4af983a687dfc2b55",
+      "description": "Per-device recent projects",
+      "pr": 12,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "0554dd69870b50650fd89670677b35a445bf921d",
+      "description": "Light frame radii and human-readable room event labels",
+      "pr": 11,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "4ed8265d9eb5ac39f4b138ca9f0b94cf1edecca9",
+      "description": "Geist typography, square controls, shortcuts and tips",
+      "pr": 11,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "39929967b8c1f3d2d480a3d83245ba5947ed7d02",
+      "description": "S1-04A access, invitations, lobby and room sessions; A02/0010",
+      "pr": 10,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "e5a7b756982f0169a0d4155c81ea37b4935e5b51",
+      "description": "Room-centered visual language, animated light, cameras and screen share",
+      "pr": 9,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "4bd8cb10a70147254280f52a17c9c65dd10f05ec",
+      "description": "Close DB test resources despite failed room-child cleanup",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "03ec20d18d182d5bf6a5d1b168e611e4dbf3a4ab",
+      "description": "Room dock, input floor, evidence and handoff",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1891fe578ce736c89e217ddf6d95fe4f8a38afdc",
+      "description": "Type-only pg import and non-shadowed test hook",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "b059a62917b233eba8ca606da9825bdd6b6b69cb",
+      "description": "Merge deployment branch into Studio work",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "13533aff49ec3517654ffcfa71ecf4ae747aa90d",
+      "description": "Room DB/HTTP tests and local LiveKit dev setup",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1df64b8f21f00b93b68754fd12ba295e00ecf8cb",
+      "description": "Merge updated S1-02 stack and main runtime into Studio",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "074bcd5bb90fd09173fdc6ceeda6e27c5fe97dbc",
+      "description": "Room contract A01, migration0009, token/floor WIP checkpoint",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "ff22a249c5d0ec75ab72f62d775bba347a28a40a",
+      "description": "Merge S1-02 review fixes into deploy branch",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "66b8ca849a91d1f13253ad13a6f45f93c5861095",
+      "description": "Merge scoped tooling and S1-02 fixes into validators",
+      "pr": 6,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b",
+      "description": "Merge S1-02 updates into scoped tooling",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "e85db976efc618d24f220600ddbda5705b8fc091",
+      "description": "LISTEN reconnect via Promise.withResolvers; ES2024",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "4b48dc84d9d9fc1b111b28eef6b4d71a1bb5b870",
+      "description": "Merge S1-02 into tooling",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "9ce42f03d1e518862676d89d3b29ef8deb34468a",
+      "description": "Narrow formatting/lint gate to product code; restore runtime-owner files",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "73a69d4564bd893be049ac48e4ee58e51cbb5082",
+      "description": "Wait for LISTEN recovery through a promise instead of polling",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "805f5e288ceca1a3baabc055ebcfafb630afec0a",
+      "description": "Preserve SSE disconnect flag through strict control-flow analysis",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "04c978dc7a4bad960e1ba3f4ecc6643656282e38",
+      "description": "Fix encoded-route auth, pool errors, SSE cleanup and LISTEN recovery; migration 0008",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1f2ed0b5c8c24c38a2b41a5e1d508274cbc1e4f1",
+      "description": "Merge main S1-03 and pack into S1-02 as a union",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "459744a1fee941d19f9d2ac3f2bbcc70ce142f33",
+      "description": "Merge main runtime into v0.4 documentation import",
+      "pr": 3,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "c1f77512a30f58dbd7ba04b11ef97d80fc89a122",
+      "description": "Handle dashboard invitations and cross-device sign-in codes",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "60653583ec6b4c07a5d6b46c54495f6298a65b6a",
+      "description": "Repair Vercel SPA deep-link rewrites",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "6b5faf4f163b0ae1406b840ae5f6c6f42782875b",
+      "description": "Add Studio API origin and API CORS for hosted services",
+      "pr": 7,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "846b177f2f79e30ad1d5e53ebd3cd80c920ef632",
+      "description": "Create Studio shell, shared project feed and per-viewer lenses/drafts",
+      "pr": 8,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "cf48e8f8f219a274792467e437ec8e13c401a2a5",
+      "description": "Generate and enforce browser/API/SSE response validators",
+      "pr": 6,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "42133012bd519c55a6bed11d1d0ae85008657ac9",
+      "description": "Format old S1-01 scripts; later removed by scoped-tooling revision",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "0b859672a2681fc685309983936f5d0ea7d1b339",
+      "description": "Introduce Prettier, typed lint, size limits and contribution rules",
+      "pr": 5,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "5305facf7ae4f0c9b12cd6c02511ee12c8894ff1",
+      "description": "Remove remaining regex escape after test conversion",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "8bc8e3aca0bdd36f3f14ee345fb2fed6a7f0487b",
+      "description": "Tidy converted node:test tests and type narrowing",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "2a50ab923591ace6e64d0a713546dbcfee225f5e",
+      "description": "S1-02 SQL, auth, API, persistence, outbox and Studio work view",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "1e865660dc3b143091587ad4d81be5e131f76055",
+      "description": "Force LF checkout to preserve frozen pack and contract bytes",
+      "pr": 4,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "b8b7151fa23f5c2ab558b13bc56fe98e85961a19",
+      "description": "Import cumulative v0.4 Part 2 pack; web/pdf and web/deck renderer direction",
+      "pr": 3,
+      "group": "Luis stack"
+    },
+    {
+      "sha": "cde6072d9bb3f517f04ffeba030162045813d5aa",
+      "description": "Initialize new repository",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "314aa685ca86329b03aac7d04fa0ab08cd719bfb",
+      "description": "Build reproducible S1-01 runtime unit",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "94f0e5f85f5c74aae3fb04ede26fd1f116e6f145",
+      "description": "Make deployed runtime digest independent of checkout location",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "b7798432b773b086ff3f47a6acce139ef530e32f",
+      "description": "Record platform-specific identity and isolate temporary files",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "1467f834af8bb4197b759a20f0497cd147594d59",
+      "description": "Record S1-01 evidence and handoff",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "5522a4ec59b99a8d6638554779b669421c21b8ef",
+      "description": "Initialize GitHub repository history",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "fb12ab85658ca2f6645219456646f3f1f44af34d",
+      "description": "Join repository initialization histories",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "c934e83d5613a67fa4d6fd07aa61fefafb6e26c0",
+      "description": "Update initial handoff metadata",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "014a85fc0db24c9bab4de681894986a118b10112",
+      "description": "Tree digest v2 ignores empty directories",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "363be14742cad3b3a30bc73da06b4e37a4b119b1",
+      "description": "Ensure pinned pnpm is available during profile installation",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "74936ef606458b288da548e5fda78be4dce672ab",
+      "description": "Verify installed bundle bytes rather than composition alone",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "fbaec894a63b8075a87e809d484bf0e092f029e5",
+      "description": "Merge PR 1, reproducible runtime foundation",
+      "pr": 1,
+      "group": "Main history"
+    },
+    {
+      "sha": "0b09b6cd3e4a959ee174d803b27246267a288462",
+      "description": "Record approved S1-03 development model route",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "4eedb573fedf78c56d6be9150ba719b7ed65e556",
+      "description": "S1-03 control bridge, journal and public Agent operations",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "456ca980240f2727d64c6038cded784781f4d5a6",
+      "description": "Five scoped roles and nested-tool guards",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "36dd7099a99b08947799fd813b728f1a2d566b5f",
+      "description": "Execution-host supervisor and live-steer acceptance command",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "a27c019a53706183f8d944f93bc7b9d314077625",
+      "description": "Repair recovery findings from first Codex review",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5",
+      "description": "Repair six further ordering/replay/settlement findings",
+      "pr": 2,
+      "group": "Main history"
+    },
+    {
+      "sha": "01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3",
+      "description": "Merge PR 2, S1-03 implementation with live acceptance pending",
+      "pr": 2,
+      "group": "Main history"
+    }
+  ],
+  "counts": {
+    "branches": 12,
+    "main_commits": 19,
+    "additional_stack_commits": 45,
+    "unique_commits": 64
+  }
+}

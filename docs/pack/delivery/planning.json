@@ -1,5 +1,5 @@
 {
-  "version": "0.3-part1",
+  "version": "0.4-part2",
   "goals": [
     {
       "id": "S1-01",
@@ -418,7 +418,7 @@
         "A sleeping/offline host is reported, not treated as still progressing.",
         "Subscription or permission failure does not silently route through another person\u2019s credentials."
       ],
-      "design_status": "binding_audit_pending",
+      "design_status": "source_bound_live_probe_required",
       "implementation_status": "not_started",
       "sessions": []
     },
@@ -605,7 +605,7 @@
         "The small legacy PDF smoke wrapper is not presented as a complete rich renderer.",
         "An editable-source claim is not made for flattened raster output."
       ],
-      "design_status": "binding_audit_pending",
+      "design_status": "source_bound_live_probe_required",
       "implementation_status": "not_started",
       "sessions": []
     },
@@ -672,13 +672,35 @@
         "S1-14"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "UI-01",
+        "BZ-01",
+        "QM-01"
       ],
       "result": "Use the heartbeat and actual artifact milestones to create source-bound opportunities; retain separate required actions, quiet progress and controls.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "A real useful milestone is captured and shown without replacing a newer candidate.",
+        "An optional invitation can be declined while a separate required action remains unresolved.",
+        "A no-op review produces no distracting card."
+      ],
+      "adverse_checks": [
+        "A stale screenshot cannot appear as the live milestone.",
+        "A dismissed card cannot approve a permission or mission change."
+      ],
+      "code_destinations": [
+        "apps/api/src/services/attention.ts",
+        "apps/studio/src/features/attention/",
+        "packages/dsh-bundle/src/lead/milestone-review.ts"
+      ],
+      "work_sequence": [
+        "Extend the existing lead review output with none or a captured milestone/choice; do not add a second always-running project manager.",
+        "Persist the opportunity with exact artifact/source, relevance window, intended audience and current authorized no-response continuation.",
+        "Render Work Pulse, owner-required HumanAction and optional CooperationOpportunity as different types over one project event stream.",
+        "Add Accept/Change/Reflect/Later/Decline operations appropriate to that type; viewer dismissal changes attention, not authority.",
+        "Measure helpfulness, wrong/missed detections and resulting rework separately; do not convert a click into a correctness label."
+      ]
     },
     {
       "id": "S2-02",
@@ -689,13 +711,37 @@
         "S1-14"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "OLD-02",
+        "OLD-03",
+        "OLD-07",
+        "UI-01"
       ],
       "result": "Integrate expected-base and component-scoped mutations, preserved-sibling checks and atomic candidate publication for supported artifacts.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "One requested component changes while protected sibling source hashes remain unchanged.",
+        "The target is corrected in co-review before a consequential ambiguous edit.",
+        "The image-based PPTX is revised through retained HTML and re-exported with notes."
+      ],
+      "adverse_checks": [
+        "A stale source edit loses CAS without overwriting the newer accepted artifact.",
+        "An out-of-scope diff is rejected and the previous preview stays available.",
+        "An arbitrary PDF import is not called natively editable."
+      ],
+      "code_destinations": [
+        "packages/artifacts/src/mutations/",
+        "apps/api/src/services/artifact-publication.ts",
+        "apps/studio/src/features/review/"
+      ],
+      "work_sequence": [
+        "Start with source-backed UI/HTML and slide-HTML components; retain originals for imported flattened documents. Do not claim reverse editability from pixels.",
+        "Bind an edit to expected source/version, target component IDs and protected sibling source hashes; store a candidate, never mutate the stable bundle in place.",
+        "Run the worker in a bounded source workspace, validate the complete diff and reject out-of-scope changes before publication.",
+        "Re-render affected outputs and verify declared appearance/behavior constraints; packaging metadata and legitimate pagination are not byte-equality failures.",
+        "Use the same publication CAS for Luis edits and agent edits. Cross-cutting layout requests require an explicit expanded mandate, not silent scope widening."
+      ]
     },
     {
       "id": "S2-03",
@@ -706,13 +752,35 @@
         "S1-14"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "DSH-17",
+        "TEST-01",
+        "UI-01"
       ],
       "result": "Add Storybook/MSW scenario fixtures and Playwright assertions/traces; distinguish simulation, recorded replay and live application evidence.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "Loading, empty, failure and success scenarios run and can be inspected from Sophia.",
+        "A real application flow runs with assertions and a source-bound trace.",
+        "One visual observation becomes a failing then passing executable check."
+      ],
+      "adverse_checks": [
+        "A replayed model stream is not reported as a fresh live model test.",
+        "A simulated payment/database response cannot pass an integrated acceptance criterion."
+      ],
+      "code_destinations": [
+        "apps/studio/.storybook/",
+        "packages/scenarios/",
+        "tests/preview-e2e/"
+      ],
+      "work_sequence": [
+        "Promote S1 state fixtures into versioned Storybook scenarios for the chosen React component stack, with MSW-owned network fixtures.",
+        "Bind scenario source and mocked service contracts to the same candidate family as the actual application. Show simulated versus integrated state prominently.",
+        "Run Playwright flows against the complete preview: assertions, console/network evidence, trace and captured source/deployment identity.",
+        "Use selected Google video review as timestamped observations; turn useful discoveries into executable regression tests.",
+        "Keep dsh model-stream replay for agent-control tests, UI scenarios for simulated states and real application tests for actual integration. Do not merge their evidence labels."
+      ]
     },
     {
       "id": "S2-04",
@@ -723,13 +791,38 @@
         "S1-14"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "OM-03",
+        "OM-04",
+        "OM-05",
+        "OM-09",
+        "CC-01"
       ],
       "result": "Answer supported native permission requests from authenticated Sophia mobile/desktop; retain exact native handoff for unsupported login/OS actions.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "The correct owner resolves one supported request from mobile and its native resolution is observed.",
+        "An unsupported native request remains visible with an accurate handoff.",
+        "A mobile steer reaches the currently authorized worker through the lead."
+      ],
+      "adverse_checks": [
+        "A stale tap after Stop cannot grant a superseded operation.",
+        "A member cannot answer a different owner request by reusing its URL.",
+        "A lost native response is not silently retried as a fresh grant."
+      ],
+      "code_destinations": [
+        "apps/api/src/services/human-actions.ts",
+        "apps/studio/src/features/mobile/",
+        "apps/api/src/services/push.ts"
+      ],
+      "work_sequence": [
+        "Expose only schema-bound supported native permission response modes. Preserve the exact owner, native request ID, source fingerprint and expiry.",
+        "Authenticate the mobile action, re-read current request and assignment authority, then call the native resolve route once.",
+        "Use the owner-delegated Omnigent connection; default approval is one-time and never silently supplies persistence metadata.",
+        "Add PWA web-push with a minimal authenticated deep link. Keep the same durable HumanAction independent of push delivery/read receipts.",
+        "Support manual progress review, current preview, comment, steer and Hold/Stop on mobile. Native login/OS/2FA requests remain explicit handoffs."
+      ]
     },
     {
       "id": "S2-05",
@@ -740,13 +833,37 @@
         "S1-14"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "GG-01",
+        "LK-01",
+        "BZ-03",
+        "UI-01"
       ],
       "result": "Add per-track transcription, consented following, attributed context and a single speak/silent/card policy; test English, Italian and Spanish.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "Participants can follow discussion, invoke Sophia and withdraw their own contribution visibly.",
+        "A useful optional card appears without unwanted speech.",
+        "One background job completes while the room conversation continues."
+      ],
+      "adverse_checks": [
+        "Quoted or negated use of Sophia\u2019s name is not an unconditional speech command.",
+        "Revoked listening state cannot replay cached audio into a new provider session.",
+        "Only one authorized Sophia output is played."
+      ],
+      "code_destinations": [
+        "apps/media-bridge/src/participation/",
+        "apps/studio/src/features/voice/",
+        "packages/dsh-bundle/src/participation/"
+      ],
+      "work_sequence": [
+        "Add an explicitly consented follow-this-discussion state while retaining the invoked conversational route and individual participation controls.",
+        "Attribute by authenticated room track, not biometric voice identification. Keep current consent and audience generation on each admitted transcript segment.",
+        "Use one text-side participation decision only for the discussion-following lane: silence, optional card or admitted speech. Ordinary invoked dialogue remains Gemini Live, not a mandatory double-model hop.",
+        "Reuse output-generation invalidation and room playback clearing so human interruption suppresses stale Sophia audio without cancelling independent work.",
+        "Exercise English, Italian and Spanish including negation, quoted names, numbers, correction and two simultaneous speakers; record observed failure cases rather than claiming universal diarization."
+      ]
     },
     {
       "id": "S2-06",
@@ -758,12 +875,34 @@
       ],
       "source_ids": [
         "P-01",
-        "P-02"
+        "OM-09",
+        "UI-01"
       ],
       "result": "Add selected Notion, Supabase and Vercel management workflows, one notification channel and source-linked return briefs; existing engineer deployments remain usable.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "One selected connected source refresh changes a proposed brief without overwriting a newer accepted decision.",
+        "A returning member sees actual outstanding obligations and the source of the current build state.",
+        "A useful lesson is used in a later brief, with evidence and current eligibility."
+      ],
+      "adverse_checks": [
+        "An expired connection does not cause private web scraping or a different payer fallback.",
+        "A deleted source does not survive through an old cached brief or generated knowledge page."
+      ],
+      "code_destinations": [
+        "packages/source-connectors/",
+        "apps/api/src/services/knowledge.ts",
+        "apps/studio/src/features/return/"
+      ],
+      "work_sequence": [
+        "Productize selected import refresh and explicit Send-to-Sophia handoffs; retain source coverage and keep snapshots distinct from true synchronization.",
+        "Add Notion selected-page intake/publication, then scoped Supabase/Vercel management views through the already chosen domain adapter boundary.",
+        "Keep existing external engineer service access working; a new connector does not become a second project truth store.",
+        "Update the source-linked state-of-build and concise repo knowledge from actual accepted changes, test records and deployment identity.",
+        "Produce an authorized return brief and cycle-close proposals with Accept/Edit/Reflect; explicit no-change and inconclusive outcomes remain legitimate."
+      ]
     },
     {
       "id": "S3-01",
@@ -779,13 +918,37 @@
         "S2-06"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "DSH-16",
+        "OM-03",
+        "OM-05",
+        "OM-09"
       ],
       "result": "Continue dependent goals, reconcile unavailable hosts and uncertain effects, and preserve the mandate across idle periods and runtime restarts.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "The project advances across sessions without repeated human reconstruction of its accepted brief.",
+        "A real dependency waits for acceptance rather than a native done claim.",
+        "Returning users understand what changed, what remains uncertain and the next choice."
+      ],
+      "adverse_checks": [
+        "A second supervisor cannot revive or double-dispatch the same goal.",
+        "A denied permission cannot be routed around through another account.",
+        "An expired refresh response does not trigger an old-token retry storm."
+      ],
+      "code_destinations": [
+        "apps/api/src/services/continuity.ts",
+        "packages/dsh-bundle/src/lead/continuity.ts",
+        "tests/continuity/"
+      ],
+      "work_sequence": [
+        "Drive successive dependency-ready goals from accepted project state rather than whichever agent session happens to remain open.",
+        "Maintain one continuation owner for each native/dsh route and a bounded five-minute/event/manual review policy with wait backoff.",
+        "Reconcile quota, host loss, credential expiry and uncertain effects before proposing reassignment; preserve prior attempts, observations and rejected approaches.",
+        "Compile a fresh alignment brief when context or approach becomes stale; do not erase completed source or adopt old model summaries as new authority.",
+        "Run a multi-day project with people leaving/returning, a host unavailable and an explicit revised priority; verify the actual next authorized goal."
+      ]
     },
     {
       "id": "S3-02",
@@ -796,13 +959,36 @@
         "S3-01"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "DSH-01",
+        "DSH-16",
+        "DSH-18",
+        "OLD-05"
       ],
       "result": "Deliver an actual end-to-end feature in the supported application stack using the same source, evidence, deployment and review contract as external engineers.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "A Sophia-native worker delivers a supported end-to-end feature and its requested revision.",
+        "The same project can use a native or external engineer without migrating its records.",
+        "Checks run against the actual returned source."
+      ],
+      "adverse_checks": [
+        "A prototype screenshot is not accepted as functioning application code.",
+        "A missing development grant does not lead to production credential use."
+      ],
+      "code_destinations": [
+        "packages/dsh-bundle/src/presets/app-worker/",
+        "packages/build-runner/",
+        "tests/native-app-feature/"
+      ],
+      "work_sequence": [
+        "Extend the existing native React/TypeScript prototype profile into one supported web feature stack; retain the same repository/source and publication contracts as external engineers.",
+        "Use a bounded task workspace with source, dependency lock, development-service grants and executable checks; no application/provider secrets enter generated code tools.",
+        "Pair the economical dsh implementer with the already authorized stronger coordinator on a substantive feature; compare against a solo route on suitable work.",
+        "Deliver data behavior, frontend integration, tests, usable preview and one user revision; document mocked services explicitly.",
+        "Return exact source/evidence through the existing acceptance path. An external coordinator does not gain the native worker\u2019s credentials."
+      ]
     },
     {
       "id": "S3-03",
@@ -813,13 +999,37 @@
         "S3-01"
       ],
       "source_ids": [
-        "P-01",
-        "P-02"
+        "DSH-01",
+        "DSH-09",
+        "DSH-16",
+        "OM-12"
       ],
       "result": "Select and adjust approved model/effort/tool/team profiles from evidence; evaluate versioned procedure changes with rollback and current context eligibility.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "A harder question obtains stronger judgment and routine continuation de-escalates within the existing grant.",
+        "A changed profile produces an inspectable configuration receipt.",
+        "One procedure improvement is promoted with evidence or rejected without loss of the baseline."
+      ],
+      "adverse_checks": [
+        "More model calls are not described as independent verification.",
+        "An aesthetically preferred result cannot erase failed acceptance criteria.",
+        "Multiple calls to the same judge are not counted as independent expert votes."
+      ],
+      "code_destinations": [
+        "packages/dsh-bundle/src/policy/",
+        "packages/evaluation/",
+        "apps/studio/src/features/resources/"
+      ],
+      "work_sequence": [
+        "Introduce a small evaluated portfolio of solo, same-runtime pair and cross-harness team profiles; select using the task, availability and the team\u2019s speed/savings preference.",
+        "Version provider/model/effort/tool/context settings and record actual rather than merely requested configuration.",
+        "Apply supported dsh changes at their documented boundary; external native model changes use a new configured attempt by default because the audited Claude path mutates a global future default.",
+        "Run procedure-improvement candidates against a competent baseline with fixed task/source/budget and fresh-use confirmation; preserve rollback and a no-change option.",
+        "Measure accepted outcomes, human repair, latency and all auxiliary usage. No automatic plugin installation, permission weakening or spending expansion is called adaptation."
+      ]
     },
     {
       "id": "S3-04",
@@ -832,12 +1042,36 @@
       ],
       "source_ids": [
         "P-01",
-        "P-02"
+        "UI-01",
+        "OM-09",
+        "OLD-09"
       ],
       "result": "Onboard a small team with a nontechnical contributor, observe repeated real work and willingness to pay, and retire old routes only after their obligations are discharged.",
-      "design_status": "outcome_mapped_details_next_installment",
+      "design_status": "implementation_brief_ready",
       "implementation_status": "not_started",
-      "sessions": []
+      "sessions": [],
+      "acceptance": [
+        "An external team repeatedly creates, directs and reviews useful work through Sophia.",
+        "A human engineer can continue the project from the delivered source and records.",
+        "Legacy retirement preserves required data meaning and completes cleanup responsibilities."
+      ],
+      "adverse_checks": [
+        "Fixture-only usage is not counted as customer adoption.",
+        "A failed migration does not mutate the live legacy source.",
+        "A partial export clearly reports omitted private or inaccessible material."
+      ],
+      "code_destinations": [
+        "docs/onboarding/",
+        "ops/migration/",
+        "apps/studio/src/features/export/"
+      ],
+      "work_sequence": [
+        "Onboard a named external team with a real project and voice from its first intended-use session; record account/host constraints before activation.",
+        "Repeat use across several work cycles, tracking useful contributions, re-prompting effort, avoidable waits, accepted output quality and actual costs.",
+        "Exercise export and human takeover: source, decisions, current build state, unresolved effects and relevant knowledge remain portable.",
+        "Migrate selected legacy records with identity/provenance and explicit data eligibility; do not re-extract deleted memories or copy the old companion chain.",
+        "Close operational obligations before retiring legacy services, and make commercial conclusions from actual feedback rather than invented conversion targets."
+      ]
     }
   ],
   "calendar_dates": null,

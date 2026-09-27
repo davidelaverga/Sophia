@@ -1,0 +1,21 @@
+{
+  "name": "@sophia/persistence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@sophia/contracts": "workspace:*",
+    "@sophia/domain": "workspace:*",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "@sophia/test-support": "workspace:*"
+  }
+}

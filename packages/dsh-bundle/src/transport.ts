@@ -3,15 +3,21 @@
  *
  * The bridge only ever connects out: it long-polls the service's runtime
  * outbox and posts receipts and durable observations back. No listening
- * socket is opened inside the runtime. Until S1-02 ships the real endpoint,
- * tests run the same wire protocol against a labelled fixture service
- * (tests/support/fixture-service.mjs).
+ * socket is opened inside the runtime. The service side is the API's
+ * `/v1/runtime/*` (amendment A04); tests may still run the same protocol
+ * against the labelled fixture (tests/support/fixture-service.mjs).
  *
- *   POST {base}/v1/runtime/hello          -> { projectId, leaseId, authorityEpoch, bindings, cursor }
- *   GET  {base}/v1/runtime/commands?after=<cursor>&waitMs=<ms> -> { commands: [{ seq, command }], cursor }
- *   POST {base}/v1/runtime/receipts       <- { receipts: RuntimeReceipt[] }
- *   POST {base}/v1/runtime/observations   <- { observations: Observation[] }
- *   POST {base}/v1/runtime/ready          <- { state, reason, unrecovered: [{ attemptId, reason }] }
+ *   POST {base}/v1/runtime/hello          -> RuntimeHelloReply
+ *   GET  {base}/v1/runtime/commands?after=<cursor>&waitMs=<ms> -> RuntimeCommandBatch
+ *   POST {base}/v1/runtime/receipts       <- RuntimeReceiptBatch
+ *   POST {base}/v1/runtime/observations   <- RuntimeObservationBatch
+ *   POST {base}/v1/runtime/ready          <- RuntimeReady
+ *
+ * Every reply is validated against the contract before the bridge reads it,
+ * and every body is validated before it is sent: a reply that breaks the
+ * contract is a transport failure, never a cast. Each command in a batch is
+ * validated on its own by `parseCommand`, so one malformed command earns a
+ * rejected receipt and does not block the queue.
  *
  * Every request carries `Authorization: Bearer <token>` plus the runtime unit
  * and bridge instance headers. The token is bound server-side to the runtime
@@ -19,41 +25,30 @@
  * @module @sophia/dsh-bundle/transport
  */
 
-import type { RuntimeReceipt } from './protocol.js'
+import { describeFailure } from './protocol.js'
+import { wire } from './runtime-wire.generated.js'
+import type { WireValidator } from './runtime-wire.generated.js'
+import type {
+  RuntimeCommandBatch,
+  RuntimeHello,
+  RuntimeHelloReply,
+  RuntimeObservation,
+  RuntimeReady,
+  RuntimeReceipt,
+  RuntimeServiceBinding,
+} from './runtime-wire-types.generated.js'
 
 /** A binding the service expects this runtime to own after (re)connect. */
-export interface ServiceBinding {
-  readonly attemptId: string
-  readonly nativeSessionId: string
-  readonly authorityEpoch: number
-  readonly state: 'active' | 'held' | 'stopped'
-}
+export type ServiceBinding = RuntimeServiceBinding
 
 /** The service's answer to `hello`. */
-export interface HelloReply {
-  readonly projectId: string
-  readonly leaseId: string
-  readonly authorityEpoch: number
-  readonly bindings: readonly ServiceBinding[]
-  readonly cursor: number
-}
+export type HelloReply = RuntimeHelloReply
 
 /** One durable native fact, keyed by `(runtimeUnitId, nativeSessionId, nativeSeq)`. */
-export interface Observation {
-  readonly runtimeUnitId: string
-  readonly attemptId: string
-  readonly nativeSessionId: string
-  readonly nativeSeq: number
-  readonly type: string
-  readonly durable: true
-  readonly data: unknown
-}
+export type Observation = RuntimeObservation
 
 /** A binding reconciliation could not restore; its commands are refused until a Resume succeeds. */
-export interface UnrecoveredBinding {
-  readonly attemptId: string
-  readonly reason: string
-}
+export type UnrecoveredBinding = RuntimeReady['unrecovered'][number]
 
 /** Where and how to reach the service; resolved from environment references. */
 export interface TransportOptions {
@@ -70,6 +65,12 @@ export class TransportError extends Error {
   }
 }
 
+/** `value` as `T`, or a TransportError naming the contract failure. */
+function checked<T>(what: string, validator: WireValidator<T>, value: unknown): T {
+  if (!validator(value)) throw new TransportError(`${what} does not match the runtime contract: ${describeFailure(validator)}`)
+  return value
+}
+
 /** Minimal JSON-over-HTTPS client for the runtime channel. */
 export class ServiceTransport {
   constructor(private readonly options: TransportOptions) {}
@@ -84,7 +85,8 @@ export class ServiceTransport {
     }
   }
 
-  private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  /** One call; resolves to the parsed JSON reply, or undefined for 204. */
+  private async request(method: 'GET' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
     const response = await fetch(new URL(path, this.options.baseUrl), {
       method,
       headers: this.headers(),
@@ -94,26 +96,36 @@ export class ServiceTransport {
     if (!response.ok) {
       throw new TransportError(`${method} ${path} answered ${response.status}`, response.status)
     }
-    return (response.status === 204 ? undefined : await response.json()) as T
+    if (response.status === 204) return undefined
+    try {
+      return await response.json()
+    } catch {
+      throw new TransportError(`${method} ${path} answered a body that is not JSON`, response.status)
+    }
   }
 
-  hello(body: { bundle: string; protocolVersion: number; dshVersion: string }): Promise<HelloReply> {
-    return this.request('POST', '/v1/runtime/hello', body)
+  async hello(body: RuntimeHello): Promise<HelloReply> {
+    checked('hello request', wire.RuntimeHello, body)
+    return checked('hello reply', wire.RuntimeHelloReply, await this.request('POST', '/v1/runtime/hello', body))
   }
 
-  poll(after: number, waitMs: number, signal: AbortSignal): Promise<{ commands: { seq: number; command: unknown }[]; cursor: number }> {
-    return this.request('GET', `/v1/runtime/commands?after=${after}&waitMs=${waitMs}`, undefined, signal)
+  async poll(after: number, waitMs: number, signal: AbortSignal): Promise<RuntimeCommandBatch> {
+    const reply = await this.request('GET', `/v1/runtime/commands?after=${after}&waitMs=${waitMs}`, undefined, signal)
+    return checked('command batch', wire.RuntimeCommandBatch, reply)
   }
 
-  receipts(receipts: readonly RuntimeReceipt[]): Promise<void> {
-    return this.request('POST', '/v1/runtime/receipts', { receipts })
+  async receipts(receipts: readonly RuntimeReceipt[]): Promise<void> {
+    for (const receipt of receipts) checked('receipt', wire.RuntimeReceipt, receipt)
+    await this.request('POST', '/v1/runtime/receipts', { receipts })
   }
 
-  observations(observations: readonly Observation[]): Promise<void> {
-    return this.request('POST', '/v1/runtime/observations', { observations })
+  async observations(observations: readonly Observation[]): Promise<void> {
+    for (const observation of observations) checked('observation', wire.RuntimeObservation, observation)
+    await this.request('POST', '/v1/runtime/observations', { observations })
   }
 
-  ready(state: 'ready' | 'not_ready', reason: string | null, unrecovered: readonly UnrecoveredBinding[] = []): Promise<void> {
-    return this.request('POST', '/v1/runtime/ready', { state, reason, unrecovered })
+  async ready(state: 'ready' | 'not_ready', reason: string | null, unrecovered: readonly UnrecoveredBinding[] = []): Promise<void> {
+    const body = checked('ready report', wire.RuntimeReady, { state, reason, unrecovered })
+    await this.request('POST', '/v1/runtime/ready', body)
   }
 }

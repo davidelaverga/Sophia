@@ -1,0 +1,35 @@
+{
+  "schema": "sophia.mission-state.v1",
+  "mission_id": null,
+  "current_goal": null,
+  "repository": "davidelaverga/Sophia",
+  "branch": null,
+  "base_commit": null,
+  "candidate_commit": null,
+  "implementation_pr": null,
+  "coordination_issue": null,
+  "status": {
+    "source": "planned",
+    "merge": "not_requested",
+    "release": "not_requested",
+    "hosted_verification": "not_run",
+    "product_acceptance": "not_requested"
+  },
+  "owners": {
+    "implementation": "Claude Code",
+    "operations_support": "Codex",
+    "product_authority": "Davide",
+    "ui_review": "Luis_when_relevant"
+  },
+  "completed_goals": [],
+  "test_evidence": [],
+  "outstanding_operations": [],
+  "unknown_effects": [],
+  "hosted_tuple_ref": null,
+  "migration_ledger_ref": null,
+  "approval_refs": [],
+  "remaining_allowance_ref": null,
+  "file_ownership": [],
+  "next_action": null,
+  "checkpoint_ref": null
+}
