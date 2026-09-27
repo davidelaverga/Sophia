@@ -1,9 +1,9 @@
 # R00: foundation integration
 
-**State on 2026-09-27 at 22:30 UTC: merge-ready.**
+**State on 2026-09-27 at 22:50 UTC: merge-ready.**
 - **The preflight has cleared the merge.** Codex answered [CC-0034](../coordination/S1-05A/S1-05A-CC-0034.md) in [R00-CX-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5860246906): no merge, retarget or ready-marking builds or deploys anything (§5).
 - **Still needed:** Luis's disposition, then Davide's approval of the batch in §7.
-- **Nothing is merged or released.**
+- **Nothing is merged.** OP-0009 is approved (CC-0035) but had not run by 22:50 UTC.
 
 The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MERGE_REVIEW.md). Messages go on issue [#14](https://github.com/davidelaverga/Sophia/issues/14), and the release is S1-05A-OP-0009 ([CC-0033](../coordination/S1-05A/S1-05A-CC-0033.md)).
 
@@ -11,7 +11,7 @@ The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MER
 |---|---|
 | Source-ready | Yes: the candidate below, CI green on every head, and no unresolved blocking finding (§3) |
 | Merge-ready | Yes: the preflight is answered (§5). Waiting on Luis's disposition and Davide's approval (§6 B0, §7) |
-| Release-ready (OP-0009) | Its preconditions hold as observed at 22:03 UTC (§8). It waits for Davide's separate approval |
+| Release-ready (OP-0009) | Approved by Davide at about 22:20 UTC and relayed in CC-0035 (§8). Codex executes it |
 | Hosted-verified | For what is live (`2d59884`, CX-0059). The fixes at `83a4f3e` and `00a16c2` are not live |
 | Product-accepted | No. §9 lists the open cases |
 
@@ -20,8 +20,8 @@ The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MER
 | Item | Value |
 |---|---|
 | `main` | `01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3`, the merge of #2 (S1-03). Unchanged since the packet |
-| Candidate | #13's head. At the packet this was `2911b037c9703703f2ae33955123d434797e3155`; this docs-only R00 commit follows it. The approval names the exact head |
-| Its code | Outside `docs/`, identical to `00a16c2c26634695527d59ff19eb6ef9a2e7f1ce`, OP-0009's source |
+| Candidate | #13's head, also PR #15's (§6). At the packet this was `2911b037c9703703f2ae33955123d434797e3155`. It is followed by the R00 docs and by `e683751`, which fixes #15's review (§3). The approval names the exact head |
+| Its code | Identical to `00a16c2c26634695527d59ff19eb6ef9a2e7f1ce` (OP-0009's source) outside `docs/`, except for `e683751`. That commit touches only the worker's shutdown, the local Supabase script and the lock: nothing the bridge or Studio runs |
 | Live, observed at 22:03 UTC | Every process at `2d59884`, with schema 0001–0016 matching and 0017 pending (R00-CX-0001, R00-CX-0002) |
 
 ## 2. The stack as it is
@@ -58,7 +58,7 @@ The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MER
 | SSE stream leaks if the client leaves during the first read | Should fix | Fixed: `apps/api/src/routes/events.ts:53` |
 | LISTEN never recovers | Should fix | Fixed: `packages/persistence/src/listen.ts` reconnects with backoff, and `apps/api/src/event-hub.ts` wakes its followers |
 | Ineligible queued rows stay `pending` | Follow-up | Fixed: `db/migrations/0012_runtime_service.sql` denies them, with a reason |
-| Supabase CLI fetched outside the lockfile | Follow-up | **Open, not blocking.** `scripts/supabase-local.ts:19` runs `npx -y supabase@2.117.0`: the version is pinned but not hash-locked. Only local development and CI's live-auth job use it, and that job has `contents: read` and no secrets |
+| Supabase CLI fetched outside the lockfile | Follow-up | **Fixed at `e683751`,** after #15's review raised it as a P1 citing AGENTS.md. `supabase@2.117.0` is a locked root devDependency, run through `pnpm exec`, and its binary comes from the locked platform package |
 | `record_dispatch_result` idempotent for its holder | Nit | Fixed: `db/migrations/0008_dispatch_result_idempotent.sql` |
 | JWKS accepts RS256; no required claims | Nit | Fixed: `apps/api/src/auth.ts` accepts only ES256 and requires `exp` and `sub` |
 | `format: 'uuid'` accepts uppercase and `urn:uuid:` | Nit | Fixed for project routes (`UUID_PATTERN` in `apps/api/src/routes/schemas.ts`). **Still open, not blocking,** for `roomId` in `apps/api/src/routes/rooms.ts:12`, added later in #8: a `urn:uuid:` room id gets a 503 instead of a 422 |
@@ -78,6 +78,15 @@ Marking #13 ready (B1) starts that review.
 
 That is a gap in the reviewed history, not a known defect. B1 narrows it with the automated review. Luis remains the reviewer for integration, and Davide decides whether this is enough.
 
+**#15, the cumulative view: one Codex review of the whole stack, requested by Davide, on `662b4ac`.** It covers all 106 commits, Luis's included. Two findings, both confirmed and fixed at `e683751`, with their threads answered and resolved:
+
+| Finding | Fix |
+|---|---|
+| **P1:** the Supabase CLI ran through `npx`, outside the frozen lockfile (AGENTS.md) | A locked root devDependency (`supabase@2.117.0`), run with `pnpm exec`. Only `workspace_lock_sha256` moves in `config/runtime-unit.json`. Verified with `pnpm supabase:local` (17 migrations) and `pnpm test:supabase` (3/3) |
+| **P2:** the worker could not stop while its first `LISTEN` was being retried, so a SIGTERM never reached `pool.end()` | The first wait races a stop signal, and `stop()` ends the listener's retries before awaiting the loop. `apps/worker/src/runtime-dispatch.test.ts` fails with the fix reverted ("not settled within 500 ms") |
+
+The worker fix is source only. The live worker stays at `2d59884` until a later release.
+
 ## 4. Checks
 
 - **CI on every head** (§2): two runs each, push and pull_request, and every job succeeded. No head carries a Render or Vercel check run or commit status.
@@ -87,7 +96,7 @@ That is a gap in the reviewed history, not a known defect. B1 narrows it with th
   - CI's `push` trigger runs again on `main` after each merge. The last run is the one B3 requires.
   - Changing a PR's base starts no CI: the `pull_request` trigger has its default types, and the tree does not change.
 - **Locally, on the same code** (`00a16c2`, and `2911b03`, which differs only in docs):
-  - `pnpm check` exits 0, with 253 unit and 56 integration tests;
+  - `pnpm check` exits 0, with 253 unit and 56 integration tests. At `e683751` it is 254 unit tests, with the new worker test;
   - `pnpm test:db`: 147;
   - `pnpm test:sql`: 17 migrations.
 
@@ -182,6 +191,12 @@ Davide approves the batch, bound to the exact heads. For example:
 
 > Approve the R00 integration batch in docs/progress/R00-foundation.md §6 (B1, B2, B3): bottom-up merge commits of #3 through #13 into main, with heads #3 `459744a`, #4 `e85db97`, #5 `e9aa9d4`, #6 `66b8ca8`, #7 `ff22a24`, #8 `4bd8cb1`, #9 `e5a7b75`, #10 `3992996`, #11 `0554dd6`, #12 `d18e171` and #13 `<the head named in the handoff>`, after Luis's disposition and Codex's read-only recheck of the deploy settings just before the first merge (CC-0034, answered in R00-CX-0002, found none that a merge triggers). This is not a release.
 
+**Or the cumulative route, through PR #15.** #15 targets `main` from the same branch, at the same head, and its merge gives the same `main` tree. It needs one merge commit instead of eleven. Afterwards:
+- #3 shows as merged automatically;
+- #4–#13 need closing with a note, or retargeting to `main` to show as merged. They are Luis's (#13 is S1-05A's), so he should agree.
+
+> Approve merging PR #15 (claude/affectionate-cannon-496z9m → main) at head `<the head named in the handoff>` with a merge commit, after Luis's disposition and Codex's read-only recheck of the deploy settings just before the merge. This is not a release.
+
 It does not cover:
 - OP-0009, or any other hosted effect;
 - any head it does not name;
@@ -191,7 +206,7 @@ Under protocol v1.1, an agent-written comment that looks like the owner's is not
 
 ## 8. The release, separately: OP-0009
 
-- **The request.** CC-0033, revision 1, `approval_ref: null`:
+- **The request.** CC-0033, revision 1. **Approved by Davide at about 22:20 UTC:** "Approve S1-05A-OP-0009 revision 1 as posted in CC-0033", relayed verbatim in [CC-0035](../coordination/S1-05A/S1-05A-CC-0035.md). Codex executes it after its own checks:
   - M1: apply 0017 (`0d0b929f8648ee26281799b9de3cf4f89a4b109e0733912bdeffd67d83ba2742`, checked against the file);
   - R1: the bridge at `00a16c2`;
   - R2: Studio at `00a16c2`.
@@ -243,14 +258,15 @@ The merge certifies none of these. Davide's report that voice works is his evide
 - **Hosted, observed at 22:03 UTC.** The four Render processes and Studio at `2d59884`, schema 0001–0016, a ready runtime lease, and OP-0009 pending (R00-CX-0001, R00-CX-0002). OP-0009 updates this if it runs.
 - **Carried forward:**
   - removing the brief belongs to M01, as Davide agreed, and existing brief tasks and results stay intact;
-  - two follow-ups from §3: the Supabase CLI inside the lock, and the `roomId` pattern;
+  - one follow-up from §3: the `roomId` pattern (the Supabase CLI is locked at `e683751`);
+  - the worker's shutdown fix (`e683751`) reaches production with the worker's next release;
   - the open cases in §9.
 - **Mission pack:** [docs/missions/2026-09-27-companion-research/](../missions/2026-09-27-companion-research/00_START_HERE.md).
 
 ## 11. Next
 
 1. ~~Codex answers CC-0034.~~ Done: R00-CX-0001 and R00-CX-0002.
-2. Luis gives his disposition. Davide approves §7, and separately OP-0009 if he wants it; OP-0009 also ends the empty exchange in `b04a5346…`.
+2. Luis gives his disposition, and Davide approves one route in §7. OP-0009 is approved (CC-0035), and Codex runs it; it also ends the empty exchange in `b04a5346…`.
 3. B1–B3 run. Luis may run his part.
 4. After B2, #13 is merged. The integrated commit, CI and live tuple then go into a docs-only closeout PR, from #13's branch restarted at M, and R00 ends there.
 
