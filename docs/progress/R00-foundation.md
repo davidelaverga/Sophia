@@ -1,14 +1,17 @@
 # R00: foundation integration
 
-**State on 2026-09-27 at 22:10 UTC: merge-ready once two things hold. First, Codex answers the read-only preflight [CC-0034](../coordination/S1-05A/S1-05A-CC-0034.md) and it clears the merge. Second, Davide approves the batch in §7. Nothing is merged or released.**
+**State on 2026-09-27 at 22:30 UTC: merge-ready.**
+- **The preflight has cleared the merge.** Codex answered [CC-0034](../coordination/S1-05A/S1-05A-CC-0034.md) in [R00-CX-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5860246906): no merge, retarget or ready-marking builds or deploys anything (§5).
+- **Still needed:** Luis's disposition, then Davide's approval of the batch in §7.
+- **Nothing is merged or released.**
 
 The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MERGE_REVIEW.md). Messages go on issue [#14](https://github.com/davidelaverga/Sophia/issues/14), and the release is S1-05A-OP-0009 ([CC-0033](../coordination/S1-05A/S1-05A-CC-0033.md)).
 
 | Readiness | State |
 |---|---|
 | Source-ready | Yes: the candidate below, CI green on every head, and no unresolved blocking finding (§3) |
-| Merge-ready | Once the preflight and the approval hold (§6 B0, §7) |
-| Release-ready (OP-0009) | Once the preflight confirms its preconditions and Davide approves it separately (§8) |
+| Merge-ready | Yes: the preflight is answered (§5). Waiting on Luis's disposition and Davide's approval (§6 B0, §7) |
+| Release-ready (OP-0009) | Its preconditions hold as observed at 22:03 UTC (§8). It waits for Davide's separate approval |
 | Hosted-verified | For what is live (`2d59884`, CX-0059). The fixes at `83a4f3e` and `00a16c2` are not live |
 | Product-accepted | No. §9 lists the open cases |
 
@@ -19,7 +22,7 @@ The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MER
 | `main` | `01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3`, the merge of #2 (S1-03). Unchanged since the packet |
 | Candidate | #13's head. At the packet this was `2911b037c9703703f2ae33955123d434797e3155`; this docs-only R00 commit follows it. The approval names the exact head |
 | Its code | Outside `docs/`, identical to `00a16c2c26634695527d59ff19eb6ef9a2e7f1ce`, OP-0009's source |
-| Live, last observed | Every process at `2d59884`, with schema 0001–0016 (CX-0059). CC-0034 refreshes this |
+| Live, observed at 22:03 UTC | Every process at `2d59884`, with schema 0001–0016 matching and 0017 pending (R00-CX-0001, R00-CX-0002) |
 
 ## 2. The stack as it is
 
@@ -90,17 +93,38 @@ That is a gap in the reviewed history, not a known defect. B1 narrows it with th
 
   This R00 commit adds docs only, and `pnpm check` passes on it.
 
-## 5. What a merge could deploy
+## 5. What a merge could deploy: nothing, as observed
 
-Recorded in #14:
-- **API.** Auto-Deploy Off: set by OP-0004 (CX-0013) and still Off at OP-0007 (CX-0052). Its tracked branch was last recorded as `studio/qol`; later deploys named an exact commit.
-- **Worker.** Created with Auto-Deploy Off (CX-0035). The bridge and runtime host were created under the same request, OP-0002.
-- **Studio.** Uploaded with `vercel deploy`; no Git connection is recorded.
-- **GitHub.** The only workflow is `ci`, with `contents: read` and no deploy step.
+Codex's read-only answers: [R00-CX-0001](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5860183114) (21:55 UTC) and [R00-CX-0002](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5860246906) (22:03 UTC).
 
-Not yet known: every other service or project tied to this repository, preview deploys, deploy hooks and installed apps. CC-0034 asks for all of them, so B0 waits for its answer.
+| Target | Observed |
+|---|---|
+| Render: API, bridge, worker and runtime host | These are the only services in the workspace linked to this repository (12 enumerated). Each tracks `claude/affectionate-cannon-496z9m`, with Auto-Deploy **Off** and Pull Request Previews **Off**. None is Blueprint-managed. Each has a deploy hook (URL withheld): a manual trigger, not a Git one |
+| Vercel `sophia-studio` | No Git repository connected, so no Git-triggered Production or Preview build. No Vercel project is Git-connected to this repository |
+| GitHub | No repository webhooks. Installed apps: ChatGPT Codex Connector, Claude, Factory Droid, genspark ai developer, lovable.dev, Vercel and Warp Factories. The Vercel app's installation alone creates no Studio link. The only workflow, `ci`, has `contents: read` and no deploy step |
 
-> The context line in CC-0034 cites CX-0053 for the three services' Auto-Deploy. The worker's record is CX-0035. The items CC-0034 asks for are unaffected.
+**Verdict:** no build or deploy on:
+- (a) a push to `main`;
+- (b) a base changed to `main`;
+- (c) a draft marked ready;
+- (d) a push to any stack branch, the tracked one included.
+
+A manual deploy, or a call to an existing deploy hook, still could; neither is a Git event. Automation outside the inspected accounts is unknown. **B0 adds a read-only recheck of these settings just before the first merge.**
+
+**Live state at 22:03 UTC:**
+- **The tuple.** Unchanged since CX-0059: API `dep-das3ed7…`, bridge `dep-das43lj…`, worker `dep-das47n3…` and runtime host `dep-das492n…`, all at `2d59884`. Studio `dpl_6E7MUJB…` is still the `2d59884` artifact. `/health` and `/ready` return 200.
+- **The ledger.** The dry run at `2911b03`: 0001–0016 applied, each filename and SHA-256 matching; exactly one pending, 0017 (`0d0b929f…`).
+- **Work, as counts:**
+  - one ready runtime lease;
+  - native tasks: 2 finished, 0 non-terminal;
+  - outbox: 0 unsettled;
+  - removals and quiesce requests: 0 pending;
+  - exchanges: 8 ended, **1 open**, in project `b04a5346…`.
+
+**Operations note: the open exchange.** It has been open about 28 hours with nobody in the room, and its presence row reads `voice=recovering`.
+- **The Google side is cycling.** The bridge treats a lost Google session as recoverable, and a successful reconnect resets its retry count. So for an open exchange it keeps reconnecting, even to an empty room. Provider usage while it does so is not measured.
+- **0017 ends it.** The bridge reports presence whenever its LiveKit link is up, whatever its Google state (`apps/media-bridge/src/room-session.ts`, `publish`). So once 0017 is applied, the empty count starts at the bridge's next report, and the exchange ends five minutes later. That is CC-0033's M1 verification.
+- **Before OP-0009, only a member can end it.** A member of that project joins the room and presses End in the dock.
 
 ## 6. The integration plan: bottom-up, with merge commits
 
@@ -113,9 +137,13 @@ Not yet known: every other service or project tied to this repository, preview d
 Squash and rebase merges are excluded: GitHub would rewrite the SHAs, duplicate Luis's commits and conflict the PRs above.
 
 **B0. Preconditions, all before any step.**
-1. CC-0034 is answered: nothing builds or deploys on a push to `main`, a base change or a PR marked ready. If something would, a freeze is approved first.
+1. **Deploy triggers.** Met at 22:03 UTC (§5). Just before the first merge, Codex rechecks read-only: the four Render services' Auto-Deploy and Pull Request Previews, and Studio's Git link. If anything now deploys from `main` or a stack branch, stop; a freeze needs approval first.
 2. The heads are unchanged: #3–#12 as in §2, and #13 as approved. If any head has moved, the batch stops.
-3. Luis knows the plan, because #3–#12 are his branches. He may run B1–B2 for his PRs himself; otherwise Davide's approval covers Claude doing it. Either way, no branch is pushed or deleted.
+3. **Luis's disposition** (R00-CX-0001: no PR in the stack has an APPROVED review). He is the integration reviewer. Two things are needed from him:
+   - his review of #13;
+   - his agreement to merge #3–#12, which are his branches.
+
+   He may run B1–B2 for his PRs himself; otherwise Davide's approval covers Claude doing it. Either way, no branch is pushed or deleted.
 
 **B1. Reviews, before any merge.**
 1. Mark #8–#13 ready for review, which starts the Codex review on each. Comment `@codex review` on #5, #6 and #7.
@@ -152,7 +180,7 @@ If the batch stops midway, `main` sits at an earlier PR's head, which is CI-gree
 
 Davide approves the batch, bound to the exact heads. For example:
 
-> Approve the R00 integration batch in docs/progress/R00-foundation.md §6 (B1, B2, B3): bottom-up merge commits of #3 through #13 into main, with heads #3 `459744a`, #4 `e85db97`, #5 `e9aa9d4`, #6 `66b8ca8`, #7 `ff22a24`, #8 `4bd8cb1`, #9 `e5a7b75`, #10 `3992996`, #11 `0554dd6`, #12 `d18e171` and #13 `<the head named in the handoff>`, once CC-0034 reports that no merge or PR change deploys anything. This is not a release.
+> Approve the R00 integration batch in docs/progress/R00-foundation.md §6 (B1, B2, B3): bottom-up merge commits of #3 through #13 into main, with heads #3 `459744a`, #4 `e85db97`, #5 `e9aa9d4`, #6 `66b8ca8`, #7 `ff22a24`, #8 `4bd8cb1`, #9 `e5a7b75`, #10 `3992996`, #11 `0554dd6`, #12 `d18e171` and #13 `<the head named in the handoff>`, after Luis's disposition and Codex's read-only recheck of the deploy settings just before the first merge (CC-0034, answered in R00-CX-0002, found none that a merge triggers). This is not a release.
 
 It does not cover:
 - OP-0009, or any other hosted effect;
@@ -172,12 +200,14 @@ Under protocol v1.1, an agent-written comment that looks like the owner's is not
 - **Its source still matches.**
   - `00a16c2` is in the candidate's history and equals the candidate outside `docs/`. After B2 it is in `main`, so the bridge and Studio would run `main`'s code.
   - Between `2d59884` and `00a16c2`, the API, worker, runtime host and packages differ only in the operator's diagnostic sanitizer (which the server does not import) and a test.
-- **Preconditions to recheck** (CC-0034, items 3–5):
-  - every process at `2d59884`;
-  - the ledger at 0001–0016 and matching, with 0017 pending;
-  - OP-0009 not run;
-  - at execution, quiet: no call and no brief.
-- **If they hold,** it is reused unchanged, and Davide approves it on its own line: "Approve S1-05A-OP-0009 revision 1 as posted in CC-0033." **If any differs,** Claude posts revision 2 against what was observed.
+- **Preconditions, observed at 22:03 UTC (R00-CX-0002):**
+  - every process is at `2d59884`;
+  - the ledger is 0001–0016 and matching, with only 0017 pending and its hash equal;
+  - OP-0009 has not run, and no partial effect was found;
+  - 0 non-terminal tasks.
+
+  Still checked at execution: quiet, meaning no call and no brief. The open, empty exchange in `b04a5346…` is the one M1 is meant to end, not a call.
+- **It is reused unchanged:** the source, target and preconditions match. Davide approves it on its own line: "Approve S1-05A-OP-0009 revision 1 as posted in CC-0033." If anything differs at execution, Codex stops, and Claude posts revision 2 against what was observed.
 - **Order.** The release does not depend on the merge, so either order works.
 - **Result: an intentional split.**
   - The API, worker and runtime host at `2d59884`;
@@ -210,7 +240,7 @@ The merge certifies none of these. Davide's report that voice works is his evide
 ## 10. The baseline for M01 and M02
 
 - **Source.** The integrated `main` commit M from B3, not `01d9117`. Until B3, the candidate stands in for it.
-- **Hosted.** The tuple that CC-0034 reports, updated by OP-0009 if it runs.
+- **Hosted, observed at 22:03 UTC.** The four Render processes and Studio at `2d59884`, schema 0001–0016, a ready runtime lease, and OP-0009 pending (R00-CX-0001, R00-CX-0002). OP-0009 updates this if it runs.
 - **Carried forward:**
   - removing the brief belongs to M01, as Davide agreed, and existing brief tasks and results stay intact;
   - two follow-ups from §3: the Supabase CLI inside the lock, and the `roomId` pattern;
@@ -219,8 +249,8 @@ The merge certifies none of these. Davide's report that voice works is his evide
 
 ## 11. Next
 
-1. Codex answers CC-0034.
-2. Davide approves §7, and separately OP-0009 if he wants it.
+1. ~~Codex answers CC-0034.~~ Done: R00-CX-0001 and R00-CX-0002.
+2. Luis gives his disposition. Davide approves §7, and separately OP-0009 if he wants it; OP-0009 also ends the empty exchange in `b04a5346…`.
 3. B1–B3 run. Luis may run his part.
 4. After B2, #13 is merged. The integrated commit, CI and live tuple then go into a docs-only closeout PR, from #13's branch restarted at M, and R00 ends there.
 
