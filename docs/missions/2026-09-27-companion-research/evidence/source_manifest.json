@@ -1,0 +1,191 @@
+{
+  "schema": "sophia.source-audit.v1",
+  "date": "2026-09-27",
+  "review_type": "selected_source_and_design_only",
+  "sources": [
+    {
+      "id": "SRC-01",
+      "title": "PR #13 current metadata and release report",
+      "url": "https://github.com/davidelaverga/Sophia/pull/13",
+      "git_blob_sha": null,
+      "scope": "Fresh connector metadata: draft/open, head/base. Body deployment/test claims remain operator-reported, not independently executed in this review."
+    },
+    {
+      "id": "SRC-02",
+      "title": "PR #12 current metadata",
+      "url": "https://github.com/davidelaverga/Sophia/pull/12",
+      "git_blob_sha": null,
+      "scope": "Fresh connector metadata: open/draft, studio/qol over studio/precise. Older deployment prose is not used as current hosting truth."
+    },
+    {
+      "id": "SRC-03",
+      "title": "New Sophia main branch",
+      "url": "https://api.github.com/repos/davidelaverga/Sophia/branches/main",
+      "git_blob_sha": null,
+      "scope": "Fresh read returned 01d9117bdcf9ec8ee18cd5414aa08ee4f24265a3."
+    },
+    {
+      "id": "SRC-04",
+      "title": "Exact-head CI run187",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/36281456865",
+      "git_blob_sha": null,
+      "scope": "Fresh Actions read: completed/success at head2911b037; not a rerun or certification of a retargeted main candidate."
+    },
+    {
+      "id": "SRC-05",
+      "title": "Existing OP-0009 release request",
+      "url": "https://github.com/davidelaverga/Sophia/blob/2911b037c9703703f2ae33955123d434797e3155/docs/coordination/S1-05A/S1-05A-CC-0033.md",
+      "git_blob_sha": "be128d7bb7141b0074867e56820fd4ae037b38dc",
+      "scope": "Read in full. Candidate00a16c2, migration0017, Studio/media only, approval absent. Also checked latest issue14 comments ending at CC0033."
+    },
+    {
+      "id": "SRC-06",
+      "title": "Existing Claude\u2013Codex development protocol",
+      "url": "https://github.com/davidelaverga/Sophia/blob/2911b037c9703703f2ae33955123d434797e3155/docs/alignment/2026-09-25/CLAUDE_CODEX_PROTOCOL.md",
+      "git_blob_sha": "f211d271bbd067dc4bea0be8bda4643481a4ec46",
+      "scope": "Read in full. New protocol extends it for support tasks and per-mission coordination, retaining no-bypass, exact-source and public-data boundaries."
+    },
+    {
+      "id": "SRC-07",
+      "title": "Old Sophia donor branch",
+      "url": "https://api.github.com/repos/davidelaverga/Sophia-Agent/branches/codex/sophia-observability-v1",
+      "git_blob_sha": null,
+      "scope": "Fresh branch read at 8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf. Runtime provider config not inspected."
+    },
+    {
+      "id": "SRC-08",
+      "title": "Legacy example provider configuration",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/config.example.yaml",
+      "git_blob_sha": "b7b5ec473d2fd72eb80070290a9677cfc7ba7a95",
+      "scope": "Read source lines130\u2013290. Tavily search/Jina fetch selected in example; InfoQuest commented. config.yaml exact fetch returned404."
+    },
+    {
+      "id": "SRC-09",
+      "title": "Guarded search and budget delta",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/backend/packages/harness/deerflow/sophia/tools/builder_web_search.py",
+      "git_blob_sha": "7ff746dae6131fbe53f796c19e40a97690bb7512",
+      "scope": "Full source: provider resolution, source/URL tracking, pre-call read-side budget with summed deltas, always-research guidance."
+    },
+    {
+      "id": "SRC-10",
+      "title": "Guarded exact-source fetch",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/backend/packages/harness/deerflow/sophia/tools/builder_web_fetch.py",
+      "git_blob_sha": "6a275f41cceb4ee483fc71cfc29ab19f0e744247",
+      "scope": "Full source: exact permitted URLs, configuration delegation, raw provider result; outer wrapper has no independent4096-character cap."
+    },
+    {
+      "id": "SRC-11",
+      "title": "Legacy Tavily search and extract",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/backend/packages/harness/deerflow/community/tavily/tools.py",
+      "git_blob_sha": "de7996c7a48fee4903021dd3986b66c021f8dca1",
+      "scope": "Full source: normalized search, extract optional fetch, raw_content[:4096]."
+    },
+    {
+      "id": "SRC-12",
+      "title": "Legacy Jina HTTP client",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/backend/packages/harness/deerflow/community/jina_ai/jina_client.py",
+      "git_blob_sha": "3b1a219e3c7d2b51ee38d3996205ad742e7ff566",
+      "scope": "Full source: Reader POST, optional JINA_API_KEY, X-Timeout header, no requests.post timeout parameter. Companion tool source linked below."
+    },
+    {
+      "id": "SRC-13",
+      "title": "Legacy Firecrawl search/scrape",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/backend/packages/harness/deerflow/community/firecrawl/tools.py",
+      "git_blob_sha": "495c60c3d7371c2c3240713a94d45a3a565b15e2",
+      "scope": "Full source: available alternative search and Markdown scrape, silent4096-character prefix."
+    },
+    {
+      "id": "SRC-14",
+      "title": "Native web family inventory",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/web/README.md",
+      "git_blob_sha": "22ef641e29c4626b2af40ed07a5d13b5cc0700c9",
+      "scope": "Fresh full read: listed Exa, Perplexity, DeepSeek search plus direct HTTP. Tavily/Jina are not listed built-ins at this pin."
+    },
+    {
+      "id": "SRC-15",
+      "title": "Native web service/registration",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/web/web/src/index.ts",
+      "git_blob_sha": "fe36c7a103fac70510d34128fc8f4d0c59168c0f",
+      "scope": "Fresh complete supplied source: registerSearchProvider/registerFetchProvider, explicit missing/unavailable/ambiguous selection errors, forwarded AbortSignal."
+    },
+    {
+      "id": "SRC-16",
+      "title": "Current repository core schema",
+      "url": "https://github.com/davidelaverga/Sophia/blob/2911b037c9703703f2ae33955123d434797e3155/db/migrations/0001_core.sql",
+      "git_blob_sha": "e5ed59188f3d876c7a2b318fa10527ca26ad4584",
+      "scope": "Read source lines1\u2013200. Mission revisions/decisions/sources/commands/artifacts exist; core artifacts.format lacks Markdown. Later migration definitions must still be reconciled at implementation."
+    },
+    {
+      "id": "SRC-17",
+      "title": "Current private media action routes",
+      "url": "https://github.com/davidelaverga/Sophia/blob/2911b037c9703703f2ae33955123d434797e3155/apps/api/src/routes/media.ts",
+      "git_blob_sha": "942ebabee7daa52ef40dade03c5868f885241639",
+      "scope": "Fresh source read: exact capability allowlist and /v1/media/tool-calls core. No wildcard private-route bypass."
+    },
+    {
+      "id": "SRC-18",
+      "title": "Native web types/metadata requirements",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/477b4f420553e8a52c2fbccc464d7561b239c443/packages/web/web/src/types.ts",
+      "git_blob_sha": "9e94bac46bea8250f2dc9931802bfe5dde9e8030",
+      "scope": "Fresh complete supplied source: optional search metadata; WebFetchResult mandatory final target URL and target HTTP status; html|text closed body union; provider usability and cancellation."
+    },
+    {
+      "id": "SRC-19",
+      "title": "Legacy URL and recipe budget policy",
+      "url": "https://github.com/davidelaverga/Sophia-Agent/blob/8c5cf538419cbe3f6eabe59e196242dfb7a6f2cf/backend/packages/harness/deerflow/sophia/builder_web_policy.py",
+      "git_blob_sha": "f3a06ebee5805349f202cc9e5592bc13325a42d2",
+      "scope": "Full source: whitespace/trailing punctuation normalization, always-enabled capability, research5search/8fetch versus other3/5."
+    },
+    {
+      "id": "SRC-20",
+      "title": "Actual S1-05A coordination identity",
+      "url": "https://github.com/davidelaverga/Sophia/issues/14",
+      "git_blob_sha": null,
+      "scope": "Fresh issue read and last comment page:95comments, latest CC0033 awaiting approval. Both agent sessions post through the same GitHub author, so author name alone is not human approval."
+    },
+    {
+      "id": "PUB-01",
+      "title": "Tavily Search API reference",
+      "url": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+      "git_blob_sha": null,
+      "scope": "Current primary documentation consulted for structured Search options/results; no live call made."
+    },
+    {
+      "id": "PUB-02",
+      "title": "Tavily Extract API reference",
+      "url": "https://docs.tavily.com/documentation/api-reference/endpoint/extract",
+      "git_blob_sha": null,
+      "scope": "Current primary documentation orientation for optional extraction route; not implemented/tested here."
+    },
+    {
+      "id": "PUB-03",
+      "title": "Jina API dashboard",
+      "url": "https://jina.ai/api-dashboard/",
+      "git_blob_sha": null,
+      "scope": "Primary endpoint consulted; dynamically served page yielded limited extracted text. Exact integration still relies on qualified API response/SDK inspection, not assumptions from that page."
+    },
+    {
+      "id": "PUB-04",
+      "title": "Firecrawl Scrape documentation",
+      "url": "https://docs.firecrawl.dev/features/scrape",
+      "git_blob_sha": null,
+      "scope": "Current primary orientation for optional alternative; no Firecrawl call made."
+    },
+    {
+      "id": "SRC-21",
+      "title": "Preset registry at configured rc.1",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/preset/agent-preset-registry/README.md",
+      "git_blob_sha": "44b01be1ceea5936668f091fb410137f3a139a88",
+      "scope": "Fresh opening110lines; native presets already present; restore-definition and sandbox limitations."
+    }
+  ],
+  "not_performed": [
+    "repository_changes",
+    "merge",
+    "deployment",
+    "hosted_database_query_or_change",
+    "paid_model_or_source_calls",
+    "application_test_execution"
+  ],
+  "legacy_runtime_provider_configuration": "not_verified_config.yaml_fetch_404"
+}

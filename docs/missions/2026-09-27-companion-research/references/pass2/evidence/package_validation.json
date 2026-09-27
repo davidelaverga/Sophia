@@ -1,0 +1,21 @@
+{
+  "schema": "sophia.documentation-package-validation.v1",
+  "date": "2026-09-27",
+  "status": "passed",
+  "checks": {
+    "relative_markdown_links_and_anchors_checked": 61,
+    "unique_source_ids": 36,
+    "source_pin_syntax": "passed",
+    "json_parse": "passed",
+    "prior_ledger_preserved_sha256": "0760044e17344a03382c2080a0f9ea423487853d3a12f3de90045ec662f7f06a"
+  },
+  "not_tested": [
+    "repository builds or test suites",
+    "real model/provider calls",
+    "hosted deployment or database state",
+    "runtime migration or log compatibility",
+    "actual PDF renderer/output",
+    "two-person voice episode"
+  ],
+  "errors": []
+}

@@ -14,3 +14,5 @@
 | [progress/S1-05A.md](progress/S1-05A.md) | S1-05A acceptance cases: source, tests, hosted evidence and human acceptance kept apart |
 | [evidence/S1-05A/](evidence/S1-05A/checkpoint-A.md) | S1-05A checkpoint records |
 | [coordination/S1-05A/](coordination/S1-05A/README.md) | Claude ↔ Codex operator messages, posted on coordination issue [#14](https://github.com/davidelaverga/Sophia/issues/14) |
+| [missions/](missions/README.md) | Mission packs, installed byte for byte with their installation records. [2026-09-27-companion-research/](missions/2026-09-27-companion-research/00_START_HERE.md) covers R00 and M01–M03 (mission companion, dsh upgrade, research workflow), with protocol v1.1 |
+| [progress/R00-foundation.md](progress/R00-foundation.md) | R00: the PR stack graph, the review and CI disposition, the bottom-up merge plan and its one approval, the separate OP-0009 release, and the open acceptance cases |
