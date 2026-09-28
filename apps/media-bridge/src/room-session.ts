@@ -11,14 +11,18 @@
 //    holder's reply is still playing once it settles.
 //  - A tool call acts for the holder whose audio the turn answered (the API binds it to that input epoch); an
 //    unattributed call, or one arriving while paused, is answered with a question and never executed. A call
-//    from an older connection is never answered on a newer one.
+//    from an older connection is never answered on a newer one. It carries the holder utterances forwarded in the
+//    provider session, so a decision binds to an answer given after its proposal was put (SMC-M01 binding §4.3).
+//  - Every connection, fresh, resumed or rebuilt, sends the same checked M01 instruction (guide.ts). The guide is
+//    activated only once the API confirms it executes exactly the declared operations; before that, Sophia is
+//    unavailable and says why. A narrower eligibility (a withdrawn note) drops the provider context and starts cold.
 //  - GoAway or a lost connection: a reply cut off mid-turn stops (one Google finished plays out), the latest
 //    resumption handle is used once the new connection is ready; a handle that fails is dropped and the next
 //    connection starts cold.
 //  - The room's state (what the bridge observes, never content) is reported to the API and set as the `sophia`
 //    participant's attributes, so the room's light shows what is actually happening.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
-import type { MediaAssignment } from '@sophia/contracts'
+import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import {
   base64ToPcm,
   FormatError,
@@ -31,10 +35,12 @@ import {
   type ReplyEnd,
 } from './audio.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
-import { type ConnectLive, type LiveEvents, type LiveLink, systemInstruction } from './live-session.ts'
+import { GuideContext } from './guide-context.ts'
+import type { MissionGuide } from './guide.ts'
+import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
-import type { MediaService } from './service.ts'
-import { isToolName, refusedResponse, toolResponse } from './tools.ts'
+import { type MediaService, ServiceError } from './service.ts'
+import { DECLARED_NAMES, isToolName, refusedResponse, toolResponse, WRITE_TOOLS } from './tools.ts'
 import { FrameSampler, type RgbaFrame, toJpeg } from './vision.ts'
 
 export type Log = (event: string, detail?: Record<string, unknown>) => void
@@ -45,6 +51,8 @@ export interface SessionDeps {
   connectLive: ConnectLive
   apiKey: string
   model: string
+  /** The checked M01 guide: its instruction is sent unchanged on every connection. */
+  guide: MissionGuide
   bridgeInstanceId: string
   now: () => number
   log: Log
@@ -52,6 +60,8 @@ export interface SessionDeps {
   every?: (fn: () => void, ms: number) => () => void
   /** Called once when LiveKit gives up on the room, so the bridge can replace the session promptly. */
   lost?: (exchangeId: string) => void
+  /** Waits before a tool call whose reply was lost is sent again, with the same identity; tests shorten them. */
+  toolRetryMs?: readonly number[]
 }
 
 const everyInterval = (fn: () => void, ms: number) => {
@@ -83,6 +93,17 @@ const UNAVAILABLE_RETRY_MS = 30_000
 const NOTICE_ATTEMPTS = 3
 /** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
 const RECEIPT_RETRY_MS = 5000
+const TOOL_RETRY_MS = [250, 1000]
+const TOOL_FAILED: MediaToolResult = { status: 'error', output: { reason: 'The tool failed; nothing was changed.' } }
+/** A write whose reply never came: it may have been saved. The guide reconciles by reading, not by writing again. */
+const WRITE_UNCONFIRMED: MediaToolResult = {
+  status: 'unknown',
+  output: {
+    reason: 'The project service did not confirm it; it may or may not have been saved.',
+    next: 'Read project_status to see whether it was saved before saving it again.',
+  },
+}
+const sameNames = (a: readonly string[], b: readonly string[]) => a.toSorted().join(',') === b.toSorted().join(',')
 
 interface Announced {
   exchangeId: string
@@ -138,6 +159,8 @@ function idsOf(response: FunctionResponse): Record<string, string> {
   const ids: Array<[string, string | undefined]> = [
     ['workId', 'workId' in output ? shortString(output.workId) : undefined],
     ['commandId', 'commandId' in output ? shortString(output.commandId) : undefined],
+    ['entryId', 'entryId' in output ? shortString(output.entryId) : undefined],
+    ['proposalId', 'proposalId' in output ? shortString(output.proposalId) : undefined],
     ['code', 'code' in output ? shortString(output.code) : undefined],
   ]
   return Object.fromEntries(ids.filter((entry): entry is [string, string] => entry[1] !== undefined))
@@ -255,12 +278,17 @@ export class RoomSession {
   private joining = false
   private joinAttempts = 0
   private joinRetryAt: number | null = null
+  /** The guide's per-exchange state: utterances, record freshness, eligibility (guide-context.ts). */
+  private readonly guideContext: GuideContext
+  /** The API confirmed it executes exactly the declared operations. Checked before the first connection. */
+  private guideBound = false
 
   constructor(assignment: MediaAssignment, deps: SessionDeps) {
     this.exchangeId = assignment.exchangeId
     this.assignment = assignment
     this.deps = deps
     this.state = new ExchangeState(toAssignment(assignment))
+    this.guideContext = new GuideContext(assignment)
     // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
@@ -352,6 +380,30 @@ export class RoomSession {
     this.applyPause()
     this.ackQuiesce()
     this.checkHolder()
+    this.reportDirty = true
+    if (this.guideContext.observe(next)) this.rebuild('eligibility narrowed')
+  }
+
+  /**
+   * Something the provider context may hold is no longer eligible (a note was withdrawn): stop what is playing, drop
+   * the resumption handle and the connection, and start cold at once with the same static instruction. Nothing of the
+   * old conversation carries over; the guide reads current records again.
+   */
+  private rebuild(reason: string): void {
+    if (this.closed) return
+    this.deps.log('context.rebuild', { exchangeId: this.exchangeId, reason })
+    this.handle = null
+    const hadContext = this.live !== null || this.connecting
+    this.connection += 1
+    this.live?.close()
+    this.live = null
+    if (!hadContext) return
+    this.chunker.clear()
+    this.state.bumpGeneration()
+    this.silence(this.pendingReply(this.deps.now()), 'recovered')
+    this.endTurn(true)
+    this.state.provider = 'recovering'
+    this.reconnectAt = this.deps.now()
     this.reportDirty = true
   }
 
@@ -573,16 +625,60 @@ export class RoomSession {
   private async connect(): Promise<void> {
     if (this.closed || this.connecting) return
     this.connecting = true
+    try {
+      if (await this.checkGuideBound()) await this.openProvider()
+    } finally {
+      this.connecting = false
+    }
+  }
+
+  /**
+   * The guide names six operations; the API must execute exactly those before the guide speaks (binding §5). An API
+   * that cannot say, or says otherwise, leaves Sophia unavailable with the reason, and the check runs again later.
+   */
+  private async checkGuideBound(): Promise<boolean> {
+    if (this.guideBound) return true
+    let names: readonly string[] | null
+    try {
+      names = (await this.deps.service.toolSurface()).names
+    } catch {
+      names = null
+    }
+    if (names !== null && sameNames(names, DECLARED_NAMES)) {
+      this.guideBound = true
+      return true
+    }
+    this.fail(
+      names === null
+        ? 'Sophia’s project service could not confirm the operations her guide uses'
+        : 'Sophia’s project service does not run the operations her guide uses',
+    )
+    this.reconnectAt = this.deps.now() + UNAVAILABLE_RETRY_MS
+    return false
+  }
+
+  private async openProvider(): Promise<void> {
+    if (this.closed) return
     this.connection += 1
     const connection = this.connection
     const resumed = this.handle !== null
     if (!resumed) this.providerSession += 1
+    this.guideContext.sessionStarted(!resumed, this.everReady && !resumed)
+    const { guide } = this.deps
+    this.deps.log('provider.setup', {
+      exchangeId: this.exchangeId,
+      connection,
+      resumed,
+      instruction: guide.combined.sha256,
+      instructionBytes: guide.combined.bytes,
+      tools: DECLARED_NAMES.length,
+    })
     try {
       const link = await this.deps.connectLive(
         {
           apiKey: this.deps.apiKey,
           model: this.deps.model,
-          systemInstruction: systemInstruction(this.everReady && !resumed),
+          systemInstruction: guide.instruction,
           resumptionHandle: this.handle,
         },
         this.events(connection),
@@ -592,8 +688,6 @@ export class RoomSession {
       else this.live = link
     } catch (err: unknown) {
       if (connection === this.connection) this.recover(`connect failed: ${message(err)}`)
-    } finally {
-      this.connecting = false
     }
   }
 
@@ -689,6 +783,7 @@ export class RoomSession {
       this.state.bumpGeneration()
       this.silence(null, 'interrupted')
     }
+    if (!this.awaitingReply) this.guideContext.utteranceHeard()
     this.awaitingReply = true
   }
 
@@ -798,20 +893,43 @@ export class RoomSession {
     const who = this.state.attribution()
     if (!who)
       return refusedResponse(call, 'I couldn’t tell who asked that. Could the person holding the floor ask again?')
+    const request: MediaToolCall = {
+      exchangeId: this.exchangeId,
+      connectionGeneration: this.providerSession,
+      callId: id,
+      name,
+      args,
+      inputEpoch: who.inputEpoch,
+      actorId: who.actorId,
+      utterance: this.guideContext.utterance,
+    }
+    const write = WRITE_TOOLS.has(name)
+    if (write) this.guideContext.writeStarted()
+    let result: MediaToolResult
     try {
-      const result = await this.deps.service.toolCall({
-        exchangeId: this.exchangeId,
-        connectionGeneration: this.providerSession,
-        callId: id,
-        name,
-        args,
-        inputEpoch: who.inputEpoch,
-        actorId: who.actorId,
-      })
-      return toolResponse(call, result)
-    } catch (err: unknown) {
-      this.deps.log('tool.failed', { name, error: message(err) })
-      return toolResponse(call, { status: 'error', output: { reason: 'The tool failed; nothing was changed.' } })
+      result = await this.callService(request, write)
+    } finally {
+      if (write) this.guideContext.writeSettled()
+    }
+    return toolResponse(call, this.guideContext.annotate(name, result))
+  }
+
+  /**
+   * Send one call; a lost reply is sent again with the same identity (the API answers a repeat with the same result).
+   * A write still unconfirmed after the retries is `unknown`, never "nothing changed"; a refusal (4xx) is not retried.
+   */
+  private async callService(request: MediaToolCall, write: boolean): Promise<MediaToolResult> {
+    const waits = this.deps.toolRetryMs ?? TOOL_RETRY_MS
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.deps.service.toolCall(request)
+      } catch (err: unknown) {
+        this.deps.log('tool.failed', { name: request.name, attempt, error: message(err) })
+        const refused = err instanceof ServiceError && err.status < 500
+        const wait = waits[attempt]
+        if (refused || wait === undefined || this.closed) return write && !refused ? WRITE_UNCONFIRMED : TOOL_FAILED
+        await new Promise((resolve) => setTimeout(resolve, wait))
+      }
     }
   }
 

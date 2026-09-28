@@ -1,6 +1,8 @@
 # Frozen imports and recorded outputs: their bytes are identities.
 docs/
 config/
+# The M01 guide's authored assets, byte-identical to the mission pack and checked by hash at bridge start.
+apps/media-bridge/src/content/
 pnpm-lock.yaml
 # The bundle archive and runtime artifact are byte-reproducible from these
 # sources (config/runtime-unit.json); reformatting would change their digests.

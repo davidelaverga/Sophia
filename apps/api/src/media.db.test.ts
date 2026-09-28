@@ -20,7 +20,9 @@ import {
   parseSnapshot,
 } from '@sophia/contracts/validate'
 import {
+  DECLARED_NAMES,
   httpMediaService,
+  loadMissionGuide,
   MediaBridge,
   type LiveEvents,
   type LiveLink,
@@ -294,6 +296,7 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       },
       apiKey: 'fake',
       model: 'fake',
+      guide: loadMissionGuide(DECLARED_NAMES),
       bridgeInstanceId: 'bridge-crossing',
       now: () => Date.now() + offset,
       log: () => undefined,
@@ -595,6 +598,7 @@ describe('holder departure through the real API (S1-05A §7)', () => {
       },
       apiKey: 'fake',
       model: 'fake',
+      guide: loadMissionGuide(DECLARED_NAMES),
       bridgeInstanceId: 'bridge-crossing-2',
       now: () => Date.now() + offset,
       log: () => undefined,

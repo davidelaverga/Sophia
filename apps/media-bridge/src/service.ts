@@ -1,4 +1,4 @@
-// The bridge's client for the private media routes (contract amendment A06). It authenticates with the media-bridge
+// The bridge's client for the private media routes (contract amendments A06, A08). It authenticates with the media-bridge
 // capability (a bearer the API compares by hash), never a member's session. Every response is validated against
 // the canonical contract before the bridge acts on it: an assignment that does not parse is not an assignment.
 import type {
@@ -9,8 +9,9 @@ import type {
   MediaQuiesceAck,
   MediaToolCall,
   MediaToolResult,
+  MediaToolSurface,
 } from '@sophia/contracts'
-import { parseMediaAssignmentBatch, parseMediaToolResult } from '@sophia/contracts/validate'
+import { parseMediaAssignmentBatch, parseMediaToolResult, parseMediaToolSurface } from '@sophia/contracts/validate'
 
 /** What the bridge asks of the API; tests supply a labelled fake. */
 export interface MediaService {
@@ -21,6 +22,8 @@ export interface MediaService {
   holder: (event: MediaHolderEvent) => Promise<void>
   announced: (event: MediaAnnounced) => Promise<void>
   toolCall: (call: MediaToolCall) => Promise<MediaToolResult>
+  /** The operations the API executes (A08): the guide activates only when they equal the declared tools. */
+  toolSurface: () => Promise<MediaToolSurface>
 }
 
 export class ServiceError extends Error {
@@ -62,5 +65,6 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     holder: async (event) => void (await post('/v1/media/holder', event)),
     announced: async (event) => void (await post('/v1/media/announced', event)),
     toolCall: async (call) => parseMediaToolResult(await post('/v1/media/tool-calls', call)),
+    toolSurface: async () => parseMediaToolSurface(await send('/v1/media/tool-surface', { method: 'GET' })),
   }
 }

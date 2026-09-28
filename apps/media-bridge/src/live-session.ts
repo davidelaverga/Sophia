@@ -4,6 +4,7 @@
 // 25,000 tokens with an 8,000-token sliding window (the SDK takes these as strings); session resumption on
 // every connection, with the latest handle kept by the caller; tools NON_BLOCKING (tools.ts). No Extended
 // Thinking configuration and no `proactivity: false` (3.8 proactivity is not our privacy mechanism).
+// The system instruction is the caller's: the M01 guide's exact bytes (guide.ts), the same on every connection.
 // The API key stays in this process; it is never logged or sent to a browser.
 import { GoogleGenAI, Modality, type FunctionResponse, type LiveServerMessage, type Session } from '@google/genai'
 import { INPUT_MIME, pcmToBase64 } from './audio.ts'
@@ -28,6 +29,7 @@ export interface LiveLink {
 export interface LiveOptions {
   apiKey: string
   model: string
+  /** The exact provider-facing system instruction: the checked M01 guide, never assembled per connection. */
   systemInstruction: string
   /** A handle from an earlier connection of the SAME exchange; null opens a fresh session. */
   resumptionHandle: string | null
@@ -45,53 +47,43 @@ const errorText = (e: unknown): string =>
     ? e.message
     : 'connection error'
 
-export const connectGeminiLive: ConnectLive = async (options, events) => {
-  const ai = new GoogleGenAI({ apiKey: options.apiKey })
-  const session: Session = await ai.live.connect({
-    model: options.model,
-    config: {
-      responseModalities: [Modality.AUDIO],
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-      contextWindowCompression: { triggerTokens: '25000', slidingWindow: { targetTokens: '8000' } },
-      sessionResumption: options.resumptionHandle ? { handle: options.resumptionHandle } : {},
-      systemInstruction: options.systemInstruction,
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-    },
-    callbacks: {
-      onmessage: (msg: LiveServerMessage) => dispatchServerMessage(msg, events),
-      onerror: (e: unknown) => events.closed(`error: ${errorText(e)}`),
-      onclose: (e) => events.closed(`closed: ${e.reason || String(e.code)}`),
-    },
-  })
-  return {
-    sendAudio: (chunk) => session.sendRealtimeInput({ audio: { data: pcmToBase64(chunk), mimeType: INPUT_MIME } }),
-    sendAudioStreamEnd: () => session.sendRealtimeInput({ audioStreamEnd: true }),
-    sendFrame: (jpeg) =>
-      session.sendRealtimeInput({ video: { data: jpeg.toString('base64'), mimeType: 'image/jpeg' } }),
-    sendToolResponses: (functionResponses) => session.sendToolResponse({ functionResponses }),
-    sendNotice: (text) => session.sendRealtimeInput({ text }),
-    close: () => session.close(),
+/**
+ * A Gemini Live connector. `baseUrl` points the SDK at another endpoint (a local server in the setup-frame test);
+ * production uses the SDK's own.
+ */
+export function geminiLive(opts: { baseUrl?: string } = {}): ConnectLive {
+  return async (options, events) => {
+    const ai = new GoogleGenAI({
+      apiKey: options.apiKey,
+      ...(opts.baseUrl ? { httpOptions: { baseUrl: opts.baseUrl } } : {}),
+    })
+    const session: Session = await ai.live.connect({
+      model: options.model,
+      config: {
+        responseModalities: [Modality.AUDIO],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+        contextWindowCompression: { triggerTokens: '25000', slidingWindow: { targetTokens: '8000' } },
+        sessionResumption: options.resumptionHandle ? { handle: options.resumptionHandle } : {},
+        systemInstruction: options.systemInstruction,
+        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+      },
+      callbacks: {
+        onmessage: (msg: LiveServerMessage) => dispatchServerMessage(msg, events),
+        onerror: (e: unknown) => events.closed(`error: ${errorText(e)}`),
+        onclose: (e) => events.closed(`closed: ${e.reason || String(e.code)}`),
+      },
+    })
+    return {
+      sendAudio: (chunk) => session.sendRealtimeInput({ audio: { data: pcmToBase64(chunk), mimeType: INPUT_MIME } }),
+      sendAudioStreamEnd: () => session.sendRealtimeInput({ audioStreamEnd: true }),
+      sendFrame: (jpeg) =>
+        session.sendRealtimeInput({ video: { data: jpeg.toString('base64'), mimeType: 'image/jpeg' } }),
+      sendToolResponses: (functionResponses) => session.sendToolResponse({ functionResponses }),
+      sendNotice: (text) => session.sendRealtimeInput({ text }),
+      close: () => session.close(),
+    }
   }
 }
 
-/**
- * Who Sophia is in the room, and what she may and may not do there. A connection that could not resume starts
- * cold: it says so, and Sophia reads current project records instead of assuming earlier dialogue.
- */
-export function systemInstruction(restored: boolean): string {
-  return [
-    'You are Sophia, a calm, concise collaborator in a small team’s shared voice room for one project.',
-    'Several people share the room; you hear only the person who holds the floor. Never guess who is speaking from a name you hear.',
-    'Use project_status before talking about the project’s work. Use read_selected_source for exact text; what you see on a shared screen is an observation, not the source.',
-    'Start a brief (start_brief) or hold, resume or stop work (control_work) ONLY when the speaker explicitly asks. Discussion alone never starts work.',
-    'When a tool says work was admitted, say it was started and that the result comes later; never claim it is done.',
-    'If a tool asks you to clarify, ask the speaker plainly. If work is refused, say why in one sentence.',
-    'Being asked to stop talking never stops background work.',
-    ...(restored
-      ? [
-          'Your connection was restored without the earlier conversation. Call project_status before discussing the work.',
-        ]
-      : []),
-  ].join('\n')
-}
+export const connectGeminiLive: ConnectLive = geminiLive()

@@ -34,19 +34,11 @@
           },
           "epistemic": {
             "type": "string",
-            "enum": [
-              "reported",
-              "observed",
-              "inferred"
-            ]
+            "enum": ["reported", "observed", "inferred"]
           },
           "state": {
             "type": "string",
-            "enum": [
-              "current",
-              "superseded",
-              "withdrawn"
-            ]
+            "enum": ["current", "superseded", "withdrawn"]
           },
           "text": {
             "anyOf": [
@@ -60,17 +52,11 @@
           },
           "textKind": {
             "type": "string",
-            "enum": [
-              "sophia_paraphrase",
-              "member_text"
-            ]
+            "enum": ["sophia_paraphrase", "member_text"]
           },
           "authoredBy": {
             "type": "string",
-            "enum": [
-              "sophia",
-              "member"
-            ]
+            "enum": ["sophia", "member"]
           },
           "actorId": {
             "type": "string",
@@ -78,10 +64,7 @@
           },
           "origin": {
             "type": "string",
-            "enum": [
-              "voice",
-              "studio"
-            ]
+            "enum": ["voice", "studio"]
           },
           "exchangeId": {
             "anyOf": [
@@ -245,20 +228,11 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "mission",
-              "constraint",
-              "lesson"
-            ]
+            "enum": ["mission", "constraint", "lesson"]
           },
           "state": {
             "type": "string",
-            "enum": [
-              "proposed",
-              "accepted",
-              "rejected",
-              "superseded"
-            ]
+            "enum": ["proposed", "accepted", "rejected", "superseded"]
           },
           "statement": {
             "type": "string"
@@ -295,10 +269,7 @@
           },
           "textKind": {
             "type": "string",
-            "enum": [
-              "sophia_paraphrase",
-              "member_text"
-            ]
+            "enum": ["sophia_paraphrase", "member_text"]
           },
           "proposedBy": {
             "type": "string",
@@ -306,10 +277,7 @@
           },
           "proposedVia": {
             "type": "string",
-            "enum": [
-              "voice",
-              "studio"
-            ]
+            "enum": ["voice", "studio"]
           },
           "createdAt": {
             "type": "string",
@@ -375,10 +343,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "voice",
-                  "studio"
-                ]
+                "enum": ["voice", "studio"]
               },
               {
                 "type": "null"
@@ -508,10 +473,7 @@
         "properties": {
           "capture": {
             "type": "string",
-            "enum": [
-              "off",
-              "automatic"
-            ]
+            "enum": ["off", "automatic"]
           },
           "revision": {
             "type": "integer",
@@ -520,11 +482,7 @@
           },
           "consent": {
             "type": "string",
-            "enum": [
-              "accepted",
-              "declined",
-              "unset"
-            ]
+            "enum": ["accepted", "declined", "unset"]
           },
           "consentRevision": {
             "type": "integer",
@@ -562,11 +520,7 @@
                 "const": 0
               }
             },
-            "required": [
-              "turns",
-              "bytes",
-              "seconds"
-            ]
+            "required": ["turns", "bytes", "seconds"]
           }
         },
         "required": [
@@ -599,10 +553,7 @@
           },
           "readState": {
             "type": "string",
-            "enum": [
-              "empty",
-              "present"
-            ]
+            "enum": ["empty", "present"]
           },
           "missionRevision": {
             "type": "integer",
@@ -682,23 +633,14 @@
                 "type": "boolean"
               }
             },
-            "required": [
-              "olderEntries",
-              "olderHistory",
-              "legacyFrame"
-            ]
+            "required": ["olderEntries", "olderHistory", "legacyFrame"]
           },
           "missing": {
             "type": "array",
             "maxItems": 10,
             "items": {
               "type": "string",
-              "enum": [
-                "accepted_mission",
-                "constraints",
-                "notes",
-                "work"
-              ]
+              "enum": ["accepted_mission", "constraints", "notes", "work"]
             }
           },
           "work": {
@@ -740,13 +682,7 @@
                   ]
                 }
               },
-              "required": [
-                "goalId",
-                "title",
-                "status",
-                "taskId",
-                "phase"
-              ]
+              "required": ["goalId", "title", "status", "taskId", "phase"]
             }
           },
           "notePolicy": {
@@ -774,10 +710,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               },
               "propose": {
                 "type": "object",
@@ -797,10 +730,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               },
               "decide": {
                 "type": "object",
@@ -820,10 +750,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               },
               "correct": {
                 "type": "object",
@@ -843,10 +770,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               },
               "withdrawOwnNote": {
                 "type": "object",
@@ -866,10 +790,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               },
               "setNotePolicy": {
                 "type": "object",
@@ -889,10 +810,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               },
               "controlWork": {
                 "type": "object",
@@ -912,10 +830,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "available",
-                  "reason"
-                ]
+                "required": ["available", "reason"]
               }
             },
             "required": [
@@ -968,20 +883,11 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "committed",
-              "proposed"
-            ]
+            "enum": ["committed", "proposed"]
           },
           "operation": {
             "type": "string",
-            "enum": [
-              "record_note",
-              "correct_note",
-              "withdraw_note",
-              "propose",
-              "decide"
-            ]
+            "enum": ["record_note", "correct_note", "withdraw_note", "propose", "decide"]
           },
           "projectId": {
             "type": "string",
@@ -1025,10 +931,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "accepted",
-                  "rejected"
-                ]
+                "enum": ["accepted", "rejected"]
               },
               {
                 "type": "null"
@@ -1124,11 +1027,7 @@
           },
           "epistemic": {
             "type": "string",
-            "enum": [
-              "reported",
-              "observed",
-              "inferred"
-            ]
+            "enum": ["reported", "observed", "inferred"]
           },
           "text": {
             "type": "string",
@@ -1180,11 +1079,7 @@
             ]
           }
         },
-        "required": [
-          "kind",
-          "epistemic",
-          "text"
-        ]
+        "required": ["kind", "epistemic", "text"]
       }
     },
     {
@@ -1208,11 +1103,7 @@
           },
           "epistemic": {
             "type": "string",
-            "enum": [
-              "reported",
-              "observed",
-              "inferred"
-            ]
+            "enum": ["reported", "observed", "inferred"]
           },
           "text": {
             "type": "string",
@@ -1220,11 +1111,7 @@
             "maxLength": 2000
           }
         },
-        "required": [
-          "kind",
-          "epistemic",
-          "text"
-        ]
+        "required": ["kind", "epistemic", "text"]
       }
     },
     {
@@ -1246,11 +1133,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "mission",
-              "constraint",
-              "lesson"
-            ]
+            "enum": ["mission", "constraint", "lesson"]
           },
           "statement": {
             "type": "string",
@@ -1314,10 +1197,7 @@
             }
           }
         },
-        "required": [
-          "kind",
-          "statement"
-        ]
+        "required": ["kind", "statement"]
       }
     },
     {
@@ -1329,10 +1209,7 @@
         "properties": {
           "decision": {
             "type": "string",
-            "enum": [
-              "accept",
-              "reject"
-            ]
+            "enum": ["accept", "reject"]
           },
           "expectedRevision": {
             "type": "integer",
@@ -1340,10 +1217,7 @@
             "maximum": 9007199254740991
           }
         },
-        "required": [
-          "decision",
-          "expectedRevision"
-        ]
+        "required": ["decision", "expectedRevision"]
       }
     },
     {
@@ -1355,10 +1229,7 @@
         "properties": {
           "capture": {
             "type": "string",
-            "enum": [
-              "off",
-              "automatic"
-            ]
+            "enum": ["off", "automatic"]
           },
           "expectedRevision": {
             "type": "integer",
@@ -1366,10 +1237,7 @@
             "maximum": 9007199254740991
           }
         },
-        "required": [
-          "capture",
-          "expectedRevision"
-        ]
+        "required": ["capture", "expectedRevision"]
       }
     },
     {
@@ -1381,15 +1249,10 @@
         "properties": {
           "state": {
             "type": "string",
-            "enum": [
-              "accepted",
-              "declined"
-            ]
+            "enum": ["accepted", "declined"]
           }
         },
-        "required": [
-          "state"
-        ]
+        "required": ["state"]
       }
     },
     {
@@ -1408,9 +1271,7 @@
             }
           }
         },
-        "required": [
-          "names"
-        ]
+        "required": ["names"]
       }
     },
     {
@@ -1523,9 +1384,7 @@
         "get": {
           "operationId": "getMission",
           "summary": "The mission ledger's current view for this member: accepted direction, constraints, pending proposals, recent notes, note policy and what they may do. `readState` is `empty` only when the read found no mission, draft, proposal, note, discussion or work.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -1609,9 +1468,7 @@
         "post": {
           "operationId": "recordMissionEntry",
           "summary": "Record one typed mission note (observation, expectation, outcome, blocker, explanation, lesson candidate or continuity) as the member's own words. Admin or editor. Idempotent per member and key.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -1715,9 +1572,7 @@
         "post": {
           "operationId": "correctMissionEntry",
           "summary": "Correct a current note: a new note supersedes it, and the original stays readable as history. Admin or editor; a note that is no longer current is a conflict.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -1830,9 +1685,7 @@
         "post": {
           "operationId": "withdrawMissionEntry",
           "summary": "Forget a note: its text is erased, its source becomes ineligible and the project's eligibility revision advances, so live contexts that read it are rebuilt. The note's own author or an admin.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -1945,9 +1798,7 @@
         "post": {
           "operationId": "proposeMissionChange",
           "summary": "Propose a mission, constraint or lesson. Creating a proposal accepts nothing. Admin or editor.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -2051,9 +1902,7 @@
         "post": {
           "operationId": "decideMissionChange",
           "summary": "Accept or reject one pending proposal at its current revision, as the member's own action. Accepting a mission proposal appends the accepted frame and advances the mission revision, only from the revision it was proposed against. Admin or editor.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -2166,9 +2015,7 @@
         "put": {
           "operationId": "setMissionNotePolicy",
           "summary": "Turn the project's voice note capture on (`automatic`) or `off`, at the revision the admin saw. Off by default. Admin only.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -2262,9 +2109,7 @@
         "put": {
           "operationId": "setMissionNoteConsent",
           "summary": "The member's own consent to have Sophia keep notes and proposals from their turns. Any member, for themself only.",
-          "tags": [
-            "mission"
-          ],
+          "tags": ["mission"],
           "security": [
             {
               "supabaseBearer": []
@@ -2358,9 +2203,7 @@
         "get": {
           "operationId": "mediaToolSurface",
           "summary": "The model-facing operations this API executes for the media bridge. The bridge activates its guide only when they equal its own declarations.",
-          "tags": [
-            "media"
-          ],
+          "tags": ["media"],
           "security": [
             {
               "mediaBridgeCapability": []

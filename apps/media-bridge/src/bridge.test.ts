@@ -3,9 +3,11 @@ import type { MediaAssignment } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { MediaBridge } from './bridge.ts'
+import { loadMissionGuide } from './guide.ts'
 import type { LiveLink } from './live-session.ts'
 import type { RoomEvents, RoomLink } from './rtc.ts'
 import type { MediaService } from './service.ts'
+import { DECLARED_NAMES } from './tools.ts'
 
 const assignment = (exchangeId: string, over: Partial<MediaAssignment> = {}): MediaAssignment => ({
   exchangeId,
@@ -23,6 +25,9 @@ const assignment = (exchangeId: string, over: Partial<MediaAssignment> = {}): Me
   quiesceRequestId: null,
   roomToken: { serverUrl: 'ws://fake', token: 't', expiresAt: '2026-09-25T00:10:00Z' },
   results: [],
+  missionRevision: 1,
+  ledgerRevision: 1,
+  eligibilityRevision: 1,
   ...over,
 })
 
@@ -39,6 +44,7 @@ function harness() {
     holder: () => Promise.resolve(),
     announced: () => Promise.resolve(),
     toolCall: () => Promise.reject(new Error('unused')),
+    toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
   }
   const bridge = new MediaBridge({
     service,
@@ -73,6 +79,7 @@ function harness() {
     },
     apiKey: 'fake',
     model: 'fake',
+    guide: loadMissionGuide(DECLARED_NAMES),
     bridgeInstanceId: 'bridge-test',
     now: Date.now,
     log: (event) => log.push(event),
