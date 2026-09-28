@@ -17,6 +17,9 @@ export type ErrorCode =
   | 'runtime_capability_required'
   | 'media_capability_required'
   | 'native_capability_unavailable'
+  | 'note_policy_denied'
+  | 'confirmation_required'
+  | 'native_task_retired'
 
 export type Retry = ApiError['retry']
 
@@ -40,6 +43,12 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   media_capability_required: { status: 401, retry: 'reauthorize' },
   // The project has no registered native runtime to run the work on: admitting it would only fail later.
   native_capability_unavailable: { status: 503, retry: 'never' },
+  // Voice note capture is off for the project, or the speaker has not agreed to notes from their turns (SMC-M01).
+  note_policy_denied: { status: 403, retry: 'never' },
+  // A voice decision that cannot be bound to the proposal put to this speaker: put it to them again (SMC-M01).
+  confirmation_required: { status: 409, retry: 'never' },
+  // New brief admission is retired (SMC-M01); existing briefs stay readable and controllable.
+  native_task_retired: { status: 410, retry: 'never' },
 }
 
 export class DomainError extends Error {

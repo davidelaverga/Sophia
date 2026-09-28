@@ -34,6 +34,10 @@ const EXPORTS = [
   'ExchangeState',
   'MediaAssignmentBatch',
   'MediaToolResult',
+  'MediaToolSurface',
+  'MissionContext',
+  'MissionReceipt',
+  'MissionNotePolicy',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

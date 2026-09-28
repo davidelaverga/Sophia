@@ -12,9 +12,10 @@ import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { Snapshot } from '@sophia/contracts'
 import {
-  parseContributionReceipt,
   parseInvitation,
   parseLobbyEntry,
+  parseMediaToolSurface,
+  parseMissionContext,
   parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
@@ -225,6 +226,20 @@ describe('media routes: the bridge capability and nothing else (amendment A06)',
     assert.equal((await call(`/api/v1/projects/${seed.projectId}/snapshot`, { bearer: MEDIA_TOKEN })).status, 401)
   })
 
+  it('serves the guide’s six operations to the bridge, and only to the bridge (amendment A08)', async () => {
+    const surface = await call('/v1/media/tool-surface', { bearer: MEDIA_TOKEN })
+    assert.deepEqual(parseMediaToolSurface(surface.json).names, [
+      'project_status',
+      'read_selected_source',
+      'record_mission_note',
+      'propose_mission_change',
+      'decide_mission_change',
+      'control_work',
+    ])
+    assert.equal((await call('/v1/media/tool-surface', { bearer: await token(A) })).status, 401)
+    assert.equal((await call('/v1/media/tool-surface')).status, 401)
+  })
+
   it('an exchange does not open when the room’s trusted presence cannot be read, or the room service is not set up', async () => {
     const snap = await snapshot()
     const open = async (at: string) =>
@@ -243,7 +258,6 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
   let exchangeId: string
   let room: FakeRoom
   let live: FakeLive
-  let contributionId: string
 
   it('opens an exchange; the bridge joins, and the snapshot shows what the bridge observes', async () => {
     const said = await call(`/api/v1/projects/${seed.projectId}/contributions`, {
@@ -251,7 +265,7 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       key: true,
       body: { source: null, text: 'Start with the room.', threadId: null, artifactVersionId: null, intent: 'discuss' },
     })
-    contributionId = parseContributionReceipt(said.json).contributionId
+    assert.equal(said.status, 202)
     const snap = await snapshot()
     assert.equal(snap.room.sophia.voice, 'not_connected')
     const opened = await call(`/api/v1/rooms/${snap.room.id}/exchanges`, {
@@ -295,38 +309,45 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     assert.deepEqual([sophia.exchange, sophia.inputActorId, sophia.allowVision], ['open', E, true])
   })
 
-  it('the holder is heard and a spoken brief request is admitted once, for the holder', async () => {
+  it('the holder is heard, and a spoken proposal is recorded once, for the holder', async () => {
     room.events.audio(E, new Int16Array(1600), 16000, 1)
     room.events.audio(V, new Int16Array(1600), 16000, 1)
     assert.equal(live.audio, 1, 'only the holder’s audio reached Google')
-    const out = await ask(live, 'call-brief-1', 'start_brief', {
-      instruction: 'Draft the brief from what we agreed.',
-      contributionIds: [contributionId],
+    const consent = await call(`/api/v1/projects/${seed.projectId}/mission/note-consent`, {
+      method: 'PUT',
+      bearer: await token(E),
+      body: { state: 'accepted' },
     })
-    assert.equal(out.status, 'admitted')
-    const work = (await snapshot()).work
-    assert.equal(work.length, 1)
-    assert.equal(work[0]?.id, out.workId)
-    assert.equal(work[0]?.actorId, E, 'attributed to the speaker the epoch binds')
-    const again = await httpMediaService(base, MEDIA_TOKEN).toolCall({
+    assert.equal(consent.status, 200)
+    const out = await ask(live, 'call-propose-1', 'propose_mission_change', {
+      kind: 'mission',
+      statement: 'Help people find nearby creative workshops.',
+    })
+    assert.equal(out.status, 'proposed')
+    const mission = parseMissionContext(
+      (await call(`/api/v1/projects/${seed.projectId}/mission`, { bearer: await token(V) })).json,
+    )
+    assert.equal(mission.pending.length, 1)
+    assert.deepEqual([mission.pending[0]?.id, mission.pending[0]?.proposedBy], [out.proposalId, E])
+    assert.equal(mission.pending[0]?.proposedVia, 'voice', 'attributed to the speaker the epoch binds')
+    assert.equal(mission.mission, null, 'proposing accepted nothing')
+    const replayed = {
       exchangeId,
       connectionGeneration: 1,
       callId: 'replayed',
-      name: 'start_brief',
-      args: { instruction: 'Draft it', contributionIds: [contributionId] },
+      name: 'propose_mission_change' as const,
+      args: { kind: 'constraint', statement: 'Keep it free for learners.' },
       inputEpoch: 1,
       actorId: E,
-    })
-    const replay = await httpMediaService(base, MEDIA_TOKEN).toolCall({
-      exchangeId,
-      connectionGeneration: 1,
-      callId: 'replayed',
-      name: 'start_brief',
-      args: { instruction: 'Draft it', contributionIds: [contributionId] },
-      inputEpoch: 1,
-      actorId: E,
-    })
-    assert.deepEqual(replay, again, 'a provider retry of the same call admits nothing new')
+      utterance: 1,
+    }
+    const again = await httpMediaService(base, MEDIA_TOKEN).toolCall(replayed)
+    const replay = await httpMediaService(base, MEDIA_TOKEN).toolCall(replayed)
+    assert.deepEqual(replay, again, 'a provider retry of the same call proposes nothing new')
+    const rows = await owner.query<{ n: string }>(`SELECT count(*) AS n FROM sophia.decisions WHERE project_id=$1`, [
+      seed.projectId,
+    ])
+    assert.equal(rows.rows[0]?.n, '2')
   })
 
   it('a speaker the epoch does not bind is asked, never acted for', async () => {
@@ -334,8 +355,8 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       exchangeId,
       connectionGeneration: 1,
       callId: 'unbound',
-      name: 'start_brief',
-      args: { instruction: 'Draft another' },
+      name: 'record_mission_note',
+      args: { kind: 'observation', epistemic: 'reported', text: 'Not theirs to write' },
       inputEpoch: 1,
       actorId: V,
     })
@@ -347,10 +368,13 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     const res = await call(`/api/v1/exchanges/${exchangeId}/stop-speaking`, { bearer: await token(V), body: {} })
     assert.equal(res.status, 200)
     await until('the bridge cleared output', () => room.clears > clears)
-    assert.equal((await snapshot()).work[0]?.phase !== 'stopped', true, 'work is untouched')
+    const mission = parseMissionContext(
+      (await call(`/api/v1/projects/${seed.projectId}/mission`, { bearer: await token(E) })).json,
+    )
+    assert.equal(mission.pending.length, 2, 'the proposals are untouched')
   })
 
-  it('a viewer can take the floor and talk with Sophia, but cannot start work by voice', async () => {
+  it('a viewer can take the floor and talk with Sophia, but cannot change the mission by voice', async () => {
     const snap = await snapshot()
     const moved = await call(`/api/v1/rooms/${snap.room.id}/input-floor`, {
       bearer: await token(E),
@@ -363,10 +387,22 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     room.events.audio(V, new Int16Array(1600), 16000, 1)
     const status = await ask(live, 'viewer-status', 'project_status', {})
     assert.equal(status.status, 'ok')
-    const admittedBefore = (await snapshot()).work.length
-    const refused = await ask(live, 'viewer-brief', 'start_brief', { instruction: 'Draft one more' })
-    assert.equal(refused.status, 'refused')
-    assert.equal((await snapshot()).work.length, admittedBefore)
+    const proposedBefore = (await owner.query(`SELECT 1 FROM sophia.decisions WHERE project_id=$1`, [seed.projectId]))
+      .rowCount
+    const refused = await ask(live, 'viewer-propose', 'propose_mission_change', {
+      kind: 'mission',
+      statement: 'A viewer’s mission',
+    })
+    assert.equal(refused.status, 'denied')
+    const note = await ask(live, 'viewer-note', 'record_mission_note', {
+      kind: 'observation',
+      epistemic: 'reported',
+      text: 'A viewer’s note',
+    })
+    assert.equal(note.status, 'denied')
+    const proposedAfter = (await owner.query(`SELECT 1 FROM sophia.decisions WHERE project_id=$1`, [seed.projectId]))
+      .rowCount
+    assert.equal(proposedAfter, proposedBefore)
   })
 
   it('a guest gets a token only after the bridge confirms Sophia stopped listening and speaking (case A12)', async () => {

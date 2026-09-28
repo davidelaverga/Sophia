@@ -90,3 +90,27 @@ export {
   type RemovalOutcome,
   type RemovalState,
 } from './removals.ts'
+export {
+  decideMissionChange,
+  presentMissionProposal,
+  proposeMissionChange,
+  recordMissionEntry,
+  setMissionNoteConsent,
+  setMissionNotePolicy,
+  withdrawMissionEntry,
+  type DecisionWrite,
+  type MissionTurn,
+  type NoteWrite,
+  type Presented,
+  type ProposalWrite,
+} from './mission.ts'
+export {
+  MISSION_CONTEXT_COMPILER,
+  readConfirmationTarget,
+  readMissionContext,
+  readMissionSource,
+  TRANSCRIPT_BUFFER,
+  type ConfirmationTarget,
+  type MissionReader,
+  type MissionSource,
+} from './mission-context.ts'

@@ -14,6 +14,7 @@ import { commandRoutes } from './routes/commands.ts'
 import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
+import { missionRoutes } from './routes/mission.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
@@ -67,7 +68,9 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.start_exchange(uuid,bigint,boolean,text)') IS NOT NULL
   AND to_regprocedure('sophia.claim_room_removals(text,integer,integer)') IS NOT NULL
   AND to_regprocedure('sophia.guest_token_minting(uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.capture_completed_turns(uuid,uuid)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.capture_completed_turns(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.record_mission_entry(uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -101,6 +104,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   projectionRoutes(app, { pool: deps.pool })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
+  missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
