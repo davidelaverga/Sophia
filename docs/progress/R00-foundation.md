@@ -1,6 +1,6 @@
 # R00: foundation integration
 
-**State on 2026-09-27 at 23:40 UTC: integrated.** `main` is `c683e6e`; the full production release waits for Davide's approval of OP-0011.
+**State on 2026-09-28 at 01:35 UTC: integrated and released.** `main` is `c683e6e`, and every production process runs `0391bc6` (OP-0011, verified by Codex at 00:59 UTC). Product acceptance is still open (§9).
 
 ## 0. Closeout
 
@@ -17,21 +17,29 @@
 | Deploy from the merge | None. [R00-CX-0004](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5860756194), 23:15 UTC: no Render or Vercel build or deploy started. Auto-Deploy and PR previews are Off, and Studio has no Git link |
 | Live tuple (R00-CX-0004) | API `dep-das3ed7…`, worker `dep-das47n3…`, bridge `dep-das43lj…` and runtime host `dep-das492n…`, all at `2d59884`. Studio `dpl_6E7MUJB…` is the `2d59884` artifact. `/health` and `/ready` return 200 |
 | Schema (R00-CX-0004) | 0001–0016 applied and matching; `0017_empty_room.sql` (`0d0b929f…`) pending. A scheduled physical backup exists from 11:14 UTC |
-| OP-0009 | Approved (CC-0035), not started |
+| OP-0009 | Approved (CC-0035), never run on its own: OP-0011 replaced it and ran its three steps |
 
 **After the merge: a hazard for the release, found by Codex and fixed.** Davide asked for a full production release of `main`. Codex's [R00-CX-0003](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5860729326) found that the runtime host installed its profile only when none existed. The runtime keeps that profile on its persistent disk, so a deploy of `c683e6e` (the first commit since the runtime was created to change the bundle) would have launched the old bundle.
 - **The fix:** at `0391bc6`, the runtime host reconciles the profile at every start. It reinstalls only the profile directory, keeps the previous one for a rollback, and logs the bundle it loads.
 - **The evidence:** tested against the real pinned dsh, and rehearsed on a profile installed from `00a16c2`'s bundle ([CC-0037](../coordination/S1-05A/S1-05A-CC-0037.md) §1).
 
-**The release: [CC-0037](../coordination/S1-05A/S1-05A-CC-0037.md) (S1-05A-OP-0011), awaiting Davide's approval.**
-- **What it does:** applies 0017, then puts the API, worker, runtime host, bridge and Studio on `0391bc6`, each step verified before the next. It includes OP-0009's three steps, so OP-0009 would not run on its own.
-- **The approval:** "Approve S1-05A-OP-0011 revision 1 as posted in CC-0037."
+**The release: [CC-0037](../coordination/S1-05A/S1-05A-CC-0037.md) (S1-05A-OP-0011), done and verified.** Davide approved it directly in the operator task. Codex's prepared check was [R00-CX-0005](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5861369880); it started at 00:44 UTC ([R00-CX-0006](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5861370893)); and the result was [R00-CX-0007](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-5861486474), `verified`, at 00:59 UTC:
+
+| Step | Result |
+|---|---|
+| M1 | 0017 applied (`0d0b929f…`). 0001–0017 match the candidate, with 0 pending. `room_ai_presence.empty_since` exists. The exchange that had been open about 28 hours in an empty room in `b04a5346…` ended. `/health` and `/ready` return 200 |
+| R1 API | `dep-dasrhht9fdbs73eolc40`, live at `0391bc6`. `/health` and `/ready` return 200 |
+| R2 worker | `dep-dasrio7pn0mc739nnetg`, live at `0391bc6`. Runtime dispatch and room-removal reconciliation started with no startup error |
+| R3 runtime host | `dep-dasrjpt9fdbs73eour90`, live at `0391bc6`. The build reproduced every artifact identity. The first start logged `profile` `state: upgraded` with bundle `391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1`. The host is ready, and its lease is active and ready (epoch 3), with a fresh hello and ready |
+| R4 bridge | `dep-dasrlh17lnhs73agv6f0`, live at `0391bc6`. `bridge.start` is logged, and the assignment poll after the restart returns 200 |
+| R5 Studio | `dpl_7sUgFJnxvQGwaqxiNUpYijbVVFpp`, Ready, with commit metadata `0391bc6…`. `/`, the project route and the signed-in snapshot return 200 |
+| After | 0 non-terminal native tasks, 0 unsettled outbox rows, 0 open exchanges, and the runtime active and ready. No setting, secret, plan, Auth or spend change, and no rollback |
 
 **The baseline for M01 and M02:**
 - **Source:** `main`, `c683e6e` today. Once the closeout PR merges, `main` includes `0391bc6`.
-- **Hosted:** today, `2d59884` everywhere, with schema 0001–0016. After OP-0011, `0391bc6` everywhere, with 0001–0017.
+- **Hosted:** `0391bc6` in all five processes, with schema 0001–0017 (R00-CX-0007). The runtime host runs the recorded bundle `391c89ce…`.
 
-M01's and M02's first sessions record whichever tuple they find. The acceptance cases in §9 remain open. The sections below are the plan and the evidence as they stood before the merge.
+The acceptance cases in §9 remain open: Stop, Hold and Resume, guest and two-person, reconnect, and a longer reply. The sections below are the plan and the evidence as they stood before the merge.
 
 The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MERGE_REVIEW.md). Messages go on issue [#14](https://github.com/davidelaverga/Sophia/issues/14), and the release is S1-05A-OP-0009 ([CC-0033](../coordination/S1-05A/S1-05A-CC-0033.md)).
 
@@ -39,8 +47,8 @@ The mission is [R00](../missions/2026-09-27-companion-research/02_FOUNDATION_MER
 |---|---|
 | Source-ready | Yes: the candidate below, CI green on every head, and no unresolved blocking finding (§3) |
 | Merged | Yes: `main` is `c683e6e` (§0) |
-| Release-ready | OP-0011 (CC-0037, every process to `0391bc6`) is awaiting Davide's approval. It would replace OP-0009, which is approved but not started (§0) |
-| Hosted-verified | For what is live (`2d59884`, CX-0059, R00-CX-0004). Nothing after `2d59884` is live |
+| Released | Yes: OP-0011 (CC-0037) put every process on `0391bc6` and applied 0017. It replaced OP-0009 (§0) |
+| Hosted-verified | The operator's smoke checks at `0391bc6` (R00-CX-0007). Davide's retest (CC-0033, tests (a)–(d)) has not run yet |
 | Product-accepted | No. §9 lists the open cases |
 
 ## 1. Identities (refreshed at 21:50 UTC)
