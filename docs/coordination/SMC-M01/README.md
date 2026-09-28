@@ -7,7 +7,7 @@ Messages travel on **one coordination issue, [#17](https://github.com/davidelave
 | Mission | SMC-M01 |
 | Coordination issue | [#17](https://github.com/davidelaverga/Sophia/issues/17) |
 | Implementation branch | `claude/upbeat-feynman-d7jskb` |
-| Implementation PR | the draft PR for that branch |
+| Implementation PR | [#18](https://github.com/davidelaverga/Sophia/pull/18) (draft) |
 | Implementer | Claude Code, session `https://claude.ai/code/session_01WYqdvEfR8p7mTf1Wbh1b4f` |
 | Operator | Codex, started by Davide with [launch/M01_CODEX.md](../../missions/2026-09-27-companion-research/launch/M01_CODEX.md); its session is recorded from its first message |
 | Implementer's writable scope | this repository's source, migrations, tests and docs, on its own branch; disposable local databases |
@@ -28,4 +28,11 @@ Every message is immutable. A correction is a new message with `supersedes`. App
 
 | Id | Kind | Operation | State |
 |---|---|---|---|
-| [SMC-M01-CC-0001](SMC-M01-CC-0001.md) | `inspect_request` | SMC-M01-OP-0001 (read only) | the M01 channel's first request: the live tuple, the ledger, the free migration number and counts |
+| [SMC-M01-CC-0001](SMC-M01-CC-0001.md) ([#17 comment](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5879898292)) | `inspect_request` | SMC-M01-OP-0001 (read only) | the M01 channel's first request: the live tuple, the ledger, the free migration number and counts |
+| [SMC-M01-CX-0001](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880038214) | `blocked` (partial) | SMC-M01-OP-0001 | schema, counts, roles, API health, Studio deployment and #16 observed; Render inspection stopped at the sign-in boundary the request excluded. Superseded by CX-0003 |
+| [SMC-M01-CX-0002](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880048077) | `result` | SMC-M01-OP-0001 | 0 non-terminal native tasks; the 2 non-terminal rows CX-0001 counted are work attempts |
+| [SMC-M01-CX-0003](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880197156) | `reconciled` | SMC-M01-OP-0001 | Davide opened a signed-in Render tab: the four services live at `0391bc6`, Auto-Deploy and PR Previews off; the bridge's `SOPHIA_LIVE_MODEL` and `GEMINI_API_KEY` are present, the model value masked and unverified |
+| [SMC-M01-CC-0002](SMC-M01-CC-0002.md) ([#17 comment](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880747058)) | `support_request` | SMC-M01-OP-0002 (read only) | before the release request: an independent review of the confirmation binding, forgetting, the note policy and 0018 on production's data; the 0018 dry run at `8a4b6a7`; how Render can deploy a commit that is not on its tracked branch. Waiting for Davide to wake Codex |
+| [SMC-M01-CC-0003](SMC-M01-CC-0003.md) | `execution_request`, **draft, not posted** | SMC-M01-OP-0003 (release) | apply 0018, then the API and the bridge back to back, then the Studio, at the reviewed commit. Posted once #18 is merged after #16 and CC-0002 is answered; unapprovable until it names that commit |
+
+**SMC-M01-OP-0001 has its answer:** every question in CC-0001 is observed except the exact `SOPHIA_LIVE_MODEL` value, which the dashboard masks. The operation was read only and left nothing to clean up. Claude checked each reply against CC-0001's seven questions; the findings and what they mean for M01 are in [the progress record](../../progress/SMC-M01.md#5-operations). The wake pointers arrived on #18 as designed ([CX-0001](https://github.com/davidelaverga/Sophia/pull/18#issuecomment-5880040204), [CX-0002](https://github.com/davidelaverga/Sophia/pull/18#issuecomment-5880048950), [CX-0003](https://github.com/davidelaverga/Sophia/pull/18#issuecomment-5880198238)).

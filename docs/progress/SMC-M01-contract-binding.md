@@ -168,3 +168,18 @@ The host checks identity and versions; whether the words meant yes or no is the 
 | T20 | Bridge: a missing or tampered asset throws at load; a tool-surface mismatch keeps the session from connecting Google |
 | T21 | Bridge: fresh, resumed and cold-rebuilt connections all send identical instruction bytes; the skill appears once; no reconnect sentence |
 | T22 | Declarations = manifest names = contract enum = API handler keys; no retired or future tool; a viewer's writes are refused |
+
+## 10. Implementation notes against this binding (G2–G4)
+
+The binding above stays the G1 record. Where the implementation differs, it is written here; none of these changes a model-facing operation name, the authored prompt or skill, the scope or an authority, so none needs a versioned amendment.
+
+| Binding | As implemented | Why |
+|---|---|---|
+| §4.1 `decisions.frame` | The column is `proposal jsonb` (statement, purpose, destination, origin). The accepted frame is still appended to `project_revisions` | It holds a proposal until someone decides it; the name says so |
+| §2 `record_mission_note` | Also accepts `correctsEntryId`: a voice correction takes the correction path (append and supersede) | Corrections by voice need the same append-only rule as typed ones |
+| §4.2 Propose by voice | Needs the same gate as a voice note: capture `automatic` and the speaker's own consent `accepted` (`explicitProposals` in the policy view) | A proposal stores Sophia's paraphrase of the speaker's turn: T09's "nothing retained" applies to it too |
+| §3 `MediaToolResult` | Statuses as listed in §3; the mapping from domain errors: `note_policy_denied`, `forbidden` and `invalid_state` → `denied`; `stale_revision`, `idempotency_conflict` → `conflict`; `confirmation_required`, `not_found`, `invalid_request` → `clarify`; `outcome_unknown` → `unknown`; anything else → `error`, with nothing claimed as saved | One vocabulary the guide's skill can act on |
+| §6 Refresh | No spoken notice. The next tool result carries `recordsChanged` when records moved outside this conversation, cleared by the next `project_status` | Nothing is spoken unprompted, and nothing is added to the conversation outside the static instruction; the skill already re-reads status before relying on it |
+| T18 | A lost tool reply is retried twice (250 ms, 1 s) under the same identity and idempotency key; a 4xx is not retried; a write still unconfirmed is reported `unknown`, telling the guide to read `project_status` | The write may have committed: the guide must read, not repeat |
+| T17 | Checked in a real browser against the real API on synthetic dev data, not with `pnpm dev` (this container has no Docker for LiveKit) | Same code paths; rooms answer 503 without LiveKit, which the Converse lens does not need |
+| §9 Studio view | Also shows the accepted constraints and lessons and the recent decisions | `project_status` gives Sophia both; the Studio view reads the same context |
