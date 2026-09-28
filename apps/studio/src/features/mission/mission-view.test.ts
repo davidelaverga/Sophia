@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MissionContext, MissionDecision, MissionEntry, MissionNotePolicy } from '@sophia/contracts'
-import { direction, historyText, noteActions, notesLine, pendingFocus, recentNotes, wording } from './mission-view.ts'
+import {
+  decidedBy,
+  direction,
+  historyText,
+  noteActions,
+  notesLine,
+  omittedLine,
+  pendingFocus,
+  recentNotes,
+  wording,
+} from './mission-view.ts'
 
 const cap = (available: boolean) => ({ available, reason: available ? null : 'no' })
 const policy = (over: Partial<MissionNotePolicy> = {}): MissionNotePolicy => ({
@@ -96,6 +106,8 @@ const context = (over: Partial<MissionContext> = {}): MissionContext => ({
   ...over,
 })
 
+const excluded = (olderEntries: number, olderHistory: number) => ({ olderEntries, olderHistory, legacyFrame: false })
+
 describe('mission view', () => {
   it('says plainly when nothing is accepted, and how to begin when nothing is recorded', () => {
     assert.deepEqual(direction(context({ readState: 'empty' })), {
@@ -150,6 +162,27 @@ describe('mission view', () => {
       'A note was forgotten; its text no longer exists.',
     )
     assert.equal(historyText(entry('1', { state: 'superseded' })), 'note 1')
+  })
+
+  it('says what the context leaves out instead of counting notes it cannot show', () => {
+    assert.equal(omittedLine(context()), null)
+    assert.equal(omittedLine(context({ excluded: excluded(1, 0) })), 'Not shown here: 1 older note.')
+    assert.equal(
+      omittedLine(context({ excluded: excluded(12, 3) })),
+      'Not shown here: 12 older notes and 3 older corrections and forgotten notes.',
+    )
+  })
+
+  it('says who decided a proposal and where, and nothing for one that was replaced', () => {
+    const names = new Map([['b', 'Davide']])
+    const decided = (over: Partial<MissionDecision>): MissionDecision => ({
+      ...proposal('1'),
+      state: 'accepted',
+      ...over,
+    })
+    assert.equal(decidedBy(decided({ decidedBy: 'me', decidedVia: 'voice' }), 'me', names), 'You, by voice')
+    assert.equal(decidedBy(decided({ decidedBy: 'b', decidedVia: 'studio' }), 'me', names), 'Davide, in the Studio')
+    assert.equal(decidedBy(decided({ state: 'superseded' }), 'me', names), null)
   })
 
   it('shows the newest notes, oldest first', () => {

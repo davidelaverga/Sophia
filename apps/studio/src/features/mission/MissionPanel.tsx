@@ -1,7 +1,8 @@
-// The compact mission view (M01 §9): the direction the team accepted, the one proposal waiting for a decision, the
-// newest notes and whether Sophia keeps notes, on the same MissionContext Sophia reads by voice. It is not a form:
-// nothing here must be typed for the conversation to work, and an empty field is one plain line, not an empty card.
-// It refreshes with the project's events (the snapshot cursor) and after each write.
+// The compact mission view (M01 §9): the direction, constraints and lessons the team accepted, the one proposal waiting
+// for a decision, the newest notes and whether Sophia keeps notes; behind one disclosure, the rest of the notes and the
+// history of notes and decisions. It reads the same MissionContext Sophia reads by voice. It is not a form: nothing
+// here must be typed for the conversation to work, and an empty field is one plain line, not an empty card. It
+// refreshes with the project's events (the snapshot cursor) and after each write.
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { MissionContext, MissionReceipt } from '@sophia/contracts'
@@ -10,8 +11,17 @@ import { getMission, decideMissionChange, setNoteConsent, setNotePolicy } from '
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { authorLabel } from '../conversation/conversation-view.ts'
-import { direction, missionKey, notesLine, pendingFocus, PROPOSAL_KIND } from './mission-view.ts'
-import { MissionNotes } from './MissionNotes.tsx'
+import {
+  AGREED_KIND,
+  decidedBy,
+  direction,
+  missionKey,
+  notesLine,
+  OUTCOME,
+  pendingFocus,
+  PROPOSAL_KIND,
+} from './mission-view.ts'
+import { MoreNotes, NewestNotes } from './MissionNotes.tsx'
 
 interface Props {
   projectId: string
@@ -33,16 +43,31 @@ export function MissionPanel({ projectId, identity, cursor, me, names }: Props) 
   if (mission.isError) return <p className="mission muted">The mission couldn’t be read just now.</p>
   const ctx = mission.data
   const aim = direction(ctx)
+  const parts = { ctx, projectId, identity, me, names }
   return (
     <section className="mission" aria-label="Mission">
       <p className="mission-direction">
         <span className="eyebrow">Direction</span>
         <span className={aim.accepted ? '' : 'muted'}>{aim.statement}</span>
-        {aim.purpose && <span className="muted">{aim.purpose}</span>}
+        {aim.purpose && <span className="mission-purpose muted">{aim.purpose}</span>}
       </p>
-      <PendingDecision ctx={ctx} projectId={projectId} identity={identity} me={me} names={names} />
-      <MissionNotes ctx={ctx} projectId={projectId} identity={identity} me={me} names={names} />
-      <NotePolicy ctx={ctx} projectId={projectId} identity={identity} />
+      {ctx.constraints.length > 0 && (
+        <ul className="mission-agreed" aria-label="Agreed constraints and lessons">
+          {ctx.constraints.map((d) => (
+            <li key={d.id}>
+              <Tag tone="lav">{AGREED_KIND[d.kind]}</Tag> {d.statement}
+            </li>
+          ))}
+        </ul>
+      )}
+      <PendingDecision {...parts} />
+      <NewestNotes {...parts} />
+      <NoteConsent ctx={ctx} projectId={projectId} identity={identity} />
+      <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={names} />}>
+        {ctx.capabilities.setNotePolicy.available && (
+          <CaptureSwitch ctx={ctx} projectId={projectId} identity={identity} />
+        )}
+      </MoreNotes>
     </section>
   )
 }
@@ -119,12 +144,33 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
   )
 }
 
-/** Whether Sophia keeps notes for this person, their own choice, and an admin's switch for the project. */
-function NotePolicy({ ctx, projectId, identity }: Omit<PartProps, 'me' | 'names'>) {
+/** The newest decided proposals: what each was, what became of it, and who decided it where. */
+function Decided({ ctx, me, names }: Pick<PartProps, 'ctx' | 'me' | 'names'>) {
+  if (ctx.decided.length === 0) return null
+  return (
+    <ol className="mission-notes history" aria-label="Decided proposals">
+      {ctx.decided.map((d) => {
+        const by = decidedBy(d, me, names)
+        return (
+          <li key={d.id} className="mission-note">
+            <Tag tone={d.state === 'accepted' ? 'teal' : 'muted'}>{OUTCOME[d.state]}</Tag>
+            <span>
+              {AGREED_KIND[d.kind]}: {d.statement}
+            </span>
+            {by && <span className="muted">{by}</span>}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+type PolicyProps = Omit<PartProps, 'me' | 'names'>
+
+/** A note-policy write: its refusal is shown beside the control, and the mission is read again either way. */
+function usePolicyWrite(projectId: string) {
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
-  const policy = ctx.notePolicy
-  const line = notesLine(policy)
   const change = async (write: () => Promise<unknown>) => {
     setError(null)
     try {
@@ -135,34 +181,44 @@ function NotePolicy({ ctx, projectId, identity }: Omit<PartProps, 'me' | 'names'
       void queryClient.invalidateQueries({ queryKey: missionKey(projectId) })
     }
   }
-  const consent = (state: 'accepted' | 'declined') => change(() => setNoteConsent(identity.token, projectId, state))
-  const capture = (on: boolean) =>
-    change(() =>
-      setNotePolicy(identity.token, projectId, {
-        capture: on ? 'automatic' : 'off',
-        expectedRevision: policy.revision,
-      }),
-    )
+  return { change, error }
+}
+
+/** Whether Sophia keeps notes for this person, and their own choice: as easy to take back as to give. */
+function NoteConsent({ ctx, projectId, identity }: PolicyProps) {
+  const { change, error } = usePolicyWrite(projectId)
+  const line = notesLine(ctx.notePolicy)
+  const accepted = ctx.notePolicy.consent === 'accepted'
+  const choose = () => change(() => setNoteConsent(identity.token, projectId, accepted ? 'declined' : 'accepted'))
   return (
     <div className="mission-policy">
       <Tag tone={line.tone}>Notes</Tag>
       <span>{line.text}</span>
-      <span className="control-row">
-        {policy.consent === 'accepted' ? (
-          <button type="button" className="text-button" onClick={() => void consent('declined')}>
-            Keep no notes from my turns
-          </button>
-        ) : (
-          <button type="button" className="text-button" onClick={() => void consent('accepted')}>
-            Agree to notes from my turns
-          </button>
-        )}
-        {ctx.capabilities.setNotePolicy.available && (
-          <button type="button" className="text-button" onClick={() => void capture(policy.capture === 'off')}>
-            {policy.capture === 'off' ? 'Turn note capture on' : 'Turn note capture off'}
-          </button>
-        )}
-      </span>
+      <button type="button" className="text-button" onClick={() => void choose()}>
+        {accepted ? 'Keep no notes from my turns' : 'Agree to notes from my turns'}
+      </button>
+      {error && <Tag tone="rose">{error}</Tag>}
+    </div>
+  )
+}
+
+/** An admin's switch for the whole project, kept behind the disclosure: whether Sophia keeps notes by voice at all. */
+function CaptureSwitch({ ctx, projectId, identity }: PolicyProps) {
+  const { change, error } = usePolicyWrite(projectId)
+  const off = ctx.notePolicy.capture === 'off'
+  const flip = () =>
+    change(() =>
+      setNotePolicy(identity.token, projectId, {
+        capture: off ? 'automatic' : 'off',
+        expectedRevision: ctx.notePolicy.revision,
+      }),
+    )
+  return (
+    <div className="mission-policy">
+      <span>{off ? 'Note capture is off for everyone here.' : 'Note capture is on for members who agree.'}</span>
+      <button type="button" className="text-button" onClick={() => void flip()}>
+        {off ? 'Turn note capture on' : 'Turn note capture off'}
+      </button>
       {error && <Tag tone="rose">{error}</Tag>}
     </div>
   )

@@ -1294,7 +1294,7 @@ button.mark:hover {
   flex-wrap: wrap;
 }
 
-/* The Converse lens: recent discussion, one explicit brief request, the task in motion, the composer. */
+/* The Converse lens: the mission (SMC-M01), recent discussion, a brief still in motion, the composer. */
 .conversation {
   display: flex;
   flex-direction: column;
@@ -1308,7 +1308,7 @@ button.mark:hover {
 .conversation > * {
   flex: none;
 }
-/* The discussion gives way first: it scrolls, the brief request and composer stay in reach. */
+/* The discussion gives way: it scrolls, and the composer stays in reach. The mission view does the same (below). */
 .conversation > .discussion {
   flex: 0 1 auto;
   min-height: 0;
@@ -2546,14 +2546,58 @@ div.empty {
    the top of the Converse lens. Compact and read-first: controls are text buttons except the one decision to take. */
 .mission {
   display: grid;
+  align-content: start;
   gap: 8px;
   padding: 12px 14px;
   border-radius: var(--r-3);
   background: var(--glass);
 }
+/* At rest it gives way like the discussion: it scrolls inside its bounds (its direction line stays in view), so the
+   composer stays in reach. Opened to all notes and history, it takes the room it needs and the conversation is the one
+   scroller, never a window in a window. */
+.conversation > .mission {
+  flex: 0 1 auto;
+  min-height: 3.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.conversation > .mission:has(.mission-more[open]) {
+  flex: none;
+}
+/* While it holds more than it shows, its lower edge fades, as the view row's does: a scroll-driven mask that lifts at
+   the end of the scroll, and is absent when there is nothing to scroll. */
+@supports (animation-timeline: scroll()) {
+  .conversation > .mission {
+    animation: mission-more linear both;
+    animation-timeline: scroll(self);
+  }
+}
+@keyframes mission-more {
+  0%,
+  98% {
+    mask-image: linear-gradient(#000 calc(100% - 20px), transparent);
+  }
+  100% {
+    mask-image: none;
+  }
+}
 .mission-direction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+.mission-purpose {
+  flex-basis: 100%;
+}
+.mission-agreed {
   display: grid;
-  gap: 2px;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 .mission-pending {
@@ -2575,6 +2619,13 @@ div.empty {
   gap: 2px;
   overflow-wrap: anywhere;
 }
+/* History reads as one line each: what happened to the note, then what is left of it. */
+.mission-notes.history > .mission-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  align-items: baseline;
+}
 .mission-note-meta {
   display: flex;
   flex-wrap: wrap;
@@ -2590,8 +2641,6 @@ div.empty {
 .mission-more[open] {
   display: grid;
   gap: 8px;
-  max-height: 40cqh;
-  overflow-y: auto;
 }
 .mission-policy {
   display: flex;

@@ -1,8 +1,9 @@
-// The mission's notes in the compact view: the newest few, and behind one disclosure the full list, the history of
-// corrected and forgotten notes, and an optional typed note. A correction appends and supersedes; forgetting erases the
-// note's text for everyone, so it asks first. Each write keeps its Idempotency-Key until the server answers.
+// The mission's notes in the compact view: the newest few at rest, and behind one disclosure the older notes, the
+// history of corrected and forgotten notes, an optional typed note and whatever else the panel keeps out of the way. A
+// correction appends and supersedes; forgetting erases the note's text for everyone, so it asks first. Each write keeps
+// its Idempotency-Key until the server answers.
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
 import { ConfirmButton, Tag } from '@sophia/ui'
 import { correctMissionEntry, recordMissionEntry, withdrawMissionEntry } from '../../api/mission.ts'
@@ -16,6 +17,7 @@ import {
   isEntryKind,
   missionKey,
   noteActions,
+  omittedLine,
   recentNotes,
   wording,
 } from './mission-view.ts'
@@ -28,38 +30,55 @@ interface Props {
   names: ReadonlyMap<string, string>
 }
 
-export function MissionNotes(props: Props) {
-  const { ctx } = props
-  const recent = recentNotes(ctx)
-  const more = ctx.entries.length - recent.length + ctx.excluded.olderEntries
+/** The newest notes, shown at rest. */
+export function NewestNotes(props: Props) {
+  const recent = recentNotes(props.ctx)
+  if (recent.length === 0) return null
   return (
-    <>
-      {recent.length > 0 && (
-        <ol className="mission-notes" aria-label="Newest notes">
-          {recent.map((entry) => (
+    <ol className="mission-notes" aria-label="Newest notes">
+      {recent.map((entry) => (
+        <Note key={entry.id} entry={entry} {...props} />
+      ))}
+    </ol>
+  )
+}
+
+interface MoreProps extends Props {
+  /** The decisions' history, after the notes' own. */
+  decisions?: ReactNode
+  /** The panel's own extras, last. */
+  children?: ReactNode
+}
+
+/** Behind one disclosure: the older notes, the history, an optional typed note, then the panel's own extras. */
+export function MoreNotes({ decisions, children, ...props }: MoreProps) {
+  const { ctx } = props
+  const older = ctx.entries.slice(0, ctx.entries.length - recentNotes(ctx).length)
+  const omitted = omittedLine(ctx)
+  return (
+    <details className="mission-more">
+      <summary>All notes and history{older.length > 0 ? ` (${String(older.length)} more)` : ''}</summary>
+      {older.length > 0 && (
+        <ol className="mission-notes" aria-label="Older notes">
+          {older.map((entry) => (
             <Note key={entry.id} entry={entry} {...props} />
           ))}
         </ol>
       )}
-      <details className="mission-more">
-        <summary>All notes and history{more > 0 ? ` (${String(more)} more)` : ''}</summary>
-        <ol className="mission-notes">
-          {ctx.entries.slice(0, ctx.entries.length - recent.length).map((entry) => (
-            <Note key={entry.id} entry={entry} {...props} />
+      {ctx.history.length > 0 && (
+        <ol className="mission-notes history" aria-label="Corrected and forgotten notes">
+          {ctx.history.map((entry) => (
+            <li key={entry.id} className="mission-note muted">
+              <Tag tone="muted">{entry.state === 'withdrawn' ? 'Forgotten' : 'Corrected'}</Tag> {historyText(entry)}
+            </li>
           ))}
         </ol>
-        {ctx.history.length > 0 && (
-          <ol className="mission-notes history" aria-label="Corrected and forgotten notes">
-            {ctx.history.map((entry) => (
-              <li key={entry.id} className="mission-note muted">
-                <Tag tone="muted">{entry.state === 'withdrawn' ? 'Forgotten' : 'Corrected'}</Tag> {historyText(entry)}
-              </li>
-            ))}
-          </ol>
-        )}
-        {ctx.capabilities.recordNote.available && <AddNote {...props} />}
-      </details>
-    </>
+      )}
+      {omitted && <p className="muted">{omitted}</p>}
+      {decisions}
+      {ctx.capabilities.recordNote.available && <AddNote {...props} />}
+      {children}
+    </details>
   )
 }
 
