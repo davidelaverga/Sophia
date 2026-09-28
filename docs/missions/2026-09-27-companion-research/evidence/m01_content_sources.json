@@ -1,0 +1,28 @@
+{
+  "schema": "sophia.m01-content-amendment-sources.v1",
+  "date": "2026-09-28",
+  "basis": [
+    {
+      "source": "Sophia_Three_PR_Mission_Pack_v1.0_2026-09-27.zip",
+      "sha256": "8a85dd9592a008b5edccc28fcacb01767b9fc6ca2161cd78f0befcaaa80e19b8",
+      "role": "unchanged input archive; current M01 and its candidate core/skill"
+    },
+    {
+      "source": "M01_MISSION_COMPANION.md",
+      "file_id": "file_000000009584820a81d347e3ddef5f73",
+      "role": "actual requested mission; complete text read"
+    },
+    {
+      "source": "goal_lifecycle(2).md",
+      "file_id": "file_00000000ff0c820aa4b8f2e3736c2d07",
+      "role": "original user skill; complete text read; adapted per prior team-product decisions"
+    },
+    {
+      "source": "references/pass2/prior/Sophia_Mission_Companion_and_Research_Ledger_v0.1_2026-09-27.md",
+      "role": "retained first-pass team-skill adaptation and continuity rules"
+    }
+  ],
+  "fresh_repository_or_provider_research": false,
+  "production_effects": [],
+  "authored_design": "exact system and skill wording, file assembly and conformance requirements are authored for this amendment; not source-reported deployed behavior"
+}

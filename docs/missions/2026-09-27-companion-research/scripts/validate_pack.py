@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+from validate_m01_assets import validate_assets
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -75,8 +76,12 @@ def validate() -> dict:
             for dep in item['dependencies']:
                 if dep not in allowed:
                     failures.append(f'Unknown dependency {dep}')
+    m01 = validate_assets(ROOT)
+    failures.extend(f'M01 assets: {x}' for x in m01['failures'])
     return {
         'schema': 'sophia.mission-pack-validation.v1',
+        'm01_exact_assets_passed': m01['passed'],
+        'm01_combined_sha256': m01['combined_sha256'],
         'scope': 'local_document_structure_only',
         'relative_links_and_anchors_checked': checked,
         'json_files_parsed': json_count,

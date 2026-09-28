@@ -11,6 +11,8 @@ At each mission's G1 checkpoint create `docs/progress/<mission>-contract-binding
 | Read compatibility | Preserve historical brief and missing-mission states | Preserve older eligible task/log formats or explicitly hold unsupported ones | Add Markdown/artifact types and readers before publication |
 | Controls | Reuse current work controls | Preserve native delivery/journal/lease semantics | Apply same controls to source/render/work effects |
 
+**M01 v1.1 exception to flexible model naming:** [M01_PROMPT_LOADING](M01_PROMPT_LOADING.md) fixes the six model-facing function names and the exact prompt/skill assembly. Internal aliases remain possible, but a model-facing rename must update the authored assets, manifest and tests in an explicit versioned amendment. Current project/context data continues to use the canonical contract; this is not a second prompt-only state schema.
+
 ## 2. Canonical record mapping
 
 Use existing `projects`, `project_revisions`, `decisions`, `source_objects`/source text, `source_dependencies`, `goals`, `work_attempts`, `execution_bindings`, `commands`, `jobs`/outbox, `project_events`, `artifacts` and `artifact_versions` where their actual schema fits. Read current migrations, not just the historical initial definition. [SRC-16](../SOURCE_REGISTER.md#src-16)

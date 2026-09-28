@@ -1,9 +1,15 @@
 # Sophia — Three PR missions
 ## From the working voice foundation to mission continuity and useful research
 
-**Version:** 1.0 · **Prepared:** 27 September 2026  
+**Version:** 1.1 · **Prepared:** 27 September 2026 · **M01 content update:** 28 September 2026  
 **Repository:** `davidelaverga/Sophia`  
 **Status:** implementation specifications prepared; no repository changes, merge, deployment, database mutation or paid test was performed in preparing this pack.
+
+## Mission 1 now includes the exact runtime assets
+
+Read [M01 section 8](missions/M01_MISSION_COMPANION.md#8-exact-system-prompt-complete-skill-and-context-binding): it contains the full literal system instruction. The canonical [system prompt](prompts/M01_SYSTEM_PROMPT.v1.1.md), complete [mission-lifecycle skill](skills/mission-lifecycle.v1.1.md), and [loading contract](shared/M01_PROMPT_LOADING.md) are included. The [v1.1 change record](CHANGELOG_v1.1.md) names the targeted updates; the three-PR sequence and M02/M03 specifications are unchanged.
+
+These are exact authored implementation inputs, not a claim that the running application has been patched or the conversations tested. Prior repository/deployment observations in this pack retain their original dates; this content-only update did not refresh them.
 
 ## The next move
 
@@ -55,7 +61,7 @@ At mission start copy [MISSION_STATE](templates/MISSION_STATE.json) to the missi
 
 ## Scope and authority
 
-This pack converts the user's requested three-PR direction into implementation specifications. Exact APIs, schemas, defaults and work-session allocations are proposed engineering choices to bind against the actual checkout. A documented implementation-equivalent rename is allowed; changing behavior, data audience, spending, scope or acceptance requires a recorded amendment.
+This pack converts the user's requested three-PR direction into implementation specifications. Exact APIs, schemas, defaults and work-session allocations are proposed engineering choices to bind against the actual checkout. A documented internal implementation-equivalent rename is allowed. The M01 v1.1 model-facing prompt/skill bytes and function names are fixed by the loading contract; changing them requires a matching versioned amendment. Changing behavior, data audience, spending, scope or acceptance also requires a recorded amendment.
 
 No new personal-memory provider, ambient recording, full technical-lead hierarchy, image generation, slides, arbitrary browser control, subscription-account migration, paid service purchase or unrestricted agent fan-out is included. The older April maps are donor history, not authority to restore LangGraph/Hydra/Graphiti/Mem0 into the new runtime.
 

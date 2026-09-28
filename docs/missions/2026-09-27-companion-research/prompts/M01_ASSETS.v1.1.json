@@ -1,0 +1,61 @@
+{
+  "schema": "sophia.m01-prompt-assets.v1",
+  "version": "1.1",
+  "date": "2026-09-28",
+  "status": "exact_authored_baseline_for_M01_not_runtime_verified",
+  "mission_id": "SMC-M01",
+  "components": [
+    {
+      "id": "sophia.mission-guide.system.v1.1",
+      "kind": "system_prompt",
+      "path": "prompts/M01_SYSTEM_PROMPT.v1.1.md",
+      "sha256": "e4fb14d37cab837023fbf1cd5ac567c4c4715ba35c7b6ba8965ea25c93d6c44b",
+      "bytes": 9809
+    },
+    {
+      "id": "sophia.team-mission-lifecycle.v1.1",
+      "kind": "skill",
+      "path": "skills/mission-lifecycle.v1.1.md",
+      "sha256": "2e746dfb9f7c7a3ad2b77ce2b95093d7a9421630e68b343edced582ea44090d5",
+      "bytes": 14600
+    }
+  ],
+  "assembly": {
+    "operation": "concatenate_verbatim",
+    "separator_hex": "0a",
+    "source_order": [
+      "system_prompt",
+      "skill"
+    ],
+    "frontmatter_stripping": false,
+    "interpolation": false,
+    "summarization": false,
+    "duplicate_skill_injection": false
+  },
+  "assembled": {
+    "path": "prompts/M01_SYSTEM_INSTRUCTION.v1.1.txt",
+    "sha256": "7fe8f7291389574d50f075742b226fbbef5fe6f6bed50299cfa573f7fe7a8f6d",
+    "bytes": 24410
+  },
+  "excluded_previous_candidates": [
+    "skills/guide-system-core.v1.md",
+    "skills/mission-lifecycle.v1.md"
+  ],
+  "model_facing_operation_names": [
+    "project_status",
+    "read_selected_source",
+    "record_mission_note",
+    "propose_mission_change",
+    "decide_mission_change",
+    "control_work"
+  ],
+  "required_before_m01_activation": [
+    "exact_assets_present",
+    "real_handlers_registered",
+    "current_policy_and_capability_projection",
+    "safe_context_rebuild_on_revocation"
+  ],
+  "dynamic_context_delivery": "existing_authenticated_project_status_and_source_tool_results_or_separately_qualified_data_delivery",
+  "runtime_data_embedded_in_static_prompt": false,
+  "provider_invocation_performed": false
+}
