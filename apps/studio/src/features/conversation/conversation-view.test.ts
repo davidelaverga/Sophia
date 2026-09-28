@@ -1,26 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { DiscussionEntry, NativeTask } from '@sophia/contracts'
-import {
-  authorLabel,
-  briefBlocks,
-  currentTask,
-  liveInputs,
-  MAX_BRIEF_INPUTS,
-  TASK_PHASE,
-  toggleInput,
-} from './conversation-view.ts'
-
-const entry = (id: string): DiscussionEntry => ({
-  id,
-  actorId: 'a',
-  intent: 'discuss',
-  origin: 'composer',
-  text: id,
-  sourceId: id,
-  sha256: '0'.repeat(64),
-  createdAt: '2026-09-25T00:00:00.000Z',
-})
+import type { NativeTask } from '@sophia/contracts'
+import { authorLabel, briefBlocks, currentTask, TASK_PHASE } from './conversation-view.ts'
 
 const task = (id: string, phase: NativeTask['phase']): NativeTask => ({
   id,
@@ -44,16 +25,6 @@ describe('conversation view', () => {
     assert.equal(authorLabel('me', 'me', names), 'You')
     assert.equal(authorLabel('b', 'me', names), 'luis@example.com')
     assert.equal(authorLabel('c', 'me', names), 'A member')
-  })
-
-  it('keeps brief inputs in the order chosen, capped, and drops ones that left the discussion', () => {
-    let selected: string[] = []
-    for (const id of ['3', '1', '2']) selected = toggleInput(selected, id)
-    assert.deepEqual(selected, ['3', '1', '2'])
-    assert.deepEqual(toggleInput(selected, '1'), ['3', '2'])
-    const full = Array.from({ length: MAX_BRIEF_INPUTS }, (_, i) => String(i))
-    assert.deepEqual(toggleInput(full, 'extra'), full, 'no ninth input')
-    assert.deepEqual(liveInputs(['3', '1', 'gone'], [entry('1'), entry('3')]), ['3', '1'])
   })
 
   it('reads a brief as headings, items and paragraphs, never as HTML', () => {

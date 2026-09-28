@@ -2541,3 +2541,79 @@ div.empty {
     transition-duration: 0.01s;
   }
 }
+
+/* The mission view (SMC-M01): the accepted direction, the proposal waiting, the newest notes and the note policy, at
+   the top of the Converse lens. Compact and read-first: controls are text buttons except the one decision to take. */
+.mission {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.mission-direction {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.mission-pending {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.mission-notes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mission-note {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.mission-note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 12px;
+}
+.mission-more > summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.mission-more[open] {
+  display: grid;
+  gap: 8px;
+  max-height: 40cqh;
+  overflow-y: auto;
+}
+.mission-policy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.mission-edit,
+.mission-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.mission-edit textarea,
+.mission-add textarea {
+  flex: 1 1 220px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+  resize: vertical;
+}

@@ -1,10 +1,9 @@
 // What the conversation shows, derived from the snapshot's discussion and native tasks. Pure, so the rules are
 // unit-tested; React only renders the result. A task's words say what is observed, never more: admitted is not
-// running, and a drafted brief is a candidate, not an accepted plan.
-import type { DiscussionEntry, NativeTask } from '@sophia/contracts'
+// running, and a drafted brief is a candidate, not an accepted plan. New briefs are retired (SMC-M01); the briefs that
+// exist keep their phases, their text and their controls.
+import type { NativeTask } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
-
-export const MAX_BRIEF_INPUTS = 8
 
 export const TASK_PHASE: Record<NativeTask['phase'], { label: string; tone: Tone; note: string }> = {
   queued: { label: 'Admitted', tone: 'lav', note: 'Waiting for Sophia’s runtime to pick it up.' },
@@ -28,18 +27,6 @@ export const TASK_PHASE: Record<NativeTask['phase'], { label: string; tone: Tone
 export function authorLabel(actorId: string, me: string, names: ReadonlyMap<string, string>): string {
   if (actorId === me) return 'You'
   return names.get(actorId) ?? 'A member'
-}
-
-/** Toggle one contribution in the brief's inputs, keeping the order chosen and the cap. */
-export function toggleInput(selected: readonly string[], id: string): string[] {
-  if (selected.includes(id)) return selected.filter((s) => s !== id)
-  return selected.length >= MAX_BRIEF_INPUTS ? [...selected] : [...selected, id]
-}
-
-/** Inputs that are still in the discussion (an entry scrolled out of the snapshot is dropped). */
-export function liveInputs(selected: readonly string[], discussion: readonly DiscussionEntry[]): string[] {
-  const present = new Set(discussion.map((d) => d.id))
-  return selected.filter((id) => present.has(id))
 }
 
 export type BriefBlock =
