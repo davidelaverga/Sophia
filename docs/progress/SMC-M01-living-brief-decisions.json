@@ -1,0 +1,83 @@
+{
+  "mission": "SMC-M01 living brief and text conversation",
+  "owner": "Davide",
+  "recorded_at": "2026-09-29T23:13:24.260992+00:00",
+  "authority": "Direct owner active goal: ledger, merge PR18, new PR implementing agreed design, Claude review via chat, exact candidate production release, text UI test and iterate",
+  "decisions": [
+    {
+      "id": "D01",
+      "decision": "One living project brief replaces compact mission panel and duplicate brief/status cards in the primary conversation view."
+    },
+    {
+      "id": "D02",
+      "decision": "Brief updates during voice and text conversation from the canonical mission ledger without an explicit create-brief request."
+    },
+    {
+      "id": "D03",
+      "decision": "Editable lifecycle sections include direction, observations, expectations, outcomes, blockers, hypotheses and lessons; users can add, edit, correct and forget directly or ask Sophia."
+    },
+    {
+      "id": "D04",
+      "decision": "Manual edits take priority; live changes must not overwrite an edit in progress or steal focus/scroll."
+    },
+    {
+      "id": "D05",
+      "decision": "Remove provider/model drafting labels, raw cited input IDs and source hashes from user-facing brief; retain provenance internally."
+    },
+    {
+      "id": "D06",
+      "decision": "Primary view is real text chat with visible user messages and Sophia replies, not contribution-only storage."
+    },
+    {
+      "id": "D07",
+      "decision": "Brief closed: unobtrusive visible Open brief control with quiet saved-update indicator."
+    },
+    {
+      "id": "D08",
+      "decision": "Brief open: side panel beside conversation; expand to full workspace and collapse back to side panel."
+    },
+    {
+      "id": "D09",
+      "decision": "On mobile brief becomes full-screen view with Back to conversation control."
+    },
+    {
+      "id": "D10",
+      "decision": "Brief updated indicator is shown only after durable save receipt."
+    },
+    {
+      "id": "D11",
+      "decision": "Voice and text use the same canonical living brief and lifecycle tools."
+    },
+    {
+      "id": "D12",
+      "decision": "Implementation brief remains a separate deliverable outside the main conversation view when needed."
+    },
+    {
+      "id": "D13",
+      "decision": "Structured note capture on by default for every team; off switch in settings; preserve individual consent and explicit opt-outs; compatible existing-team transition required."
+    },
+    {
+      "id": "D14",
+      "decision": "No new raw audio recording or ambient transcript retention; visible typed chat requires explicit candidate-defined storage/privacy contract."
+    },
+    {
+      "id": "D15",
+      "decision": "Do not independently rewrite fixed v1.1 assets; exact candidate asset and combined identities verified before release."
+    }
+  ],
+  "stages": {
+    "ledger": "recorded",
+    "merge_PR18": "merged",
+    "new_PR": "pending",
+    "implementation": "pending",
+    "Claude_review": "pending",
+    "exact_commit_release": "pending",
+    "production_text_UI_test": "pending"
+  },
+  "current_PR": 18,
+  "current_head": "c8ae09ead8295db258b86a133ac47d76684657f2",
+  "writing_scope": "New isolated branch/worktree in Sophia; application/contracts/persistence/UI/tests and non-frozen docs required for these decisions. Legacy Sophia-Agent excluded. Frozen pack and v1.1 assets preserved unless separately versioned amendment.",
+  "release_scope": "Existing Sophia API/bridge/Studio and existing Supabase; exact reviewed candidate and authored migration hashes/order/keys must be recorded; existing providers/payers/plans; no destructive downgrade or extra bill.",
+  "merge_commit": "503e38d1e1d7eb196304f98cfd6e6d353bf1f7ac",
+  "branch": "codex/living-brief-text"
+}
