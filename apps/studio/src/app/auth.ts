@@ -131,13 +131,30 @@ export const passkeysOffered = OFFERED.includes('passkey')
 /** The browser closed the passkey prompt: the person cancelled or timed out, which needs no message. */
 const cancelled = (error: Error) => error.name === 'NotAllowedError' || error.name === 'AbortError'
 
-/** Sign in with a passkey saved for this site. Resolves false when the person dismissed the prompt. */
-export async function signInWithPasskey(): Promise<boolean> {
+export type PasskeyOutcome = 'signed_in' | 'dismissed' | 'expired'
+
+/**
+ * Sign in with a passkey saved for this site: the browser's picker, or its autofill list when `autofill` is set
+ * (the email field carries autocomplete="username webauthn"). An autofill offer can outlive its challenge
+ * (5 minutes): "expired" then asks the caller to offer again.
+ */
+export async function signInWithPasskey(autofill?: { signal: AbortSignal }): Promise<PasskeyOutcome> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
-  const { error } = await supabase.auth.signInWithPasskey()
-  if (!error) return true
-  if (cancelled(error)) return false
+  const { error } = await supabase.auth.signInWithPasskey(
+    autofill ? { options: { mediation: 'conditional', signal: autofill.signal } } : undefined,
+  )
+  if (!error) return 'signed_in'
+  if (cancelled(error) || autofill?.signal.aborted) return 'dismissed'
+  if ('code' in error && error.code === 'webauthn_challenge_expired') return 'expired'
   throw new Error('That passkey didn’t work here. Sign in another way, then add a passkey from your account.')
+}
+
+/** Whether this browser can offer passkeys in the email field's autofill list. */
+export async function passkeyAutofillAvailable(): Promise<boolean> {
+  if (!passkeysOffered || typeof PublicKeyCredential === 'undefined') return false
+  // Older browsers have passkeys but not this probe.
+  if (!('isConditionalMediationAvailable' in PublicKeyCredential)) return false
+  return PublicKeyCredential.isConditionalMediationAvailable()
 }
 
 export type SavedPasskey = { id: string; name: string; createdAt: string; lastUsedAt: string | null }

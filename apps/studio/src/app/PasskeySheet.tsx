@@ -32,7 +32,6 @@ function PasskeyRow({ passkey, onRemove }: { passkey: SavedPasskey; onRemove: ()
     : 'not used yet'
   return (
     <li className="passkey-row">
-      <Icon name="passkey" />
       <span className="passkey-text">
         <strong>{passkey.name}</strong>
         <span className="muted">
