@@ -225,6 +225,9 @@ BEGIN
   SELECT * INTO corrects FROM sophia.mission_entries WHERE project_id=p_project AND id=corrects_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Note not found' USING ERRCODE='22023'; END IF;
   IF corrects.state<>'current' THEN RAISE EXCEPTION 'Stale note: it is already %', corrects.state USING ERRCODE='40001'; END IF;
+  -- A correction keeps what the note was about: its links carry over unless the correction names its own.
+  related:=coalesce(related,corrects.related_entry_id); goal:=coalesce(goal,corrects.goal_id);
+  decision:=coalesce(decision,corrects.decision_id);
  END IF;
  src:=sophia.put_text_source(p_project,a,'text/plain; charset=utf-8',body);
  IF corrects_id IS NOT NULL THEN
@@ -406,6 +409,10 @@ BEGIN
   -- Its own variable: a zero-row UPDATE ... INTO would leave a value from the loop above in place.
   UPDATE sophia.decisions SET state='superseded', revision=revision+1
    WHERE project_id=p_project AND id=d.supersedes_decision_id AND state='accepted' AND kind=d.kind RETURNING id INTO named;
+  -- The decision it replaces must still stand (a mission's is already superseded above): if another acceptance
+  -- replaced it first, this proposal no longer replaces anything, and accepting it would leave two in its place.
+  IF named IS NULL AND NOT affected @> to_jsonb(ARRAY[d.supersedes_decision_id]) THEN
+   RAISE EXCEPTION 'Stale proposal: the decision it replaces was already replaced' USING ERRCODE='40001'; END IF;
   IF named IS NOT NULL AND NOT affected @> to_jsonb(ARRAY[named]) THEN affected:=affected||to_jsonb(named); END IF;
  END IF;
  RETURN affected;

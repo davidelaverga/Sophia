@@ -11,6 +11,7 @@ import {
   pendingFocus,
   recentNotes,
   wording,
+  writeControls,
 } from './mission-view.ts'
 
 const cap = (available: boolean) => ({ available, reason: available ? null : 'no' })
@@ -183,6 +184,13 @@ describe('mission view', () => {
     assert.equal(decidedBy(decided({ decidedBy: 'me', decidedVia: 'voice' }), 'me', names), 'You, by voice')
     assert.equal(decidedBy(decided({ decidedBy: 'b', decidedVia: 'studio' }), 'me', names), 'Davide, in the Studio')
     assert.equal(decidedBy(decided({ state: 'superseded' }), 'me', names), null)
+  })
+
+  it('after an unconfirmed write offers only the retry that reuses its key', () => {
+    assert.deepEqual(writeControls('unknown'), { canSubmit: false, canRetry: true })
+    assert.deepEqual(writeControls('sending'), { canSubmit: false, canRetry: false })
+    for (const status of ['idle', 'done', 'rejected'] as const)
+      assert.deepEqual(writeControls(status), { canSubmit: true, canRetry: false }, status)
   })
 
   it('shows the newest notes, oldest first', () => {

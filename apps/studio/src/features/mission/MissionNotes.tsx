@@ -20,6 +20,7 @@ import {
   omittedLine,
   recentNotes,
   wording,
+  writeControls,
 } from './mission-view.ts'
 
 interface Props {
@@ -127,6 +128,15 @@ function useMissionWrite<A>(projectId: string, send: (key: string, args: A) => P
   })
 }
 
+/** After no reply: the write may have landed, so the only way on is the retry that reuses its key. */
+function Unconfirmed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <button type="button" className="text-button" onClick={onRetry}>
+      Not confirmed: try again
+    </button>
+  )
+}
+
 function CorrectNote({ entry, projectId, identity, onDone }: WriteProps & { onDone: () => void }) {
   const [text, setText] = useState(entry.text ?? '')
   const write = useMissionWrite<string>(projectId, (key, corrected) =>
@@ -136,8 +146,12 @@ function CorrectNote({ entry, projectId, identity, onDone }: WriteProps & { onDo
       text: corrected,
     }),
   )
+  const controls = writeControls(write.state.status)
   const save = async () => {
     if (await write.submit(text.trim())) onDone()
+  }
+  const retry = async () => {
+    if (await write.retry()) onDone()
   }
   return (
     <span className="mission-edit">
@@ -151,17 +165,13 @@ function CorrectNote({ entry, projectId, identity, onDone }: WriteProps & { onDo
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      <button
-        type="button"
-        className="pill"
-        disabled={!text.trim() || write.state.status === 'sending'}
-        onClick={() => void save()}
-      >
+      <button type="button" className="pill" disabled={!text.trim() || !controls.canSubmit} onClick={() => void save()}>
         Save correction
       </button>
       <button type="button" className="text-button" onClick={onDone}>
         Cancel
       </button>
+      {controls.canRetry && <Unconfirmed onRetry={() => void retry()} />}
       {write.state.status === 'rejected' && <Tag tone="rose">{write.state.error.message}</Tag>}
     </span>
   )
@@ -171,16 +181,21 @@ function Forget({ entry, projectId, identity }: WriteProps) {
   const write = useMissionWrite<string>(projectId, (key, id) =>
     withdrawMissionEntry(identity.token, projectId, id, key),
   )
+  const controls = writeControls(write.state.status)
   return (
-    <ConfirmButton
-      label="Forget"
-      warning="Its text is erased for everyone and Sophia stops using it."
-      confirm="Forget it"
-      keep="Keep it"
-      className="text-button"
-      disabled={write.state.status === 'sending'}
-      onConfirm={() => void write.submit(entry.id)}
-    />
+    <>
+      <ConfirmButton
+        label="Forget"
+        warning="Its text is erased for everyone and Sophia stops using it."
+        confirm="Forget it"
+        keep="Keep it"
+        className="text-button"
+        disabled={!controls.canSubmit}
+        onConfirm={() => void write.submit(entry.id)}
+      />
+      {controls.canRetry && <Unconfirmed onRetry={() => void write.retry()} />}
+      {write.state.status === 'rejected' && <Tag tone="rose">{write.state.error.message}</Tag>}
+    </>
   )
 }
 
@@ -191,8 +206,12 @@ function AddNote({ projectId, identity }: Omit<Props, 'ctx' | 'me' | 'names'>) {
   const write = useMissionWrite<{ text: string; kind: MissionEntry['kind'] }>(projectId, (key, note) =>
     recordMissionEntry(identity.token, projectId, key, { kind: note.kind, epistemic: 'reported', text: note.text }),
   )
+  const controls = writeControls(write.state.status)
   const save = async () => {
     if (await write.submit({ text: text.trim(), kind })) setText('')
+  }
+  const retry = async () => {
+    if (await write.retry()) setText('')
   }
   return (
     <div className="mission-add">
@@ -224,19 +243,10 @@ function AddNote({ projectId, identity }: Omit<Props, 'ctx' | 'me' | 'names'>) {
         placeholder="A note in your own words (optional)"
         onChange={(e) => setText(e.target.value)}
       />
-      <button
-        type="button"
-        className="pill"
-        disabled={!text.trim() || write.state.status === 'sending'}
-        onClick={() => void save()}
-      >
+      <button type="button" className="pill" disabled={!text.trim() || !controls.canSubmit} onClick={() => void save()}>
         Add note
       </button>
-      {write.state.status === 'unknown' && (
-        <button type="button" className="text-button" onClick={() => void write.retry()}>
-          Not confirmed: try again
-        </button>
-      )}
+      {controls.canRetry && <Unconfirmed onRetry={() => void retry()} />}
       {write.state.status === 'rejected' && <Tag tone="rose">{write.state.error.message}</Tag>}
     </div>
   )

@@ -195,6 +195,29 @@ describe('mission ledger: notes (T03, T04, T11)', () => {
     assert.equal(later.entries.find((e) => e.id === outcome.entryId)?.relatedEntryId, expected.entryId)
   })
 
+  it('a correction keeps what the note was about: its links carry over unless it names its own', async () => {
+    const { projectId, goalId } = await project()
+    const expected = await note(E, projectId, { kind: 'expectation', epistemic: 'inferred', text: 'Eight people.' })
+    const outcome = await note(E, projectId, {
+      kind: 'outcome',
+      epistemic: 'observed',
+      text: 'Five people came.',
+      relatedEntryId: expected.entryId!,
+      goalId,
+    })
+    const corrected = await note(E, projectId, {
+      kind: 'outcome',
+      epistemic: 'observed',
+      text: 'Six people came.',
+      correctsEntryId: outcome.entryId!,
+    })
+    const current = (await context(E, projectId)).entries.find((e) => e.id === corrected.entryId)
+    assert.deepEqual(
+      [current?.relatedEntryId, current?.goalId, current?.supersedesEntryId],
+      [expected.entryId, goalId, outcome.entryId],
+    )
+  })
+
   it('a correction supersedes the note; the original stays readable as history', async () => {
     const { projectId } = await project()
     const first = await note(E, projectId, observation('The workshop list loads in ten seconds.'))
@@ -357,6 +380,27 @@ describe('mission ledger: proposals and decisions (T05, T06)', () => {
       ['Under 20 euros.'],
     )
     assert.equal(ctx.decided.find((d) => d.id === cheap.decisionId)?.state, 'superseded')
+  })
+
+  it('two replacements of one decision: the second acceptance is a conflict, never two in its place', async () => {
+    const { projectId } = await project()
+    const cheap = await propose(E, projectId, { kind: 'constraint', statement: 'Under 30 euros.' })
+    await decide(A, projectId, cheap.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    const replace = (statement: string) =>
+      propose(E, projectId, { kind: 'constraint', statement, supersedesDecisionId: cheap.decisionId! })
+    const first = await replace('Under 20 euros.')
+    const second = await replace('Free.')
+    await decide(A, projectId, first.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    assert.equal(
+      await codeOf(decide(A, projectId, second.decisionId!, { decision: 'accept', expectedRevision: 1 })),
+      'stale_revision',
+    )
+    const ctx = await context(A, projectId)
+    assert.deepEqual(
+      ctx.constraints.map((d) => d.statement),
+      ['Under 20 euros.'],
+    )
+    assert.equal(ctx.pending.find((d) => d.id === second.decisionId)?.state, 'proposed', 'nothing was decided')
   })
 
   it('two proposals from one mission revision: the second acceptance is a conflict, never a silent overwrite', async () => {

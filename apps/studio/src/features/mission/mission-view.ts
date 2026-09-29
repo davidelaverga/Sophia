@@ -113,6 +113,14 @@ export function historyText(entry: MissionEntry): string {
   return entry.text ?? ''
 }
 
+/**
+ * What a write's controls allow in each state. After an unconfirmed write, only the retry that reuses its key is
+ * offered: a fresh save would mint a new key and could record the same change twice, or be refused as stale.
+ */
+export function writeControls(status: 'idle' | 'sending' | 'done' | 'unknown' | 'rejected') {
+  return { canSubmit: status !== 'sending' && status !== 'unknown', canRetry: status === 'unknown' }
+}
+
 /** Who may do what with one note, for this person. */
 export function noteActions(ctx: MissionContext, entry: MissionEntry, me: string) {
   const current = entry.state === 'current'

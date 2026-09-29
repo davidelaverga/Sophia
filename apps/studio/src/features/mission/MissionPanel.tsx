@@ -20,6 +20,7 @@ import {
   OUTCOME,
   pendingFocus,
   PROPOSAL_KIND,
+  writeControls,
 } from './mission-view.ts'
 import { MoreNotes, NewestNotes } from './MissionNotes.tsx'
 
@@ -102,7 +103,8 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
   const focus = pendingFocus(ctx)
   if (!focus) return null
   const { proposal, alternatives } = focus
-  const busy = decide.state.status === 'sending'
+  // After no reply only Try again (the same key) is offered: a fresh Accept could decide twice.
+  const controls = writeControls(decide.state.status)
   const choose = (decision: Choice['decision']) =>
     void decide.submit({ proposalId: proposal.id, revision: proposal.revision, decision })
   return (
@@ -119,12 +121,12 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
           <button
             type="button"
             className="pill primary"
-            disabled={busy || proposal.stale}
+            disabled={!controls.canSubmit || proposal.stale}
             onClick={() => choose('accept')}
           >
             Accept
           </button>
-          <button type="button" className="pill" disabled={busy} onClick={() => choose('reject')}>
+          <button type="button" className="pill" disabled={!controls.canSubmit} onClick={() => choose('reject')}>
             Reject
           </button>
         </div>

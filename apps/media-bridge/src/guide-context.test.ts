@@ -53,10 +53,24 @@ describe('GuideContext', () => {
   it('an external change during its own write is still flagged once the write settles', () => {
     const g = new GuideContext(start)
     g.writeStarted()
+    g.observe({ ledgerRevision: 6, eligibilityRevision: 2 }) // someone else's commit
+    g.observe({ ledgerRevision: 7, eligibilityRevision: 2 }) // then its own
+    g.writeSettled()
+    const result = g.annotate('record_mission_note', { status: 'committed', output: { ledgerRevision: 7 } })
+    assert.ok('recordsChanged' in result.output, 'revision 6 is not its own, although its receipt is newer')
+  })
+
+  it('its own writes alone, in flight together, are never taken for someone else’s', () => {
+    const g = new GuideContext(start)
+    g.writeStarted()
+    g.writeStarted()
     g.observe({ ledgerRevision: 7, eligibilityRevision: 2 })
     g.writeSettled()
-    const result = g.annotate('record_mission_note', { status: 'committed', output: { ledgerRevision: 6 } })
-    assert.ok('recordsChanged' in result.output, 'revision 7 is not its own')
+    const first = g.annotate('record_mission_note', { status: 'committed', output: { ledgerRevision: 6 } })
+    assert.equal('recordsChanged' in first.output, false, 'the other write is still in flight')
+    g.writeSettled()
+    const second = g.annotate('propose_mission_change', { status: 'proposed', output: { ledgerRevision: 7 } })
+    assert.equal('recordsChanged' in second.output, false, 'revisions 6 and 7 are both its own')
   })
 
   it('reports narrowed eligibility once, so the session rebuilds its provider context', () => {
