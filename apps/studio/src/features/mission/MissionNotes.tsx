@@ -6,7 +6,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
 import { ConfirmButton, Tag } from '@sophia/ui'
-import { correctMissionEntry, recordMissionEntry, withdrawMissionEntry } from '../../api/mission.ts'
+import {
+  correctMissionEntry,
+  previewMissionWithdrawal,
+  recordMissionEntry,
+  withdrawMissionEntry,
+} from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { authorLabel } from '../conversation/conversation-view.ts'
@@ -20,6 +25,7 @@ import {
   omittedLine,
   recentNotes,
   wording,
+  forgetWarning,
   writeControls,
 } from './mission-view.ts'
 
@@ -177,20 +183,35 @@ function CorrectNote({ entry, projectId, identity, onDone }: WriteProps & { onDo
   )
 }
 
+/** Until the preview answers, the confirmation waits; if it can't be read, it says in general what goes. */
+const FORGET_FALLBACK =
+  'Forgetting erases, for everyone: the note, its other versions, and any proposal or decision citing them, the accepted direction included. Sophia stops using them.'
+
 function Forget({ entry, projectId, identity }: WriteProps) {
   const write = useMissionWrite<string>(projectId, (key, id) =>
     withdrawMissionEntry(identity.token, projectId, id, key),
   )
+  const [reach, setReach] = useState<string | null>(null)
   const controls = writeControls(write.state.status)
+  // Asked when the member clicks Forget, not before: the list is what goes at that moment.
+  const ask = () => {
+    setReach(null)
+    void previewMissionWithdrawal(identity.token, projectId, entry.id).then(
+      (preview) => setReach(forgetWarning(preview)),
+      () => setReach(FORGET_FALLBACK),
+    )
+  }
   return (
     <>
       <ConfirmButton
         label="Forget"
-        warning="Its text is erased for everyone, with its other versions and any proposal or decision that cites it, and Sophia stops using them."
+        warning={reach ?? 'Checking what goes with it…'}
         confirm="Forget it"
         keep="Keep it"
         className="text-button"
         disabled={!controls.canSubmit}
+        onAsk={ask}
+        confirmDisabled={reach === null}
         onConfirm={() => void write.submit(entry.id)}
       />
       {controls.canRetry && <Unconfirmed onRetry={() => void write.retry()} />}

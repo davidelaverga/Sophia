@@ -2,7 +2,13 @@
 // the rules are unit-tested and React only renders them. The words say what each record is: a proposal is not a
 // decision, a note Sophia wrote is her paraphrase, not someone's exact words, and no accepted mission is not an empty
 // project.
-import type { MissionContext, MissionDecision, MissionEntry, MissionNotePolicy } from '@sophia/contracts'
+import type {
+  MissionContext,
+  MissionDecision,
+  MissionEntry,
+  MissionNotePolicy,
+  MissionWithdrawalPreview,
+} from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
 import { authorLabel } from '../conversation/conversation-view.ts'
 
@@ -105,6 +111,42 @@ export function omittedLine(ctx: MissionContext): string | null {
       : null,
   ].filter((part) => part !== null)
   return parts.length > 0 ? `Not shown here: ${parts.join(' and ')}.` : null
+}
+
+const clip = (text: string, max = 120) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text)
+/** A sentence's full stop, unless it already ends on a quotation. */
+const stop = (text: string) => (text.endsWith('”') ? text : `${text}.`)
+
+/** A proposal's or decision's name in a sentence, e.g. "the accepted direction". */
+const decisionName = (d: Pick<MissionDecision, 'kind' | 'state'>) =>
+  `the ${(d.state === 'proposed' ? PROPOSAL_KIND[d.kind] : `${OUTCOME[d.state]} ${AGREED_KIND[d.kind]}`).toLowerCase()}`
+
+/**
+ * What the Forget confirmation says, from the server's preview: the note, its other versions, and every proposal or
+ * decision citing them, named with their words. The withdrawal applies the same rule, so this is what goes.
+ */
+export function forgetWarning(preview: MissionWithdrawalPreview): string {
+  const others = preview.entryIds.length - 1
+  const parts = [
+    others > 0 ? `the note and its ${String(others)} other version${others > 1 ? 's' : ''}` : 'the note',
+    ...preview.decisions.map((d) => `${decisionName(d)} “${clip(d.statement)}”`),
+  ]
+  const single = parts.length === 1 && others === 0
+  return `${stop(`Forgetting erases, for everyone: ${parts.join('; ')}`)} Sophia stops using ${single ? 'it' : 'them'}.`
+}
+
+/** The notes a proposal rests on, by their words when this view has them: it goes if any of them is forgotten. */
+export function citesLine(ctx: MissionContext, d: Pick<MissionDecision, 'supportingEntryIds'>): string | null {
+  const n = d.supportingEntryIds.length
+  if (n === 0) return null
+  const known = new Map([...ctx.entries, ...ctx.history].map((e) => [e.id, e.text]))
+  const texts = d.supportingEntryIds.map((id) => known.get(id)).filter((t): t is string => typeof t === 'string')
+  const label = `Rests on ${n === 1 ? 'a note' : `${String(n)} notes`}`
+  if (texts.length === 0) return `${label}.`
+  const rest = n - texts.length
+  return stop(
+    `${label}: ${texts.map((t) => `“${clip(t, 80)}”`).join(', ')}${rest > 0 ? ` and ${String(rest)} not shown here` : ''}`,
+  )
 }
 
 /** Past notes as the history shows them: corrected ones keep their text; forgotten ones say only that. */

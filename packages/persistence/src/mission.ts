@@ -9,6 +9,7 @@ import type {
   MissionNotePolicy,
   MissionProposalRequest,
   MissionReceipt,
+  MissionWithdrawalPreview,
 } from '@sophia/contracts'
 import { onlyRow } from './rows.ts'
 
@@ -75,6 +76,22 @@ export function withdrawMissionEntry(
     entryId,
     idempotencyKey,
   ])
+}
+
+/**
+ * What forgetting a note would erase, by the same rule the withdrawal applies: shown to the member before they confirm.
+ * Call inside withActor(..., "read") as the member about to forget it.
+ */
+export async function previewMissionWithdrawal(
+  c: pg.PoolClient,
+  projectId: string,
+  entryId: string,
+): Promise<MissionWithdrawalPreview> {
+  const { rows } = await c.query<{ preview: MissionWithdrawalPreview }>(
+    `SELECT sophia.preview_mission_withdrawal($1, $2) AS preview`,
+    [projectId, entryId],
+  )
+  return onlyRow(rows, 'preview_mission_withdrawal').preview
 }
 
 /** Propose a mission, constraint or lesson; accepts nothing. Call inside withActor(..., "write"). */

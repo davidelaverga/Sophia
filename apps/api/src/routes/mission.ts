@@ -14,6 +14,7 @@ import type {
 import { DomainError } from '@sophia/domain'
 import {
   decideMissionChange,
+  previewMissionWithdrawal,
   proposeMissionChange,
   readMissionContext,
   recordMissionEntry,
@@ -80,6 +81,16 @@ function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
       )
       return reply.status(202).send(receipt)
     },
+  )
+
+  // What forgetting would erase, by the withdrawal's own rule: the Studio lists it before the member confirms.
+  app.get<{ Params: { projectId: string; entryId: string } }>(
+    '/api/v1/projects/:projectId/mission/entries/:entryId/withdrawal',
+    { schema: { params: withId('entryId'), response: { 200: { $ref: 'MissionWithdrawalPreview#' } } } },
+    async (req) =>
+      withActor(pool, req.actorId, 'read', (c) =>
+        previewMissionWithdrawal(c, req.params.projectId, req.params.entryId),
+      ),
   )
 
   app.post<{ Params: { projectId: string; entryId: string }; Headers: { 'idempotency-key': string } }>(

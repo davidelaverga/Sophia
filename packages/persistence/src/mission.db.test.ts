@@ -12,6 +12,7 @@ import {
   decideMissionChange,
   mediaAssignments,
   presentMissionProposal,
+  previewMissionWithdrawal,
   proposeMissionChange,
   readConfirmationTarget,
   readMissionContext,
@@ -723,7 +724,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     assert.deepEqual([read?.state, read?.text, read?.sha256], ['withdrawn', null, null])
   })
 
-  it('no digest of the forgotten text is left to guess it by; a replay of the original request writes nothing', async () => {
+  it('no digest of the forgotten text is left to guess it by; a replay under its key is stale, whatever its text', async () => {
     const { projectId } = await project()
     const words = 'Yes.'
     const digest = createHash('sha256').update(words).digest('hex')
@@ -744,12 +745,108 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       n.sourceId,
     ])
     assert.equal(size[0]!.byte_length, '0')
-    const replay = await note(E, projectId, observation(words), key)
-    assert.deepEqual([replay.entryId, replay.sha256], [n.entryId, null], 'the original receipt, without its digest')
+    // What the key wrote is forgotten: a retry is told so, never that its text was saved (CX-0005 F1).
+    assert.equal(await codeOf(note(E, projectId, observation(words), key)), 'stale_revision', 'the same text')
+    assert.equal(
+      await codeOf(note(E, projectId, observation('Something new.'), key)),
+      'stale_revision',
+      'changed text under the same key',
+    )
     const entries = await owner<{ n: string }>(`SELECT count(*) AS n FROM sophia.mission_entries WHERE project_id=$1`, [
       projectId,
     ])
     assert.equal(entries[0]!.n, '1')
+  })
+
+  it('a member forgets back to their own earliest wording, past another member’s correction in between', async () => {
+    const { projectId } = await project()
+    // E1 -> F2 -> E3: E forgetting E3 reaches E1, and F2 is derived from E1, so it goes too.
+    const e1 = await note(E, projectId, observation('The hall seats forty.'))
+    const f2 = await note(F, projectId, { ...observation('The hall seats forty-five.'), correctsEntryId: e1.entryId! })
+    const e3 = await note(E, projectId, { ...observation('The hall seats fifty.'), correctsEntryId: f2.entryId! })
+    const receipt = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, e3.entryId!, randomUUID()),
+    )
+    assert.deepEqual(receipt.affected, [e1.entryId, f2.entryId, e3.entryId])
+    // F1 -> E2: E forgetting E2 leaves F's original wording, which is F's.
+    const f1 = await note(F, projectId, observation('Parking is free on Sundays.'))
+    const e2 = await note(E, projectId, {
+      ...observation('Parking is free on weekends.'),
+      correctsEntryId: f1.entryId!,
+    })
+    const second = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, e2.entryId!, randomUUID()),
+    )
+    assert.deepEqual(second.affected, [e2.entryId])
+    const ctx = await context(E, projectId)
+    assert.deepEqual(
+      ctx.history.filter((e) => e.text !== null).map((e) => [e.id, e.state, e.text]),
+      [[f1.entryId, 'superseded', 'Parking is free on Sundays.']],
+    )
+  })
+
+  it('a proposal that repeats a note’s words cites it, without being told to, and goes with it', async () => {
+    const { projectId } = await project()
+    const long = await note(E, projectId, observation('Kids learn best in small groups of five children.'))
+    const short = await note(E, projectId, observation('Book the hall early.'))
+    const tiny = await note(E, projectId, observation('Yes please.'))
+    const partial = await note(E, projectId, observation('The venue list comes from the city council office.'))
+    const repeatsLong = await propose(F, projectId, {
+      kind: 'mission',
+      statement: 'We think kids learn best in small groups of five.',
+    })
+    const repeatsShort = await propose(F, projectId, {
+      kind: 'lesson',
+      statement: 'Always book the hall early in the term.',
+    })
+    const sharesTwoWords = await propose(F, projectId, { kind: 'constraint', statement: 'Yes please, keep it free.' })
+    const sharesFiveWords = await propose(F, projectId, {
+      kind: 'constraint',
+      statement: 'The venue list comes from somewhere else.',
+    })
+    const cited = new Map((await context(F, projectId)).pending.map((d) => [d.id, d.supportingEntryIds]))
+    assert.deepEqual(
+      [repeatsLong, repeatsShort, sharesTwoWords, sharesFiveWords].map((p) => cited.get(p.decisionId!)),
+      [[long.entryId], [short.entryId], [], []],
+      'six words in a row, or the whole of a short note, is a citation; less is not',
+    )
+    assert.ok(tiny.entryId && partial.entryId)
+    const receipt = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, long.entryId!, randomUUID()),
+    )
+    assert.deepEqual(receipt.affected, [long.entryId, repeatsLong.decisionId])
+    const pending = (await context(F, projectId)).pending.map((d) => d.id)
+    assert.deepEqual(pending, [repeatsShort.decisionId, sharesTwoWords.decisionId, sharesFiveWords.decisionId])
+  })
+
+  it('the preview names exactly what the withdrawal then erases, and only who may forget can ask', async () => {
+    const { projectId } = await project()
+    const first = await note(E, projectId, observation('Workshops should stay under two hours long.'))
+    const fixed = await note(E, projectId, {
+      ...observation('Workshops should stay under ninety minutes long.'),
+      correctsEntryId: first.entryId!,
+    })
+    const mission = await propose(F, projectId, {
+      kind: 'mission',
+      statement: 'Short workshops.',
+      supportingEntryIds: [fixed.entryId!],
+    })
+    await decide(A, projectId, mission.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    const preview = await withActor(pool, E, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))
+    assert.deepEqual(preview.entryIds, [first.entryId, fixed.entryId])
+    assert.deepEqual(
+      preview.decisions.map((d) => [d.id, d.kind, d.state, d.statement]),
+      [[mission.decisionId, 'mission', 'accepted', 'Short workshops.']],
+    )
+    assert.equal(
+      await codeOf(withActor(pool, F, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))),
+      'forbidden',
+      'another editor may not forget it',
+    )
+    const receipt = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID()),
+    )
+    assert.deepEqual(receipt.affected, [...preview.entryIds, ...preview.decisions.map((d) => d.id)])
   })
 })
 

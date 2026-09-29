@@ -13,6 +13,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { authorLabel } from '../conversation/conversation-view.ts'
 import {
   AGREED_KIND,
+  citesLine,
   decidedBy,
   direction,
   missionKey,
@@ -103,6 +104,7 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
   const focus = pendingFocus(ctx)
   if (!focus) return null
   const { proposal, alternatives } = focus
+  const cites = citesLine(ctx, proposal)
   // After no reply only Try again (the same key) is offered: a fresh Accept could decide twice.
   const controls = writeControls(decide.state.status)
   const choose = (decision: Choice['decision']) =>
@@ -111,6 +113,7 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
     <div className="mission-pending">
       <span className="eyebrow">{PROPOSAL_KIND[proposal.kind]}</span>
       <p>{proposal.statement}</p>
+      {cites && <p className="muted">{cites}</p>}
       <p className="muted">
         Proposed by {authorLabel(proposal.proposedBy, me, names)}
         {alternatives > 0 ? `; ${String(alternatives)} other proposal${alternatives > 1 ? 's' : ''} pending` : ''}.

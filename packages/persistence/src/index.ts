@@ -93,6 +93,7 @@ export {
 export {
   decideMissionChange,
   presentMissionProposal,
+  previewMissionWithdrawal,
   proposeMissionChange,
   recordMissionEntry,
   setMissionNoteConsent,

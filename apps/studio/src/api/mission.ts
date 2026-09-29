@@ -10,8 +10,14 @@ import type {
   MissionNotePolicyRequest,
   MissionProposalRequest,
   MissionReceipt,
+  MissionWithdrawalPreview,
 } from '@sophia/contracts'
-import { parseMissionContext, parseMissionNotePolicy, parseMissionReceipt } from '@sophia/contracts/validate'
+import {
+  parseMissionContext,
+  parseMissionNotePolicy,
+  parseMissionReceipt,
+  parseMissionWithdrawalPreview,
+} from '@sophia/contracts/validate'
 import { callApi } from './client.ts'
 
 const base = (projectId: string) => `/api/v1/projects/${projectId}/mission` as const
@@ -37,7 +43,15 @@ export const correctMissionEntry = (
 ): Promise<MissionReceipt> =>
   callApi(`${base(projectId)}/entries/${entryId}/correction`, { token, body, key }, parseMissionReceipt)
 
-/** Forget a note: its text is erased. */
+/** What forgetting a note would erase: the note's versions and every proposal or decision citing them. */
+export const previewMissionWithdrawal = (
+  token: string,
+  projectId: string,
+  entryId: string,
+): Promise<MissionWithdrawalPreview> =>
+  callApi(`${base(projectId)}/entries/${entryId}/withdrawal`, { token, method: 'GET' }, parseMissionWithdrawalPreview)
+
+/** Forget a note, and what the preview listed: their text is erased. */
 export const withdrawMissionEntry = (
   token: string,
   projectId: string,

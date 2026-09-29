@@ -9,7 +9,12 @@ import type pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { MediaToolCall, NativeTaskRequest } from '@sophia/contracts'
-import { parseMissionContext, parseMissionNotePolicy, parseMissionReceipt } from '@sophia/contracts/validate'
+import {
+  parseMissionContext,
+  parseMissionNotePolicy,
+  parseMissionReceipt,
+  parseMissionWithdrawalPreview,
+} from '@sophia/contracts/validate'
 import {
   admitNativeTask,
   createPool,
@@ -148,6 +153,44 @@ describe('mission routes for members (A08)', () => {
         ['withdrawn', null],
       ],
     )
+  })
+
+  it('before forgetting, a member sees exactly what goes with the note; only its author or an admin may ask', async () => {
+    const { projectId } = await project()
+    const n = parseMissionReceipt(
+      (
+        await typed(projectId, E, {
+          kind: 'observation',
+          epistemic: 'reported',
+          text: 'Saturday mornings suit the families best.',
+        })
+      ).json,
+    )
+    // The proposal repeats six of the note's words in a row without naming it: it cites it all the same.
+    const proposed = parseMissionReceipt(
+      (
+        await call(`/api/v1/projects/${projectId}/mission/proposals`, {
+          as: A,
+          key: randomUUID(),
+          body: { kind: 'constraint', statement: 'Hold sessions when Saturday mornings suit the families best.' },
+        })
+      ).json,
+    )
+    const path = `/api/v1/projects/${projectId}/mission/entries/${String(n.entryId)}/withdrawal`
+    const asked = await call(path, { as: E })
+    assert.equal(asked.status, 200)
+    const preview = parseMissionWithdrawalPreview(asked.json)
+    assert.deepEqual(preview.entryIds, [n.entryId])
+    assert.deepEqual(
+      preview.decisions.map((d) => [d.id, d.kind, d.state, d.statement]),
+      [[proposed.decisionId, 'constraint', 'proposed', 'Hold sessions when Saturday mornings suit the families best.']],
+    )
+    const viewer = await call(path, { as: V })
+    assert.deepEqual([viewer.status, viewer.json.code], [403, 'forbidden'])
+    const gone = parseMissionReceipt((await call(path, { as: E, key: randomUUID(), body: {} })).json)
+    assert.deepEqual(gone.affected, [n.entryId, proposed.decisionId])
+    const again = await call(path, { as: E })
+    assert.deepEqual([again.status, again.json.code], [409, 'stale_revision'], 'nothing left to forget')
   })
 
   it('a proposal waits; a member’s decision accepts it at its revision; a second decision is a conflict', async () => {

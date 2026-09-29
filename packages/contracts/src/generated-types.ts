@@ -91,6 +91,7 @@ export type MissionReceipt = { "status": "committed" | "proposed"; "operation": 
 export type MissionEntryRequest = { "kind": "observation" | "expectation" | "outcome" | "blocker" | "explanation" | "lesson_candidate" | "continuity"; "epistemic": "reported" | "observed" | "inferred"; "text": string; "relatedEntryId"?: string | null; "goalId"?: string | null; "decisionId"?: string | null; "observedAt"?: string | null; };
 export type MissionCorrectionRequest = { "kind": "observation" | "expectation" | "outcome" | "blocker" | "explanation" | "lesson_candidate" | "continuity"; "epistemic": "reported" | "observed" | "inferred"; "text": string; };
 export type MissionWithdrawalRequest = {  };
+export type MissionWithdrawalPreview = { "entryId": string; "ledgerRevision": number; "entryIds": ReadonlyArray<string>; "decisions": ReadonlyArray<{ "id": string; "kind": "mission" | "constraint" | "lesson"; "state": "proposed" | "accepted" | "rejected" | "superseded"; "statement": string; }>; };
 export type MissionProposalRequest = { "kind": "mission" | "constraint" | "lesson"; "statement": string; "purpose"?: string | null; "destination"?: string | null; "origin"?: string | null; "supersedesDecisionId"?: string | null; "supportingEntryIds"?: ReadonlyArray<string>; };
 export type MissionDecisionRequest = { "decision": "accept" | "reject"; "expectedRevision": number; };
 export type MissionNotePolicyRequest = { "capture": "off" | "automatic"; "expectedRevision": number; };
@@ -164,6 +165,7 @@ export interface Operations {
   "getMission": { method: "GET"; path: "/api/v1/projects/{projectId}/mission"; request: undefined; response: MissionContext; };
   "recordMissionEntry": { method: "POST"; path: "/api/v1/projects/{projectId}/mission/entries"; request: MissionEntryRequest; response: MissionReceipt; };
   "correctMissionEntry": { method: "POST"; path: "/api/v1/projects/{projectId}/mission/entries/{entryId}/correction"; request: MissionCorrectionRequest; response: MissionReceipt; };
+  "previewMissionWithdrawal": { method: "GET"; path: "/api/v1/projects/{projectId}/mission/entries/{entryId}/withdrawal"; request: undefined; response: MissionWithdrawalPreview; };
   "withdrawMissionEntry": { method: "POST"; path: "/api/v1/projects/{projectId}/mission/entries/{entryId}/withdrawal"; request: MissionWithdrawalRequest; response: MissionReceipt; };
   "proposeMissionChange": { method: "POST"; path: "/api/v1/projects/{projectId}/mission/proposals"; request: MissionProposalRequest; response: MissionReceipt; };
   "decideMissionChange": { method: "POST"; path: "/api/v1/projects/{projectId}/mission/proposals/{proposalId}/decision"; request: MissionDecisionRequest; response: MissionReceipt; };

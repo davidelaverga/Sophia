@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { MissionContext, MissionDecision, MissionEntry, MissionNotePolicy } from '@sophia/contracts'
+import type {
+  MissionContext,
+  MissionDecision,
+  MissionEntry,
+  MissionNotePolicy,
+  MissionWithdrawalPreview,
+} from '@sophia/contracts'
 import {
+  citesLine,
   decidedBy,
   direction,
+  forgetWarning,
   historyText,
   noteActions,
   notesLine,
@@ -108,6 +116,12 @@ const context = (over: Partial<MissionContext> = {}): MissionContext => ({
 })
 
 const excluded = (olderEntries: number, olderHistory: number) => ({ olderEntries, olderHistory, legacyFrame: false })
+const preview = (entryIds: string[], decisions: MissionWithdrawalPreview['decisions'] = []) => ({
+  entryId: entryIds.at(-1) ?? '1',
+  ledgerRevision: 4,
+  entryIds,
+  decisions,
+})
 
 describe('mission view', () => {
   it('says plainly when nothing is accepted, and how to begin when nothing is recorded', () => {
@@ -209,5 +223,34 @@ describe('mission view', () => {
     assert.equal(noteActions(admin, entry('1', { actorId: 'other' }), 'me').withdraw, true)
     assert.equal(noteActions(ctx, entry('1', { state: 'superseded', actorId: 'me' }), 'me').correct, false)
     assert.equal(noteActions(ctx, entry('1', { state: 'withdrawn', actorId: 'me' }), 'me').withdraw, false)
+  })
+
+  it('before forgetting, names what goes: the note, its other versions, and each proposal or decision citing them', () => {
+    assert.equal(forgetWarning(preview(['1'])), 'Forgetting erases, for everyone: the note. Sophia stops using it.')
+    assert.equal(
+      forgetWarning(
+        preview(
+          ['1', '2'],
+          [
+            { id: 'm', kind: 'mission', state: 'accepted', statement: 'Short workshops.' },
+            { id: 'c', kind: 'constraint', state: 'proposed', statement: 'No fees.' },
+            { id: 'l', kind: 'lesson', state: 'rejected', statement: 'Book early.' },
+          ],
+        ),
+      ),
+      'Forgetting erases, for everyone: the note and its 1 other version; the accepted direction “Short workshops.”; ' +
+        'the proposed constraint “No fees.”; the rejected lesson “Book early.” Sophia stops using them.',
+    )
+  })
+
+  it('says which notes a proposal rests on, by their words when this view has them', () => {
+    const ctx = context({ entries: [entry('1', { text: 'Book the hall early.' })] })
+    assert.equal(citesLine(ctx, { supportingEntryIds: [] }), null)
+    assert.equal(citesLine(ctx, { supportingEntryIds: ['1'] }), 'Rests on a note: “Book the hall early.”')
+    assert.equal(
+      citesLine(ctx, { supportingEntryIds: ['1', '9'] }),
+      'Rests on 2 notes: “Book the hall early.” and 1 not shown here.',
+    )
+    assert.equal(citesLine(ctx, { supportingEntryIds: ['9'] }), 'Rests on a note.')
   })
 })

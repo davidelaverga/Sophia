@@ -21,6 +21,7 @@ import {
   validateMissionContext,
   validateMissionNotePolicy,
   validateMissionReceipt,
+  validateMissionWithdrawalPreview,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
   validateProjectCreated,
@@ -78,6 +79,7 @@ export const parseMediaToolSurface = parser('MediaToolSurface', validateMediaToo
 export const parseMissionContext = parser('MissionContext', validateMissionContext)
 export const parseMissionReceipt = parser('MissionReceipt', validateMissionReceipt)
 export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissionNotePolicy)
+export const parseMissionWithdrawalPreview = parser('MissionWithdrawalPreview', validateMissionWithdrawalPreview)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {
