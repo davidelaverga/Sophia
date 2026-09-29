@@ -1,7 +1,7 @@
 // The mission's notes in the compact view: the newest few at rest, and behind one disclosure the older notes, the
 // history of corrected and forgotten notes, an optional typed note and whatever else the panel keeps out of the way. A
-// correction appends and supersedes; forgetting erases the note's text for everyone, so it asks first. Each write keeps
-// its Idempotency-Key until the server answers.
+// correction appends and supersedes; forgetting erases the note's text for everyone, with what was derived from it, so
+// it asks first. Each write keeps its Idempotency-Key until the server answers.
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
@@ -186,7 +186,7 @@ function Forget({ entry, projectId, identity }: WriteProps) {
     <>
       <ConfirmButton
         label="Forget"
-        warning="Its text is erased for everyone and Sophia stops using it."
+        warning="Its text is erased for everyone, with its other versions and any proposal or decision that cites it, and Sophia stops using them."
         confirm="Forget it"
         keep="Keep it"
         className="text-button"

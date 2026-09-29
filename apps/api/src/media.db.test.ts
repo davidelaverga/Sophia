@@ -384,6 +384,17 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       body: { kind: 'observation', epistemic: 'reported', text: 'A note to forget.' },
     })
     assert.equal(noted.status, 202)
+    // A proposal that repeats the note's words and cites it is derived from it, and goes with it (CX-0004 F2).
+    const cited = await call(`/api/v1/projects/${seed.projectId}/mission/proposals`, {
+      bearer: await token(E),
+      key: true,
+      body: {
+        kind: 'constraint',
+        statement: 'A note to forget, kept as a rule.',
+        supportingEntryIds: [noted.json.entryId],
+      },
+    })
+    assert.equal(cited.status, 202)
     const connections = lives.length
     const forgot = await call(`/api/v1/projects/${seed.projectId}/mission/entries/${noted.json.entryId}/withdrawal`, {
       bearer: await token(E),
@@ -396,6 +407,12 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     live = lives.at(-1) as FakeLive
     live.events.setupComplete()
     await until('voice ready again', async () => (await snapshot()).room.sophia.voice === 'ready')
+    // The rebuilt context starts cold; what Sophia can read back holds none of the words.
+    const status = await ask(live, 'after-forget-status', 'project_status', {})
+    assert.equal(status.status, 'ok')
+    assert.ok(!JSON.stringify(status).includes('note to forget'))
+    const source = await ask(live, 'after-forget-source', 'read_selected_source', { decisionId: cited.json.decisionId })
+    assert.deepEqual([source.status, source.state, source.text], ['ok', 'withdrawn', null])
   })
 
   it('a viewer can take the floor and talk with Sophia, but cannot change the mission by voice', async () => {

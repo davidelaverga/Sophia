@@ -113,7 +113,7 @@ describe('mission routes for members (A08)', () => {
     )
   })
 
-  it('a correction supersedes; a withdrawal forgets; neither repeats', async () => {
+  it('a correction supersedes; a withdrawal forgets every version of the note; neither repeats', async () => {
     const { projectId } = await project()
     const n = parseMissionReceipt(
       (await typed(projectId, E, { kind: 'blocker', epistemic: 'reported', text: 'Waiting on the venue list.' })).json,
@@ -140,10 +140,11 @@ describe('mission routes for members (A08)', () => {
     assert.deepEqual([again.status, again.json.code], [409, 'stale_revision'])
     const ctx = await missionOf(projectId)
     assert.equal(ctx.entries.length, 0)
+    // The earlier wording was the same member's: forgetting the note forgets it too (CX-0004 F2).
     assert.deepEqual(
       ctx.history.map((e) => [e.state, e.text]),
       [
-        ['superseded', 'Waiting on the venue list.'],
+        ['withdrawn', null],
         ['withdrawn', null],
       ],
     )

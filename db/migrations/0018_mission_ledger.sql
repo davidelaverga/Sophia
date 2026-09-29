@@ -6,14 +6,17 @@
 --   from the mission revision: a note is not a mission pivot.
 -- * Authority comes from the caller's membership, never from a request field. Writes need admin or editor; a member
 --   may always record their own note consent and forget a note made from their own turn. A voice write names its turn
---   (exchange and input epoch), and the functions re-check that the epoch binds the calling actor in an open exchange.
+--   (exchange and input epoch), and the functions re-check that it is the open exchange's current epoch and binds the
+--   calling actor: a call made before the floor moved commits nothing.
 -- * Voice notes are kept only when the project's note capture is on and the speaker's own consent is given. Nothing is
 --   enabled by default: no row means capture off and consent unset. No transcript is stored anywhere.
 -- * A voice decision binds to the exchange's single confirmation target: the same speaker, the same input epoch, the
 --   same provider session, a later utterance than the one the proposal was put to them in, within five minutes. The
 --   model never supplies a confirmation. A Studio decision is the member's own action.
--- * Corrections append and supersede; the original stays readable as history. Withdrawing a note erases its text,
---   marks its source deleted and advances the project's eligibility revision, so live contexts are rebuilt.
+-- * Corrections append and supersede; the original stays readable as history. Withdrawing a note erases its text and
+--   what was derived from it (its versions, the proposals and decisions citing it, an accepted mission's frame), keeps
+--   no digest that could confirm a guess at it, and advances the project's eligibility revision, so live contexts are
+--   rebuilt.
 -- * Every write is idempotent per actor and key (mission_requests): the same request returns the stored receipt, a
 --   changed request with the same key is refused. Stale revisions are conflicts, never last-writer-wins.
 -- * New brief admission is retired in the API (410); sophia.admit_native_task and every brief record are unchanged.
@@ -39,7 +42,10 @@ ALTER TABLE sophia.decisions
  ADD COLUMN created_at timestamptz NOT NULL DEFAULT now(),
  ADD COLUMN ledger_revision bigint CHECK(ledger_revision IS NULL OR ledger_revision>0),
  ADD CONSTRAINT decisions_supersedes_fk FOREIGN KEY(project_id,supersedes_decision_id) REFERENCES sophia.decisions(project_id,id),
- ADD CONSTRAINT decisions_voice_turn CHECK((origin='voice')=(exchange_id IS NOT NULL AND input_epoch IS NOT NULL));
+ ADD CONSTRAINT decisions_voice_turn CHECK((origin='voice')=(exchange_id IS NOT NULL AND input_epoch IS NOT NULL)),
+ -- withdrawn: forgotten with a note it cited; its text is erased and it is neither pending nor standing.
+ DROP CONSTRAINT decisions_state_check,
+ ADD CONSTRAINT decisions_state_check CHECK(state IN ('proposed','accepted','rejected','superseded','withdrawn'));
 CREATE INDEX decisions_by_state ON sophia.decisions(project_id,state,created_at);
 
 -- One note: an observation, expectation, outcome, blocker, explanation hypothesis, scoped lesson candidate or
@@ -123,6 +129,9 @@ BEGIN
  IF p_key IS NULL OR length(p_key) NOT BETWEEN 1 AND 160 THEN RAISE EXCEPTION 'Invalid idempotency key' USING ERRCODE='22023'; END IF;
  SELECT * INTO prior FROM sophia.mission_requests WHERE project_id=p_project AND actor_id=sophia.actor_id() AND idempotency_key=p_key;
  IF NOT FOUND THEN RETURN NULL; END IF;
+ -- Once its text is forgotten, a request keeps no digest of it: a replay is compared without the text.
+ IF prior.semantic_request ? 'redacted' THEN
+  prior.semantic_request:=prior.semantic_request-'redacted'; p_semantic:=p_semantic-'text'-'proposal'; END IF;
  IF prior.operation<>p_operation OR prior.semantic_request<>p_semantic THEN
   RAISE EXCEPTION 'Idempotency key reused with different request' USING ERRCODE='23505'; END IF;
  RETURN prior.receipt;
@@ -141,7 +150,9 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.mission_commit(uuid,text,text,uuid,text) FROM PUBLIC;
 
--- A voice write's turn: an open exchange of this project whose input epoch binds the calling actor.
+-- A voice write's turn: an open exchange of this project whose current input epoch binds the calling actor. A call
+-- made in an epoch the floor has since left is stale, even from the same speaker. The caller holds the project lock,
+-- which every floor change also takes first, so the epoch read here cannot move before the write commits.
 CREATE FUNCTION sophia.mission_turn(p_project uuid, p_turn jsonb) RETURNS sophia.room_exchanges LANGUAGE plpgsql STABLE
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; epoch bigint;
@@ -154,6 +165,7 @@ BEGIN
  IF e.state='paused' THEN RAISE EXCEPTION 'The exchange is paused' USING ERRCODE='40001'; END IF;
  IF NOT EXISTS(SELECT 1 FROM sophia.exchange_inputs WHERE exchange_id=e.id AND input_epoch=epoch AND actor_id=sophia.actor_id()) THEN
   RAISE EXCEPTION 'The speaker is not bound to that input epoch' USING ERRCODE='42501'; END IF;
+ IF e.input_epoch<>epoch THEN RAISE EXCEPTION 'Stale turn: the floor has moved since this call' USING ERRCODE='40001'; END IF;
  RETURN e;
 END $$;
 REVOKE ALL ON FUNCTION sophia.mission_turn(uuid,jsonb) FROM PUBLIC;
@@ -249,12 +261,34 @@ BEGIN
  RETURN receipt_value;
 END $$;
 
--- withdrawMissionEntry (A08): forget a note. The text is erased, its source is deleted and ineligible, and the
--- project's eligibility revision moves so any context that read it is rebuilt. Its author or an admin.
+-- Erase one source's text: the text is deleted, the source is ineligible, and nothing that could confirm a guess at the
+-- text stays. Its SHA-256 becomes a random tombstone value and its length zero; the requests that wrote it keep no
+-- digest of it, and their receipts none.
+CREATE FUNCTION sophia.mission_erase_source(p_project uuid, p_source uuid) RETURNS void LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ DELETE FROM sophia.source_texts WHERE project_id=p_project AND source_id=p_source;
+ UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1, byte_length=0,
+  sha256=encode(sha256(convert_to(gen_random_uuid()::text||gen_random_uuid()::text,'UTF8')),'hex')
+  WHERE project_id=p_project AND id=p_source;
+ UPDATE sophia.mission_requests SET semantic_request=(semantic_request-'text'-'proposal')||'{"redacted":true}',
+  receipt=receipt||'{"sha256":null}'
+  WHERE project_id=p_project AND receipt->>'sourceId'=p_source::text;
+END $$;
+REVOKE ALL ON FUNCTION sophia.mission_erase_source(uuid,uuid) FROM PUBLIC;
+
+-- withdrawMissionEntry (A08): forget a note, and what was derived from it. Its author or an admin.
+-- * Its versions. Every later correction goes with it, whoever made it. Earlier versions go too while they are the
+--   forgetter's own words, or the forgetter is an admin; another member's earlier wording stays theirs.
+-- * The proposals and decisions citing any of those versions, pending or decided, become withdrawn with their text
+--   erased; an accepted mission's frame keeps only its decision id. The mission revision does not move: the frame is
+--   erased, not replaced.
+-- Every erased text follows mission_erase_source. The project's eligibility revision moves, so a live provider context
+-- that read any of it is rebuilt.
 CREATE FUNCTION sophia.withdraw_mission_entry(p_project uuid, p_entry uuid, p_key text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.actor_id(); semantic jsonb:=jsonb_build_object('entryId',p_entry); prior jsonb; e sophia.mission_entries;
- receipt_value jsonb;
+ v sophia.mission_entries; d sophia.decisions; receipt_value jsonb; versions uuid[]; cur uuid; nxt uuid; affected jsonb:='[]';
 BEGIN
  IF a IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
@@ -265,14 +299,40 @@ BEGIN
  IF NOT sophia.is_member(p_project) OR (e.actor_id<>a AND NOT sophia.is_admin(p_project)) THEN
   RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
  IF e.state='withdrawn' THEN RAISE EXCEPTION 'Stale note: it is already withdrawn' USING ERRCODE='40001'; END IF;
- UPDATE sophia.mission_entries SET state='withdrawn', changed_by=a, changed_at=now() WHERE project_id=p_project AND id=p_entry;
- DELETE FROM sophia.source_texts WHERE project_id=p_project AND source_id=e.source_id;
- UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1
-  WHERE project_id=p_project AND id=e.source_id;
+ versions:=ARRAY[e.id];
+ cur:=e.id;
+ LOOP
+  SELECT id INTO nxt FROM sophia.mission_entries WHERE project_id=p_project AND supersedes_entry_id=cur;
+  EXIT WHEN nxt IS NULL;
+  versions:=versions||nxt; cur:=nxt;
+ END LOOP;
+ cur:=e.supersedes_entry_id;
+ WHILE cur IS NOT NULL LOOP
+  SELECT * INTO v FROM sophia.mission_entries WHERE project_id=p_project AND id=cur;
+  EXIT WHEN NOT FOUND OR (v.actor_id<>a AND NOT sophia.is_admin(p_project));
+  versions:=versions||v.id; cur:=v.supersedes_entry_id;
+ END LOOP;
+ FOR v IN SELECT * FROM sophia.mission_entries WHERE project_id=p_project AND id=ANY(versions) AND state<>'withdrawn'
+   ORDER BY recorded_at FOR UPDATE LOOP
+  UPDATE sophia.mission_entries SET state='withdrawn', changed_by=a, changed_at=now() WHERE project_id=p_project AND id=v.id;
+  PERFORM sophia.mission_erase_source(p_project,v.source_id);
+  affected:=affected||to_jsonb(v.id);
+ END LOOP;
+ FOR d IN SELECT * FROM sophia.decisions WHERE project_id=p_project AND supporting_entry_ids && versions AND state<>'withdrawn'
+   ORDER BY created_at FOR UPDATE LOOP
+  UPDATE sophia.decisions SET state='withdrawn', proposal=NULL, revision=revision+1 WHERE project_id=p_project AND id=d.id;
+  PERFORM sophia.mission_erase_source(p_project,d.body_source_id);
+  DELETE FROM sophia.mission_confirmation_targets WHERE project_id=p_project AND decision_id=d.id;
+  IF d.kind='mission' THEN
+   UPDATE sophia.project_revisions SET frame=jsonb_build_object('decisionId',d.id,'withdrawn',true)
+    WHERE project_id=p_project AND frame->>'decisionId'=d.id::text;
+  END IF;
+  affected:=affected||to_jsonb(d.id);
+ END LOOP;
  UPDATE sophia.projects SET eligibility_revision=eligibility_revision+1 WHERE id=p_project;
  receipt_value:=sophia.mission_commit(p_project,'mission.entry_withdrawn','mission_entry',p_entry,'mission.entry_withdrawn');
  receipt_value:=receipt_value||jsonb_build_object('status','committed','operation','withdraw_note','entryId',p_entry,'decisionId',NULL,
-  'decisionRevision',NULL,'decision',NULL,'sourceId',e.source_id,'sha256',NULL,'affected',jsonb_build_array(p_entry));
+  'decisionRevision',NULL,'decision',NULL,'sourceId',e.source_id,'sha256',NULL,'affected',affected);
  INSERT INTO sophia.mission_requests(project_id,actor_id,idempotency_key,operation,semantic_request,receipt)
  VALUES(p_project,a,p_key,'withdraw_note',semantic,receipt_value);
  RETURN receipt_value;
@@ -334,6 +394,9 @@ BEGIN
   SELECT 1 FROM sophia.mission_entries e WHERE e.project_id=p_project AND e.id=x AND e.state<>'withdrawn') LIMIT 1;
  IF bad IS NOT NULL THEN RAISE EXCEPTION 'Supporting note not found' USING ERRCODE='22023'; END IF;
  src:=sophia.put_text_source(p_project,a,'text/plain; charset=utf-8',sophia.proposal_text(kind,proposal));
+ -- Its lineage: the proposal derives from the notes it cites, so forgetting one of them forgets it too.
+ INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id)
+  SELECT p_project,e.source_id,src.id FROM sophia.mission_entries e WHERE e.project_id=p_project AND e.id=ANY(supporting);
  receipt_value:=sophia.mission_commit(p_project,'mission.proposal_created','decision',did,'mission.proposal_'||kind);
  INSERT INTO sophia.decisions(project_id,id,revision,kind,state,body_source_id,proposal,proposed_by,origin,exchange_id,input_epoch,
   base_mission_revision,supersedes_decision_id,supporting_entry_ids,ledger_revision)
@@ -434,7 +497,8 @@ BEGIN
  prior:=sophia.mission_prior(p_project,p_key,'decide',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  SELECT * INTO d FROM sophia.decisions WHERE project_id=p_project AND id=p_decision FOR UPDATE;
- IF NOT FOUND OR d.proposal IS NULL THEN RAISE EXCEPTION 'Proposal not found' USING ERRCODE='22023'; END IF;
+ -- A withdrawn proposal's content is erased; it is still that proposal, and deciding it is stale.
+ IF NOT FOUND OR (d.proposal IS NULL AND d.state<>'withdrawn') THEN RAISE EXCEPTION 'Proposal not found' USING ERRCODE='22023'; END IF;
  IF d.state<>'proposed' THEN RAISE EXCEPTION 'Stale proposal: it is already %', d.state USING ERRCODE='40001'; END IF;
  IF d.revision<>(p_request->>'expectedRevision')::bigint THEN RAISE EXCEPTION 'Stale proposal revision' USING ERRCODE='40001'; END IF;
  IF turn IS NOT NULL THEN PERFORM sophia.mission_bound(p_project,d,turn); END IF;

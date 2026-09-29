@@ -1,6 +1,6 @@
 // SMC-M01 mission ledger (migration 0018, amendment A08), level: sql-run. Every call runs on the non-owner sophia_api
 // login with a transaction-local actor, as the API does; the migration owner only seeds and inspects.
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -563,6 +563,39 @@ describe('mission ledger: a voice decision binds to the proposal put to that spe
     assert.equal(accepted.decision, 'accepted')
   })
 
+  it('a call from an input epoch the floor has left is refused, even by the same speaker at the same target', async () => {
+    const { projectId, put, decisionId } = await voiceProposal()
+    await capture(projectId, true, 0)
+    // The speaker's "yes" was said in epoch 1, but its call arrives after the floor moved: nothing it asks commits.
+    await passFloor(projectId, E, F, put.exchangeId)
+    const late = { ...put, utterance: 4 }
+    assert.equal(await codeOf(answer(projectId, decisionId, late)), 'stale_revision', 'a decision')
+    assert.equal(
+      await codeOf(note(E, projectId, { ...observation('Said before the handoff.'), turn: late })),
+      'stale_revision',
+      'a note',
+    )
+    assert.equal(
+      await codeOf(propose(E, projectId, { kind: 'constraint', statement: 'Said before the handoff.', turn: late })),
+      'stale_revision',
+      'a proposal',
+    )
+    assert.equal(
+      await codeOf(withActor(pool, E, 'write', (c) => presentMissionProposal(c, projectId, decisionId, late))),
+      'stale_revision',
+      'putting a proposal',
+    )
+    const rows = await owner<{ state: string }>(`SELECT state FROM sophia.decisions WHERE project_id=$1`, [projectId])
+    assert.deepEqual(
+      rows.map((r) => r.state),
+      ['proposed'],
+    )
+    const entries = await owner<{ n: string }>(`SELECT count(*) AS n FROM sophia.mission_entries WHERE project_id=$1`, [
+      projectId,
+    ])
+    assert.equal(entries[0]!.n, '0')
+  })
+
   it('a viewer holding the floor cannot decide, and a Studio decision needs no turn', async () => {
     const { projectId, put, decisionId } = await voiceProposal()
     const toV = await passFloor(projectId, E, V, put.exchangeId)
@@ -612,6 +645,111 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       await codeOf(withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, n.entryId!, randomUUID()))),
       'stale_revision',
     )
+  })
+
+  it('what was derived from the note goes with it: its versions, the proposals citing it, an accepted mission', async () => {
+    const { projectId } = await project()
+    const first = await note(E, projectId, observation('Kids learn best in groups of five.'))
+    const fixed = await note(E, projectId, {
+      ...observation('Kids learn best in groups of four.'),
+      correctsEntryId: first.entryId!,
+    })
+    // The mission repeats the corrected note's words and cites it; a pending constraint cites the original.
+    const mission = await propose(E, projectId, {
+      kind: 'mission',
+      statement: 'Kids learn best in groups of four.',
+      supportingEntryIds: [fixed.entryId!],
+    })
+    await decide(A, projectId, mission.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    const cited = await propose(E, projectId, {
+      kind: 'constraint',
+      statement: 'Groups of five, never more.',
+      supportingEntryIds: [first.entryId!],
+    })
+    const unrelated = await propose(E, projectId, { kind: 'lesson', statement: 'Book the hall early.' })
+
+    const receipt = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, first.entryId!, randomUUID()),
+    )
+    assert.deepEqual(receipt.affected, [first.entryId, fixed.entryId, mission.decisionId, cited.decisionId])
+
+    const sources = [first.sourceId, fixed.sourceId, mission.sourceId, cited.sourceId]
+    const texts = await owner<{ n: string }>(
+      `SELECT count(*) AS n FROM sophia.source_texts WHERE project_id=$1 AND source_id=ANY($2::uuid[])`,
+      [projectId, sources],
+    )
+    assert.equal(texts[0]!.n, '0', 'every derived text is erased')
+    const states = await owner<{ id: string; state: string; proposal: unknown }>(
+      `SELECT id, state, proposal FROM sophia.decisions WHERE project_id=$1 ORDER BY created_at`,
+      [projectId],
+    )
+    assert.deepEqual(
+      states.map((d) => [d.id, d.state, d.proposal === null]),
+      [
+        [mission.decisionId, 'withdrawn', true],
+        [cited.decisionId, 'withdrawn', true],
+        [unrelated.decisionId, 'proposed', false],
+      ],
+    )
+    const everything = JSON.stringify(
+      await owner(
+        `SELECT (SELECT jsonb_agg(frame) FROM sophia.project_revisions WHERE project_id=$1) AS frames,
+                (SELECT jsonb_agg(d) FROM sophia.decisions d WHERE project_id=$1) AS decisions,
+                (SELECT jsonb_agg(t.body) FROM sophia.source_texts t WHERE project_id=$1) AS texts,
+                (SELECT jsonb_agg(r) FROM sophia.mission_requests r WHERE project_id=$1) AS requests`,
+        [projectId],
+      ),
+    )
+    assert.ok(!/groups of|five|four/i.test(everything), 'no copy of the words is left in the database')
+
+    const ctx = await context(E, projectId, 'voice')
+    assert.equal(ctx.mission, null, 'the accepted mission it produced is forgotten too')
+    assert.equal(ctx.excluded.legacyFrame, false)
+    assert.deepEqual(
+      ctx.pending.map((d) => d.id),
+      [unrelated.decisionId],
+    )
+    assert.deepEqual(
+      ctx.history.map((e) => [e.state, e.text]),
+      [
+        ['withdrawn', null],
+        ['withdrawn', null],
+      ],
+    )
+    assert.ok(!/groups of|five|four/i.test(JSON.stringify(ctx)))
+    const read = await withActor(pool, E, 'read', (c) =>
+      readMissionSource(c, projectId, 'decision', mission.decisionId!),
+    )
+    assert.deepEqual([read?.state, read?.text, read?.sha256], ['withdrawn', null, null])
+  })
+
+  it('no digest of the forgotten text is left to guess it by; a replay of the original request writes nothing', async () => {
+    const { projectId } = await project()
+    const words = 'Yes.'
+    const digest = createHash('sha256').update(words).digest('hex')
+    const key = randomUUID()
+    const n = await note(E, projectId, observation(words), key)
+    await withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, n.entryId!, randomUUID()))
+    const rows = JSON.stringify(
+      await owner(
+        `SELECT (SELECT jsonb_agg(s) FROM sophia.source_objects s WHERE project_id=$1) AS sources,
+                (SELECT jsonb_agg(r) FROM sophia.mission_requests r WHERE project_id=$1) AS requests,
+                (SELECT jsonb_agg(e) FROM sophia.project_events e WHERE project_id=$1) AS events,
+                (SELECT jsonb_agg(f.frame) FROM sophia.project_revisions f WHERE project_id=$1) AS frames`,
+        [projectId],
+      ),
+    )
+    assert.ok(!rows.includes(digest), 'the text’s SHA-256 is gone')
+    const size = await owner<{ byte_length: string }>(`SELECT byte_length FROM sophia.source_objects WHERE id=$1`, [
+      n.sourceId,
+    ])
+    assert.equal(size[0]!.byte_length, '0')
+    const replay = await note(E, projectId, observation(words), key)
+    assert.deepEqual([replay.entryId, replay.sha256], [n.entryId, null], 'the original receipt, without its digest')
+    const entries = await owner<{ n: string }>(`SELECT count(*) AS n FROM sophia.mission_entries WHERE project_id=$1`, [
+      projectId,
+    ])
+    assert.equal(entries[0]!.n, '1')
   })
 })
 

@@ -96,9 +96,13 @@ async function readProject(c: pg.PoolClient, projectId: string, actorId: string)
   return rows[0]
 }
 
-/** The accepted frame when it is one a mission decision produced; any other non-empty frame is legacy. */
+/**
+ * The accepted frame when it is one a mission decision produced; any other non-empty frame is legacy. A frame whose
+ * mission was forgotten with a note it cited keeps only its decision id: there is no mission, and nothing legacy.
+ */
 function missionFrame(p: ProjectRow): { mission: MissionFrame | null; legacy: boolean } {
   const f = p.frame
+  if (f.withdrawn === true) return { mission: null, legacy: false }
   const statement = text(f.statement)
   const decisionId = text(f.decisionId)
   const sourceId = text(f.sourceId)
