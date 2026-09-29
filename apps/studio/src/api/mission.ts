@@ -53,21 +53,18 @@ export const previewMissionWithdrawal = (
   callApi(`${base(projectId)}/entries/${entryId}/withdrawal`, { token, method: 'GET' }, parseMissionWithdrawalPreview)
 
 /**
- * Forget a note, and exactly what its preview listed: `expectedAffected` is that list (the version ids, each decision's
- * id and revision), and the server refuses (409) if it would now erase anything else, or anything in another state.
+ * Forget a note, and exactly what its preview listed: the request is that list (the version ids, each decision's id
+ * and revision) with the preview's proof, and the server refuses (409) if it would now erase anything else, or
+ * anything in another state.
  */
 export const withdrawMissionEntry = (
   token: string,
   projectId: string,
   entryId: string,
   key: string,
-  expectedAffected: MissionWithdrawalRequest['expectedAffected'],
+  body: MissionWithdrawalRequest,
 ): Promise<MissionReceipt> =>
-  callApi(
-    `${base(projectId)}/entries/${entryId}/withdrawal`,
-    { token, body: { expectedAffected }, key },
-    parseMissionReceipt,
-  )
+  callApi(`${base(projectId)}/entries/${entryId}/withdrawal`, { token, body, key }, parseMissionReceipt)
 
 export const proposeMissionChange = (
   token: string,

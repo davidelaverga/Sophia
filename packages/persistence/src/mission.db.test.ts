@@ -1,6 +1,6 @@
 // SMC-M01 mission ledger (migration 0018, amendment A08), level: sql-run. Every call runs on the non-owner sophia_api
 // login with a transaction-local actor, as the API does; the migration owner only seeds and inspects.
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, createHmac, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -93,10 +93,15 @@ const forget = async (actor: string, projectId: string, entryId: string, key = r
   const shown = shownReach(await preview(actor, projectId, entryId))
   return withActor(pool, actor, 'write', (c) => withdrawMissionEntry(c, projectId, entryId, key, shown))
 }
-/** Withdraw with a list given outright, bypassing the preview's own checks. */
-const withdraw = (actor: string, projectId: string, entryId: string, entryIds: string[]) =>
+/** A proof in the right format that no server issued. */
+const madeUp = `v1.9999999999.${'0'.repeat(64)}`
+/** Withdraw with a list given outright and a made-up proof, bypassing the preview. */
+const withdraw = (actor: string, projectId: string, entryId: string, entryIds: string[], previewToken = madeUp) =>
   withActor(pool, actor, 'write', (c) =>
-    withdrawMissionEntry(c, projectId, entryId, randomUUID(), { entryIds, decisions: [] }),
+    withdrawMissionEntry(c, projectId, entryId, randomUUID(), {
+      expectedAffected: { entryIds, decisions: [] },
+      previewToken,
+    }),
   )
 
 /** Open the room's exchange with `actor` holding the floor; their current turn. */
@@ -883,7 +888,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       'what it would erase changed since it was shown',
     )
     const again = shownReach(await preview(E, projectId, fixed.entryId!))
-    assert.deepEqual(again, {
+    assert.deepEqual(again.expectedAffected, {
       entryIds: [first.entryId, fixed.entryId],
       decisions: [
         { id: mission.decisionId, revision: 2 },
@@ -939,13 +944,56 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       unnamed.map((expected) =>
         codeOf(
           withActor(pool, E, 'write', (c) =>
-            withdrawMissionEntry(c, projectId, n.entryId!, randomUUID(), expected as never),
+            withdrawMissionEntry(c, projectId, n.entryId!, randomUUID(), {
+              expectedAffected: expected as never,
+              previewToken: madeUp,
+            }),
           ),
         ),
       ),
     )
     assert.deepEqual(codes, ['invalid_request', 'invalid_request', 'invalid_request', 'invalid_request'])
     assert.equal((await context(E, projectId)).entries.length, 1)
+  })
+
+  it('a withdrawal needs the server’s proof that this member was shown this list for this note (CX-0008 F1)', async () => {
+    const { projectId } = await project()
+    const n = await note(E, projectId, observation('The workshop room has twelve chairs.'))
+    const other = await note(E, projectId, observation('Bring the spare soldering irons.'))
+    const mine = (await preview(E, projectId, n.entryId!)).previewToken
+    // A list the member built by hand, without a proof or with a made-up one, erases nothing.
+    assert.equal(await codeOf(withdraw(E, projectId, n.entryId!, [n.entryId!], '')), 'invalid_request', 'no proof')
+    assert.equal(await codeOf(withdraw(E, projectId, n.entryId!, [n.entryId!])), 'invalid_request', 'a made-up proof')
+    // Another note's proof, an admin's proof of this note, and this proof with its expiry pushed back are not it.
+    const theirs = (await preview(A, projectId, n.entryId!)).previewToken
+    const elsewhere = (await preview(E, projectId, other.entryId!)).previewToken
+    const [version, expiry, tag] = mine.split('.')
+    const later = `${String(version)}.${String(Number(expiry) + 3600)}.${String(tag)}`
+    const codes = await Promise.all(
+      [elsewhere, theirs, later].map((proof) => codeOf(withdraw(E, projectId, n.entryId!, [n.entryId!], proof))),
+    )
+    assert.deepEqual(codes, ['invalid_request', 'invalid_request', 'invalid_request'])
+    // The server's own proof for this member, note and list, once expired, is stale.
+    const expired = await owner<{ proof: string }>(
+      `SELECT 'v1.'||x.e||'.'||sophia.mission_preview_tag($1::uuid,$2::uuid,$3::uuid,x.e,ARRAY[$2::uuid::text],'{}') AS proof
+         FROM (SELECT floor(extract(epoch FROM now()))::bigint-1 AS e) x`,
+      [projectId, n.entryId, E],
+    )
+    assert.equal(await codeOf(withdraw(E, projectId, n.entryId!, [n.entryId!], expired[0]!.proof)), 'stale_revision')
+    assert.equal((await context(E, projectId)).entries.length, 2, 'nothing was erased')
+    // The proof is HMAC-SHA256 under a key only the database holds, which sophia_api cannot read.
+    const key = await owner<{ secret: Buffer }>(`SELECT secret FROM sophia_secrets.mission_preview_keys`)
+    const message = ['sophia.mission-withdrawal-preview.v1', projectId, n.entryId, E, expiry, n.entryId, ''].join('|')
+    assert.equal(tag, createHmac('sha256', key[0]!.secret).update(message).digest('hex'))
+    assert.match(
+      await codeOf(
+        withActor(pool, E, 'read', (c) => c.query('SELECT secret FROM sophia_secrets.mission_preview_keys')),
+      ),
+      /forbidden|permission denied/,
+    )
+    // The member's own proof erases exactly the list it was issued for.
+    const receipt = await withdraw(E, projectId, n.entryId!, [n.entryId!], mine)
+    assert.deepEqual(receipt.affected, [n.entryId])
   })
 
   it('repeated words match in any Unicode form, within one field of the proposal, never across two', async () => {

@@ -137,9 +137,9 @@ export interface ForgetItem {
 
 /**
  * What the Forget confirmation lists, from the server's preview: each version of the note and each proposal or
- * decision citing them, with all of its words, unclipped, since all of them are erased; and what the withdrawal then
- * expects, in the preview's order: the version ids and each decision's id at the revision shown. The withdrawal
- * applies the same rule, and refuses if it would erase anything else, or anything in another state.
+ * decision citing them, with all of its words, unclipped, since all of them are erased; and the withdrawal to send:
+ * in the preview's order, the version ids and each decision's id at the revision shown, with the preview's proof. The
+ * withdrawal applies the same rule, and refuses if it would erase anything else, or anything in another state.
  */
 export function forgetReach(preview: MissionWithdrawalPreview) {
   const versions = preview.entries.map<ForgetItem>((e) => ({
@@ -161,19 +161,26 @@ export function forgetReach(preview: MissionWithdrawalPreview) {
   const items = [...versions, ...decisions]
   return {
     items,
-    expected: {
-      entryIds: preview.entries.map((e) => e.id),
-      decisions: preview.decisions.map((d) => ({ id: d.id, revision: d.revision })),
+    request: {
+      expectedAffected: {
+        entryIds: preview.entries.map((e) => e.id),
+        decisions: preview.decisions.map((d) => ({ id: d.id, revision: d.revision })),
+      },
+      previewToken: preview.previewToken,
     },
     closing: `Sophia stops using ${items.length === 1 ? 'it' : 'them'}.`,
   }
 }
 
-/** Why a forget was refused, in plain words: a stale list means something now cites the note, so ask again. */
+/**
+ * Why a forget was refused, in plain words: a stale list means something changed since it was shown, or it was shown
+ * too long ago (its proof lasts 15 minutes), so ask again.
+ */
 export function forgetRefusal(error: { code: string; message: string }): string {
-  return error.code === 'stale_revision'
-    ? 'Something changed since the list was shown, so nothing was forgotten. Forget again to see what would go now.'
-    : error.message
+  if (error.code !== 'stale_revision') return error.message
+  return error.message.includes('expired')
+    ? 'The list was shown too long ago, so nothing was forgotten. Forget again to see what would go now.'
+    : 'Something changed since the list was shown, so nothing was forgotten. Forget again to see what would go now.'
 }
 
 /** The confirmation confirms only a list it has shown; if the list could not be read it offers to check again. */

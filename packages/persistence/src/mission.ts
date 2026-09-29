@@ -66,29 +66,34 @@ export function recordMissionEntry(
 }
 
 /**
- * Forget a note and what was derived from it; eligibility narrows. `expectedAffected` is what its preview listed (the
- * version ids, each decision's id and revision): it erases only if that is still exactly what it reaches, else it is a
- * stale conflict. Call inside withActor(..., "write").
+ * Forget a note and what was derived from it; eligibility narrows. The request is what its preview listed (the
+ * version ids, each decision's id and revision) and the preview's proof: it erases only if that is still exactly what
+ * it reaches, else it is a stale conflict, and only with the server's proof that this member was shown it. Call
+ * inside withActor(..., "write").
  */
 export function withdrawMissionEntry(
   c: pg.PoolClient,
   projectId: string,
   entryId: string,
   idempotencyKey: string,
-  expectedAffected: MissionWithdrawalRequest['expectedAffected'],
+  request: MissionWithdrawalRequest,
 ): Promise<MissionReceipt> {
-  return receipt(c, 'withdraw_mission_entry', `SELECT sophia.withdraw_mission_entry($1, $2, $3, $4) AS receipt`, [
+  return receipt(c, 'withdraw_mission_entry', `SELECT sophia.withdraw_mission_entry($1, $2, $3, $4, $5) AS receipt`, [
     projectId,
     entryId,
     idempotencyKey,
-    JSON.stringify(expectedAffected),
+    JSON.stringify(request.expectedAffected),
+    request.previewToken,
   ])
 }
 
-/** What a withdrawal expects, from the preview the member was shown. */
-export const shownReach = (preview: MissionWithdrawalPreview): MissionWithdrawalRequest['expectedAffected'] => ({
-  entryIds: preview.entries.map((e) => e.id),
-  decisions: preview.decisions.map((d) => ({ id: d.id, revision: d.revision })),
+/** The withdrawal of exactly what a preview showed: its list, and its proof. */
+export const shownReach = (preview: MissionWithdrawalPreview): MissionWithdrawalRequest => ({
+  expectedAffected: {
+    entryIds: preview.entries.map((e) => e.id),
+    decisions: preview.decisions.map((d) => ({ id: d.id, revision: d.revision })),
+  },
+  previewToken: preview.previewToken,
 })
 
 /**

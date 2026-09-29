@@ -354,16 +354,64 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.mission_forgettable(uuid,uuid) FROM PUBLIC;
 
--- previewMissionWithdrawal (A08): what forgetting this note would erase, for the member about to confirm it.
+-- The key a forget preview is signed with: 32 random bytes, generated here, one per database. It lives in
+-- sophia_secrets, which sophia_api cannot reach; only the functions below read it.
+CREATE TABLE sophia_secrets.mission_preview_keys (
+ id smallint PRIMARY KEY CHECK(id=1),
+ secret bytea NOT NULL CHECK(length(secret)=32)
+);
+ALTER TABLE sophia_secrets.mission_preview_keys ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON sophia_secrets.mission_preview_keys FROM PUBLIC;
+INSERT INTO sophia_secrets.mission_preview_keys(id,secret)
+VALUES(1,decode(replace(gen_random_uuid()::text,'-','')||replace(gen_random_uuid()::text,'-',''),'hex'));
+
+-- HMAC-SHA256 (RFC 2104), from the core sha256(): pgcrypto is not installed.
+CREATE FUNCTION sophia.mission_hmac(p_key bytea, p_message text) RETURNS text LANGUAGE plpgsql IMMUTABLE STRICT
+SET search_path=pg_catalog AS $$
+DECLARE k bytea:=p_key; i bytea; o bytea;
+BEGIN
+ IF length(k)>64 THEN k:=sha256(k); END IF;
+ k:=k||decode(repeat('00',64-length(k)),'hex');
+ i:=k; o:=k;
+ FOR n IN 0..63 LOOP
+  i:=set_byte(i,n,get_byte(k,n) # 54); o:=set_byte(o,n,get_byte(k,n) # 92);
+ END LOOP;
+ RETURN encode(sha256(o||sha256(i||convert_to(p_message,'UTF8'))),'hex');
+END $$;
+REVOKE ALL ON FUNCTION sophia.mission_hmac(bytea,text) FROM PUBLIC;
+
+-- A reach as the member is shown it, in its order: the version ids, and each decision as id@revision.
+CREATE FUNCTION sophia.mission_reach_shown(p_project uuid, p_entries uuid[], p_decisions uuid[],
+ OUT entries text[], OUT decisions text[]) LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT ARRAY(SELECT s.id::text FROM unnest(p_entries) WITH ORDINALITY AS s(id,o) ORDER BY s.o),
+  ARRAY(SELECT m.id::text||'@'||m.revision::text FROM unnest(p_decisions) WITH ORDINALITY AS s(id,o)
+   JOIN sophia.decisions m ON m.project_id=p_project AND m.id=s.id ORDER BY s.o) $$;
+REVOKE ALL ON FUNCTION sophia.mission_reach_shown(uuid,uuid[],uuid[]) FROM PUBLIC;
+
+-- A forget preview's proof, that the server showed this member this list: an HMAC under the database's key of the
+-- member, the project, the note, the expiry and exactly the reach shown. No text goes into it.
+CREATE FUNCTION sophia.mission_preview_tag(p_project uuid, p_entry uuid, p_actor uuid, p_expires bigint,
+ p_entries text[], p_decisions text[]) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT sophia.mission_hmac((SELECT k.secret FROM sophia_secrets.mission_preview_keys k WHERE k.id=1),
+  concat_ws('|','sophia.mission-withdrawal-preview.v1',p_project::text,p_entry::text,p_actor::text,p_expires::text,
+   array_to_string(p_entries,','),array_to_string(p_decisions,','))) $$;
+REVOKE ALL ON FUNCTION sophia.mission_preview_tag(uuid,uuid,uuid,bigint,text[],text[]) FROM PUBLIC;
+
+-- previewMissionWithdrawal (A08): what forgetting this note would erase, for the member about to confirm it, and the
+-- proof, valid 15 minutes, that the withdrawal must carry: previewToken, v1.<expiry in epoch seconds>.<tag>.
 CREATE FUNCTION sophia.preview_mission_withdrawal(p_project uuid, p_entry uuid) RETURNS jsonb LANGUAGE plpgsql STABLE
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.actor_id(); r record;
+DECLARE a uuid:=sophia.actor_id(); r record; shown record; expires bigint:=floor(extract(epoch FROM now()))::bigint+900;
 BEGIN
  IF a IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
  PERFORM sophia.mission_forgettable(p_project,p_entry);
  SELECT * INTO r FROM sophia.mission_forget_reach(p_project,p_entry,a,sophia.is_admin(p_project));
+ SELECT * INTO shown FROM sophia.mission_reach_shown(p_project,r.entry_ids,r.decision_ids);
  RETURN jsonb_build_object('entryId',p_entry,
   'ledgerRevision',(SELECT ledger_revision FROM sophia.projects WHERE id=p_project),
+  'previewToken','v1.'||expires::text||'.'||sophia.mission_preview_tag(p_project,p_entry,a,expires,shown.entries,shown.decisions),
+  'expiresAt',to_jsonb(to_timestamp(expires)),
   'entries',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',e.id,'state',e.state,'text',t.body) ORDER BY x.ord),'[]')
    FROM unnest(r.entry_ids) WITH ORDINALITY AS x(id,ord) JOIN sophia.mission_entries e ON e.project_id=p_project AND e.id=x.id
    JOIN sophia.source_texts t ON t.project_id=e.project_id AND t.source_id=e.source_id),
@@ -377,32 +425,44 @@ END $$;
 -- admin. p_expected is required: what the member's preview listed, {entryIds, decisions: [{id, revision}]}, in its
 -- order. It erases only if that is still exactly what it reaches, each decision at the revision shown (every change of
 -- a decision's state moves its revision), and is otherwise a stale conflict: nothing goes that they were not shown, or
--- in a state they were not shown. Every proposal or decision reached becomes withdrawn with its text erased; an
+-- in a state they were not shown. p_token is required too: the preview's proof that the server showed this member
+-- exactly this list for this note. A list built without a preview, or another member's or note's proof, is refused;
+-- an expired one is stale. Every proposal or decision reached becomes withdrawn with its text erased; an
 -- accepted mission's frame keeps only its decision id, and the mission revision does not move: the frame is erased,
 -- not replaced. Every erased text follows mission_erase_source. The project's eligibility revision moves, so a live
 -- provider context that read any of it is rebuilt.
-CREATE FUNCTION sophia.withdraw_mission_entry(p_project uuid, p_entry uuid, p_key text, p_expected jsonb)
+CREATE FUNCTION sophia.withdraw_mission_entry(p_project uuid, p_entry uuid, p_key text, p_expected jsonb, p_token text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.actor_id(); semantic jsonb:=jsonb_build_object('entryId',p_entry,'expected',p_expected);
- prior jsonb; e sophia.mission_entries;
+DECLARE a uuid:=sophia.actor_id();
+ semantic jsonb:=jsonb_build_object('entryId',p_entry,'expected',p_expected,'previewToken',p_token);
+ prior jsonb; e sophia.mission_entries; shown record; expires bigint;
  v sophia.mission_entries; d sophia.decisions; receipt_value jsonb; r record; affected jsonb:='[]';
 BEGIN
  IF a IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
  IF p_expected IS NULL OR jsonb_typeof(p_expected->'entryIds') IS DISTINCT FROM 'array'
    OR jsonb_typeof(p_expected->'decisions') IS DISTINCT FROM 'array' THEN
   RAISE EXCEPTION 'Invalid withdrawal: it must name what the member was shown' USING ERRCODE='22023'; END IF;
+ IF p_token IS NULL OR p_token !~ '^v1\.[0-9]{1,12}\.[0-9a-f]{64}$' THEN
+  RAISE EXCEPTION 'Invalid withdrawal: it must carry the preview shown to the member' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  prior:=sophia.mission_prior(p_project,p_key,'withdraw_note',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  e:=sophia.mission_forgettable(p_project,p_entry);
  SELECT * INTO r FROM sophia.mission_forget_reach(p_project,p_entry,a,sophia.is_admin(p_project));
+ SELECT * INTO shown FROM sophia.mission_reach_shown(p_project,r.entry_ids,r.decision_ids);
  IF ARRAY(SELECT lower(x #>> '{}') FROM jsonb_array_elements(p_expected->'entryIds') WITH ORDINALITY AS s(x,o) ORDER BY o)
-    IS DISTINCT FROM ARRAY(SELECT s.id::text FROM unnest(r.entry_ids) WITH ORDINALITY AS s(id,o) ORDER BY s.o)
+    IS DISTINCT FROM shown.entries
   OR ARRAY(SELECT lower(x->>'id')||'@'||(x->>'revision')
     FROM jsonb_array_elements(p_expected->'decisions') WITH ORDINALITY AS s(x,o) ORDER BY o)
-    IS DISTINCT FROM ARRAY(SELECT m.id::text||'@'||m.revision::text FROM unnest(r.decision_ids) WITH ORDINALITY AS s(id,o)
-     JOIN sophia.decisions m ON m.project_id=p_project AND m.id=s.id ORDER BY s.o) THEN
+    IS DISTINCT FROM shown.decisions THEN
   RAISE EXCEPTION 'Stale withdrawal: what it would erase changed since it was shown' USING ERRCODE='40001'; END IF;
+ -- The list is the current reach; the proof must be the server's, for this member, note and list.
+ expires:=split_part(p_token,'.',2)::bigint;
+ IF split_part(p_token,'.',3) IS DISTINCT FROM
+   sophia.mission_preview_tag(p_project,p_entry,a,expires,shown.entries,shown.decisions) THEN
+  RAISE EXCEPTION 'Invalid withdrawal: this list was not shown to this member for this note' USING ERRCODE='22023'; END IF;
+ IF expires<extract(epoch FROM now()) THEN
+  RAISE EXCEPTION 'Stale withdrawal: the list shown has expired' USING ERRCODE='40001'; END IF;
  FOR v IN SELECT m.* FROM unnest(r.entry_ids) WITH ORDINALITY AS x(id,ord)
    JOIN sophia.mission_entries m ON m.project_id=p_project AND m.id=x.id ORDER BY x.ord LOOP
   UPDATE sophia.mission_entries SET state='withdrawn', changed_by=a, changed_at=now() WHERE project_id=p_project AND id=v.id;
@@ -657,12 +717,12 @@ BEGIN
  RETURN jsonb_build_object('state',c.state,'revision',c.revision);
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text,jsonb),
+REVOKE ALL ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text),
  sophia.preview_mission_withdrawal(uuid,uuid),
  sophia.propose_mission_change(uuid,text,jsonb), sophia.present_mission_proposal(uuid,uuid,jsonb),
  sophia.decide_mission_change(uuid,uuid,text,jsonb), sophia.set_mission_note_policy(uuid,text,bigint),
  sophia.set_mission_note_consent(uuid,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text,jsonb),
+GRANT EXECUTE ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text),
  sophia.preview_mission_withdrawal(uuid,uuid),
  sophia.propose_mission_change(uuid,text,jsonb), sophia.present_mission_proposal(uuid,uuid,jsonb),
  sophia.decide_mission_change(uuid,uuid,text,jsonb), sophia.set_mission_note_policy(uuid,text,bigint),

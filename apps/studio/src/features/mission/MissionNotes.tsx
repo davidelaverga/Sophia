@@ -223,8 +223,8 @@ function ReachNote({ reach, onCheck }: { reach: Reach; onCheck: () => void }) {
 }
 
 function Forget({ entry, projectId, identity }: WriteProps) {
-  const write = useMissionWrite<MissionWithdrawalRequest['expectedAffected']>(projectId, (key, expected) =>
-    withdrawMissionEntry(identity.token, projectId, entry.id, key, expected),
+  const write = useMissionWrite<MissionWithdrawalRequest>(projectId, (key, request) =>
+    withdrawMissionEntry(identity.token, projectId, entry.id, key, request),
   )
   const [reach, setReach] = useState<Reach>({ status: 'checking' })
   const controls = writeControls(write.state.status)
@@ -250,7 +250,7 @@ function Forget({ entry, projectId, identity }: WriteProps) {
         onAsk={ask}
         confirmDisabled={!confirming.canConfirm}
         onConfirm={() => {
-          if (reach.status === 'ready') void write.submit(reach.expected)
+          if (reach.status === 'ready') void write.submit(reach.request)
         }}
       />
       {controls.canRetry && <Unconfirmed onRetry={() => void write.retry()} />}

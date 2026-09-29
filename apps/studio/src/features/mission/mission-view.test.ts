@@ -122,7 +122,14 @@ const preview = (
   entryId: string,
   entries: MissionWithdrawalPreview['entries'],
   decisions: MissionWithdrawalPreview['decisions'] = [],
-): MissionWithdrawalPreview => ({ entryId, ledgerRevision: 4, entries, decisions })
+): MissionWithdrawalPreview => ({
+  entryId,
+  ledgerRevision: 4,
+  previewToken: `v1.1790000000.${'a'.repeat(64)}`,
+  expiresAt: '2026-09-29T20:00:00Z',
+  entries,
+  decisions,
+})
 type Shown = MissionWithdrawalPreview['decisions'][number]
 const shown = (
   id: string,
@@ -238,7 +245,10 @@ describe('mission view', () => {
     const alone = forgetReach(preview('1', [{ id: '1', state: 'current', text: 'Book the hall early.' }]))
     assert.deepEqual(alone, {
       items: [{ id: '1', text: 'This note: “Book the hall early.”', details: [] }],
-      expected: { entryIds: ['1'], decisions: [] },
+      request: {
+        expectedAffected: { entryIds: ['1'], decisions: [] },
+        previewToken: `v1.1790000000.${'a'.repeat(64)}`,
+      },
       closing: 'Sophia stops using it.',
     })
     const built = forgetReach(
@@ -268,16 +278,19 @@ describe('mission view', () => {
       ],
     )
     assert.deepEqual(
-      built.expected,
+      built.request,
       {
-        entryIds: ['1', '2', '3'],
-        decisions: [
-          { id: 'm', revision: 2 },
-          { id: 'c', revision: 1 },
-          { id: 'l', revision: 2 },
-        ],
+        expectedAffected: {
+          entryIds: ['1', '2', '3'],
+          decisions: [
+            { id: 'm', revision: 2 },
+            { id: 'c', revision: 1 },
+            { id: 'l', revision: 2 },
+          ],
+        },
+        previewToken: `v1.1790000000.${'a'.repeat(64)}`,
       },
-      'the versions and each decision at the revision shown, as the server listed them',
+      'the versions and each decision at the revision shown, as the server listed them, with its proof',
     )
     assert.equal(built.closing, 'Sophia stops using them.')
   })
@@ -326,6 +339,10 @@ describe('mission view', () => {
         message: 'Stale withdrawal: what it would erase changed since it was shown',
       }),
       'Something changed since the list was shown, so nothing was forgotten. Forget again to see what would go now.',
+    )
+    assert.equal(
+      forgetRefusal({ code: 'stale_revision', message: 'Stale withdrawal: the list shown has expired' }),
+      'The list was shown too long ago, so nothing was forgotten. Forget again to see what would go now.',
     )
     assert.equal(forgetRefusal({ code: 'forbidden', message: 'Not permitted' }), 'Not permitted')
   })

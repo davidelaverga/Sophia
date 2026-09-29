@@ -133,10 +133,10 @@ describe('mission routes for members (A08)', () => {
     const corrected = parseMissionReceipt(fixed.json)
     const path = `/api/v1/projects/${projectId}/mission/entries/${String(corrected.entryId)}/withdrawal`
     const shown = shownReach(parseMissionWithdrawalPreview((await call(path, { as: E })).json))
-    const gone = await call(path, { as: E, key: randomUUID(), body: { expectedAffected: shown } })
+    const gone = await call(path, { as: E, key: randomUUID(), body: shown })
     assert.equal(gone.status, 202)
     assert.equal(parseMissionReceipt(gone.json).eligibilityRevision, corrected.eligibilityRevision + 1)
-    const again = await call(path, { as: E, key: randomUUID(), body: { expectedAffected: shown } })
+    const again = await call(path, { as: E, key: randomUUID(), body: shown })
     assert.deepEqual([again.status, again.json.code], [409, 'stale_revision'])
     const ctx = await missionOf(projectId)
     assert.equal(ctx.entries.length, 0)
@@ -194,25 +194,37 @@ describe('mission routes for members (A08)', () => {
     )
     const viewer = await call(path, { as: V })
     assert.deepEqual([viewer.status, viewer.json.code], [403, 'forbidden'])
-    // A withdrawal must carry what was shown (CX-0007 F4): none, an empty one or the earlier flat list is refused.
+    // A withdrawal must carry what was shown and the preview's proof (CX-0007 F4, CX-0008 F1): none, an empty list,
+    // the earlier flat list, the list without its proof, or the list with a made-up proof is refused.
+    const shown = shownReach(preview)
+    const madeUp = `v1.9999999999.${'0'.repeat(64)}`
     const unnamed = await Promise.all(
-      [{}, { expectedAffected: {} }, { expectedAffected: [n.entryId, proposed.decisionId] }].map(async (body) => {
+      [
+        {},
+        { expectedAffected: {}, previewToken: shown.previewToken },
+        { expectedAffected: [n.entryId, proposed.decisionId], previewToken: shown.previewToken },
+        { expectedAffected: shown.expectedAffected },
+        { ...shown, previewToken: madeUp },
+      ].map(async (body) => {
         const res = await call(path, { as: E, key: randomUUID(), body })
         return `${String(res.status)} ${String(res.json.code)}`
       }),
     )
-    assert.deepEqual(unnamed, ['422 invalid_request', '422 invalid_request', '422 invalid_request'])
+    assert.deepEqual(unnamed, [
+      '422 invalid_request',
+      '422 invalid_request',
+      '422 invalid_request',
+      '422 invalid_request',
+      '422 invalid_request',
+    ])
     // A list that no longer matches is refused, the one shown is erased.
-    const shown = shownReach(preview)
     const wrong = await call(path, {
       as: E,
       key: randomUUID(),
-      body: { expectedAffected: { ...shown, decisions: [] } },
+      body: { ...shown, expectedAffected: { ...shown.expectedAffected, decisions: [] } },
     })
     assert.deepEqual([wrong.status, wrong.json.code], [409, 'stale_revision'])
-    const gone = parseMissionReceipt(
-      (await call(path, { as: E, key: randomUUID(), body: { expectedAffected: shown } })).json,
-    )
+    const gone = parseMissionReceipt((await call(path, { as: E, key: randomUUID(), body: shown })).json)
     assert.deepEqual(gone.affected, [n.entryId, proposed.decisionId])
     const again = await call(path, { as: E })
     assert.deepEqual([again.status, again.json.code], [409, 'stale_revision'], 'nothing left to forget')

@@ -403,9 +403,7 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     const forgot = await call(withdrawal, {
       bearer: await token(E),
       key: true,
-      body: {
-        expectedAffected: shownReach(parseMissionWithdrawalPreview(shown.json)),
-      },
+      body: shownReach(parseMissionWithdrawalPreview(shown.json)),
     })
     assert.equal(forgot.status, 202)
     // The bridge's poll waits 25 s: well within that, only the withdrawal's own notification can have woken it.

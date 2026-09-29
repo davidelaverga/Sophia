@@ -104,7 +104,7 @@ function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
     async (req, reply) => {
       const { projectId, entryId } = req.params
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
-        withdrawMissionEntry(c, projectId, entryId, req.headers['idempotency-key'], req.body.expectedAffected),
+        withdrawMissionEntry(c, projectId, entryId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
     },

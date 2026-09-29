@@ -11594,16 +11594,22 @@
               "entryIds",
               "decisions"
             ]
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof, as the preview returned it: the server showed this member exactly this list for this note. A list built without a preview, or another member's or note's proof, is refused; an expired one is a stale conflict."
           }
         },
         "required": [
-          "expectedAffected"
+          "expectedAffected",
+          "previewToken"
         ]
       },
       "MissionWithdrawalPreview": {
         "type": "object",
         "additionalProperties": false,
-        "description": "What forgetting this note would erase for everyone, computed by the same rule the withdrawal then applies: the note's versions, from the reader's own earliest wording in its history (an admin's: its first version) to its latest, and every proposal or decision citing any of them. The ledger may move before the member confirms; the withdrawal must send this list back as `expectedAffected` (the version ids, and each decision's id and revision), and answers a stale conflict instead of erasing anything not shown, or in a state not shown.",
+        "description": "What forgetting this note would erase for everyone, computed by the same rule the withdrawal then applies: the note's versions, from the reader's own earliest wording in its history (an admin's: its first version) to its latest, and every proposal or decision citing any of them. The ledger may move before the member confirms; the withdrawal must send this list back as `expectedAffected` (the version ids, and each decision's id and revision) with this `previewToken`, and answers a stale conflict instead of erasing anything not shown, or in a state not shown.",
         "properties": {
           "entryId": {
             "type": "string",
@@ -11613,6 +11619,16 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The server's proof that it showed this member this list for this note: an HMAC under a key only the database holds, of the member, the project, the note, the expiry and the reach (ids and revisions, never text). The withdrawal must carry it"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When previewToken stops being accepted: 15 minutes after the preview"
           },
           "entries": {
             "type": "array",
@@ -11728,6 +11744,8 @@
         "required": [
           "entryId",
           "ledgerRevision",
+          "previewToken",
+          "expiresAt",
           "entries",
           "decisions"
         ]
