@@ -9,7 +9,7 @@
 
 **The G1–G4 candidate is ready for review. It is not merged, not released and not accepted.**
 - **Built and tested locally:** the mission ledger, the exact v1.1 guide with its six operations in the bridge, and the compact mission view that replaces the brief form. Every local check passes; the progress record §2 lists them.
-- **G5:** the release request is drafted but not posted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md)). Codex's read-only reviews found three issues ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), fixed at `5a03cfd`), then three more in those fixes ([CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), fixed at `421e535` after two product decisions by Davide), then two more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), fixed at `f0ca9f0`), then four more ([CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), fixed at `9a8082b` and `73308de`). [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md) asks Codex to check them.
+- **G5:** the release request is drafted but not posted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md)). Codex's read-only reviews found three issues ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), fixed at `5a03cfd`), then three more in those fixes ([CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), fixed at `421e535` after two product decisions by Davide), then two more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), fixed at `f0ca9f0`), then four more ([CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), fixed at `9a8082b` and `73308de`), then one more ([CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359), fixed at `2d3549e`). [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) asks Codex to check it.
 - **Still open:**
   - hosted evidence for every case;
   - T01 and T16, which are prompt behaviour;
@@ -34,13 +34,14 @@
 | `f0ca9f0` | Codex's check for OP-0002 (CX-0006): the Forget confirmation fails closed, lists every version and decision, and the withdrawal is bound to that list; repeated words match in any Unicode form, within one field |
 | `9a8082b` | Codex's check for OP-0002 (CX-0007): a withdrawal must carry its preview's list, which binds each decision's revision; the confirmation shows every word and field; repeated words match in canonical form (NFC) only |
 | `73308de` | CX-0007 F2's layout: the Forget list flows in the conversation's one scroller, not a nested one |
+| `2d3549e` | Codex's check for OP-0002 (CX-0008): a withdrawal must carry the preview's proof, an HMAC under a key only the database holds, bound to the member, note, expiry and exact reach |
 
 ## Evidence
 
 The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
-- **Checks:** `pnpm check` exit 0 (299 unit; 56 integration against the real pinned dsh, the runtime-service crossing included). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 194/194, on `C.UTF-8` and on `en_US.UTF-8`.
+- **Checks:** `pnpm check` exit 0 (299 unit; 56 integration against the real pinned dsh, the runtime-service crossing included). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 195/195, on `C.UTF-8` and on `en_US.UTF-8`.
 - **Rollback:** production's code at `0391bc6` passes its own `test:sql` and `test:db` (147/147) on 0001–0018.
-- **T17:** checked in a browser against the real API, including keyboard and the manual controls; the Forget confirmation again at `73308de` (26/26).
+- **T17:** checked in a browser against the real API, including keyboard and the manual controls; the Forget confirmation again at `2d3549e` (27/27 checks).
 - **Hosted facts:** from OP-0001 (CX-0001 to CX-0003), checked against CC-0001.
 
 ## Decisions and changes
@@ -61,8 +62,8 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 
 | Item | State |
 |---|---|
-| SMC-M01-OP-0002 | revisions 5 to 8 answered (CX-0004 to CX-0007), all twelve findings fixed; revision 9 (CC-0011, the check of CX-0007's fixes) requested; read only; waits for Davide to wake Codex. No unknown effect |
-| SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CC-0011's answer and #16. Its first step is the owner-connection dry run |
+| SMC-M01-OP-0002 | revisions 5 to 9 answered (CX-0004 to CX-0008), all thirteen findings fixed; revision 10 (CC-0012, the check of CX-0008's fix) requested; read only; waits for Davide to wake Codex. No unknown effect |
+| SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CC-0012's answer and #16. Its first step is the owner-connection dry run |
 | Luis's review | the Studio layout and interaction (`apps/studio/src/features/mission/`, `theme.css`) |
 | Merge | after #16; then merge `main` into the branch, and rerun `pnpm check`, `test:sql` and `test:db` |
 | Layout at 200% zoom | predates M01 (the room stage's geometry). A follow-up for the layout's owner; not in M01 |
@@ -70,7 +71,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 
 ## Next bounded action
 
-1. **When Codex answers CC-0011** (OP-0002's revision 9; CX-0008 on #17, with a pointer on #18): check each finding against the question it answers, fix the real ones with tests, and record the rest.
+1. **When Codex answers CC-0012** (OP-0002's revision 10; CX-0009 on #17, with a pointer on #18): check each finding against the question it answers, fix the real ones with tests, and record the rest.
 2. **When #16 has merged:** merge `main`, rerun the checks, fill CC-0003 with the final reviewed commit, and post it for Davide's decision.
 
 A new session continues this mission from the progress record and #17; it does not start a new one.
