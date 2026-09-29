@@ -9,14 +9,15 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 - **Codex's read-only reviews for OP-0002.**
   - [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), at `dfee0bc`: two P1 issues and one P2, all fixed at `5a03cfd`.
   - [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), Codex's check of those fixes at `5a03cfd`: it confirmed the current-floor fix, and found one P1 and two P2 issues. They are fixed at `421e535`, following Davide's two product decisions (§5).
-  - [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895383757)) asks Codex to check them.
+  - [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), Codex's check of those at `421e535`: it confirmed the reach, the authorization and the stale replay, and found one P1 and one P2. Both are fixed at `f0ca9f0`.
+  - [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md) asks Codex to check them.
 
-Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0009's answer.
+Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0010's answer.
 
 | Readiness | State |
 |---|---|
 | Source-ready | Candidate: G1–G4 implemented, local checks green (§2), every review finding fixed (§5). CI runs on each pushed head |
-| Merge-ready | No: Luis's review of the Studio layout, Codex's check of CX-0005's fixes (CC-0009), and R00's #16 landing first |
+| Merge-ready | No: Luis's review of the Studio layout, Codex's check of CX-0006's fixes (CC-0010), and R00's #16 landing first |
 | Release-ready | No: CC-0003 is a draft; it needs the final reviewed SHA and Davide's approval. Its first step is the owner-connection dry run CX-0004 could not run |
 | Hosted-verified | No |
 | Product-accepted | No |
@@ -28,9 +29,9 @@ Nothing is merged, released or accepted. The release request is drafted ([CC-000
 | Base | `main` `c683e6e60ff76004e8a06e71c368b718848b1687`: the merge of #15. CI push run 36357507466, all four jobs green |
 | Not in the base | R00's closeout, PR #16, open at `86d35ad` (CX-0001). Its code commit `0391bc6` changes only the runtime host's profile reconciliation; M01 touches none of its files. The branch merges `main` once #16 lands |
 | Branch | `claude/upbeat-feynman-d7jskb` (this session's designated branch, dedicated to M01) |
-| Commits | `dc2d06e` G1 (docs) · `551a18f` G2 ledger · `39545f1` G3 guide and tools · `cfec301` G4 mission view · `8a4b6a7` G4 layout (T17) and parity · `5382575` checkpoint (docs) · `a0a1562` the first review's fixes · `7fd4573` the second review's fixes · `f230848` the third review's fixes · `dfee0bc` the fourth review's fix · `5a03cfd` CX-0004's fixes · `421e535` CX-0005's fixes · then their docs |
-| Migration | `db/migrations/0018_mission_ledger.sql`, 53042 bytes, sha256 `7ff8135a229f9505db51c9495b9af20fc2890418600e85f06bd086adecf97a93` (the ledger's checksum is the file's SHA-256: 0017 matches CX-0001's `0d0b929f…`) |
-| Contract | amendment `A08-mission-ledger.json` sha256 `b0cff111…da2a`; generated `openapi.json` sha256 `9ac8cd3a…dff2` |
+| Commits | `dc2d06e` G1 (docs) · `551a18f` G2 ledger · `39545f1` G3 guide and tools · `cfec301` G4 mission view · `8a4b6a7` G4 layout (T17) and parity · `5382575` checkpoint (docs) · `a0a1562` the first review's fixes · `7fd4573` the second review's fixes · `f230848` the third review's fixes · `dfee0bc` the fourth review's fix · `5a03cfd` CX-0004's fixes · `421e535` CX-0005's fixes · `f0ca9f0` CX-0006's fixes · then their docs |
+| Migration | `db/migrations/0018_mission_ledger.sql`, 54171 bytes, sha256 `91a580a7a38f902768e2d82c2eae54b7da0ae8a9ed01cca07b45980f283714de` (the ledger's checksum is the file's SHA-256: 0017 matches CX-0001's `0d0b929f…`) |
+| Contract | amendment `A08-mission-ledger.json` sha256 `a4b686ca…ef1f`; generated `openapi.json` sha256 `76df2990…a0f9` |
 | Guide in the bridge | `apps/media-bridge/src/content/mission-guide/`: prompt `e4fb14d3…c44b` (9809 bytes), skill `2e746dfb…90d5` (14600 bytes), combined `7fe8f729…8f6d` (24410 bytes), manifest `a77cad01…9ba9`, each byte-identical to the pack |
 | Pack | v1.1 (sha256 `8ad62933…802c`); `SHA256SUMS`, `validate_pack.py` and `validate_m01_assets.py` pass in place (rerun at this checkpoint) |
 | Hosted, observed | CX-0003 (22:54 UTC): API `dep-dasrhht9fdbs73eolc40`, worker `dep-dasrio7pn0mc739nnetg`, runtime `dep-dasrjpt9fdbs73eour90`, bridge `dep-dasrlh17lnhs73agv6f0`, all live at `0391bc6`, tracking `claude/affectionate-cannon-496z9m`; Studio `dpl_7sUgFJnxvQGwaqxiNUpYijbVVFpp`; schema 0001–0017, no 0018 (CX-0001) |
@@ -43,12 +44,12 @@ Nothing is merged, released or accepted. The release request is drafted ([CC-000
 
 | Check | Result |
 |---|---|
-| `pnpm check` on the final tree | exit 0: toolchain, format, lint, build, typecheck, `contracts:check`; 297 unit tests; artifacts reproduced; 56 integration tests against the real pinned dsh. That includes the 5-test runtime-service crossing (real API, PostgreSQL and worker), which runs when `SOPHIA_DISPOSABLE_DATABASE_URL` is set |
+| `pnpm check` on the final tree | exit 0: toolchain, format, lint, build, typecheck, `contracts:check`; 298 unit tests; artifacts reproduced; 56 integration tests against the real pinned dsh. That includes the 5-test runtime-service crossing (real API, PostgreSQL and worker), which runs when `SOPHIA_DISPOSABLE_DATABASE_URL` is set |
 | `pnpm test:sql --source pack` | the pack's 4 migrations and its SQL test pass |
 | `pnpm test:sql` | 18 migrations, including 0018, and the SQL test pass |
-| `pnpm test:db` | 190/190 (baseline 147; the brief cases now expect 410) |
-| Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018, rerun with 0018 at `7ff8135a…`: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
-| T17 in a browser | §4, T17 |
+| `pnpm test:db` | 191/191 (baseline 147; the brief cases now expect 410) on the local `C.UTF-8` cluster, and 191/191 on an `en_US.UTF-8` cluster, production's `datctype` (CX-0006) |
+| Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018, rerun with 0018 at `91a580a7…`: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
+| T17 in a browser | §4, T17; the Forget confirmation checked again at `f0ca9f0` (below) |
 
 The database suites ran against a disposable local PostgreSQL 16.13 cluster through `SOPHIA_DISPOSABLE_DATABASE_URL`: this container has no Docker daemon. CI runs them on `postgres:16`. The `room-media` job (a real LiveKit server) exercises `rtc.ts` and the worker's removals, which M01 does not change.
 
@@ -102,6 +103,12 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
   - it shows a focus ring and is scrolled into view when focused;
   - none sits under the dock.
 - **Manual controls through the UI, each confirmed in the API:** add, correct and forget a note (forgetting asks first); reject and accept proposals; withdraw and give consent; the admin's capture off and on.
+- **The Forget confirmation, at `f0ca9f0`** (headless Chromium, the real API and Studio, synthetic data on an `en_US.UTF-8` database; 10/10 checks):
+  - when the preview fails, the confirmation says so and "Forget it" stays disabled; "Check again" reads it;
+  - the list names the note and the accepted direction citing it, each with its words;
+  - a list that went stale (a proposal repeating the note arrived after it was shown) is refused, nothing is erased, and the refusal is in plain words, wrapped inside the panel at 1280 and 375 px wide;
+  - asking again lists the new proposal, and confirming erases exactly that list;
+  - forgetting the note the accepted direction cites erases both.
 - **Limitation, predating M01.** At 200% zoom and 400% reflow the room stage leaves the lens 29–51 px tall. Its geometry is fixed by the light engine (`features/light/engine.ts`) and `theme.css` (`--ly`, `--lr`, `.stage-body`). Everything stays reachable by keyboard and scrolling, but it is cramped, for the composer as much as for the mission view. The fix belongs to the layout's owner, not to M01.
 
 ## 5. Operations
@@ -109,7 +116,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 | Operation | Kind | Request | State |
 |---|---|---|---|
 | SMC-M01-OP-0001 | read-only preflight | [CC-0001](../coordination/SMC-M01/SMC-M01-CC-0001.md) | answered by [CX-0001](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880038214) (`blocked`, partial), [CX-0002](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880048077) and [CX-0003](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880197156) (`reconciled`); read only, no effects |
-| SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md), revision 5 [CC-0007](../coordination/SMC-M01/SMC-M01-CC-0007.md), revision 6 [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md), revision 7 [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md) | revision 5 answered by [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890111217), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890116010), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890119604)); revision 6 answered by [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894944525), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894948663), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894959050)); read only, no effects. Revision 7 asks Codex to check CX-0005's fixes; no answer yet |
+| SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md), revision 5 [CC-0007](../coordination/SMC-M01/SMC-M01-CC-0007.md), revision 6 [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md), revision 7 [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md), revision 8 [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md) | revision 5 answered by [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890111217), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890116010), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890119604)); revision 6 answered by [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894944525), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894948663), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894959050)); revision 7 answered by [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895469644), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895476039)); read only, no effects beyond one production metadata `SELECT` and a private SQL Editor draft it reported. Revision 8 asks Codex to check CX-0006's fixes; no answer yet |
 | SMC-M01-OP-0003 | release batch | [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) | draft, not posted, not approved |
 
 **Reviews of PR #18:**
@@ -160,6 +167,15 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 
 These are product decisions about M01's behaviour, not release approvals.
 
+**OP-0002 revision 7, checked by Claude against CC-0009:**
+
+| Asked | Codex's answer (CX-0006) | Claude's check and outcome |
+|---|---|---|
+| 1. Repeated words | Voice and Studio proposals both cite what they repeat, across the four fields, from current and superseded notes. **F2 (P2):** there is no Unicode normalization, so a composed and a decomposed accent tokenize differently; and a six-word run can span two fields, which could cite, and later erase, an unrelated decision | Confirmed: in both `C.UTF-8` and `en_US.UTF-8`, `città` written with a combining accent splits as `citta`. Fixed at `f0ca9f0`: words are NFKC-normalized first, and a note is matched within one field at a time. The test fails on `421e535` |
+| 2. Reach and replay | `mission_forget_reach` is right for admins, non-admins and mixed chains, and the preview and the withdrawal share it. Replays under a forgotten key are stale. Concurrent changes between the preview and the `POST` can change the list | Agreed; the concurrency point is part of F1 below |
+| 3. Preview route and Studio | The `GET` is authorized as the withdrawal is and shows nothing a member can't already read. **F1 (P1):** on a failed preview the Studio enabled "Forget it" with a generic warning; on success it counted versions and clipped statements; and the `POST` did not use the preview | Confirmed. Fixed at `f0ca9f0`. The Studio fails closed and offers "Check again". The list names every version and decision with its words. The withdrawal carries the ids it showed (`expectedAffected`), and the server erases only if that is still exactly its reach, else a stale conflict explained in plain words. Browser-checked (§4, T17) |
+| 4. Production locale | `en_US.UTF-8`, read with one `SELECT` in the signed-in SQL Editor, which also saved a private untitled draft; no database record changed | `test:db` now also runs on a local `en_US.UTF-8` cluster: 191/191 |
+
 ## 6. Ownership
 
 Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A08-mission-ledger`, the media bridge, the mission and media API routes, `packages/persistence/src/mission*.ts`, and the Studio conversation and mission features. M01 changes no dependency, lockfile or runtime identity. At this checkpoint it also updated [DESTINATION_MAP.md](../DESTINATION_MAP.md) and the release runbook's M01 notes ([deploy/S1-05A-release.md](../../deploy/S1-05A-release.md)); PR #16 touches neither.
@@ -173,13 +189,13 @@ Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A
 - **Names.** The Studio names another member only when the room knows them; otherwise it says "A member". This predates M01 and applies to the discussion too.
 - **Forgetting and a live session.** The bridge rebuilds the provider context as soon as it is notified of a forget, but that is asynchronous: a moment of old-context output between the commit and the rebuild is not excluded. Google's own copy of the dropped session is outside Sophia's reach (M01 §6: no promise about another party's copy).
 - **What confirmation proves.** The host proves that the speaker said something after the proposal was put to them. It does not prove that they heard it, or what they said. Whether the words meant yes is the model's reading, checked in the hosted episode (G5).
-- **What forgetting reaches.** A proposal cites the notes it names and the notes whose words it repeats: six words in a row, or the whole of a note of three to five words. A paraphrase that does neither is not linked to the note, and stays; so does another member's note that happens to say the same thing. This is Davide's decision (§5).
-- **What one member's forget can erase.** Forgetting erases the note's later versions and everything citing it, including other members' corrections and the team's accepted mission, even when the member who wrote the note is now a viewer. Davide accepted this, with the confirmation listing exactly what goes (§5). The list is read when the member clicks Forget; a proposal made between that and the confirmation also goes.
+- **What forgetting reaches.** A proposal cites the notes it names and the notes whose words one of its fields repeats: six words in a row, or the whole of a note of three to five words, in any Unicode form. A paraphrase that does neither is not linked to the note, and stays; so does another member's note that happens to say the same thing. This is Davide's decision (§5).
+- **What one member's forget can erase.** Forgetting erases the note's later versions and everything citing it, including other members' corrections and the team's accepted mission, even when the member who wrote the note is now a viewer. Davide accepted this, with the confirmation listing exactly what goes (§5). The Studio's withdrawal carries the list it showed, so anything that changed in between is refused, not erased. A direct API call may omit the list; it then erases the current reach.
 - **Reviews.** Luis has not reviewed the Studio layout yet.
 
 ## 8. Next action
 
-When CI is green on the pushed head, Davide wakes Codex on CC-0009, and Luis reviews the Studio layout (now including the Forget confirmation's list). When CC-0009 is answered and #16 has merged, merge `main`, rerun the checks, and post CC-0003 with the final SHA for Davide's decision.
+When CI is green on the pushed head, Davide wakes Codex on CC-0010, and Luis reviews the Studio layout (now including the Forget confirmation's list). When CC-0010 is answered and #16 has merged, merge `main`, rerun the checks, and post CC-0003 with the final SHA for Davide's decision.
 
 ## 9. Mission state
 
@@ -191,7 +207,7 @@ When CI is green on the pushed head, Davide wakes Codex on CC-0009, and Luis rev
   "repository": "davidelaverga/Sophia",
   "branch": "claude/upbeat-feynman-d7jskb",
   "base_commit": "c683e6e60ff76004e8a06e71c368b718848b1687",
-  "candidate_commit": "the head of PR #18 (code at 421e535, then its docs)",
+  "candidate_commit": "the head of PR #18 (code at f0ca9f0, then its docs)",
   "implementation_pr": 18,
   "coordination_issue": 17,
   "status": {
@@ -210,14 +226,15 @@ When CI is green on the pushed head, Davide wakes Codex on CC-0009, and Luis rev
   "completed_goals": ["M01-G1", "M01-G2 (source)", "M01-G3 (source)", "M01-G4 (source)"],
   "test_evidence": [
     "baseline at c683e6e (section 2)",
-    "candidate: pnpm check (297 unit, 56 integration with the runtime-service crossing), test:sql pack and repo, test:db 190/190",
+    "candidate: pnpm check (298 unit, 56 integration with the runtime-service crossing), test:sql pack and repo, test:db 191/191 on C.UTF-8 and on en_US.UTF-8",
     "rollback: 0391bc6 code on 0001-0018, test:sql and test:db 147/147",
-    "T17 browser check at 8a4b6a7 (section 4)"
+    "T17 browser check at 8a4b6a7, and the Forget confirmation at f0ca9f0 (section 4)"
   ],
   "outstanding_operations": [
     "SMC-M01-OP-0002 revision 5: answered (CX-0004); findings F1-F3 fixed at 5a03cfd",
     "SMC-M01-OP-0002 revision 6: answered (CX-0005); findings F1-F3 fixed at 421e535 after Davide's product decisions",
-    "SMC-M01-OP-0002 revision 7: read-only check of CX-0005's fixes, requested (CC-0009)",
+    "SMC-M01-OP-0002 revision 7: answered (CX-0006); findings F1-F2 fixed at f0ca9f0",
+    "SMC-M01-OP-0002 revision 8: read-only check of CX-0006's fixes, requested (CC-0010)",
     "SMC-M01-OP-0003 revision 1: release batch, drafted, not posted (CC-0003)"
   ],
   "unknown_effects": [],
@@ -226,7 +243,7 @@ When CI is green on the pushed head, Davide wakes Codex on CC-0009, and Luis rev
   "approval_refs": [],
   "remaining_allowance_ref": null,
   "file_ownership": ["see section 6"],
-  "next_action": "After CI is green: Davide wakes Codex on CC-0009 and Luis reviews the Studio layout; then merge main after #16 and post CC-0003 with the final SHA",
+  "next_action": "After CI is green: Davide wakes Codex on CC-0010 and Luis reviews the Studio layout; then merge main after #16 and post CC-0003 with the final SHA",
   "checkpoint_ref": "docs/handoffs/SMC-M01-attempt-1.md"
 }
 ```
