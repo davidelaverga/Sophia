@@ -123,6 +123,14 @@ const preview = (
   entries: MissionWithdrawalPreview['entries'],
   decisions: MissionWithdrawalPreview['decisions'] = [],
 ): MissionWithdrawalPreview => ({ entryId, ledgerRevision: 4, entries, decisions })
+type Shown = MissionWithdrawalPreview['decisions'][number]
+const shown = (
+  id: string,
+  kind: Shown['kind'],
+  state: Shown['state'],
+  statement: string,
+  over: Partial<Shown> = {},
+): Shown => ({ id, kind, state, revision: 1, statement, purpose: null, destination: null, origin: null, ...over })
 
 describe('mission view', () => {
   it('says plainly when nothing is accepted, and how to begin when nothing is recorded', () => {
@@ -229,8 +237,8 @@ describe('mission view', () => {
   it('before forgetting, lists each version and each proposal or decision that goes, with its words', () => {
     const alone = forgetReach(preview('1', [{ id: '1', state: 'current', text: 'Book the hall early.' }]))
     assert.deepEqual(alone, {
-      items: [{ id: '1', text: 'This note: “Book the hall early.”' }],
-      expected: ['1'],
+      items: [{ id: '1', text: 'This note: “Book the hall early.”', details: [] }],
+      expected: { entryIds: ['1'], decisions: [] },
       closing: 'Sophia stops using it.',
     })
     const built = forgetReach(
@@ -242,9 +250,9 @@ describe('mission view', () => {
           { id: '3', state: 'current', text: 'Groups of three.' },
         ],
         [
-          { id: 'm', kind: 'mission', state: 'accepted', statement: 'Short workshops.' },
-          { id: 'c', kind: 'constraint', state: 'proposed', statement: 'No fees.' },
-          { id: 'l', kind: 'lesson', state: 'rejected', statement: 'Book early.' },
+          shown('m', 'mission', 'accepted', 'Short workshops.', { revision: 2 }),
+          shown('c', 'constraint', 'proposed', 'No fees.'),
+          shown('l', 'lesson', 'rejected', 'Book early.', { revision: 2 }),
         ],
       ),
     )
@@ -261,10 +269,51 @@ describe('mission view', () => {
     )
     assert.deepEqual(
       built.expected,
-      ['1', '2', '3', 'm', 'c', 'l'],
-      'versions, then decisions, as the server listed them',
+      {
+        entryIds: ['1', '2', '3'],
+        decisions: [
+          { id: 'm', revision: 2 },
+          { id: 'c', revision: 1 },
+          { id: 'l', revision: 2 },
+        ],
+      },
+      'the versions and each decision at the revision shown, as the server listed them',
     )
     assert.equal(built.closing, 'Sophia stops using them.')
+  })
+
+  it('lists every word that goes, unclipped: a long note whole, and each of a decision’s fields (CX-0007 F2)', () => {
+    const long = `${'The families on the east side asked for later sessions. '.repeat(35)}End.`
+    assert.ok(long.length > 1900)
+    const listed = forgetReach(
+      preview(
+        '1',
+        [{ id: '1', state: 'current', text: long }],
+        [
+          shown('m', 'mission', 'proposed', 'Evening workshops.', {
+            purpose: 'Working parents can come.',
+            destination: 'Half the families attend.',
+            origin: 'Nobody could come at ten.',
+          }),
+          shown('c', 'constraint', 'accepted', 'No fees.', { destination: 'Free for everyone.' }),
+        ],
+      ),
+    )
+    assert.deepEqual(
+      listed.items.map((item) => [item.text, item.details]),
+      [
+        [`This note: “${long}”`, []],
+        [
+          'The proposed direction: “Evening workshops.”',
+          [
+            'Purpose: “Working parents can come.”',
+            'Destination: “Half the families attend.”',
+            'Starting point: “Nobody could come at ten.”',
+          ],
+        ],
+        ['The accepted constraint: “No fees.”', ['Destination: “Free for everyone.”']],
+      ],
+    )
   })
 
   it('confirms a forget only once its list is shown; if the list could not be read it offers to check again', () => {

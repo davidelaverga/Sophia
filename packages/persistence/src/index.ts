@@ -98,6 +98,7 @@ export {
   recordMissionEntry,
   setMissionNoteConsent,
   setMissionNotePolicy,
+  shownReach,
   withdrawMissionEntry,
   type DecisionWrite,
   type MissionTurn,

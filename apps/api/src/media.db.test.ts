@@ -16,6 +16,7 @@ import {
   parseLobbyEntry,
   parseMediaToolSurface,
   parseMissionContext,
+  parseMissionWithdrawalPreview,
   parseRoomToken,
   parseSnapshot,
 } from '@sophia/contracts/validate'
@@ -30,7 +31,7 @@ import {
   type RoomLink,
   type RoomPerson,
 } from '@sophia/media-bridge'
-import { createPool } from '@sophia/persistence'
+import { createPool, shownReach } from '@sophia/persistence'
 import {
   createTestDatabase,
   registerRuntime,
@@ -396,10 +397,15 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     })
     assert.equal(cited.status, 202)
     const connections = lives.length
-    const forgot = await call(`/api/v1/projects/${seed.projectId}/mission/entries/${noted.json.entryId}/withdrawal`, {
+    const withdrawal = `/api/v1/projects/${seed.projectId}/mission/entries/${noted.json.entryId}/withdrawal`
+    const shown = await call(withdrawal, { bearer: await token(E) })
+    assert.equal(shown.status, 200)
+    const forgot = await call(withdrawal, {
       bearer: await token(E),
       key: true,
-      body: {},
+      body: {
+        expectedAffected: shownReach(parseMissionWithdrawalPreview(shown.json)),
+      },
     })
     assert.equal(forgot.status, 202)
     // The bridge's poll waits 25 s: well within that, only the withdrawal's own notification can have woken it.

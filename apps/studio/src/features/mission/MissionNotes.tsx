@@ -4,7 +4,7 @@
 // it asks first. Each write keeps its Idempotency-Key until the server answers.
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
+import type { MissionContext, MissionEntry, MissionReceipt, MissionWithdrawalRequest } from '@sophia/contracts'
 import { ConfirmButton, Tag } from '@sophia/ui'
 import {
   correctMissionEntry,
@@ -201,21 +201,29 @@ function ReachNote({ reach, onCheck }: { reach: Reach; onCheck: () => void }) {
       </>
     )
   }
+  // Every word that goes, unclipped: a long list scrolls inside the confirmation, above its buttons.
   return (
     <span className="forget-reach">
       <span className="forget-item">Forgetting erases, for everyone:</span>
-      {reach.items.map((item) => (
-        <span key={item.id} className="forget-item">
-          {item.text}
-        </span>
-      ))}
+      <span className="forget-list" role="region" aria-label="What forgetting erases" tabIndex={0}>
+        {reach.items.map((item) => (
+          <span key={item.id} className="forget-item">
+            {item.text}
+            {item.details.map((detail) => (
+              <span key={detail} className="forget-detail">
+                {detail}
+              </span>
+            ))}
+          </span>
+        ))}
+      </span>
       <span className="forget-item">{reach.closing}</span>
     </span>
   )
 }
 
 function Forget({ entry, projectId, identity }: WriteProps) {
-  const write = useMissionWrite<readonly string[]>(projectId, (key, expected) =>
+  const write = useMissionWrite<MissionWithdrawalRequest['expectedAffected']>(projectId, (key, expected) =>
     withdrawMissionEntry(identity.token, projectId, entry.id, key, expected),
   )
   const [reach, setReach] = useState<Reach>({ status: 'checking' })

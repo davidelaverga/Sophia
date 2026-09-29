@@ -1122,16 +1122,43 @@
         "additionalProperties": false,
         "properties": {
           "expectedAffected": {
-            "type": "array",
-            "maxItems": 200,
-            "items": {
-              "type": "string",
-              "format": "uuid"
+            "type": "object",
+            "additionalProperties": false,
+            "description": "What the member's preview listed, in its order: the version ids, and each decision's id with the revision shown (a decision's revision moves whenever its state changes). Required: the withdrawal erases only if that is still exactly what it reaches, at those revisions, and answers a stale conflict otherwise.",
+            "properties": {
+              "entryIds": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "decisions": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["id", "revision"]
+                }
+              }
             },
-            "description": "What the member's preview listed, in its order: the version ids, then the decision ids. When given, the withdrawal erases only if that is still exactly what it reaches, and answers a stale conflict otherwise."
+            "required": ["entryIds", "decisions"]
           }
         },
-        "required": []
+        "required": ["expectedAffected"]
       }
     },
     {
@@ -1140,7 +1167,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "What forgetting this note would erase for everyone, computed by the same rule the withdrawal then applies: the note's versions, from the reader's own earliest wording in its history (an admin's: its first version) to its latest, and every proposal or decision citing any of them. The ledger may move before the member confirms; a withdrawal that sends this list as `expectedAffected` then answers a stale conflict instead of erasing more.",
+        "description": "What forgetting this note would erase for everyone, computed by the same rule the withdrawal then applies: the note's versions, from the reader's own earliest wording in its history (an admin's: its first version) to its latest, and every proposal or decision citing any of them. The ledger may move before the member confirms; the withdrawal must send this list back as `expectedAffected` (the version ids, and each decision's id and revision), and answers a stale conflict instead of erasing anything not shown, or in a state not shown.",
         "properties": {
           "entryId": {
             "type": "string",
@@ -1177,7 +1204,7 @@
           "decisions": {
             "type": "array",
             "maxItems": 100,
-            "description": "The proposals and decisions citing any of them, oldest first",
+            "description": "The proposals and decisions citing any of them, oldest first, with every field of their words",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -1194,11 +1221,25 @@
                   "type": "string",
                   "enum": ["proposed", "accepted", "rejected", "superseded"]
                 },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
                 "statement": {
                   "type": "string"
+                },
+                "purpose": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }]
+                },
+                "destination": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }]
+                },
+                "origin": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }]
                 }
               },
-              "required": ["id", "kind", "state", "statement"]
+              "required": ["id", "kind", "state", "revision", "statement", "purpose", "destination", "origin"]
             }
           }
         },

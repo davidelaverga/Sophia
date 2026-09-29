@@ -11,6 +11,7 @@ import type {
   MissionProposalRequest,
   MissionReceipt,
   MissionWithdrawalPreview,
+  MissionWithdrawalRequest,
 } from '@sophia/contracts'
 import {
   parseMissionContext,
@@ -52,15 +53,15 @@ export const previewMissionWithdrawal = (
   callApi(`${base(projectId)}/entries/${entryId}/withdrawal`, { token, method: 'GET' }, parseMissionWithdrawalPreview)
 
 /**
- * Forget a note, and exactly what its preview listed: `expectedAffected` is that list, and the server refuses (409)
- * if it would now erase anything else.
+ * Forget a note, and exactly what its preview listed: `expectedAffected` is that list (the version ids, each decision's
+ * id and revision), and the server refuses (409) if it would now erase anything else, or anything in another state.
  */
 export const withdrawMissionEntry = (
   token: string,
   projectId: string,
   entryId: string,
   key: string,
-  expectedAffected: readonly string[],
+  expectedAffected: MissionWithdrawalRequest['expectedAffected'],
 ): Promise<MissionReceipt> =>
   callApi(
     `${base(projectId)}/entries/${entryId}/withdrawal`,

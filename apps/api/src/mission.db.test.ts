@@ -19,6 +19,7 @@ import {
   admitNativeTask,
   createPool,
   readSnapshot,
+  shownReach,
   startExchange,
   submitContribution,
   withActor,
@@ -130,18 +131,12 @@ describe('mission routes for members (A08)', () => {
     })
     assert.equal(fixed.status, 202)
     const corrected = parseMissionReceipt(fixed.json)
-    const gone = await call(`/api/v1/projects/${projectId}/mission/entries/${String(corrected.entryId)}/withdrawal`, {
-      as: E,
-      key: randomUUID(),
-      body: {},
-    })
+    const path = `/api/v1/projects/${projectId}/mission/entries/${String(corrected.entryId)}/withdrawal`
+    const shown = shownReach(parseMissionWithdrawalPreview((await call(path, { as: E })).json))
+    const gone = await call(path, { as: E, key: randomUUID(), body: { expectedAffected: shown } })
     assert.equal(gone.status, 202)
     assert.equal(parseMissionReceipt(gone.json).eligibilityRevision, corrected.eligibilityRevision + 1)
-    const again = await call(`/api/v1/projects/${projectId}/mission/entries/${String(corrected.entryId)}/withdrawal`, {
-      as: E,
-      key: randomUUID(),
-      body: {},
-    })
+    const again = await call(path, { as: E, key: randomUUID(), body: { expectedAffected: shown } })
     assert.deepEqual([again.status, again.json.code], [409, 'stale_revision'])
     const ctx = await missionOf(projectId)
     assert.equal(ctx.entries.length, 0)
@@ -185,19 +180,40 @@ describe('mission routes for members (A08)', () => {
       [[n.entryId, 'current', 'Saturday mornings suit the families best.']],
     )
     assert.deepEqual(
-      preview.decisions.map((d) => [d.id, d.kind, d.state, d.statement]),
-      [[proposed.decisionId, 'constraint', 'proposed', 'Hold sessions when Saturday mornings suit the families best.']],
+      preview.decisions.map((d) => [d.id, d.kind, d.state, d.revision, d.statement, d.purpose]),
+      [
+        [
+          proposed.decisionId,
+          'constraint',
+          'proposed',
+          1,
+          'Hold sessions when Saturday mornings suit the families best.',
+          null,
+        ],
+      ],
     )
     const viewer = await call(path, { as: V })
     assert.deepEqual([viewer.status, viewer.json.code], [403, 'forbidden'])
-    // The withdrawal carries what was shown: a list that no longer matches is refused, the one shown is erased.
-    const shown = [n.entryId, proposed.decisionId]
-    const wrong = await call(path, { as: E, key: randomUUID(), body: { expectedAffected: [n.entryId] } })
+    // A withdrawal must carry what was shown (CX-0007 F4): none, an empty one or the earlier flat list is refused.
+    const unnamed = await Promise.all(
+      [{}, { expectedAffected: {} }, { expectedAffected: [n.entryId, proposed.decisionId] }].map(async (body) => {
+        const res = await call(path, { as: E, key: randomUUID(), body })
+        return `${String(res.status)} ${String(res.json.code)}`
+      }),
+    )
+    assert.deepEqual(unnamed, ['422 invalid_request', '422 invalid_request', '422 invalid_request'])
+    // A list that no longer matches is refused, the one shown is erased.
+    const shown = shownReach(preview)
+    const wrong = await call(path, {
+      as: E,
+      key: randomUUID(),
+      body: { expectedAffected: { ...shown, decisions: [] } },
+    })
     assert.deepEqual([wrong.status, wrong.json.code], [409, 'stale_revision'])
     const gone = parseMissionReceipt(
       (await call(path, { as: E, key: randomUUID(), body: { expectedAffected: shown } })).json,
     )
-    assert.deepEqual(gone.affected, shown)
+    assert.deepEqual(gone.affected, [n.entryId, proposed.decisionId])
     const again = await call(path, { as: E })
     assert.deepEqual([again.status, again.json.code], [409, 'stale_revision'], 'nothing left to forget')
   })

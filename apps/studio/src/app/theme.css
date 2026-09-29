@@ -2236,8 +2236,23 @@ button.mark:hover {
   display: grid;
   gap: 2px;
 }
+/* Every word that goes is shown whole; a long list scrolls here, so the confirmation's buttons stay in reach. */
+.forget-list {
+  display: grid;
+  gap: 4px;
+  max-height: min(40vh, 18rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
 .forget-item {
   display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.forget-detail {
+  display: block;
+  padding-left: 12px;
 }
 .empty {
   padding: 24px 0;

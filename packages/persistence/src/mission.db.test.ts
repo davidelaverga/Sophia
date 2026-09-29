@@ -21,6 +21,7 @@ import {
   recordMissionEntry,
   setMissionNoteConsent,
   setMissionNotePolicy,
+  shownReach,
   startExchange,
   transferInputFloor,
   withActor,
@@ -85,6 +86,18 @@ const capture = (projectId: string, on: boolean, expectedRevision: number) =>
   withActor(pool, A, 'write', (c) => setMissionNotePolicy(c, projectId, on ? 'automatic' : 'off', expectedRevision))
 const consent = (actor: string, projectId: string, state: 'accepted' | 'declined') =>
   withActor(pool, actor, 'write', (c) => setMissionNoteConsent(c, projectId, state))
+const preview = (actor: string, projectId: string, entryId: string) =>
+  withActor(pool, actor, 'read', (c) => previewMissionWithdrawal(c, projectId, entryId))
+/** Forget a note as the Studio does: read what goes, then withdraw exactly that. */
+const forget = async (actor: string, projectId: string, entryId: string, key = randomUUID()) => {
+  const shown = shownReach(await preview(actor, projectId, entryId))
+  return withActor(pool, actor, 'write', (c) => withdrawMissionEntry(c, projectId, entryId, key, shown))
+}
+/** Withdraw with a list given outright, bypassing the preview's own checks. */
+const withdraw = (actor: string, projectId: string, entryId: string, entryIds: string[]) =>
+  withActor(pool, actor, 'write', (c) =>
+    withdrawMissionEntry(c, projectId, entryId, randomUUID(), { entryIds, decisions: [] }),
+  )
 
 /** Open the room's exchange with `actor` holding the floor; their current turn. */
 async function exchange(actor: string, projectId: string): Promise<MissionTurn> {
@@ -268,22 +281,15 @@ describe('mission ledger: who may write (T07)', () => {
     const { projectId } = await project()
     const mine = await note(E, projectId, observation('Mine to forget'))
     const theirs = await note(F, projectId, observation('Not mine'))
-    assert.equal(
-      await codeOf(
-        withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, theirs.entryId!, randomUUID())),
-      ),
-      'forbidden',
-    )
+    assert.equal(await codeOf(withdraw(E, projectId, theirs.entryId!, [theirs.entryId!])), 'forbidden')
     await owner(`UPDATE sophia.project_members SET role='viewer' WHERE project_id=$1 AND actor_id=$2`, [projectId, E])
     assert.equal(
       await codeOf(note(E, projectId, { ...observation('Changed'), correctsEntryId: mine.entryId })),
       'forbidden',
     )
-    const withdrawn = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, mine.entryId!, randomUUID()),
-    )
+    const withdrawn = await forget(E, projectId, mine.entryId!)
     assert.equal(withdrawn.operation, 'withdraw_note')
-    await withActor(pool, A, 'write', (c) => withdrawMissionEntry(c, projectId, theirs.entryId!, randomUUID()))
+    await forget(A, projectId, theirs.entryId!)
   })
 })
 
@@ -619,9 +625,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     const { projectId } = await project()
     const n = await note(E, projectId, observation('A private remark that should not stay.'))
     const earlier = await context(E, projectId)
-    const receipt = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, n.entryId!, randomUUID()),
-    )
+    const receipt = await forget(E, projectId, n.entryId!)
     assert.equal(receipt.eligibilityRevision, earlier.eligibilityRevision + 1)
     const texts = await owner<{ n: string }>(
       `SELECT count(*) AS n FROM sophia.source_texts WHERE project_id=$1 AND source_id=$2`,
@@ -642,10 +646,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     const read = await withActor(pool, E, 'read', (c) => readMissionSource(c, projectId, 'entry', n.entryId!))
     assert.deepEqual([read?.state, read?.text], ['withdrawn', null])
     assert.ok(!JSON.stringify(ctx).includes('private remark'))
-    assert.equal(
-      await codeOf(withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, n.entryId!, randomUUID()))),
-      'stale_revision',
-    )
+    assert.equal(await codeOf(withdraw(E, projectId, n.entryId!, [n.entryId!])), 'stale_revision')
   })
 
   it('what was derived from the note goes with it: its versions, the proposals citing it, an accepted mission', async () => {
@@ -669,9 +670,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     })
     const unrelated = await propose(E, projectId, { kind: 'lesson', statement: 'Book the hall early.' })
 
-    const receipt = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, first.entryId!, randomUUID()),
-    )
+    const receipt = await forget(E, projectId, first.entryId!)
     assert.deepEqual(receipt.affected, [first.entryId, fixed.entryId, mission.decisionId, cited.decisionId])
 
     const sources = [first.sourceId, fixed.sourceId, mission.sourceId, cited.sourceId]
@@ -730,7 +729,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     const digest = createHash('sha256').update(words).digest('hex')
     const key = randomUUID()
     const n = await note(E, projectId, observation(words), key)
-    await withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, n.entryId!, randomUUID()))
+    await forget(E, projectId, n.entryId!)
     const rows = JSON.stringify(
       await owner(
         `SELECT (SELECT jsonb_agg(s) FROM sophia.source_objects s WHERE project_id=$1) AS sources,
@@ -764,9 +763,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     const e1 = await note(E, projectId, observation('The hall seats forty.'))
     const f2 = await note(F, projectId, { ...observation('The hall seats forty-five.'), correctsEntryId: e1.entryId! })
     const e3 = await note(E, projectId, { ...observation('The hall seats fifty.'), correctsEntryId: f2.entryId! })
-    const receipt = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, e3.entryId!, randomUUID()),
-    )
+    const receipt = await forget(E, projectId, e3.entryId!)
     assert.deepEqual(receipt.affected, [e1.entryId, f2.entryId, e3.entryId])
     // F1 -> E2: E forgetting E2 leaves F's original wording, which is F's.
     const f1 = await note(F, projectId, observation('Parking is free on Sundays.'))
@@ -774,9 +771,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       ...observation('Parking is free on weekends.'),
       correctsEntryId: f1.entryId!,
     })
-    const second = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, e2.entryId!, randomUUID()),
-    )
+    const second = await forget(E, projectId, e2.entryId!)
     assert.deepEqual(second.affected, [e2.entryId])
     const ctx = await context(E, projectId)
     assert.deepEqual(
@@ -821,9 +816,7 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       (await context(F, projectId)).pending.find((d) => d.id === repeatsItalian.decisionId)?.supportingEntryIds,
       [italian.entryId],
     )
-    const receipt = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, long.entryId!, randomUUID()),
-    )
+    const receipt = await forget(E, projectId, long.entryId!)
     assert.deepEqual(receipt.affected, [long.entryId, repeatsLong.decisionId])
     const pending = (await context(F, projectId)).pending.map((d) => d.id)
     assert.deepEqual(pending, [
@@ -844,46 +837,115 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     const mission = await propose(F, projectId, {
       kind: 'mission',
       statement: 'Short workshops.',
+      purpose: 'Beginners stay to the end.',
+      destination: 'A workshop every month.',
+      origin: 'Half the room left the long ones.',
       supportingEntryIds: [fixed.entryId!],
     })
     await decide(A, projectId, mission.decisionId!, { decision: 'accept', expectedRevision: 1 })
-    const preview = await withActor(pool, E, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))
+    const shown = await preview(E, projectId, fixed.entryId!)
     assert.deepEqual(
-      preview.entries.map((e) => [e.id, e.state, e.text]),
+      shown.entries.map((e) => [e.id, e.state, e.text]),
       [
         [first.entryId, 'superseded', 'Workshops should stay under two hours long.'],
         [fixed.entryId, 'current', 'Workshops should stay under ninety minutes long.'],
       ],
     )
+    // Every field of a decision's words is shown, since every field is erased (CX-0007 F2).
     assert.deepEqual(
-      preview.decisions.map((d) => [d.id, d.kind, d.state, d.statement]),
-      [[mission.decisionId, 'mission', 'accepted', 'Short workshops.']],
+      shown.decisions.map((d) => [d.id, d.kind, d.state, d.revision, d.statement, d.purpose, d.destination, d.origin]),
+      [
+        [
+          mission.decisionId,
+          'mission',
+          'accepted',
+          2,
+          'Short workshops.',
+          'Beginners stay to the end.',
+          'A workshop every month.',
+          'Half the room left the long ones.',
+        ],
+      ],
     )
-    assert.equal(
-      await codeOf(withActor(pool, F, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))),
-      'forbidden',
-      'another editor may not forget it',
-    )
+    assert.equal(await codeOf(preview(F, projectId, fixed.entryId!)), 'forbidden', 'another editor may not forget it')
     // A proposal that repeats the note arrives after the preview: the withdrawal bound to it erases nothing.
-    const shown = [...preview.entries.map((e) => e.id), ...preview.decisions.map((d) => d.id)]
     const late = await propose(F, projectId, {
       kind: 'constraint',
       statement: 'Workshops should stay under ninety minutes long, always.',
     })
     assert.equal(
       await codeOf(
-        withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID(), shown)),
+        withActor(pool, E, 'write', (c) =>
+          withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID(), shownReach(shown)),
+        ),
       ),
       'stale_revision',
       'what it would erase changed since it was shown',
     )
-    const again = await withActor(pool, E, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))
-    const seen = [...again.entries.map((e) => e.id), ...again.decisions.map((d) => d.id)]
-    assert.deepEqual(seen, [...shown, late.decisionId])
+    const again = shownReach(await preview(E, projectId, fixed.entryId!))
+    assert.deepEqual(again, {
+      entryIds: [first.entryId, fixed.entryId],
+      decisions: [
+        { id: mission.decisionId, revision: 2 },
+        { id: late.decisionId, revision: 1 },
+      ],
+    })
     const receipt = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID(), seen),
+      withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID(), again),
     )
-    assert.deepEqual(receipt.affected, seen)
+    assert.deepEqual(receipt.affected, [first.entryId, fixed.entryId, mission.decisionId, late.decisionId])
+  })
+
+  it('a proposal decided after the preview is not erased under its unchanged id (CX-0007 F1)', async () => {
+    const { projectId } = await project()
+    const words = 'Families come on Saturday mornings, not in the evening.'
+    const n = await note(E, projectId, observation(words))
+    const mission = await propose(F, projectId, { kind: 'mission', statement: words })
+    const shown = await preview(E, projectId, n.entryId!)
+    assert.deepEqual(
+      shown.decisions.map((d) => [d.id, d.state, d.revision]),
+      [[mission.decisionId, 'proposed', 1]],
+    )
+    // The member is shown a pending proposal; before they confirm, it becomes the accepted mission. The ids are the same.
+    await decide(A, projectId, mission.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    assert.equal(
+      await codeOf(
+        withActor(pool, E, 'write', (c) =>
+          withdrawMissionEntry(c, projectId, n.entryId!, randomUUID(), shownReach(shown)),
+        ),
+      ),
+      'stale_revision',
+    )
+    const kept = await context(E, projectId)
+    assert.deepEqual([kept.mission?.statement, kept.entries.length], [words, 1], 'nothing was erased')
+    const now = await preview(E, projectId, n.entryId!)
+    assert.deepEqual(
+      now.decisions.map((d) => [d.id, d.state, d.revision]),
+      [[mission.decisionId, 'accepted', 2]],
+    )
+    const receipt = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, n.entryId!, randomUUID(), shownReach(now)),
+    )
+    assert.deepEqual(receipt.affected, [n.entryId, mission.decisionId])
+    assert.equal((await context(E, projectId)).mission, null)
+  })
+
+  it('a withdrawal must name what the member was shown; without it nothing is erased (CX-0007 F4)', async () => {
+    const { projectId } = await project()
+    const n = await note(E, projectId, observation('The room is free on Tuesdays.'))
+    // Nothing, an empty list, and the earlier flat list of ids are all refused before anything is read or erased.
+    const unnamed = [undefined, {}, [n.entryId], { entryIds: [n.entryId] }]
+    const codes = await Promise.all(
+      unnamed.map((expected) =>
+        codeOf(
+          withActor(pool, E, 'write', (c) =>
+            withdrawMissionEntry(c, projectId, n.entryId!, randomUUID(), expected as never),
+          ),
+        ),
+      ),
+    )
+    assert.deepEqual(codes, ['invalid_request', 'invalid_request', 'invalid_request', 'invalid_request'])
+    assert.equal((await context(E, projectId)).entries.length, 1)
   })
 
   it('repeated words match in any Unicode form, within one field of the proposal, never across two', async () => {
@@ -902,6 +964,20 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     const cited = new Map((await context(F, projectId)).pending.map((d) => [d.id, d.supportingEntryIds]))
     assert.deepEqual(cited.get(decomposed.decisionId!), [n.entryId], 'the same words in another Unicode form')
     assert.deepEqual(cited.get(split.decisionId!), [], 'a run split across two fields is not a repeat')
+  })
+
+  it('compatibility forms stay other characters: ① is not 1, a full-width word is not the word (CX-0007 F3)', async () => {
+    const { projectId } = await project()
+    const n = await note(E, projectId, observation('Plan 1 now'))
+    const circled = await propose(F, projectId, { kind: 'constraint', statement: 'Plan ① now' })
+    const wide = await propose(F, projectId, { kind: 'constraint', statement: 'Ｐｌａｎ １ ｎｏｗ' })
+    const same = await propose(F, projectId, { kind: 'constraint', statement: 'So: PLAN 1, now!' })
+    const cited = new Map((await context(F, projectId)).pending.map((d) => [d.id, d.supportingEntryIds]))
+    assert.deepEqual(
+      [circled, wide, same].map((p) => cited.get(p.decisionId!)),
+      [[], [], [n.entryId]],
+      'literal words, canonical accents only; case and punctuation aside',
+    )
   })
 })
 

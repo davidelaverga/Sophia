@@ -121,24 +121,50 @@ const stop = (text: string) => (text.endsWith('”') ? text : `${text}.`)
 const decisionName = (d: Pick<MissionDecision, 'kind' | 'state'>) =>
   `the ${(d.state === 'proposed' ? PROPOSAL_KIND[d.kind] : `${OUTCOME[d.state]} ${AGREED_KIND[d.kind]}`).toLowerCase()}`
 
+/** A decision's other fields, as the proposal words them (sophia.proposal_text). */
+const DECISION_FIELDS = [
+  ['purpose', 'Purpose'],
+  ['destination', 'Destination'],
+  ['origin', 'Starting point'],
+] as const
+
+/** One line of the Forget confirmation: a version or a decision, and a decision's other fields under it. */
+export interface ForgetItem {
+  id: string
+  text: string
+  details: readonly string[]
+}
+
 /**
  * What the Forget confirmation lists, from the server's preview: each version of the note and each proposal or
- * decision citing them, with its words; and the ids, in the preview's order, that the withdrawal then expects. The
- * withdrawal applies the same rule, and refuses if it would erase anything else.
+ * decision citing them, with all of its words, unclipped, since all of them are erased; and what the withdrawal then
+ * expects, in the preview's order: the version ids and each decision's id at the revision shown. The withdrawal
+ * applies the same rule, and refuses if it would erase anything else, or anything in another state.
  */
 export function forgetReach(preview: MissionWithdrawalPreview) {
-  const versions = preview.entries.map((e) => ({
+  const versions = preview.entries.map<ForgetItem>((e) => ({
     id: e.id,
-    text: `${e.id === preview.entryId ? 'This note' : e.state === 'current' ? 'Its current version' : 'Another version'}: “${clip(e.text, 280)}”`,
+    text: `${e.id === preview.entryId ? 'This note' : e.state === 'current' ? 'Its current version' : 'Another version'}: “${e.text}”`,
+    details: [],
   }))
-  const decisions = preview.decisions.map((d) => {
+  const decisions = preview.decisions.map<ForgetItem>((d) => {
     const name = decisionName(d)
-    return { id: d.id, text: `${name.charAt(0).toUpperCase()}${name.slice(1)}: “${clip(d.statement, 280)}”` }
+    return {
+      id: d.id,
+      text: `${name.charAt(0).toUpperCase()}${name.slice(1)}: “${d.statement}”`,
+      details: DECISION_FIELDS.flatMap(([field, label]) => {
+        const value = d[field]
+        return value === null ? [] : [`${label}: “${value}”`]
+      }),
+    }
   })
   const items = [...versions, ...decisions]
   return {
     items,
-    expected: items.map((item) => item.id),
+    expected: {
+      entryIds: preview.entries.map((e) => e.id),
+      decisions: preview.decisions.map((d) => ({ id: d.id, revision: d.revision })),
+    },
     closing: `Sophia stops using ${items.length === 1 ? 'it' : 'them'}.`,
   }
 }

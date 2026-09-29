@@ -10,6 +10,7 @@ import type {
   MissionProposalRequest,
   MissionReceipt,
   MissionWithdrawalPreview,
+  MissionWithdrawalRequest,
 } from '@sophia/contracts'
 import { onlyRow } from './rows.ts'
 
@@ -65,24 +66,30 @@ export function recordMissionEntry(
 }
 
 /**
- * Forget a note and what was derived from it; eligibility narrows. With `expectedAffected`, the ids its preview listed,
- * it erases only if that is still exactly what it reaches, else it is a stale conflict. Call inside withActor(...,
- * "write").
+ * Forget a note and what was derived from it; eligibility narrows. `expectedAffected` is what its preview listed (the
+ * version ids, each decision's id and revision): it erases only if that is still exactly what it reaches, else it is a
+ * stale conflict. Call inside withActor(..., "write").
  */
 export function withdrawMissionEntry(
   c: pg.PoolClient,
   projectId: string,
   entryId: string,
   idempotencyKey: string,
-  expectedAffected?: readonly string[],
+  expectedAffected: MissionWithdrawalRequest['expectedAffected'],
 ): Promise<MissionReceipt> {
   return receipt(c, 'withdraw_mission_entry', `SELECT sophia.withdraw_mission_entry($1, $2, $3, $4) AS receipt`, [
     projectId,
     entryId,
     idempotencyKey,
-    expectedAffected === undefined ? null : JSON.stringify(expectedAffected),
+    JSON.stringify(expectedAffected),
   ])
 }
+
+/** What a withdrawal expects, from the preview the member was shown. */
+export const shownReach = (preview: MissionWithdrawalPreview): MissionWithdrawalRequest['expectedAffected'] => ({
+  entryIds: preview.entries.map((e) => e.id),
+  decisions: preview.decisions.map((d) => ({ id: d.id, revision: d.revision })),
+})
 
 /**
  * What forgetting a note would erase, by the same rule the withdrawal applies: shown to the member before they confirm.
