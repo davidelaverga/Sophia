@@ -125,6 +125,15 @@ const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
 const OFFERED = (import.meta.env.VITE_AUTH_PROVIDERS ?? '').split(',').map((s) => s.trim())
 export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) => OFFERED.includes(p))
 
+/**
+ * Providers on their way (VITE_AUTH_PROVIDERS_SOON="azure"): shown greyed in the row, with a tip saying so, so
+ * the row keeps its shape while an app is being set up. A provider already offered is never "soon".
+ */
+const SOON = (import.meta.env.VITE_AUTH_PROVIDERS_SOON ?? '').split(',').map((s) => s.trim())
+export const upcomingProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter(
+  (p) => SOON.includes(p) && !OFFERED.includes(p),
+)
+
 /** "passkey" in VITE_AUTH_PROVIDERS, once passkeys are enabled in Supabase Auth for this site's domain. */
 export const passkeysOffered = OFFERED.includes('passkey')
 

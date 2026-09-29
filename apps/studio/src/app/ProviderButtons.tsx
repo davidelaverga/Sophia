@@ -2,7 +2,7 @@
 // comes back signed in; a first visit creates the account, as the email link does.
 import { useState } from 'react'
 import { Tip } from '@sophia/ui'
-import { oauthProviders, signInWithProvider, type OAuthProvider } from './auth.ts'
+import { oauthProviders, signInWithProvider, upcomingProviders, type OAuthProvider } from './auth.ts'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', github: 'GitHub', azure: 'Microsoft' }
 
@@ -78,6 +78,19 @@ export function ProviderButtons() {
           >
             <ProviderMark provider={p} />
             <Tip label={leaving === p ? `Opening ${PROVIDER_NAME[p]}…` : PROVIDER_NAME[p]} />
+          </button>
+        ))}
+        {upcomingProviders.map((p) => (
+          // aria-disabled rather than disabled: the tip still shows on hover and focus, and says why.
+          <button
+            key={p}
+            type="button"
+            className="provider soon has-tip"
+            aria-label={`${PROVIDER_NAME[p]}, coming soon`}
+            aria-disabled
+          >
+            <ProviderMark provider={p} />
+            <Tip label={`${PROVIDER_NAME[p]} · coming soon`} />
           </button>
         ))}
       </div>
