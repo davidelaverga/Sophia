@@ -9,7 +9,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 - **Codex's read-only reviews for OP-0002.**
   - [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), at `dfee0bc`: two P1 issues and one P2, all fixed at `5a03cfd`.
   - [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), Codex's check of those fixes at `5a03cfd`: it confirmed the current-floor fix, and found one P1 and two P2 issues. They are fixed at `421e535`, following Davide's two product decisions (§5).
-  - [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md) asks Codex to check them.
+  - [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895383757)) asks Codex to check them.
 
 Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0009's answer.
 
