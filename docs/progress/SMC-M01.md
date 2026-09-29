@@ -6,7 +6,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 
 **State on 2026-09-29, attempt 1: G1–G4 are implemented and tested; every review finding so far is fixed; G5 is prepared, not requested.** The candidate is on PR #18.
 - **Codex's GitHub reviews.** The first (of `5382575`) found two P2 issues, fixed at `a0a1562`; the second (of `50ae500`) two P1 issues, fixed at `7fd4573`; the third (of `44513c8`) one P1 and three P2 issues, fixed at `f230848`; the fourth (of `ae6312a`) one P1, fixed at `dfee0bc`; the fifth (of `98a6373`) nothing new.
-- **Codex's read-only review for OP-0002** ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), at `dfee0bc`) found two P1 issues and one P2, all fixed at `5a03cfd` (§5). [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md) asks Codex to check the fixes.
+- **Codex's read-only review for OP-0002** ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), at `dfee0bc`) found two P1 issues and one P2, all fixed at `5a03cfd` (§5). [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890452741)) asks Codex to check the fixes.
 
 Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0008's answer.
 
