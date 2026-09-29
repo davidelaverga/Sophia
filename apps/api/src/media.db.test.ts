@@ -377,6 +377,27 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     assert.equal(mission.pending.length, 2, 'the proposals are untouched')
   })
 
+  it('forgetting a note wakes the bridge at once: Sophia’s provider context is rebuilt without waiting for the poll', async () => {
+    const noted = await call(`/api/v1/projects/${seed.projectId}/mission/entries`, {
+      bearer: await token(E),
+      key: true,
+      body: { kind: 'observation', epistemic: 'reported', text: 'A note to forget.' },
+    })
+    assert.equal(noted.status, 202)
+    const connections = lives.length
+    const forgot = await call(`/api/v1/projects/${seed.projectId}/mission/entries/${noted.json.entryId}/withdrawal`, {
+      bearer: await token(E),
+      key: true,
+      body: {},
+    })
+    assert.equal(forgot.status, 202)
+    // The bridge's poll waits 25 s: well within that, only the withdrawal's own notification can have woken it.
+    await until('the bridge rebuilt the provider context', () => lives.length === connections + 1, 5000)
+    live = lives.at(-1) as FakeLive
+    live.events.setupComplete()
+    await until('voice ready again', async () => (await snapshot()).room.sophia.voice === 'ready')
+  })
+
   it('a viewer can take the floor and talk with Sophia, but cannot change the mission by voice', async () => {
     const snap = await snapshot()
     const moved = await call(`/api/v1/rooms/${snap.room.id}/input-floor`, {

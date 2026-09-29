@@ -528,4 +528,22 @@ BEGIN
   WHERE e.state<>'ended');
 END $$;
 
+-- Wake the bridge's assignment poll (0013's channel and payload: a room id) when a project with a live exchange moves
+-- its mission, ledger or eligibility revision. Above all a withdrawal: the bridge rebuilds its provider context at
+-- once, instead of when the poll's wait runs out. Delivered at commit, like every NOTIFY.
+CREATE FUNCTION sophia.notify_media_revisions() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,sophia AS $$
+DECLARE r uuid;
+BEGIN
+ FOR r IN SELECT DISTINCT room_id FROM sophia.room_exchanges WHERE project_id=NEW.id AND state<>'ended' LOOP
+  PERFORM pg_notify('sophia_media', r::text);
+ END LOOP;
+ RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION sophia.notify_media_revisions() FROM PUBLIC;
+CREATE TRIGGER projects_media_revisions AFTER UPDATE OF mission_revision, ledger_revision, eligibility_revision
+ ON sophia.projects FOR EACH ROW
+ WHEN ((OLD.mission_revision, OLD.ledger_revision, OLD.eligibility_revision)
+  IS DISTINCT FROM (NEW.mission_revision, NEW.ledger_revision, NEW.eligibility_revision))
+ EXECUTE FUNCTION sophia.notify_media_revisions();
+
 COMMIT;
