@@ -191,6 +191,14 @@ const statusOf = (r: FunctionResponse | undefined): unknown => {
   return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve))
+/** Turns of the event loop until `done` holds: retries wait on real timers, which a busy machine delays. */
+async function until(what: string, done: () => boolean, ms = 2000): Promise<void> {
+  const deadline = Date.now() + ms
+  while (!done()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 1))
+  }
+}
 /** 100 ms of the holder's microphone, just under the audible floor: a quiet room. */
 const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
 /** 100 ms of the holder saying something. */
@@ -1550,15 +1558,15 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
   it('a write whose reply is lost is retried with the same identity, then reported unknown; a read is an error (T18)', async () => {
     const { room, live } = await ready()
     room.events.audio(LUIS, pcm16k(), 16000, 1)
-    service.toolCall = async (c) => {
+    // This test's own fake: a call still retrying when the test ends can never count in the next test's service.
+    const fake = service
+    fake.toolCall = async (c) => {
       await Promise.resolve()
-      service.calls.push(c)
+      fake.calls.push(c)
       throw new Error('socket hang up')
     }
     live.events.toolCalls([{ id: 'lost-1', name: 'record_mission_note', args: NOTE }])
-    await flush()
-    await new Promise((resolve) => setTimeout(resolve, 5))
-    await flush()
+    await until('the write to be answered', () => live.responses.length >= 1)
     assert.equal(service.calls.length, 3, 'sent again twice, each time as the same call')
     assert.ok(
       service.calls.every(
@@ -1569,24 +1577,23 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
     assert.equal(output.status, 'unknown', 'never "nothing was saved"')
     assert.match(output.next, /Read project_status/)
     live.events.toolCalls([{ id: 'lost-2', name: 'project_status', args: {} }])
-    await new Promise((resolve) => setTimeout(resolve, 5))
-    await flush()
+    await until('the read to be answered', () => live.responses.length >= 2)
     assert.equal(statusOf(live.responses[1]), 'error', 'a read that failed changed nothing')
   })
 
   it('a refusal from the API (4xx) is not retried and is not reported as unknown', async () => {
     const { room, live } = await ready()
     room.events.audio(LUIS, pcm16k(), 16000, 1)
-    service.toolCall = async (c) => {
+    const fake = service
+    fake.toolCall = async (c) => {
       await Promise.resolve()
-      service.calls.push(c)
+      fake.calls.push(c)
       throw new ServiceError(422, 'POST /v1/media/tool-calls: 422')
     }
     live.events.toolCalls([
       { id: 'refused-1', name: 'propose_mission_change', args: { kind: 'mission', statement: 'x' } },
     ])
-    await flush()
-    await flush()
+    await until('the refusal to be answered', () => live.responses.length >= 1)
     assert.equal(service.calls.length, 1)
     assert.equal(statusOf(live.responses[0]), 'error')
   })
