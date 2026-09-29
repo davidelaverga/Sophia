@@ -36,11 +36,11 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 
 | Check | Result |
 |---|---|
-| `pnpm check` on the final tree | exit 0: toolchain, format, lint, build, typecheck, `contracts:check`; 292 unit tests; artifacts reproduced; 51 integration tests against the real pinned dsh |
+| `pnpm check` on the final tree | exit 0: toolchain, format, lint, build, typecheck, `contracts:check`; 292 unit tests; artifacts reproduced; 56 integration tests against the real pinned dsh. That includes the 5-test runtime-service crossing (real API, PostgreSQL and worker), which runs when `SOPHIA_DISPOSABLE_DATABASE_URL` is set |
 | `pnpm test:sql --source pack` | the pack's 4 migrations and its SQL test pass |
 | `pnpm test:sql` | 18 migrations, including 0018, and the SQL test pass |
 | `pnpm test:db` | 179/179 (baseline 147: +21 persistence mission, +10 API mission, +1 tool surface; the brief cases now expect 410) |
-| Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
+| Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018, rerun with 0018 at `051eac26…`: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
 | T17 in a browser | §4, T17 |
 
 The database suites ran against a disposable local PostgreSQL 16.13 cluster through `SOPHIA_DISPOSABLE_DATABASE_URL`: this container has no Docker daemon. CI runs them on `postgres:16`. The `room-media` job (a real LiveKit server) exercises `rtc.ts` and the worker's removals, which M01 does not change.
@@ -170,7 +170,7 @@ When CI is green on the pushed head, ask Luis for the Studio review and Davide t
   "completed_goals": ["M01-G1", "M01-G2 (source)", "M01-G3 (source)", "M01-G4 (source)"],
   "test_evidence": [
     "baseline at c683e6e (section 2)",
-    "candidate: pnpm check (292 unit, 51 integration), test:sql pack and repo, test:db 179/179",
+    "candidate: pnpm check (292 unit, 56 integration with the runtime-service crossing), test:sql pack and repo, test:db 179/179",
     "rollback: 0391bc6 code on 0001-0018, test:sql and test:db 147/147",
     "T17 browser check at 8a4b6a7 (section 4)"
   ],

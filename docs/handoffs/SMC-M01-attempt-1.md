@@ -30,7 +30,7 @@
 ## Evidence
 
 The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
-- **Checks:** `pnpm check` exit 0 (292 unit, 51 integration against the real pinned dsh). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 179/179.
+- **Checks:** `pnpm check` exit 0 (292 unit; 56 integration against the real pinned dsh, the runtime-service crossing included). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 179/179.
 - **Rollback:** production's code at `0391bc6` passes its own `test:sql` and `test:db` (147/147) on 0001–0018.
 - **T17:** checked in a browser against the real API, including keyboard and the manual controls.
 - **Hosted facts:** from OP-0001 (CX-0001 to CX-0003), checked against CC-0001.
