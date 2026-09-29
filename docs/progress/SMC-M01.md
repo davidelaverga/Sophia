@@ -10,7 +10,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
   - [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), at `dfee0bc`: two P1 issues and one P2, all fixed at `5a03cfd`.
   - [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), Codex's check of those fixes at `5a03cfd`: it confirmed the current-floor fix, and found one P1 and two P2 issues. They are fixed at `421e535`, following Davide's two product decisions (§5).
   - [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), Codex's check of those at `421e535`: it confirmed the reach, the authorization and the stale replay, and found one P1 and one P2. Both are fixed at `f0ca9f0`.
-  - [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md) asks Codex to check them.
+  - [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895776087)) asks Codex to check them.
 
 Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0010's answer.
 
