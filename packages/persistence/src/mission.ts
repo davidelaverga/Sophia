@@ -64,17 +64,23 @@ export function recordMissionEntry(
   ])
 }
 
-/** Forget a note: its text is erased and eligibility narrows. Call inside withActor(..., "write"). */
+/**
+ * Forget a note and what was derived from it; eligibility narrows. With `expectedAffected`, the ids its preview listed,
+ * it erases only if that is still exactly what it reaches, else it is a stale conflict. Call inside withActor(...,
+ * "write").
+ */
 export function withdrawMissionEntry(
   c: pg.PoolClient,
   projectId: string,
   entryId: string,
   idempotencyKey: string,
+  expectedAffected?: readonly string[],
 ): Promise<MissionReceipt> {
-  return receipt(c, 'withdraw_mission_entry', `SELECT sophia.withdraw_mission_entry($1, $2, $3) AS receipt`, [
+  return receipt(c, 'withdraw_mission_entry', `SELECT sophia.withdraw_mission_entry($1, $2, $3, $4) AS receipt`, [
     projectId,
     entryId,
     idempotencyKey,
+    expectedAffected === undefined ? null : JSON.stringify(expectedAffected),
   ])
 }
 

@@ -2218,6 +2218,27 @@ button.mark:hover {
   color: var(--text-2);
   font-size: 12.5px;
 }
+/* A refusal in the mission view is a sentence: it wraps inside the panel instead of running past its edge. */
+.mission .tag.rose {
+  align-items: flex-start;
+  height: auto;
+  min-height: 20px;
+  max-width: 100%;
+  padding: 2px 7px;
+  white-space: normal;
+}
+.mission .tag.rose .dot {
+  flex: none;
+  margin-top: 6px;
+}
+/* What a forget erases, one line each, before it can be confirmed. */
+.forget-reach {
+  display: grid;
+  gap: 2px;
+}
+.forget-item {
+  display: block;
+}
 .empty {
   padding: 24px 0;
   color: var(--text-3);

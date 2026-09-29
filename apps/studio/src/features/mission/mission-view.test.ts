@@ -11,7 +11,9 @@ import {
   citesLine,
   decidedBy,
   direction,
-  forgetWarning,
+  forgetControls,
+  forgetReach,
+  forgetRefusal,
   historyText,
   noteActions,
   notesLine,
@@ -116,12 +118,11 @@ const context = (over: Partial<MissionContext> = {}): MissionContext => ({
 })
 
 const excluded = (olderEntries: number, olderHistory: number) => ({ olderEntries, olderHistory, legacyFrame: false })
-const preview = (entryIds: string[], decisions: MissionWithdrawalPreview['decisions'] = []) => ({
-  entryId: entryIds.at(-1) ?? '1',
-  ledgerRevision: 4,
-  entryIds,
-  decisions,
-})
+const preview = (
+  entryId: string,
+  entries: MissionWithdrawalPreview['entries'],
+  decisions: MissionWithdrawalPreview['decisions'] = [],
+): MissionWithdrawalPreview => ({ entryId, ledgerRevision: 4, entries, decisions })
 
 describe('mission view', () => {
   it('says plainly when nothing is accepted, and how to begin when nothing is recorded', () => {
@@ -225,22 +226,59 @@ describe('mission view', () => {
     assert.equal(noteActions(ctx, entry('1', { state: 'withdrawn', actorId: 'me' }), 'me').withdraw, false)
   })
 
-  it('before forgetting, names what goes: the note, its other versions, and each proposal or decision citing them', () => {
-    assert.equal(forgetWarning(preview(['1'])), 'Forgetting erases, for everyone: the note. Sophia stops using it.')
-    assert.equal(
-      forgetWarning(
-        preview(
-          ['1', '2'],
-          [
-            { id: 'm', kind: 'mission', state: 'accepted', statement: 'Short workshops.' },
-            { id: 'c', kind: 'constraint', state: 'proposed', statement: 'No fees.' },
-            { id: 'l', kind: 'lesson', state: 'rejected', statement: 'Book early.' },
-          ],
-        ),
+  it('before forgetting, lists each version and each proposal or decision that goes, with its words', () => {
+    const alone = forgetReach(preview('1', [{ id: '1', state: 'current', text: 'Book the hall early.' }]))
+    assert.deepEqual(alone, {
+      items: [{ id: '1', text: 'This note: “Book the hall early.”' }],
+      expected: ['1'],
+      closing: 'Sophia stops using it.',
+    })
+    const built = forgetReach(
+      preview(
+        '2',
+        [
+          { id: '1', state: 'superseded', text: 'Groups of five.' },
+          { id: '2', state: 'superseded', text: 'Groups of four.' },
+          { id: '3', state: 'current', text: 'Groups of three.' },
+        ],
+        [
+          { id: 'm', kind: 'mission', state: 'accepted', statement: 'Short workshops.' },
+          { id: 'c', kind: 'constraint', state: 'proposed', statement: 'No fees.' },
+          { id: 'l', kind: 'lesson', state: 'rejected', statement: 'Book early.' },
+        ],
       ),
-      'Forgetting erases, for everyone: the note and its 1 other version; the accepted direction “Short workshops.”; ' +
-        'the proposed constraint “No fees.”; the rejected lesson “Book early.” Sophia stops using them.',
     )
+    assert.deepEqual(
+      built.items.map((item) => item.text),
+      [
+        'Another version: “Groups of five.”',
+        'This note: “Groups of four.”',
+        'Its current version: “Groups of three.”',
+        'The accepted direction: “Short workshops.”',
+        'The proposed constraint: “No fees.”',
+        'The rejected lesson: “Book early.”',
+      ],
+    )
+    assert.deepEqual(
+      built.expected,
+      ['1', '2', '3', 'm', 'c', 'l'],
+      'versions, then decisions, as the server listed them',
+    )
+    assert.equal(built.closing, 'Sophia stops using them.')
+  })
+
+  it('confirms a forget only once its list is shown; if the list could not be read it offers to check again', () => {
+    assert.deepEqual(forgetControls('checking'), { canConfirm: false, canRetry: false })
+    assert.deepEqual(forgetControls('failed'), { canConfirm: false, canRetry: true })
+    assert.deepEqual(forgetControls('ready'), { canConfirm: true, canRetry: false })
+    assert.equal(
+      forgetRefusal({
+        code: 'stale_revision',
+        message: 'Stale withdrawal: what it would erase changed since it was shown',
+      }),
+      'Something changed since the list was shown, so nothing was forgotten. Forget again to see what would go now.',
+    )
+    assert.equal(forgetRefusal({ code: 'forbidden', message: 'Not permitted' }), 'Not permitted')
   })
 
   it('says which notes a proposal rests on, by their words when this view has them', () => {

@@ -199,9 +199,10 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.mission_text(jsonb,integer,boolean) FROM PUBLIC;
 
--- A text's words, lowercased, without punctuation.
+-- A text's words: one Unicode form (NFKC, so a composed and a decomposed accent are the same letter), lowercased,
+-- split at anything that is not a letter or digit.
 CREATE FUNCTION sophia.mission_words(p_text text) RETURNS text[] LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
- SELECT array_remove(regexp_split_to_array(lower(regexp_replace(coalesce(p_text,''),'[^[:alnum:]]+',' ','g')),' '),'') $$;
+ SELECT array_remove(regexp_split_to_array(lower(regexp_replace(normalize(coalesce(p_text,''),NFKC),'[^[:alnum:]]+',' ','g')),' '),'') $$;
 REVOKE ALL ON FUNCTION sophia.mission_words(text) FROM PUBLIC;
 
 -- Whether a text repeats a note's words: six of them in a row, or the whole of a note of three to five words. A note
@@ -363,20 +364,24 @@ BEGIN
  SELECT * INTO r FROM sophia.mission_forget_reach(p_project,p_entry,a,sophia.is_admin(p_project));
  RETURN jsonb_build_object('entryId',p_entry,
   'ledgerRevision',(SELECT ledger_revision FROM sophia.projects WHERE id=p_project),
-  'entryIds',to_jsonb(r.entry_ids),
+  'entries',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',e.id,'state',e.state,'text',t.body) ORDER BY x.ord),'[]')
+   FROM unnest(r.entry_ids) WITH ORDINALITY AS x(id,ord) JOIN sophia.mission_entries e ON e.project_id=p_project AND e.id=x.id
+   JOIN sophia.source_texts t ON t.project_id=e.project_id AND t.source_id=e.source_id),
   'decisions',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',d.id,'kind',d.kind,'state',d.state,
     'statement',d.proposal->>'statement') ORDER BY x.ord),'[]')
    FROM unnest(r.decision_ids) WITH ORDINALITY AS x(id,ord) JOIN sophia.decisions d ON d.project_id=p_project AND d.id=x.id));
 END $$;
 
 -- withdrawMissionEntry (A08): forget a note and what was derived from it (mission_forget_reach). Its author or an
--- admin. Every proposal or decision reached becomes withdrawn with its text erased; an accepted mission's frame keeps
+-- admin. With p_expected, the ids the member's preview listed (its versions, then the decisions), it erases only if
+-- that is still exactly what it reaches, and is otherwise a stale conflict: nothing goes that they were not shown. Every proposal or decision reached becomes withdrawn with its text erased; an accepted mission's frame keeps
 -- only its decision id, and the mission revision does not move: the frame is erased, not replaced. Every erased text
 -- follows mission_erase_source. The project's eligibility revision moves, so a live provider context that read any of
 -- it is rebuilt.
-CREATE FUNCTION sophia.withdraw_mission_entry(p_project uuid, p_entry uuid, p_key text) RETURNS jsonb LANGUAGE plpgsql
-SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.actor_id(); semantic jsonb:=jsonb_build_object('entryId',p_entry); prior jsonb; e sophia.mission_entries;
+CREATE FUNCTION sophia.withdraw_mission_entry(p_project uuid, p_entry uuid, p_key text, p_expected jsonb DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.actor_id(); semantic jsonb:=jsonb_strip_nulls(jsonb_build_object('entryId',p_entry,'expected',p_expected));
+ prior jsonb; e sophia.mission_entries;
  v sophia.mission_entries; d sophia.decisions; receipt_value jsonb; r record; affected jsonb:='[]';
 BEGIN
  IF a IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
@@ -385,6 +390,8 @@ BEGIN
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  e:=sophia.mission_forgettable(p_project,p_entry);
  SELECT * INTO r FROM sophia.mission_forget_reach(p_project,p_entry,a,sophia.is_admin(p_project));
+ IF p_expected IS NOT NULL AND p_expected IS DISTINCT FROM to_jsonb(r.entry_ids)||to_jsonb(r.decision_ids) THEN
+  RAISE EXCEPTION 'Stale withdrawal: what it would erase changed since it was shown' USING ERRCODE='40001'; END IF;
  FOR v IN SELECT m.* FROM unnest(r.entry_ids) WITH ORDINALITY AS x(id,ord)
    JOIN sophia.mission_entries m ON m.project_id=p_project AND m.id=x.id ORDER BY x.ord LOOP
   UPDATE sophia.mission_entries SET state='withdrawn', changed_by=a, changed_at=now() WHERE project_id=p_project AND id=v.id;
@@ -466,12 +473,14 @@ BEGIN
  SELECT x INTO bad FROM unnest(supporting) x WHERE NOT EXISTS(
   SELECT 1 FROM sophia.mission_entries e WHERE e.project_id=p_project AND e.id=x AND e.state<>'withdrawn') LIMIT 1;
  IF bad IS NOT NULL THEN RAISE EXCEPTION 'Supporting note not found' USING ERRCODE='22023'; END IF;
- -- It cites the notes it names, and every note whose words it repeats, named or not (mission_repeats): forgetting any
- -- of them forgets it too. A paraphrase that names nothing cites nothing.
+ -- It cites the notes it names, and every note whose words one of its fields repeats, named or not (mission_repeats):
+ -- forgetting any of them forgets it too. A run split across two fields is not a repeat, and a paraphrase that names
+ -- nothing cites nothing.
  SELECT supporting||coalesce(array_agg(e.id ORDER BY e.recorded_at),'{}') INTO cited
   FROM sophia.mission_entries e JOIN sophia.source_texts t ON t.project_id=e.project_id AND t.source_id=e.source_id
   WHERE e.project_id=p_project AND e.state<>'withdrawn' AND NOT e.id=ANY(supporting)
-   AND sophia.mission_repeats(t.body,concat_ws(E'\n',proposal->>'statement',proposal->>'purpose',proposal->>'destination',proposal->>'origin'));
+   AND (sophia.mission_repeats(t.body,proposal->>'statement') OR sophia.mission_repeats(t.body,proposal->>'purpose')
+    OR sophia.mission_repeats(t.body,proposal->>'destination') OR sophia.mission_repeats(t.body,proposal->>'origin'));
  IF cardinality(cited)>64 THEN RAISE EXCEPTION 'A proposal can rest on at most 64 notes' USING ERRCODE='22023'; END IF;
  src:=sophia.put_text_source(p_project,a,'text/plain; charset=utf-8',sophia.proposal_text(kind,proposal));
  INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id)
@@ -637,12 +646,12 @@ BEGIN
  RETURN jsonb_build_object('state',c.state,'revision',c.revision);
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text),
+REVOKE ALL ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text,jsonb),
  sophia.preview_mission_withdrawal(uuid,uuid),
  sophia.propose_mission_change(uuid,text,jsonb), sophia.present_mission_proposal(uuid,uuid,jsonb),
  sophia.decide_mission_change(uuid,uuid,text,jsonb), sophia.set_mission_note_policy(uuid,text,bigint),
  sophia.set_mission_note_consent(uuid,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text),
+GRANT EXECUTE ON FUNCTION sophia.record_mission_entry(uuid,text,jsonb), sophia.withdraw_mission_entry(uuid,uuid,text,jsonb),
  sophia.preview_mission_withdrawal(uuid,uuid),
  sophia.propose_mission_change(uuid,text,jsonb), sophia.present_mission_proposal(uuid,uuid,jsonb),
  sophia.decide_mission_change(uuid,uuid,text,jsonb), sophia.set_mission_note_policy(uuid,text,bigint),

@@ -122,17 +122,37 @@ const decisionName = (d: Pick<MissionDecision, 'kind' | 'state'>) =>
   `the ${(d.state === 'proposed' ? PROPOSAL_KIND[d.kind] : `${OUTCOME[d.state]} ${AGREED_KIND[d.kind]}`).toLowerCase()}`
 
 /**
- * What the Forget confirmation says, from the server's preview: the note, its other versions, and every proposal or
- * decision citing them, named with their words. The withdrawal applies the same rule, so this is what goes.
+ * What the Forget confirmation lists, from the server's preview: each version of the note and each proposal or
+ * decision citing them, with its words; and the ids, in the preview's order, that the withdrawal then expects. The
+ * withdrawal applies the same rule, and refuses if it would erase anything else.
  */
-export function forgetWarning(preview: MissionWithdrawalPreview): string {
-  const others = preview.entryIds.length - 1
-  const parts = [
-    others > 0 ? `the note and its ${String(others)} other version${others > 1 ? 's' : ''}` : 'the note',
-    ...preview.decisions.map((d) => `${decisionName(d)} “${clip(d.statement)}”`),
-  ]
-  const single = parts.length === 1 && others === 0
-  return `${stop(`Forgetting erases, for everyone: ${parts.join('; ')}`)} Sophia stops using ${single ? 'it' : 'them'}.`
+export function forgetReach(preview: MissionWithdrawalPreview) {
+  const versions = preview.entries.map((e) => ({
+    id: e.id,
+    text: `${e.id === preview.entryId ? 'This note' : e.state === 'current' ? 'Its current version' : 'Another version'}: “${clip(e.text, 280)}”`,
+  }))
+  const decisions = preview.decisions.map((d) => {
+    const name = decisionName(d)
+    return { id: d.id, text: `${name.charAt(0).toUpperCase()}${name.slice(1)}: “${clip(d.statement, 280)}”` }
+  })
+  const items = [...versions, ...decisions]
+  return {
+    items,
+    expected: items.map((item) => item.id),
+    closing: `Sophia stops using ${items.length === 1 ? 'it' : 'them'}.`,
+  }
+}
+
+/** Why a forget was refused, in plain words: a stale list means something now cites the note, so ask again. */
+export function forgetRefusal(error: { code: string; message: string }): string {
+  return error.code === 'stale_revision'
+    ? 'Something changed since the list was shown, so nothing was forgotten. Forget again to see what would go now.'
+    : error.message
+}
+
+/** The confirmation confirms only a list it has shown; if the list could not be read it offers to check again. */
+export function forgetControls(status: 'checking' | 'ready' | 'failed') {
+  return { canConfirm: status === 'ready', canRetry: status === 'failed' }
 }
 
 /** The notes a proposal rests on, by their words when this view has them: it goes if any of them is forgotten. */

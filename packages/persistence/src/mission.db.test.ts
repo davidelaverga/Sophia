@@ -848,7 +848,13 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
     })
     await decide(A, projectId, mission.decisionId!, { decision: 'accept', expectedRevision: 1 })
     const preview = await withActor(pool, E, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))
-    assert.deepEqual(preview.entryIds, [first.entryId, fixed.entryId])
+    assert.deepEqual(
+      preview.entries.map((e) => [e.id, e.state, e.text]),
+      [
+        [first.entryId, 'superseded', 'Workshops should stay under two hours long.'],
+        [fixed.entryId, 'current', 'Workshops should stay under ninety minutes long.'],
+      ],
+    )
     assert.deepEqual(
       preview.decisions.map((d) => [d.id, d.kind, d.state, d.statement]),
       [[mission.decisionId, 'mission', 'accepted', 'Short workshops.']],
@@ -858,10 +864,44 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       'forbidden',
       'another editor may not forget it',
     )
-    const receipt = await withActor(pool, E, 'write', (c) =>
-      withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID()),
+    // A proposal that repeats the note arrives after the preview: the withdrawal bound to it erases nothing.
+    const shown = [...preview.entries.map((e) => e.id), ...preview.decisions.map((d) => d.id)]
+    const late = await propose(F, projectId, {
+      kind: 'constraint',
+      statement: 'Workshops should stay under ninety minutes long, always.',
+    })
+    assert.equal(
+      await codeOf(
+        withActor(pool, E, 'write', (c) => withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID(), shown)),
+      ),
+      'stale_revision',
+      'what it would erase changed since it was shown',
     )
-    assert.deepEqual(receipt.affected, [...preview.entryIds, ...preview.decisions.map((d) => d.id)])
+    const again = await withActor(pool, E, 'read', (c) => previewMissionWithdrawal(c, projectId, fixed.entryId!))
+    const seen = [...again.entries.map((e) => e.id), ...again.decisions.map((d) => d.id)]
+    assert.deepEqual(seen, [...shown, late.decisionId])
+    const receipt = await withActor(pool, E, 'write', (c) =>
+      withdrawMissionEntry(c, projectId, fixed.entryId!, randomUUID(), seen),
+    )
+    assert.deepEqual(receipt.affected, seen)
+  })
+
+  it('repeated words match in any Unicode form, within one field of the proposal, never across two', async () => {
+    const { projectId } = await project()
+    // The note is written with composed accents (NFC); the proposal repeats it with decomposed ones (NFD).
+    const composed = 'La città è più bella di sera in estate.'
+    const n = await note(E, projectId, observation(composed))
+    const decomposed = await propose(F, projectId, { kind: 'constraint', statement: composed.normalize('NFD') })
+    assert.notEqual(composed, composed.normalize('NFD'))
+    // Three words end the statement and the next three begin the purpose: no single field repeats six in a row.
+    const split = await propose(F, projectId, {
+      kind: 'mission',
+      statement: 'Our town: la città è',
+      purpose: 'più bella di sera, we say.',
+    })
+    const cited = new Map((await context(F, projectId)).pending.map((d) => [d.id, d.supportingEntryIds]))
+    assert.deepEqual(cited.get(decomposed.decisionId!), [n.entryId], 'the same words in another Unicode form')
+    assert.deepEqual(cited.get(split.decisionId!), [], 'a run split across two fields is not a repeat')
   })
 })
 

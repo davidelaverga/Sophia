@@ -10,6 +10,7 @@ import type {
   MissionNoteConsentRequest,
   MissionNotePolicyRequest,
   MissionProposalRequest,
+  MissionWithdrawalRequest,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
@@ -93,12 +94,17 @@ function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
       ),
   )
 
-  app.post<{ Params: { projectId: string; entryId: string }; Headers: { 'idempotency-key': string } }>(
+  app.post<{
+    Params: { projectId: string; entryId: string }
+    Headers: { 'idempotency-key': string }
+    Body: MissionWithdrawalRequest
+  }>(
     '/api/v1/projects/:projectId/mission/entries/:entryId/withdrawal',
     { schema: writeSchema(withId('entryId'), 'MissionWithdrawalRequest') },
     async (req, reply) => {
+      const { projectId, entryId } = req.params
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
-        withdrawMissionEntry(c, req.params.projectId, req.params.entryId, req.headers['idempotency-key']),
+        withdrawMissionEntry(c, projectId, entryId, req.headers['idempotency-key'], req.body.expectedAffected),
       )
       return reply.status(202).send(receipt)
     },

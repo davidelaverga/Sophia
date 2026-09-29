@@ -51,14 +51,22 @@ export const previewMissionWithdrawal = (
 ): Promise<MissionWithdrawalPreview> =>
   callApi(`${base(projectId)}/entries/${entryId}/withdrawal`, { token, method: 'GET' }, parseMissionWithdrawalPreview)
 
-/** Forget a note, and what the preview listed: their text is erased. */
+/**
+ * Forget a note, and exactly what its preview listed: `expectedAffected` is that list, and the server refuses (409)
+ * if it would now erase anything else.
+ */
 export const withdrawMissionEntry = (
   token: string,
   projectId: string,
   entryId: string,
   key: string,
+  expectedAffected: readonly string[],
 ): Promise<MissionReceipt> =>
-  callApi(`${base(projectId)}/entries/${entryId}/withdrawal`, { token, body: {}, key }, parseMissionReceipt)
+  callApi(
+    `${base(projectId)}/entries/${entryId}/withdrawal`,
+    { token, body: { expectedAffected }, key },
+    parseMissionReceipt,
+  )
 
 export const proposeMissionChange = (
   token: string,

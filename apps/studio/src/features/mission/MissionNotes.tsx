@@ -25,7 +25,9 @@ import {
   omittedLine,
   recentNotes,
   wording,
-  forgetWarning,
+  forgetControls,
+  forgetReach,
+  forgetRefusal,
   writeControls,
 } from './mission-view.ts'
 
@@ -183,39 +185,68 @@ function CorrectNote({ entry, projectId, identity, onDone }: WriteProps & { onDo
   )
 }
 
-/** Until the preview answers, the confirmation waits; if it can't be read, it says in general what goes. */
-const FORGET_FALLBACK =
-  'Forgetting erases, for everyone: the note, its other versions, and any proposal or decision citing them, the accepted direction included. Sophia stops using them.'
+/** What the Forget confirmation knows: nothing yet, the list the server returned, or that it could not be read. */
+type Reach = { status: 'checking' } | { status: 'failed' } | ({ status: 'ready' } & ReturnType<typeof forgetReach>)
+
+/** The confirmation's words: every version and every decision that goes, each with its own words. */
+function ReachNote({ reach, onCheck }: { reach: Reach; onCheck: () => void }) {
+  if (reach.status === 'checking') return <>Checking what goes with it…</>
+  if (reach.status === 'failed') {
+    return (
+      <>
+        Couldn’t check what goes with it, so it can’t be forgotten yet.{' '}
+        <button type="button" className="text-button" onClick={onCheck}>
+          Check again
+        </button>
+      </>
+    )
+  }
+  return (
+    <span className="forget-reach">
+      <span className="forget-item">Forgetting erases, for everyone:</span>
+      {reach.items.map((item) => (
+        <span key={item.id} className="forget-item">
+          {item.text}
+        </span>
+      ))}
+      <span className="forget-item">{reach.closing}</span>
+    </span>
+  )
+}
 
 function Forget({ entry, projectId, identity }: WriteProps) {
-  const write = useMissionWrite<string>(projectId, (key, id) =>
-    withdrawMissionEntry(identity.token, projectId, id, key),
+  const write = useMissionWrite<readonly string[]>(projectId, (key, expected) =>
+    withdrawMissionEntry(identity.token, projectId, entry.id, key, expected),
   )
-  const [reach, setReach] = useState<string | null>(null)
+  const [reach, setReach] = useState<Reach>({ status: 'checking' })
   const controls = writeControls(write.state.status)
-  // Asked when the member clicks Forget, not before: the list is what goes at that moment.
+  const confirming = forgetControls(reach.status)
+  // Asked when the member clicks Forget: the list is what goes at that moment, and the withdrawal carries it, so the
+  // server refuses if anything else would go. Without the list there is nothing to confirm.
   const ask = () => {
-    setReach(null)
+    setReach({ status: 'checking' })
     void previewMissionWithdrawal(identity.token, projectId, entry.id).then(
-      (preview) => setReach(forgetWarning(preview)),
-      () => setReach(FORGET_FALLBACK),
+      (preview) => setReach({ status: 'ready', ...forgetReach(preview) }),
+      () => setReach({ status: 'failed' }),
     )
   }
   return (
     <>
       <ConfirmButton
         label="Forget"
-        warning={reach ?? 'Checking what goes with it…'}
+        warning={<ReachNote reach={reach} onCheck={ask} />}
         confirm="Forget it"
         keep="Keep it"
         className="text-button"
         disabled={!controls.canSubmit}
         onAsk={ask}
-        confirmDisabled={reach === null}
-        onConfirm={() => void write.submit(entry.id)}
+        confirmDisabled={!confirming.canConfirm}
+        onConfirm={() => {
+          if (reach.status === 'ready') void write.submit(reach.expected)
+        }}
       />
       {controls.canRetry && <Unconfirmed onRetry={() => void write.retry()} />}
-      {write.state.status === 'rejected' && <Tag tone="rose">{write.state.error.message}</Tag>}
+      {write.state.status === 'rejected' && <Tag tone="rose">{forgetRefusal(write.state.error)}</Tag>}
     </>
   )
 }

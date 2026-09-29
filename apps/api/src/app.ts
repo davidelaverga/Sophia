@@ -70,7 +70,9 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.guest_token_minting(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.capture_completed_turns(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.record_mission_entry(uuid,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.preview_mission_withdrawal(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
