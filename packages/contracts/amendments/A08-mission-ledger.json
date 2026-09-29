@@ -1373,6 +1373,40 @@
       }
     },
     {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/202"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/403"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/409"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/503"
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/422/description",
+      "value": "The project id is not a UUID"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/requestBody"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/parameters/1"
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/deprecated",
+      "value": true
+    },
+    {
       "op": "replace",
       "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/x-sophia-release-goal",
       "value": "SMC-M01"

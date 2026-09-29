@@ -2,7 +2,8 @@
 -- a project source with its author and turn, over the canonical records that already exist.
 -- * One authoritative ledger. The accepted mission stays in project_revisions and projects.mission_revision; a proposal
 --   is a decisions row; a note is a mission_entries row whose text is a project source. projects.ledger_revision moves
---   with every note, proposal and decision, separately from the mission revision: a note is not a mission pivot.
+--   with every note, proposal and decision, and with every change to note capture or a member's consent, separately
+--   from the mission revision: a note is not a mission pivot.
 -- * Authority comes from the caller's membership, never from a request field. Writes need admin or editor; a member
 --   may always record their own note consent and forget a note made from their own turn. A voice write names its turn
 --   (exchange and input epoch), and the functions re-check that the epoch binds the calling actor in an open exchange.
@@ -456,24 +457,30 @@ BEGIN
  INSERT INTO sophia.mission_note_policies(project_id,capture,revision,changed_by) VALUES(p_project,p_capture,current_revision+1,a)
  ON CONFLICT (project_id) DO UPDATE SET capture=EXCLUDED.capture, revision=EXCLUDED.revision, changed_by=EXCLUDED.changed_by, changed_at=now()
  RETURNING * INTO pol;
- PERFORM sophia.emit_project_event(p_project,'mission.note_policy_changed','project',p_project,pol.revision,'mission.capture_'||p_capture);
+ -- The ledger revision moves too: a live guide re-reads the policy it speaks from (MediaAssignment.ledgerRevision).
+ PERFORM sophia.mission_commit(p_project,'mission.note_policy_changed','project',p_project,'mission.capture_'||p_capture);
  RETURN jsonb_build_object('capture',pol.capture,'revision',pol.revision);
 END $$;
 
 -- setMissionNoteConsent (A08): a member accepts or declines notes and proposals kept from their own turns.
 CREATE FUNCTION sophia.set_mission_note_consent(p_project uuid, p_state text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.actor_id(); c sophia.mission_note_consents;
+DECLARE a uuid:=sophia.actor_id(); c sophia.mission_note_consents; before text;
 BEGIN
  IF a IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
  IF p_state IS NULL OR p_state NOT IN ('accepted','declined') THEN RAISE EXCEPTION 'Invalid consent' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
+ SELECT state INTO before FROM sophia.mission_note_consents WHERE project_id=p_project AND actor_id=a;
  INSERT INTO sophia.mission_note_consents(project_id,actor_id,state,revision) VALUES(p_project,a,p_state,1)
  ON CONFLICT (project_id,actor_id) DO UPDATE SET state=EXCLUDED.state,
   revision=sophia.mission_note_consents.revision+CASE WHEN sophia.mission_note_consents.state=EXCLUDED.state THEN 0 ELSE 1 END,
   changed_at=CASE WHEN sophia.mission_note_consents.state=EXCLUDED.state THEN sophia.mission_note_consents.changed_at ELSE now() END
  RETURNING * INTO c;
- PERFORM sophia.emit_project_event(p_project,'mission.note_consent_changed','project',p_project,c.revision,'mission.consent_'||p_state);
+ -- A change moves the ledger revision, so a live guide re-reads what it may keep from this speaker; the same choice
+ -- again changes nothing and says nothing.
+ IF before IS DISTINCT FROM p_state THEN
+  PERFORM sophia.mission_commit(p_project,'mission.note_consent_changed','project',p_project,'mission.consent_'||p_state);
+ END IF;
  RETURN jsonb_build_object('state',c.state,'revision',c.revision);
 END $$;
 

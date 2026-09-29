@@ -67,12 +67,19 @@ function typeOf(s: Schema): string {
   throw new Error(`Unsupported schema: ${JSON.stringify(s)}`)
 }
 
+/** The success body's type. An operation with no success at all is retired: it cannot succeed. */
+function responseTypeOf(op: Operation): string {
+  const [status, success] = Object.entries(op.responses).find(([code]) => code.startsWith('2')) ?? []
+  if (status === undefined) return 'never'
+  const response = success?.content?.['application/json']?.schema
+  if (response) return typeOf(response)
+  // A 204 has no body; any other success without a JSON schema is the event stream.
+  return status === '204' ? 'undefined' : STREAM_RESPONSE
+}
+
 function operationLine(path: string, method: string, op: Operation): string {
   const request = op.requestBody?.content?.['application/json']?.schema
-  const [status, success] = Object.entries(op.responses).find(([code]) => code.startsWith('2')) ?? []
-  const response = success?.content?.['application/json']?.schema
-  // A 204 has no body; any other success without a JSON schema is the event stream.
-  const responseType = response ? typeOf(response) : status === '204' ? 'undefined' : STREAM_RESPONSE
+  const responseType = responseTypeOf(op)
   return (
     `  ${dumps(op.operationId)}: { method: ${dumps(method.toUpperCase())}; path: ${dumps(path)}; ` +
     `request: ${request ? typeOf(request) : 'undefined'}; response: ${responseType}; };`

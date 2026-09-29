@@ -4618,54 +4618,11 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 160
-            }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NativeTaskRequest"
-              }
-            }
-          }
-        },
         "responses": {
-          "202": {
-            "description": "Admitted; delivery and result are observed through events",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NativeTaskReceipt"
-                }
-              }
-            }
-          },
           "401": {
             "description": "Unauthenticated"
-          },
-          "403": {
-            "description": "Not permitted (viewers and guests cannot admit work) or an input is not eligible"
-          },
-          "409": {
-            "description": "Stale mission revision or idempotency mismatch",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           },
           "410": {
             "description": "New brief admission is retired; talk it through with Sophia instead",
@@ -4678,17 +4635,7 @@
             }
           },
           "422": {
-            "description": "Request fails the declared schema or semantic field constraints",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "No native runtime is registered for this project, or a dependent service is unavailable",
+            "description": "The project id is not a UUID",
             "content": {
               "application/json": {
                 "schema": {
@@ -4699,7 +4646,8 @@
           }
         },
         "x-sophia-implementation": "contract_only",
-        "x-sophia-release-goal": "SMC-M01"
+        "x-sophia-release-goal": "SMC-M01",
+        "deprecated": true
       }
     },
     "/api/v1/projects/{projectId}/native-tasks/{taskId}": {

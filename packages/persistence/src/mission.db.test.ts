@@ -559,4 +559,22 @@ describe('mission ledger: revisions reach the media bridge', () => {
       [second.missionRevision, second.ledgerRevision, second.eligibilityRevision],
     )
   })
+
+  it('a change to note capture or to a member’s consent moves the ledger revision, so a live guide re-reads it', async () => {
+    const { projectId } = await project()
+    const turn = await exchange(E, projectId)
+    const ledger = async () =>
+      (await withService(pool, (c) => mediaAssignments(c))).find((a) => a.exchangeId === turn.exchangeId)
+        ?.ledgerRevision ?? 0
+    const start = await ledger()
+    await capture(projectId, true, 0)
+    assert.equal(await ledger(), start + 1, 'capture turned on')
+    await consent(E, projectId, 'accepted')
+    assert.equal(await ledger(), start + 2, 'consent given')
+    await consent(E, projectId, 'accepted')
+    assert.equal(await ledger(), start + 2, 'the same choice again changes nothing')
+    await consent(E, projectId, 'declined')
+    await capture(projectId, false, 1)
+    assert.equal(await ledger(), start + 4, 'consent withdrawn, then capture turned off')
+  })
 })

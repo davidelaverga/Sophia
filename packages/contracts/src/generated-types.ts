@@ -148,7 +148,7 @@ export interface Operations {
   "runtimeReceipts": { method: "POST"; path: "/v1/runtime/receipts"; request: RuntimeReceiptBatch; response: undefined; };
   "runtimeObservations": { method: "POST"; path: "/v1/runtime/observations"; request: RuntimeObservationBatch; response: undefined; };
   "runtimeReady": { method: "POST"; path: "/v1/runtime/ready"; request: RuntimeReady; response: undefined; };
-  "admitNativeTask": { method: "POST"; path: "/api/v1/projects/{projectId}/native-tasks"; request: NativeTaskRequest; response: NativeTaskReceipt; };
+  "admitNativeTask": { method: "POST"; path: "/api/v1/projects/{projectId}/native-tasks"; request: undefined; response: never; };
   "getNativeTask": { method: "GET"; path: "/api/v1/projects/{projectId}/native-tasks/{taskId}"; request: undefined; response: NativeTaskDetail; };
   "endExchange": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/end"; request: undefined; response: ExchangeState; };
   "stopSophiaSpeaking": { method: "POST"; path: "/api/v1/exchanges/{exchangeId}/stop-speaking"; request: undefined; response: ExchangeState; };
