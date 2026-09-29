@@ -64,7 +64,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 | Item | State |
 |---|---|
 | SMC-M01-OP-0002 | revisions 5 to 10 answered (CX-0004 to CX-0009), all thirteen findings fixed, and CX-0009 found nothing new; read only. No unknown effect |
-| SMC-M01-OP-0004 (CC-0013 rev 1, CC-0014 rev 2) | the production test before merge (path B). Revision 1 at `c429869` preflighted by CX-0010: blocked on the migration-owner connection and Davide's approval. Revision 2 at `126cea3` (a test-only CI fix) keeps both blockers. No effect yet |
+| SMC-M01-OP-0004 (CC-0013 rev 1, CC-0014 rev 2) | the production test before merge (path B). Revision 1 at `c429869` preflighted by CX-0010: blocked on the migration-owner connection and Davide's approval. Revision 2 at `126cea3` (a test-only CI fix): source prepared by CX-0011, the same two blockers. No effect yet |
 | SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CC-0012's answer and #16. Its first step is the owner-connection dry run |
 | Luis's review | the Studio layout and interaction (`apps/studio/src/features/mission/`, `theme.css`) |
 | Merge | after #16; then merge `main` into the branch, and rerun `pnpm check`, `test:sql` and `test:db` |
