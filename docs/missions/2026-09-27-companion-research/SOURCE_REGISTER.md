@@ -188,3 +188,7 @@ Current primary orientation for optional alternative; no Firecrawl call made.
 [Preset registry README](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/preset/agent-preset-registry/README.md)
 
 Fresh source read of the opening110lines reconfirmed declarative tools/prompt/skill presets, shared host loop, live-generation retention, current-definition restore after restart, and no sandbox guarantee. Git blob SHA: `44b01be1ceea5936668f091fb410137f3a139a88`. This supplements, rather than replaces, the prior audit's rc.1 preset finding.
+
+## M01 content amendment — 28 September 2026
+
+This content-only revision did not refresh the dated repository or provider observations above. It used the actual v1.0 mission and candidate assets, the preserved prior ledgers, and a full read of the original user skill `goal_lifecycle(2).md` (file ID `file_00000000ff0c820aa4b8f2e3736c2d07`). The exact wording and loading rules in [M01 v1.1](missions/M01_MISSION_COMPANION.md#8-exact-system-prompt-complete-skill-and-context-binding) are authored implementation requirements, not verified deployed behavior. See [content sources](evidence/m01_content_sources.json) and [the change record](CHANGELOG_v1.1.md).

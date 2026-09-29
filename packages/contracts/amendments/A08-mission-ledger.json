@@ -1,0 +1,2532 @@
+{
+  "id": "A08",
+  "goal": "SMC-M01",
+  "title": "The mission ledger: notes, proposals and decisions about the team's mission, and the guide's six operations",
+  "why": [
+    "SMC-M01 replaces the brief ritual with a mission-aware companion. The mission ledger is the application's current view of canonical project records: the accepted mission stays in project_revisions and the project's mission revision; a proposal is a decisions row; a note is a mission entry whose text is a project source with its author and turn (db/migrations/0018). The ledger revision moves with every note, proposal and decision, separately from the mission revision.",
+    "Members read one MissionContext (the same read model the voice guide's project_status uses), and write notes, corrections, withdrawals, proposals and decisions under their own identity, each idempotent per member and key, with stale revisions answered as conflicts. A withdrawal erases the note's text and advances the project's eligibility revision. Voice note capture is off until an admin turns it on, and each member's own consent is required for notes and proposals from their turns.",
+    "The media bridge's guide has six model-facing operations, fixed by the M01 v1.1 prompt: project_status, read_selected_source, record_mission_note, propose_mission_change, decide_mission_change and control_work. start_brief is removed. MediaToolCall gains `utterance`, the holder utterances the bridge has forwarded in its provider session, so a voice decision can be bound to an answer given after the proposal was put. MediaToolResult gains the write outcomes committed, proposed, conflict, denied and unknown. MediaAssignment carries the project's mission, ledger and eligibility revisions, so the bridge refreshes Sophia's context when the ledger moves and rebuilds it when eligibility narrows. /v1/media/tool-surface lets the bridge check, before activating the guide, that the API executes exactly the operations it declares.",
+    "New draft_brief admission is retired: POST native-tasks answers 410 before any write. Existing briefs, their results, their controls and their one-time result notices are unchanged."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionEntry",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "expectation",
+              "outcome",
+              "blocker",
+              "explanation",
+              "lesson_candidate",
+              "continuity"
+            ]
+          },
+          "epistemic": {
+            "type": "string",
+            "enum": ["reported", "observed", "inferred"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["current", "superseded", "withdrawn"]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "textKind": {
+            "type": "string",
+            "enum": ["sophia_paraphrase", "member_text"]
+          },
+          "authoredBy": {
+            "type": "string",
+            "enum": ["sophia", "member"]
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "origin": {
+            "type": "string",
+            "enum": ["voice", "studio"]
+          },
+          "exchangeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputEpoch": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relatedEntryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supersedesEntryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supersededById": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goalId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ledgerRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "epistemic",
+          "state",
+          "text",
+          "textKind",
+          "authoredBy",
+          "actorId",
+          "origin",
+          "exchangeId",
+          "inputEpoch",
+          "relatedEntryId",
+          "supersedesEntryId",
+          "supersededById",
+          "goalId",
+          "decisionId",
+          "sourceId",
+          "sha256",
+          "ledgerRevision",
+          "observedAt",
+          "recordedAt",
+          "changedAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["mission", "constraint", "lesson"]
+          },
+          "state": {
+            "type": "string",
+            "enum": ["proposed", "accepted", "rejected", "superseded"]
+          },
+          "statement": {
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "textKind": {
+            "type": "string",
+            "enum": ["sophia_paraphrase", "member_text"]
+          },
+          "proposedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposedVia": {
+            "type": "string",
+            "enum": ["voice", "studio"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "baseMissionRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "supersedesDecisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supportingEntryIds": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "decidedBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decidedVia": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["voice", "studio"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "kind",
+          "state",
+          "statement",
+          "purpose",
+          "destination",
+          "origin",
+          "textKind",
+          "proposedBy",
+          "proposedVia",
+          "createdAt",
+          "baseMissionRevision",
+          "stale",
+          "supersedesDecisionId",
+          "supportingEntryIds",
+          "decidedBy",
+          "decidedAt",
+          "decidedVia",
+          "sourceId",
+          "sha256"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionFrame",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "statement": {
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "acceptedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "revision",
+          "statement",
+          "purpose",
+          "destination",
+          "origin",
+          "decisionId",
+          "acceptedBy",
+          "acceptedAt",
+          "sourceId",
+          "sha256"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionNotePolicy",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "capture": {
+            "type": "string",
+            "enum": ["off", "automatic"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "consent": {
+            "type": "string",
+            "enum": ["accepted", "declined", "unset"]
+          },
+          "consentRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "acceptedMembers": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "automaticNotes": {
+            "type": "boolean"
+          },
+          "explicitSelectedNoteSave": {
+            "type": "boolean"
+          },
+          "explicitProposals": {
+            "type": "boolean"
+          },
+          "exactTextRetention": {
+            "const": false
+          },
+          "transientBuffer": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "turns": {
+                "const": 0
+              },
+              "bytes": {
+                "const": 0
+              },
+              "seconds": {
+                "const": 0
+              }
+            },
+            "required": ["turns", "bytes", "seconds"]
+          }
+        },
+        "required": [
+          "capture",
+          "revision",
+          "consent",
+          "consentRevision",
+          "acceptedMembers",
+          "automaticNotes",
+          "explicitSelectedNoteSave",
+          "explicitProposals",
+          "exactTextRetention",
+          "transientBuffer"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionContext",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "readState": {
+            "type": "string",
+            "enum": ["empty", "present"]
+          },
+          "missionRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "ledgerRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "eligibilityRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "mission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MissionFrame"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "constraints": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/MissionDecision"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/MissionDecision"
+            }
+          },
+          "decided": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/MissionDecision"
+            }
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/MissionEntry"
+            }
+          },
+          "history": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/MissionEntry"
+            }
+          },
+          "excluded": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "olderEntries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "olderHistory": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "legacyFrame": {
+                "type": "boolean"
+              }
+            },
+            "required": ["olderEntries", "olderHistory", "legacyFrame"]
+          },
+          "missing": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "enum": ["accepted_mission", "constraints", "notes", "work"]
+            }
+          },
+          "work": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "goalId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "taskId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "phase": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["goalId", "title", "status", "taskId", "phase"]
+            }
+          },
+          "notePolicy": {
+            "$ref": "#/components/schemas/MissionNotePolicy"
+          },
+          "capabilities": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "recordNote": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              },
+              "propose": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              },
+              "decide": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              },
+              "correct": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              },
+              "withdrawOwnNote": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              },
+              "setNotePolicy": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              },
+              "controlWork": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["available", "reason"]
+              }
+            },
+            "required": [
+              "recordNote",
+              "propose",
+              "decide",
+              "correct",
+              "withdrawOwnNote",
+              "setNotePolicy",
+              "controlWork"
+            ]
+          },
+          "compiler": {
+            "const": "sophia.mission-context.v1"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "projectId",
+          "title",
+          "readState",
+          "missionRevision",
+          "ledgerRevision",
+          "eligibilityRevision",
+          "mission",
+          "constraints",
+          "pending",
+          "decided",
+          "entries",
+          "history",
+          "excluded",
+          "missing",
+          "work",
+          "notePolicy",
+          "capabilities",
+          "compiler",
+          "digest"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["committed", "proposed"]
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["record_note", "correct_note", "withdraw_note", "propose", "decide"]
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["accepted", "rejected"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "affected": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "ledgerRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "missionRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "eligibilityRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": [
+          "status",
+          "operation",
+          "projectId",
+          "entryId",
+          "decisionId",
+          "decisionRevision",
+          "decision",
+          "sourceId",
+          "sha256",
+          "affected",
+          "ledgerRevision",
+          "missionRevision",
+          "eligibilityRevision",
+          "cursor"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionEntryRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "expectation",
+              "outcome",
+              "blocker",
+              "explanation",
+              "lesson_candidate",
+              "continuity"
+            ]
+          },
+          "epistemic": {
+            "type": "string",
+            "enum": ["reported", "observed", "inferred"]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "relatedEntryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "goalId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["kind", "epistemic", "text"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionCorrectionRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "expectation",
+              "outcome",
+              "blocker",
+              "explanation",
+              "lesson_candidate",
+              "continuity"
+            ]
+          },
+          "epistemic": {
+            "type": "string",
+            "enum": ["reported", "observed", "inferred"]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["kind", "epistemic", "text"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionWithdrawalRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedAffected": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "What the member's preview listed, in its order: the version ids, and each decision's id with the revision shown (a decision's revision moves whenever its state changes). Required: the withdrawal erases only if that is still exactly what it reaches, at those revisions, and answers a stale conflict otherwise.",
+            "properties": {
+              "entryIds": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "decisions": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["id", "revision"]
+                }
+              }
+            },
+            "required": ["entryIds", "decisions"]
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof, as the preview returned it: the server showed this member exactly this list for this note. A list built without a preview, or another member's or note's proof, is refused; an expired one is a stale conflict."
+          }
+        },
+        "required": ["expectedAffected", "previewToken"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionWithdrawalPreview",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What forgetting this note would erase for everyone, computed by the same rule the withdrawal then applies: the note's versions, from the reader's own earliest wording in its history (an admin's: its first version) to its latest, and every proposal or decision citing any of them. The ledger may move before the member confirms; the withdrawal must send this list back as `expectedAffected` (the version ids, and each decision's id and revision) with this `previewToken`, and answers a stale conflict instead of erasing anything not shown, or in a state not shown.",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ledgerRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "previewToken": {
+            "type": "string",
+            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The server's proof that it showed this member this list for this note: an HMAC under a key only the database holds, of the member, the project, the note, the expiry and the reach (ids and revisions, never text). The withdrawal must carry it"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When previewToken stops being accepted: 15 minutes after the preview"
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "The note's versions that would be forgotten, oldest first, with their words",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["current", "superseded"]
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "state", "text"]
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "The proposals and decisions citing any of them, oldest first, with every field of their words",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["mission", "constraint", "lesson"]
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["proposed", "accepted", "rejected", "superseded"]
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "statement": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }]
+                },
+                "destination": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }]
+                },
+                "origin": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }]
+                }
+              },
+              "required": ["id", "kind", "state", "revision", "statement", "purpose", "destination", "origin"]
+            }
+          }
+        },
+        "required": ["entryId", "ledgerRevision", "previewToken", "expiresAt", "entries", "decisions"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionProposalRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["mission", "constraint", "lesson"]
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supersedesDecisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supportingEntryIds": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": ["kind", "statement"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecisionRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["accept", "reject"]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["decision", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionNotePolicyRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "capture": {
+            "type": "string",
+            "enum": ["off", "automatic"]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["capture", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionNoteConsentRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["accepted", "declined"]
+          }
+        },
+        "required": ["state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaToolSurface",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "names": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z_]{1,64}$"
+            }
+          }
+        },
+        "required": ["names"]
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/MediaToolCall/properties/name/enum",
+      "value": [
+        "project_status",
+        "read_selected_source",
+        "record_mission_note",
+        "propose_mission_change",
+        "decide_mission_change",
+        "control_work"
+      ]
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaToolCall/properties/utterance",
+      "value": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/MediaToolResult/properties/status/enum",
+      "value": [
+        "ok",
+        "admitted",
+        "refused",
+        "clarify",
+        "error",
+        "committed",
+        "proposed",
+        "conflict",
+        "denied",
+        "unknown"
+      ]
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/properties/missionRevision",
+      "value": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/properties/ledgerRevision",
+      "value": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/properties/eligibilityRevision",
+      "value": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/required/-",
+      "value": "missionRevision"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/required/-",
+      "value": "ledgerRevision"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/required/-",
+      "value": "eligibilityRevision"
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/summary",
+      "value": "Retired by SMC-M01: new brief admission answers 410 `native_task_retired` before any write. Existing briefs stay readable (getNativeTask) and controllable (control commands)."
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/410",
+      "value": {
+        "description": "New brief admission is retired; talk it through with Sophia instead",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/202"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/403"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/409"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/503"
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/responses/422/description",
+      "value": "The project id is not a UUID"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/requestBody"
+    },
+    {
+      "op": "remove",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/parameters/1"
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/deprecated",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1native-tasks/post/x-sophia-release-goal",
+      "value": "SMC-M01"
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission",
+      "value": {
+        "get": {
+          "operationId": "getMission",
+          "summary": "The mission ledger's current view for this member: accepted direction, constraints, pending proposals, recent notes, note policy and what they may do. `readState` is `empty` only when the read found no mission, draft, proposal, note, discussion or work.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionContext"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1entries",
+      "value": {
+        "post": {
+          "operationId": "recordMissionEntry",
+          "summary": "Record one typed mission note (observation, expectation, outcome, blocker, explanation, lesson candidate or continuity) as the member's own words. Admin or editor. Idempotent per member and key.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionEntryRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1entries~1{entryId}~1correction",
+      "value": {
+        "post": {
+          "operationId": "correctMissionEntry",
+          "summary": "Correct a current note: a new note supersedes it, and the original stays readable as history. Admin or editor; a note that is no longer current is a conflict.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "entryId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionCorrectionRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1entries~1{entryId}~1withdrawal",
+      "value": {
+        "get": {
+          "operationId": "previewMissionWithdrawal",
+          "summary": "What forgetting this note would erase, before the member confirms: its versions and every proposal or decision citing them. The note's own author or an admin; the same rule as the withdrawal.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "entryId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionWithdrawalPreview"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The note is already withdrawn",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01"
+        },
+        "post": {
+          "operationId": "withdrawMissionEntry",
+          "summary": "Forget a note and what was derived from it: its versions and every proposal or decision citing them lose their text, their sources become ineligible and the project's eligibility revision advances, so live contexts that read them are rebuilt. The note's own author or an admin.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "entryId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionWithdrawalRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1proposals",
+      "value": {
+        "post": {
+          "operationId": "proposeMissionChange",
+          "summary": "Propose a mission, constraint or lesson. Creating a proposal accepts nothing. Admin or editor.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionProposalRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1proposals~1{proposalId}~1decision",
+      "value": {
+        "post": {
+          "operationId": "decideMissionChange",
+          "summary": "Accept or reject one pending proposal at its current revision, as the member's own action. Accepting a mission proposal appends the accepted frame and advances the mission revision, only from the revision it was proposed against. Admin or editor.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "proposalId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionDecisionRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1note-policy",
+      "value": {
+        "put": {
+          "operationId": "setMissionNotePolicy",
+          "summary": "Turn the project's voice note capture on (`automatic`) or `off`, at the revision the admin saw. Off by default. Admin only.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionNotePolicy"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionNotePolicyRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1note-consent",
+      "value": {
+        "put": {
+          "operationId": "setMissionNoteConsent",
+          "summary": "The member's own consent to have Sophia keep notes and proposals from their turns. Any member, for themself only.",
+          "tags": ["mission"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MissionNotePolicy"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionNoteConsentRequest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1media~1tool-surface",
+      "value": {
+        "get": {
+          "operationId": "mediaToolSurface",
+          "summary": "The model-facing operations this API executes for the media bridge. The bridge activates its guide only when they equal its own declarations.",
+          "tags": ["media"],
+          "security": [
+            {
+              "mediaBridgeCapability": []
+            }
+          ],
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MediaToolSurface"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale revision, idempotency mismatch or a proposal no longer pending",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M01"
+        }
+      }
+    }
+  ]
+}

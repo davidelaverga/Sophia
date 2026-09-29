@@ -1,6 +1,6 @@
 {
   "schema": "sophia.three-pr-mission-pack.v1",
-  "version": "1.0",
+  "version": "1.1",
   "date": "2026-09-27",
   "repository": "davidelaverga/Sophia",
   "status": "specifications_prepared_not_executed",
@@ -62,7 +62,11 @@
         "M01-T15",
         "M01-T16",
         "M01-T17",
-        "M01-T18"
+        "M01-T18",
+        "M01-T19",
+        "M01-T20",
+        "M01-T21",
+        "M01-T22"
       ],
       "claude_launch": "launch/M01_CLAUDE.md",
       "codex_launch": "launch/M01_CODEX.md",
@@ -70,7 +74,11 @@
       "coordination_issue": null,
       "candidate_commit": null,
       "approval_ref": null,
-      "status": "planned"
+      "status": "planned",
+      "prompt_manifest": "prompts/M01_ASSETS.v1.1.json",
+      "prompt_loading": "shared/M01_PROMPT_LOADING.md",
+      "system_prompt": "prompts/M01_SYSTEM_PROMPT.v1.1.md",
+      "mission_skill": "skills/mission-lifecycle.v1.1.md"
     },
     {
       "id": "SMC-M02",
@@ -173,5 +181,7 @@
     "credentials_verified": false
   },
   "runtime_target": "selected_exactly_during_M02_G1_not_floating_latest",
-  "effects_performed_by_packet_author": []
+  "effects_performed_by_packet_author": [],
+  "updated": "2026-09-28",
+  "continuation_ledger": "Sophia_Mission_Companion_and_Research_Ledger_v0.4_2026-09-28.md"
 }

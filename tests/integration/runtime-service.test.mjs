@@ -161,15 +161,21 @@ describe('runtime service crossing (real API, PostgreSQL, worker, pinned dsh)', 
     return w
   }
 
+  /**
+   * A brief as one admitted before SMC-M01. New admission over HTTP is retired (410, checked here every time); the
+   * runtime must keep dispatching, restoring and controlling briefs that already exist, so they are created through
+   * the database function production already ran, on the API's own login and actor.
+   */
   async function admitBrief(w, inputs, key = crypto.randomUUID()) {
-    const res = await api(E, 'POST', `/api/v1/projects/${w.project.projectId}/native-tasks`, {
+    const request = {
       kind: 'draft_brief',
       instruction: 'Draft the implementation brief for the room slice.',
       contributionIds: inputs,
       expectedMissionRevision: 1,
-    }, key)
-    assert.equal(res.status, 202, JSON.stringify(res.json))
-    return res.json
+    }
+    const retired = await api(E, 'POST', `/api/v1/projects/${w.project.projectId}/native-tasks`, request, key)
+    assert.equal(retired.status, 410, JSON.stringify(retired.json))
+    return s.persistence.withActor(pool, E, 'write', (c) => s.persistence.admitNativeTask(c, w.project.projectId, key, request))
   }
 
   async function control(w, receipt, kind, epoch, bodySourceId = null) {

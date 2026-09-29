@@ -8,13 +8,8 @@ import { SignJWT } from 'jose'
 import type pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import {
-  parseContributionReceipt,
-  parseNativeTaskDetail,
-  parseNativeTaskReceipt,
-  parseSnapshot,
-} from '@sophia/contracts/validate'
-import { createPool } from '@sophia/persistence'
+import { parseContributionReceipt, parseNativeTaskDetail, parseSnapshot } from '@sophia/contracts/validate'
+import { admitNativeTask, createPool, withActor } from '@sophia/persistence'
 import {
   createTestDatabase,
   registerRuntime,
@@ -136,7 +131,7 @@ describe('runtime route authentication (A04)', () => {
 })
 
 describe('discussion and a draft_brief through the API (A05)', () => {
-  it('records discussion, admits one brief idempotently, and wakes the waiting runtime poll on dispatch', async () => {
+  it('records discussion; new briefs are retired (410); an existing brief still dispatches and wakes the runtime poll', async () => {
     const said = await call(`/api/v1/projects/${seed.projectId}/contributions`, {
       method: 'POST',
       bearer: await token(E),
@@ -151,24 +146,26 @@ describe('discussion and a draft_brief through the API (A05)', () => {
     })
     assert.equal(said.status, 202)
     const contribution = parseContributionReceipt(said.json)
-    const key = randomUUID()
+    const request = {
+      kind: 'draft_brief' as const,
+      instruction: 'Draft the brief.',
+      contributionIds: [contribution.contributionId],
+      expectedMissionRevision: 1,
+    }
     const admit = async (actor: string) =>
       call(`/api/v1/projects/${seed.projectId}/native-tasks`, {
         method: 'POST',
         bearer: await token(actor),
-        headers: { 'idempotency-key': key },
-        body: {
-          kind: 'draft_brief',
-          instruction: 'Draft the brief.',
-          contributionIds: [contribution.contributionId],
-          expectedMissionRevision: 1,
-        },
+        headers: { 'idempotency-key': randomUUID() },
+        body: request,
       })
-    assert.equal((await admit(V)).status, 403, 'a viewer cannot admit work')
-    const first = await admit(E)
-    assert.equal(first.status, 202)
-    const receipt = parseNativeTaskReceipt(first.json)
-    assert.deepEqual((await admit(E)).json, first.json, 'a retry returns the same admission')
+    for (const actor of [V, E]) {
+      const refused = await admit(actor)
+      assert.deepEqual([refused.status, refused.json.code], [410, 'native_task_retired'], 'SMC-M01 retired new briefs')
+    }
+    // A brief admitted before SMC-M01: created through the database function production already ran, which the
+    // runtime must keep dispatching, restoring and controlling while it exists.
+    const receipt = await withActor(pool, E, 'write', (c) => admitNativeTask(c, seed.projectId, randomUUID(), request))
 
     const bridge = randomUUID()
     const opened = await hello(rt.token, bridge)

@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { Contribution, NativeTaskRequest } from '@sophia/contracts'
-import { admitNativeTask, readNativeTask, submitContribution, withActor } from '@sophia/persistence'
+import type { Contribution } from '@sophia/contracts'
+import { DomainError } from '@sophia/domain'
+import { readNativeTask, submitContribution, withActor } from '@sophia/persistence'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const taskParams = {
@@ -14,10 +15,14 @@ const taskParams = {
   required: ['projectId', 'taskId'],
 } as const
 
+/** What a client that still asks for a brief is told (SMC-M01): nothing was written, and what to do instead. */
+export const BRIEF_RETIRED =
+  'New briefs are retired: talk the idea through with Sophia, who keeps the project’s mission and notes. Existing briefs stay readable and their work controls still apply.'
+
 /**
- * submitContribution, admitNativeTask and getNativeTask (contract amendment A05). Discussion is recorded with
- * its author and never starts work; a native task is admitted only by its own explicit request, idempotent per
- * person and key, and answered with a receipt (202), never a finished result.
+ * submitContribution, getNativeTask and the retired admitNativeTask (contract amendments A05, A08). Discussion is
+ * recorded with its author and never starts work. New brief admission answers 410 before any write, whatever the
+ * request (a stale client keeps getting the same answer); existing briefs stay readable.
  */
 export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
   app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: Contribution }>(
@@ -38,21 +43,11 @@ export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Po
     },
   )
 
-  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: NativeTaskRequest }>(
+  app.post<{ Params: { projectId: string } }>(
     '/api/v1/projects/:projectId/native-tasks',
-    {
-      schema: {
-        params: projectParams,
-        headers: idempotencyHeader,
-        body: { $ref: 'NativeTaskRequest#' },
-        response: { 202: { $ref: 'NativeTaskReceipt#' } },
-      },
-    },
-    async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
-        admitNativeTask(c, req.params.projectId, req.headers['idempotency-key'], req.body),
-      )
-      return reply.status(202).send(receipt)
+    { schema: { params: projectParams } },
+    () => {
+      throw new DomainError('native_task_retired', BRIEF_RETIRED)
     },
   )
 

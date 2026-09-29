@@ -1,0 +1,16 @@
+{
+  "schema": "sophia.m01-authored-assets-validation.v1",
+  "scope": "package_assets_and_literal_equality_only",
+  "component_count": 2,
+  "combined_bytes": 24410,
+  "combined_sha256": "7fe8f7291389574d50f075742b226fbbef5fe6f6bed50299cfa573f7fe7a8f6d",
+  "combined_words": 3685,
+  "full_mode_sequence_checked": true,
+  "spec_and_source_byte_equality_checked": true,
+  "failures": [],
+  "passed": true,
+  "application_setup_tests_run": false,
+  "conversation_quality_tests_run": false,
+  "provider_calls_made": false,
+  "repository_or_hosted_effects_performed": false
+}

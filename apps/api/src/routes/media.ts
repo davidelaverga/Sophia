@@ -23,7 +23,7 @@ import {
   withService,
 } from '@sophia/persistence'
 import { issueBridgeToken, type LiveKitConfig } from '../livekit.ts'
-import { executeToolCall } from '../media-tools.ts'
+import { executeToolCall, TOOL_NAMES } from '../media-tools.ts'
 import type { NotificationHub } from '../notification-hub.ts'
 
 /** The routes the media-bridge capability may call, and nothing else may: checked by exact route in app.ts. */
@@ -34,6 +34,7 @@ export const MEDIA_ROUTES: ReadonlySet<string> = new Set([
   '/v1/media/holder',
   '/v1/media/announced',
   '/v1/media/tool-calls',
+  '/v1/media/tool-surface',
 ])
 
 interface Deps {
@@ -133,6 +134,12 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps):
       return reply.status(204).send()
     },
   )
+
+  // The bridge activates its guide only when these equal its declarations (A08): an API without a handler for an
+  // operation the prompt names must not be talked to by that prompt.
+  app.get('/v1/media/tool-surface', { schema: { response: { 200: { $ref: 'MediaToolSurface#' } } } }, () => ({
+    names: [...TOOL_NAMES],
+  }))
 
   app.post<{ Body: MediaToolCall }>(
     '/v1/media/tool-calls',

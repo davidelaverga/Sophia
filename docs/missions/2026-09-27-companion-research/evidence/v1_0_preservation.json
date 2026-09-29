@@ -1,0 +1,161 @@
+{
+  "schema": "sophia.pack-targeted-preservation.v1",
+  "date": "2026-09-28",
+  "source_archive": "Sophia_Three_PR_Mission_Pack_v1.0_2026-09-27.zip",
+  "scope": "M01 content and navigation/integrity checks only; no other mission changes",
+  "protected_files": [
+    {
+      "path": "01_SEQUENCE_AND_OWNERSHIP.md",
+      "sha256": "6c4a034be83c6cc911d983ffb810acd47a1bdd6f9aeb6c56e31f31c47f08347e",
+      "unchanged": true
+    },
+    {
+      "path": "02_FOUNDATION_MERGE_REVIEW.md",
+      "sha256": "65af35a079190ce0086ca682139fcab4a7acc6f10dfb81f87cd125f93f1c41a5",
+      "unchanged": true
+    },
+    {
+      "path": "Sophia_Mission_Companion_and_Research_Ledger_v0.3_2026-09-27.md",
+      "sha256": "8b6add2a27c534009f1320d56390d4a84d33d2d17a4fdc78f81dc9b975c09138",
+      "unchanged": true
+    },
+    {
+      "path": "launch/M02_CLAUDE.md",
+      "sha256": "9406bf51f73edef345bc27eeaebf150aaeadc9defab088c6dd6cfc026c4a47fb",
+      "unchanged": true
+    },
+    {
+      "path": "launch/M02_CODEX.md",
+      "sha256": "1812f468dbd056e9b34feae8c839601fdff99458c042a3461308d3ad0fd10d4c",
+      "unchanged": true
+    },
+    {
+      "path": "launch/M03_CLAUDE.md",
+      "sha256": "2a1feaf1266e93568a9f619620c88051158d3f6ee587404db8d0e7bac7981ec1",
+      "unchanged": true
+    },
+    {
+      "path": "launch/M03_CODEX.md",
+      "sha256": "60d1652f0638b3df30bba5bd3dcdeb4d08a8df4cb8132130ed14f7259bb225c3",
+      "unchanged": true
+    },
+    {
+      "path": "launch/R00_CLAUDE.md",
+      "sha256": "95ce1f5d585398526cc2b2c4b8a3839a289aa4f087240379f3a18248dcaf9ecb",
+      "unchanged": true
+    },
+    {
+      "path": "launch/R00_CODEX.md",
+      "sha256": "5c151d29a484d7e50f7067a6a19260cf783fa24d9b43af4301cd635649ccbbed",
+      "unchanged": true
+    },
+    {
+      "path": "missions/M02_DSH_UPGRADE.md",
+      "sha256": "a6607ce2457c2df633a39f3fc5691d741765b8a3fe767308060b755bc594070d",
+      "unchanged": true
+    },
+    {
+      "path": "missions/M03_RESEARCH_WORKFLOW.md",
+      "sha256": "d80f7d82b4f93c00a283192dc3215d7c1d46c4618d307baeea6acc56f5fa2259",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/DSH_UPGRADE_STRATEGY.md",
+      "sha256": "91d2f1a1017729b3835ca3b7e0f0b420c75ed8651237c37dc83abd5813b183f7",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/README.md",
+      "sha256": "911e0ed0fe7207d8cbc3faaa077cd32b55ffaab42eafc637faeae77f5364e6ab",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/RESEARCH_AGENT_IMPLEMENTATION_PLAN.md",
+      "sha256": "72e027b6392f81568de4737d2e2c3c8a5139cfed91f545dfaa964a36d2ebe263",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/SHA256SUMS",
+      "sha256": "c604ed1413cbcf463c5aefe0a5620919dfcc6b7460365f4cc9877d19cf5e8c0e",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/SOURCE_AUDIT.md",
+      "sha256": "dce1973e9857f28373ad5f2f2dc0330ce03325a3dfddc8376f2ddafbb67eca03",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/Sophia_Mission_Companion_and_Research_Ledger_v0.2_2026-09-27.md",
+      "sha256": "9d23b94cb938d27b833c12c07899fd3e80f982ad6c66d317d28a0885459b0e19",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/evidence/package_validation.json",
+      "sha256": "ee385337d4a1150afd56e95850f5fcf75244fa7a3b0e50519d91ca37a3c301a6",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/evidence/source_manifest.json",
+      "sha256": "2e0aa0081a90e0fc896e7b2a0917ad898d30c1b14b251d41311379f73bca4d37",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/prior/Sophia_Mission_Companion_and_Research_Ledger_v0.1_2026-09-27.md",
+      "sha256": "0760044e17344a03382c2080a0f9ea423487853d3a12f3de90045ec662f7f06a",
+      "unchanged": true
+    },
+    {
+      "path": "references/pass2/prompts/RESEARCH_PROMPTS.md",
+      "sha256": "2ce051b4c25d1ad71c805f66ab502c50b295b948275252cee3604530ba7d04eb",
+      "unchanged": true
+    },
+    {
+      "path": "research/LEGACY_WEB_PROVIDER_AUDIT.md",
+      "sha256": "6c1c4cad3f2003a8bc5ed45b6dd0639204b3d7e4272e36dc36ce22e2a0277b95",
+      "unchanged": true
+    },
+    {
+      "path": "research/WEB_SOURCE_POLICY.md",
+      "sha256": "85c47d52c265cb3ea919b4ca76f3d9ef520e42ebadc47c3aaa959a3e058ccbbc",
+      "unchanged": true
+    },
+    {
+      "path": "shared/CLAUDE_CODEX_PROTOCOL.md",
+      "sha256": "e3876d38008fdf93afc75ca71ac1a05f9f1659fe88f9e27dd032779009bb099f",
+      "unchanged": true
+    },
+    {
+      "path": "shared/OPERATIONS_AND_RELEASE.md",
+      "sha256": "955630972bb031bb038edbadd00f33f7b1ae97f675e9fed320b9407f2fd665d2",
+      "unchanged": true
+    },
+    {
+      "path": "skills/guide-system-core.v1.md",
+      "sha256": "abad6f7a061c3ffccb5a1746e6cc6ddaa1bba6555197ea8937818ba3d78f6504",
+      "unchanged": true
+    },
+    {
+      "path": "skills/mission-lifecycle.v1.md",
+      "sha256": "fd1239d98db8a7ff43770aa53482b47da3dda7167a914c5abe31235c117f44dd",
+      "unchanged": true
+    }
+  ],
+  "protected_files_all_unchanged": true,
+  "original_files_missing": [],
+  "changed_files_before_integrity_regeneration": [
+    "00_START_HERE.md",
+    "README.md",
+    "SOURCE_REGISTER.md",
+    "launch/M01_CLAUDE.md",
+    "launch/M01_CODEX.md",
+    "mission_index.json",
+    "missions/M01_MISSION_COMPANION.md",
+    "scripts/validate_pack.py",
+    "shared/CONTRACT_BINDINGS.md",
+    "shared/FILE_CHANGE_MAP.md"
+  ],
+  "permitted_integrity_regeneration": [
+    "SHA256SUMS",
+    "evidence/package_validation.json"
+  ]
+}

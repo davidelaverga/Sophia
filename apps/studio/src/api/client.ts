@@ -96,7 +96,7 @@ async function postIdempotent<T>(
 interface CallInit {
   /** Null for a public call (an invitation preview). */
   token: string | null
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PUT'
   body?: unknown
   /** An Idempotency-Key: the call is an admission, retried with the same key after no reply. */
   key?: string

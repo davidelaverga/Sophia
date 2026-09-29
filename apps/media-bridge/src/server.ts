@@ -11,13 +11,18 @@
 //                               each must confirm a guest's quiesce request (0013)
 //
 // One bridge instance serves all rooms: two instances would both join as `sophia` and replace each other.
+//
+// The M01 guide (src/content/mission-guide/) is loaded and checked before anything else: a missing or altered asset
+// stops the process, so a deploy that cannot activate the new guide fails instead of running without it.
 import { randomBytes } from 'node:crypto'
 import { hostname } from 'node:os'
 import { MediaBridge } from './bridge.ts'
+import { guideIdentity, loadMissionGuide } from './guide.ts'
 import { connectGeminiLive } from './live-session.ts'
 import { connectRehearsal, REHEARSAL_BANNER } from './rehearsal.ts'
 import { joinLiveKitRoom } from './rtc.ts'
 import { httpMediaService } from './service.ts'
+import { DECLARED_NAMES } from './tools.ts'
 
 function required(name: string): string {
   const value = process.env[name]
@@ -28,6 +33,9 @@ function required(name: string): string {
 const host = (process.env.SOPHIA_BRIDGE_INSTANCE ?? hostname()).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 48)
 const instance = `${host}-${randomBytes(4).toString('hex')}`
 
+const guide = loadMissionGuide(DECLARED_NAMES)
+console.log(JSON.stringify({ at: new Date().toISOString(), event: 'guide.loaded', ...guideIdentity(guide) }))
+
 const rehearse = process.env.SOPHIA_LIVE_MODE === 'rehearse'
 const model = rehearse ? 'rehearsal' : (process.env.SOPHIA_LIVE_MODEL ?? 'gemini-3.8-live')
 
@@ -37,6 +45,7 @@ const bridge = new MediaBridge({
   connectLive: rehearse ? connectRehearsal : connectGeminiLive,
   apiKey: rehearse ? '' : required('GEMINI_API_KEY'),
   model,
+  guide,
   bridgeInstanceId: instance,
   now: Date.now,
   log: (event, detail) => console.log(JSON.stringify({ at: new Date().toISOString(), event, ...detail })),

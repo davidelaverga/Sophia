@@ -25,6 +25,12 @@ const RULES: readonly Rule[] = [
     code: 'forbidden',
   },
   { sqlstate: '55000', when: (m) => m.startsWith('No native runtime'), code: 'native_capability_unavailable' },
+  // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
+  {
+    sqlstate: '42501',
+    when: (m) => m.startsWith('Note capture is off') || m.startsWith('Consent to keep'),
+    code: 'note_policy_denied',
+  },
   { sqlstate: '42501', when: (m) => m.startsWith('Source not released'), code: 'source_ineligible' },
   // Room access refusals that say what to do (0010): the caller already holds the link, so naming why is safe.
   {
@@ -35,6 +41,7 @@ const RULES: readonly Rule[] = [
   { sqlstate: '42501', code: 'forbidden', publicMessage: 'Not permitted' },
   // Compare-and-set losers: a newer revision, epoch or stable head won.
   { sqlstate: '40001', when: (m) => m.startsWith('Stale') || m === 'Stable head changed', code: 'stale_revision' },
+  { sqlstate: '40001', when: (m) => m.startsWith('Confirmation required'), code: 'confirmation_required' },
   { sqlstate: '40001', code: 'invalid_state' },
   { sqlstate: '23505', when: (m) => m.startsWith('Idempotency key reused'), code: 'idempotency_conflict' },
   { sqlstate: '23505', code: 'invalid_state' },

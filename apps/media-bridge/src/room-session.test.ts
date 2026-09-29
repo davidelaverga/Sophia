@@ -5,17 +5,21 @@ import type { FunctionResponse } from '@google/genai'
 import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
+import { inspect } from 'node:util'
 import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
+import { loadMissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
 import { HOLDER_ARRIVAL_MS, HOLDER_GRACE_MS, HOLDER_RETRY_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
-import type { MediaService } from './service.ts'
+import { type MediaService, ServiceError } from './service.ts'
+import { DECLARED_NAMES } from './tools.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
 const DAVIDE = '22222222-2222-4222-8222-222222222222'
 const EXCHANGE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const TASK = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const ENTRY = '99999999-9999-4999-8999-999999999999'
 const REQUEST = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 const assignment = (over: Partial<MediaAssignment> = {}): MediaAssignment => ({
@@ -34,8 +38,14 @@ const assignment = (over: Partial<MediaAssignment> = {}): MediaAssignment => ({
   quiesceRequestId: null,
   roomToken: { serverUrl: 'ws://fake-livekit', token: 'fake-token', expiresAt: '2026-09-25T00:10:00Z' },
   results: [],
+  missionRevision: 1,
+  ledgerRevision: 1,
+  eligibilityRevision: 1,
   ...over,
 })
+
+/** The checked M01 guide, loaded from the package's own assets as the bridge does at start. */
+const GUIDE = loadMissionGuide(DECLARED_NAMES)
 
 const member = (identity: string): RoomPerson => ({ identity, standing: 'editor' })
 
@@ -135,7 +145,7 @@ class FakeService implements MediaService {
   holders: Array<Parameters<MediaService['holder']>[0]> = []
   announcedEvents: Array<Parameters<MediaService['announced']>[0]> = []
   calls: MediaToolCall[] = []
-  result: MediaToolResult = { status: 'admitted', output: { workId: TASK } }
+  result: MediaToolResult = { status: 'committed', output: { entryId: ENTRY, ledgerRevision: 2 } }
 
   assignments = () => Promise.reject(new Error('not used'))
   presence = async (r: Parameters<MediaService['presence']>[0]) => {
@@ -165,6 +175,15 @@ class FakeService implements MediaService {
     this.calls.push(c)
     return this.result
   }
+  /** The operations the fake API executes: the declared ones unless a test says otherwise. */
+  surface: string[] | null = [...DECLARED_NAMES]
+  surfaceChecks = 0
+  toolSurface = async () => {
+    await Promise.resolve()
+    this.surfaceChecks += 1
+    if (!this.surface) throw new Error('API unreachable')
+    return { names: this.surface }
+  }
 }
 
 const statusOf = (r: FunctionResponse | undefined): unknown => {
@@ -172,6 +191,14 @@ const statusOf = (r: FunctionResponse | undefined): unknown => {
   return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve))
+/** Turns of the event loop until `done` holds: retries wait on real timers, which a busy machine delays. */
+async function until(what: string, done: () => boolean, ms = 2000): Promise<void> {
+  const deadline = Date.now() + ms
+  while (!done()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 1))
+  }
+}
 /** 100 ms of the holder's microphone, just under the audible floor: a quiet room. */
 const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
 /** 100 ms of the holder saying something. */
@@ -221,7 +248,9 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[]) {
     },
     apiKey: 'fake-key',
     model: 'fake-model',
+    guide: GUIDE,
     bridgeInstanceId: 'bridge-test',
+    toolRetryMs: [0, 0],
     now: () => clock,
     log: (event, fields) => logs.push([event, fields ?? {}]),
     every: () => () => undefined,
@@ -283,7 +312,13 @@ describe('room session: who Google hears (cases A10, A11)', () => {
     room.events.audio(DAVIDE, pcm16k(), 16000, 1)
     room.events.audio(LUIS, pcm16k(), 16000, 1)
     assert.equal(live.audio, 1, 'nobody is heard while the old turn settles')
-    live.events.toolCalls([{ id: 'late-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    live.events.toolCalls([
+      {
+        id: 'late-1',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     assert.equal(service.calls[0]?.actorId, LUIS)
     assert.equal(service.calls[0]?.inputEpoch, 1)
@@ -694,21 +729,24 @@ describe('room session: Sophia’s output (case A09)', () => {
 })
 
 describe('room session: tools (cases A10, A13)', () => {
-  it('runs an attributed call for the holder and answers with a real work id at once', async () => {
+  it('runs an attributed call for the holder and answers with the real record id at once', async () => {
     const { room, live } = await ready()
     room.events.audio(LUIS, pcm16k(), 16000, 1)
-    live.events.toolCalls([{ id: 'call-1', name: 'start_brief', args: { instruction: 'Draft the brief' } }])
+    const args = { kind: 'observation', epistemic: 'reported', text: 'Draft the brief' }
+    live.events.toolCalls([{ id: 'call-1', name: 'record_mission_note', args }])
     await flush()
     assert.equal(service.calls.length, 1)
     assert.equal(service.calls[0]?.actorId, LUIS)
     assert.equal(service.calls[0]?.callId, 'call-1')
-    assert.deepEqual(live.responses[0]?.response, { output: { status: 'admitted', workId: TASK } })
+    assert.deepEqual(live.responses[0]?.response, {
+      output: { status: 'committed', entryId: ENTRY, ledgerRevision: 2 },
+    })
     assert.equal(live.responses[0]?.willContinue, false)
     const answered = logs.find(([event]) => event === 'tool.answered')?.[1]
     assert.deepEqual(
-      [answered?.name, answered?.status, answered?.workId],
-      ['start_brief', 'admitted', TASK],
-      'the log ties the call to the work it started, without its text',
+      [answered?.name, answered?.status, answered?.entryId],
+      ['record_mission_note', 'committed', ENTRY],
+      'the log ties the call to the record it wrote, without its text',
     )
     assert.equal(JSON.stringify(logs).includes('Draft the brief'), false)
   })
@@ -718,19 +756,37 @@ describe('room session: tools (cases A10, A13)', () => {
     room.events.audio(LUIS, pcm16k(), 16000, 1)
     live.events.audio(speech(), OUT)
     live.events.turnComplete()
-    live.events.toolCalls([{ id: 'after-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    live.events.toolCalls([
+      {
+        id: 'after-1',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     assert.equal(service.calls.length, 0, 'not bound to the speaker of the turn that ended')
     assert.equal(statusOf(live.responses[0]), 'clarify')
     room.events.audio(LUIS, pcm16k(), 16000, 1)
-    live.events.toolCalls([{ id: 'next-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    live.events.toolCalls([
+      {
+        id: 'next-1',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     assert.equal(service.calls[0]?.actorId, LUIS, 'heard again: the next turn is theirs')
   })
 
   it('an unattributed call is a question, never an action', async () => {
     const { live } = await ready()
-    live.events.toolCalls([{ id: 'call-2', name: 'start_brief', args: { instruction: 'x' } }])
+    live.events.toolCalls([
+      {
+        id: 'call-2',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     assert.equal(service.calls.length, 0)
     assert.equal(statusOf(live.responses[0]), 'clarify')
@@ -770,7 +826,13 @@ describe('room session: provider recovery (case A14)', () => {
       })
     }
     room.events.audio(LUIS, pcm16k(), 16000, 1)
-    live.events.toolCalls([{ id: 'slow-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    live.events.toolCalls([
+      {
+        id: 'slow-1',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     live.events.goAway('1s')
     clock += 1000
@@ -800,7 +862,7 @@ describe('room session: provider recovery (case A14)', () => {
     const next = lives.at(-1)
     assert.ok(next && next !== live)
     assert.equal(next.options.resumptionHandle, 'handle-2')
-    assert.doesNotMatch(next.options.systemInstruction, /restored without/)
+    assert.equal(next.options.systemInstruction, GUIDE.instruction, 'the same checked instruction, unchanged')
     room.events.audio(LUIS, pcm16k(), 16000, 1)
     assert.equal(next.audio, 0, 'not before the new connection is ready')
     next.events.setupComplete()
@@ -839,7 +901,13 @@ describe('room session: provider recovery (case A14)', () => {
     const { session, room, live } = await ready()
     room.events.audio(LUIS, pcm16k(), 16000, 1)
     live.events.resumption('handle-2', true)
-    live.events.toolCalls([{ id: 'call-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    live.events.toolCalls([
+      {
+        id: 'call-1',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     live.events.goAway('5s')
     clock += 1000
@@ -849,7 +917,13 @@ describe('room session: provider recovery (case A14)', () => {
     assert.ok(resumed && resumed !== live)
     assert.equal(resumed.options.resumptionHandle, 'handle-2')
     resumed.events.setupComplete()
-    resumed.events.toolCalls([{ id: 'call-1', name: 'start_brief', args: { instruction: 'Draft it' } }])
+    resumed.events.toolCalls([
+      {
+        id: 'call-1',
+        name: 'record_mission_note',
+        args: { kind: 'observation', epistemic: 'reported', text: 'Draft it' },
+      },
+    ])
     await flush()
     assert.equal(service.calls.length, 2)
     const [first, repeated] = service.calls
@@ -879,7 +953,7 @@ describe('room session: provider recovery (case A14)', () => {
     assert.notEqual(second?.connectionGeneration, first?.connectionGeneration)
   })
 
-  it('a handle that keeps failing is dropped and the next connection starts cold, saying so', async () => {
+  it('a handle that keeps failing is dropped; the next connection starts cold with the same instruction', async () => {
     const { session, live } = await ready()
     live.events.resumption('bad-handle', true)
     live.events.closed('error: 1011')
@@ -892,7 +966,7 @@ describe('room session: provider recovery (case A14)', () => {
     await flush()
     const cold = lives.at(-1)
     assert.equal(cold?.options.resumptionHandle, null)
-    assert.match(cold?.options.systemInstruction ?? '', /restored without the earlier conversation/)
+    assert.equal(cold?.options.systemInstruction, GUIDE.instruction, 'no reconnect prose is appended')
   })
 
   it('reports unavailable after repeated failures', async () => {
@@ -1342,5 +1416,197 @@ describe('room session: what the room is told', () => {
     assert.equal(room.closed, true)
     assert.equal(live.closed, true)
     assert.equal(service.calls.length, 0)
+  })
+})
+
+describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
+  const NOTE = { kind: 'observation', epistemic: 'reported', text: 'A note' }
+
+  it('does not connect Google until the API executes exactly the guide’s operations, and says why (T20)', async () => {
+    service.surface = DECLARED_NAMES.filter((n) => n !== 'decide_mission_change')
+    const session = newSession({}, [member(LUIS)])
+    await session.start()
+    await flush()
+    assert.equal(lives.length, 0, 'no provider connection without real handlers for every operation')
+    assert.equal(session.observed().voice, 'unavailable')
+    session.tick()
+    await flush()
+    assert.match(String(service.presences.at(-1)?.reason), /does not run the operations her guide uses/)
+    // One tick starts the check, the next reports what it found.
+    const retry = async () => {
+      clock += 30_000
+      session.tick()
+      await flush()
+      session.tick()
+      await flush()
+    }
+    service.surface = null
+    await retry()
+    assert.equal(lives.length, 0)
+    assert.match(String(service.presences.at(-1)?.reason), /could not confirm/)
+    service.surface = DECLARED_NAMES.toReversed()
+    await retry()
+    assert.equal(lives.length, 1, 'bound: the same six operations, in any order')
+    assert.equal(lives[0]?.options.systemInstruction, GUIDE.instruction)
+    assert.equal(service.surfaceChecks, 3)
+  })
+
+  it('fresh, resumed and rebuilt connections all send the identical instruction, and nothing is injected (T21)', async () => {
+    const { session, live } = await ready()
+    live.events.resumption('handle-1', true)
+    live.events.goAway('5s')
+    clock += 1000
+    session.tick()
+    await flush()
+    const resumed = lives.at(-1)
+    assert.ok(resumed && resumed !== live)
+    assert.equal(resumed.options.resumptionHandle, 'handle-1')
+    resumed.events.setupComplete()
+    const setups = logs.filter(([event]) => event === 'provider.setup').map(([, f]) => f)
+    assert.deepEqual(
+      setups.map((f) => [f.resumed, f.instruction, f.instructionBytes, f.tools]),
+      [
+        [false, GUIDE.combined.sha256, GUIDE.combined.bytes, 6],
+        [true, GUIDE.combined.sha256, GUIDE.combined.bytes, 6],
+      ],
+    )
+    for (const l of lives) {
+      assert.equal(l.options.systemInstruction, GUIDE.instruction)
+      assert.deepEqual(l.notices, [], 'no prompt text is sent as conversation')
+    }
+    assert.equal(JSON.stringify(logs).includes('Mission-lifecycle skill'), false, 'logs carry hashes, never the text')
+  })
+
+  it('a narrowed eligibility drops the provider context and reconnects cold, with the same instruction (T12, T21)', async () => {
+    const { session, room, live } = await ready()
+    live.events.resumption('handle-9', true)
+    live.events.audio(speech(), OUT)
+    await flush()
+    const clears = room.clears
+    session.update(assignment({ eligibilityRevision: 2, ledgerRevision: 2 }))
+    assert.equal(live.closed, true, 'the old context is gone before anything else is said')
+    assert.equal(room.clears, clears + 1, 'what was playing stops')
+    assert.deepEqual(logs.find(([e]) => e === 'context.rebuild')?.[1], {
+      exchangeId: EXCHANGE,
+      reason: 'eligibility narrowed',
+    })
+    session.tick()
+    await flush()
+    const rebuilt = lives.at(-1)
+    assert.ok(rebuilt && rebuilt !== live)
+    assert.equal(rebuilt.options.resumptionHandle, null, 'no resumption handle: the old history cannot come back')
+    assert.equal(rebuilt.options.systemInstruction, GUIDE.instruction)
+    rebuilt.events.setupComplete()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    service.result = { status: 'ok', output: { readState: 'present', ledgerRevision: 2 } }
+    rebuilt.events.toolCalls([{ id: 'after-rebuild', name: 'project_status', args: {} }])
+    await flush()
+    assert.deepEqual(rebuilt.responses[0]?.response?.output, {
+      status: 'ok',
+      readState: 'present',
+      ledgerRevision: 2,
+      connection: { restoredWithoutHistory: true },
+    })
+    session.update(assignment({ eligibilityRevision: 2, ledgerRevision: 2 }))
+    assert.equal(rebuilt.closed, false, 'the same revision does not rebuild again')
+  })
+
+  it('a tool call carries the holder utterances of its provider session; a cold start counts again', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.inputTranscript('first words', false)
+    live.events.inputTranscript('more of the same utterance', false)
+    live.events.toolCalls([{ id: 'u-1', name: 'record_mission_note', args: NOTE }])
+    await flush()
+    live.events.turnComplete()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.inputTranscript('yes, accept it', true)
+    live.events.toolCalls([{ id: 'u-2', name: 'decide_mission_change', args: {} }])
+    await flush()
+    assert.deepEqual(
+      service.calls.map((c) => c.utterance),
+      [1, 2],
+    )
+    live.events.closed('network lost')
+    clock += 1000
+    session.tick()
+    await flush()
+    const cold = lives.at(-1)
+    assert.ok(cold && cold !== live)
+    cold.events.setupComplete()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    cold.events.inputTranscript('hello again', false)
+    cold.events.toolCalls([{ id: 'u-3', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.at(-1)?.utterance, 1, 'a new provider session counts from zero')
+    assert.notEqual(service.calls.at(-1)?.connectionGeneration, service.calls[0]?.connectionGeneration)
+  })
+
+  it('keeps no transcript: the holder’s words reach no log, tool call or session state (T10)', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.inputTranscript('MARKER-7c1 my private remark about the budget', false)
+    live.events.outputTranscript('MARKER-9d2 what Sophia said', false)
+    live.events.toolCalls([{ id: 't-1', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    const seen = inspect({ logs, calls: service.calls, presences: service.presences, session }, { depth: 12 })
+    assert.equal(seen.includes('MARKER-7c1'), false)
+    assert.equal(seen.includes('MARKER-9d2'), false)
+  })
+
+  it('a write whose reply is lost is retried with the same identity, then reported unknown; a read is an error (T18)', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    // This test's own fake: a call still retrying when the test ends can never count in the next test's service.
+    const fake = service
+    fake.toolCall = async (c) => {
+      await Promise.resolve()
+      fake.calls.push(c)
+      throw new Error('socket hang up')
+    }
+    live.events.toolCalls([{ id: 'lost-1', name: 'record_mission_note', args: NOTE }])
+    await until('the write to be answered', () => live.responses.length >= 1)
+    assert.equal(service.calls.length, 3, 'sent again twice, each time as the same call')
+    assert.ok(
+      service.calls.every(
+        (c) => c.callId === 'lost-1' && c.connectionGeneration === service.calls[0]?.connectionGeneration,
+      ),
+    )
+    const output = live.responses[0]?.response?.output as { status: string; next: string }
+    assert.equal(output.status, 'unknown', 'never "nothing was saved"')
+    assert.match(output.next, /Read project_status/)
+    live.events.toolCalls([{ id: 'lost-2', name: 'project_status', args: {} }])
+    await until('the read to be answered', () => live.responses.length >= 2)
+    assert.equal(statusOf(live.responses[1]), 'error', 'a read that failed changed nothing')
+  })
+
+  it('a refusal from the API (4xx) is not retried and is not reported as unknown', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    const fake = service
+    fake.toolCall = async (c) => {
+      await Promise.resolve()
+      fake.calls.push(c)
+      throw new ServiceError(422, 'POST /v1/media/tool-calls: 422')
+    }
+    live.events.toolCalls([
+      { id: 'refused-1', name: 'propose_mission_change', args: { kind: 'mission', statement: 'x' } },
+    ])
+    await until('the refusal to be answered', () => live.responses.length >= 1)
+    assert.equal(service.calls.length, 1)
+    assert.equal(statusOf(live.responses[0]), 'error')
+  })
+
+  it('tells the guide when records changed outside the conversation, on its next result', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    session.update(assignment({ ledgerRevision: 4 }))
+    service.result = { status: 'ok', output: { text: 'a note' } }
+    live.events.toolCalls([{ id: 'r-1', name: 'read_selected_source', args: {} }])
+    await flush()
+    const flagged = live.responses[0]?.response?.output as { recordsChanged?: string } | undefined
+    assert.match(String(flagged?.recordsChanged), /Read project_status/)
+    assert.deepEqual(live.notices, [], 'nothing is spoken unprompted')
   })
 })

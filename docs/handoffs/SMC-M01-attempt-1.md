@@ -1,0 +1,80 @@
+# Implementation-session handoff: SMC-M01, attempt 1
+
+- **Goal:** [M01, the mission-aware companion](../missions/2026-09-27-companion-research/missions/M01_MISSION_COMPANION.md), pack v1.1. Coordination issue [#17](https://github.com/davidelaverga/Sophia/issues/17); implementation PR [#18](https://github.com/davidelaverga/Sophia/pull/18), draft.
+- **Executor:** Claude Code (cloud session `https://claude.ai/code/session_01WYqdvEfR8p7mTf1Wbh1b4f`), implementer role only.
+- **Branch:** `claude/upbeat-feynman-d7jskb`, from `main` `c683e6e`. The branch has no merge, rebase or force-push. It merges `main` after R00's #16 lands.
+- **Writable scope:** source, migrations, tests and docs; disposable local databases. **No hosted service, schema, setting or secret was touched.** The only hosted work was Codex's read-only OP-0001.
+
+## Verdict
+
+**The G1–G4 candidate is ready for review. It is not merged, not released and not accepted.**
+- **Built and tested locally:** the mission ledger, the exact v1.1 guide with its six operations in the bridge, and the compact mission view that replaces the brief form. Every local check passes; the progress record §2 lists them.
+- **G5:** the release request is drafted but not posted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md)). Codex's read-only reviews found three issues ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), fixed at `5a03cfd`), then three more in those fixes ([CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), fixed at `421e535` after two product decisions by Davide), then two more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), fixed at `f0ca9f0`), then four more ([CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), fixed at `9a8082b` and `73308de`), then one more ([CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359), fixed at `2d3549e`). [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539) checked that fix and found nothing within its scope: OP-0002 has no open finding.
+- **Still open:**
+  - hosted evidence for every case;
+  - T01 and T16, which are prompt behaviour;
+  - Luis's review of the Studio layout.
+
+## Commits
+
+| Commit | Goal |
+|---|---|
+| `dc2d06e` | G1: pack v1.1 installed; the contract binding frozen; the coordination channel opened |
+| `551a18f` | G2: migration 0018, amendment A08, persistence and the member API |
+| `39545f1` | G3: the guide loaded byte for byte and checked at start; the six operations bound to real handlers; the tool-surface check |
+| `cfec301` | G4: the compact mission view in Converse; the brief form retired |
+| `8a4b6a7` | G4, T17: the composer kept in reach, parity with what Sophia reads, the history styled |
+| `5382575` | docs only: progress, binding notes, coordination, runbook, destination map, this handoff |
+| `a0a1562` | The Codex GitHub review of #18: a note-policy or consent change moves the ledger revision, so a live guide re-reads it; the retired brief endpoint declares no success |
+| `7fd4573` | The second Codex GitHub review: CORS allows `PUT` for note capture and consent; a proposal replaces only a decision of its own kind |
+| `f230848` | The third Codex GitHub review: a stale replacement is a conflict; external changes stay visible during the guide's own writes; the Studio retries unconfirmed writes with their key; corrections keep their links |
+| `dfee0bc` | The fourth Codex GitHub review: a revision change wakes the bridge's poll at once, so a forget rebuilds the provider context promptly |
+| `5a03cfd` | Codex's review for OP-0002 (CX-0004): voice writes need the current floor epoch; forgetting reaches the note's versions and the proposals and decisions citing it; no digest of a forgotten text stays |
+| `421e535` | Codex's check for OP-0002 (CX-0005), with Davide's decisions: a proposal repeating a note's words cites it; forgetting reaches back to the forgetter's own earliest wording; a retry under a forgotten request's key is stale; the Forget confirmation lists what goes, from the same rule |
+| `f0ca9f0` | Codex's check for OP-0002 (CX-0006): the Forget confirmation fails closed, lists every version and decision, and the withdrawal is bound to that list; repeated words match in any Unicode form, within one field |
+| `9a8082b` | Codex's check for OP-0002 (CX-0007): a withdrawal must carry its preview's list, which binds each decision's revision; the confirmation shows every word and field; repeated words match in canonical form (NFC) only |
+| `73308de` | CX-0007 F2's layout: the Forget list flows in the conversation's one scroller, not a nested one |
+| `2d3549e` | Codex's check for OP-0002 (CX-0008): a withdrawal must carry the preview's proof, an HMAC under a key only the database holds, bound to the member, note, expiry and exact reach |
+| `126cea3` | A CI flake: two bridge retry tests waited a fixed 5 ms and leaked a late call into the next test; now bounded waits and per-test fakes (test only) |
+
+## Evidence
+
+The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
+- **Checks:** `pnpm check` exit 0 (299 unit; 56 integration against the real pinned dsh, the runtime-service crossing included). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 195/195, on `C.UTF-8` and on `en_US.UTF-8`.
+- **Rollback:** production's code at `0391bc6` passes its own `test:sql` and `test:db` (147/147) on 0001–0018.
+- **T17:** checked in a browser against the real API, including keyboard and the manual controls; the Forget confirmation again at `2d3549e` (27/27 checks).
+- **Hosted facts:** from OP-0001 (CX-0001 to CX-0003), checked against CC-0001.
+
+## Decisions and changes
+
+- **Davide's product decisions** (progress record §5): a proposal that repeats a note's words cites it, and forgetting erases everything built on the note, with the confirmation listing exactly what goes first.
+- **The fixed parts are unchanged.** The six model-facing names, the authored prompt and the skill are as the pack has them; nothing in them needed a versioned amendment.
+- **Where the implementation differs from the binding,** [binding §10](../progress/SMC-M01-contract-binding.md) records it, with the reason:
+  - the `proposal` column;
+  - `correctsEntryId`;
+  - consent for voice proposals;
+  - the status mapping;
+  - no spoken refresh notice;
+  - write retries.
+- **The Studio view also shows** accepted constraints and lessons and the recent decisions, because Sophia's `project_status` has them.
+- **Deploy order:** schema first, then the API and the bridge back to back with nobody in a call, then the Studio. The runbook's M01 notes explain why.
+
+## Remaining obligations
+
+| Item | State |
+|---|---|
+| SMC-M01-OP-0002 | revisions 5 to 10 answered (CX-0004 to CX-0009), all thirteen findings fixed, and CX-0009 found nothing new; read only. No unknown effect |
+| SMC-M01-OP-0004 (CC-0013 rev 1, CC-0014 rev 2) | the production test before merge (path B). Revision 1 at `c429869` preflighted by CX-0010: blocked on the migration-owner connection and Davide's approval. Revision 2 at `126cea3` (a test-only CI fix): source prepared by CX-0011, then authorized directly by Davide in the operator's session (CX-0012). Rollout done (CX-0013): 0018 applied after a clean rehearsal on PostgreSQL 17.6; API, bridge and Studio at `126cea3`; the exact guide loaded; capture off. Owner test (CX-0014 to CX-0020): the Auth email quota was raised to 30 per hour on his approval. A first voice session (11 min) and a fresh return each set up Google with the exact instruction, and `project_status` answered ok in both. There was no recall, as designed, with capture off. A capture test for his project is being prepared (CC-0017 sets out what it should show) |
+| SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CC-0012's answer and #16. Its first step is the owner-connection dry run |
+| Luis's review | the Studio layout and interaction (`apps/studio/src/features/mission/`, `theme.css`) |
+| Merge | after #16; then merge `main` into the branch, and rerun `pnpm check`, `test:sql` and `test:db` |
+| Layout at 200% zoom | predates M01 (the room stage's geometry). A follow-up for the layout's owner; not in M01 |
+| Retained data, active jobs, stopped epochs | none |
+
+## Next bounded action
+
+1. **Davide's production test** (Codex's report after CX-0013, on #17): check it against CC-0013 §3 and record the session and tool outcomes and the usage. Do not treat a deploy as accepted.
+2. **Luis's review** of the Studio layout: address what he finds, with tests, and ask Codex for a bounded recheck if the fix touches 0018 or A08.
+3. **When #16 has merged:** merge `main`, rerun the checks, fill CC-0003 with the final reviewed commit, and post it for Davide's decision.
+
+A new session continues this mission from the progress record and #17; it does not start a new one.

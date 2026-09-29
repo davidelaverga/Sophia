@@ -1,11 +1,14 @@
 export { ASSIGNMENT_WAIT_MS, MediaBridge } from './bridge.ts'
 export {
-  connectGeminiLive,
-  systemInstruction,
-  type ConnectLive,
-  type LiveEvents,
-  type LiveLink,
-} from './live-session.ts'
+  GUIDE_DIR,
+  GUIDE_MANIFEST,
+  GuideAssetError,
+  guideIdentity,
+  loadMissionGuide,
+  type AssetIdentity,
+  type MissionGuide,
+} from './guide.ts'
+export { connectGeminiLive, geminiLive, type ConnectLive, type LiveEvents, type LiveLink } from './live-session.ts'
 export { HOLDER_GRACE_MS, PRESENCE_EVERY_MS, RoomSession, type Observed, type SessionDeps } from './room-session.ts'
 export {
   joinLiveKitRoom,
@@ -17,4 +20,4 @@ export {
   type RoomPerson,
 } from './rtc.ts'
 export { httpMediaService, ServiceError, type MediaService } from './service.ts'
-export { TOOL_DECLARATIONS } from './tools.ts'
+export { DECLARED_NAMES, TOOL_DECLARATIONS } from './tools.ts'

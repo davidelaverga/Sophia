@@ -1,0 +1,46 @@
+{
+  "schema": "sophia.m01-package-negative-checks.v1",
+  "scope": "authored_document_asset_validator_only",
+  "cases": [
+    {
+      "case": "missing_skill",
+      "detected": true,
+      "failures": [
+        "FileNotFoundError: [Errno 2] No such file or directory: '/tmp/m01-check-p8g8pyn9/pack/skills/mission-lifecycle.v1.1.md'"
+      ]
+    },
+    {
+      "case": "altered_system_prompt",
+      "detected": true,
+      "failures": [
+        "Hash/size mismatch: prompts/M01_SYSTEM_PROMPT.v1.1.md",
+        "Combined instruction is not exact core + LF + full skill",
+        "Combined instruction hash/length mismatch",
+        "M01 section 8 literal payload differs from canonical assembly"
+      ]
+    },
+    {
+      "case": "skill_omitted_from_combined_payload",
+      "detected": true,
+      "failures": [
+        "Combined instruction is not exact core + LF + full skill"
+      ]
+    },
+    {
+      "case": "duplicate_skill_injection",
+      "detected": true,
+      "failures": [
+        "Combined instruction is not exact core + LF + full skill"
+      ]
+    },
+    {
+      "case": "spec_copy_drift",
+      "detected": true,
+      "failures": [
+        "M01 section 8 literal payload differs from canonical assembly"
+      ]
+    }
+  ],
+  "all_detected": true,
+  "app_or_provider_test": false
+}

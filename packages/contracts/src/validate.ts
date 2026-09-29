@@ -16,7 +16,12 @@ import {
   validateLobbyEntry,
   validateMediaAssignmentBatch,
   validateMediaToolResult,
+  validateMediaToolSurface,
   validateMembership,
+  validateMissionContext,
+  validateMissionNotePolicy,
+  validateMissionReceipt,
+  validateMissionWithdrawalPreview,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
   validateProjectCreated,
@@ -70,6 +75,11 @@ export const parseNativeTaskDetail = parser('NativeTaskDetail', validateNativeTa
 export const parseExchangeState = parser('ExchangeState', validateExchangeState)
 export const parseMediaAssignmentBatch = parser('MediaAssignmentBatch', validateMediaAssignmentBatch)
 export const parseMediaToolResult = parser('MediaToolResult', validateMediaToolResult)
+export const parseMediaToolSurface = parser('MediaToolSurface', validateMediaToolSurface)
+export const parseMissionContext = parser('MissionContext', validateMissionContext)
+export const parseMissionReceipt = parser('MissionReceipt', validateMissionReceipt)
+export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissionNotePolicy)
+export const parseMissionWithdrawalPreview = parser('MissionWithdrawalPreview', validateMissionWithdrawalPreview)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

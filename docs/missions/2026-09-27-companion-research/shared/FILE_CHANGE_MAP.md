@@ -17,7 +17,7 @@ These are inspected existing anchors plus explicitly proposed destinations. At G
 | Proposed `packages/context/` or existing compiler package | Minimal authorized mission/guide ContextPacket compiler, not a full new memory platform. |
 | Proposed `packages/persistence/src/mission.ts` and API mission routes | Current read, entry/proposal/decision transactions and typed receipts. |
 | Proposed `apps/studio/src/features/mission/` | Small current-state/pending-decision/history surface with source references. |
-| Proposed application skill/prompt content directory | Install/version the supplied candidate skill/core; record exact destination/digests in G1 binding. |
+| `apps/media-bridge/src/content/mission-guide/` (chosen new content destination, or a G1-bound existing equivalent) | Package the exact M01 v1.1 system prompt, full mission skill and generated combined instruction; verify source and loaded-payload hashes. Follow [M01_PROMPT_LOADING](M01_PROMPT_LOADING.md), not the old candidate files. |
 | `packages/contracts/amendments/`, generator output, `db/migrations/` | Add reviewed schemas/narrow SQL through actual next available numbers; never patch already-applied files. |
 
 ## M02 — Runtime and public preset binding
