@@ -30,6 +30,21 @@ describe('CORS for a deployed Studio', () => {
     assert.match(String(res.headers['access-control-allow-headers']), /idempotency-key/)
   })
 
+  it('allows every method the Studio sends, including PUT for note capture and consent (A08)', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: `/api/v1/projects/${crypto.randomUUID()}/mission/note-consent`,
+      headers: {
+        origin: STUDIO,
+        'access-control-request-method': 'PUT',
+        'access-control-request-headers': 'authorization, content-type',
+      },
+    })
+    assert.equal(res.statusCode, 204)
+    const methods = String(res.headers['access-control-allow-methods']).split(/,\s*/)
+    for (const method of ['GET', 'POST', 'PUT', 'DELETE']) assert.ok(methods.includes(method), method)
+  })
+
   it('gives any other origin nothing, so the browser refuses the call', async () => {
     const res = await preflight('https://evil.example')
     assert.equal(res.headers['access-control-allow-origin'], undefined)

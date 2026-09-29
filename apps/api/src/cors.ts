@@ -4,6 +4,8 @@
 import type { FastifyInstance } from 'fastify'
 
 const ALLOWED_HEADERS = 'authorization, content-type, idempotency-key'
+/** Every method the Studio sends: PUT sets the mission's note capture and a member's consent (A08). */
+const ALLOWED_METHODS = 'GET, POST, PUT, DELETE'
 const PREFLIGHT_MAX_AGE_SECONDS = 600
 
 export function registerCors(app: FastifyInstance, origins: readonly string[]): void {
@@ -16,7 +18,7 @@ export function registerCors(app: FastifyInstance, origins: readonly string[]): 
     if (req.method !== 'OPTIONS') return done()
     // Answering here ends the request: later hooks (authentication) do not run for a preflight.
     void reply
-      .header('access-control-allow-methods', 'GET, POST, DELETE')
+      .header('access-control-allow-methods', ALLOWED_METHODS)
       .header('access-control-allow-headers', ALLOWED_HEADERS)
       .header('access-control-max-age', String(PREFLIGHT_MAX_AGE_SECONDS))
       .status(204)

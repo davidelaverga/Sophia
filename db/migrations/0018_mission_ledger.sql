@@ -322,8 +322,11 @@ BEGIN
   IF sophia.mission_consent(p_project)<>'accepted' THEN
    RAISE EXCEPTION 'Consent to keep proposals from this speaker is not given' USING ERRCODE='42501'; END IF;
  END IF;
- IF supersedes IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sophia.decisions WHERE project_id=p_project AND id=supersedes AND state='accepted') THEN
-  RAISE EXCEPTION 'Superseded decision not found' USING ERRCODE='22023'; END IF;
+ -- A proposal replaces only an accepted decision of its own kind: a constraint or a lesson never retires the mission,
+ -- whose projection only a mission acceptance moves.
+ IF supersedes IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sophia.decisions s WHERE s.project_id=p_project AND s.id=supersedes
+   AND s.state='accepted' AND s.kind=(p_request->>'kind')) THEN
+  RAISE EXCEPTION 'A proposal can replace only an accepted decision of its own kind' USING ERRCODE='22023'; END IF;
  SELECT x INTO bad FROM unnest(supporting) x WHERE NOT EXISTS(
   SELECT 1 FROM sophia.mission_entries e WHERE e.project_id=p_project AND e.id=x AND e.state<>'withdrawn') LIMIT 1;
  IF bad IS NOT NULL THEN RAISE EXCEPTION 'Supporting note not found' USING ERRCODE='22023'; END IF;
@@ -402,7 +405,7 @@ BEGIN
  IF d.supersedes_decision_id IS NOT NULL THEN
   -- Its own variable: a zero-row UPDATE ... INTO would leave a value from the loop above in place.
   UPDATE sophia.decisions SET state='superseded', revision=revision+1
-   WHERE project_id=p_project AND id=d.supersedes_decision_id AND state='accepted' RETURNING id INTO named;
+   WHERE project_id=p_project AND id=d.supersedes_decision_id AND state='accepted' AND kind=d.kind RETURNING id INTO named;
   IF named IS NOT NULL AND NOT affected @> to_jsonb(ARRAY[named]) THEN affected:=affected||to_jsonb(named); END IF;
  END IF;
  RETURN affected;

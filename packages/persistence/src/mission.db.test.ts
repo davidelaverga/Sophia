@@ -331,6 +331,34 @@ describe('mission ledger: proposals and decisions (T05, T06)', () => {
     assert.equal(ctx.mission, null)
   })
 
+  it('a proposal replaces only a decision of its own kind: a constraint never retires the mission', async () => {
+    const { projectId } = await project()
+    const aim = await propose(E, projectId, { kind: 'mission', statement: 'Workshops near the lab.' })
+    await decide(A, projectId, aim.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    const cheap = await propose(E, projectId, { kind: 'constraint', statement: 'Under 30 euros.' })
+    await decide(A, projectId, cheap.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    assert.equal(
+      await codeOf(
+        propose(E, projectId, { kind: 'constraint', statement: 'Free.', supersedesDecisionId: aim.decisionId! }),
+      ),
+      'invalid_request',
+      'a constraint cannot name the mission',
+    )
+    const cheaper = await propose(E, projectId, {
+      kind: 'constraint',
+      statement: 'Under 20 euros.',
+      supersedesDecisionId: cheap.decisionId!,
+    })
+    await decide(A, projectId, cheaper.decisionId!, { decision: 'accept', expectedRevision: 1 })
+    const ctx = await context(A, projectId)
+    assert.deepEqual([ctx.mission?.decisionId, ctx.missionRevision], [aim.decisionId, 2], 'the mission stands')
+    assert.deepEqual(
+      ctx.constraints.map((d) => d.statement),
+      ['Under 20 euros.'],
+    )
+    assert.equal(ctx.decided.find((d) => d.id === cheap.decisionId)?.state, 'superseded')
+  })
+
   it('two proposals from one mission revision: the second acceptance is a conflict, never a silent overwrite', async () => {
     const { projectId } = await project()
     const one = await propose(E, projectId, { kind: 'mission', statement: 'First direction.' })
