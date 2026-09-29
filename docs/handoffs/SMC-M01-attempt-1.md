@@ -27,11 +27,12 @@
 | `5382575` | docs only: progress, binding notes, coordination, runbook, destination map, this handoff |
 | `a0a1562` | The Codex GitHub review of #18: a note-policy or consent change moves the ledger revision, so a live guide re-reads it; the retired brief endpoint declares no success |
 | `7fd4573` | The second Codex GitHub review: CORS allows `PUT` for note capture and consent; a proposal replaces only a decision of its own kind |
+| `f230848` | The third Codex GitHub review: a stale replacement is a conflict; external changes stay visible during the guide's own writes; the Studio retries unconfirmed writes with their key; corrections keep their links |
 
 ## Evidence
 
 The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
-- **Checks:** `pnpm check` exit 0 (293 unit; 56 integration against the real pinned dsh, the runtime-service crossing included). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 180/180.
+- **Checks:** `pnpm check` exit 0 (295 unit; 56 integration against the real pinned dsh, the runtime-service crossing included). `test:sql` passes for the pack and for the repository (18 migrations). `test:db` 182/182.
 - **Rollback:** production's code at `0391bc6` passes its own `test:sql` and `test:db` (147/147) on 0001–0018.
 - **T17:** checked in a browser against the real API, including keyboard and the manual controls.
 - **Hosted facts:** from OP-0001 (CX-0001 to CX-0003), checked against CC-0001.
@@ -53,7 +54,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 
 | Item | State |
 |---|---|
-| SMC-M01-OP-0002 (CC-0005, revision 3 of CC-0002) | requested; read only; waits for Davide to wake Codex. No unknown effect |
+| SMC-M01-OP-0002 (CC-0006, revision 4 of CC-0002) | requested; read only; waits for Davide to wake Codex. No unknown effect |
 | SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CX-0004 and #16 |
 | Luis's review | the Studio layout and interaction (`apps/studio/src/features/mission/`, `theme.css`) |
 | Merge | after #16; then merge `main` into the branch, and rerun `pnpm check`, `test:sql` and `test:db` |
@@ -62,7 +63,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 
 ## Next bounded action
 
-1. **When Codex answers CC-0005** (CC-0002's revision 3; CX-0004 on #17, with a pointer on #18): check each finding against the question it answers, fix the real ones with tests, and record the rest.
+1. **When Codex answers CC-0006** (CC-0002's revision 4; CX-0004 on #17, with a pointer on #18): check each finding against the question it answers, fix the real ones with tests, and record the rest.
 2. **When #16 has merged:** merge `main`, rerun the checks, fill CC-0003 with the final reviewed commit, and post it for Davide's decision.
 
 A new session continues this mission from the progress record and #17; it does not start a new one.

@@ -4,13 +4,13 @@ The mission: [M01](../missions/2026-09-27-companion-research/missions/M01_MISSIO
 
 This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
 
-**State on 2026-09-29, attempt 1: G1–G4 are implemented and tested; both Codex GitHub reviews are addressed; G5 is prepared, not requested.** The candidate is on PR #18. The first review (of `5382575`) found two P2 issues, fixed at `a0a1562`; the second (of `50ae500`) found two P1 issues, fixed at `7fd4573` (§5). Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and the read-only checks in [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md) (revision 3 of CC-0002).
+**State on 2026-09-29, attempt 1: G1–G4 are implemented and tested; all three Codex GitHub reviews are addressed; G5 is prepared, not requested.** The candidate is on PR #18. The first review (of `5382575`) found two P2 issues, fixed at `a0a1562`; the second (of `50ae500`) found two P1 issues, fixed at `7fd4573`; the third (of `44513c8`) found one P1 and three P2 issues, fixed at `f230848` (§5). Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and the read-only checks in [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md) (revision 4 of CC-0002).
 
 | Readiness | State |
 |---|---|
 | Source-ready | Candidate: G1–G4 implemented, local checks green (§2), the first review's findings fixed. CI runs on each pushed head |
-| Merge-ready | No: CI, Luis's review of the Studio layout, Codex's source review (CC-0005, revision 3 of CC-0002), and R00's #16 landing first |
-| Release-ready | No: CC-0003 is a draft; it needs the final reviewed SHA, CC-0005's answers and Davide's approval |
+| Merge-ready | No: CI, Luis's review of the Studio layout, Codex's source review (CC-0006, revision 4 of CC-0002), and R00's #16 landing first |
+| Release-ready | No: CC-0003 is a draft; it needs the final reviewed SHA, CC-0006's answers and Davide's approval |
 | Hosted-verified | No |
 | Product-accepted | No |
 
@@ -21,8 +21,8 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 | Base | `main` `c683e6e60ff76004e8a06e71c368b718848b1687`: the merge of #15. CI push run 36357507466, all four jobs green |
 | Not in the base | R00's closeout, PR #16, open at `86d35ad` (CX-0001). Its code commit `0391bc6` changes only the runtime host's profile reconciliation; M01 touches none of its files. The branch merges `main` once #16 lands |
 | Branch | `claude/upbeat-feynman-d7jskb` (this session's designated branch, dedicated to M01) |
-| Commits | `dc2d06e` G1 (docs) · `551a18f` G2 ledger · `39545f1` G3 guide and tools · `cfec301` G4 mission view · `8a4b6a7` G4 layout (T17) and parity · `5382575` checkpoint (docs) · `a0a1562` the first review's fixes · `7fd4573` the second review's fixes · then their docs |
-| Migration | `db/migrations/0018_mission_ledger.sql`, 41292 bytes, sha256 `efe6b8526b07a114356f268602e03850329914eb4ae82ff31e04d9892f6f4eb9` (the ledger's checksum is the file's SHA-256: 0017 matches CX-0001's `0d0b929f…`) |
+| Commits | `dc2d06e` G1 (docs) · `551a18f` G2 ledger · `39545f1` G3 guide and tools · `cfec301` G4 mission view · `8a4b6a7` G4 layout (T17) and parity · `5382575` checkpoint (docs) · `a0a1562` the first review's fixes · `7fd4573` the second review's fixes · `f230848` the third review's fixes · then their docs |
+| Migration | `db/migrations/0018_mission_ledger.sql`, 41973 bytes, sha256 `b0ef80b624fe13e49bc061e62bca9205fa11c3f4769aa1a5f36de141aaf4d616` (the ledger's checksum is the file's SHA-256: 0017 matches CX-0001's `0d0b929f…`) |
 | Contract | amendment `A08-mission-ledger.json` sha256 `84845df5…d2a9`; generated `openapi.json` sha256 `006d8406…a363` |
 | Guide in the bridge | `apps/media-bridge/src/content/mission-guide/`: prompt `e4fb14d3…c44b` (9809 bytes), skill `2e746dfb…90d5` (14600 bytes), combined `7fe8f729…8f6d` (24410 bytes), manifest `a77cad01…9ba9`, each byte-identical to the pack |
 | Pack | v1.1 (sha256 `8ad62933…802c`); `SHA256SUMS`, `validate_pack.py` and `validate_m01_assets.py` pass in place (rerun at this checkpoint) |
@@ -36,11 +36,11 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 
 | Check | Result |
 |---|---|
-| `pnpm check` on the final tree | exit 0: toolchain, format, lint, build, typecheck, `contracts:check`; 293 unit tests; artifacts reproduced; 56 integration tests against the real pinned dsh. That includes the 5-test runtime-service crossing (real API, PostgreSQL and worker), which runs when `SOPHIA_DISPOSABLE_DATABASE_URL` is set |
+| `pnpm check` on the final tree | exit 0: toolchain, format, lint, build, typecheck, `contracts:check`; 295 unit tests; artifacts reproduced; 56 integration tests against the real pinned dsh. That includes the 5-test runtime-service crossing (real API, PostgreSQL and worker), which runs when `SOPHIA_DISPOSABLE_DATABASE_URL` is set |
 | `pnpm test:sql --source pack` | the pack's 4 migrations and its SQL test pass |
 | `pnpm test:sql` | 18 migrations, including 0018, and the SQL test pass |
-| `pnpm test:db` | 180/180 (baseline 147: +22 persistence mission, +10 API mission, +1 tool surface; the brief cases now expect 410) |
-| Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018, rerun with 0018 at `efe6b852…`: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
+| `pnpm test:db` | 182/182 (baseline 147: +24 persistence mission, +10 API mission, +1 tool surface; the brief cases now expect 410) |
+| Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018, rerun with 0018 at `b0ef80b6…`: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
 | T17 in a browser | §4, T17 |
 
 The database suites ran against a disposable local PostgreSQL 16.13 cluster through `SOPHIA_DISPOSABLE_DATABASE_URL`: this container has no Docker daemon. CI runs them on `postgres:16`. The `room-media` job (a real LiveKit server) exercises `rtc.ts` and the worker's removals, which M01 does not change.
@@ -53,7 +53,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 | G2 Canonical ledger | source done | 0018, A08, `packages/persistence/src/{mission,mission-context}.ts`, `apps/api/src/routes/mission.ts`; §4 |
 | G3 Voice notes and guide | source done | `apps/media-bridge/src/{guide,guide-context,tools,room-session,live-session}.ts`, `apps/api/src/{media-tools,mission-tools,voice-status,source-page}.ts`; §4 |
 | G4 Mission experience | source done | `apps/studio/src/features/mission/`, Converse without the brief form; T17 checked in a browser (§4) |
-| G5 Release and acceptance | prepared | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md) and its revisions [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md) and [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md) (read-only checks, posted), [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) (release request, draft) |
+| G5 Release and acceptance | prepared | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md) and its revisions [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md) [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md) and [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md) (read-only checks, posted), [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) (release request, draft) |
 
 ## 4. Acceptance cases
 
@@ -75,7 +75,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 | T12 Revoked source does not re-enter | persistence "the text is erased, the source is ineligible, the eligibility revision moves, and no read returns it"; bridge "a narrowed eligibility drops the provider context and reconnects cold"; idempotency records and events hold hashes and codes, never text (0018) | not run | no |
 | T13 Paged source marked partial | API "a long source reads in pages marked partial, with a cursor to the rest" | not run | no |
 | T14 Historical brief kept, new brief retired | API "new admission answers 410 before any write; an existing brief is still readable"; `runtime.db.test.ts` (410 for viewer and editor); integration `runtime-service.test.mjs` (410, then the historical brief runs); Studio has no brief form. Production holds 2 finished briefs and 0 in flight (CX-0002) | not run | no |
-| T15 Controls unchanged | `control_work` unchanged; the bridge, exchange and runtime suites pass (unit 293, integration 56) | not run | no |
+| T15 Controls unchanged | `control_work` unchanged; the bridge, exchange and runtime suites pass (unit 295, integration 56) | not run | no |
 | T16 Hosted two-person EN/IT/ES episode | needs a live qualification approval (G5) | not run | no |
 | T17 Viewport, zoom, a11y | Browser check at `8a4b6a7`, below | not run | no |
 | T18 Only committed notes after a crash | bridge "a write whose reply is lost is retried with the same identity, then reported unknown"; reads return committed rows only | not run | no |
@@ -102,7 +102,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 | Operation | Kind | Request | State |
 |---|---|---|---|
 | SMC-M01-OP-0001 | read-only preflight | [CC-0001](../coordination/SMC-M01/SMC-M01-CC-0001.md) | answered by [CX-0001](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880038214) (`blocked`, partial), [CX-0002](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880048077) and [CX-0003](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880197156) (`reconciled`); read only, no effects |
-| SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md) | requested at the new candidate; no answer yet |
+| SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md) | requested at the new candidate; no answer yet |
 | SMC-M01-OP-0003 | release batch | [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) | draft, not posted, not approved |
 
 **Reviews of PR #18:**
@@ -111,6 +111,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 |---|---|---|
 | Codex GitHub review of `5382575` (review 5346100271, requested by Davide) | P2: a note-policy or consent change did not reach a live guide (`0018`, `set_mission_note_policy` and `set_mission_note_consent`). P2: the retired `POST …/native-tasks` still declared a 202 receipt | Both fixed at `a0a1562`, with tests; binding §10. 0018's hash changed, so CC-0002 is superseded by CC-0004 |
 | Codex GitHub review of `50ae500` (review 5346285586, requested by Davide) | P1: the API's CORS preflight did not allow `PUT`, so the hosted Studio could not set note capture or consent (`apps/api/src/cors.ts`). P1: an accepted constraint or lesson naming the mission in `supersedesDecisionId` marked it superseded while the mission projection stayed (`0018`, `mission_accept`) | Both fixed at `7fd4573`, each with a test shown failing before the fix; binding §10. 0018's hash changed again, so CC-0005 supersedes CC-0004 |
+| Codex GitHub review of `44513c8` (review 5346681863, requested by Davide) | P1: two replacements of one decision could both be accepted (`0018`, `mission_accept`). P2: an external change during the guide's own write was hidden by its receipt (`guide-context.ts`). P2: after an unconfirmed correction the Studio offered a fresh save with a new key (`MissionNotes.tsx`). P2: a correction dropped the note's links (`0018`, `record_mission_entry`) | All fixed at `f230848`, each with a test shown failing before the fix; the same retry rule also covers adding, forgetting and deciding in the Studio. 0018's hash changed again, so CC-0006 supersedes CC-0005 |
 
 **OP-0001, checked by Claude against CC-0001:**
 
@@ -140,7 +141,7 @@ Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A
 
 ## 8. Next action
 
-When CI is green on the pushed head, ask Luis for the Studio review and Davide to wake Codex on CC-0005. When it answers and #16 has merged, merge `main`, rerun the checks, and post CC-0003 with the final SHA for Davide's decision.
+When CI is green on the pushed head, ask Luis for the Studio review and Davide to wake Codex on CC-0006. When it answers and #16 has merged, merge `main`, rerun the checks, and post CC-0003 with the final SHA for Davide's decision.
 
 ## 9. Mission state
 
@@ -152,7 +153,7 @@ When CI is green on the pushed head, ask Luis for the Studio review and Davide t
   "repository": "davidelaverga/Sophia",
   "branch": "claude/upbeat-feynman-d7jskb",
   "base_commit": "c683e6e60ff76004e8a06e71c368b718848b1687",
-  "candidate_commit": "the head of PR #18 (code at 7fd4573, then its docs)",
+  "candidate_commit": "the head of PR #18 (code at f230848, then its docs)",
   "implementation_pr": 18,
   "coordination_issue": 17,
   "status": {
@@ -171,12 +172,12 @@ When CI is green on the pushed head, ask Luis for the Studio review and Davide t
   "completed_goals": ["M01-G1", "M01-G2 (source)", "M01-G3 (source)", "M01-G4 (source)"],
   "test_evidence": [
     "baseline at c683e6e (section 2)",
-    "candidate: pnpm check (293 unit, 56 integration with the runtime-service crossing), test:sql pack and repo, test:db 180/180",
+    "candidate: pnpm check (295 unit, 56 integration with the runtime-service crossing), test:sql pack and repo, test:db 182/182",
     "rollback: 0391bc6 code on 0001-0018, test:sql and test:db 147/147",
     "T17 browser check at 8a4b6a7 (section 4)"
   ],
   "outstanding_operations": [
-    "SMC-M01-OP-0002 revision 3: read-only review and inspection, requested (CC-0005, superseding CC-0004 and CC-0002)",
+    "SMC-M01-OP-0002 revision 4: read-only review and inspection, requested (CC-0006, superseding CC-0005, CC-0004 and CC-0002)",
     "SMC-M01-OP-0003 revision 1: release batch, drafted, not posted (CC-0003)"
   ],
   "unknown_effects": [],
@@ -185,7 +186,7 @@ When CI is green on the pushed head, ask Luis for the Studio review and Davide t
   "approval_refs": [],
   "remaining_allowance_ref": null,
   "file_ownership": ["see section 6"],
-  "next_action": "After CI is green: Luis reviews the Studio layout, Davide wakes Codex on CC-0005; then merge main after #16 and post CC-0003 with the final SHA",
+  "next_action": "After CI is green: Luis reviews the Studio layout, Davide wakes Codex on CC-0006; then merge main after #16 and post CC-0003 with the final SHA",
   "checkpoint_ref": "docs/handoffs/SMC-M01-attempt-1.md"
 }
 ```
