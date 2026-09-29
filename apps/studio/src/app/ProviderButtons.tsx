@@ -1,8 +1,8 @@
 // Account providers as one quiet row of marks above the email form. Each leaves for its own consent page and
 // comes back signed in; a first visit creates the account, as the email link does.
 import { useState } from 'react'
-import { Tip } from '@sophia/ui'
-import { oauthProviders, signInWithProvider, type OAuthProvider } from './auth.ts'
+import { Icon, Tip } from '@sophia/ui'
+import { oauthProviders, passkeysOffered, signInWithPasskey, signInWithProvider, type OAuthProvider } from './auth.ts'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', github: 'GitHub', azure: 'Microsoft' }
 
@@ -47,37 +47,48 @@ function ProviderMark({ provider }: { provider: OAuthProvider }) {
   )
 }
 
+type Way = OAuthProvider | 'passkey'
+const WAY_NAME: Record<Way, string> = { ...PROVIDER_NAME, passkey: 'Passkey' }
+const WAYS: readonly Way[] = [...oauthProviders, ...(passkeysOffered ? (['passkey'] as const) : [])]
+
+/** A provider leaves the page on success; a passkey signs in here, and the auth listener takes over. */
+async function enterWith(way: Way): Promise<void> {
+  if (way === 'passkey') await signInWithPasskey()
+  else await signInWithProvider(way)
+}
+
 /** Nothing when no provider is enabled: the email form then stands alone. */
 export function ProviderButtons() {
-  const [leaving, setLeaving] = useState<OAuthProvider | null>(null)
+  const [busy, setBusy] = useState<Way | null>(null)
   const [error, setError] = useState<string | null>(null)
-  if (oauthProviders.length === 0) return null
+  if (WAYS.length === 0) return null
 
-  const go = async (provider: OAuthProvider) => {
-    setLeaving(provider)
+  const go = async (way: Way) => {
+    setBusy(way)
     setError(null)
     try {
-      await signInWithProvider(provider) // the page leaves on success
+      await enterWith(way)
+      if (way === 'passkey') setBusy(null) // dismissed, or signed in and about to leave this screen
     } catch (err: unknown) {
-      setLeaving(null)
-      setError(err instanceof Error ? err.message : `Couldn’t open ${PROVIDER_NAME[provider]}.`)
+      setBusy(null)
+      setError(err instanceof Error ? err.message : `Couldn’t open ${WAY_NAME[way]}.`)
     }
   }
   return (
     <>
       <div className="providers" role="group" aria-label="Continue with an account">
-        {oauthProviders.map((p) => (
+        {WAYS.map((w) => (
           <button
-            key={p}
+            key={w}
             type="button"
             className="provider has-tip"
-            aria-label={`Continue with ${PROVIDER_NAME[p]}`}
-            aria-busy={leaving === p}
-            disabled={leaving !== null}
-            onClick={() => void go(p)}
+            aria-label={w === 'passkey' ? 'Sign in with a passkey' : `Continue with ${WAY_NAME[w]}`}
+            aria-busy={busy === w}
+            disabled={busy !== null}
+            onClick={() => void go(w)}
           >
-            <ProviderMark provider={p} />
-            <Tip label={leaving === p ? `Opening ${PROVIDER_NAME[p]}…` : PROVIDER_NAME[p]} />
+            {w === 'passkey' ? <Icon name="passkey" size={22} /> : <ProviderMark provider={w} />}
+            <Tip label={busy === w && w !== 'passkey' ? `Opening ${WAY_NAME[w]}…` : WAY_NAME[w]} />
           </button>
         ))}
       </div>
