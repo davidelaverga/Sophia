@@ -11,7 +11,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
   - [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), Codex's check of those fixes at `5a03cfd`: it confirmed the current-floor fix, and found one P1 and two P2 issues. They are fixed at `421e535`, following Davide's two product decisions (§5).
   - [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), Codex's check of those at `421e535`: it confirmed the reach, the authorization and the stale replay, and found one P1 and one P2. Both are fixed at `f0ca9f0`.
   - [CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), Codex's check of those at `f0ca9f0`: two P1 and two P2 findings about the Forget confirmation and the word matching. All four are fixed at `73308de`.
-  - [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md) asks Codex to check them.
+  - [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897294165)) asks Codex to check them.
 
 Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0011's answer.
 
