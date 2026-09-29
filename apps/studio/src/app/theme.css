@@ -2236,14 +2236,11 @@ button.mark:hover {
   display: grid;
   gap: 2px;
 }
-/* Every word that goes is shown whole; a long list scrolls here, so the confirmation's buttons stay in reach. */
+/* Every word that goes is shown whole, in the conversation's one scroller (no scroller of its own inside a panel that
+   can be ~100 px tall); the confirmation's buttons follow it. */
 .forget-list {
   display: grid;
   gap: 4px;
-  max-height: min(40vh, 18rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
 }
 .forget-item {
   display: block;

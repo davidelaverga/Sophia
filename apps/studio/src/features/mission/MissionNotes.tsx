@@ -201,11 +201,11 @@ function ReachNote({ reach, onCheck }: { reach: Reach; onCheck: () => void }) {
       </>
     )
   }
-  // Every word that goes, unclipped: a long list scrolls inside the confirmation, above its buttons.
+  // Every word that goes, unclipped, read in order before the buttons; the conversation scrolls it.
   return (
     <span className="forget-reach">
       <span className="forget-item">Forgetting erases, for everyone:</span>
-      <span className="forget-list" role="region" aria-label="What forgetting erases" tabIndex={0}>
+      <span className="forget-list">
         {reach.items.map((item) => (
           <span key={item.id} className="forget-item">
             {item.text}
