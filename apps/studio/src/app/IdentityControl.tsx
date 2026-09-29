@@ -1,6 +1,5 @@
 // Who is acting: a dev-identity switcher, or the signed-in person with Sign out.
 import { useState } from 'react'
-import { Icon, Tip } from '@sophia/ui'
 import { shortName } from '../features/voice/room-view.ts'
 import { authMode, passkeysOffered } from './auth.ts'
 import { PasskeySheet } from './PasskeySheet.tsx'
@@ -56,9 +55,8 @@ function PasskeysButton() {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="round has-tip" aria-label="Passkeys" onClick={() => setOpen(true)}>
-        <Icon name="passkey" />
-        <Tip label="Passkeys" side="bottom" align="end" />
+      <button type="button" className="ghost" onClick={() => setOpen(true)}>
+        Passkeys
       </button>
       {open && <PasskeySheet onClose={() => setOpen(false)} />}
     </>
