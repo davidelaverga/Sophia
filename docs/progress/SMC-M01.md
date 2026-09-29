@@ -14,13 +14,13 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
   - [CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359), Codex's check of those at `73308de`: F1–F3 closed; one P1 remains, a list built by hand without any preview. Fixed at `2d3549e` with a server-signed preview proof.
   - [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897585965)) asked Codex to check it. [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539) answered at `2d3549e`: no finding within the proof, the order and the key. OP-0002 has no open finding.
 
-Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review and R00's #16.
+Nothing is merged, released or accepted. **Path B, a production test before merge,** is requested at Davide's wish: [CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md) (OP-0004) binds PR #18's head `c429869`. Davide's request to deploy "the latest commit" is intent, not approval of that batch: Codex preflights on its own, then asks Davide for the exact approval. The post-merge release ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) still waits on Luis's review and R00's #16.
 
 | Readiness | State |
 |---|---|
 | Source-ready | Candidate: G1–G4 implemented, local checks green (§2), every review finding fixed (§5). CI runs on each pushed head |
 | Merge-ready | No: Luis's review of the Studio layout, and R00's #16 landing first. Codex's read-only reviews (OP-0002) have no open finding (CX-0009) |
-| Release-ready | No: CC-0003 is a draft; it needs the final reviewed SHA and Davide's approval. Its first step is the owner-connection dry run CX-0004 could not run |
+| Release-ready | Requested, not approved: OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md)) puts `c429869` in production before merge, after Codex's preflight and Davide's exact approval; its first step is the owner-connection dry run. The post-merge release (CC-0003) is a draft |
 | Hosted-verified | No |
 | Product-accepted | No |
 
@@ -36,7 +36,7 @@ Nothing is merged, released or accepted. The release request is drafted ([CC-000
 | Contract | amendment `A08-mission-ledger.json` sha256 `43df2cd7…0c7f`; generated `openapi.json` sha256 `976e57f8…301c` |
 | Guide in the bridge | `apps/media-bridge/src/content/mission-guide/`: prompt `e4fb14d3…c44b` (9809 bytes), skill `2e746dfb…90d5` (14600 bytes), combined `7fe8f729…8f6d` (24410 bytes), manifest `a77cad01…9ba9`, each byte-identical to the pack |
 | Pack | v1.1 (sha256 `8ad62933…802c`); `SHA256SUMS`, `validate_pack.py` and `validate_m01_assets.py` pass in place (rerun at this checkpoint) |
-| Hosted, observed | CX-0003 (22:54 UTC): API `dep-dasrhht9fdbs73eolc40`, worker `dep-dasrio7pn0mc739nnetg`, runtime `dep-dasrjpt9fdbs73eour90`, bridge `dep-dasrlh17lnhs73agv6f0`, all live at `0391bc6`, tracking `claude/affectionate-cannon-496z9m`; Studio `dpl_7sUgFJnxvQGwaqxiNUpYijbVVFpp`; schema 0001–0017, no 0018 (CX-0001) |
+| Hosted, observed | CX-0003 (22:54 UTC): API `dep-dasrhht9fdbs73eolc40`, worker `dep-dasrio7pn0mc739nnetg`, runtime `dep-dasrjpt9fdbs73eour90`, bridge `dep-dasrlh17lnhs73agv6f0`, all live at `0391bc6`, tracking `claude/affectionate-cannon-496z9m`; Studio `dpl_7sUgFJnxvQGwaqxiNUpYijbVVFpp`; schema 0001–0017, no 0018 (CX-0001). **Since then**, reported to this session by Codex on 2026-09-29: API live at `0391bc6` with deploy `dep-dau0cdmk1f9s739st1mg`, bridge still `dep-dasrlh17lnhs73agv6f0`, schema 0001–0017, Auto-Deploy Off. CC-0013's preflight re-observes all of it |
 
 ## 2. Checks
 
@@ -125,7 +125,8 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 |---|---|---|---|
 | SMC-M01-OP-0001 | read-only preflight | [CC-0001](../coordination/SMC-M01/SMC-M01-CC-0001.md) | answered by [CX-0001](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880038214) (`blocked`, partial), [CX-0002](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880048077) and [CX-0003](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880197156) (`reconciled`); read only, no effects |
 | SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md), revision 5 [CC-0007](../coordination/SMC-M01/SMC-M01-CC-0007.md), revision 6 [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md), revision 7 [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md), revision 8 [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md), revision 9 [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md), revision 10 [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) | revision 5 answered by [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890111217), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890116010), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890119604)); revision 6 answered by [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894944525), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894948663), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894959050)); revision 7 answered by [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895469644), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895476039)); revision 8 answered by [CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814543), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814805), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896815109), [F4](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896818285)); read only, no effects beyond one production metadata `SELECT` and a private SQL Editor draft CX-0006 reported. revision 9 answered by [CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359) (finding [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897370118)); revision 10 answered by [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539), no finding. Read only throughout; no unknown effect |
-| SMC-M01-OP-0003 | release batch | [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) | draft, not posted, not approved |
+| SMC-M01-OP-0003 | release batch, after merge | [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) | draft, not posted, not approved; revised if OP-0004 runs (0018 then verify-only) |
+| SMC-M01-OP-0004 | release batch: production test before merge (path B) | [CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md), revision 1, at `c429869` | requested; waits for Codex's preflight (CX-0010) and Davide's exact approval. No effect yet |
 
 **Reviews of PR #18:**
 
@@ -230,7 +231,7 @@ Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A
 
 ## 8. Next action
 
-Luis reviews the Studio layout (now including the Forget confirmation's full list). When #16 has merged, merge `main`, rerun the checks, fill CC-0003 with the final reviewed commit, and post it for Davide's decision. OP-0002 has no open finding (CX-0009).
+Codex preflights OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md)) and asks Davide for the exact approval; on its result, check it against the request and record the tuple, schema, `guide.loaded`, `bridge.start` and usage. Meanwhile Luis reviews the Studio layout. When #16 has merged, merge `main`, rerun the checks, and revise CC-0003 for the merged commit (0018 verify-only if OP-0004 ran).
 
 ## 9. Mission state
 
@@ -248,7 +249,7 @@ Luis reviews the Studio layout (now including the Forget confirmation's full lis
   "status": {
     "source": "candidate_in_review",
     "merge": "not_requested",
-    "release": "request_drafted",
+    "release": "requested_not_approved",
     "hosted_verification": "not_run",
     "product_acceptance": "not_requested"
   },
@@ -272,15 +273,16 @@ Luis reviews the Studio layout (now including the Forget confirmation's full lis
     "SMC-M01-OP-0002 revision 8: answered (CX-0007); findings F1-F4 fixed at 73308de",
     "SMC-M01-OP-0002 revision 9: answered (CX-0008); finding F1 fixed at 2d3549e",
     "SMC-M01-OP-0002 revision 10: answered (CX-0009), no finding",
-    "SMC-M01-OP-0003 revision 1: release batch, drafted, not posted (CC-0003)"
+    "SMC-M01-OP-0003 revision 1: release batch after merge, drafted, not posted (CC-0003)",
+    "SMC-M01-OP-0004 revision 1: production test before merge at c429869, requested (CC-0013); awaiting Codex preflight and Davide's exact approval; no effect"
   ],
   "unknown_effects": [],
-  "hosted_tuple_ref": "SMC-M01-CX-0003 (four Render services at 0391bc6), SMC-M01-CX-0001 (Studio dpl_7sUg, schema)",
+  "hosted_tuple_ref": "SMC-M01-CX-0003 (four Render services at 0391bc6), SMC-M01-CX-0001 (Studio dpl_7sUg, schema); since reported by Codex: API dep-dau0cdmk1f9s739st1mg at 0391bc6, bridge dep-dasrlh17lnhs73agv6f0, schema 0001-0017",
   "migration_ledger_ref": "SMC-M01-CX-0001: 0001-0017 applied, no 0018",
   "approval_refs": [],
   "remaining_allowance_ref": null,
   "file_ownership": ["see section 6"],
-  "next_action": "Luis reviews the Studio layout; after #16 merges, merge main, rerun the checks, fill CC-0003 with the final reviewed commit and post it for Davide's decision",
+  "next_action": "Codex preflights OP-0004 (CC-0013) and seeks Davide's exact approval; verify its result. Luis reviews the Studio layout; after #16 merges, merge main, rerun the checks and revise CC-0003 for the merged commit",
   "checkpoint_ref": "docs/handoffs/SMC-M01-attempt-1.md"
 }
 ```
