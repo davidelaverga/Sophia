@@ -811,12 +811,27 @@ describe('mission ledger: withdrawal forgets, and eligibility narrows (T12)', ()
       'six words in a row, or the whole of a short note, is a citation; less is not',
     )
     assert.ok(tiny.entryId && partial.entryId)
+    // Accented words match as they were written, in Italian or Spanish as in English.
+    const italian = await note(E, projectId, observation('La sala è prenotata per venerdì sera alle otto.'))
+    const repeatsItalian = await propose(F, projectId, {
+      kind: 'constraint',
+      statement: 'Ricordiamo: la sala è prenotata per venerdì sera.',
+    })
+    assert.deepEqual(
+      (await context(F, projectId)).pending.find((d) => d.id === repeatsItalian.decisionId)?.supportingEntryIds,
+      [italian.entryId],
+    )
     const receipt = await withActor(pool, E, 'write', (c) =>
       withdrawMissionEntry(c, projectId, long.entryId!, randomUUID()),
     )
     assert.deepEqual(receipt.affected, [long.entryId, repeatsLong.decisionId])
     const pending = (await context(F, projectId)).pending.map((d) => d.id)
-    assert.deepEqual(pending, [repeatsShort.decisionId, sharesTwoWords.decisionId, sharesFiveWords.decisionId])
+    assert.deepEqual(pending, [
+      repeatsShort.decisionId,
+      sharesTwoWords.decisionId,
+      sharesFiveWords.decisionId,
+      repeatsItalian.decisionId,
+    ])
   })
 
   it('the preview names exactly what the withdrawal then erases, and only who may forget can ask', async () => {
