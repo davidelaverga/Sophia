@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_PROVIDERS?: string
   /** Providers being set up, shown greyed with a "coming soon" tip: "azure". */
   readonly VITE_AUTH_PROVIDERS_SOON?: string
+  /** Supabase Auth's passkey Relying Party ID ("sophia-ei.com"): passkeys are offered only on that domain. */
+  readonly VITE_PASSKEY_RP_ID?: string
   /** API origin for a deployed Studio (e.g. https://sophia-next-api.onrender.com); empty in development. */
   readonly VITE_API_URL?: string
 }

@@ -4,6 +4,7 @@ import { createClient, type AuthError, type Session, type SupabaseClient } from 
 import { useEffect, useState } from 'react'
 import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
+import { passkeysWorkOn } from './passkey-domain.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -134,8 +135,13 @@ export const upcomingProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filte
   (p) => SOON.includes(p) && !OFFERED.includes(p),
 )
 
-/** "passkey" in VITE_AUTH_PROVIDERS, once passkeys are enabled in Supabase Auth for this site's domain. */
-export const passkeysOffered = OFFERED.includes('passkey')
+/**
+ * Passkeys are bound to one domain, Supabase Auth's Relying Party ID (VITE_PASSKEY_RP_ID="sophia-ei.com"). The
+ * same build is served on other hosts too (the vercel.app address), where a passkey can't work, so passkeys are
+ * offered only on that domain and its subdomains, and only when "passkey" is in VITE_AUTH_PROVIDERS.
+ */
+export const passkeysOffered =
+  OFFERED.includes('passkey') && passkeysWorkOn(window.location.hostname, import.meta.env.VITE_PASSKEY_RP_ID)
 
 /** The browser closed the passkey prompt: the person cancelled or timed out, which needs no message. */
 const cancelled = (error: Error) => error.name === 'NotAllowedError' || error.name === 'AbortError'
