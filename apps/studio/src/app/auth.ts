@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
+import { profileFromMetadata } from './profile.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -36,7 +37,12 @@ const fromSession = (s: Session | null): AuthState =>
   s
     ? {
         status: 'signed_in',
-        identity: { name: s.user.email ?? s.user.id, role: s.user.is_anonymous ? 'guest' : '', token: s.access_token },
+        identity: {
+          name: s.user.email ?? s.user.id,
+          role: s.user.is_anonymous ? 'guest' : '',
+          token: s.access_token,
+          ...profileFromMetadata(s.user.user_metadata, s.user.email),
+        },
       }
     : { status: 'signed_out' }
 
