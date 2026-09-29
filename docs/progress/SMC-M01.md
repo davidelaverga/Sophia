@@ -20,7 +20,7 @@ Nothing is merged, released or accepted. **Path B, a production test before merg
 |---|---|
 | Source-ready | Candidate: G1–G4 implemented, local checks green (§2), every review finding fixed (§5). CI runs on each pushed head |
 | Merge-ready | No: Luis's review of the Studio layout, and R00's #16 landing first. Codex's read-only reviews (OP-0002) have no open finding (CX-0009) |
-| Release-ready | Requested, not approved: OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md)) puts `c429869` in production before merge, after Codex's preflight and Davide's exact approval; its first step is the owner-connection dry run. The post-merge release (CC-0003) is a draft |
+| Release-ready | Requested, not approved: OP-0004 revision 2 ([CC-0014](../coordination/SMC-M01/SMC-M01-CC-0014.md)) puts `126cea3` in production before merge. Codex's preflight of revision 1 ([CX-0010](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5898465673)) is blocked on the migration-owner connection, which Davide supplies securely to Codex's host, and on Davide's exact approval. The post-merge release (CC-0003) is a draft |
 | Hosted-verified | No |
 | Product-accepted | No |
 
@@ -50,6 +50,7 @@ Nothing is merged, released or accepted. **Path B, a production test before merg
 | `pnpm test:sql --source pack` | the pack's 4 migrations and its SQL test pass |
 | `pnpm test:sql` | 18 migrations, including 0018, and the SQL test pass |
 | `pnpm test:db` | 195/195 (baseline 147; the brief cases now expect 410) on the local `C.UTF-8` cluster, and 195/195 on an `en_US.UTF-8` cluster, production's `datctype` (CX-0006) |
+| CI flake, found and fixed | `runtime-unit` failed on `750c3ff` (docs only) in two `room-session.test.ts` tests: a retry test waited a fixed 5 ms for two timer-driven retries, and its fake counted a late call into the next test. Reproduced under CPU load (1 of 15 runs). Fixed at `126cea3`, test-only: bounded waits for the answer and per-test fakes. Then 0 of 30 and 0 of 12 (whole file) under the same load. `pnpm check` at `126cea3`: exit 0, 299 unit and 56 integration; CI green on both runs |
 | Rollback compatibility | Production's code (`0391bc6`) against migrations 0001–0018, rerun with 0018 at `d6e6598c…`: its own `test:sql` passes and `test:db` is 147/147. 0018 can be applied while the old API runs, and the API and bridge can go back without touching the schema |
 | T17 in a browser | §4, T17; the Forget confirmation checked again at `2d3549e` (below) |
 
@@ -126,7 +127,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 | SMC-M01-OP-0001 | read-only preflight | [CC-0001](../coordination/SMC-M01/SMC-M01-CC-0001.md) | answered by [CX-0001](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880038214) (`blocked`, partial), [CX-0002](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880048077) and [CX-0003](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880197156) (`reconciled`); read only, no effects |
 | SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md), revision 5 [CC-0007](../coordination/SMC-M01/SMC-M01-CC-0007.md), revision 6 [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md), revision 7 [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md), revision 8 [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md), revision 9 [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md), revision 10 [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) | revision 5 answered by [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890111217), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890116010), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890119604)); revision 6 answered by [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894944525), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894948663), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894959050)); revision 7 answered by [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895469644), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895476039)); revision 8 answered by [CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814543), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814805), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896815109), [F4](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896818285)); read only, no effects beyond one production metadata `SELECT` and a private SQL Editor draft CX-0006 reported. revision 9 answered by [CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359) (finding [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897370118)); revision 10 answered by [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539), no finding. Read only throughout; no unknown effect |
 | SMC-M01-OP-0003 | release batch, after merge | [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) | draft, not posted, not approved; revised if OP-0004 runs (0018 then verify-only) |
-| SMC-M01-OP-0004 | release batch: production test before merge (path B) | [CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5898359269)), revision 1, at `c429869` | requested; waits for Codex's preflight (CX-0010) and Davide's exact approval. No effect yet |
+| SMC-M01-OP-0004 | release batch: production test before merge (path B) | [CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5898359269)), revision 1 at `c429869`; [CC-0014](../coordination/SMC-M01/SMC-M01-CC-0014.md), revision 2 at `126cea3` (a test-only change) | revision 1 preflighted by [CX-0010](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5898465673), `blocked`: every source, live, schema, settings and guide precondition held, but there is no migration-owner connection on Codex's host and no approval. Revision 2 keeps both blockers. No effect yet |
 
 **Reviews of PR #18:**
 
@@ -202,6 +203,17 @@ These are product decisions about M01's behaviour, not release approvals.
 | 3. F2, the words | Closed in source: every version's words and every decision's four fields are listed whole, and the list flows before the buttons. Codex did not rerun the browser checks or check assistive technology | Agreed. Assistive technology has not been checked by anyone; that stays with Luis's review and G5 |
 | 4. F3, NFC | Closed: canonical accent equivalence without compatibility folding; the thresholds and per-field matching unchanged | Agreed; nothing to change |
 
+**OP-0004 revision 1, checked by Claude against CC-0013** ([CX-0010](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5898465673), `blocked`): each §4 precondition was answered.
+- **Source:** `c429869`, CI green; later commits docs only then.
+- **Migration:** 0018's bytes and hash as requested; the ledger 0001–0017, with 0017 `0d0b929f…`.
+- **Live:** API `dep-dau0cdmk…`, a CLI-triggered redeploy of the same `0391bc6`. Bridge, worker (`srv-darv7snpn0mc73e6c240`) and runtime (`srv-darvmse0tbcc73d8kh3g`) as §2. Auto-Deploy Off; `/health` and `/ready` 200; Studio `dpl_7sUg…`.
+- **Settings:** names present.
+- **Quiet:** 0 open exchanges and 0 pending native jobs.
+- **Backup:** 29 Sep 11:15:17 UTC.
+- **Guide:** identical.
+
+The blockers are real and are not mine to clear: no migration-owner connection on Codex's host (SQL Editor rightly not substituted), and no approval. Then CI's `runtime-unit` failed on a docs-only commit, from a timing race in two bridge tests (§2); fixed at `126cea3`, test-only. So [CC-0014](../coordination/SMC-M01/SMC-M01-CC-0014.md) is revision 2 at `126cea3`, adopting CX-0010's findings.
+
 **OP-0002 revision 10, checked by Claude against CC-0012** ([CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539), `no_findings_in_scope`, at `2d3549e`, 0018 at `d6e6598c…`, identity matched):
 
 | Asked | Codex's answer (CX-0009) | Claude's check and outcome |
@@ -231,7 +243,7 @@ Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A
 
 ## 8. Next action
 
-Codex preflights OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md)) and asks Davide for the exact approval; on its result, check it against the request and record the tuple, schema, `guide.loaded`, `bridge.start` and usage. Meanwhile Luis reviews the Studio layout. When #16 has merged, merge `main`, rerun the checks, and revise CC-0003 for the merged commit (0018 verify-only if OP-0004 ran).
+OP-0004 revision 2 ([CC-0014](../coordination/SMC-M01/SMC-M01-CC-0014.md)) waits on two things only Davide can do: supply the migration-owner connection to Codex's host through a secure local path, and approve the exact batch with a quiet window and a Live ceiling. Codex re-checks the source part (`126cea3`) and every precondition before any effect; on its result, check it against CC-0013 and CC-0014 and record the tuple, schema, `guide.loaded`, `bridge.start` and usage. Meanwhile Luis reviews the Studio layout. When #16 has merged, merge `main`, rerun the checks, and revise CC-0003 for the merged commit (0018 verify-only if OP-0004 ran).
 
 ## 9. Mission state
 
@@ -243,7 +255,7 @@ Codex preflights OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md))
   "repository": "davidelaverga/Sophia",
   "branch": "claude/upbeat-feynman-d7jskb",
   "base_commit": "c683e6e60ff76004e8a06e71c368b718848b1687",
-  "candidate_commit": "the head of PR #18 (code at 2d3549e, then its docs)",
+  "candidate_commit": "the head of PR #18: 126cea3 (code as 2d3549e, plus a test-only fix), then its docs",
   "implementation_pr": 18,
   "coordination_issue": 17,
   "status": {
@@ -274,7 +286,8 @@ Codex preflights OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md))
     "SMC-M01-OP-0002 revision 9: answered (CX-0008); finding F1 fixed at 2d3549e",
     "SMC-M01-OP-0002 revision 10: answered (CX-0009), no finding",
     "SMC-M01-OP-0003 revision 1: release batch after merge, drafted, not posted (CC-0003)",
-    "SMC-M01-OP-0004 revision 1: production test before merge at c429869, requested (CC-0013); awaiting Codex preflight and Davide's exact approval; no effect"
+    "SMC-M01-OP-0004 revision 1 at c429869 (CC-0013): preflighted by CX-0010, blocked (no migration-owner connection on Codex's host; no approval); superseded",
+    "SMC-M01-OP-0004 revision 2 at 126cea3 (CC-0014): requested; blocked on the same two items; no effect"
   ],
   "unknown_effects": [],
   "hosted_tuple_ref": "SMC-M01-CX-0003 (four Render services at 0391bc6), SMC-M01-CX-0001 (Studio dpl_7sUg, schema); since reported by Codex: API dep-dau0cdmk1f9s739st1mg at 0391bc6, bridge dep-dasrlh17lnhs73agv6f0, schema 0001-0017",
@@ -282,7 +295,7 @@ Codex preflights OP-0004 ([CC-0013](../coordination/SMC-M01/SMC-M01-CC-0013.md))
   "approval_refs": [],
   "remaining_allowance_ref": null,
   "file_ownership": ["see section 6"],
-  "next_action": "Codex preflights OP-0004 (CC-0013) and seeks Davide's exact approval; verify its result. Luis reviews the Studio layout; after #16 merges, merge main, rerun the checks and revise CC-0003 for the merged commit",
+  "next_action": "Davide supplies the migration-owner connection securely to Codex's host and approves OP-0004 revision 2 (CC-0014) exactly; then verify Codex's result. Luis reviews the Studio layout; after #16 merges, merge main, rerun the checks and revise CC-0003",
   "checkpoint_ref": "docs/handoffs/SMC-M01-attempt-1.md"
 }
 ```

@@ -35,6 +35,7 @@
 | `9a8082b` | Codex's check for OP-0002 (CX-0007): a withdrawal must carry its preview's list, which binds each decision's revision; the confirmation shows every word and field; repeated words match in canonical form (NFC) only |
 | `73308de` | CX-0007 F2's layout: the Forget list flows in the conversation's one scroller, not a nested one |
 | `2d3549e` | Codex's check for OP-0002 (CX-0008): a withdrawal must carry the preview's proof, an HMAC under a key only the database holds, bound to the member, note, expiry and exact reach |
+| `126cea3` | A CI flake: two bridge retry tests waited a fixed 5 ms and leaked a late call into the next test; now bounded waits and per-test fakes (test only) |
 
 ## Evidence
 
@@ -63,7 +64,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 | Item | State |
 |---|---|
 | SMC-M01-OP-0002 | revisions 5 to 10 answered (CX-0004 to CX-0009), all thirteen findings fixed, and CX-0009 found nothing new; read only. No unknown effect |
-| SMC-M01-OP-0004 (CC-0013), rev 1 | the production test before merge (path B) at `c429869`, requested at Davide's wish. Not approved: Codex preflights, then asks Davide for the exact approval. No effect yet |
+| SMC-M01-OP-0004 (CC-0013 rev 1, CC-0014 rev 2) | the production test before merge (path B). Revision 1 at `c429869` preflighted by CX-0010: blocked on the migration-owner connection and Davide's approval. Revision 2 at `126cea3` (a test-only CI fix) keeps both blockers. No effect yet |
 | SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CC-0012's answer and #16. Its first step is the owner-connection dry run |
 | Luis's review | the Studio layout and interaction (`apps/studio/src/features/mission/`, `theme.css`) |
 | Merge | after #16; then merge `main` into the branch, and rerun `pnpm check`, `test:sql` and `test:db` |
