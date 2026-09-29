@@ -9,7 +9,7 @@
 
 **The G1–G4 candidate is ready for review. It is not merged, not released and not accepted.**
 - **Built and tested locally:** the mission ledger, the exact v1.1 guide with its six operations in the bridge, and the compact mission view that replaces the brief form. Every local check passes; the progress record §2 lists them.
-- **G5:** the release request is drafted but not posted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md)). Codex's read-only reviews found three issues ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), fixed at `5a03cfd`), then three more in those fixes ([CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), fixed at `421e535` after two product decisions by Davide), then two more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), fixed at `f0ca9f0`), then four more ([CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), fixed at `9a8082b` and `73308de`), then one more ([CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359), fixed at `2d3549e`). [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) asks Codex to check it.
+- **G5:** the release request is drafted but not posted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md)). Codex's read-only reviews found three issues ([CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877), fixed at `5a03cfd`), then three more in those fixes ([CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768), fixed at `421e535` after two product decisions by Davide), then two more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), fixed at `f0ca9f0`), then four more ([CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), fixed at `9a8082b` and `73308de`), then one more ([CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359), fixed at `2d3549e`). [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539) checked that fix and found nothing within its scope: OP-0002 has no open finding.
 - **Still open:**
   - hosted evidence for every case;
   - T01 and T16, which are prompt behaviour;
@@ -62,7 +62,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 
 | Item | State |
 |---|---|
-| SMC-M01-OP-0002 | revisions 5 to 9 answered (CX-0004 to CX-0008), all thirteen findings fixed; revision 10 (CC-0012, the check of CX-0008's fix) requested; read only; waits for Davide to wake Codex. No unknown effect |
+| SMC-M01-OP-0002 | revisions 5 to 10 answered (CX-0004 to CX-0009), all thirteen findings fixed, and CX-0009 found nothing new; read only. No unknown effect |
 | SMC-M01-OP-0003 (CC-0003), rev 1 | drafted in the PR, not posted, not approved. It needs the merged commit, CC-0012's answer and #16. Its first step is the owner-connection dry run |
 | Luis's review | the Studio layout and interaction (`apps/studio/src/features/mission/`, `theme.css`) |
 | Merge | after #16; then merge `main` into the branch, and rerun `pnpm check`, `test:sql` and `test:db` |
@@ -71,7 +71,7 @@ The progress record's §2 and §4 hold it: [SMC-M01.md](../progress/SMC-M01.md).
 
 ## Next bounded action
 
-1. **When Codex answers CC-0012** (OP-0002's revision 10; CX-0009 on #17, with a pointer on #18): check each finding against the question it answers, fix the real ones with tests, and record the rest.
+1. **Luis's review** of the Studio layout: address what he finds, with tests, and ask Codex for a bounded recheck if the fix touches 0018 or A08.
 2. **When #16 has merged:** merge `main`, rerun the checks, fill CC-0003 with the final reviewed commit, and post it for Davide's decision.
 
 A new session continues this mission from the progress record and #17; it does not start a new one.

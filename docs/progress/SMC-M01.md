@@ -12,14 +12,14 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
   - [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785), Codex's check of those at `421e535`: it confirmed the reach, the authorization and the stale replay, and found one P1 and one P2. Both are fixed at `f0ca9f0`.
   - [CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034), Codex's check of those at `f0ca9f0`: two P1 and two P2 findings about the Forget confirmation and the word matching. All four are fixed at `73308de`.
   - [CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359), Codex's check of those at `73308de`: F1–F3 closed; one P1 remains, a list built by hand without any preview. Fixed at `2d3549e` with a server-signed preview proof.
-  - [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897585965)) asks Codex to check it.
+  - [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) ([posted](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897585965)) asked Codex to check it. [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539) answered at `2d3549e`: no finding within the proof, the order and the key. OP-0002 has no open finding.
 
-Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review, R00's #16 and CC-0012's answer.
+Nothing is merged, released or accepted. The release request is drafted ([CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md), not posted) and waits on Luis's review and R00's #16.
 
 | Readiness | State |
 |---|---|
 | Source-ready | Candidate: G1–G4 implemented, local checks green (§2), every review finding fixed (§5). CI runs on each pushed head |
-| Merge-ready | No: Luis's review of the Studio layout, Codex's check of CX-0008's fix (CC-0012), and R00's #16 landing first |
+| Merge-ready | No: Luis's review of the Studio layout, and R00's #16 landing first. Codex's read-only reviews (OP-0002) have no open finding (CX-0009) |
 | Release-ready | No: CC-0003 is a draft; it needs the final reviewed SHA and Davide's approval. Its first step is the owner-connection dry run CX-0004 could not run |
 | Hosted-verified | No |
 | Product-accepted | No |
@@ -124,7 +124,7 @@ The database suites ran against a disposable local PostgreSQL 16.13 cluster thro
 | Operation | Kind | Request | State |
 |---|---|---|---|
 | SMC-M01-OP-0001 | read-only preflight | [CC-0001](../coordination/SMC-M01/SMC-M01-CC-0001.md) | answered by [CX-0001](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880038214) (`blocked`, partial), [CX-0002](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880048077) and [CX-0003](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5880197156) (`reconciled`); read only, no effects |
-| SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md), revision 5 [CC-0007](../coordination/SMC-M01/SMC-M01-CC-0007.md), revision 6 [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md), revision 7 [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md), revision 8 [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md), revision 9 [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md), revision 10 [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) | revision 5 answered by [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890111217), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890116010), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890119604)); revision 6 answered by [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894944525), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894948663), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894959050)); revision 7 answered by [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895469644), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895476039)); revision 8 answered by [CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814543), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814805), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896815109), [F4](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896818285)); read only, no effects beyond one production metadata `SELECT` and a private SQL Editor draft CX-0006 reported. revision 9 answered by [CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359) (finding [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897370118)). Revision 10 ([CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md)) asks Codex to check CX-0008's fix; no answer yet |
+| SMC-M01-OP-0002 | read-only source review and inspection | [CC-0002](../coordination/SMC-M01/SMC-M01-CC-0002.md), revision 2 [CC-0004](../coordination/SMC-M01/SMC-M01-CC-0004.md), revision 3 [CC-0005](../coordination/SMC-M01/SMC-M01-CC-0005.md), revision 4 [CC-0006](../coordination/SMC-M01/SMC-M01-CC-0006.md), revision 5 [CC-0007](../coordination/SMC-M01/SMC-M01-CC-0007.md), revision 6 [CC-0008](../coordination/SMC-M01/SMC-M01-CC-0008.md), revision 7 [CC-0009](../coordination/SMC-M01/SMC-M01-CC-0009.md), revision 8 [CC-0010](../coordination/SMC-M01/SMC-M01-CC-0010.md), revision 9 [CC-0011](../coordination/SMC-M01/SMC-M01-CC-0011.md), revision 10 [CC-0012](../coordination/SMC-M01/SMC-M01-CC-0012.md) | revision 5 answered by [CX-0004](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890130877) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890111217), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890116010), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5890119604)); revision 6 answered by [CX-0005](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894969768) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894944525), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894948663), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5894959050)); revision 7 answered by [CX-0006](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895490785) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895469644), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5895476039)); revision 8 answered by [CX-0007](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896824034) (findings [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814543), [F2](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896814805), [F3](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896815109), [F4](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5896818285)); read only, no effects beyond one production metadata `SELECT` and a private SQL Editor draft CX-0006 reported. revision 9 answered by [CX-0008](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897375359) (finding [F1](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897370118)); revision 10 answered by [CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539), no finding. Read only throughout; no unknown effect |
 | SMC-M01-OP-0003 | release batch | [CC-0003](../coordination/SMC-M01/SMC-M01-CC-0003.md) | draft, not posted, not approved |
 
 **Reviews of PR #18:**
@@ -201,6 +201,14 @@ These are product decisions about M01's behaviour, not release approvals.
 | 3. F2, the words | Closed in source: every version's words and every decision's four fields are listed whole, and the list flows before the buttons. Codex did not rerun the browser checks or check assistive technology | Agreed. Assistive technology has not been checked by anyone; that stays with Luis's review and G5 |
 | 4. F3, NFC | Closed: canonical accent equivalence without compatibility folding; the thresholds and per-field matching unchanged | Agreed; nothing to change |
 
+**OP-0002 revision 10, checked by Claude against CC-0012** ([CX-0009](https://github.com/davidelaverga/Sophia/issues/17#issuecomment-5897807539), `no_findings_in_scope`, at `2d3549e`, 0018 at `d6e6598c…`, identity matched):
+
+| Asked | Codex's answer (CX-0009) | Claude's check and outcome |
+|---|---|---|
+| 1. The proof | `sophia_api` has no usage on `sophia_secrets`, and the signing and reach helpers are revoked from direct execution. The tag covers the project, note, member, expiry, the ordered version ids and each decision as id@revision. A caller may ask for a genuine preview as itself, but cannot derive a new valid tag from a response. The HMAC matches RFC 2104 with SHA-256's 64-byte block. The proof shows the preview was issued, not that a person read it | Agreed; nothing to change. What it proves is recorded in §7 |
+| 2. The order | Under the project lock the list, the tag and the expiry are all checked before the first erasure. A committed key's replay returns its receipt and erases nothing new. A reach that changes and returns to the same ids and revisions before expiry accepts the same proof; any change to the bound list or a revision is refused | Agreed: the same reach is the list the member was shown |
+| 3. The key | It is created and filled in 0018's transaction, and the migration runner commits the file and its checksum together, so a failure rolls both back. A backup after 0018 must keep the key row. Restoring a pre-0018 backup and applying 0018 mints a new key, so open proofs fail closed and members preview again. A missing key row cannot authorize an erase | Agreed. The runbook and CC-0003 now say a backup must keep `sophia_secrets` |
+
 ## 6. Ownership
 
 Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A08-mission-ledger`, the media bridge, the mission and media API routes, `packages/persistence/src/mission*.ts`, and the Studio conversation and mission features. M01 changes no dependency, lockfile or runtime identity. At this checkpoint it also updated [DESTINATION_MAP.md](../DESTINATION_MAP.md) and the release runbook's M01 notes ([deploy/S1-05A-release.md](../../deploy/S1-05A-release.md)); PR #16 touches neither.
@@ -216,11 +224,13 @@ Reserved on #17 (binding §8): migration `0018_mission_ledger.sql`, amendment `A
 - **What confirmation proves.** The host proves that the speaker said something after the proposal was put to them. It does not prove that they heard it, or what they said. Whether the words meant yes is the model's reading, checked in the hosted episode (G5).
 - **What forgetting reaches.** A proposal cites the notes it names and the notes whose words one of its fields repeats: six words in a row, or the whole of a note of three to five words, with a composed or decomposed accent alike (NFC). Compatibility forms such as `①` or full-width letters are other characters. A paraphrase that does neither is not linked to the note, and stays; so does another member's note that happens to say the same thing. This is Davide's decision (§5).
 - **What one member's forget can erase.** Forgetting erases the note's later versions and everything citing it, including other members' corrections and the team's accepted mission, even when the member who wrote the note is now a viewer. Davide accepted this, with the confirmation listing exactly what goes (§5). Every withdrawal must carry the list its preview showed, each decision at its revision, and the preview's proof, signed by the database for that member and note and valid 15 minutes. Anything added or decided in between is refused, not erased; a list without the server's proof is refused.
-- **Reviews.** Luis has not reviewed the Studio layout yet.
+- **What the preview's proof proves.** That the server issued this list to this member for this note within 15 minutes, not that a person read it (CX-0009). The Studio shows the list and waits for a click; a direct API client can fetch it and send it back.
+- **The preview key.** 0018 generates it inside the database (`sophia_secrets.mission_preview_keys`). A backup taken after 0018 must keep it; a restore without it leaves forgetting refused until a key is present, and never lets an erase through.
+- **Reviews.** Luis has not reviewed the Studio layout yet. Nobody has checked the Forget confirmation with assistive technology.
 
 ## 8. Next action
 
-When CI is green on the pushed head, Davide wakes Codex on CC-0012, and Luis reviews the Studio layout (now including the Forget confirmation's full list). When CC-0012 is answered and #16 has merged, merge `main`, rerun the checks, and post CC-0003 with the final SHA for Davide's decision.
+Luis reviews the Studio layout (now including the Forget confirmation's full list). When #16 has merged, merge `main`, rerun the checks, fill CC-0003 with the final reviewed commit, and post it for Davide's decision. OP-0002 has no open finding (CX-0009).
 
 ## 9. Mission state
 
@@ -261,7 +271,7 @@ When CI is green on the pushed head, Davide wakes Codex on CC-0012, and Luis rev
     "SMC-M01-OP-0002 revision 7: answered (CX-0006); findings F1-F2 fixed at f0ca9f0",
     "SMC-M01-OP-0002 revision 8: answered (CX-0007); findings F1-F4 fixed at 73308de",
     "SMC-M01-OP-0002 revision 9: answered (CX-0008); finding F1 fixed at 2d3549e",
-    "SMC-M01-OP-0002 revision 10: read-only check of CX-0008's fix, requested (CC-0012)",
+    "SMC-M01-OP-0002 revision 10: answered (CX-0009), no finding",
     "SMC-M01-OP-0003 revision 1: release batch, drafted, not posted (CC-0003)"
   ],
   "unknown_effects": [],
@@ -270,7 +280,7 @@ When CI is green on the pushed head, Davide wakes Codex on CC-0012, and Luis rev
   "approval_refs": [],
   "remaining_allowance_ref": null,
   "file_ownership": ["see section 6"],
-  "next_action": "After CI is green: Davide wakes Codex on CC-0012 and Luis reviews the Studio layout; then merge main after #16 and post CC-0003 with the final SHA",
+  "next_action": "Luis reviews the Studio layout; after #16 merges, merge main, rerun the checks, fill CC-0003 with the final reviewed commit and post it for Davide's decision",
   "checkpoint_ref": "docs/handoffs/SMC-M01-attempt-1.md"
 }
 ```
