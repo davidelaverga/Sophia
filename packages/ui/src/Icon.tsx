@@ -3,7 +3,18 @@
 import type { ReactNode } from 'react'
 
 export type IconName =
-  'mic' | 'micOff' | 'camera' | 'cameraOff' | 'screen' | 'leave' | 'link' | 'invite' | 'chevron' | 'close' | 'calendar'
+  | 'mic'
+  | 'micOff'
+  | 'camera'
+  | 'cameraOff'
+  | 'screen'
+  | 'leave'
+  | 'link'
+  | 'invite'
+  | 'chevron'
+  | 'close'
+  | 'calendar'
+  | 'passkey'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -56,6 +67,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
       <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
+  // A key whose bow is a ring: the passkey on this device.
+  passkey: (
+    <>
+      <circle cx="7" cy="12" r="4.75" />
+      <path d="M11.75 12H22M18.5 12v4M22 12v3" />
     </>
   ),
 }

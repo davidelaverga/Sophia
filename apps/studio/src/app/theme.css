@@ -797,6 +797,33 @@ button.mark:hover {
   opacity: 1;
   border-color: rgba(185, 168, 255, 0.55);
 }
+/* Passkeys sheet: one row per saved passkey, the key mark leading. */
+.passkey-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.passkey-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+}
+.passkey-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  font-size: 13px;
+}
+.passkey-text strong {
+  color: var(--text);
+  font-weight: 560;
+}
 .or {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

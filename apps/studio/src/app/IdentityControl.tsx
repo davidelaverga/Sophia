@@ -1,6 +1,9 @@
 // Who is acting: a dev-identity switcher, or the signed-in person with Sign out.
+import { useState } from 'react'
+import { Icon, Tip } from '@sophia/ui'
 import { shortName } from '../features/voice/room-view.ts'
-import { authMode } from './auth.ts'
+import { authMode, passkeysOffered } from './auth.ts'
+import { PasskeySheet } from './PasskeySheet.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 
 interface Props {
@@ -41,9 +44,23 @@ export function IdentityControl({ identity, onChooseDev, onSignOut }: Props) {
       <span className="identity-name" title={identity.name}>
         {identity.name}
       </span>
+      {passkeysOffered && identity.role !== 'guest' && <PasskeysButton />}
       <button type="button" className="ghost" onClick={onSignOut}>
         Sign out
       </button>
     </span>
+  )
+}
+
+function PasskeysButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="round has-tip" aria-label="Passkeys" onClick={() => setOpen(true)}>
+        <Icon name="passkey" />
+        <Tip label="Passkeys" side="bottom" align="end" />
+      </button>
+      {open && <PasskeySheet onClose={() => setOpen(false)} />}
+    </>
   )
 }

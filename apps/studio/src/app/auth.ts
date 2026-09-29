@@ -122,12 +122,57 @@ const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
  * The account providers this build offers (VITE_AUTH_PROVIDERS="google,github,azure"). A provider appears only
  * once it is enabled in Supabase Auth, so no button leads to "provider is not enabled".
  */
-export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) =>
-  (import.meta.env.VITE_AUTH_PROVIDERS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .includes(p),
-)
+const OFFERED = (import.meta.env.VITE_AUTH_PROVIDERS ?? '').split(',').map((s) => s.trim())
+export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) => OFFERED.includes(p))
+
+/** "passkey" in VITE_AUTH_PROVIDERS, once passkeys are enabled in Supabase Auth for this site's domain. */
+export const passkeysOffered = OFFERED.includes('passkey')
+
+/** The browser closed the passkey prompt: the person cancelled or timed out, which needs no message. */
+const cancelled = (error: Error) => error.name === 'NotAllowedError' || error.name === 'AbortError'
+
+/** Sign in with a passkey saved for this site. Resolves false when the person dismissed the prompt. */
+export async function signInWithPasskey(): Promise<boolean> {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  const { error } = await supabase.auth.signInWithPasskey()
+  if (!error) return true
+  if (cancelled(error)) return false
+  throw new Error('That passkey didn’t work here. Sign in another way, then add a passkey from your account.')
+}
+
+export type SavedPasskey = { id: string; name: string; createdAt: string; lastUsedAt: string | null }
+
+function auth(): SupabaseClient['auth'] {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  return supabase.auth
+}
+
+/** The passkeys on the signed-in account, newest first. */
+export async function listPasskeys(): Promise<SavedPasskey[]> {
+  const { data, error } = await auth().passkey.list()
+  if (error) throw error
+  return data
+    .map((p) => ({
+      id: p.id,
+      name: p.friendly_name ?? 'Passkey',
+      createdAt: p.created_at,
+      lastUsedAt: p.last_used_at ?? null,
+    }))
+    .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/** Save a passkey for this account on this device (or a phone, a security key). False when dismissed. */
+export async function addPasskey(): Promise<boolean> {
+  const { error } = await auth().registerPasskey()
+  if (!error) return true
+  if (cancelled(error)) return false
+  throw error
+}
+
+export async function removePasskey(id: string): Promise<void> {
+  const { error } = await auth().passkey.delete({ passkeyId: id })
+  if (error) throw error
+}
 
 /** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
