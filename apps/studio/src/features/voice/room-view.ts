@@ -81,6 +81,25 @@ export function shortName(name: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1)
 }
 
+/**
+ * The one thing that sets someone apart in the room, or null: the floor, a guest, speaking, a listener. A guest
+ * stays marked as one while they speak: a visitor chooses their own name, and that word is what tells them from a
+ * member of the same name.
+ */
+export function presenceRole(person: RoomParticipant, holds: boolean): string | null {
+  if (holds) return 'has the floor'
+  if (person.standing === 'guest') return person.speaking ? 'guest · speaking' : 'guest'
+  if (person.speaking) return 'speaking'
+  if (person.standing === 'viewer') return 'listening'
+  return null
+}
+
+/** Whose shared screen is on the stage; a guest's says so, as their tile does. */
+export function screenCaption(presenter: RoomParticipant | undefined): string {
+  if (!presenter) return 'Shared screen'
+  return `${shortName(presenter.name)}’s screen${presenter.standing === 'guest' ? ' · guest' : ''}`
+}
+
 export type StageMode = 'light' | 'gallery' | 'present'
 
 /** Someone sharing a screen takes the stage; cameras make a gallery; otherwise the light holds the room. */

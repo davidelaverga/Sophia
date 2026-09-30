@@ -117,6 +117,10 @@ writing a new one, and keep the rule when you change the code around it.
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, the mini dock from every other view (`Sending` in
   `MiniDock`). Nothing keeps sending out of sight because the view changed.
+- **A guest is always marked as one** (`presenceRole`, `screenCaption` in
+  `room-view.ts`, with tests). A visitor chooses their own name, so the word
+  "guest" is what tells them from a member of the same name: it stays while
+  they speak ("guest · speaking"), on their tile and on a screen they share.
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·

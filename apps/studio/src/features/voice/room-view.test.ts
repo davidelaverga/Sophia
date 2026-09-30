@@ -4,9 +4,11 @@ import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
   orderParticipants,
+  presenceRole,
   presenceSlots,
   roomLine,
   runningWork,
+  screenCaption,
   shortName,
   stageMode,
   standingOf,
@@ -74,6 +76,28 @@ describe('floor view', () => {
       orderParticipants([zed, davide, luis]).map((p) => p.identity),
       ['a', 'b', 'c'],
     )
+  })
+})
+
+describe('what sets someone apart', () => {
+  const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
+
+  it('says one thing about a person, or nothing', () => {
+    assert.equal(presenceRole(davide, true), 'has the floor')
+    assert.equal(presenceRole({ ...davide, speaking: true }, false), 'speaking')
+    assert.equal(presenceRole({ ...davide, standing: 'viewer' }, false), 'listening')
+    assert.equal(presenceRole(davide, false), null)
+  })
+
+  it('keeps a guest marked as one while they speak: their name is their own choice', () => {
+    assert.equal(presenceRole(guest, false), 'guest')
+    assert.equal(presenceRole({ ...guest, speaking: true }, false), 'guest · speaking')
+  })
+
+  it('says whose screen is shared, and that a guest is one', () => {
+    assert.equal(screenCaption(davide), 'Davide’s screen')
+    assert.equal(screenCaption(guest), 'Luis’s screen · guest')
+    assert.equal(screenCaption(undefined), 'Shared screen')
   })
 })
 
