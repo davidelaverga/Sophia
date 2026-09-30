@@ -126,6 +126,11 @@ a {
   outline: 2px solid rgba(185, 168, 255, 0.7);
   outline-offset: 2px;
 }
+/* `hidden` always hides. A rule that sets `display` would otherwise win over the browser's own, and the element
+   would stay on screen. */
+[hidden] {
+  display: none !important;
+}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -2747,10 +2752,6 @@ div.empty {
   border-left: 1px solid var(--line-2);
   background: var(--plane);
   animation: slide var(--base) var(--ease) both;
-}
-.side-panel[hidden],
-.side-panel-body[hidden] {
-  display: none;
 }
 .side-panel-head {
   display: flex;

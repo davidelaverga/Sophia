@@ -68,5 +68,8 @@ when you change the room:
   Shift+Enter breaks a line) and one status line under it (`ChatLine`): the
   step under way, what the chat waits for, and its one action (Chat with
   Sophia, Voice mode). The consent question shows only while one is due.
+- **`hidden` always hides** (`[hidden]` in `theme.css`). Without that rule a
+  class that sets `display` wins over the browser's own, and a hidden tab
+  stays on screen.
 - **Names stay for the visit** (`mergeNames`): someone who spoke and left
   keeps their name on their lines instead of "A member".
