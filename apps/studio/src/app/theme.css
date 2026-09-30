@@ -1049,7 +1049,6 @@ button.mark:hover {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   height: 28px;
   padding: 0 12px;
   border: 0;
@@ -1065,17 +1064,6 @@ button.mark:hover {
 }
 .segmented button[aria-selected='true'] {
   color: var(--text);
-}
-.segmented kbd {
-  min-width: 16px;
-  height: 16px;
-  font-size: 10px;
-  opacity: 0;
-  transition: opacity var(--fast) var(--ease);
-}
-.segmented:hover kbd,
-.segmented:focus-within kbd {
-  opacity: 1;
 }
 
 .presences {
@@ -2483,8 +2471,7 @@ div.empty {
 /* Touch: no keyboard to hint at and no hover to wait for, so keys and tips stay out of the way. */
 @media (hover: none) {
   .tip,
-  .pill kbd,
-  .segmented kbd {
+  .pill kbd {
     display: none;
   }
 }

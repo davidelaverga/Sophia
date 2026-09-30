@@ -1,6 +1,7 @@
 // v2LensBar → LensSwitcher (frontend bindings). A lens is this viewer's local view: switching it sends
 // nothing to the server, so it cannot move anyone else's view or retask work. The lenses' tip says so, and
-// assistive technology hears it as the group's description.
+// assistive technology hears it as the group's description. The tip also carries the lens's key: a key drawn
+// inside the button, hidden until hover, would reserve room on one side and push the label off its center.
 import { useRef } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
@@ -51,8 +52,7 @@ export function LensSwitcher({ lens, onChange }: Props) {
             onClick={() => onChange(l)}
           >
             {LENS_LABEL[l]}
-            <kbd aria-hidden>{LENSES.indexOf(l) + 1}</kbd>
-            <Tip label="Only your view changes" side="bottom" />
+            <Tip label="Only your view changes" keys={String(LENSES.indexOf(l) + 1)} side="bottom" />
           </button>
         ))}
       </div>
