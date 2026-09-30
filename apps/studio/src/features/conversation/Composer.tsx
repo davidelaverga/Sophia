@@ -3,7 +3,7 @@
 // key, so it can never be recorded twice.
 import { useQueryClient } from '@tanstack/react-query'
 import type { ContributionReceipt } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
+import { Tag, Tip } from '@sophia/ui'
 import { submitContribution } from '../../api/conversation.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -44,18 +44,16 @@ export function Composer({ projectId, identity, draft, onDraft }: Props) {
         id="converse-draft"
         rows={1}
         value={draft}
-        placeholder="What should Sophia and the team think about next?"
+        placeholder="Share with the project…"
         onChange={(e) => onDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send()
         }}
       />
       <div className="composer-row">
-        <p className="composer-note">
-          Until you send it, your draft stays on this device. Sending shares it with the project; it never starts work.
-        </p>
-        <button type="button" className="pill primary" disabled={!text || busy} onClick={() => void send()}>
+        <button type="button" className="pill primary has-tip" disabled={!text || busy} onClick={() => void send()}>
           Send
+          <Tip label="Shares it with the project; it never starts work" />
         </button>
       </div>
       <p className="outcome" role="status" aria-live="polite">

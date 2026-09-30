@@ -64,26 +64,24 @@ export interface Line {
   tone: Tone
 }
 
-/** Whether Sophia keeps notes from this person's turns, and if not, why. */
+/** Whether Sophia keeps notes from this person's turns, in a few words beside the Notes tag. */
 export function notesLine(policy: MissionNotePolicy): Line {
-  if (policy.capture === 'off') return { text: 'Sophia isn’t keeping notes in this project.', tone: 'muted' }
-  if (policy.consent === 'accepted') {
-    return { text: 'Sophia keeps shared project notes during this exchange.', tone: 'teal' }
-  }
-  if (policy.consent === 'declined') {
-    return { text: 'Sophia keeps no notes from your turns: you declined.', tone: 'muted' }
-  }
-  return { text: 'Sophia keeps shared notes for members who agree. You haven’t chosen yet.', tone: 'amber' }
+  if (policy.capture === 'off') return { text: 'Off', tone: 'muted' }
+  if (policy.consent === 'accepted') return { text: 'Kept from your turns', tone: 'teal' }
+  if (policy.consent === 'declined') return { text: 'Not kept from your turns', tone: 'muted' }
+  return { text: 'Kept for members who agree', tone: 'amber' }
 }
 
-/** The direction the team accepted, or plainly none yet: a project with no records says how to begin. */
-export function direction(ctx: MissionContext): { statement: string; purpose: string | null; accepted: boolean } {
+/**
+ * The direction the team accepted; a project with no records says how to begin. Otherwise nothing: the room
+ * doesn't announce a direction that isn't there.
+ */
+export function direction(
+  ctx: MissionContext,
+): { statement: string; purpose: string | null; accepted: boolean } | null {
   if (ctx.mission) return { statement: ctx.mission.statement, purpose: ctx.mission.purpose, accepted: true }
-  const statement =
-    ctx.readState === 'empty'
-      ? 'Nothing recorded yet. Talk the idea through with Sophia.'
-      : 'No direction accepted yet.'
-  return { statement, purpose: null, accepted: false }
+  if (ctx.readState !== 'empty') return null
+  return { statement: 'Nothing recorded yet. Talk the idea through with Sophia.', purpose: null, accepted: false }
 }
 
 /** The proposal to look at now: the newest pending one, and how many other proposals are pending beside it. */
