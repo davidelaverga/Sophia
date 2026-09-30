@@ -5,7 +5,7 @@ import { authMode, useAuth } from './auth.ts'
 import { devProjectId, type Identity } from './dev-identity.ts'
 import { IdentityControl } from './IdentityControl.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
-import { isJoinPath } from './route.ts'
+import { opensJoinPage } from './route.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useProjectRoute } from './useProjectRoute.ts'
 
@@ -28,8 +28,9 @@ export function App() {
     void signOut()
   }
 
-  // An invitation link works before, during and after sign-in: it handles its own.
-  if (isJoinPath(window.location.pathname)) {
+  // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
+  // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
+  if (opensJoinPage(window.location.pathname, state.status)) {
     return (
       <QueryClientProvider client={queryClient}>
         <Suspense fallback={<Centered title="Opening the room…" busy />}>

@@ -53,12 +53,25 @@ export function InviteSheet({ context, onClose }: { context: SheetContext; onClo
           </header>
           <SheetTabs tab={tab} onTab={setTab} />
         </div>
-        <div id="invite-panel" role="tabpanel" aria-labelledby={`invite-tab-${tab}`}>
-          {tab === 'guests' && <GuestsTab context={context} />}
-          {tab === 'members' && <MembersTab context={context} onGuests={() => setTab('guests')} />}
-          {tab === 'calendar' && <CalendarTab context={context} />}
-        </div>
+        <TabPanel tab="guests" shown={tab}>
+          <GuestsTab context={context} />
+        </TabPanel>
+        <TabPanel tab="members" shown={tab}>
+          <MembersTab context={context} onGuests={() => setTab('guests')} />
+        </TabPanel>
+        <TabPanel tab="calendar" shown={tab}>
+          <CalendarTab context={context} />
+        </TabPanel>
       </div>
+    </div>
+  )
+}
+
+/** Every tab stays mounted, hidden while another is shown: an address or a session half typed survives switching. */
+function TabPanel({ tab, shown, children }: { tab: Tab; shown: Tab; children: React.ReactNode }) {
+  return (
+    <div id={`invite-panel-${tab}`} role="tabpanel" aria-labelledby={`invite-tab-${tab}`} hidden={tab !== shown}>
+      {children}
     </div>
   )
 }
@@ -84,7 +97,7 @@ function SheetTabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
           role="tab"
           id={`invite-tab-${t}`}
           aria-selected={t === tab}
-          aria-controls="invite-panel"
+          aria-controls={`invite-panel-${t}`}
           tabIndex={t === tab ? 0 : -1}
           onClick={() => onTab(t)}
         >
