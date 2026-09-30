@@ -25,9 +25,9 @@ Ending commit/tree and changed files: the code at `f0bdaa8`, evidence re-capture
 - **T12/T13.** Copied logs cross both ways; the old unit's failed-step logs are refused by both units.
 - **G3.** Presets mount through the public registry, and each attempt keeps an immutable execution identity that is restored exactly or held.
 
+**Resolved after the handoff was first written:** [SMC-M02-CX-0002](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5917094857) ran upstream's failure-quiescence tests (6/6, `TOOL_OUTCOME_UNKNOWN` included) and repair tests (32/32) at `639ed015`, and recorded the darwin-arm64 identities, now committed.
+
 **Missing or unverified:**
-- `TOOL_OUTCOME_UNKNOWN` (CC-0001);
-- darwin-arm64 identities;
 - a live gpt-6-luna request;
 - image inputs and compaction under the catalog's inherited limits;
 - lease settlement and a restore rehearsal (the rest of G4);
@@ -52,14 +52,13 @@ Ending commit/tree and changed files: the code at `f0bdaa8`, evidence re-capture
 
 ## Remaining obligations
 
-- **OP-0001 (CC-0001).** Posted, read and test only, no approval. Waits for Davide to start Codex.
-- **darwin-arm64.** The unit refuses to run there until someone records it.
+- **OP-0001 (CC-0001).** Completed by Codex: [SMC-M02-CX-0002](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5917094857). Read and test only; no effect.
+- **darwin-arm64.** Recorded from CX-0002; a later Mac run should reproduce it.
 - **Hosted runtime.** It still runs the previous unit's code. Sessions that failed a step with pending tools under it are already unrecoverable, under either unit. The G5 preflight should count them before cutover.
 - No active job, retained runtime data, stopped epoch or unknown effect exists. Local scratch (a disposable PostgreSQL and test homes) lives outside the repository.
 
 ## Next bounded action
 
-1. Davide answers D1–D3 on #27 and starts Codex on CC-0001.
+1. Davide answers D1–D3 on #27.
 2. The next Claude attempt keeps this branch green on CI and integrates M01 once it merges (merge `main`, re-run `pnpm check`).
-3. It records darwin-arm64 from Codex's reply, if one comes.
-4. It then does G4's lease-settlement and restore rehearsal on a disposable home, and drafts the G5 release request.
+3. It then does G4's lease-settlement and restore rehearsal on a disposable home, and drafts the G5 release request.

@@ -37,7 +37,7 @@ a path updates its row in the same commit.
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
 | `runtime/dsh/` | built | S1-01, SMC-M02 | `@sophia/dsh-runtime`: exact `@deepseek-ai/dsh@0.2.0-rc.2` since SMC-M02 (was `0.1.7-rc.1`), deployed as the runtime artifact |
-| `config/runtime-unit.json` | built | S1-01, SMC-M02 | dsh/provider/preset compatibility unit with recorded artifact identities. SMC-M02: unit `sophia-runtime-m02-dev` with `previous_unit`, the route's `compat` pin, the native preset roster, and `platforms_pending` |
+| `config/runtime-unit.json` | built | S1-01, SMC-M02 | dsh/provider/preset compatibility unit with recorded artifact identities. SMC-M02: unit `sophia-runtime-m02-dev` with `previous_unit`, the route's `compat` pin, the native preset roster, and linux-x64 and darwin-arm64 identities |
 | `config/dsh/` | built | S1-01, SMC-M02 | Profile installation inputs: manifest, `pnpm-workspace.yaml`, lock pinning the archive, literal `[]` patch. SMC-M02: `base-rows.reviewed.json`, the reviewed dsh-base rows the gate requires |
 | `config/models.json` | partial | S1-05, S1-06 | Pack design specimen of exact route ids; consumed once the media and image adapters exist |
 | `config/roles.json` | partial | S1-03 | Pack design specimen of role presets; installed by the role registry |

@@ -4,13 +4,13 @@ The mission: [M02](../missions/2026-09-27-companion-research/missions/M02_DSH_UP
 
 This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
 
-**Checkpoint, 2026-09-30, attempt 1: G1, G2 and G3 are implemented and tested on linux-x64, and G4 is partly done (T10, T12/T13). Nothing is merged, released or deployed. D1–D3 await Davide.**
+**Checkpoint, 2026-09-30, attempt 1 (updated with CX-0002 at 18:30 UTC): G1, G2 and G3 are implemented and tested on linux-x64, and G4 is partly done (T10, T12/T13). Nothing is merged, released or deployed. D1–D3 await Davide.**
 
 | Readiness | State |
 |---|---|
 | Source-ready | Yes, for review: PR #27, the code at `f0bdaa8`; `pnpm check` exit 0 locally (§3). CI runs on each pushed head |
 | Merge-ready | No: D1–D3, review, CI, and M01's merge order (the pack's default is M01 → M02) |
-| Release-ready | No: the G5 cutover plan, the preflight, darwin-arm64 if the Mac dev path matters, and the live route |
+| Release-ready | No: the G5 cutover plan, the preflight and the live route |
 | Hosted-verified | No. This PR touches no hosted state |
 | Product-accepted | No |
 
@@ -29,7 +29,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 | Runtime artifact, linux-x64 | `sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12`, 27747 entries |
 | Bundle archive | sha256 `4c69b9c11ff39cc7664a7f6e7bda55659f2646864d190b945f85b96634914d60` |
 | Workspace lock | sha256 `cd1f953c30f8e734bf0207f40098853b4327d191d5b63df671700552119e968e` |
-| darwin-arm64 | **pending** (`platforms_pending`). The previous unit's darwin identities and lock were removed, not carried over; CC-0001 asks Codex to record them if it has a Mac |
+| darwin-arm64 | Recorded from [SMC-M02-CX-0002](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5917094857) (Codex, Apple silicon, Node 24.21.0, pnpm 11.7.0, `pnpm artifacts:record` at `f0bdaa8`, exit 0): runtime `sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c` (28427 entries); bundle archive sha256 `f5d8c66b707923ab3f97c881bdd08de78d2b67c5f986e9a1273274c654da9a49`; profile lock `7983da32…0b6a`. Claude derived that lock here from the linux lock by the archive integrity, and it matches byte for byte. The bundle and runtime sources are unchanged since `f0bdaa8` |
 | Model route | openai / gpt-6-luna / high, `OPENAI_API_KEY`, `live_verified: false`: **unchanged**, plus `compat.supportsStrictMode: false` (R1) |
 | Upstream release vs source | `pnpm dsh:source --verify-release`: 278 packages, 897 files byte-identical, 0 differing ([evidence](../evidence/SMC-M02/dsh-source-release.json)) |
 
@@ -72,11 +72,11 @@ The PostgreSQL is a disposable local cluster; this container has no Docker.
 
 | ID | Case | Source evidence | State |
 |---|---|---|---|
-| M02-T01 | Frozen build reproduces identities | `pnpm artifacts` in `pnpm check`; release vs source verified | **observed on linux-x64**; darwin-arm64 **pending** |
+| M02-T01 | Frozen build reproduces identities | `pnpm artifacts` in `pnpm check` and CI's `runtime-unit`; release vs source verified; Codex's Mac `artifacts:record` (CX-0002) | **observed on linux-x64** (reproduced); darwin-arm64 **recorded once by Codex**, a second Mac run not yet made |
 | M02-T02 | Missing or renamed target, wrong config, unknown or broadened preset fail readiness | `profile-gate.test.mjs` 20/20: <br>• unreviewed or renamed dsh-base row; <br>• dropped `otel` or `llm-deepseek-account` disable; <br>• dropped compat pin; <br>• unknown or broadened preset; <br>• the S1-01 cases. <br>`gate-parse.test.mjs` for each finding | **observed** |
 | M02-T03 | No hidden telemetry, credentials, global web, HMR or title call | 7 required disables; the reviewed base rows; the sanitized launch env; roles hide and deny web tools | **observed** for composition; no network capture of a live boot |
 | R1 | Request-shape parity | [request-shape](../evidence/SMC-M02/request-shape/README.md): one route difference (`strict: false` on every tool), neutralized by `supportsStrictMode: false`; 3/3 requests then equal the previous unit's shape | **observed**. Residual differences (user-agent version, dsh-authored prompt and tool text) are **for D2** |
-| M02-T10 | Failed step with pending tools | [tool-recovery](../evidence/SMC-M02/tool-recovery/README.md): passes on E, fails on A (c2 and c3 unpaired in A's durable log) | **observed**: committed result kept, `TOOL_NOT_STARTED`, original failure, paired history. **Pending**: `TOOL_OUTCOME_UNKNOWN` (`@internal` phases only), asked in CC-0001 |
+| M02-T10 | Failed step with pending tools | [tool-recovery](../evidence/SMC-M02/tool-recovery/README.md): passes on E, fails on A (c2 and c3 unpaired in A's durable log) | **observed** on the installed unit: committed result kept, `TOOL_NOT_STARTED`, original failure, paired history. `TOOL_OUTCOME_UNKNOWN` (`@internal` phases only): **observed in upstream's own tests** at `639ed015` (CX-0002: failure quiescence 6/6, `repair.spec.ts` 32/32), not black-box on the installed unit |
 | M02-T12 | Copied old logs and journals tested | [log-compat](../evidence/SMC-M02/log-compat/README.md): A→E healthy logs resume, with the identity migrated from recorded evidence; A's failed-step log refused explicitly | **observed** |
 | M02-T13 | Downgrade read or explicit refusal | E→A: A reads E's logs and journals in both episodes, before and after G3 | **observed** on disposable copies |
 | M02-T08 | Preset and provider identity restore; no silent default | `presets.test.mjs` 6/6: <br>• identity recorded before create; <br>• resume keeps the route despite a new default; <br>• changed preset → held, then resumes when restored; <br>• missing preset → held, and a new create is refused; <br>• the synthetic preset is mounted and joined on create and resume; <br>• a legacy journal migrates only on its own recorded route | **observed** |
@@ -105,14 +105,13 @@ The PostgreSQL is a disposable local cluster; this container has no Docker.
 
 | Operation | Kind | Request | State |
 |---|---|---|---|
-| SMC-M02-OP-0001 | read and test only | [CC-0001](../coordination/SMC-M02/SMC-M02-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5916177646)) | posted; waits for Davide to start Codex. No effect requested or approved |
+| SMC-M02-OP-0001 | read and test only | [CC-0001](../coordination/SMC-M02/SMC-M02-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5916177646)) | **answered** by [CX-0001](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5916920339) (prepared) and [SMC-M02-CX-0002](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5917094857) (result), checked by Claude against CC-0001: every asked test was run with its command and exit 0, and the darwin identities were recorded. The only deviation from CC-0001 is that the tests ran on Darwin arm64, not linux. About 9 minutes; 0 provider calls, 0 production reads, 0 commits. No effect |
 
 No hosted effect, deployment, migration, paid call or credential use happened in this attempt.
 
 ## 8. Next action
 
 1. Davide decides D1–D3 on #27.
-2. Davide starts Codex on CC-0001.
-3. Watch CI on #27 and fix anything red.
-4. After M01 merges, merge `main` into this branch and re-run `pnpm check`.
-5. Then G4's remainder (lease settlement, a restore rehearsal on a disposable home) and a G5 request, under a separate approval.
+2. Watch CI on #27 and fix anything red.
+3. After M01 merges, merge `main` into this branch and re-run `pnpm check`.
+4. Then G4's remainder (lease settlement, a restore rehearsal on a disposable home) and a G5 request, under a separate approval.

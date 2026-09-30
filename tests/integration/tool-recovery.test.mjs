@@ -13,8 +13,8 @@
  *
  * Not covered here: a call that started before the failure (its outcome is
  * unknown, `TOOL_OUTCOME_UNKNOWN`) is reachable only through the scheduler's
- * `@internal` phases. That branch stays open until upstream's focused tests
- * run against the published packages (docs/progress/SMC-M02.md).
+ * `@internal` phases. Upstream's own focused tests cover it at the pinned tag
+ * (run by Codex, SMC-M02-CX-0002; docs/evidence/SMC-M02/tool-recovery/).
  *
  * SOPHIA_TOOL_RECOVERY_OUT=<file> also writes the observed events (evidence).
  */

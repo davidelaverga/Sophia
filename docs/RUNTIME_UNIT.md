@@ -23,10 +23,10 @@ page explains what each identity means and how a second checkout proves it.
 | Profile lock | `config/dsh/profile/pnpm-lock.yaml` | `pnpm install --lockfile-only` over the committed profile manifest | Pins the bundle archive's sha512, so `--frozen-lockfile` rejects other bytes at install time |
 
 The runtime artifact is **per platform**. It contains native prebuilds
-(koffi, node-pty) and platform-optional packages. Only `linux-x64` is
-recorded for `sophia-runtime-m02-dev`; `platforms_pending` names
-`darwin-arm64`, whose previous-unit identities were removed rather than left
-stale. On another platform, `pnpm artifacts` reports `UNRECORDED` and
+(koffi, node-pty) and platform-optional packages. `sophia-runtime-m02-dev`
+records `linux-x64` (built here and in CI) and `darwin-arm64` (built by Codex
+on an Apple silicon Mac, SMC-M02-CX-0002; `platforms_recorded_by` says who
+recorded which). On another platform, `pnpm artifacts` reports `UNRECORDED` and
 exits 1 rather than comparing against the wrong platform or passing silently.
 Record that platform's digest with `pnpm artifacts:record` in a reviewed
 commit. The bundle archive and both locks are platform-independent. The
@@ -190,4 +190,4 @@ A dsh upgrade is a new runtime unit, never an in-place edit:
    - review every added or renamed dsh-base row, and update `config/dsh/base-rows.reviewed.json` in the same commit;
    - run the request-shape parity test (`tests/integration/request-shape.test.mjs`) and explain every difference;
    - run the copied-log check (`tests/integration/log-compat.test.mjs`) in both directions between the old and the new unit;
-   - record any platform you did not build on under `platforms_pending`.
+   - mark any platform you did not build on as pending (as SMC-M02 did under `platforms_pending` until a Mac run recorded darwin-arm64), never carry the previous unit's digests over.

@@ -31,5 +31,10 @@ No black-box input therefore reaches the failed-step path. The plugin wraps the 
 
 ## Limits
 
-- **Unknown outcome is not observed here.** A call that *started* before the failure (upstream's `prepare`, `finalize` and `dispatch` phases) is reachable only through the scheduler's `@internal` phases (`TOOL_RUNTIME_SCHEDULER`), which this repository does not touch. `TOOL_OUTCOME_UNKNOWN` therefore stays pending. The next step is a Codex run of upstream's focused tests (`packages/core/agent-loop/tests/tool-calls.spec.ts`, "failure quiescence") at `639ed015` against the published 0.2.0-rc.2 packages.
+- **Unknown outcome is not observed by this repository's test.** A call that *started* before the failure (upstream's `prepare`, `finalize` and `dispatch` phases) is reachable only through the scheduler's `@internal` phases (`TOOL_RUNTIME_SCHEDULER`), which this repository does not touch.
+- **It is covered by upstream's own tests, run by Codex** ([SMC-M02-CX-0002](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5917094857), OP-0001). The run used upstream's checkout at `639ed015` with its frozen lock on Darwin arm64, Node 24.21.0:
+  - `tool-calls.spec.ts` "failure quiescence": 6/6 pass, including the `prepare` and `finalize` phases, which record the started call as `TOOL_OUTCOME_UNKNOWN`;
+  - `repair.spec.ts`: 32/32 pass.
+
+  `dsh:source --verify-release` ties that source to the published packages byte for byte (897 files). This is upstream's test on upstream's harness, not a black-box run on the installed Sophia unit.
 - A natural trigger, such as a session append failing on a full disk, is not reproduced.

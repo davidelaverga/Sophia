@@ -1,0 +1,33 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@sophia/dsh-bundle':
+        specifier: file:./sophia-dsh-bundle-0.1.0.tgz
+        version: file:sophia-dsh-bundle-0.1.0.tgz
+
+packages:
+
+  '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz':
+    resolution: {integrity: sha512-OzGvNloeqZGIchk1MZsc39o/A+KS7PsHteQd4CIDJgWlgXFWUmzbbbllZSrfdO3VYafkI1sW0FFASHGwGaW+dQ==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
+    version: 0.1.0
+    peerDependencies:
+      '@deepseek-ai/cordis': 4.0.4
+      '@deepseek-ai/dsh': 0.2.0-rc.2
+      '@deepseek-ai/dsh-agent': 0.2.0-rc.2
+      '@deepseek-ai/dsh-agent-default-model': 0.2.0-rc.2
+      '@deepseek-ai/dsh-agent-preset-registry': 0.2.0-rc.2
+      '@deepseek-ai/dsh-brand': 0.2.0-rc.2
+      '@deepseek-ai/dsh-llm': 0.2.0-rc.2
+      '@deepseek-ai/dsh-session': 0.2.0-rc.2
+      '@deepseek-ai/dsh-tools': 0.2.0-rc.2
+
+snapshots:
+
+  '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz': {}

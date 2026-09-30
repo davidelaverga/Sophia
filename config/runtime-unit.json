@@ -23,6 +23,10 @@
       "linux-x64": {
         "digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
         "entries": 27747
+      },
+      "darwin-arm64": {
+        "digest": "sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c",
+        "entries": 28427
       }
     },
     "artifact_digest_scheme": "sophia-tree-v2: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines for files and symlinks only (directories are implied; empty ones are install-script scratch); excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
@@ -97,7 +101,14 @@
     "archive_integrity": "sha512-UVs13Pol/XomTomUGrrg+sz0cYRRdZa+0rk1Smfl4gpGbP/beVHfxl84EBMCJnc8FDhuN/QbTu8g02d53Q5kNA==",
     "artifact_digest": "sha256:4c69b9c11ff39cc7664a7f6e7bda55659f2646864d190b945f85b96634914d60",
     "bridge_protocol_version": 1,
-    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
+    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)",
+    "archives_by_platform": {
+      "darwin-arm64": {
+        "archive_sha256": "f5d8c66b707923ab3f97c881bdd08de78d2b67c5f986e9a1273274c654da9a49",
+        "archive_integrity": "sha512-OzGvNloeqZGIchk1MZsc39o/A+KS7PsHteQd4CIDJgWlgXFWUmzbbbllZSrfdO3VYafkI1sW0FFASHGwGaW+dQ==",
+        "artifact_digest": "sha256:f5d8c66b707923ab3f97c881bdd08de78d2b67c5f986e9a1273274c654da9a49"
+      }
+    }
   },
   "profile_install": {
     "manifest": "config/dsh/profile/package.json",
@@ -160,7 +171,8 @@
       "status": "pending (S1-03 live steer needs OPENAI_API_KEY; real admission needs S1-02)"
     }
   ],
-  "platforms_pending": {
-    "darwin-arm64": "pending since SMC-M02: this unit was built on linux-x64 only. The previous unit's darwin-arm64 runtime digest, bundle archive and profile lock are not carried over, because they identify dsh 0.1.7-rc.1. Record them with `pnpm artifacts:record` on an Apple silicon Mac (Node 24.21.0, pnpm 11.7.0) in a reviewed commit; until then `pnpm artifacts` and the harness refuse to run on darwin-arm64."
+  "platforms_recorded_by": {
+    "linux-x64": "this repository's build and CI (runtime-unit job)",
+    "darwin-arm64": "Codex on an Apple silicon Mac (Node 24.21.0, pnpm 11.7.0), `pnpm artifacts:record` at f0bdaa8, SMC-M02-CX-0002 on #26; the profile lock was derived here from the linux lock by the archive integrity and matches the returned SHA-256 7983da32…0b6a byte for byte"
   }
 }
