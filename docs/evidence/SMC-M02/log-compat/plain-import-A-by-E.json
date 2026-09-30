@@ -1,0 +1,69 @@
+{
+  "direction": "import",
+  "readBy": "sophia-runtime-m02-dev",
+  "dsh": "0.2.0-rc.2",
+  "writtenBy": "sophia-runtime-s1-03-dev",
+  "writtenDsh": "0.1.7-rc.1",
+  "episode": "plain",
+  "readiness": "ready",
+  "unrecovered": null,
+  "stderr": [
+    "[sophia-control-bridge] reconciled att-1: fence=held commands=3 unsettled=0 stash=0"
+  ],
+  "inspect": {
+    "fence": "held",
+    "role": "sophia-review-v1",
+    "identity": {
+      "runtimeUnitId": "sophia-runtime-m02-dev",
+      "preset": {
+        "id": "sophia-review-v1",
+        "digest": "sha256:a3889cbf6c712ffc63c1177f72021f0af87d9b6f112ef4329a9749c423556b06"
+      },
+      "route": {
+        "provider": "mock",
+        "model": "mock-model",
+        "reasoningEffort": null
+      }
+    },
+    "composedPreset": "sophia-review-v1",
+    "epoch": 1,
+    "live": true,
+    "status": "idle",
+    "inbox": {
+      "nextTurn": 0,
+      "nextStep": 0
+    },
+    "stash": 0,
+    "pendingIncorporation": [],
+    "lastSeq": 33
+  },
+  "resume": "delivered",
+  "continuedRequest": [
+    "system",
+    "user",
+    "user",
+    "calls:c1,c2,c3",
+    "result:c1",
+    "result:c2",
+    "result:c3",
+    "assistant",
+    "user",
+    "assistant",
+    "user"
+  ],
+  "toolResultsInCopiedHistory": [
+    {
+      "id": "c1",
+      "text": "No files found"
+    },
+    {
+      "id": "c2",
+      "text": "No files found"
+    },
+    {
+      "id": "c3",
+      "text": "Error: grep search failed (exit 2): rg: No files were searched, which means ripgrep probably applied a filter you didn't"
+    }
+  ],
+  "outcome": "resumed_and_continued"
+}

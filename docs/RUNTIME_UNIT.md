@@ -16,14 +16,17 @@ page explains what each identity means and how a second checkout proves it.
 | Identity | Recorded as | Produced by | Meaning |
 |---|---|---|---|
 | Workspace lock | `workspace_lock_sha256` | `pnpm install` (committed) | The exact resolution of every workspace dependency, including the dsh closure with sha512 integrity per package |
-| dsh release | `dsh.release_integrity` | npm registry, via the lock | sha512 of `@deepseek-ai/dsh@0.1.7-rc.1` and `@deepseek-ai/dsh-base@0.1.7-rc.1`. The same values the registry serves for tag `dsh-v0.1.7-rc.1` = `46a7f68b` |
+| dsh release | `dsh.release_integrity` | npm registry, via the lock | sha512 of `@deepseek-ai/dsh@0.2.0-rc.2` and `@deepseek-ai/dsh-base@0.2.0-rc.2`. The same values the registry serves for tag `dsh-v0.2.0-rc.2` = `639ed015` (SMC-M02; the previous unit `sophia-runtime-s1-03-dev` pinned `0.1.7-rc.1` = `46a7f68b`) |
+| Reviewed base rows | `config/dsh/base-rows.reviewed.json` | a reviewer, from the pinned dsh-base patch | Every row dsh-base inserts and the package it loads. `pnpm artifacts` and the gate fail on a row added, removed or loading another package, so a new upstream telemetry or account row cannot compose unreviewed (SMC-M02) |
 | Runtime artifact | `dsh.artifacts_by_platform.<platform>.digest` (`sophia-tree-v2:sha256:…`); `dsh.artifact_digest` repeats the primary platform's (`linux-x64`, the execution host) | `pnpm deploy --prod` of `runtime/dsh` into `.artifacts/runtime` | Content digest of the deployed launcher tree. Only files and symlinks count. Empty directories are scratch space: install scripts leave `node_modules/.tmp` on some hosts, and the GitHub runner exposed this with v1. It also excludes `.bin` shims (they embed the install path), pnpm install-time bookkeeping and the deploy-local `pnpm-lock.yaml` (it embeds the source checkout's absolute `file:` URLs), so it is location- and host-independent |
 | Bundle archive | `sophia_bundle.archive_sha256`, `archive_integrity`, `artifact_digest` | `pnpm pack` of `packages/dsh-bundle` | Byte-reproducible tarball: fixed mtime, uid 0, the pinned Node zlib |
 | Profile lock | `config/dsh/profile/pnpm-lock.yaml` | `pnpm install --lockfile-only` over the committed profile manifest | Pins the bundle archive's sha512, so `--frozen-lockfile` rejects other bytes at install time |
 
 The runtime artifact is **per platform**. It contains native prebuilds
-(koffi, node-pty) and platform-optional packages. Only `linux-x64` is
-recorded. On another platform, `pnpm artifacts` reports `UNRECORDED` and
+(koffi, node-pty) and platform-optional packages. `sophia-runtime-m02-dev`
+records `linux-x64` (built here and in CI) and `darwin-arm64` (built by Codex
+on an Apple silicon Mac, SMC-M02-CX-0002; `platforms_recorded_by` says who
+recorded which). On another platform, `pnpm artifacts` reports `UNRECORDED` and
 exits 1 rather than comparing against the wrong platform or passing silently.
 Record that platform's digest with `pnpm artifacts:record` in a reviewed
 commit. The bundle archive and both locks are platform-independent. The
@@ -50,7 +53,7 @@ on. Two rows of the Sophia bundle patch set it:
 | Adapter / provider / model | `@deepseek-ai/dsh-llm-pi-ai` / `openai` / `gpt-6-luna` |
 | Reasoning effort | `high` |
 | Credential | `OPENAI_API_KEY`, as a reference only. dsh resolves it per request. The launch environment passes it only when a caller names it, and a missing key fails the request with `MISSING_CREDENTIAL` |
-| Model entry | Declared in the patch. The pinned pi-ai (0.85.1) catalog predates `gpt-6-luna`, so the capacities and effort levels are copied from the pi-ai 0.87.1 catalog |
+| Model entry | Declared in the patch, with values copied from the pi-ai 0.87.1 catalog. Under `sophia-runtime-s1-03-dev` (pi-ai 0.85.1) no catalog entry existed. At dsh 0.2.0-rc.2 pi-ai 0.87.1 ships one and dsh lays the declared entry over it; `tests/integration/request-shape.test.mjs` pins the resulting request against the previous unit's ([SMC-M02](progress/SMC-M02.md)) |
 | Release baseline | Decision D13 (`deepseek-official` / `deepseek-flash`) is unchanged. Returning to it means changing these two rows and recording a new unit |
 | Live verification | not yet: no `OPENAI_API_KEY` in the S1-03 build environment |
 
@@ -75,11 +78,13 @@ loop.
 | Environment | `SOPHIA_BRIDGE_URL`, `SOPHIA_BRIDGE_TOKEN`, `SOPHIA_RUNTIME_UNIT`, `SOPHIA_WORKSPACE` (the row config names them). The execution-host supervisor sets them. |
 | Wire | Outbound only: `POST hello`, then long-poll `GET commands?after=`, `POST receipts`, `POST observations`, `POST ready` (`src/transport.ts`). Until S1-02, tests use the **labelled** fixture service (`tests/support/fixture-service.mjs`). |
 | Readiness | `ready` only after the fences and observers are installed, the service accepted `hello`, the bindings are reconciled, and the service accepted the ready report. With no service binding, or when the service refuses the report, it stays `not_ready`. A binding that cannot be restored (for example, its session is missing or its role is gone) is named in the report (`unrecovered`), and its commands are refused until a Resume succeeds. A binding that names a different native session than this runtime's mapping is never resumed here. |
-| Commands | `create` (requires `payload.role`), `resume`, `input` (next turn), `steer` (next step), `hold`, `stop`, `inspect`. Commands run serially per attempt, in service order, including the command that creates the attempt. Session ids are deterministic per attempt (`sophia-<attemptId>`). Every Agent gets the recorded default model selection. |
+| Commands | `create` (requires `payload.role`), `resume`, `input` (next turn), `steer` (next step), `hold`, `stop`, `inspect`. Commands run serially per attempt, in service order, including the command that creates the attempt. Session ids are deterministic per attempt (`sophia-<attemptId>`). A new attempt gets the recorded default model selection; a resumed one keeps the route it recorded (below). |
 | Receipts | `delivered` comes after the inbox splice is flushed. `incorporation_observed` comes when the message's `user/message` enters a native step. Hold and Stop report `checked` once the driver is idle (`outcome_unknown` if it does not settle). Anything else is `rejected` with a reason: stale epoch, stopped, held, foreign unit, or malformed. Every accepted command, `inspect` included, advances the attempt's authority epoch at once, durably. Receipts and observations are kept and retried in order until the service acknowledges them. |
 | Durability | A fsynced journal per session in `$DSH_HOME/sophia-bridge/`. Each command is journaled *before* any native action; a `settled` record follows once dsh flushed its effect. A settled command's redelivery is answered from the journal with the stage it earned (a Hold's `checked`, not a generic `delivered`). An unsettled one (a restart cut it short) is re-executed on redelivery, and re-execution sends nothing dsh already holds. Held input a Resume sent is journaled by its new message ids first, and reconciliation puts back whatever dsh never received. The acknowledged observation cursor is journaled, and a restart replays the rest. Incorporation receipts are tracked by their own acknowledgement, not by that cursor. A torn final line is cut before the next append. See [SOURCE_MAP §3](SOURCE_MAP.md#3-facts-learned-at-the-pin-not-in-the-pack) for why this is not a dsh session event. Cross-store exactly-once is not claimed. |
 | Hold / Stop | Set the fence *before* native cancellation. Hold cancels with `keepInbox`, and input claimed by a step while held is journaled and held back until Resume. Stop cancels, settles and disposes, and a stopped attempt is never resumed, including after a restart with a stale binding. On restart the fence is the stronger of the service binding's and the journal's, applied before dsh loads the session. |
-| Roles | `src/role-registry.ts`: five versioned presets with a narrow native-tool policy. Visibility is enforced by agent-scoped `restrict`. Execution is enforced by one monotonic guard that also covers `workflow` (PTC) child agents. A role the unit no longer defines refuses to resume. |
+| Roles | `src/role-registry.ts`: six versioned roles with a narrow native-tool policy. Visibility is enforced by agent-scoped `restrict`. Execution is enforced by one monotonic guard that also covers `workflow` (PTC) child agents. A role the unit no longer defines refuses to resume. |
+| Native presets (SMC-M02 G3) | The bundle composes dsh's `agent-preset-registry` and one preset per role (`preset-<role>`, `plugins: []`). On create and resume the bridge mounts the role's preset through `ctx.agentPresets.mount` in the Agent's setup, before the session is published, and creates with `meta.agentPreset`. `inspect` reports the preset the live Agent joined (`composedPreset`). The gate requires exactly the recorded roster (`config/runtime-unit.json#presets`), each preset inserted by the bundle and composing nothing (`preset_roster_invalid`) |
+| Execution identity (SMC-M02 G3) | Before the native create the bridge journals `sophia/identity`: the runtime unit, the preset with `sha256` over its registry definition and the role's tool policy, and provider/model/effort. A resume uses that route, never the current default (M02 §5.4). It is refused, so the attempt stays unrecovered and held until reconstructed, when: <br>• the preset's digest changed; <br>• the preset is no longer defined; <br>• the session's own `request/header` records another route. <br>An attempt journaled by a unit before SMC-M02 carries no identity. It resumes on the default route only if its own `request/header` agrees (or it never sent a request), and the identity is then journaled as `migrated` with that evidence |
 
 `apps/execution-host/src/runtime-supervisor.ts` launches the official `dsh`
 per project home under a single-writer lease and the explicit environment
@@ -161,7 +166,8 @@ toolchain or a runtime artifact or bundle archive other than the recorded ones.
 | `patch_layers` | Empty or comments-only layers, an empty bundle layer, unmatched or duplicate rows, a non-empty profile patch, a home-level patch |
 | `no_bundle_shadowing` | Any `@sophia/dsh-bundle` reachable from the dsh installation's ancestors |
 | `dump_config` | A nonzero dump, or any stderr line (classified as `bundle_missing`, `bundle_incompatible`, `patch_comments_only`, `patch_unmatched_row`, …) |
-| `composition` | Missing or invalid `sophia-control-bridge` row; one of the four required disables not applied by the bundle; anything but exactly one `agent-loop` from dsh-base; an app-surface root loop (`webserver`, `headless-runner`, `acp`, `sdk-jsonrpc-server`, `modules`, `connection`); any row from another layer; a row set other than base inserts plus Sophia inserts |
+| `patch_layers` (SMC-M02) | Also: a dsh-base row added, removed or loading another package than `config/dsh/base-rows.reviewed.json` records (`base_row_unreviewed`, `base_row_missing`, `base_row_package_changed`) |
+| `composition` | Missing or invalid `sophia-control-bridge` row; one of the required disables (`REQUIRED_DISABLED`: seven since SMC-M02, adding `otel` and `llm-deepseek-account`) not applied by the bundle; a model route other than the recorded one, including its `compat` pin; a preset roster other than the recorded one; anything but exactly one `agent-loop` from dsh-base; an app-surface root loop (`webserver`, `headless-runner`, `acp`, `sdk-jsonrpc-server`, `modules`, `connection`); any row from another layer; a row set other than base inserts plus Sophia inserts |
 
 **Health** is separate from composition. It requires a verified composition
 and a bridge that reports `ready`. The S1-01 bridge always reports
@@ -180,3 +186,8 @@ A dsh upgrade is a new runtime unit, never an in-place edit:
    `pnpm dsh:source --verify-release` against the new tag.
 4. Keep the previous unit available to drain existing sessions
    (02_DSH_BOOTSTRAP §10).
+5. Since SMC-M02:
+   - review every added or renamed dsh-base row, and update `config/dsh/base-rows.reviewed.json` in the same commit;
+   - run the request-shape parity test (`tests/integration/request-shape.test.mjs`) and explain every difference;
+   - run the copied-log check (`tests/integration/log-compat.test.mjs`) in both directions between the old and the new unit;
+   - mark any platform you did not build on as pending (as SMC-M02 did under `platforms_pending` until a Mac run recorded darwin-arm64), never carry the previous unit's digests over.

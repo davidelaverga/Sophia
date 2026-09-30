@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { REPO_ROOT, RUNTIME_DIR, loadRuntimeUnit } from '../../scripts/lib/common.mjs'
-import { verifyProfile } from '../../scripts/lib/gate.mjs'
+import { baseBundleDir, verifyProfile } from '../../scripts/lib/gate.mjs'
 import { assertRecordedArtifacts, bootProfile, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 
 const unit = loadRuntimeUnit()
@@ -99,6 +99,42 @@ test('adverse: a wrong-row patch is diagnosed, not a silent no-op', () => {
   assert.ok(findingCodes(gate).includes('required_disable_missing'), 'the intended disable did not land')
 })
 
+test('adverse: a bundle that no longer disables the OTel host or the DeepSeek account route is rejected (SMC-M02)', () => {
+  for (const id of ['otel', 'llm-deepseek-account']) {
+    const gate = gateOf(variant((profile) => {
+      const file = join(bundleDir(profile), 'cordis.patch.yml')
+      const text = readFileSync(file, 'utf8')
+      assert.ok(text.includes(`- id: ${id}\n  disabled: true\n`))
+      writeFileSync(file, text.replace(`- id: ${id}\n  disabled: true\n`, ''))
+    }))
+    assert.equal(gate.dump.status, 0, 'upstream composes the enabled row without complaint')
+    assert.equal(gate.ok, false)
+    assert.ok(gate.checks.flatMap((c) => c.findings).some((f) => f.code === 'required_disable_missing' && f.message.startsWith(`${id} `)), id)
+  }
+})
+
+test('adverse: a dsh-base row nobody reviewed, or a renamed one, fails the gate although it composes cleanly (SMC-M02)', () => {
+  const basePatch = join(baseBundleDir(RUNTIME_DIR), 'cordis.patch.yml')
+  const original = readFileSync(basePatch)
+  try {
+    // A new upstream row, as a future release could add one: an enabled second OTel host.
+    writeFileSync(basePatch, `${original}\n- insert:\n    - id: otel-export\n      name: '@deepseek-ai/dsh-otel'\n`)
+    const added = gateOf(variant(() => {}))
+    assert.equal(added.dump.status, 0)
+    assert.equal(added.checks.find((c) => c.id === 'composition').ok, true, 'without the inventory the row composes as an expected base row')
+    assert.equal(added.ok, false)
+    assert.ok(findingCodes(added).includes('base_row_unreviewed'))
+    // A renamed row: the reviewed id disappears and an unknown one appears.
+    writeFileSync(basePatch, original.toString().replace('- id: session-title-llm\n', '- id: session-title-model\n'))
+    const renamed = gateOf(variant(() => {}))
+    assert.equal(renamed.ok, false)
+    assert.ok(findingCodes(renamed).includes('base_row_unreviewed'))
+    assert.ok(findingCodes(renamed).includes('base_row_missing'))
+  } finally {
+    writeFileSync(basePatch, original)
+  }
+})
+
 test('adverse: a comments-only profile patch fails the dump and the lint', () => {
   const gate = gateOf(variant((profile) => writeFileSync(join(profile, 'cordis.patch.yml'), '# only comments\n')))
   assert.equal(gate.dump.status, 1)
@@ -145,6 +181,38 @@ test('adverse: a bundle selecting a model route other than the recorded one is r
   assert.equal(gate.dump.status, 0, 'upstream composes any route without complaint')
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('model_route_invalid'))
+})
+
+test('adverse: a bundle that drops the recorded compat pin of the route is rejected (SMC-M02 R1)', () => {
+  const gate = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    const text = readFileSync(file, 'utf8')
+    assert.ok(text.includes('            compat:\n              supportsStrictMode: false\n'))
+    writeFileSync(file, text.replace('            compat:\n              supportsStrictMode: false\n', ''))
+  }))
+  assert.equal(gate.dump.status, 0, 'upstream composes the catalog default without complaint')
+  assert.equal(gate.ok, false)
+  assert.ok(gate.checks.flatMap((c) => c.findings).some((f) => f.code === 'model_route_invalid' && /compat\.supportsStrictMode/.test(f.message)))
+})
+
+test('adverse: an unknown or broadened native preset fails the gate although it composes cleanly (M02-T02, SMC-M02 G3)', () => {
+  const unknown = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\n- insert:\n    - id: preset-sophia-test-inert-v1\n      name: '@deepseek-ai/dsh-agent-preset'\n      config:\n        id: sophia-test-inert-v1\n        plugins: []\n`)
+  }))
+  assert.equal(unknown.dump.status, 0, 'upstream composes any preset row')
+  assert.equal(unknown.ok, false)
+  assert.ok(unknown.checks.flatMap((c) => c.findings).some((f) => f.code === 'preset_roster_invalid' && /sophia-test-inert-v1/.test(f.message)))
+  const broadened = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    const text = readFileSync(file, 'utf8')
+    const row = '        id: sophia-review-v1\n        plugins: []\n'
+    assert.ok(text.includes(row))
+    writeFileSync(file, text.replace(row, "        id: sophia-review-v1\n        plugins:\n          - id: review-web\n            name: '@deepseek-ai/dsh-tool-web'\n"))
+  }))
+  assert.equal(broadened.dump.status, 0)
+  assert.equal(broadened.ok, false)
+  assert.ok(broadened.checks.flatMap((c) => c.findings).some((f) => f.code === 'preset_roster_invalid' && /sophia-review-v1.*dsh-tool-web/.test(f.message)))
 })
 
 test('adverse: a profile without the recorded archive cannot be checked and is rejected', () => {

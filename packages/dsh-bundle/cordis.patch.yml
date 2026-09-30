@@ -1,10 +1,13 @@
 # @sophia/dsh-bundle — the second bundle layer of the `sophia-runtime` profile,
-# applied after @deepseek-ai/dsh-base (pin 46a7f68b / 0.1.7-rc.1).
+# applied after @deepseek-ai/dsh-base (pin 639ed015 / 0.2.0-rc.2).
 #
 # Every `id:` row below targets a row that dsh-base inserts at the pin
 # [DSH-04]. scripts/lib/patch-lint.mjs fails the build when a target is
 # missing, because upstream only prints a warning for an unmatched row and
-# boots anyway. It also fails an empty or comments-only file.
+# boots anyway. It also fails an empty or comments-only file. Every row the
+# base inserts is listed, with its package, in
+# config/dsh/base-rows.reviewed.json; an unreviewed new or renamed base row
+# fails the gate (SMC-M02).
 #
 # A replacement `config` replaces the WHOLE row config (no deep merge). Any
 # future config replacement on a base row must restate the complete config.
@@ -20,6 +23,20 @@
   disabled: true
 
 - id: session-telemetry-otel
+  disabled: true
+
+# The OTel host (dsh-base since 0.2.0-rc.1). Mounting it creates no transport
+# by itself, and its only base consumer is session-telemetry-otel above. It
+# is disabled anyway, so a future consumer cannot export through it
+# (SMC-M02, M02 §5.3).
+- id: otel
+  disabled: true
+
+# DeepSeek account login and its model route (dsh-base since 0.1.7-rc.2).
+# Sophia uses no DeepSeek account: the development route is OpenAI below, and
+# the D13 release baseline uses the API-key route (llm-deepseek). Disabled so
+# no account credential surface loads (SMC-M02, decision D3).
+- id: llm-deepseek-account
   disabled: true
 
 # No live reload in the shipped profile. Upgrades happen at a runtime-unit
@@ -38,10 +55,14 @@
 # baseline (deepseek-official / deepseek-flash) is unchanged; switching back is
 # a change to these two rows plus a new recorded runtime unit.
 #
-# pi-ai 0.85.1 at the pin predates gpt-6-luna, so the route's `models` list
-# declares it. The values are copied from the pi-ai 0.87.1 catalog entry. The
-# key is a reference: dsh resolves OPENAI_API_KEY per request and the value
-# never enters configuration. Without it, a request fails with
+# pi-ai 0.85.1 (the 0.1.7 and 0.2.0-rc.1 units) shipped no gpt-6-luna, so the
+# route's `models` list declares it, with values copied from the pi-ai 0.87.1
+# catalog entry. At this pin dsh depends on pi-ai 0.87.1, which ships the
+# entry itself, and dsh lays each declared entry over the installed catalog
+# entry. The request-shape parity test (tests/integration/request-shape.test.mjs)
+# holds the wire request to the previous unit's shape; `compat` below is what
+# that needed. The key is a reference: dsh resolves OPENAI_API_KEY per request
+# and the value never enters configuration. Without it, a request fails with
 # MISSING_CREDENTIAL instead of silently switching provider.
 - id: llm-pi-ai
   config:
@@ -62,6 +83,14 @@
               high: high
               xhigh: xhigh
               max: max
+            # Pins the previous unit's request shape (SMC-M02 R1): pi-ai
+            # 0.87.1's catalog entry turns strict mode on, which sends
+            # `strict: false` on every tool; the previous unit sent no
+            # `strict` field. This is the only route difference the parity
+            # test found, and the only compat switch dsh lets a route set
+            # that it touches.
+            compat:
+              supportsStrictMode: false
 
 # Every Agent the bridge creates starts on that route. This restates the row's
 # whole config, including the reasoning effort.
@@ -70,6 +99,51 @@
     provider: openai
     model: gpt-6-luna
     reasoningEffort: high
+
+# Native presets (SMC-M02 G3): one per Sophia role, mounted by the control
+# bridge through the public `agentPresets` registry when it creates or resumes
+# an attempt [DSH-25]. Each preset carries the role's identity and composes
+# no plugin: a role's tools are the base registrations the bridge restricts
+# and guards per role. The bridge records each attempt's preset with a digest
+# of its definition and refuses to resume one whose definition changed. The
+# registry's `default` is never used by the bridge, which always names the
+# role; it is set to the tool-less brief role so that any other caller gets
+# the least. scripts/lib/gate.mjs requires exactly this roster, unbroadened.
+- insert:
+    - id: agent-preset-registry
+      name: '@deepseek-ai/dsh-agent-preset-registry'
+      config:
+        default: sophia-brief-v1
+    - id: preset-sophia-guide-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-guide-v1
+        plugins: []
+    - id: preset-sophia-lead-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-lead-v1
+        plugins: []
+    - id: preset-sophia-research-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-research-v1
+        plugins: []
+    - id: preset-sophia-prototype-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-prototype-v1
+        plugins: []
+    - id: preset-sophia-review-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-review-v1
+        plugins: []
+    - id: preset-sophia-brief-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-brief-v1
+        plugins: []
 
 # Sophia's control bridge (S1-03). The plugin itself declares its service
 # injections (agents, sessions, tools). The config names environment

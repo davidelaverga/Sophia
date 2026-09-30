@@ -1,0 +1,57 @@
+{
+  "schema": "sophia.smc-m02.runtime-root-scan.v1",
+  "profiles": [
+    {
+      "name": ".sophia-runtime.previous",
+      "lock_sha256": "db5b8643cb1044d9bfcc1389ea85a01508bd9f6b3a52685d9ade55c5ae30cc33"
+    },
+    {
+      "name": "sophia-runtime",
+      "lock_sha256": "07d66a3de5e7636bc0d25019228f683d0788b8645bc4100e048aef5deb3391cb"
+    }
+  ],
+  "sessions": [
+    {
+      "session": "sophia-att-cut",
+      "bytes": 11453,
+      "decoded": true,
+      "events": 44,
+      "last_type": "turn/end",
+      "turns": {
+        "completed": 3
+      },
+      "requested": 1,
+      "results": 1,
+      "unpaired": 0,
+      "open_turn": false
+    }
+  ],
+  "journals": [
+    {
+      "session": "sophia-att-cut",
+      "records": 29,
+      "fence": "active",
+      "authority_epoch": 1,
+      "commands": {
+        "create": 1,
+        "hold": 1,
+        "input": 2,
+        "resume": 2
+      },
+      "unsettled_commands": 0,
+      "identity": true
+    }
+  ],
+  "totals": {
+    "sessions": 1,
+    "undecodable": 0,
+    "with_unpaired_calls": 0,
+    "open_turns": 0,
+    "journals": 1,
+    "fences": {
+      "active": 1
+    },
+    "unsettled_commands": 0,
+    "journals_without_session_log": 0
+  }
+}

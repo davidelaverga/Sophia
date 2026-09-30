@@ -35,8 +35,12 @@ export async function startMockLlm() {
     const base = { id: `chatcmpl-${requests.length}`, object: 'chat.completion.chunk', created: 0, model: body.model }
     send({ ...base, choices: [{ index: 0, delta: { role: 'assistant', content: '' }, finish_reason: null }] })
     let finish = 'stop'
-    if (step.toolCall) {
-      send({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: `call_${requests.length}`, type: 'function', function: { name: step.toolCall.name, arguments: JSON.stringify(step.toolCall.arguments ?? {}) } }] }, finish_reason: null }] })
+    const toolCalls = step.toolCalls ?? (step.toolCall ? [step.toolCall] : [])
+    if (toolCalls.length > 0) {
+      toolCalls.forEach((call, index) => {
+        const id = call.id ?? (toolCalls.length === 1 ? `call_${requests.length}` : `call_${requests.length}_${index + 1}`)
+        send({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index, id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments ?? {}) } }] }, finish_reason: null }] })
+      })
       finish = 'tool_calls'
     } else {
       const parts = step.chunks ?? 1
@@ -55,7 +59,7 @@ export async function startMockLlm() {
   return {
     baseURL: `http://127.0.0.1:${port}/v1`,
     requests,
-    /** Queue replies; each request consumes one (default: a short "ok"). */
+    /** Queue replies; each request consumes one (default: a short "ok"). `toolCall` or `toolCalls: [{ id?, name, arguments }]` calls tools. */
     script: (...steps) => { queue.push(...steps) },
     /** All user-visible text the model has been sent so far. */
     sentText: () => JSON.stringify(requests.map((r) => r.messages)),

@@ -1,0 +1,29 @@
+{
+  "direction": "export",
+  "writtenBy": "sophia-runtime-s1-03-dev",
+  "dsh": "0.1.7-rc.1",
+  "episode": "failed-step",
+  "attemptId": "att-1",
+  "role": "sophia-review-v1",
+  "fence": "held",
+  "events": 27,
+  "types": [
+    "agent/inbox/spliced",
+    "approval/policy",
+    "assistant/message",
+    "permission/preset",
+    "request/context",
+    "request/header",
+    "sandbox/mode",
+    "session",
+    "session/title",
+    "step/end",
+    "step/start",
+    "system/message",
+    "tool/call",
+    "tool/result",
+    "turn/end",
+    "turn/start",
+    "user/message"
+  ]
+}
