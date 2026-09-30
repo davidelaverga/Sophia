@@ -11,6 +11,7 @@ import {
   RoomEvent,
   Track,
   VideoPresets,
+  setLogLevel,
   type Participant,
   type RemoteTrack,
   type TrackPublication,
@@ -26,6 +27,10 @@ import {
 import type { CallEnd } from './call-end.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
+
+// LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
+// console; local development keeps the full trace.
+if (!import.meta.env.DEV) setLogLevel('warn')
 
 export type RoomStatus = 'live' | 'reconnecting'
 

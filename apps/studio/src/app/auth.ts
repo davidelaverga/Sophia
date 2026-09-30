@@ -4,6 +4,8 @@ import { createClient, type AuthError, type Session, type SupabaseClient } from 
 import { useEffect, useState } from 'react'
 import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
+import { passkeysWorkOn } from './passkey-domain.ts'
+import { profileFromMetadata } from './profile.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -35,7 +37,12 @@ const fromSession = (s: Session | null): AuthState =>
   s
     ? {
         status: 'signed_in',
-        identity: { name: s.user.email ?? s.user.id, role: s.user.is_anonymous ? 'guest' : '', token: s.access_token },
+        identity: {
+          name: s.user.email ?? s.user.id,
+          role: s.user.is_anonymous ? 'guest' : '',
+          token: s.access_token,
+          ...profileFromMetadata(s.user.user_metadata, s.user.email),
+        },
       }
     : { status: 'signed_out' }
 
@@ -122,12 +129,88 @@ const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
  * The account providers this build offers (VITE_AUTH_PROVIDERS="google,github,azure"). A provider appears only
  * once it is enabled in Supabase Auth, so no button leads to "provider is not enabled".
  */
-export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) =>
-  (import.meta.env.VITE_AUTH_PROVIDERS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .includes(p),
+const OFFERED = (import.meta.env.VITE_AUTH_PROVIDERS ?? '').split(',').map((s) => s.trim())
+export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) => OFFERED.includes(p))
+
+/**
+ * Providers on their way (VITE_AUTH_PROVIDERS_SOON="azure"): shown greyed in the row, with a tip saying so, so
+ * the row keeps its shape while an app is being set up. A provider already offered is never "soon".
+ */
+const SOON = (import.meta.env.VITE_AUTH_PROVIDERS_SOON ?? '').split(',').map((s) => s.trim())
+export const upcomingProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter(
+  (p) => SOON.includes(p) && !OFFERED.includes(p),
 )
+
+/**
+ * Passkeys are bound to one domain, Supabase Auth's Relying Party ID (VITE_PASSKEY_RP_ID="sophia-ei.com"). The
+ * same build is served on other hosts too (the vercel.app address), where a passkey can't work, so passkeys are
+ * offered only on that domain and its subdomains, and only when "passkey" is in VITE_AUTH_PROVIDERS.
+ */
+export const passkeysOffered =
+  OFFERED.includes('passkey') && passkeysWorkOn(window.location.hostname, import.meta.env.VITE_PASSKEY_RP_ID)
+
+/** The browser closed the passkey prompt: the person cancelled or timed out, which needs no message. */
+const cancelled = (error: Error) => error.name === 'NotAllowedError' || error.name === 'AbortError'
+
+export type PasskeyOutcome = 'signed_in' | 'dismissed' | 'expired'
+
+/**
+ * Sign in with a passkey saved for this site: the browser's picker, or its autofill list when `autofill` is set
+ * (the email field carries autocomplete="username webauthn"). An autofill offer can outlive its challenge
+ * (5 minutes): "expired" then asks the caller to offer again.
+ */
+export async function signInWithPasskey(autofill?: { signal: AbortSignal }): Promise<PasskeyOutcome> {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  const { error } = await supabase.auth.signInWithPasskey(
+    autofill ? { options: { mediation: 'conditional', signal: autofill.signal } } : undefined,
+  )
+  if (!error) return 'signed_in'
+  if (cancelled(error) || autofill?.signal.aborted) return 'dismissed'
+  if ('code' in error && error.code === 'webauthn_challenge_expired') return 'expired'
+  throw new Error('That passkey didn’t work here. Sign in another way, then add a passkey from your account.')
+}
+
+/** Whether this browser can offer passkeys in the email field's autofill list. */
+export async function passkeyAutofillAvailable(): Promise<boolean> {
+  if (!passkeysOffered || typeof PublicKeyCredential === 'undefined') return false
+  // Older browsers have passkeys but not this probe.
+  if (!('isConditionalMediationAvailable' in PublicKeyCredential)) return false
+  return PublicKeyCredential.isConditionalMediationAvailable()
+}
+
+export type SavedPasskey = { id: string; name: string; createdAt: string; lastUsedAt: string | null }
+
+function auth(): SupabaseClient['auth'] {
+  if (!supabase) throw new Error('Supabase Auth is not configured')
+  return supabase.auth
+}
+
+/** The passkeys on the signed-in account, newest first. */
+export async function listPasskeys(): Promise<SavedPasskey[]> {
+  const { data, error } = await auth().passkey.list()
+  if (error) throw error
+  return data
+    .map((p) => ({
+      id: p.id,
+      name: p.friendly_name ?? 'Passkey',
+      createdAt: p.created_at,
+      lastUsedAt: p.last_used_at ?? null,
+    }))
+    .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+/** Save a passkey for this account on this device (or a phone, a security key). False when dismissed. */
+export async function addPasskey(): Promise<boolean> {
+  const { error } = await auth().registerPasskey()
+  if (!error) return true
+  if (cancelled(error)) return false
+  throw error
+}
+
+export async function removePasskey(id: string): Promise<void> {
+  const { error } = await auth().passkey.delete({ passkeyId: id })
+  if (error) throw error
+}
 
 /** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
