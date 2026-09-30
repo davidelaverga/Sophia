@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip, type IconName } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
-import { isNew, PANEL_TITLE, PANELS, toggled, type Panel } from './side-panel.ts'
+import { focusOnOpen, isNew, PANEL_TITLE, PANELS, toggled, type Panel } from './side-panel.ts'
 
 interface PanelProps {
   open: Panel | null
@@ -18,10 +18,18 @@ interface PanelProps {
   call: ReactNode
 }
 
+/** The control a panel's focus goes to as it opens (focusOnOpen): the message bar, or the panel's tab. */
+function openingTarget(open: Panel, root: HTMLElement | null): HTMLElement | null {
+  const entry = root?.querySelector<HTMLElement>('[data-chat-entry]') ?? null
+  const kind = !entry ? null : entry instanceof HTMLTextAreaElement ? 'bar' : 'start'
+  const lands = focusOnOpen(open, window.matchMedia('(pointer: fine)').matches, kind)
+  return lands === 'bar' ? entry : (root?.querySelector<HTMLElement>(`#side-tab-${open}`) ?? null)
+}
+
 /**
- * Opening moves focus in: to the chat's one control (the message bar, or Chat with Sophia before it) where a keyboard
- * is at hand, else to the tab (no keyboard jumps up on a phone). Closing hands it back to the toggle that opened the
- * panel.
+ * Opening moves focus in: to the message bar where a keyboard is at hand, else to the tab (no keyboard jumps up on a
+ * phone, and Chat with Sophia is never focused for a stray Space to press). Closing hands it back to the toggle that
+ * opened the panel.
  */
 function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>) {
   const previous = useRef(open)
@@ -30,9 +38,7 @@ function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>)
     previous.current = open
     if (was === open) return
     if (open && !was) {
-      const typing = open === 'chat' && window.matchMedia('(pointer: fine)').matches
-      const target = panel.current?.querySelector<HTMLElement>(typing ? '[data-chat-entry]' : `#side-tab-${open}`)
-      target?.focus({ preventScroll: true })
+      openingTarget(open, panel.current)?.focus({ preventScroll: true })
     } else if (!open && was) {
       document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${was}"]`)?.focus({ preventScroll: true })
     }

@@ -30,3 +30,11 @@ export const toggled = (open: Panel | null, panel: Panel): Panel | null => (open
 /** Something is new when it grew past what was seen, and it isn't in view right now. */
 export const isNew = (current: number | null, seen: number | null, inView: boolean): boolean =>
   !inView && current !== null && seen !== null && current > seen
+
+/**
+ * Where the focus lands when a panel opens: the chat's message bar where a keyboard is at hand, else the panel's
+ * tab. Never Chat with Sophia: focused, Space would start the chat and a letter would act as a key instead of
+ * being text.
+ */
+export const focusOnOpen = (panel: Panel, finePointer: boolean, entry: 'bar' | 'start' | null): 'bar' | 'tab' =>
+  panel === 'chat' && finePointer && entry === 'bar' ? 'bar' : 'tab'

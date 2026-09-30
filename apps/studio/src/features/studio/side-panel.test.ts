@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Snapshot } from '@sophia/contracts'
-import { chatSignature, isNew, mergeNames, toggled } from './side-panel.ts'
+import { chatSignature, focusOnOpen, isNew, mergeNames, toggled } from './side-panel.ts'
 
 const withDiscussion = (n: number) => ({ discussion: Array.from({ length: n }) }) as unknown as Snapshot
 
@@ -39,5 +39,12 @@ describe('the room side panel', () => {
       'Ana left the room and keeps her name',
     )
     assert.equal(mergeNames(later, [{ identity: 'b', name: 'Bob' }]).get('b'), 'Bob', 'a renamed person is renamed')
+  })
+
+  it('puts the focus in the message bar, never on Chat with Sophia', () => {
+    assert.equal(focusOnOpen('chat', true, 'bar'), 'bar')
+    assert.equal(focusOnOpen('chat', true, 'start'), 'tab', 'Space on a focused Chat with Sophia would start the chat')
+    assert.equal(focusOnOpen('chat', false, 'bar'), 'tab', 'no keyboard jumps up on a phone')
+    assert.equal(focusOnOpen('brief', true, null), 'tab')
   })
 })
