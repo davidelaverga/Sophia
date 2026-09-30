@@ -82,40 +82,46 @@ function useChatSend({ snapshot, room, draft, onDraft }: Props) {
   return { presence, busy, ready, error, send }
 }
 
-function ConversationMode({
-  room,
-  starting,
-  ready,
-  busy,
-  start,
-}: {
+interface LineProps {
   room: ProjectRoom
+  presence: Snapshot['room']['sophia'] | undefined
   starting: boolean
   ready: boolean
   busy: boolean
   start: () => Promise<void>
-}) {
+}
+
+/** What the line under the bar says, before any button: the step under way, or what the chat waits for. */
+function lineText({ room, presence, starting, ready }: LineProps): string | null {
+  if (starting) return 'Connecting to Sophia…'
+  if (ready) return room.textMode ? 'Typing to Sophia' : null
+  if (presence?.exchange !== 'open') return null
+  return presence.voice === 'ready' ? 'Take the input floor to message Sophia.' : 'Waiting for Sophia to connect…'
+}
+
+/**
+ * One line under the message bar: how the chat reaches Sophia. Typing to her needs the room live with her exchange
+ * open; from outside, Chat with Sophia joins in text mode. Voice mode leads back once in text.
+ */
+function ChatLine(props: LineProps) {
+  const { room, presence, starting, ready, busy, start } = props
+  const text = lineText(props)
+  const canStart = !starting && !ready && presence?.exchange !== 'open'
+  if (!text && !canStart) return null
   return (
-    <div className="control-row" aria-label="Conversation mode">
-      <button
-        type="button"
-        className="pill"
-        aria-pressed={room.textMode}
-        disabled={starting}
-        onClick={() => void start()}
-      >
-        {starting ? 'Connecting…' : ready && room.textMode ? 'Text mode' : 'Chat with Sophia'}
-      </button>
-      <button
-        type="button"
-        className="text-button"
-        aria-pressed={!room.textMode}
-        disabled={busy}
-        onClick={() => void room.setTextMode(false)}
-      >
-        Voice mode
-      </button>
-    </div>
+    <p className="chat-line" role="status">
+      {text}
+      {canStart && (
+        <button type="button" className="pill" onClick={() => void start()}>
+          Chat with Sophia
+        </button>
+      )}
+      {room.textMode && !starting && (
+        <button type="button" className="text-button" disabled={busy} onClick={() => void room.setTextMode(false)}>
+          Voice mode
+        </button>
+      )}
+    </p>
   )
 }
 
@@ -133,7 +139,6 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
   return (
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} />
-      <ConversationMode room={room} starting={starting} ready={ready} busy={busy} start={start} />
       <div className="message-bar">
         <label htmlFor="converse-draft" className="sr-only">
           Message Sophia
@@ -163,11 +168,7 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
           <Tip label="Send" keys="Enter" side="top" align="end" />
         </button>
       </div>
-      {!ready && presence?.exchange === 'open' && (
-        <p className="muted">
-          {presence.voice === 'ready' ? 'Take the input floor to message Sophia.' : 'Waiting for Sophia to connect…'}
-        </p>
-      )}
+      <ChatLine room={room} presence={presence} starting={starting} ready={ready} busy={busy} start={start} />
       {error && (
         <p className="outcome" role="status">
           {error}

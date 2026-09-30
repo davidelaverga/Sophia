@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Snapshot } from '@sophia/contracts'
-import { chatSignature, isNew, toggled } from './side-panel.ts'
+import { chatSignature, isNew, mergeNames, toggled } from './side-panel.ts'
 
 const withDiscussion = (n: number) => ({ discussion: Array.from({ length: n }) }) as unknown as Snapshot
 
@@ -24,5 +24,20 @@ describe('the room side panel', () => {
     assert.equal(isNew(3, 3, false), false)
     assert.equal(isNew(null, 3, false), false, 'not read yet')
     assert.equal(isNew(5, null, false), false, 'nothing seen yet: the first read is the baseline')
+  })
+
+  it('keeps every name seen this visit, and the same map when nobody is new', () => {
+    const known = mergeNames(new Map(), [{ identity: 'a', name: 'Ana' }])
+    assert.equal(mergeNames(known, [{ identity: 'a', name: 'Ana' }]), known, 'nothing new: the same map')
+    const later = mergeNames(known, [{ identity: 'b', name: 'Bo' }])
+    assert.deepEqual(
+      [...later],
+      [
+        ['a', 'Ana'],
+        ['b', 'Bo'],
+      ],
+      'Ana left the room and keeps her name',
+    )
+    assert.equal(mergeNames(later, [{ identity: 'b', name: 'Bob' }]).get('b'), 'Bob', 'a renamed person is renamed')
   })
 })

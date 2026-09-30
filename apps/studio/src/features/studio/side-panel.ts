@@ -12,6 +12,18 @@ export function chatSignature(snapshot: Snapshot | undefined, turns: readonly { 
   return turns.reduce((n, t) => n + 1 + (t.reply ? 1 : 0), discussion)
 }
 
+/** The names seen so far plus the room's people now; the same map when nobody is new, so nothing re-renders. */
+export function mergeNames(
+  known: ReadonlyMap<string, string>,
+  people: readonly { identity: string; name: string }[],
+): ReadonlyMap<string, string> {
+  const fresh = people.filter((p) => known.get(p.identity) !== p.name)
+  if (fresh.length === 0) return known
+  const next = new Map(known)
+  for (const p of fresh) next.set(p.identity, p.name)
+  return next
+}
+
 /** Opening a panel that is open closes it; any other opens in its place. */
 export const toggled = (open: Panel | null, panel: Panel): Panel | null => (open === panel ? null : panel)
 

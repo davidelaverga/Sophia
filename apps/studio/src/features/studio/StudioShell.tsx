@@ -12,7 +12,7 @@ import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
-import { chatSignature, toggled, type Panel } from './side-panel.ts'
+import { chatSignature, mergeNames, toggled, type Panel } from './side-panel.ts'
 import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
@@ -38,8 +38,13 @@ interface Props {
   snapshot: Snapshot | undefined
 }
 
-/** Names the room knows by identity, so discussion can say who spoke. */
-const namesOf = (room: ProjectRoom) => new Map(room.participants.map((p) => [p.identity, p.name]))
+/** Names the room has known this visit, by identity, so a line keeps its author's name after they leave. */
+function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
+  const [known, setKnown] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const merged = mergeNames(known, room.participants)
+  if (merged !== known) setKnown(merged)
+  return merged
+}
 
 export function StudioShell({ projectId, identity, room, snapshot }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
@@ -47,7 +52,7 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
   const unread = useUnread(chatSignature(snapshot, room.chat), panel === 'chat')
   const brief = useBriefUpdates(panel === 'brief')
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
-  const names = namesOf(room)
+  const names = useKnownNames(room)
   useShortcuts({
     '1': () => setLens('converse'),
     '2': () => setLens('explore'),

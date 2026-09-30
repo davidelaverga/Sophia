@@ -2815,6 +2815,25 @@ div.empty {
   display: flex;
   overflow: hidden;
 }
+/* The consent, while one is due: the question and its two answers on one line. */
+.continuity-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+/* Under the message bar: the step under way or what the chat waits for, with its one action. */
+.chat-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-height: 28px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
 .chat-empty {
   padding: 24px 8px;
   color: var(--text-3);

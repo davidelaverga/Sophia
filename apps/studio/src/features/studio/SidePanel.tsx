@@ -1,7 +1,7 @@
 // The room's side panel, as meeting apps have it: the chat and the brief beside the stage, one at a time, opened
 // from the stage's corner and closed from the panel's own header (or Esc). Both stay mounted while hidden, so an
 // unsent message or a brief edit in progress is never lost. On a phone the panel covers the room.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip, type IconName } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { isNew, PANEL_TITLE, PANELS, toggled, type Panel } from './side-panel.ts'
@@ -13,10 +13,33 @@ interface PanelProps {
   brief: ReactNode
 }
 
+/**
+ * Opening moves focus in: to the message bar where a keyboard is at hand, else to the tab (no keyboard jumps up on a
+ * phone). Closing hands it back to the toggle that opened the panel.
+ */
+function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>) {
+  const previous = useRef(open)
+  useEffect(() => {
+    const was = previous.current
+    previous.current = open
+    if (was === open) return
+    if (open && !was) {
+      const typing = open === 'chat' && window.matchMedia('(pointer: fine)').matches
+      const target = panel.current?.querySelector<HTMLElement>(typing ? '#converse-draft' : `#side-tab-${open}`)
+      target?.focus({ preventScroll: true })
+    } else if (!open && was) {
+      document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${was}"]`)?.focus({ preventScroll: true })
+    }
+  }, [open, panel])
+}
+
 export function SidePanel({ open, onOpen, chat, brief }: PanelProps) {
   const body: Record<Panel, ReactNode> = { chat, brief }
+  const panel = useRef<HTMLElement>(null)
+  usePanelFocus(open, panel)
   return (
     <aside
+      ref={panel}
       className="side-panel"
       hidden={!open}
       aria-label={open ? PANEL_TITLE[open] : undefined}
@@ -104,6 +127,7 @@ export function PanelToggles({ open, onOpen, unread, updated }: ToggleProps) {
           key={p}
           type="button"
           className="round has-tip"
+          data-panel={p}
           aria-pressed={open === p}
           aria-label={dot[p] ? `${PANEL_TITLE[p]}, something new` : PANEL_TITLE[p]}
           onClick={() => onOpen(toggled(open, p))}

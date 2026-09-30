@@ -46,15 +46,25 @@ export function ContinuityChoice(props: { projectId: string; identity: Identity;
   if (!policy || policy.capture === 'off' || policy.consent !== 'unset') return null
   return (
     <div className="continuity-choice">
-      <p>Let Sophia keep notes from your turns? Project members can read them; you can change this in the brief.</p>
-      <div className="control-row">
-        <button type="button" className="pill" disabled={busy} onClick={() => void choose('accepted')}>
-          Allow shared notes
-        </button>
-        <button type="button" className="text-button" disabled={busy} onClick={() => void choose('declined')}>
-          Keep no notes
-        </button>
-      </div>
+      <p>Keep notes from your turns? Members can read them.</p>
+      <button
+        type="button"
+        className="pill"
+        aria-label="Allow shared notes from my turns"
+        disabled={busy}
+        onClick={() => void choose('accepted')}
+      >
+        Allow
+      </button>
+      <button
+        type="button"
+        className="text-button"
+        aria-label="Keep no notes from my turns"
+        disabled={busy}
+        onClick={() => void choose('declined')}
+      >
+        No thanks
+      </button>
       {error && <p role="status">{error}</p>}
     </div>
   )
