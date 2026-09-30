@@ -16,10 +16,12 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 interface Props {
   identity: Identity
   identityControl: React.ReactNode
+  /** Why the sign-in link that brought this person here did not do what it offered (auth.ts). */
+  notice?: string | undefined
   onOpen: (projectId: string) => void
 }
 
-export function ProjectHome({ identity, identityControl, onOpen }: Props) {
+export function ProjectHome({ identity, identityControl, notice, onOpen }: Props) {
   return (
     <main className="screen home">
       <SophiaLight mode="rest" target={null} attention={null} working={false} screen />
@@ -35,6 +37,11 @@ export function ProjectHome({ identity, identityControl, onOpen }: Props) {
           <h1 className="screen-title">What are we building?</h1>
           <p>A project is where your team and Sophia build something together.</p>
         </div>
+        {notice && (
+          <p className="form-error" role="alert">
+            {notice}
+          </p>
+        )}
         <CreateProjectForm token={identity.token} onCreated={onOpen} />
         <RecentProjects identity={identity.name} onOpen={onOpen} />
         <OpenProjectForm onOpen={onOpen} />

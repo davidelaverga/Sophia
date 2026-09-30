@@ -59,7 +59,7 @@ export function App() {
           onSignOut={leaveSession}
         />
       ) : (
-        <ProjectHome identity={identity} identityControl={identityControl} onOpen={open} />
+        <ProjectHome identity={identity} identityControl={identityControl} notice={state.notice} onOpen={open} />
       )}
     </QueryClientProvider>
   )

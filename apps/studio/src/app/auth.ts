@@ -2,7 +2,15 @@
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
-import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
+import {
+  LINK_FAILED,
+  OTHER_ACCOUNT_NOTICE,
+  OTHER_BROWSER_NOTICE,
+  readAuthCallback,
+  switchesAccount,
+  tokenSubject,
+  withoutAuthParams,
+} from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
@@ -30,11 +38,13 @@ export const supabase: SupabaseClient | null =
 export type AuthMode = 'supabase' | 'dev' | 'none'
 export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length > 0 ? 'dev' : 'none'
 
-export type AuthState =
-  { status: 'loading' } | { status: 'signed_out'; notice?: string } | { status: 'signed_in'; identity: Identity }
+/** `notice`: why the last sign-in link did not do what it offered, when it did not. */
+type SignedIn = { status: 'signed_in'; identity: Identity; notice?: string }
+type SignedOut = { status: 'signed_out'; notice?: string }
+export type AuthState = { status: 'loading' } | SignedOut | SignedIn
 
 /** An anonymous session is a guest's (a knock at a room's door), never an account: its role says so. */
-const fromSession = (s: Session | null): AuthState =>
+const fromSession = (s: Session | null): SignedIn | SignedOut =>
   s
     ? {
         status: 'signed_in',
@@ -48,23 +58,30 @@ const fromSession = (s: Session | null): AuthState =>
     : { status: 'signed_out' }
 
 /**
- * The session after an Auth redirect, with a notice when the redirect could not sign in: an expired
- * link, or a magic link opened in a browser other than the one that asked for it.
+ * A link that carries a session (an invitation sent from the Auth dashboard) signs in with it, unless another
+ * account is signed in here: a link is followed, not chosen, so it never switches accounts. Then nothing changes
+ * and the notice says why. Resolves to that notice, or null.
+ */
+async function signInFromLink(client: SupabaseClient, link: { accessToken: string; refreshToken: string }) {
+  const { data } = await client.auth.getSession()
+  const here = data.session && !data.session.user.is_anonymous ? data.session.user.id : null
+  if (switchesAccount(here, tokenSubject(link.accessToken))) return OTHER_ACCOUNT_NOTICE
+  const { error } = await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
+  return error ? LINK_FAILED : null
+}
+
+/**
+ * The session after an Auth redirect, with a notice when the redirect did not sign in: an expired link, a link for
+ * another account than the one signed in here, or a magic link opened in a browser other than the one that asked.
  */
 async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> {
   let notice: string | null = callback.kind === 'error' ? callback.message : null
-  if (callback.kind === 'tokens') {
-    const { error } = await client.auth.setSession({
-      access_token: callback.accessToken,
-      refresh_token: callback.refreshToken,
-    })
-    if (error) notice = error.message
-  }
+  if (callback.kind === 'tokens') notice = await signInFromLink(client, callback)
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange
   if (callback.kind === 'code' && !data.session) notice = OTHER_BROWSER_NOTICE
   if (callback.kind !== 'none') window.history.replaceState(null, '', withoutAuthParams(window.location.href))
-  if (data.session) return fromSession(data.session)
-  return notice ? { status: 'signed_out', notice } : { status: 'signed_out' }
+  const state = fromSession(data.session)
+  return notice ? { ...state, notice } : state
 }
 
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
