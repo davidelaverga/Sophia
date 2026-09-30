@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { parse } from 'yaml'
 import { ARTIFACTS_DIR, PROFILE_SOURCE_DIR, REPO_ROOT, RUNTIME_DIR, bundleArchivePath, platformKey, runChecked } from './common.mjs'
-import { baseBundleDir } from './gate.mjs'
-import { lintComposition } from './patch-lint.mjs'
+import { baseBundleDir, baseBundleVersion, checkReviewedBaseRows, loadReviewedBaseRows } from './gate.mjs'
+import { lintComposition, parsePatch } from './patch-lint.mjs'
 import { fileDigest, fileIntegrity, treeDigest } from './tree-digest.mjs'
 
 const BUNDLE_DIR = join(REPO_ROOT, 'packages', 'dsh-bundle')
@@ -83,11 +83,14 @@ export function buildArtifacts(unit) {
   const runtimeDir = buildRuntimeArtifact()
   const { digest, entries } = treeDigest(runtimeDir)
 
+  const basePatch = join(baseBundleDir(runtimeDir), 'cordis.patch.yml')
   const lintFindings = lintComposition({
-    basePatch: join(baseBundleDir(runtimeDir), 'cordis.patch.yml'),
+    basePatch,
     bundlePatch: join(BUNDLE_DIR, 'cordis.patch.yml'),
     profilePatch: join(PROFILE_SOURCE_DIR, 'cordis.patch.yml'),
   })
+  const base = parsePatch(readFileSync(basePatch, 'utf8'), '@deepseek-ai/dsh-base')
+  if (base.rows !== null) lintFindings.push(...checkReviewedBaseRows(base.rows, loadReviewedBaseRows(), baseBundleVersion(runtimeDir)))
 
   const facts = {
     [`dsh.artifacts_by_platform.${platformKey()}`]: { digest, entries: entries.length },

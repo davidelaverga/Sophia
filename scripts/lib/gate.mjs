@@ -12,7 +12,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'nod
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { DSH_ENTRY, runChecked, runDsh, sanitizedEnv } from './common.mjs'
+import { DSH_ENTRY, REPO_ROOT, readJson, runChecked, runDsh, sanitizedEnv } from './common.mjs'
 import { insertedIds, lintComposition, parseCordisYaml, parsePatch } from './patch-lint.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
@@ -20,8 +20,58 @@ const BASE = '@deepseek-ai/dsh-base'
 const BUNDLE = '@sophia/dsh-bundle'
 const BRIDGE_ROW = 'sophia-control-bridge'
 
-/** Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6, plus the per-session title model call since S1-03). */
-export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr', 'session-title-llm']
+/**
+ * Rows the Sophia bundle must disable (02_DSH_BOOTSTRAP §6, plus the per-session title model call since S1-03).
+ * SMC-M02 adds the OTel host (`otel`, dsh-base since 0.2.0-rc.1) as defense in depth, and the DeepSeek
+ * account login and model route (`llm-deepseek-account`, since 0.1.7-rc.2), which Sophia does not use.
+ */
+export const REQUIRED_DISABLED = ['session-log-deepseek', 'plugin-package-inventory-deepseek', 'session-telemetry-otel', 'hmr', 'session-title-llm', 'otel', 'llm-deepseek-account']
+
+/** The dsh-base rows a reviewer has read, with the package each loads (SMC-M02). */
+export const REVIEWED_BASE_ROWS_PATH = join(REPO_ROOT, 'config', 'dsh', 'base-rows.reviewed.json')
+
+/** @returns {{ dsh_base: string, rows: { id: string, name: string }[] }} the committed reviewed inventory. */
+export function loadReviewedBaseRows(file = REVIEWED_BASE_ROWS_PATH) {
+  return readJson(file)
+}
+
+/**
+ * Compare the rows an installed dsh-base inserts with the reviewed inventory.
+ * The composition check accepts whatever the base inserts, so without this a
+ * new or renamed upstream row (a telemetry export, an account login) would
+ * compose silently at the next upgrade. Every difference is a finding until a
+ * reviewed commit updates the inventory.
+ * @param {any[]} baseRows - parsed rows of the installed dsh-base patch.
+ * @param {{ dsh_base: string, rows: { id: string, name: string }[] }} reviewed - the committed inventory.
+ * @param {string} [baseVersion] - the installed dsh-base version.
+ * @returns {{ code: string, layer: string, message: string }[]} findings.
+ */
+export function checkReviewedBaseRows(baseRows, reviewed, baseVersion) {
+  const layer = BASE
+  const findings = []
+  if (baseVersion !== undefined && baseVersion !== reviewed.dsh_base) {
+    findings.push({ code: 'base_rows_unreviewed_version', layer, message: `installed ${BASE}@${baseVersion}; the reviewed inventory is for ${reviewed.dsh_base}` })
+  }
+  const installed = new Map()
+  for (const row of baseRows) {
+    if (!Array.isArray(row?.insert)) continue
+    for (const entry of row.insert) if (typeof entry?.id === 'string') installed.set(entry.id, entry.name ?? null)
+  }
+  const expected = new Map(reviewed.rows.map((row) => [row.id, row.name ?? null]))
+  for (const [id, name] of installed) {
+    if (!expected.has(id)) findings.push({ code: 'base_row_unreviewed', layer, message: `${BASE} inserts "${id}" (${name}), which no reviewer has read; review it and add it to config/dsh/base-rows.reviewed.json, disabling it in the bundle if Sophia must not load it` })
+    else if (expected.get(id) !== name) findings.push({ code: 'base_row_package_changed', layer, message: `${BASE} row "${id}" now loads ${name}; the reviewed inventory records ${expected.get(id)}` })
+  }
+  for (const id of expected.keys()) {
+    if (!installed.has(id)) findings.push({ code: 'base_row_missing', layer, message: `reviewed row "${id}" is no longer inserted by ${BASE} (removed or renamed)` })
+  }
+  return findings
+}
+
+/** @returns {string} the version of the dsh-base the launcher resolves. */
+export function baseBundleVersion(runtimeDir) {
+  return readJson(join(baseBundleDir(runtimeDir), 'package.json')).version
+}
 
 /** App-surface rows that bring their own root loop or endpoint; none belong in sophia-runtime. */
 export const FOREIGN_ROOT_ROWS = ['webserver', 'modules', 'connection', 'headless-runner', 'acp', 'sdk-jsonrpc-server']
@@ -238,6 +288,8 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
         findings.push({ code: 'profile_patch_not_empty', layer: 'profile cordis.patch.yml', message: 'S1-01 installs a literal [] profile patch; configuration belongs in the bundle' })
       }
     }
+    const base = parsePatch(readFileSync(join(baseDir, 'cordis.patch.yml'), 'utf8'), BASE)
+    if (base.rows !== null) findings.push(...checkReviewedBaseRows(base.rows, loadReviewedBaseRows(), baseBundleVersion(runtimeDir)))
     if (existsSync(join(dshHome, 'cordis.patch.yml'))) {
       findings.push({ code: 'home_patch_present', layer: '$DSH_HOME/cordis.patch.yml', message: 'an unmanaged home-level patch would outrank the profile' })
     }

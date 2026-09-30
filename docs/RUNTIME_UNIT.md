@@ -16,14 +16,17 @@ page explains what each identity means and how a second checkout proves it.
 | Identity | Recorded as | Produced by | Meaning |
 |---|---|---|---|
 | Workspace lock | `workspace_lock_sha256` | `pnpm install` (committed) | The exact resolution of every workspace dependency, including the dsh closure with sha512 integrity per package |
-| dsh release | `dsh.release_integrity` | npm registry, via the lock | sha512 of `@deepseek-ai/dsh@0.1.7-rc.1` and `@deepseek-ai/dsh-base@0.1.7-rc.1`. The same values the registry serves for tag `dsh-v0.1.7-rc.1` = `46a7f68b` |
+| dsh release | `dsh.release_integrity` | npm registry, via the lock | sha512 of `@deepseek-ai/dsh@0.2.0-rc.2` and `@deepseek-ai/dsh-base@0.2.0-rc.2`. The same values the registry serves for tag `dsh-v0.2.0-rc.2` = `639ed015` (SMC-M02; the previous unit `sophia-runtime-s1-03-dev` pinned `0.1.7-rc.1` = `46a7f68b`) |
+| Reviewed base rows | `config/dsh/base-rows.reviewed.json` | a reviewer, from the pinned dsh-base patch | Every row dsh-base inserts and the package it loads. `pnpm artifacts` and the gate fail on a row added, removed or loading another package, so a new upstream telemetry or account row cannot compose unreviewed (SMC-M02) |
 | Runtime artifact | `dsh.artifacts_by_platform.<platform>.digest` (`sophia-tree-v2:sha256:…`); `dsh.artifact_digest` repeats the primary platform's (`linux-x64`, the execution host) | `pnpm deploy --prod` of `runtime/dsh` into `.artifacts/runtime` | Content digest of the deployed launcher tree. Only files and symlinks count. Empty directories are scratch space: install scripts leave `node_modules/.tmp` on some hosts, and the GitHub runner exposed this with v1. It also excludes `.bin` shims (they embed the install path), pnpm install-time bookkeeping and the deploy-local `pnpm-lock.yaml` (it embeds the source checkout's absolute `file:` URLs), so it is location- and host-independent |
 | Bundle archive | `sophia_bundle.archive_sha256`, `archive_integrity`, `artifact_digest` | `pnpm pack` of `packages/dsh-bundle` | Byte-reproducible tarball: fixed mtime, uid 0, the pinned Node zlib |
 | Profile lock | `config/dsh/profile/pnpm-lock.yaml` | `pnpm install --lockfile-only` over the committed profile manifest | Pins the bundle archive's sha512, so `--frozen-lockfile` rejects other bytes at install time |
 
 The runtime artifact is **per platform**. It contains native prebuilds
 (koffi, node-pty) and platform-optional packages. Only `linux-x64` is
-recorded. On another platform, `pnpm artifacts` reports `UNRECORDED` and
+recorded for `sophia-runtime-m02-dev`; `platforms_pending` names
+`darwin-arm64`, whose previous-unit identities were removed rather than left
+stale. On another platform, `pnpm artifacts` reports `UNRECORDED` and
 exits 1 rather than comparing against the wrong platform or passing silently.
 Record that platform's digest with `pnpm artifacts:record` in a reviewed
 commit. The bundle archive and both locks are platform-independent. The
@@ -50,7 +53,7 @@ on. Two rows of the Sophia bundle patch set it:
 | Adapter / provider / model | `@deepseek-ai/dsh-llm-pi-ai` / `openai` / `gpt-6-luna` |
 | Reasoning effort | `high` |
 | Credential | `OPENAI_API_KEY`, as a reference only. dsh resolves it per request. The launch environment passes it only when a caller names it, and a missing key fails the request with `MISSING_CREDENTIAL` |
-| Model entry | Declared in the patch. The pinned pi-ai (0.85.1) catalog predates `gpt-6-luna`, so the capacities and effort levels are copied from the pi-ai 0.87.1 catalog |
+| Model entry | Declared in the patch, with values copied from the pi-ai 0.87.1 catalog. Under `sophia-runtime-s1-03-dev` (pi-ai 0.85.1) no catalog entry existed. At dsh 0.2.0-rc.2 pi-ai 0.87.1 ships one and dsh lays the declared entry over it; `tests/integration/request-shape.test.mjs` pins the resulting request against the previous unit's ([SMC-M02](progress/SMC-M02.md)) |
 | Release baseline | Decision D13 (`deepseek-official` / `deepseek-flash`) is unchanged. Returning to it means changing these two rows and recording a new unit |
 | Live verification | not yet: no `OPENAI_API_KEY` in the S1-03 build environment |
 

@@ -76,3 +76,30 @@ test('the model route check accepts the recorded route and names each way it can
   unpatched[0].patchedBy = []
   assert.match(checkModelRoute(unpatched, route)[0].message, /must be set by/)
 })
+
+test('the reviewed base-row inventory names every added, removed or repackaged dsh-base row (SMC-M02)', async () => {
+  const { checkReviewedBaseRows } = await import('../../scripts/lib/gate.mjs')
+  const reviewed = { dsh_base: '0.2.0-rc.2', rows: [{ id: 'timer', name: '@deepseek-ai/cordis-plugin-timer' }, { id: 'otel', name: '@deepseek-ai/dsh-otel' }] }
+  const base = (...entries) => [{ insert: entries.map(([id, name]) => ({ id, name })) }]
+  assert.deepEqual(checkReviewedBaseRows(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel']), reviewed, '0.2.0-rc.2'), [])
+  const codes = (rows, version = '0.2.0-rc.2') => checkReviewedBaseRows(rows, reviewed, version).map((f) => f.code)
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel'], ['otel-export', '@deepseek-ai/dsh-otel'])), ['base_row_unreviewed'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'])), ['base_row_missing'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel-next'])), ['base_row_package_changed'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel-renamed', '@deepseek-ai/dsh-otel'])), ['base_row_unreviewed', 'base_row_missing'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel']), '0.2.0-rc.3'), ['base_rows_unreviewed_version'])
+})
+
+test('every required disable is a reviewed base row and a disabled row of the Sophia bundle patch (SMC-M02)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { REQUIRED_DISABLED, loadReviewedBaseRows } = await import('../../scripts/lib/gate.mjs')
+  const { parseCordisYaml } = await import('../../scripts/lib/patch-lint.mjs')
+  const reviewed = new Set(loadReviewedBaseRows().rows.map((r) => r.id))
+  const patch = parseCordisYaml(readFileSync(new URL('../../packages/dsh-bundle/cordis.patch.yml', import.meta.url), 'utf8'))
+  const disabled = new Set(patch.filter((r) => r.disabled === true).map((r) => r.id))
+  for (const id of ['otel', 'llm-deepseek-account']) assert.ok(REQUIRED_DISABLED.includes(id), `${id} is required disabled`)
+  for (const id of REQUIRED_DISABLED) {
+    assert.ok(reviewed.has(id), `${id} is a reviewed base row`)
+    assert.ok(disabled.has(id), `${id} is disabled by the bundle patch`)
+  }
+})

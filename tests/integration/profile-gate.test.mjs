@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { REPO_ROOT, RUNTIME_DIR, loadRuntimeUnit } from '../../scripts/lib/common.mjs'
-import { verifyProfile } from '../../scripts/lib/gate.mjs'
+import { baseBundleDir, verifyProfile } from '../../scripts/lib/gate.mjs'
 import { assertRecordedArtifacts, bootProfile, homeLayout, installProfile } from '../../scripts/lib/profile.mjs'
 
 const unit = loadRuntimeUnit()
@@ -97,6 +97,42 @@ test('adverse: a wrong-row patch is diagnosed, not a silent no-op', () => {
   assert.equal(gate.ok, false)
   assert.ok(findingCodes(gate).includes('patch_unmatched_row'))
   assert.ok(findingCodes(gate).includes('required_disable_missing'), 'the intended disable did not land')
+})
+
+test('adverse: a bundle that no longer disables the OTel host or the DeepSeek account route is rejected (SMC-M02)', () => {
+  for (const id of ['otel', 'llm-deepseek-account']) {
+    const gate = gateOf(variant((profile) => {
+      const file = join(bundleDir(profile), 'cordis.patch.yml')
+      const text = readFileSync(file, 'utf8')
+      assert.ok(text.includes(`- id: ${id}\n  disabled: true\n`))
+      writeFileSync(file, text.replace(`- id: ${id}\n  disabled: true\n`, ''))
+    }))
+    assert.equal(gate.dump.status, 0, 'upstream composes the enabled row without complaint')
+    assert.equal(gate.ok, false)
+    assert.ok(gate.checks.flatMap((c) => c.findings).some((f) => f.code === 'required_disable_missing' && f.message.startsWith(`${id} `)), id)
+  }
+})
+
+test('adverse: a dsh-base row nobody reviewed, or a renamed one, fails the gate although it composes cleanly (SMC-M02)', () => {
+  const basePatch = join(baseBundleDir(RUNTIME_DIR), 'cordis.patch.yml')
+  const original = readFileSync(basePatch)
+  try {
+    // A new upstream row, as a future release could add one: an enabled second OTel host.
+    writeFileSync(basePatch, `${original}\n- insert:\n    - id: otel-export\n      name: '@deepseek-ai/dsh-otel'\n`)
+    const added = gateOf(variant(() => {}))
+    assert.equal(added.dump.status, 0)
+    assert.equal(added.checks.find((c) => c.id === 'composition').ok, true, 'without the inventory the row composes as an expected base row')
+    assert.equal(added.ok, false)
+    assert.ok(findingCodes(added).includes('base_row_unreviewed'))
+    // A renamed row: the reviewed id disappears and an unknown one appears.
+    writeFileSync(basePatch, original.toString().replace('- id: session-title-llm\n', '- id: session-title-model\n'))
+    const renamed = gateOf(variant(() => {}))
+    assert.equal(renamed.ok, false)
+    assert.ok(findingCodes(renamed).includes('base_row_unreviewed'))
+    assert.ok(findingCodes(renamed).includes('base_row_missing'))
+  } finally {
+    writeFileSync(basePatch, original)
+  }
 })
 
 test('adverse: a comments-only profile patch fails the dump and the lint', () => {

@@ -1,13 +1,14 @@
 {
   "schema": "sophia.runtime-unit.v1",
-  "id": "sophia-runtime-s1-03-dev",
+  "id": "sophia-runtime-m02-dev",
+  "previous_unit": "sophia-runtime-s1-03-dev",
   "status": "built_not_ready",
-  "status_note": "Artifacts are built and identified. The bundle carries the development model route (openai/gpt-6-luna, high) and the S1-03 control bridge, which reports ready only when bound to a Sophia service. Admission is still the labelled fixture service (S1-02 pending) and the route is not live-verified, so no runtime from this unit is deployable. Previous unit: sophia-runtime-s1-01.",
+  "status_note": "SMC-M02 candidate on dsh 0.2.0-rc.2: artifacts are built and identified; the target awaits the owner's decision D1. The bundle carries the same development model route (openai/gpt-6-luna, high) and the S1-03 control bridge, which reports ready only when bound to a Sophia service. The route is not live-verified and no runtime from this unit is deployed. Rollback unit: sophia-runtime-s1-03-dev (dsh 0.1.7-rc.1), preserved; its artifacts are rebuilt from its own commit, never from this unit's lock.",
   "dsh": {
     "repository": "deepseek-ai/deepseek-harness",
-    "commit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
-    "tag": "dsh-v0.1.7-rc.1",
-    "package_version": "0.1.7-rc.1",
+    "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "tag": "dsh-v0.2.0-rc.2",
+    "package_version": "0.2.0-rc.2",
     "launcher": "dsh",
     "launcher_entry": "node_modules/@deepseek-ai/dsh/lib/bin.js",
     "profile": "sophia-runtime",
@@ -17,26 +18,23 @@
     ],
     "artifact_kind": "pnpm deploy --prod of runtime/dsh (@sophia/dsh-runtime) from pnpm-lock.yaml",
     "artifact_primary_platform": "linux-x64",
-    "artifact_digest": "sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771",
+    "artifact_digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
     "artifacts_by_platform": {
       "linux-x64": {
-        "digest": "sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771",
-        "entries": 27209
-      },
-      "darwin-arm64": {
-        "digest": "sophia-tree-v2:sha256:fecae9682fa3f1870447e794c3a56adc72780a62bdb5585129bcffbe0fa9b4f5",
-        "entries": 28987
+        "digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+        "entries": 27747
       }
     },
     "artifact_digest_scheme": "sophia-tree-v2: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines for files and symlinks only (directories are implied; empty ones are install-script scratch); excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
     "release_integrity": {
-      "@deepseek-ai/dsh@0.1.7-rc.1": "sha512-O1K076aCmqE+h4fB5J+mi3twNSAnh26OqHepaqvS5f1tccFnxhVyGpUmjcncVM5x1SX4niznmvsGrsRo9p733A==",
-      "@deepseek-ai/dsh-base@0.1.7-rc.1": "sha512-o8KnLPs9gSHWLrX2NMrVi8Mat9SBQmiSmNudzl+M+qB8asgjyaB3OanQRJOxmfrQ30Xnb34lnAcC2wfASMP2Mw=="
+      "@deepseek-ai/dsh@0.2.0-rc.2": "sha512-EAJ3gPNcVt/uv8X19PMm9NkVhWgT7xXNMk0UKCVm+IQ5rpSQOcsMUa0HWlnYYVybKMsccjcRB21vVVsaXQ6IdA==",
+      "@deepseek-ai/dsh-base@0.2.0-rc.2": "sha512-AclHClefnPmUe2qoPrKMUvauA/KelYevYlxFdHLZGcPRqrDH+D21HyrwJmj4f7Iu5OO0IqfjB4zBOkwMp5h1ug=="
     },
-    "release_source": "npm registry release published from tag dsh-v0.1.7-rc.1; shipped static files are checked byte-for-byte against the pinned source checkout by scripts/dsh-source.mjs --verify-release",
+    "release_source": "npm registry release published from tag dsh-v0.2.0-rc.2; shipped static files are checked byte-for-byte against the pinned source checkout by scripts/dsh-source.mjs --verify-release",
     "source_build": {
-      "status": "blocked_in_s1_01_environment",
-      "reason": "the upstream frozen lock fetches xlsx from cdn.sheetjs.com, which the S1-01 build environment's egress policy denied (HTTP 403 on CONNECT); the full upstream source build was not completed"
+      "status": "not_required_npm_release",
+      "reason": "SMC-M02 qualifies the published npm release of tag dsh-v0.2.0-rc.2, installed from the frozen lock with registry integrity. No upstream source build is part of this unit; the S1-01 source-build egress block (xlsx from cdn.sheetjs.com) is therefore not on this path. The failed-step recovery fix 6a6f350 ships in these tarballs (ToolCallRecovery in dsh-agent-loop and dsh-session lib) and is exercised by tests/integration/tool-recovery.test.mjs.",
+      "previous": "blocked_in_s1_01_environment (sophia-runtime-s1-01 and s1-03-dev)"
     }
   },
   "toolchain": {
@@ -59,11 +57,11 @@
     "model": "gpt-6-luna",
     "reasoningEffort": "high",
     "credential_ref": "OPENAI_API_KEY",
-    "model_entry_source": "pi-ai 0.87.1 catalog entry (the pinned pi-ai 0.85.1 predates gpt-6-luna), declared in the Sophia bundle patch",
+    "model_entry_source": "declared in the Sophia bundle patch with values copied from the pi-ai 0.87.1 catalog entry. At this pin dsh depends on pi-ai 0.87.1, which ships openai/gpt-6-luna, and dsh lays the declared entry over it; the request-shape parity test records the wire difference from sophia-runtime-s1-03-dev (pi-ai 0.85.1)",
     "release_baseline": "D13: deepseek-official / deepseek-flash (unchanged; switching back is a bundle-patch change and a new recorded unit)",
     "live_verified": false
   },
-  "workspace_lock_sha256": "b26b64e6fd020739386353b3aa474485ece563220e44449810862409a61468a4",
+  "workspace_lock_sha256": "535617dbd9f2bbb0792a4340ffd1c75ced95a284526278edaf28e6b4c4116720",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -91,18 +89,11 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
-    "archive_integrity": "sha512-8TgUktxJ+tXMEYmXw/X2cQnVxTOcNG2Bn/PGw/vW1BnOu+skL9zl2xV49+oAWdXjXsZ+KdXXDa5/fWcotianKA==",
-    "artifact_digest": "sha256:391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
+    "archive_sha256": "4196ae0cbd16e37f712a6da90f425a4d07f8ad2e8c15ad80d0444c97257f01fb",
+    "archive_integrity": "sha512-5ZzPwMUUCVaFi4urWBHQEj8Fdc5EadX1TEp2Ip2Hjd/8jM7VDJyUliXUBbrOaqlKDgZi74rr3dZDV9hGNaeQDg==",
+    "artifact_digest": "sha256:4196ae0cbd16e37f712a6da90f425a4d07f8ad2e8c15ad80d0444c97257f01fb",
     "bridge_protocol_version": 1,
-    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)",
-    "archives_by_platform": {
-      "darwin-arm64": {
-        "archive_sha256": "02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51",
-        "archive_integrity": "sha512-7wdhare/GBHSzGhP1UWmfi0pPJ7/VBwxR8UQ9+0aJ46c2qd41l191UYtWxhqOEYdLwkSo2Y2ZMCg0TU+r+ohLA==",
-        "artifact_digest": "sha256:02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51"
-      }
-    }
+    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
   "profile_install": {
     "manifest": "config/dsh/profile/package.json",
@@ -151,5 +142,8 @@
       "item": "affected live acceptance evidence",
       "status": "pending (S1-03 live steer needs OPENAI_API_KEY; real admission needs S1-02)"
     }
-  ]
+  ],
+  "platforms_pending": {
+    "darwin-arm64": "pending since SMC-M02: this unit was built on linux-x64 only. The previous unit's darwin-arm64 runtime digest, bundle archive and profile lock are not carried over, because they identify dsh 0.1.7-rc.1. Record them with `pnpm artifacts:record` on an Apple silicon Mac (Node 24.21.0, pnpm 11.7.0) in a reviewed commit; until then `pnpm artifacts` and the harness refuse to run on darwin-arm64."
+  }
 }

@@ -110,6 +110,18 @@ Observed in these SDKs, not in the pack: `sendClientContent` mid-conversation is
 
 **Contract amendments.** A04 (the private runtime service), A05 (discussion and native tasks), A06 (the room exchange, the bridge's private `/v1/media/*` routes, `room.sophia` in the snapshot; viewers publish and may hold the floor) and A07 (a lobby entry's durable removal from the call) are in [`packages/contracts/amendments/`](../packages/contracts/amendments/), each with its reasons. A01 stays as it was; A06 amends it rather than duplicating the floor.
 
+## 2c. Upstream sources at SMC-M02
+
+The runtime unit `sophia-runtime-m02-dev` pins `deepseek-ai/deepseek-harness@639ed015397290b3745d163aafe02ffee4aa3f84` (tag `dsh-v0.2.0-rc.2`), read from a checkout outside this tree. `pnpm dsh:source --verify-release`: 278 `@deepseek-ai` package entries at 0.2.0-rc.2, 897 shipped files byte-identical to the pin, 0 differing ([evidence](evidence/SMC-M02/dsh-source-release.json)). The selection and the A→E delta are in [SMC-M02-G1-target-spec](progress/SMC-M02-G1-target-spec.md); the re-verification is in [SMC-M02 §2](progress/SMC-M02.md). The rows above (DSH-01 … DSH-20) were re-read at the new pin; DSH-04 now counts 94 base rows.
+
+| Source id | Upstream file (at `639ed015`) | Used for | Sophia files |
+|---|---|---|---|
+| DSH-21 | `packages/bundle/base/cordis.patch.yml` | The 94 base rows and their packages: new `otel` (`@deepseek-ai/dsh-otel`) and `llm-deepseek-account`; `llm-deepseek` now loads `@deepseek-ai/dsh-llm-deepseek-api-key`; `session-telemetry-otel` gains `maxRequestBytes` and a new default endpoint | `config/dsh/base-rows.reviewed.json`, `packages/dsh-bundle/cordis.patch.yml`, `scripts/lib/gate.mjs` (`REQUIRED_DISABLED`, `checkReviewedBaseRows`) |
+| DSH-22 | `packages/telemetry/otel/README.md` | Mounting `otel` creates no transport and sends nothing by itself; its base consumer is `session-telemetry-otel` | `packages/dsh-bundle/cordis.patch.yml` (disabled anyway) |
+| DSH-23 | `packages/llm/llm-pi-ai/src/catalog.ts` (`resolveEntry`) and pi-ai 0.87.1 `dist/providers/data/openai.json` | A declared `models` entry is laid over the installed catalog entry; pi-ai 0.87.1 ships `openai/gpt-6-luna` with `compat`, `cost`, `inputLimits` and `thinkingLevelMap` | `packages/dsh-bundle/cordis.patch.yml` (route entry), `tests/integration/request-shape.test.mjs` |
+| DSH-24 | `packages/core/agent-loop/src/agent.ts`, `tool-calls.ts`; `packages/core/session/src/repair.ts` (`ToolCallRecovery`); commit `6a6f350` | A step that fails with pending tool calls records `tool/result` for each: committed results kept, started calls `TOOL_OUTCOME_UNKNOWN`, never-started calls `TOOL_NOT_STARTED`; the original error ends the turn | `tests/integration/tool-recovery.test.mjs` |
+| DSH-25 | `packages/preset/agent-preset-registry/README.md` | `ctx.agentPresets`: definitions are plugin rows; `modeSelectionEnabled` retired; after a restart a session's preset id resolves to the **current** definition and only a missing one is rejected. dsh-base composes no registry row | `docs/progress/SMC-M02-contract-binding.md` §4 |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals
