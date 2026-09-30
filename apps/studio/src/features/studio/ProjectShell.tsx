@@ -117,27 +117,29 @@ export function ProjectShell(props: Props) {
   const [inviting, setInviting] = useState(false)
   const loaded = snapshot.data !== undefined
   const blocked = blockedBy(snapshot.error, loaded)
+  // Behind a closed door the project's last snapshot may still be in the cache: nothing acts on it (Invite, I).
+  const shown = blocked ? undefined : snapshot.data
   const invite = () => setInviting(true)
   useLeaveBehindClosedDoor(blocked, room)
   useRecentProject(identity.name, projectId, snapshot.data, blocked)
   useTabTitle(snapshot.data)
-  useShortcuts({ i: invite }, loaded && canInvite(membership) && !inviting)
+  useShortcuts({ i: invite }, !!shown && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
       <ProjectHeader
         title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
         connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
-        share={loaded && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
+        share={shown && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
         identitySwitcher={identitySwitcher}
         inCall={isInCall(room)}
         onLeave={onLeave}
       />
       <OpeningNote loaded={loaded} blocked={blocked} />
-      {inviting && snapshot.data && (
+      {inviting && shown && (
         <Suspense fallback={null}>
           <InviteSheet
-            context={{ projectId, identity, membership, sessions: snapshot.data.sessions, lobby: snapshot.data.lobby }}
+            context={{ projectId, identity, membership, sessions: shown.sessions, lobby: shown.lobby }}
             onClose={() => setInviting(false)}
           />
         </Suspense>

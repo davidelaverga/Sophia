@@ -99,7 +99,9 @@ writing a new one, and keep the rule when you change the code around it.
   stream asks the snapshot before it gives up (`refused` in `feed-loop.ts`,
   with tests): refused too, the door is closed and the notice shows; not,
   and the stream is tried again. Giving up on the stream's word alone left
-  the project frozen on screen behind a small "No access".
+  the project frozen on screen behind a small "No access". Behind a closed
+  door nothing acts on the project's last snapshot: Invite, its sheet and I
+  go with it.
 - **No wait is endless, and a long one says so.** Every API call has a
   limit (`inTime` in `api/client.ts`, with tests): 30 s for a read, which
   whoever needs it asks again; 90 s for a write, which may be the call that
