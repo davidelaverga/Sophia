@@ -5,6 +5,7 @@ import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
+import { CompanionRunner, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
 import type { InviteConfig } from './invite-token.ts'
@@ -15,6 +16,7 @@ import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
+import { personalRoutes } from './routes/personal.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
@@ -54,6 +56,11 @@ export interface AppDeps {
   mailer?: Mailer | null
   /** SHA-256 of the media bridge's capability (amendment A06); without it, /v1/media/* answers 401. */
   mediaBridgeTokenSha256?: Buffer
+  /**
+   * Who answers in the personal space (amendment A10): the keyless rehearsal in development, the runtime's Companion
+   * agent later. Without one, a personal message is refused (503) before anything is kept.
+   */
+  companion?: Companion | null
 }
 
 /** Functions the API requires in the database; /ready fails if any is missing. */
@@ -104,7 +111,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.setErrorHandler(handleError)
   registerHealth(app, deps.pool)
 
-  projectRoutes(app, { pool: deps.pool })
+  projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
@@ -115,6 +122,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
+  const companion = deps.companion
+    ? new CompanionRunner(deps.pool, deps.companion, (err) => app.log.error({ err }, 'companion answer failed'))
+    : null
+  personalRoutes(app, { pool: deps.pool, companion })
   return app
 }
 

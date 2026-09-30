@@ -128,10 +128,10 @@ const apiUrl = (cfg: LiveKitConfig) => cfg.url.replace(/^ws(s?):\/\//, 'http$1:/
 export async function roomParticipants(
   cfg: LiveKitConfig,
   roomId: string,
-): Promise<Array<{ identity: string; standing: Standing }>> {
+): Promise<Array<{ identity: string; name: string; standing: Standing }>> {
   try {
     const people = await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).listParticipants(roomId)
-    return people.map((p) => ({ identity: p.identity, standing: standingOf(p.metadata) }))
+    return people.map((p) => ({ identity: p.identity, name: p.name, standing: standingOf(p.metadata) }))
   } catch (err: unknown) {
     if (err instanceof Error && /not.?found|does not exist/i.test(err.message)) return []
     throw err

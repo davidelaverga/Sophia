@@ -1,0 +1,1781 @@
+{
+  "id": "A10",
+  "goal": "PS-01",
+  "title": "A personal space: one private conversation with Sophia, notes the person keeps, and notes carried to a project one at a time",
+  "why": [
+    "Luis's direction C (docs/goals/personal-space.md, PR #21): everyone who signs up has a private space with Sophia beside the work space. Personal data lives in its own owner-only tables (0021), never in project tables with a flag; no project role reaches it.",
+    "The only crossing is a per-item release (carryPersonalNote): one note, exactly as written, to one project the person belongs to; members read it attributed to its owner, who can take it back. The team companion reads nothing personal (D5 kept at no until Davide confirms).",
+    "Sophia's replies come from the companion the API runs. This slice ships a keyless rehearsal (scripted, development only); the runtime's Companion agent (D1) replaces it without changing these operations. Where none runs, sending is refused with nothing kept. listProjects gives the Work side its list; the contract had none."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalSuggestion",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "kept",
+              "dismissed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "state"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalTurn",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "author": {
+            "type": "string",
+            "enum": [
+              "person",
+              "sophia"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replyTo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "answered",
+                  "failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "author",
+          "text",
+          "createdAt",
+          "replyTo",
+          "reply",
+          "suggestion"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalNote",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "keptBy": {
+            "type": "string",
+            "enum": [
+              "person",
+              "sophia"
+            ]
+          },
+          "fromTurnId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "keptBy",
+          "fromTurnId",
+          "createdAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalRelease",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noteId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "noteId",
+          "projectId",
+          "projectTitle",
+          "text",
+          "createdAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalSpace",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "companion": {
+            "type": "string",
+            "enum": [
+              "rehearsal",
+              "live",
+              "unavailable"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/PersonalTurn"
+            }
+          },
+          "earlier": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalNote"
+            }
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalRelease"
+            }
+          }
+        },
+        "required": [
+          "companion",
+          "revision",
+          "turns",
+          "earlier",
+          "notes",
+          "releases"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalTurnPage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalTurn"
+            }
+          },
+          "pending": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revision",
+          "turns",
+          "pending"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalExport",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "turns": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalTurn"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalNote"
+            }
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/PersonalRelease"
+            }
+          }
+        },
+        "required": [
+          "exportedAt",
+          "turns",
+          "notes",
+          "releases"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalMessage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalSuggestionDecision",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "dismiss"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalNoteRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 90
+          },
+          "fromTurnId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "suggestionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalCarryRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "projectId"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalErasureRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "type": "string",
+            "enum": [
+              "delete"
+            ]
+          }
+        },
+        "required": [
+          "confirm"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "send_turn",
+              "retry_turn",
+              "decide_suggestion",
+              "keep_note",
+              "forget_note",
+              "carry_note",
+              "take_back",
+              "erase"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "turnId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggestionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "noteId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "releaseId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "erased": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "turns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "notes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "suggestions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "turns",
+                  "notes",
+                  "suggestions"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operation",
+          "revision",
+          "turnId",
+          "seq",
+          "suggestionId",
+          "noteId",
+          "releaseId",
+          "projectId",
+          "erased"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectRelease",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "ownerName",
+          "mine",
+          "createdAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectSummary",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ]
+          },
+          "members": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "room": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "people": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "sophia": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "people",
+                  "sophia"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextSession": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoomSession"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "releases": {
+            "type": "array",
+            "maxItems": 2000,
+            "items": {
+              "$ref": "#/components/schemas/ProjectRelease"
+            }
+          }
+        },
+        "required": [
+          "projectId",
+          "title",
+          "role",
+          "members",
+          "room",
+          "nextSession",
+          "releases"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projects": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/ProjectSummary"
+            }
+          }
+        },
+        "required": [
+          "projects"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal",
+      "value": {
+        "get": {
+          "operationId": "getPersonalSpace",
+          "summary": "The calling person's own space: the latest turns of their one conversation with Sophia (earlier ones exist when `earlier`), the notes they keep and the notes they carried. Owner-only: nobody else, project admins included, reads any of it.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalSpace"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no personal space)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1turns",
+      "value": {
+        "get": {
+          "operationId": "getPersonalTurns",
+          "summary": "Turns after `after` (a seq), and whether a reply is still pending: what a client waiting for Sophia polls.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "after",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalTurnPage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no personal space)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        },
+        "post": {
+          "operationId": "sendPersonalTurn",
+          "summary": "The person says something to Sophia. The turn is kept and Sophia's reply is pending until the companion writes it. Refused (503, nothing kept) where no companion runs. Idempotent per person and key.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalMessage"
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1turns~1{turnId}~1retry",
+      "value": {
+        "post": {
+          "operationId": "retryPersonalTurn",
+          "summary": "A turn whose reply failed waits for one again.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "turnId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1suggestions~1{suggestionId}~1decision",
+      "value": {
+        "post": {
+          "operationId": "decidePersonalSuggestion",
+          "summary": "Keep a note Sophia suggested, in her words, or let it go. Nothing is kept silently.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "suggestionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSuggestionDecision"
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1notes",
+      "value": {
+        "post": {
+          "operationId": "keepPersonalNote",
+          "summary": "A short note the person keeps, in their own words, from one of their turns. Keeping exactly what Sophia suggested for that turn keeps her suggestion.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalNoteRequest"
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1notes~1{noteId}~1forget",
+      "value": {
+        "post": {
+          "operationId": "forgetPersonalNote",
+          "summary": "A kept note is deleted (the undo of keeping it).",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "noteId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1notes~1{noteId}~1carry",
+      "value": {
+        "post": {
+          "operationId": "carryPersonalNote",
+          "summary": "The only way anything personal reaches a project: one kept note, copied exactly as written into one project where the person is an active member, attributed to them. Its members read it; the person can take it back.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "noteId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalCarryRequest"
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1releases~1{releaseId}~1take-back",
+      "value": {
+        "post": {
+          "operationId": "takeBackPersonalRelease",
+          "summary": "The person takes a carried note back: the project's copy is deleted and the note returns to their notes.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "releaseId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1export",
+      "value": {
+        "get": {
+          "operationId": "exportPersonalSpace",
+          "summary": "Everything the personal space keeps for the calling person: every turn, the notes, the carried notes.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalExport"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no personal space)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1erasure",
+      "value": {
+        "post": {
+          "operationId": "erasePersonalSpace",
+          "summary": "Delete the conversation, suggestions and notes for good. Carried notes stay in their projects, still the person’s to take back.",
+          "tags": [
+            "personal"
+          ],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: a guest, or a project the owner is not a member of",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Stale state (already decided, carried or answered) or idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable (no companion to answer); a write's outcome is reconciled with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalErasureRequest"
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects/get",
+      "value": {
+        "operationId": "listProjects",
+        "summary": "The projects the calling person is an active member of, for their Work side: title, role, member count, who is in the room now (the room server's own list; null when it can't be asked), the next session, and the notes carried to each.",
+        "tags": [
+          "projects"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (a guest has no personal space)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema or semantic field constraints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "PS-01"
+      }
+    }
+  ]
+}
