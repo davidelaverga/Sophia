@@ -130,6 +130,13 @@ writing a new one, and keep the rule when you change the code around it.
   how long to wait, that the last email still works, a lost connection).
   On the quiet screens (sign-in, invitations) an error is rose, not the
   body's grey (`.screen-body .form-error`).
+- **A sign-in link is followed, not chosen** (`auth-callback.ts`, with
+  tests). The words a failed link carries are never shown: the notice comes
+  from Supabase's `error_code`, in the Studio's words. A link that carries a
+  session (`linkDecision`) never replaces another account signed in here,
+  and with nobody signed in it asks first (`LinkOffer`), naming the account
+  as the Auth service reads it from the token (`getUser`), never as the
+  token's own payload says. The session waits in memory until then.
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·

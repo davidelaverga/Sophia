@@ -5,8 +5,9 @@
 //  - A failed or expired link returns error parameters.
 //
 // Anyone can write an address, and anyone can send a link. So the words a failed link carries are never shown
-// (the page would say whatever the link's author wrote), and a link's session never replaces another account's
-// without a word (a link is followed, not chosen).
+// (the page would say whatever the link's author wrote), and a link's session is never used without a word: it
+// never replaces another account, and with nobody signed in the person is asked first (a link is followed, not
+// chosen).
 
 export type AuthCallback =
   | { kind: 'tokens'; accessToken: string; refreshToken: string }
@@ -74,11 +75,18 @@ export function tokenSubject(accessToken: string): string | null {
 }
 
 /**
- * Whether a link's session would replace the account signed in here. A guest's session (an anonymous knock at a
- * room's door) is no account, so `here` is null for it; a token whose account cannot be read counts as another one.
+ * What to do with a link's session, by whose it is (`incoming`) and who is signed in here (`here`):
+ * - 'ask': nobody is, so the person is asked first, by the account's address (a link is followed, not chosen);
+ * - 'keep': the same account already is, so nothing changes;
+ * - 'refuse': another account is, and a link never replaces it.
+ * A guest's session (an anonymous knock at a room's door) is no account, so `here` is null for it; a token whose
+ * account cannot be read is never the one signed in here.
  */
-export function switchesAccount(here: string | null, incoming: string | null): boolean {
-  return here !== null && here !== incoming
+export type LinkDecision = 'ask' | 'keep' | 'refuse'
+
+export function linkDecision(here: string | null, incoming: string | null): LinkDecision {
+  if (here === null) return 'ask'
+  return here === incoming ? 'keep' : 'refuse'
 }
 
 export const OTHER_ACCOUNT_NOTICE =

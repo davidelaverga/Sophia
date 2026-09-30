@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { LINK_FAILED, readAuthCallback, switchesAccount, tokenSubject, withoutAuthParams } from './auth-callback.ts'
+import { LINK_FAILED, linkDecision, readAuthCallback, tokenSubject, withoutAuthParams } from './auth-callback.ts'
 
 const STUDIO = 'https://sophia-studio.vercel.app'
 
@@ -54,11 +54,14 @@ describe('a link that carries a session', () => {
     }
   })
 
-  it('never replaces another account signed in here, and never without a readable account', () => {
-    assert.equal(switchesAccount('ana', 'ben'), true)
-    assert.equal(switchesAccount('ana', null), true)
-    assert.equal(switchesAccount('ana', 'ana'), false)
-    // Nobody signed in here (or only a guest's anonymous session): the link signs in, as an invitation does.
-    assert.equal(switchesAccount(null, 'ben'), false)
+  it('never replaces another account signed in here, and never one it cannot read', () => {
+    assert.equal(linkDecision('ana', 'ben'), 'refuse')
+    assert.equal(linkDecision('ana', null), 'refuse')
+    assert.equal(linkDecision('ana', 'ana'), 'keep')
+  })
+
+  it('asks first where nobody is signed in (or only a guest’s anonymous session)', () => {
+    assert.equal(linkDecision(null, 'ben'), 'ask')
+    assert.equal(linkDecision(null, null), 'ask')
   })
 })

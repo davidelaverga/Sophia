@@ -47,6 +47,38 @@ export function SlowNote() {
   )
 }
 
+interface OfferProps {
+  account: string
+  onAccept: () => Promise<void>
+  onDecline: () => void
+}
+
+/**
+ * A link carried a session and nobody is signed in: the account is named, as the Auth service reads it, and nothing
+ * is signed in until the person says it is theirs. Someone else's link would otherwise sign them into that account.
+ */
+export function LinkOffer({ account, onAccept, onDecline }: OfferProps) {
+  const [signing, setSigning] = useState(false)
+  const accept = async () => {
+    setSigning(true)
+    await onAccept()
+    setSigning(false)
+  }
+  return (
+    <Centered title="Sign in as this account?">
+      <p>
+        This link signs you in to Sophia as <strong>{account}</strong>. Continue only if that address is yours.
+      </p>
+      <button type="button" className="pill primary" disabled={signing} onClick={() => void accept()}>
+        {signing ? 'Signing in…' : 'Continue'}
+      </button>
+      <button type="button" className="text-button" disabled={signing} onClick={onDecline}>
+        That’s not me
+      </button>
+    </Centered>
+  )
+}
+
 interface SignInProps {
   onChooseDev: (identity: Identity) => void
   /** Why the last sign-in link did not work, when it did not. */

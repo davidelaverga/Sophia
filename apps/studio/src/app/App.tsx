@@ -6,7 +6,7 @@ import { devProjectId, type Identity } from './dev-identity.ts'
 import { IdentityControl } from './IdentityControl.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
 import { isJoinPath } from './route.ts'
-import { Centered, SignIn } from './SignIn.tsx'
+import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useProjectRoute } from './useProjectRoute.ts'
 
 const queryClient = new QueryClient()
@@ -15,7 +15,7 @@ const queryClient = new QueryClient()
 const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) => ({ default: m.JoinFlow })))
 
 export function App() {
-  const { state, chooseDev, signOut } = useAuth()
+  const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const { route, open, show, leave } = useProjectRoute(authMode === 'dev' ? (devProjectId ?? null) : null)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
@@ -39,6 +39,9 @@ export function App() {
     )
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
+  if (state.status === 'link_offer') {
+    return <LinkOffer account={state.account} onAccept={acceptLink} onDecline={declineLink} />
+  }
   if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
   // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
   if (state.identity.role === 'guest') return <SignIn onChooseDev={switchIdentity} />
