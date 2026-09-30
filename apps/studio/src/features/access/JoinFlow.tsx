@@ -132,6 +132,8 @@ type GuestStep =
   | { step: 'knocking' }
   | { step: 'waiting'; entry: LobbyEntry; accessToken: string }
   | { step: 'in'; entry: LobbyEntry; accessToken: string }
+  /** The guest stopped waiting: the page lets go of the lobby. */
+  | { step: 'gone' }
 
 /** Knocking: a guest session (or the signed-in person's), then the lobby entry; the link has done its job. */
 function useKnock(token: string, identity: Identity | null) {
@@ -174,6 +176,7 @@ function GuestJoin({
       />
     )
   }
+  if (state.step === 'gone') return <LeftLobby anonymous={anonymous} />
   if (state.step === 'waiting') {
     return (
       <Waiting
@@ -183,6 +186,7 @@ function GuestJoin({
         accessToken={state.accessToken}
         anonymous={anonymous}
         onIn={(entry) => setState({ ...state, step: 'in', entry })}
+        onLeave={() => setState({ step: 'gone' })}
       />
     )
   }
@@ -204,6 +208,18 @@ function GuestJoin({
         }}
       />
     </Centered>
+  )
+}
+
+/** The guest stopped waiting. There is no way to take a knock back yet, so the page says what stays behind. */
+function LeftLobby({ anonymous }: { anonymous: boolean }) {
+  return (
+    <VisitEnd
+      title="You left the lobby"
+      body="You’re no longer waiting. Your name may stay in the room’s lobby until someone answers it."
+      anonymous={anonymous}
+      again="Ask again"
+    />
   )
 }
 
@@ -291,10 +307,15 @@ interface WaitingProps {
   accessToken: string
   anonymous: boolean
   onIn: (e: LobbyEntry) => void
+  /** The guest gives up the wait. */
+  onLeave: () => void
 }
 
-/** The lobby from the outside: a quiet wait that ends as soon as someone inside decides. */
-function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: WaitingProps) {
+/**
+ * The lobby from the outside: a quiet wait that ends as soon as someone inside decides, or when the guest stops
+ * waiting. No wait is a screen without a way out.
+ */
+function Waiting({ preview, token, entry, accessToken, anonymous, onIn, onLeave }: WaitingProps) {
   const { current, setCurrent, misses } = useOwnEntry(entry, accessToken, onIn)
   useDocumentTitle(TITLE[current.status] ?? null)
   if (current.status === 'blocked') return <Blocked preview={preview} anonymous={anonymous} />
@@ -304,7 +325,7 @@ function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: Waitin
       if (next.status === 'admitted') onIn(next)
       else setCurrent(next)
     }
-    return <Declined preview={preview} entry={current} onAskAgain={askAgain} />
+    return <Declined preview={preview} entry={current} onAskAgain={askAgain} onLeave={onLeave} />
   }
   return (
     <Centered title={`Waiting to be let in, ${current.displayName}`} busy>
@@ -313,6 +334,9 @@ function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: Waitin
       </p>
       {misses >= MISSES_TO_SAY && <p className="form-error">Can’t reach Sophia right now. Still trying…</p>}
       <SessionNote preview={preview} />
+      <button type="button" className="text-button" onClick={onLeave}>
+        Stop waiting
+      </button>
     </Centered>
   )
 }
@@ -335,10 +359,12 @@ function Declined({
   preview,
   entry,
   onAskAgain,
+  onLeave,
 }: {
   preview: InvitationPreview
   entry: LobbyEntry
   onAskAgain: () => Promise<void>
+  onLeave: () => void
 }) {
   const left = useAskAgainIn(entry.decidedAt)
   const [asking, setAsking] = useState(false)
@@ -368,6 +394,9 @@ function Declined({
           {error}
         </p>
       )}
+      <button type="button" className="text-button" onClick={onLeave}>
+        Leave
+      </button>
     </Centered>
   )
 }
