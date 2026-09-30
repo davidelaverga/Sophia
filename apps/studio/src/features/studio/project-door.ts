@@ -6,7 +6,9 @@ import type { Connection } from './feed-loop.ts'
 /** Why the project cannot be shown: session ended (401), not a member (403), or it never loaded. */
 export type Blocked = 'expired' | 'denied' | 'unreachable'
 
-const closedDoor = (error: Error) => error instanceof ApiError && (error.status === 401 || error.status === 403)
+/** The API's own refusal: the session ended (401) or this person is not a member (403). */
+export const closedDoor = (error: unknown) =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403)
 
 /**
  * A closed door (401, 403) blocks the project whatever was on screen. A refresh that fails any other way blocks

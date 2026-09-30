@@ -95,7 +95,11 @@ writing a new one, and keep the rule when you change the code around it.
   keeps a loaded project on screen, stale, with its dock, and the bar says
   Reconnecting (`project-door.ts`, with tests): nobody is left in a call
   with an open microphone behind a notice that has no mute and no leave. A
-  closed door (401, 403) shows its notice and ends the call.
+  closed door (401, 403) shows its notice and ends the call. A refused event
+  stream asks the snapshot before it gives up (`refused` in `feed-loop.ts`,
+  with tests): refused too, the door is closed and the notice shows; not,
+  and the stream is tried again. Giving up on the stream's word alone left
+  the project frozen on screen behind a small "No access".
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, the mini dock from every other view (`Sending` in

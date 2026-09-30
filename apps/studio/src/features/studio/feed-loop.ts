@@ -18,6 +18,11 @@ export interface FeedPorts {
   setConnection(connection: Connection): void
   /** A real event (not a cursor advance) was applied: server state changed. */
   eventApplied(): void
+  /**
+   * The stream was refused: ask for the snapshot again, and resolve to whether it was refused too. If it was, the
+   * door is closed and the screen shows its notice (project-door.ts). If not, only the stream stumbled.
+   */
+  refused(): Promise<boolean>
   sleep(ms: number): Promise<void>
 }
 
@@ -45,7 +50,11 @@ async function followOnce(ports: FeedPorts, stop: AbortSignal, onLive: () => voi
   }
 }
 
-/** Runs until `stop` aborts or access is denied. */
+/**
+ * Runs until `stop` aborts or the project's door is closed. A refused stream alone does not end it: the snapshot is
+ * asked first, so a closed door reaches the screen as its notice and a stumble is retried like any other. Ending
+ * on the stream's word left the project on screen, frozen, behind a small "No access".
+ */
 export async function runFeedLoop(ports: FeedPorts, stop: AbortSignal): Promise<void> {
   let backoff = MIN_BACKOFF_MS
   // Read through a function: `stop` can abort while this loop awaits.
@@ -60,7 +69,7 @@ export async function runFeedLoop(ports: FeedPorts, stop: AbortSignal): Promise<
       await ports.resync()
       continue
     }
-    if ((await followOnce(ports, stop, onLive)) === 'denied') {
+    if ((await followOnce(ports, stop, onLive)) === 'denied' && (await ports.refused())) {
       ports.setConnection('denied')
       return
     }
