@@ -1,5 +1,5 @@
-// Crisp strokes over the light: the line that travels the room's edge while work runs, and the floor's
-// path from one person, through Sophia, to the next. Canvas 2D, in CSS pixels.
+// Crisp strokes over the light: the room's edge, faintly lit while work runs, and the floor's path from one
+// person, through Sophia, to the next. Canvas 2D, in CSS pixels.
 import { bezier, type HandoffFrame, type Point } from './motion.ts'
 
 /** Points every ~6 px along a rounded rectangle inset from the box, clockwise from the top left. */
@@ -36,14 +36,11 @@ function glow(ctx: CanvasRenderingContext2D, at: Point, radius: number, stops: A
   ctx.fill()
 }
 
-/** A faint track and a travelling head, strength 0…1. Reduced motion keeps only the still track. */
-export function drawWorkLine(
-  ctx: CanvasRenderingContext2D,
-  pts: Point[],
-  time: number,
-  strength: number,
-  still: boolean,
-) {
+/**
+ * The room's edge, faintly lit while work runs: one still line, strength 0…1. Nothing travels along it. A bright
+ * head circling the room pulled the eye from the people in it, and the room's line already says work is running.
+ */
+export function drawWorkLine(ctx: CanvasRenderingContext2D, pts: Point[], strength: number) {
   if (strength <= 0.01 || pts.length < 2) return
   ctx.lineCap = 'round'
   ctx.strokeStyle = `rgba(156, 130, 245, ${0.07 * strength})`
@@ -52,28 +49,6 @@ export function drawWorkLine(
   pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)))
   ctx.closePath()
   ctx.stroke()
-  if (still) return
-  const total = pts.length
-  const head = Math.floor((time * 60) % total)
-  const len = Math.floor(total * 0.16)
-  ctx.lineWidth = 1.4
-  for (let i = 1; i < len; i++) {
-    const a = pts[(head - i + total) % total]
-    const b = pts[(head - i + 1 + total) % total]
-    if (!a || !b) continue
-    const f = 1 - i / len
-    ctx.strokeStyle = `rgba(196, 180, 255, ${0.75 * f * f * strength})`
-    ctx.beginPath()
-    ctx.moveTo(a.x, a.y)
-    ctx.lineTo(b.x, b.y)
-    ctx.stroke()
-  }
-  const at = pts[head]
-  if (at)
-    glow(ctx, at, 16, [
-      [0, `rgba(244, 240, 255, ${0.55 * strength})`],
-      [1, 'rgba(244, 240, 255, 0)'],
-    ])
 }
 
 /** The floor's thread: warm at the people, violet where it passes through Sophia, brightest at its head. */

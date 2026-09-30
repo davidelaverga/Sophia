@@ -33,6 +33,9 @@
   --base: 220ms;
   --gutter: max(16px, 3vw);
   --topbar: 48px;
+  /* The room's floor: the dock, the panel toggles, the chat's message bar and the mini dock of the other views all
+     rest this far above the bottom. */
+  --floor: calc(env(safe-area-inset-bottom, 0px) + 18px);
 }
 
 *,
@@ -130,6 +133,11 @@ a {
 :focus-visible {
   outline: 2px solid rgba(185, 168, 255, 0.7);
   outline-offset: 2px;
+}
+/* `hidden` always hides. A rule that sets `display` would otherwise win over the browser's own, and the element
+   would stay on screen. */
+[hidden] {
+  display: none !important;
 }
 .sr-only {
   position: absolute;
@@ -1327,58 +1335,110 @@ img.avatar {
 .lens-body > * {
   min-height: 0;
 }
+/* The chat's foot. The message bar comes last and rests on the room's floor, so it stays level with the dock and
+   never moves: what changes (the consent, the status line, an error) sits above it. */
 .composer {
   display: grid;
   gap: 8px;
-  justify-items: center;
+  padding: 10px var(--panel-pad) var(--floor);
+  border-top: 1px solid var(--line);
 }
-.composer textarea {
-  height: auto;
-  min-height: 44px;
-  max-height: 28cqh;
-  padding: 11px 14px;
+/* Before there is a conversation to type into, the foot holds one thing: the way in, in the message bar's place and
+   size, so the floor line holds. It is dressed like Speak with Sophia in the dock, its spoken twin. */
+.chat-start {
+  width: 100%;
+  height: 48px;
   border-radius: var(--r-4);
+}
+/* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
+   controls), so one line of text makes it the dock's height. */
+.message-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 5px 5px 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  background: var(--glass);
+  transition:
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease);
+}
+.message-bar:focus-within {
+  border-color: rgba(185, 168, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+}
+.message-bar textarea {
+  flex: 1;
+  height: auto;
+  min-height: 36px;
+  max-height: 30dvh;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
   resize: none;
   field-sizing: content;
-  line-height: 1.5;
-  background: var(--glass);
-  box-shadow: var(--lift);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  line-height: 20px;
 }
-/* Read, not decoration: it says what sending does and does not do. */
-.composer-note {
-  color: var(--text-3);
-  font-size: 12px;
-  text-align: center;
+.message-bar textarea:focus-visible {
+  background: transparent;
+  box-shadow: none;
 }
-.composer-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
+.send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: var(--core);
+  color: var(--void);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.send:hover:not(:disabled) {
+  background: #fff;
+}
+/* Nothing to send yet: the arrow waits, quiet, like a primary button's outline. */
+.send:disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--text-4);
+}
+/* Touch: the bar takes the dock's touch size (40 px controls), so the two stay one height there too. */
+@media (pointer: coarse) {
+  .chat-start {
+    height: 52px;
+  }
+  .message-bar textarea {
+    min-height: 40px;
+    padding: 10px 0;
+  }
+  .send {
+    width: 40px;
+    height: 40px;
+  }
 }
 
-/* The Converse lens: the mission (SMC-M01), recent discussion, a brief still in motion, the composer. */
+/* The chat in the side panel: the history takes the room and scrolls; the composer keeps its place at the foot. */
 .conversation {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.conversation-history {
+  display: grid;
+  flex: 1;
+  align-content: start;
   gap: 12px;
-  width: min(640px, 100%);
-  margin: 0 auto;
-  /* A short window: the lens scrolls inside its bounds rather than slipping behind the dock. */
+  min-height: 0;
+  padding: var(--panel-pad);
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-.conversation > * {
-  flex: none;
-}
-/* The discussion gives way: it scrolls, and the composer stays in reach. The mission view does the same (below). */
-.conversation > .discussion {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
 }
 .discussion {
   display: grid;
@@ -1388,21 +1448,15 @@ img.avatar {
   padding: 0;
   list-style: none;
 }
+/* A line of the project's discussion: who, then what, running on from the panel's gutter. A column for the names
+   would start each line's words at a different place, as wide as its author's name. */
 .contribution {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: baseline;
-  padding: 8px 12px;
-  border-radius: var(--r-3);
-  background: var(--glass);
+  overflow-wrap: anywhere;
 }
 .contribution-author {
+  margin-right: 8px;
   color: var(--text-2);
   font-size: 12px;
-}
-.contribution-text {
-  overflow-wrap: anywhere;
 }
 .brief-request {
   display: flex;
@@ -1473,7 +1527,7 @@ img.avatar {
 .dock-wrap {
   position: absolute;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  bottom: var(--floor);
   z-index: 4;
   display: grid;
   justify-items: center;
@@ -1807,7 +1861,7 @@ img.avatar {
 .mini-dock {
   position: fixed;
   right: var(--gutter);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  bottom: var(--floor);
   z-index: 10;
   display: flex;
   align-items: center;
@@ -2890,124 +2944,149 @@ div.empty {
   resize: vertical;
 }
 
-/* The conversation is the primary workspace; the living brief is a viewer-local companion panel. */
-.room-stage:has(.conversation-workspace) {
-  --ly: 15cqh;
-  --lr: min(11cqmin, 88px);
-}
-.room-stage:has(.conversation-workspace) .sophia-line {
-  top: 105px;
-}
-.room-stage:has(.conversation-workspace) .stage-body {
-  top: 165px;
-  bottom: 100px;
-  width: min(1200px, calc(100% - 2 * var(--gutter)));
-  justify-content: stretch;
-}
-.lens-body:has(.conversation-workspace) {
-  height: 100%;
-}
-.conversation-workspace {
-  position: relative;
+/* The room beside its side panel: the stage keeps Sophia's light and the people; the chat and the brief sit to
+   the right, as meeting apps have them. On a phone the panel covers the room. */
+.studio {
   display: flex;
-  gap: 20px;
-  height: 100%;
-  min-height: 0;
+  height: calc(100dvh - var(--topbar));
 }
-.conversation-workspace > .conversation {
-  width: 100%;
-  max-width: 760px;
+.studio > .room-stage {
   flex: 1;
   min-width: 0;
-  height: 100%;
-  padding-top: 44px;
 }
-.conversation-workspace .discussion {
-  flex: 1;
-}
-.living-brief {
+.side-panel {
+  /* One gutter for everything in the panel: the tabs, the messages, the message bar, the brief. */
+  --panel-pad: 16px;
+  display: flex;
   flex: none;
-  width: 0;
-}
-.brief-open {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 3;
-}
-.living-brief[data-view='side'] {
-  width: min(44%, 520px);
-}
-.living-brief[data-view='side'] .brief-open,
-.living-brief[data-view='full'] .brief-open {
-  display: none;
-}
-.brief-panel {
-  height: 100%;
-  display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  overflow: hidden;
+  width: min(380px, 42vw);
+  min-height: 0;
+  border-left: 1px solid var(--line-2);
+  background: var(--plane);
+  animation: slide var(--base) var(--ease) both;
 }
-.brief-panel[hidden] {
-  display: none;
-}
-.brief-panel-header {
+/* The tabs sit in the lens bar's band (16 px down, 36 px tall), so the two rows of words share a line. Close's
+   mark, not its box, ends on the gutter. */
+.side-panel-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px;
+  padding: 16px calc(var(--panel-pad) - 4px) 0 var(--panel-pad);
   border-bottom: 1px solid var(--line);
 }
-.brief-panel-header h2 {
-  margin: 0;
-  font-size: 16px;
+/* Tabs as a line under words, like the Invite sheet's. */
+.side-tabs {
+  display: flex;
+  gap: 16px;
 }
-.brief-panel-body {
-  min-height: 0;
+.side-tabs button {
+  position: relative;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color var(--fast) var(--ease);
+}
+.side-tabs button:hover {
+  color: var(--text-2);
+}
+.side-tabs button[aria-selected='true'] {
+  color: var(--text);
+}
+.side-tabs button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1.5px;
+  background: var(--text);
+}
+.side-panel-head > .round {
+  width: 28px;
+  height: 28px;
+  border-color: transparent;
+  background: transparent;
+}
+.side-panel-head > .round:hover {
+  background: rgba(236, 235, 241, 0.06);
+}
+/* The call's switches in the head, only where the panel covers the room (see the phone block below): a live
+   microphone, camera or shared screen stays in sight with its off switch. Beside the room the dock shows them. */
+.side-panel-call {
+  display: none;
+  gap: 4px;
+  margin-left: auto;
+}
+/* Touch: finger-sized tabs and Close, still the lens bar's height (44 px there) and still on the gutter. */
+@media (pointer: coarse) {
+  .side-panel-head {
+    padding-right: calc(var(--panel-pad) - 12px);
+  }
+  .side-tabs button {
+    height: 44px;
+  }
+  .side-panel-head > .round {
+    width: 40px;
+  }
+}
+.side-panel-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.brief-panel-body .mission {
+.side-panel-body .mission {
+  padding: var(--panel-pad);
   border-radius: 0;
   background: transparent;
 }
-.living-brief[data-view='full'] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  z-index: 4;
+/* A lone action in the brief starts at the left like everything around it; the grid would stretch it across the
+   panel and center its words. */
+.mission > .text-button {
+  justify-self: start;
 }
-.conversation-workspace:has(.living-brief[data-view='full']) > .conversation {
-  visibility: hidden;
+/* The chat fills its panel: the history scrolls, and the composer stays at the foot. */
+.side-panel-body:has(> .conversation) {
+  display: flex;
+  overflow: hidden;
 }
-@media (max-width: 760px) {
-  .living-brief[data-view='side'] {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    z-index: 4;
-  }
-  .conversation-workspace:has(.living-brief[data-view='side']) > .conversation {
-    visibility: hidden;
-  }
-  .room-stage:has(.conversation-workspace) .stage-body {
-    top: 130px;
-    bottom: 110px;
-  }
+/* The consent, while one is due: the question, then its two answers, beside it where the panel is wide enough. */
+.continuity-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--text-2);
+  font-size: 12.5px;
 }
-
+/* Above the message bar: the step under way or what the chat waits for, with its one action. */
+.chat-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-height: 28px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.chat-empty {
+  padding: 24px 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: center;
+}
 .chat-messages {
-  list-style: none;
-  padding: 0;
-  margin: 0;
   display: grid;
   gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .chat-message {
   padding: 12px 16px;
@@ -3020,38 +3099,17 @@ div.empty {
 }
 .chat-message.user {
   margin-left: 12%;
-  background: var(--glass);
   border: 1px solid var(--line);
+  background: var(--glass);
 }
+/* Sophia's words have no box, so they start on the panel's gutter like the lines around them. */
 .chat-message.sophia {
   margin-right: 6%;
+  padding-inline: 0;
 }
 .chat-status {
   color: var(--text-3);
   font-size: 12px;
-}
-.conversation-workspace .composer {
-  position: sticky;
-  bottom: 0;
-  background: var(--plane);
-  padding: 12px 0;
-}
-
-.living-brief {
-  order: 2;
-}
-.conversation-workspace > .conversation {
-  order: 1;
-}
-
-.conversation-workspace > .conversation {
-  overflow: hidden;
-}
-.conversation-history {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .brief-sections {
   display: grid;
@@ -3062,15 +3120,101 @@ div.empty {
   font-size: 14px;
   color: var(--text-2);
 }
-
+/* The chat and the brief in the stage's corner, level with the dock and dressed like it. The stage's own width
+   decides where the corner sits, not the window's: the stage narrows when the panel opens beside it. */
+.room-stage {
+  /* What the dock leaves free on each side for the corner: its two buttons and a gap. */
+  --corner-room: 104px;
+}
+.stage-corner {
+  position: absolute;
+  right: var(--gutter);
+  bottom: var(--floor);
+  z-index: 4;
+}
+/* The dock wraps rather than run past the stage or under the corner, at any width. */
+.dock {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+/* Room for both on one band: the dock keeps clear of the corner, and wraps if it must. */
+@container (min-width: 800px) {
+  .room-stage:has(> .stage-corner) .dock-wrap {
+    max-width: calc(100% - 2 * (var(--gutter) + var(--corner-room)));
+  }
+}
+/* No room for both (a small window, or the panel open beside the stage): the corner goes up to the lenses' line
+   (16 px down, 36 px tall; the corner is 48), and the dock has the band to itself. */
+@container (max-width: 799.98px) {
+  .stage-corner {
+    top: 10px;
+    bottom: auto;
+  }
+}
+/* No room beside the lenses either (a phone): under them. With video on the stage there are no lenses, and the
+   tiles start where that would put it, so the corner keeps to the lenses' empty line. */
+@container (max-width: 560px) {
+  .room-stage[data-mode='light'] .stage-corner {
+    top: 72px;
+  }
+}
+/* The lobby card takes a phone's width and sat where that puts the corner. It goes under it: someone waiting at
+   the door never hides the chat and the brief. */
+@media (max-width: 560px) {
+  .shell[data-view='studio'] .lobby {
+    top: calc(var(--topbar) + 132px);
+  }
+}
+/* Touch: the corner's buttons are 40 px and the lens bar's 36 px (a 44 px bar), which the corner here and the
+   panel's tabs line up with. #23 sets the same lens size in the shared touch block; one of the two goes when both
+   are in. */
+@media (pointer: coarse) {
+  .room-stage {
+    --corner-room: 112px;
+  }
+  .segmented button {
+    min-height: 36px;
+  }
+  @container (max-width: 799.98px) {
+    .stage-corner {
+      top: 12px;
+    }
+  }
+}
+.panel-toggles {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    var(--lift),
+    0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: rise 0.45s var(--ease) 0.1s backwards;
+}
+/* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
+.toggle-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
+}
 @media (max-width: 760px) {
-  .room-stage:has(.conversation-workspace) .sophia-line {
-    top: 80px;
+  .side-panel {
+    position: fixed;
+    inset: var(--topbar) 0 0;
+    z-index: 30;
+    width: auto;
+    border-left: 0;
   }
-  .room-stage:has(.conversation-workspace) .line-note {
-    display: none;
-  }
-  .living-brief .brief-panel {
-    background: var(--plane);
+  .side-panel-call {
+    display: flex;
   }
 }

@@ -7,6 +7,7 @@ import { useTypedChat } from './useTypedChat.ts'
 import { useEffect, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
+import { CALL_END, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
@@ -30,7 +31,10 @@ export interface ProjectRoom {
   sophia: SophiaSignal | null
   audioBlocked: boolean
   startAudio: () => Promise<void>
-  join: (options?: { textOnly?: boolean }) => Promise<void>
+  /** The project has loaded, so Join can run. Until then the room says it is opening and Join waits. */
+  ready: boolean
+  /** Resolves to whether this person is in the call once it settles. */
+  join: (options?: { textOnly?: boolean }) => Promise<boolean>
   leave: () => Promise<void>
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
@@ -94,7 +98,8 @@ export function useProjectRoom(projectId: string, token: string, snapshot: Snaps
 
 /**
  * The call's devices: each change clears the note on success or says what stopped it. The microphone
- * choice a person makes is remembered for their next join; the one made for them on arrival is not.
+ * choice a person makes is remembered for their next join; the ones made for them are not (on arrival, and
+ * off when they start typing to Sophia).
  */
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
@@ -115,6 +120,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     mediaError,
     clearNote: () => setMediaError(null),
     arrive: media('microphone', (c) => c.setMicrophone(true)),
+    silence: media('microphone', (c) => c.setMicrophone(false)),
     setMicrophone: (on: boolean) => {
       rememberMic(on)
       return media('microphone', (c) => c.setMicrophone(on))()
@@ -132,15 +138,16 @@ interface JoinPorts {
   setError: (error: string | null) => void
   refresh: () => void
   arrive: () => Promise<void>
-  outOfCall: (dropped: boolean) => void
+  outOfCall: (why: CallEnd | null) => void
 }
 
-async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }): Promise<void> {
+async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }): Promise<boolean> {
   const { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall } = ports
   const typed = options?.textOnly ?? typedChat.textMode
   typedChat.rememberTextMode(typed)
+  if (!issue) return false
   // Already in the call: a second connection would be a second microphone nobody sees.
-  if (!issue || calls.current) return
+  if (calls.current) return true
   const call = calls.begin()
   setStatus('joining')
   setError(null)
@@ -151,21 +158,24 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
         if (calls.isCurrent(call)) typedChat.onChat(packet)
       },
       onStatus: (s) => {
-        if (!calls.isCurrent(call)) return
-        if (s === 'ended') outOfCall(true)
-        else setStatus(s)
+        if (calls.isCurrent(call)) setStatus(s)
+      },
+      onEnded: (why) => {
+        if (calls.isCurrent(call)) outOfCall(why)
       },
     })
     // Left, gone or joined again while this join was under way: it has been left, and the screen stays as it is.
-    if (!calls.adopt(call, opened)) return
+    if (!calls.adopt(call, opened)) return false
     opened.setTextMode(typed)
     setStatus('live')
     refresh()
     if (!typed && micOnArrival()) await arrive()
+    return true
   } catch (err: unknown) {
-    if (!calls.isCurrent(call)) return
+    if (!calls.isCurrent(call)) return false
     setStatus('failed')
     setError(joinMessage(err))
+    return false
   }
 }
 
@@ -190,28 +200,38 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
         : NOBODY,
     )
   }
-  const { clearNote, arrive, ...devices } = useDevices(calls, refresh)
-  const typedChat = useTypedChat(calls, devices.setMicrophone)
+  const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const typedChat = useTypedChat(calls, silence)
 
   /**
-   * Out of the call: nobody is shown as still here. A call that ended without this person leaving (a
-   * network drop, the room taken away) says so and offers to rejoin, instead of silently resetting.
+   * Out of the call: nobody is shown as still here. A call that ended without this person leaving says why
+   * (call-end.ts) instead of silently resetting: a lost connection offers to try again; a call that moved to
+   * another tab, or was ended on purpose, offers the plain way back.
    */
-  const outOfCall = (dropped: boolean) => {
+  const outOfCall = (why: CallEnd | null) => {
     typedChat.interrupted()
     calls.current = null
     setPeople(NOBODY)
     clearNote()
-    setStatus(dropped ? 'failed' : 'idle')
-    setError(dropped ? 'You were disconnected from the room.' : null)
+    setStatus(why && CALL_END[why].failed ? 'failed' : 'idle')
+    setError(why ? CALL_END[why].note : null)
   }
 
   const join = (options?: { textOnly?: boolean }) =>
     joinConnection({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, options)
 
+  // Leaving on purpose ends text mode: the next join says how it starts (the dock by voice, the chat by text).
+  // A call that drops keeps the mode, so rejoining does not turn on a microphone that was off.
   const leave = async () => {
     await calls.end()
-    outOfCall(false)
+    typedChat.rememberTextMode(false)
+    outOfCall(null)
+  }
+
+  // Speaking is voice: turning the microphone on leaves text mode, so Sophia is heard again.
+  const setMicrophone = async (on: boolean) => {
+    if (on && typedChat.textMode) await typedChat.setTextMode(false)
+    await devices.setMicrophone(on)
   }
 
   const startAudio = async () => {
@@ -223,11 +243,13 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     error,
     ...people,
     ...devices,
+    setMicrophone,
     chat: typedChat.chat,
     textMode: typedChat.textMode,
     setTextMode: typedChat.setTextMode,
     sendChat: typedChat.sendChat,
     startAudio,
+    ready: issue !== null,
     join,
     leave,
   }

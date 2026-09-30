@@ -20,6 +20,12 @@ export function stepSpring(s: Spring, dt: number): void {
   s.velocity = (s.velocity - s.omega * k * dt) * decay
 }
 
+/** The spring takes its target at once, at rest: a place it should hold, not fly to. */
+export function settle(s: Spring): void {
+  s.value = s.target
+  s.velocity = 0
+}
+
 export interface Point {
   x: number
   y: number
