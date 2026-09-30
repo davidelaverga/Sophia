@@ -6181,7 +6181,7 @@
     "/api/v1/projects/{projectId}/mission/note-policy": {
       "put": {
         "operationId": "setMissionNotePolicy",
-        "summary": "Turn the project's voice note capture on (`automatic`) or `off`, at the revision the admin saw. Off by default. Admin only.",
+        "summary": "Admin sets automatic shared-note capture or off at the observed revision. Missing policy defaults to automatic; each member consent is still required for their admitted turns.",
         "tags": [
           "mission"
         ],
@@ -10298,6 +10298,14 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "inputMode": {
+            "type": "string",
+            "enum": [
+              "voice",
+              "text"
+            ],
+            "description": "Bridge-derived admitted input mode; never taken from model arguments. Omitted by older bridges means voice."
           }
         },
         "required": [
@@ -10431,6 +10439,7 @@
             "type": "string",
             "enum": [
               "voice",
+              "text",
               "studio"
             ]
           },
@@ -10655,6 +10664,7 @@
             "type": "string",
             "enum": [
               "voice",
+              "text",
               "studio"
             ]
           },
@@ -10724,6 +10734,7 @@
                 "type": "string",
                 "enum": [
                   "voice",
+                  "text",
                   "studio"
                 ]
               },

@@ -1,9 +1,10 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
 // with Sophia's light at rest above the words.
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
-import { authMode, sendMagicLink, verifyEmailCode } from './auth.ts'
+import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
+import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
 
@@ -90,6 +91,8 @@ type Step = { step: 'idle' | 'sending' | 'sent' } | { step: 'error'; message: st
 function EmailSignIn({ notice }: { notice: string | undefined }) {
   const [email, setEmail] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
+  const showError = useCallback((message: string) => setState({ step: 'error', message }), [])
+  const passkey = usePasskeySignIn(showError)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,7 +122,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
           id="email"
           type="email"
           required
-          autoComplete="email"
+          autoComplete={passkeysOffered ? 'username webauthn' : 'email'}
           placeholder="you@company.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -134,6 +137,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
         </p>
       )}
       <p className="muted">New here? The same link creates your account.</p>
+      <PasskeyLink {...passkey} />
     </Centered>
   )
 }

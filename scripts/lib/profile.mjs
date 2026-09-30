@@ -6,7 +6,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { PROFILE_SOURCE_DIR, bundleArchivePath, platformKey, runDsh, sanitizedEnv } from './common.mjs'
-import { PROFILE_FILES } from './artifacts.mjs'
+import { PROFILE_FILES, profileLockPath } from './artifacts.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
 
 /**
@@ -46,7 +46,8 @@ export function installProfile({ unit, runtimeDir, layout, force = false }) {
   }
   mkdirSync(profileDir, { recursive: true })
   mkdirSync(layout.cwd, { recursive: true })
-  for (const file of [...PROFILE_FILES, 'pnpm-lock.yaml']) copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
+  for (const file of PROFILE_FILES) copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
+  copyFileSync(profileLockPath(unit), join(profileDir, 'pnpm-lock.yaml'))
   copyFileSync(bundleArchivePath(unit), join(profileDir, unit.sophia_bundle.archive))
   const result = runDsh(runtimeDir, ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline'], {
     env: sanitizedEnv(layout),

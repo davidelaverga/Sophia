@@ -22,6 +22,10 @@
       "linux-x64": {
         "digest": "sophia-tree-v2:sha256:0b6991d161535687f43318e1063f54e7d3a2e1f132b2d8d43cbbceccf6157771",
         "entries": 27209
+      },
+      "darwin-arm64": {
+        "digest": "sophia-tree-v2:sha256:fecae9682fa3f1870447e794c3a56adc72780a62bdb5585129bcffbe0fa9b4f5",
+        "entries": 28987
       }
     },
     "artifact_digest_scheme": "sophia-tree-v2: SHA-256 over sorted (type, path, exec bit, SHA-256 or link target) lines for files and symlinks only (directories are implied; empty ones are install-script scratch); excludes node_modules/.bin shims and pnpm bookkeeping that records install time or the checkout location, including the deploy-local pnpm-lock.yaml (scripts/lib/tree-digest.mjs)",
@@ -91,7 +95,14 @@
     "archive_integrity": "sha512-8TgUktxJ+tXMEYmXw/X2cQnVxTOcNG2Bn/PGw/vW1BnOu+skL9zl2xV49+oAWdXjXsZ+KdXXDa5/fWcotianKA==",
     "artifact_digest": "sha256:391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
     "bridge_protocol_version": 1,
-    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
+    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)",
+    "archives_by_platform": {
+      "darwin-arm64": {
+        "archive_sha256": "02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51",
+        "archive_integrity": "sha512-7wdhare/GBHSzGhP1UWmfi0pPJ7/VBwxR8UQ9+0aJ46c2qd41l191UYtWxhqOEYdLwkSo2Y2ZMCg0TU+r+ohLA==",
+        "artifact_digest": "sha256:02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51"
+      }
+    }
   },
   "profile_install": {
     "manifest": "config/dsh/profile/package.json",

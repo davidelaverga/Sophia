@@ -25,7 +25,9 @@ const BUNDLE_DIR = join(REPO_ROOT, 'packages', 'dsh-bundle')
 export const PROFILE_FILES = ['package.json', 'pnpm-workspace.yaml', 'cordis.patch.yml']
 
 /** @returns {string} the committed profile lock path. */
-export const PROFILE_LOCK = join(PROFILE_SOURCE_DIR, 'pnpm-lock.yaml')
+export function profileLockPath(unit, platform = platformKey()) {
+  return join(PROFILE_SOURCE_DIR, platform === unit.dsh.artifact_primary_platform ? 'pnpm-lock.yaml' : `pnpm-lock.${platform}.yaml`)
+}
 
 /**
  * Integrity of `name@version` as the workspace lock records it.
@@ -93,11 +95,13 @@ export function buildArtifacts(unit) {
       [`@deepseek-ai/dsh@${unit.dsh.package_version}`]: lockedIntegrity('@deepseek-ai/dsh', unit.dsh.package_version),
       [`@deepseek-ai/dsh-base@${unit.dsh.package_version}`]: lockedIntegrity('@deepseek-ai/dsh-base', unit.dsh.package_version),
     },
-    'sophia_bundle.archive_sha256': fileDigest(archive, 'sha256'),
-    'sophia_bundle.archive_integrity': fileIntegrity(archive),
     'workspace_lock_sha256': fileDigest(join(REPO_ROOT, 'pnpm-lock.yaml'), 'sha256'),
   }
-  if (platformKey() === unit.dsh.artifact_primary_platform) facts['dsh.artifact_digest'] = digest
+  const bundle = { archive_sha256: fileDigest(archive, 'sha256'), archive_integrity: fileIntegrity(archive), artifact_digest: `sha256:${fileDigest(archive, 'sha256')}` }
+  if (platformKey() === unit.dsh.artifact_primary_platform) {
+    facts['dsh.artifact_digest'] = digest
+    for (const [key, value] of Object.entries(bundle)) facts[`sophia_bundle.${key}`] = value
+  } else facts[`sophia_bundle.archives_by_platform.${platformKey()}`] = bundle
   return { facts, profileLock: resolveProfileLock(archive), lintFindings }
 }
 

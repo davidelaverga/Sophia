@@ -1,87 +1,174 @@
-// submitContribution → the composer (frontend bindings). Sending records attributed discussion; it never starts
-// work. The draft stays on this device until the server confirms, and an unconfirmed send retries with the same
-// key, so it can never be recorded twice.
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { ContributionReceipt } from '@sophia/contracts'
-import { Tag, Tip } from '@sophia/ui'
-import { submitContribution } from '../../api/conversation.ts'
-import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
+import type { Snapshot } from '@sophia/contracts'
+import { ContinuityChoice } from './ContinuityChoice.tsx'
+import { getSnapshot } from '../../api/client.ts'
+import { startExchange } from '../../api/exchange.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
+import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 
 interface Props {
   projectId: string
   identity: Identity
+  snapshot: Snapshot | undefined
+  room: ProjectRoom
   draft: string
   onDraft: (text: string) => void
 }
 
-export function Composer({ projectId, identity, draft, onDraft }: Props) {
+function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | 'identity' | 'room'>) {
   const queryClient = useQueryClient()
-  const admission = useAdmission<string, ContributionReceipt>(async (key, text) => {
+  const [starting, setStarting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const start = async () => {
+    if (starting) return
+    setStarting(true)
+    setError(null)
     try {
-      const body = { source: null, text, threadId: null, artifactVersionId: null, intent: 'discuss' as const }
-      return await submitContribution(identity.token, projectId, key, body)
+      await room.setTextMode(true)
+      await room.join({ textOnly: true })
+      const fresh = await getSnapshot(identity.token, projectId)
+      if (fresh.room.sophia.exchange === 'none') {
+        await startExchange(identity.token, fresh.room.id, crypto.randomUUID(), {
+          expectedRoomRevision: fresh.room.revision,
+          allowVision: false,
+        })
+      }
+      await queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'The conversation could not start.')
     } finally {
-      void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
+      setStarting(false)
     }
-  })
-  const text = draft.trim()
-  const busy = admission.state.status === 'sending'
+  }
+  return { starting, start, error }
+}
+
+function useChatSend({ snapshot, room, draft, onDraft }: Props) {
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const presence = snapshot?.room.sophia
+  const me = room.participants.find((p) => p.local)?.identity
+  const busy = sending || room.chat.some((t) => t.state === 'sending' || t.state === 'responding')
+  const ready =
+    room.status === 'live' &&
+    presence?.exchange === 'open' &&
+    presence.voice === 'ready' &&
+    presence.inputActorId === me
   const send = async () => {
-    if (!text || busy) return
-    if (await admission.submit(text)) onDraft('')
+    if (!ready || busy || !draft.trim() || !presence.exchangeId || presence.inputEpoch === null) return
+    setSending(true)
+    setError(null)
+    try {
+      await room.setTextMode(true)
+      await room.sendChat({
+        kind: 'input',
+        id: crypto.randomUUID(),
+        exchangeId: presence.exchangeId,
+        inputEpoch: presence.inputEpoch,
+        text: draft.trim(),
+      })
+      onDraft('')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Delivery is unconfirmed; nothing is resent automatically.')
+    } finally {
+      setSending(false)
+    }
   }
-  const retry = async () => {
-    if (await admission.retry()) onDraft('')
-  }
+  return { presence, busy, ready, error, send }
+}
+
+function ConversationMode({
+  room,
+  starting,
+  ready,
+  busy,
+  start,
+}: {
+  room: ProjectRoom
+  starting: boolean
+  ready: boolean
+  busy: boolean
+  start: () => Promise<void>
+}) {
   return (
-    <div className="composer">
-      <label htmlFor="converse-draft" className="sr-only">
-        Your message to the project
-      </label>
-      <textarea
-        id="converse-draft"
-        rows={1}
-        value={draft}
-        placeholder="Share with the project…"
-        onChange={(e) => onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send()
-        }}
-      />
-      <div className="composer-row">
-        <button type="button" className="pill primary has-tip" disabled={!text || busy} onClick={() => void send()}>
-          Send
-          <Tip label="Shares it with the project; it never starts work" />
-        </button>
-      </div>
-      <p className="outcome" role="status" aria-live="polite">
-        <SendOutcome state={admission.state} onRetry={() => void retry()} />
-      </p>
+    <div className="control-row" aria-label="Conversation mode">
+      <button
+        type="button"
+        className="pill"
+        aria-pressed={room.textMode}
+        disabled={starting}
+        onClick={() => void start()}
+      >
+        {starting ? 'Connecting…' : ready && room.textMode ? 'Text mode' : 'Chat with Sophia'}
+      </button>
+      <button
+        type="button"
+        className="text-button"
+        aria-pressed={!room.textMode}
+        disabled={busy}
+        onClick={() => void room.setTextMode(false)}
+      >
+        Voice mode
+      </button>
     </div>
   )
 }
 
-function SendOutcome({ state, onRetry }: { state: AdmissionState<string, ContributionReceipt>; onRetry: () => void }) {
-  if (state.status === 'idle') return null
-  if (state.status === 'sending') return <span className="muted">Sending…</span>
-  if (state.status === 'done') return <Tag tone="teal">Shared with the project</Tag>
-  if (state.status === 'unknown') {
-    return (
-      <>
-        <Tag tone="amber">Not confirmed</Tag>
-        <span>Your draft is kept. Trying again can’t post it twice.</span>
-        <button type="button" className="text-button" onClick={onRetry}>
-          Try again
-        </button>
-      </>
-    )
-  }
+/** Typed turns use the same admitted exchange and lifecycle handlers as voice, with no microphone required. */
+export function Composer({ projectId, identity, snapshot, room, draft, onDraft }: Props) {
+  const { starting, start, error: startError } = useChatStart({ projectId, identity, room })
+  const {
+    presence,
+    busy,
+    ready,
+    error: sendError,
+    send,
+  } = useChatSend({ projectId, identity, snapshot, room, draft, onDraft })
+  const error = sendError ?? startError
   return (
-    <>
-      <Tag tone="rose">Not sent</Tag>
-      <span>{state.error.message}</span>
-    </>
+    <div className="composer">
+      <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} />
+      <ConversationMode room={room} starting={starting} ready={ready} busy={busy} start={start} />
+      <label htmlFor="converse-draft" className="sr-only">
+        Message Sophia
+      </label>
+      <textarea
+        id="converse-draft"
+        rows={2}
+        maxLength={2000}
+        value={draft}
+        placeholder="Message Sophia…"
+        onChange={(e) => onDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault()
+            void send()
+          }
+        }}
+      />
+      <div className="composer-row">
+        <p className="composer-note">Chat stays in this open conversation. Saved project notes remain in the brief.</p>
+        <button
+          type="button"
+          className="pill primary"
+          disabled={!ready || busy || !draft.trim()}
+          onClick={() => void send()}
+        >
+          Send
+        </button>
+      </div>
+      {!ready && presence?.exchange === 'open' && (
+        <p className="muted">
+          {presence.voice === 'ready' ? 'Take the input floor to message Sophia.' : 'Waiting for Sophia to connect…'}
+        </p>
+      )}
+      {error && (
+        <p className="outcome" role="status">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }

@@ -47,6 +47,24 @@ export function briefBlocks(markdown: string): BriefBlock[] {
   return blocks
 }
 
+/** Hide the machine citation section, preserving authored sentences when removing inline citation markers. */
+export function visibleBriefBlocks(markdown: string): BriefBlock[] {
+  let citations = false
+  const visible: BriefBlock[] = []
+  for (const block of briefBlocks(markdown)) {
+    if (block.kind === 'heading') citations = /^Cited inputs$/i.test(block.text)
+    if (
+      citations ||
+      /^Source [0-9a-f]{8,64}$/i.test(block.text) ||
+      /^Drafted by (?:Open ?AI|Anthropic|Google)\.?$/i.test(block.text)
+    )
+      continue
+    const text = block.text.replace(/\s*\[input:[^\]]+\]/g, '').trim()
+    if (text) visible.push({ ...block, text })
+  }
+  return visible
+}
+
 /** The task a person most needs to see: the newest one still in motion, else the newest. */
 export function currentTask(work: readonly NativeTask[]): NativeTask | null {
   const moving = work.filter((t) => ['queued', 'dispatched', 'running', 'holding', 'stopping'].includes(t.phase))

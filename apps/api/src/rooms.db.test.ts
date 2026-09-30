@@ -100,7 +100,7 @@ describe('room tokens', () => {
       canSubscribe: true,
       canPublish: true,
       canPublishSources: ['microphone', 'camera', 'screen_share', 'screen_share_audio'],
-      canPublishData: false,
+      canPublishData: true,
       canUpdateOwnMetadata: false,
     })
     assert.equal((grant.exp ?? 0) - (grant.nbf ?? 0), 600)

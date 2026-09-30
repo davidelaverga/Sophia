@@ -3,9 +3,13 @@
 // Real sign-in with Supabase Auth replaces this; production builds never contain these tokens.
 
 export interface Identity {
+  /** The stable key: the email for an account, the dev name locally. */
   name: string
   role: string
   token: string
+  /** For display only, from the account provider (Google, GitHub). */
+  displayName?: string | null
+  avatarUrl?: string | null
 }
 
 const KEY = 'sophia.dev.identity'

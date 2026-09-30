@@ -52,7 +52,13 @@ export function writeJson(file, value) {
 
 /** @returns {any} the committed runtime unit. */
 export function loadRuntimeUnit() {
-  return readJson(RUNTIME_UNIT_PATH)
+  return selectRuntimeUnit(readJson(RUNTIME_UNIT_PATH), platformKey())
+}
+
+/** Select the recorded archive for this build platform, preserving the primary production identity. */
+export function selectRuntimeUnit(unit, platform) {
+  const archive = unit.sophia_bundle.archives_by_platform?.[platform]
+  return archive ? { ...unit, sophia_bundle: { ...unit.sophia_bundle, ...archive } } : unit
 }
 
 /** @returns {string} absolute path of the packed bundle archive for `unit`. */

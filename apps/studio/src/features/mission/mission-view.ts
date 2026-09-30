@@ -56,7 +56,7 @@ export const OUTCOME: Record<MissionDecision['state'], string> = {
 /** Who decided a proposal, and where: by voice with Sophia or in the Studio; null when it was replaced, not decided. */
 export function decidedBy(d: MissionDecision, me: string, names: ReadonlyMap<string, string>): string | null {
   if (!d.decidedBy) return null
-  return `${authorLabel(d.decidedBy, me, names)}, ${d.decidedVia === 'voice' ? 'by voice' : 'in the Studio'}`
+  return `${authorLabel(d.decidedBy, me, names)}, ${d.decidedVia === 'voice' ? 'by voice' : d.decidedVia === 'text' ? 'by text with Sophia' : 'in the Studio'}`
 }
 
 export interface Line {
