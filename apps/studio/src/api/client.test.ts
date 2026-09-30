@@ -95,6 +95,14 @@ describe('Studio API client', () => {
     assert.deepEqual([late.status, late.code, late.retry], [0, 'outcome_unknown', 'same_admission_key'])
   })
 
+  it('never labels a write without a key safe to repeat when it got no answer', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    silence()
+    const decided = apiError(callApi(`/api/v1/projects/${P}/lobby/${G}`, { token: 't', method: 'PUT' }, (v) => v))
+    t.mock.timers.tick(WRITE_TIMEOUT_MS)
+    assert.deepEqual([(await decided).code, (await decided).retry], ['outcome_unknown', 'never'])
+  })
+
   it('a read gives up sooner than a write, and a caller that stops waiting ends it at once', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
     silence()

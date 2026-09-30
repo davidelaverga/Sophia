@@ -141,9 +141,10 @@ writing a new one, and keep the rule when you change the code around it.
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·
   03:30 – 04:30."), and name a conflict before it happens ("Overlaps …").
-- **Panels keep their state.** Tabs in a sheet or panel are hidden, not
-  unmounted, so a draft or an edit in progress survives switching and
-  closing.
+- **Tabs keep their state.** A sheet's tabs are hidden, not unmounted
+  (`TabPanel` in `InviteSheet`), so an address or a session half typed
+  survives switching between them. Closing a sheet unmounts it: what was
+  typed and not sent goes with it.
 - **Copy** is English, short, one spelling per word ("cancelled"). A pure
   helper in a `*-view.ts` module owns the words (`doorNote`, `ago`,
   `summaryLabel`, `pulseRows`) and has tests; components only render them.

@@ -137,8 +137,10 @@ interface CallInit {
  * read does; anything else, as a write.
  */
 export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
-  const retry = init.key ? 'same_admission_key' : 'safe_read'
   const method = init.method ?? 'POST'
+  // What a failure allows: an admission is retried with its key, a read is asked again, and a write without a key
+  // (a lobby decision, cancelling a session) that got no answer may have happened, so it is never repeated as if not.
+  const retry = init.key ? 'same_admission_key' : method === 'GET' ? 'safe_read' : 'never'
   return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, async (signal) => {
     let res: Response
     try {

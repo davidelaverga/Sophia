@@ -23,6 +23,14 @@ export const HOME: Route = { projectId: null, view: 'studio' }
 export const JOIN_PATH = '/join'
 export const isJoinPath = (pathname: string) => pathname.replace(/\/+$/, '') === JOIN_PATH
 
+/**
+ * An invitation's page takes the visit (it handles sign-in on its own), except while a sign-in link waits for the
+ * person to accept the session it carries: that question comes first, or the session would wait unused while the
+ * page asks them to sign in again.
+ */
+export const opensJoinPage = (pathname: string, authStatus: string): boolean =>
+  isJoinPath(pathname) && authStatus !== 'link_offer'
+
 /** Unknown paths and views fall back to the nearest valid route rather than a blank page. */
 export function parseRoute(pathname: string): Route {
   const current = PROJECT_VIEW.exec(pathname)
