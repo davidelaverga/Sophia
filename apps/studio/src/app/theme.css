@@ -2347,13 +2347,16 @@ div.empty {
   position: sticky;
   top: calc(var(--topbar) + 32px);
   display: grid;
-  gap: 10px;
+  /* With a row's own 7 px, the first event starts 18 px under the rule, as the first goal does. */
+  gap: 11px;
 }
+/* Beside the work, the pulse's head is as tall as the view's head (a 24 px title line, 12 px of air, the rule), so
+   the two rules meet in one line and the small title stands on the large one's baseline. */
 .pulse-head {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-bottom: 8px;
+  align-items: flex-end;
+  min-height: 37px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 .pulse-head h4 {
@@ -2501,6 +2504,11 @@ div.empty {
   }
   .pulse {
     position: static;
+  }
+  /* Under the work, the pulse's head has no neighbor to line up with: it keeps to its own words. */
+  .pulse-head {
+    min-height: 0;
+    padding-bottom: 8px;
   }
   .identity-name,
   .connection {
