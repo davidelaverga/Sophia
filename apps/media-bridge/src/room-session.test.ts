@@ -1,3 +1,4 @@
+import type { ChatReply } from '@sophia/contracts/room-chat'
 // RoomSession against LABELLED FAKES: FakeRoom stands in for LiveKit, FakeLive for Gemini Live, FakeService
 // for the API. This is bridge-logic evidence only (S1-05A cases A06, A09–A14 and §7 holder departure); it is not a live model or media
 // test and does not count toward A04/A05 acceptance.
@@ -58,6 +59,11 @@ class FakeRoom implements RoomLink {
   watched: Array<LookTarget | null> = []
   attributes: Array<Record<string, string>> = []
   closed = false
+  chat: Array<{ identity: string; packet: ChatReply }> = []
+  sendChat = async (identity: string, packet: ChatReply) => {
+    this.chat.push({ identity, packet })
+    await Promise.resolve()
+  }
 
   constructor(events: RoomEvents, present: RoomPerson[]) {
     this.events = events
@@ -1608,5 +1614,71 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
     const flagged = live.responses[0]?.response?.output as { recordsChanged?: string } | undefined
     assert.match(String(flagged?.recordsChanged), /Read project_status/)
     assert.deepEqual(live.notices, [], 'nothing is spoken unprompted')
+  })
+})
+
+describe('typed conversation uses the real exchange attribution', () => {
+  const packet = (over = {}) => ({
+    kind: 'input' as const,
+    id: REQUEST,
+    exchangeId: EXCHANGE,
+    inputEpoch: 1,
+    text: 'Synthetic typed request',
+    ...over,
+  })
+  it('forwards a typed turn once, attributes tools to its holder, and returns text without audio or transcript logs', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(LUIS, packet())
+    room.events.typed?.(LUIS, packet())
+    assert.deepEqual(live.notices, ['Synthetic typed request'])
+    live.events.outputTranscript('Synthetic reply', false)
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, 0)
+    live.events.toolCalls([{ id: 'typed-status', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.at(-1)?.inputEpoch, 1)
+    assert.equal(service.calls.at(-1)?.utterance, 1)
+    assert.equal(service.calls.at(-1)?.inputMode, 'text')
+    live.events.turnComplete()
+    assert.deepEqual(
+      room.chat.map((c) => c.packet.kind),
+      ['accepted', 'delta', 'complete'],
+    )
+    assert.ok(room.chat.every((c) => c.identity === LUIS))
+    assert.equal(JSON.stringify(logs).includes('Synthetic typed request'), false)
+    assert.equal(JSON.stringify(logs).includes('Synthetic reply'), false)
+    await session.close()
+  })
+  it('closing an exchange stops the pending typed reply without waiting for the UI timeout', async () => {
+    const { session, room } = await ready()
+    room.events.typed?.(LUIS, packet())
+    await session.close()
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+    assert.match(room.chat.at(-1)?.packet.text ?? '', /ended/)
+  })
+  it('refuses another participant and an old epoch before any provider input', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(DAVIDE, packet())
+    room.events.typed?.(LUIS, packet({ inputEpoch: 2 }))
+    assert.equal(live.notices.length, 0)
+    assert.ok(room.chat.every((c) => c.packet.kind === 'refused'))
+    await session.close()
+  })
+  it('fences a typed reply when a guest arrives, and never publishes a voice transcript as chat', async () => {
+    const { session, room, live } = await ready()
+    live.events.outputTranscript('A voice reply', true)
+    assert.equal(room.chat.length, 0)
+    room.events.typed?.(LUIS, packet())
+    room.events.people([member(LUIS), { identity: 'guest', standing: 'guest' }])
+    live.events.outputTranscript('Late sensitive reply', true)
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, 0)
+    assert.equal(
+      room.chat.some((c) => c.packet.text.includes('Late sensitive')),
+      false,
+    )
+    await session.close()
   })
 })

@@ -159,6 +159,12 @@ function observedSophia(
   })
 }
 
+const conversationMode = (room: ProjectRoom) => (room.textMode ? 'text' : 'voice')
+function conversationLine(room: ProjectRoom, floor: FloorView, running: number, sophia: SophiaView): RoomLine {
+  if (room.textMode && room.status === 'live' && floor.mine) return { text: 'Chat with Sophia', note: null }
+  return roomLine(room.status, floor, running, sophia)
+}
+
 export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line }: Props) {
   const stage = useRef<HTMLElement>(null)
   const now = useNow()
@@ -179,6 +185,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
       ref={stage}
       className="room-stage"
       data-mode={mode}
+      data-conversation-mode={conversationMode(room)}
       data-live={live || undefined}
       aria-label="Project room"
     >
@@ -195,7 +202,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
           <div className="stage-top">{lensBar}</div>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
           <SophiaLine
-            line={line ?? roomLine(room.status, floor, running, sophia)}
+            line={line ?? conversationLine(room, floor, running, sophia)}
             session={sessionNote(snapshot, now)}
           />
           <div className="stage-body">{lensBody}</div>

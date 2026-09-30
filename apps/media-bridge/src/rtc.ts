@@ -22,6 +22,14 @@ import {
   VideoBufferType,
   VideoStream,
 } from '@livekit/rtc-node'
+import {
+  CHAT_INPUT_TOPIC,
+  CHAT_REPLY_TOPIC,
+  encodeChatPacket,
+  parseChatPacket,
+  type ChatInput,
+  type ChatReply,
+} from '@sophia/contracts/room-chat'
 import { INPUT_RATE, OUTPUT_RATE } from './audio.ts'
 import { FRAME_INTERVAL_MS, type RgbaFrame } from './vision.ts'
 
@@ -39,6 +47,7 @@ export interface LookTarget {
 }
 
 export interface RoomEvents {
+  typed?: (identity: string, packet: ChatInput) => void
   /** Anyone joined, left or changed standing: the full list of people (Sophia excluded). */
   people: (people: RoomPerson[]) => void
   audio: (identity: string, samples: Int16Array, sampleRate: number, channels: number) => void
@@ -48,6 +57,7 @@ export interface RoomEvents {
 
 /** What the room session needs from a room; tests supply a labelled fake. */
 export interface RoomLink {
+  sendChat?: (identity: string, packet: ChatReply) => Promise<void>
   people: () => RoomPerson[]
   /** Queue one 20 ms frame of Sophia's speech; resolves when the source accepts it (backpressure). */
   play: (samples: Int16Array) => Promise<void>
@@ -140,6 +150,11 @@ class LiveKitRoom implements RoomLink {
   }
 
   private listen(): void {
+    this.room.on(RoomEvent.DataReceived, (payload, who, _kind, topic) => {
+      if (topic !== CHAT_INPUT_TOPIC || !who || !isMember(standingOf(who.metadata))) return
+      const packet = parseChatPacket(payload)
+      if (packet?.kind === 'input') this.events.typed?.(who.identity, packet)
+    })
     const changed = () => {
       this.resubscribe()
       this.events.people(this.people())
@@ -212,6 +227,16 @@ class LiveKitRoom implements RoomLink {
   watch(target: LookTarget | null): void {
     this.target = target
     this.resubscribe()
+  }
+
+  async sendChat(identity: string, packet: ChatReply): Promise<void> {
+    const who = [...this.room.remoteParticipants.values()].find((p) => p.identity === identity)
+    if (!who || !isMember(standingOf(who.metadata))) return
+    await this.room.localParticipant?.publishData(encodeChatPacket(packet), {
+      reliable: true,
+      destination_identities: [identity],
+      topic: CHAT_REPLY_TOPIC,
+    })
   }
 
   async setState(attributes: Record<string, string>): Promise<void> {

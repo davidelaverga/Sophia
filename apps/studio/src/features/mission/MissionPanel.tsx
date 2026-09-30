@@ -4,10 +4,16 @@
 // here must be typed for the conversation to work, and an empty field is one plain line, not an empty card. It
 // refreshes with the project's events (the snapshot cursor) and after each write.
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { MissionContext, MissionReceipt } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
-import { getMission, decideMissionChange, setNoteConsent, setNotePolicy } from '../../api/mission.ts'
+import {
+  getMission,
+  decideMissionChange,
+  proposeMissionChange,
+  setNoteConsent,
+  setNotePolicy,
+} from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { authorLabel } from '../conversation/conversation-view.ts'
@@ -23,7 +29,7 @@ import {
   PROPOSAL_KIND,
   writeControls,
 } from './mission-view.ts'
-import { MoreNotes, NewestNotes } from './MissionNotes.tsx'
+import { AddNote, MoreNotes, NewestNotes } from './MissionNotes.tsx'
 
 interface Props {
   projectId: string
@@ -32,20 +38,34 @@ interface Props {
   cursor: string | undefined
   me: string
   names: ReadonlyMap<string, string>
+  onRevision?: (revision: number) => void
 }
 
-export function MissionPanel({ projectId, identity, cursor, me, names }: Props) {
+export function MissionPanel({ projectId, identity, cursor, me, names, onRevision }: Props) {
   const mission = useQuery({
     queryKey: [...missionKey(projectId), identity.name, cursor],
     queryFn: () => getMission(identity.token, projectId),
     placeholderData: keepPreviousData,
   })
+  useEffect(() => {
+    if (mission.data) onRevision?.(mission.data.ledgerRevision)
+  }, [mission.data, onRevision])
+  const [frozen, freeze] = useState<MissionContext | null>(null)
+  const [editors, setEditors] = useState<ReadonlySet<string>>(new Set())
+  const editing = (id: string, on: boolean) => {
+    if (on && editors.size === 0 && mission.data) freeze(mission.data)
+    const next = new Set(editors)
+    if (on) next.add(id)
+    else next.delete(id)
+    setEditors(next)
+    if (next.size === 0) freeze(null)
+  }
   if (mission.isPending) return null
   // Unavailable is said as such: it is never shown as an empty mission.
   if (mission.isError) return <p className="mission muted">The mission couldn’t be read just now.</p>
-  const ctx = mission.data
+  const ctx = frozen ?? mission.data
   const aim = direction(ctx)
-  const parts = { ctx, projectId, identity, me, names }
+  const parts = { ctx, projectId, identity, me, names, onEditing: editing }
   return (
     <section className="mission" aria-label="Mission">
       <p className="mission-direction">
@@ -53,6 +73,14 @@ export function MissionPanel({ projectId, identity, cursor, me, names }: Props) 
         <span className={aim.accepted ? '' : 'muted'}>{aim.statement}</span>
         {aim.purpose && <span className="mission-purpose muted">{aim.purpose}</span>}
       </p>
+      {ctx.capabilities.propose.available && (
+        <EditDirection ctx={ctx} projectId={projectId} identity={identity} onEditing={editing} />
+      )}
+      {frozen && mission.data.ledgerRevision > frozen.ledgerRevision && (
+        <p className="muted">
+          The brief changed. Your edit is kept; review the latest version after saving or cancelling.
+        </p>
+      )}
       {ctx.constraints.length > 0 && (
         <ul className="mission-agreed" aria-label="Agreed constraints and lessons">
           {ctx.constraints.map((d) => (
@@ -64,6 +92,7 @@ export function MissionPanel({ projectId, identity, cursor, me, names }: Props) 
       )}
       <PendingDecision {...parts} />
       <NewestNotes {...parts} />
+      {ctx.capabilities.recordNote.available && <AddNote {...parts} />}
       <NoteConsent ctx={ctx} projectId={projectId} identity={identity} />
       <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={names} />}>
         {ctx.capabilities.setNotePolicy.available && (
@@ -80,6 +109,102 @@ interface PartProps {
   identity: Identity
   me: string
   names: ReadonlyMap<string, string>
+}
+
+function useDirectionEdit({
+  ctx,
+  projectId,
+  identity,
+  onEditing,
+}: {
+  ctx: MissionContext
+  projectId: string
+  identity: Identity
+  onEditing: (id: string, on: boolean) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const queryClient = useQueryClient()
+  const write = useAdmission<string, MissionReceipt>(async (key, statement) => {
+    const receipt = await proposeMissionChange(identity.token, projectId, key, {
+      kind: 'mission',
+      statement,
+      purpose: ctx.mission?.purpose ?? null,
+      destination: ctx.mission?.destination ?? null,
+      origin: ctx.mission?.origin ?? null,
+      supersedesDecisionId: ctx.mission?.decisionId ?? null,
+    })
+    await queryClient.invalidateQueries({ queryKey: missionKey(projectId) })
+    return receipt
+  })
+  const controls = writeControls(write.state.status)
+  const close = () => {
+    setOpen(false)
+    onEditing('direction', false)
+  }
+  const save = async () => {
+    if (await write.submit(text.trim())) close()
+  }
+  const retry = async () => {
+    if (await write.retry()) close()
+  }
+  const begin = () => {
+    setText(ctx.mission?.statement ?? '')
+    setOpen(true)
+    onEditing('direction', true)
+  }
+  return { open, text, setText, write, controls, close, save, retry, begin }
+}
+
+function EditDirection({
+  ctx,
+  projectId,
+  identity,
+  onEditing,
+}: {
+  ctx: MissionContext
+  projectId: string
+  identity: Identity
+  onEditing: (id: string, on: boolean) => void
+}) {
+  const { open, text, setText, write, controls, close, save, retry, begin } = useDirectionEdit({
+    ctx,
+    projectId,
+    identity,
+    onEditing,
+  })
+  if (!open)
+    return (
+      <button type="button" className="text-button" onClick={begin}>
+        {ctx.mission ? 'Edit direction' : 'Add direction'}
+      </button>
+    )
+  return (
+    <div className="mission-edit">
+      <label htmlFor="brief-direction">Direction</label>
+      <textarea id="brief-direction" value={text} maxLength={2000} rows={3} onChange={(e) => setText(e.target.value)} />
+      <p className="muted">Save proposes the direction for the team to accept.</p>
+      <div className="control-row">
+        <button
+          type="button"
+          className="pill"
+          disabled={!text.trim() || !controls.canSubmit}
+          onClick={() => void save()}
+        >
+          Save direction
+        </button>
+        <button type="button" className="text-button" disabled={!controls.canSubmit} onClick={close}>
+          Cancel
+        </button>
+        {controls.canRetry && (
+          <button type="button" className="text-button" onClick={() => void retry()}>
+            Not confirmed: try again
+          </button>
+        )}
+      </div>
+      {write.state.status === 'rejected' && <p role="status">{write.state.error.message}</p>}
+    </div>
+  )
 }
 
 interface Choice {

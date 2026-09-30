@@ -70,23 +70,23 @@ function revealInConversation(el: HTMLElement | null): void {
 function BriefView({ result }: { result: NonNullable<NativeTaskDetail['result']> }) {
   const ref = useRef<HTMLElement>(null)
   useEffect(() => revealInConversation(ref.current), [])
-  const by = [result.provider, result.model].filter(Boolean).join(' / ') || 'a model the runtime did not name'
   return (
     <article ref={ref} className="brief" aria-label="Drafted brief">
       <p className="brief-note">
-        <Tag tone="lav">Candidate</Tag> Drafted by {by}. For the team to review; not an accepted plan.
+        <Tag tone="lav">Candidate</Tag> For the team to review; not an accepted plan.
       </p>
-      {briefBlocks(result.markdown).map((block, i) => {
-        if (block.kind === 'heading') return <h4 key={i}>{block.text}</h4>
-        if (block.kind === 'item')
-          return (
-            <p key={i} className="brief-item">
-              • {block.text}
-            </p>
-          )
-        return <p key={i}>{block.text}</p>
-      })}
-      <p className="brief-source muted">Source {result.sha256.slice(0, 12)}</p>
+      {briefBlocks(result.markdown)
+        .filter((block) => !/\[input:|^Source [0-9a-f]{6,}|^Cited inputs$/i.test(block.text))
+        .map((block, i) => {
+          if (block.kind === 'heading') return <h4 key={i}>{block.text}</h4>
+          if (block.kind === 'item')
+            return (
+              <p key={i} className="brief-item">
+                • {block.text}
+              </p>
+            )
+          return <p key={i}>{block.text}</p>
+        })}
     </article>
   )
 }

@@ -14,6 +14,14 @@ import {
   type RemoteTrack,
   type TrackPublication,
 } from 'livekit-client'
+import {
+  CHAT_INPUT_TOPIC,
+  CHAT_REPLY_TOPIC,
+  encodeChatPacket,
+  parseChatPacket,
+  type ChatInput,
+  type ChatReply,
+} from '@sophia/contracts/room-chat'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -31,6 +39,8 @@ export interface VideoFeed {
 }
 
 export interface RoomConnection {
+  sendChat: (packet: ChatInput) => Promise<void>
+  setTextMode: (on: boolean) => void
   participants: () => RoomParticipant[]
   /** The `sophia` participant as observed here, or null when she is not in the room. */
   sophia: () => SophiaSignal | null
@@ -45,6 +55,7 @@ export interface RoomConnection {
 }
 
 export interface RoomCallbacks {
+  onChat?: (packet: ChatReply) => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -115,11 +126,12 @@ function videoFeeds(): Feeds {
 }
 
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
-function remoteAudio(room: Room): void {
+function remoteAudio(room: Room, textOnly: () => boolean): void {
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
     if (track.kind !== Track.Kind.Audio) return
     const el = track.attach()
     el.dataset.sophiaRoomAudio = ''
+    el.muted = textOnly()
     document.body.append(el)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
@@ -158,7 +170,13 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     for (const el of document.querySelectorAll('[data-sophia-room-audio]')) el.remove()
     cb.onStatus('ended')
   })
-  remoteAudio(room)
+  let textOnly = false
+  room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
+    if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
+    const packet = parseChatPacket(bytes)
+    if (packet && packet.kind !== 'input') cb.onChat?.(packet)
+  })
+  remoteAudio(room, () => textOnly)
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
@@ -167,6 +185,16 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   }
   const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
   return {
+    sendChat: (packet) =>
+      room.localParticipant.publishData(encodeChatPacket(packet), {
+        reliable: true,
+        destinationIdentities: ['sophia'],
+        topic: CHAT_INPUT_TOPIC,
+      }),
+    setTextMode: (on) => {
+      textOnly = on
+      for (const el of document.querySelectorAll<HTMLAudioElement>('[data-sophia-room-audio]')) el.muted = on
+    },
     participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,

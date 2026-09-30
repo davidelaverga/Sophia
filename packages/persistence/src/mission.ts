@@ -21,6 +21,7 @@ import { onlyRow } from './rows.ts'
 export interface MissionTurn {
   exchangeId: string
   inputEpoch: number
+  inputMode?: 'voice' | 'text'
   connectionGeneration?: number
   utterance?: number
 }

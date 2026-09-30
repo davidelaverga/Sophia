@@ -68,16 +68,23 @@
   "stages": {
     "ledger": "recorded",
     "merge_PR18": "merged",
-    "new_PR": "pending",
-    "implementation": "pending",
-    "Claude_review": "pending",
-    "exact_commit_release": "pending",
-    "production_text_UI_test": "pending"
+    "new_PR": "draft PR22 open",
+    "implementation": "candidate in verification",
+    "Claude_review": "pending exact candidate",
+    "exact_commit_release": "pending review and release batch",
+    "production_text_UI_test": "pending release"
   },
-  "current_PR": 18,
-  "current_head": "c8ae09ead8295db258b86a133ac47d76684657f2",
+  "current_PR": 22,
+  "current_head": null,
   "writing_scope": "New isolated branch/worktree in Sophia; application/contracts/persistence/UI/tests and non-frozen docs required for these decisions. Legacy Sophia-Agent excluded. Frozen pack and v1.1 assets preserved unless separately versioned amendment.",
   "release_scope": "Existing Sophia API/bridge/Studio and existing Supabase; exact reviewed candidate and authored migration hashes/order/keys must be recorded; existing providers/payers/plans; no destructive downgrade or extra bill.",
   "merge_commit": "503e38d1e1d7eb196304f98cfd6e6d353bf1f7ac",
-  "branch": "codex/living-brief-text"
+  "branch": "codex/living-brief-text",
+  "candidate_status": "Local source in verification; exact candidate hash to be posted after publication",
+  "contract_choices": {
+    "typed_chat": "Bounded ephemeral UI history, recipient-scoped; no raw transcript or browser-storage persistence. Canonical structured notes are durable under project policy and individual consent.",
+    "source_attribution": "A09 + 0020 record bridge-derived text or voice origin; model arguments cannot choose actor or mode.",
+    "compatible_recovery": "New text-origin data requires A09 readers. Preserve 0018 history; migrate 0019/0020 in a quiet release window, then API/bridge/Studio. Worker/runtime stay at 0391bc6 pending PR16. No old-code-only rollback after new data.",
+    "test_project_capture": "Owner later default-on product direction supersedes automatic off cleanup for the prior consenting owner test project; preserve its existing automatic row and member consent. No other member consent changed."
+  }
 }

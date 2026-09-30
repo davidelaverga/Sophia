@@ -1,0 +1,41 @@
+{
+  "id": "A09",
+  "goal": "SMC-M01",
+  "title": "Living brief, explicit project capture default and admitted text turns",
+  "why": [
+    "Owner OP-0005 changes project default capture to automatic, preserves explicit off and individual consent, and asks for real visible typed chat alongside one living brief. 0019 defines the effective default; API readiness requires it.",
+    "A signed member may send one bounded typed turn to the existing Gemini Live bridge. Server floor, input epoch, role, guest and confirmation checks remain authoritative. Model arguments never choose input mode or actor. Typed replies are recipient-scoped ephemeral UI text, not a retained transcript. Canonical notes and proposals retain text origin through 0020; old bridges remain voice when inputMode is omitted.",
+    "No v1.1 prompt or skill bytes, tool names, provider, payer or runtime pin change. Deploy 0019 then 0020 then compatible A09 API/bridge/Studio before admitting new text-origin data. Once text records exist retain A09 readers during recovery; no destructive down-migration or old-code-only rollback."
+  ],
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/components/schemas/MissionEntry/properties/origin/enum",
+      "value": ["voice", "text", "studio"]
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/MissionDecision/properties/proposedVia/enum",
+      "value": ["voice", "text", "studio"]
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/MissionDecision/properties/decidedVia/anyOf/0/enum",
+      "value": ["voice", "text", "studio"]
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaToolCall/properties/inputMode",
+      "value": {
+        "type": "string",
+        "enum": ["voice", "text"],
+        "description": "Bridge-derived admitted input mode; never taken from model arguments. Omitted by older bridges means voice."
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission~1note-policy/put/summary",
+      "value": "Admin sets automatic shared-note capture or off at the observed revision. Missing policy defaults to automatic; each member consent is still required for their admitted turns."
+    }
+  ]
+}

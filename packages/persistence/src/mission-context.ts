@@ -154,7 +154,7 @@ function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
     purpose: r.proposal.purpose ?? null,
     destination: r.proposal.destination ?? null,
     origin: r.proposal.origin ?? null,
-    textKind: r.origin === 'voice' ? 'sophia_paraphrase' : 'member_text',
+    textKind: r.origin === 'studio' ? 'member_text' : 'sophia_paraphrase',
     proposedBy: r.proposed_by,
     proposedVia: r.origin,
     createdAt: iso(r.created_at),
@@ -249,7 +249,7 @@ interface PolicyRow {
 
 const NO_POLICY: PolicyRow = { capture: null, revision: null, consent: null, consent_revision: null, accepted: '0' }
 
-/** No policy row: capture off; no consent row: unset. Never a default that enables anything. */
+/** SQL supplies the team default. An unavailable row stays conservative; individual consent is never inferred. */
 function policyOf(row: PolicyRow | undefined) {
   const r = row ?? NO_POLICY
   const capture: MissionNotePolicy['capture'] = r.capture ?? 'off'
@@ -265,7 +265,7 @@ function policyOf(row: PolicyRow | undefined) {
 
 async function readNotePolicy(c: pg.PoolClient, projectId: string, actorId: string) {
   const { rows } = await c.query<PolicyRow>(
-    `SELECT p.capture, p.revision, c.state AS consent, c.revision AS consent_revision,
+    `SELECT coalesce(p.capture,sophia.mission_capture_default()) AS capture, p.revision, c.state AS consent, c.revision AS consent_revision,
             (SELECT count(*) FROM sophia.mission_note_consents a JOIN sophia.project_members m
                ON m.project_id = a.project_id AND m.actor_id = a.actor_id AND m.active
               WHERE a.project_id = $1 AND a.state = 'accepted') AS accepted
@@ -416,7 +416,7 @@ interface SourceRow {
 const SOURCE_SQL = {
   entry: `SELECT e.id, e.state, NULL AS revision, e.authored_by = 'sophia' AS paraphrase, e.source_id, s.sha256, t.body
             FROM sophia.mission_entries e`,
-  decision: `SELECT e.id, e.state, e.revision, e.origin = 'voice' AS paraphrase, e.body_source_id AS source_id, s.sha256, t.body
+  decision: `SELECT e.id, e.state, e.revision, e.origin IN ('voice','text') AS paraphrase, e.body_source_id AS source_id, s.sha256, t.body
                FROM sophia.decisions e`,
 }
 

@@ -37,18 +37,30 @@ interface Props {
   identity: Identity
   me: string
   names: ReadonlyMap<string, string>
+  onEditing?: (id: string, on: boolean) => void
 }
 
 /** The newest notes, shown at rest. */
 export function NewestNotes(props: Props) {
-  const recent = recentNotes(props.ctx)
-  if (recent.length === 0) return null
+  const recent = recentNotes(props.ctx, props.ctx.entries.length)
+  const kinds = Object.keys(ENTRY_KIND).filter(isEntryKind)
   return (
-    <ol className="mission-notes" aria-label="Newest notes">
-      {recent.map((entry) => (
-        <Note key={entry.id} entry={entry} {...props} />
-      ))}
-    </ol>
+    <div className="brief-sections">
+      {kinds.map((kind) => {
+        const entries = recent.filter((entry) => entry.kind === kind)
+        if (entries.length === 0) return null
+        return (
+          <section key={kind} aria-label={ENTRY_KIND[kind]}>
+            <h3>{ENTRY_KIND[kind]}</h3>
+            <ol className="mission-notes">
+              {entries.map((entry) => (
+                <Note key={entry.id} entry={entry} {...props} />
+              ))}
+            </ol>
+          </section>
+        )
+      })}
+    </div>
   )
 }
 
@@ -62,18 +74,10 @@ interface MoreProps extends Props {
 /** Behind one disclosure: the older notes, the history, an optional typed note, then the panel's own extras. */
 export function MoreNotes({ decisions, children, ...props }: MoreProps) {
   const { ctx } = props
-  const older = ctx.entries.slice(0, ctx.entries.length - recentNotes(ctx).length)
   const omitted = omittedLine(ctx)
   return (
     <details className="mission-more">
-      <summary>All notes and history{older.length > 0 ? ` (${String(older.length)} more)` : ''}</summary>
-      {older.length > 0 && (
-        <ol className="mission-notes" aria-label="Older notes">
-          {older.map((entry) => (
-            <Note key={entry.id} entry={entry} {...props} />
-          ))}
-        </ol>
-      )}
+      <summary>Settings and history</summary>
       {ctx.history.length > 0 && (
         <ol className="mission-notes history" aria-label="Corrected and forgotten notes">
           {ctx.history.map((entry) => (
@@ -85,13 +89,12 @@ export function MoreNotes({ decisions, children, ...props }: MoreProps) {
       )}
       {omitted && <p className="muted">{omitted}</p>}
       {decisions}
-      {ctx.capabilities.recordNote.available && <AddNote {...props} />}
       {children}
     </details>
   )
 }
 
-function Note({ entry, ctx, projectId, identity, me, names }: Props & { entry: MissionEntry }) {
+function Note({ entry, ctx, projectId, identity, me, names, onEditing }: Props & { entry: MissionEntry }) {
   const [editing, setEditing] = useState(false)
   const actions = noteActions(ctx, entry, me)
   return (
@@ -103,13 +106,28 @@ function Note({ entry, ctx, projectId, identity, me, names }: Props & { entry: M
         </span>
       </span>
       {editing ? (
-        <CorrectNote entry={entry} projectId={projectId} identity={identity} onDone={() => setEditing(false)} />
+        <CorrectNote
+          entry={entry}
+          projectId={projectId}
+          identity={identity}
+          onDone={() => {
+            setEditing(false)
+            onEditing?.(entry.id, false)
+          }}
+        />
       ) : (
         <span className="mission-note-text">{entry.text}</span>
       )}
       <span className="control-row">
         {actions.correct && !editing && (
-          <button type="button" className="text-button" onClick={() => setEditing(true)}>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setEditing(true)
+              onEditing?.(entry.id, true)
+            }}
+          >
             Correct
           </button>
         )}
@@ -260,7 +278,7 @@ function Forget({ entry, projectId, identity }: WriteProps) {
 }
 
 /** An optional typed note in the member's own words; talking is the primary way, this is the manual one. */
-function AddNote({ projectId, identity }: Omit<Props, 'ctx' | 'me' | 'names'>) {
+export function AddNote({ projectId, identity }: Omit<Props, 'ctx' | 'me' | 'names'>) {
   const [text, setText] = useState('')
   const [kind, setKind] = useState<MissionEntry['kind']>('observation')
   const write = useMissionWrite<{ text: string; kind: MissionEntry['kind'] }>(projectId, (key, note) =>

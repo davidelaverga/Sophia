@@ -69,6 +69,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.claim_room_removals(text,integer,integer)') IS NOT NULL
   AND to_regprocedure('sophia.guest_token_minting(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.capture_completed_turns(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.mission_capture_default()') IS NOT NULL
+  AND to_regprocedure('sophia.mission_turn_origin(jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.record_mission_entry(uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.preview_mission_withdrawal(uuid,uuid)') IS NOT NULL

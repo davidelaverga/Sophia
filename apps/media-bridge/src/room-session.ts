@@ -1,3 +1,4 @@
+import type { ChatInput, ChatReply } from '@sophia/contracts/room-chat'
 // One room exchange on the bridge (architecture 06 §2–§12, S1-05A §6): the LiveKit room, one Gemini Live
 // connection and the API's assignment, joined by the pure ExchangeState. This module acts; ExchangeState decides.
 //
@@ -282,6 +283,9 @@ export class RoomSession {
   private readonly guideContext: GuideContext
   /** The API confirmed it executes exactly the declared operations. Checked before the first connection. */
   private guideBound = false
+  private typedTurn: { identity: string; packet: ChatInput; sequence: number; generation: number } | null = null
+  private typedOutputUntilTurnEnd = false
+  private readonly typedSeen = new Set<string>()
 
   constructor(assignment: MediaAssignment, deps: SessionDeps) {
     this.exchangeId = assignment.exchangeId
@@ -320,6 +324,7 @@ export class RoomSession {
     try {
       room = await this.deps.joinRoom(token, {
         people: (people) => this.onPeople(people),
+        typed: (identity, packet) => this.onTyped(identity, packet),
         audio: (identity, samples, rate, channels) => this.onAudio(identity, samples, rate, channels),
         frame: (identity, source, frame, at) => this.onFrame(identity, source, frame, at),
         // Leaving the room reports LiveKit's own disconnect: after close() that is the leave itself, not a loss to
@@ -380,6 +385,7 @@ export class RoomSession {
     this.applyPause()
     this.ackQuiesce()
     this.checkHolder()
+    this.checkTypedUpdate(change, next)
     this.reportDirty = true
     if (this.guideContext.observe(next)) this.rebuild('eligibility narrowed')
   }
@@ -391,6 +397,7 @@ export class RoomSession {
    */
   private rebuild(reason: string): void {
     if (this.closed) return
+    this.finishTyped('Project access changed; this reply was stopped.')
     this.deps.log('context.rebuild', { exchangeId: this.exchangeId, reason })
     this.handle = null
     const hadContext = this.live !== null || this.connecting
@@ -411,6 +418,7 @@ export class RoomSession {
   async close(): Promise<void> {
     if (this.closed) return
     this.deps.log('session.close', { exchangeId: this.exchangeId, lost: this.lost })
+    this.finishTyped('Conversation ended; this reply was stopped.')
     this.closed = true
     this.stopTicking?.()
     this.logReply('closed')
@@ -440,6 +448,7 @@ export class RoomSession {
 
   private onPeople(people: RoomPerson[]): void {
     this.people = people
+    if (people.some(isGuestLike)) this.finishTyped('Conversation paused: someone without project access joined.')
     const members = people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
     this.state.setPresent(members, this.roomDown || people.some(isGuestLike))
     this.applyPause()
@@ -472,8 +481,83 @@ export class RoomSession {
     }
   }
 
+  private typedReply(identity: string, packet: ChatInput, kind: ChatReply['kind'], text = '', sequence = 0): void {
+    void this.room
+      ?.sendChat?.(identity, { kind, id: packet.id, exchangeId: this.exchangeId, text, sequence })
+      .catch(() => {
+        this.deps.log('chat.delivery_unknown', { exchangeId: this.exchangeId, turnId: packet.id })
+      })
+  }
+
+  private checkTypedUpdate(change: { handoff: boolean; stopSpeaking: boolean }, next: MediaAssignment): void {
+    if (this.typedTurn && (change.handoff || change.stopSpeaking || next.state !== 'open'))
+      this.finishTyped('Conversation changed; this reply was stopped.')
+  }
+
+  private mayAcceptTyped(identity: string, packet: ChatInput): boolean {
+    return (
+      this.state.mayForwardAudio(identity, this.deps.now()) &&
+      packet.inputEpoch === this.assignment.inputEpoch &&
+      this.live !== null &&
+      !!this.room?.sendChat
+    )
+  }
+
+  private onTyped(identity: string, packet: ChatInput): void {
+    if (packet.exchangeId !== this.exchangeId) return
+    if (!this.mayAcceptTyped(identity, packet)) {
+      this.typedReply(
+        identity,
+        packet,
+        'refused',
+        'Sophia cannot receive this message now. Check the conversation and input floor.',
+      )
+      return
+    }
+    const key = `${identity}:${packet.id}`
+    if (this.typedSeen.has(key)) return // Never repeat an input after an uncertain receipt.
+    if (this.awaitingReply || this.responding || this.typedOutputUntilTurnEnd) {
+      this.typedReply(identity, packet, 'refused', 'Wait for the current reply before sending another message.')
+      return
+    }
+    if (this.typedSeen.size >= 500) {
+      this.typedReply(identity, packet, 'refused', 'End this conversation and start a new one to continue.')
+      return
+    }
+    this.typedSeen.add(key)
+    this.typedOutputUntilTurnEnd = true
+    this.state.forwarded()
+    this.wordsHeard()
+    this.typedTurn = { identity, packet, sequence: 0, generation: this.state.currentGeneration() }
+    try {
+      this.live?.sendNotice(packet.text)
+      this.typedReply(identity, packet, 'accepted')
+      this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
+    } catch {
+      this.finishTyped('Delivery is unconfirmed. The message will not be sent again automatically.')
+    }
+  }
+
+  private typedOutput(text: string): void {
+    const turn = this.typedTurn
+    if (!turn || !this.state.mayPlay(turn.generation)) return
+    for (let offset = 0; offset < text.length; offset += 2000) {
+      turn.sequence += 1
+      this.typedReply(turn.identity, turn.packet, 'delta', text.slice(offset, offset + 2000), turn.sequence)
+    }
+  }
+
+  private finishTyped(reason?: string): void {
+    const turn = this.typedTurn
+    if (!turn) return
+    turn.sequence += 1
+    this.typedReply(turn.identity, turn.packet, reason ? 'refused' : 'complete', reason ?? '', turn.sequence)
+    this.typedTurn = null
+  }
+
   private onAudio(identity: string, samples: Int16Array, rate: number, channels: number): void {
     const live = this.live
+    if (this.typedTurn) return
     if (!live || !this.state.mayForwardAudio(identity, this.deps.now())) return
     try {
       this.chunker.push(samples, rate, channels)
@@ -713,7 +797,9 @@ export class RoomSession {
       inputTranscript: (text) => {
         if (current() && text.trim()) this.wordsHeard()
       },
-      outputTranscript: () => undefined,
+      outputTranscript: (text) => {
+        if (current()) this.typedOutput(text)
+      },
       generationComplete: () => undefined,
       turnComplete: () => {
         if (current()) this.turnComplete()
@@ -744,6 +830,8 @@ export class RoomSession {
   /** Stop stale output, forget the connection and schedule the next one (resumed if a handle is held). */
   private recover(reason: string): void {
     if (this.closed) return
+    this.finishTyped('Connection interrupted. The message will not be sent again automatically.')
+    this.typedOutputUntilTurnEnd = false
     const failedBeforeReady = this.readyConnection !== this.connection
     this.connection += 1
     this.live?.close()
@@ -788,6 +876,8 @@ export class RoomSession {
   }
 
   private turnComplete(): void {
+    this.finishTyped()
+    this.typedOutputUntilTurnEnd = false
     if (this.framer.flush(this.state.currentGeneration())) void this.pump()
     this.reply.generated()
     this.endTurn()
@@ -816,6 +906,7 @@ export class RoomSession {
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
+    if (this.typedOutputUntilTurnEnd) return // Typed replies are visible text; no voice recording or playback is added.
     const generation = this.state.currentGeneration()
     if (this.fence) {
       // The stopped reply is (still) arriving: drop it until its turn ends. One that never began in time is over.
@@ -902,6 +993,7 @@ export class RoomSession {
       inputEpoch: who.inputEpoch,
       actorId: who.actorId,
       utterance: this.guideContext.utterance,
+      inputMode: this.typedOutputUntilTurnEnd ? 'text' : 'voice',
     }
     const write = WRITE_TOOLS.has(name)
     if (write) this.guideContext.writeStarted()

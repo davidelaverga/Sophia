@@ -51,7 +51,11 @@ const clarify = (ask: string): MediaToolResult => ({ status: 'clarify', output: 
 
 /** The speaker's turn, as the database re-checks it; a decision also names where it was answered. */
 function turnOf(call: MediaToolCall, answered: boolean): MissionTurn {
-  const turn: MissionTurn = { exchangeId: call.exchangeId, inputEpoch: call.inputEpoch }
+  const turn: MissionTurn = {
+    exchangeId: call.exchangeId,
+    inputEpoch: call.inputEpoch,
+    inputMode: call.inputMode ?? 'voice',
+  }
   if (!answered) return turn
   return {
     ...turn,

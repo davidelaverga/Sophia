@@ -343,7 +343,7 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
     actorId: string,
     name: MediaToolCall['name'],
     args: object,
-    utterance = 1,
+    turn: number | { utterance: number; inputMode: 'voice' | 'text' } = 1,
   ) => {
     n += 1
     const body = {
@@ -354,7 +354,8 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
       args,
       inputEpoch: 1,
       actorId,
-      utterance,
+      utterance: typeof turn === 'number' ? turn : turn.utterance,
+      inputMode: typeof turn === 'number' ? 'voice' : turn.inputMode,
     }
     const res = await call('/v1/media/tool-calls', { as: MEDIA_TOKEN, body })
     assert.equal(res.status, 200, JSON.stringify(res.json))
@@ -391,12 +392,17 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
     const { projectId } = await project()
     const exchangeId = await openedBy(E, projectId)
     const args = { kind: 'expectation', epistemic: 'inferred', text: 'They expect the list to be sorted by distance.' }
+    await call(`/api/v1/projects/${projectId}/mission/note-policy`, {
+      method: 'PUT',
+      as: A,
+      body: { capture: 'off', expectedRevision: 0 },
+    })
     const off = await voice(exchangeId, E, 'record_mission_note', args)
     assert.deepEqual([off.status, off.output.reason], ['denied', 'Note capture is off for this project'])
     await call(`/api/v1/projects/${projectId}/mission/note-policy`, {
       method: 'PUT',
       as: A,
-      body: { capture: 'automatic', expectedRevision: 0 },
+      body: { capture: 'automatic', expectedRevision: 1 },
     })
     await call(`/api/v1/projects/${projectId}/mission/note-consent`, {
       method: 'PUT',
@@ -414,6 +420,60 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
     assert.deepEqual(
       [read.output.textKind, read.output.coverage, read.output.text],
       ['sophia_paraphrase', 'complete', args.text],
+    )
+  })
+
+  it('typed chat notes retain text origin, require consent and ignore a model-supplied input mode', async () => {
+    const { projectId } = await project()
+    const exchangeId = await openedBy(E, projectId)
+    const args = {
+      kind: 'observation',
+      epistemic: 'reported',
+      text: 'Synthetic typed observation.',
+      inputMode: 'studio',
+    }
+    const unset = await voice(exchangeId, E, 'record_mission_note', args, { utterance: 1, inputMode: 'text' })
+    assert.equal(unset.status, 'denied')
+    await call(`/api/v1/projects/${projectId}/mission/note-consent`, {
+      method: 'PUT',
+      as: E,
+      body: { state: 'accepted' },
+    })
+    const saved = await voice(exchangeId, E, 'record_mission_note', args, { utterance: 1, inputMode: 'text' })
+    assert.equal(saved.status, 'committed')
+    const entry = (await missionOf(projectId)).entries.find((e) => e.id === saved.output.entryId)
+    assert.deepEqual(
+      [entry?.origin, entry?.actorId, entry?.textKind, entry?.exchangeId],
+      ['text', E, 'sophia_paraphrase', exchangeId],
+    )
+    const proposal = await voice(
+      exchangeId,
+      E,
+      'propose_mission_change',
+      {
+        kind: 'mission',
+        statement: 'Synthetic typed direction.',
+      },
+      { utterance: 2, inputMode: 'text' },
+    )
+    assert.equal(proposal.status, 'proposed')
+    const proposed = (await missionOf(projectId)).pending.find((d) => d.id === proposal.output.proposalId)
+    assert.deepEqual([proposed?.proposedVia, proposed?.textKind], ['text', 'sophia_paraphrase'])
+    const decision = await voice(
+      exchangeId,
+      E,
+      'decide_mission_change',
+      {
+        proposalId: proposal.output.proposalId,
+        proposalRevision: 1,
+        decision: 'accept',
+      },
+      { utterance: 3, inputMode: 'text' },
+    )
+    assert.equal(decision.status, 'committed')
+    assert.equal(
+      (await missionOf(projectId)).decided.find((d) => d.id === proposal.output.proposalId)?.decidedVia,
+      'text',
     )
   })
 
