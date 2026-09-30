@@ -764,11 +764,11 @@ button.mark:hover {
   gap: 14px;
   text-align: center;
 }
-/* A tall phone: the light rests higher and smaller (SophiaLight's screen rest, same numbers), so the words start sooner. */
-@container (max-aspect-ratio: 2 / 3) {
-  .screen-body {
-    top: calc(26cqh + min(30cqmin, 320px) * 0.5);
-  }
+/* The words would not fit under the light at rest (a phone held upright, a home that lists projects on a laptop):
+   it rests higher and smaller and they start sooner. SophiaLight decides and marks the screen; the numbers are
+   screen-rest.ts's. */
+.screen[data-rest-high] .screen-body {
+  top: calc(26cqh + min(30cqmin, 320px) * 0.5);
 }
 .screen-title {
   font-size: clamp(22px, 2.2vw, 26px);
