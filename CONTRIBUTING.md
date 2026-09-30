@@ -86,6 +86,16 @@ writing a new one, and keep the rule when you change the code around it.
   numbers (label center minus control center, the y of each rule) at desktop
   and phone widths, and look first for children that cannot be seen and
   still take room.
+- **Every screen can be left.** A wait (a guest in the lobby), a refusal,
+  the end of a visit: each offers the way out or the way back in place
+  ("Stop waiting", "Ask again"). A screen with no control is a trap, even
+  when all it does is wait. Where the server cannot undo something yet (a
+  knock stays in the lobby), the screen says what stays behind.
+- **The room's controls outlive trouble.** A snapshot that stops answering
+  keeps a loaded project on screen, stale, with its dock, and the bar says
+  Reconnecting (`project-door.ts`, with tests): nobody is left in a call
+  with an open microphone behind a notice that has no mute and no leave. A
+  closed door (401, 403) shows its notice and ends the call.
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·
