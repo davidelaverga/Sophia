@@ -9,6 +9,7 @@ import { useAdmission } from '../api/useAdmission.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import type { Identity } from './dev-identity.ts'
 import { openedLabel, readRecent } from './recent-projects.ts'
+import { SLOW_NOTE, useSlow } from './useSlow.ts'
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
@@ -69,6 +70,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
   const [title, setTitle] = useState('')
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
   const { status } = admission.state
+  const slow = useSlow(status === 'sending')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,6 +98,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Try again' : 'Start the project'}
       </button>
       <p className="outcome" role="status" aria-live="polite">
+        {slow && <span>{SLOW_NOTE}</span>}
         {admission.state.status === 'unknown' && (
           <>
             <Tag tone="amber">Not confirmed</Tag>

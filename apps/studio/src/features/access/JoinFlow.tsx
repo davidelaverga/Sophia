@@ -9,7 +9,7 @@ import { ApiError } from '../../api/client.ts'
 import { authMode, currentToken, guestAccessToken, sendInvitedSignIn, type AuthState } from '../../app/auth.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
-import { Centered, CodeForm, HomeLink } from '../../app/SignIn.tsx'
+import { Centered, CodeForm, HomeLink, SlowNote } from '../../app/SignIn.tsx'
 import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 
@@ -62,7 +62,13 @@ export function JoinFlow({ auth, onChooseDev, onSignOut, onOpenProject }: Props)
     retry: false,
   })
   if (!token) return <MissingToken signedIn={auth.status === 'signed_in'} />
-  if (preview.isPending) return <Centered title="Opening the room…" busy />
+  if (preview.isPending) {
+    return (
+      <Centered title="Opening the room…" busy>
+        <SlowNote />
+      </Centered>
+    )
+  }
   if (preview.isError && !linkRefused(preview.error)) return <Unreachable onRetry={() => void preview.refetch()} />
   if (preview.isError) return <Closed text="This link does not open a room. Ask for a new one." />
   if (preview.data.state !== 'open') return <Closed text={CLOSED[preview.data.state]} />

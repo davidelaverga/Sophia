@@ -59,38 +59,68 @@ async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: A
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` })
 
-export async function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
-  const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), {
-    headers: auth(token),
-    ...(signal ? { signal } : {}),
-  })
-  if (!res.ok) throw await toError(res)
-  return readBody(res, parseSnapshot, 'safe_read')
+/**
+ * How long a call waits for its whole reply. A read is short: whoever needs it asks again. A write is long: it may
+ * be the call that wakes an idle server, and one slow answer is better than a failure to retry by hand.
+ */
+export const READ_TIMEOUT_MS = 30_000
+export const WRITE_TIMEOUT_MS = 90_000
+
+/**
+ * No wait is endless. `run` gets a signal that aborts when `ms` pass before it settles (the reply's headers and
+ * its body), or when the caller's own signal does. Without it, a server that takes the connection and never answers
+ * leaves "Creating…" or "Joining…" on screen for good.
+ */
+async function inTime<T>(ms: number, run: (signal: AbortSignal) => Promise<T>, outer?: AbortSignal): Promise<T> {
+  const limit = new AbortController()
+  const abort = () => limit.abort()
+  if (outer?.aborted) abort()
+  outer?.addEventListener('abort', abort)
+  const timer = setTimeout(abort, ms)
+  try {
+    return await run(limit.signal)
+  } finally {
+    clearTimeout(timer)
+    outer?.removeEventListener('abort', abort)
+  }
+}
+
+export function getSnapshot(token: string, projectId: string, signal?: AbortSignal): Promise<Snapshot> {
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/snapshot`), { headers: auth(token), signal: limit })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseSnapshot, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read, signal)
 }
 
 /**
  * One idempotent write: POST with the caller's Idempotency-Key, the reply validated as `parse`. No reply
- * at all is outcome_unknown (the write may have committed), so the caller retries with the same key.
+ * at all, or none in time, is outcome_unknown (the write may have committed), so the caller retries with the same
+ * key.
  */
-async function postIdempotent<T>(
+function postIdempotent<T>(
   token: string,
   path: `/api/${string}`,
   idempotencyKey: string,
   body: unknown,
   parse: (value: unknown) => T,
 ): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(apiUrl(path), {
-      method: 'POST',
-      headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-      body: JSON.stringify(body),
-    })
-  } catch {
-    throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
-  }
-  if (!res.ok) throw await toError(res)
-  return readBody(res, parse, 'same_admission_key')
+  return inTime(WRITE_TIMEOUT_MS, async (signal) => {
+    let res: Response
+    try {
+      res = await fetch(apiUrl(path), {
+        method: 'POST',
+        headers: { ...auth(token), 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+        body: JSON.stringify(body),
+        signal,
+      })
+    } catch {
+      throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
+    }
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parse, 'same_admission_key')
+  })
 }
 
 interface CallInit {
@@ -102,25 +132,32 @@ interface CallInit {
   key?: string
 }
 
-/** One call with an optional bearer, body and key; the reply validated as `parse`, never cast. */
-export async function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
+/**
+ * One call with an optional bearer, body and key; the reply validated as `parse`, never cast. A GET waits as a
+ * read does; anything else, as a write.
+ */
+export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value: unknown) => T): Promise<T> {
   const retry = init.key ? 'same_admission_key' : 'safe_read'
-  let res: Response
-  try {
-    res = await fetch(apiUrl(path), {
-      method: init.method ?? 'POST',
-      headers: {
-        ...(init.token ? auth(init.token) : {}),
-        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...(init.key ? { 'idempotency-key': init.key } : {}),
-      },
-      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-    })
-  } catch {
-    throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
-  }
-  if (!res.ok) throw await toError(res)
-  return readBody(res, parse, retry)
+  const method = init.method ?? 'POST'
+  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, async (signal) => {
+    let res: Response
+    try {
+      res = await fetch(apiUrl(path), {
+        method,
+        headers: {
+          ...(init.token ? auth(init.token) : {}),
+          ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(init.key ? { 'idempotency-key': init.key } : {}),
+        },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        signal,
+      })
+    } catch {
+      throw new ApiError(0, 'outcome_unknown', 'No reply from Sophia', retry)
+    }
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parse, retry)
+  })
 }
 
 export const admitGoalCommand = (token: string, projectId: string, key: string, cmd: GoalCommand): Promise<Receipt> =>

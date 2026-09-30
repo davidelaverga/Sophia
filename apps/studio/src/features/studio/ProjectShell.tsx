@@ -9,6 +9,7 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { MiniDock } from '../voice/MiniDock.tsx'
@@ -72,6 +73,30 @@ function useTabTitle(snapshot: Snapshot | undefined) {
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
 }
 
+/**
+ * A project that is slow to open says so (useSlow.ts), where the lobby would float: under the bar, out of the way.
+ * A project that cannot be shown has its notice instead.
+ */
+function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | null }) {
+  if (!useSlow(!loaded && !blocked)) return null
+  return (
+    <p className="wait-note arrive" role="status">
+      {SLOW_NOTE}
+    </p>
+  )
+}
+
+interface ShareProps {
+  invites: boolean
+  projectId: string
+  onInvite: () => void
+}
+
+/** Invite for editors and admins; for viewers, the project's link. */
+function Share({ invites, projectId, onInvite }: ShareProps) {
+  return invites ? <InviteButton onClick={onInvite} /> : <CopyLinkButton projectId={projectId} />
+}
+
 interface Props {
   projectId: string
   view: View
@@ -90,28 +115,22 @@ export function ProjectShell(props: Props) {
   const [inviting, setInviting] = useState(false)
   const loaded = snapshot.data !== undefined
   const blocked = blockedBy(snapshot.error, loaded)
+  const invite = () => setInviting(true)
   useLeaveBehindClosedDoor(blocked, room)
   useRecentProject(identity.name, projectId, snapshot.data, blocked)
   useTabTitle(snapshot.data)
-  useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
+  useShortcuts({ i: invite }, loaded && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
       <ProjectHeader
         title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
         connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
-        share={
-          snapshot.data ? (
-            canInvite(membership) ? (
-              <InviteButton onClick={() => setInviting(true)} />
-            ) : (
-              <CopyLinkButton projectId={projectId} />
-            )
-          ) : null
-        }
+        share={loaded && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
         identitySwitcher={identitySwitcher}
         onLeave={onLeave}
       />
+      <OpeningNote loaded={loaded} blocked={blocked} />
       {inviting && snapshot.data && (
         <Suspense fallback={null}>
           <InviteSheet
@@ -136,7 +155,7 @@ export function ProjectShell(props: Props) {
           snapshot={snapshot.data}
           pulse={<WorkPulse feed={feed} connection={connection} />}
           onShow={onShow}
-          onInvite={() => setInviting(true)}
+          onInvite={invite}
         />
       )}
     </div>

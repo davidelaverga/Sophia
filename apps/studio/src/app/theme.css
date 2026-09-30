@@ -1788,6 +1788,23 @@ button.mark:hover {
   color: var(--text-3);
   font-size: 12.5px;
 }
+/* A project that is slow to open says so where the lobby would float (it has no one waiting yet). */
+.wait-note {
+  position: fixed;
+  top: calc(var(--topbar) + 24px);
+  right: var(--gutter);
+  z-index: 15;
+  width: min(300px, calc(100% - 2 * var(--gutter)));
+  padding: 9px 12px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
   position: fixed;
@@ -2662,6 +2679,12 @@ div.empty {
   /* In the Studio it sits under the lens bar. */
   .shell[data-view='studio'] .lobby {
     top: calc(var(--topbar) + 84px);
+  }
+  /* The wait note takes the width, right under the bar: over the lenses, which have nothing to change yet. */
+  .wait-note {
+    top: calc(var(--topbar) + 8px);
+    left: var(--gutter);
+    width: auto;
   }
   .invite-label {
     display: none;

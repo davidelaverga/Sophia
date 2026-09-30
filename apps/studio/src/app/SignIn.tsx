@@ -5,6 +5,7 @@ import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { authMode, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { ProviderButtons } from './ProviderButtons.tsx'
+import { SLOW_NOTE, useSlow } from './useSlow.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -32,6 +33,16 @@ export function HomeLink() {
     <a className="pill" href="/">
       Go to Sophia
     </a>
+  )
+}
+
+/** For a screen that waits on the API: one line once the wait has lasted (useSlow.ts), so it never just sits. */
+export function SlowNote() {
+  if (!useSlow(true)) return null
+  return (
+    <p className="muted arrive" role="status">
+      {SLOW_NOTE}
+    </p>
   )
 }
 

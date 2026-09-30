@@ -100,6 +100,16 @@ writing a new one, and keep the rule when you change the code around it.
   with tests): refused too, the door is closed and the notice shows; not,
   and the stream is tried again. Giving up on the stream's word alone left
   the project frozen on screen behind a small "No access".
+- **No wait is endless, and a long one says so.** Every API call has a
+  limit (`inTime` in `api/client.ts`, with tests): 30 s for a read, which
+  whoever needs it asks again; 90 s for a write, which may be the call that
+  wakes an idle server. A write with no reply in time is an unknown outcome,
+  retried with the same key, like any lost reply. A wait that lasts six
+  seconds adds one line (`useSlow`, `SLOW_NOTE`): under Creating…, on
+  "Opening the room…" (`SlowNote`), and over a project that is slow to open
+  (`.wait-note`, where the lobby floats; on a phone over the lenses, which
+  have nothing to change yet). A hosted API that sat idle can take close to
+  a minute to answer; without the line, that minute looks broken.
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, the mini dock from every other view (`Sending` in

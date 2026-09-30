@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { admitGoalCommand, ApiError, createProject, getSnapshot } from './client.ts'
+import {
+  admitGoalCommand,
+  ApiError,
+  callApi,
+  createProject,
+  getSnapshot,
+  READ_TIMEOUT_MS,
+  WRITE_TIMEOUT_MS,
+} from './client.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 const G = '0c5e9b1a-2d3f-4a6b-8c7d-9e0f1a2b3c4d'
@@ -15,6 +23,14 @@ function reply(status: number, body: unknown): void {
         headers: { 'content-type': 'application/json' },
       }),
     )
+}
+
+/** A server that takes the connection and never answers: the call ends only when its signal aborts. */
+function silence(): void {
+  globalThis.fetch = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+    })
 }
 
 async function apiError(call: Promise<unknown>): Promise<ApiError> {
@@ -64,5 +80,35 @@ describe('Studio API client', () => {
     reply(502, { code: 'from_a_proxy' })
     const proxy = await apiError(getSnapshot('t', P))
     assert.deepEqual([proxy.status, proxy.code, proxy.retry], [502, 'http_502', 'never'])
+  })
+
+  it('never waits for good: a write with no reply in time is an unknown outcome, retried with the same key', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    silence()
+    let settled = false
+    const created = apiError(createProject('t', 'key-4', 'Sophia')).finally(() => (settled = true))
+    t.mock.timers.tick(WRITE_TIMEOUT_MS - 1)
+    await Promise.resolve()
+    assert.equal(settled, false)
+    t.mock.timers.tick(1)
+    const late = await created
+    assert.deepEqual([late.status, late.code, late.retry], [0, 'outcome_unknown', 'same_admission_key'])
+  })
+
+  it('a read gives up sooner than a write, and a caller that stops waiting ends it at once', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    silence()
+    const read = getSnapshot('t', P)
+    t.mock.timers.tick(READ_TIMEOUT_MS)
+    await assert.rejects(read, { name: 'AbortError' })
+
+    const listed = apiError(callApi(`/api/v1/projects/${P}/membership`, { token: 't', method: 'GET' }, (v) => v))
+    t.mock.timers.tick(READ_TIMEOUT_MS)
+    assert.deepEqual([(await listed).code, (await listed).retry], ['outcome_unknown', 'safe_read'])
+
+    const caller = new AbortController()
+    const cancelled = getSnapshot('t', P, caller.signal)
+    caller.abort()
+    await assert.rejects(cancelled, { name: 'AbortError' })
   })
 })
