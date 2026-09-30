@@ -18,6 +18,10 @@ export type AuthCallback =
 /** A sign-in link that failed in a way the Studio does not name. */
 export const LINK_FAILED = 'That sign-in link didn’t work. Ask for a new one below.'
 
+/** The Auth service didn't say in time whose a sign-in link is: nothing was signed in, and the link may still work. */
+export const LINK_UNCHECKED =
+  'That sign-in link couldn’t be checked in time. Open it again, or ask for a new one below.'
+
 const DID_NOT_FINISH = 'Signing in with that account didn’t finish. Try again.'
 
 /** Supabase Auth's error codes, in the Studio's words. A Map: a code from the address is never an object's key. */

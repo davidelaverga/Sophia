@@ -2,8 +2,10 @@
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
+import { READ_TIMEOUT_MS } from '../api/client.ts'
 import {
   LINK_FAILED,
+  LINK_UNCHECKED,
   linkDecision,
   OTHER_ACCOUNT_NOTICE,
   OTHER_BROWSER_NOTICE,
@@ -12,6 +14,7 @@ import {
   withoutAuthParams,
 } from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
+import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
@@ -81,7 +84,6 @@ async function linkOutcome(
   if (decision === 'keep') return { notice: null }
   const { data: owner, error } = await client.auth.getUser(link.accessToken)
   if (error || !owner.user.email) return { notice: LINK_FAILED }
-  offered = link
   return { offer: owner.user.email }
 }
 
@@ -92,9 +94,14 @@ async function linkOutcome(
 async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> {
   let notice: string | null = callback.kind === 'error' ? callback.message : null
   if (callback.kind === 'tokens') {
-    const outcome = await linkOutcome(client, callback)
+    // The tokens leave the address bar before anything is asked: what they carry is a live session.
     window.history.replaceState(null, '', withoutAuthParams(window.location.href))
-    if ('offer' in outcome) return { status: 'link_offer', account: outcome.offer }
+    // Whose they are is asked with an end, so a silent Auth service leaves a sign-in screen, not a loading one.
+    const outcome = await settleWithin(linkOutcome(client, callback), READ_TIMEOUT_MS, { notice: LINK_UNCHECKED })
+    if ('offer' in outcome) {
+      offered = callback
+      return { status: 'link_offer', account: outcome.offer }
+    }
     notice = outcome.notice
   }
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange

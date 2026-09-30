@@ -9,7 +9,7 @@ import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { nextInRow } from '../../app/roving.ts'
 import { useDialog } from '../../app/useDialog.ts'
-import { doorNote, invitationState, linkLimits } from './access-view.ts'
+import { admissionLabel, doorNote, invitationState, linkLimits } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
@@ -199,16 +199,16 @@ function CreateRoomLink({ context, onChange }: { context: SheetContext; onChange
   const create = useAdmission<InvitationCreate, Invitation>((key, body) =>
     createInvitation(context.identity.token, context.projectId, key, body),
   )
-  const sending = create.state.status === 'sending'
+  const { status } = create.state
   return (
     <>
       <button
         type="button"
         className="pill primary"
-        disabled={sending}
-        onClick={() => void create.submit({ kind: 'guest' }).then(onChange)}
+        disabled={status === 'sending'}
+        onClick={() => void create.send({ kind: 'guest' }).then(onChange)}
       >
-        {sending ? 'Creating…' : 'Create the room link'}
+        {admissionLabel(status, 'Create the room link', 'Creating…')}
       </button>
       <p className="sheet-status" role="status">
         <AdmissionNote state={create.state} onRetry={() => void create.retry().then(onChange)} />
@@ -356,7 +356,7 @@ function EmailGuest({ context, onSent }: { context: SheetContext; onSent: () => 
   )
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const sent = await create.submit({ kind: 'guest', email: email.trim() })
+    const sent = await create.send({ kind: 'guest', email: email.trim() })
     if (sent) setEmail('')
     onSent()
   }
@@ -372,10 +372,11 @@ function EmailGuest({ context, onSent }: { context: SheetContext; onSent: () => 
           required
           placeholder="name@company.com"
           value={email}
+          readOnly={create.state.status === 'unknown'}
           onChange={(e) => setEmail(e.target.value)}
         />
         <button type="submit" className="pill" disabled={create.state.status === 'sending' || !email.trim()}>
-          {create.state.status === 'sending' ? 'Sending…' : 'Send'}
+          {admissionLabel(create.state.status, 'Send', 'Sending…')}
         </button>
       </div>
       <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />
@@ -433,7 +434,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
   )
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await create.submit({ kind: 'member', role, email: email.trim() })) setEmail('')
+    if (await create.send({ kind: 'member', role, email: email.trim() })) setEmail('')
     onSent()
   }
   return (
@@ -448,11 +449,13 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
           required
           placeholder="name@company.com"
           value={email}
+          readOnly={create.state.status === 'unknown'}
           onChange={(e) => setEmail(e.target.value)}
         />
         <select
           aria-label="Role"
           value={role}
+          disabled={create.state.status === 'unknown'}
           onChange={(e) => setRole(e.target.value === 'viewer' ? 'viewer' : 'editor')}
         >
           <option value="editor">Editor</option>
@@ -460,7 +463,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
         </select>
       </div>
       <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
-        {create.state.status === 'sending' ? 'Sending…' : 'Send invitation'}
+        {admissionLabel(create.state.status, 'Send invitation', 'Sending…')}
       </button>
       <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />
     </form>

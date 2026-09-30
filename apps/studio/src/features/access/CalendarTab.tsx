@@ -8,7 +8,15 @@ import { ConfirmButton } from '@sophia/ui'
 import { cancelSession, scheduleSession } from '../../api/access.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { clashWith, countdown, formSlot, plannedSession, sessionFromForm, sessionLabel } from './access-view.ts'
+import {
+  admissionLabel,
+  clashWith,
+  countdown,
+  formSlot,
+  plannedSession,
+  sessionFromForm,
+  sessionLabel,
+} from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { canInvite, type SheetContext } from './useAccess.ts'
 
@@ -73,8 +81,10 @@ function SessionForm({ context, onScheduled }: { context: SheetContext; onSchedu
   }
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    scheduled(await schedule.submit(sessionFromForm(form, zone())))
+    scheduled(await schedule.send(sessionFromForm(form, zone())))
   }
+  // After no reply the session asked for is still open: its fields wait, locked, until Try again answers.
+  const frozen = schedule.state.status === 'unknown'
   const planned = plannedSession(form, zone())
   const clash = planned ? clashWith(context.sessions, planned) : null
   return (
@@ -87,11 +97,12 @@ function SessionForm({ context, onScheduled }: { context: SheetContext; onSchedu
         required
         maxLength={180}
         value={form.title}
+        readOnly={frozen}
         onChange={(e) => set({ title: e.target.value })}
       />
-      <WhenFields form={form} set={set} />
+      <WhenFields form={form} set={set} frozen={frozen} />
       <button type="submit" className="pill primary" disabled={schedule.state.status === 'sending'}>
-        {schedule.state.status === 'sending' ? 'Scheduling…' : 'Schedule the session'}
+        {admissionLabel(schedule.state.status, 'Schedule the session', 'Scheduling…')}
       </button>
       <p className="sheet-status" role="status">
         <ScheduleNote state={schedule.state} clash={clash} onRetry={() => void schedule.retry().then(scheduled)} />
@@ -101,18 +112,37 @@ function SessionForm({ context, onScheduled }: { context: SheetContext; onSchedu
 }
 
 /** When the session starts, and for how long: one row where they fit, the date on its own row where not. */
-function WhenFields({ form, set }: { form: SessionFields; set: (patch: Partial<SessionFields>) => void }) {
+interface WhenProps {
+  form: SessionFields
+  set: (patch: Partial<SessionFields>) => void
+  frozen: boolean
+}
+
+function WhenFields({ form, set, frozen }: WhenProps) {
   return (
     <div className="calendar-when">
-      <input aria-label="Date" type="date" required value={form.date} onChange={(e) => set({ date: e.target.value })} />
+      <input
+        aria-label="Date"
+        type="date"
+        required
+        value={form.date}
+        disabled={frozen}
+        onChange={(e) => set({ date: e.target.value })}
+      />
       <input
         aria-label="Start time"
         type="time"
         required
         value={form.time}
+        disabled={frozen}
         onChange={(e) => set({ time: e.target.value })}
       />
-      <select aria-label="Length" value={form.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })}>
+      <select
+        aria-label="Length"
+        value={form.minutes}
+        disabled={frozen}
+        onChange={(e) => set({ minutes: Number(e.target.value) })}
+      >
         {DURATIONS.map((m) => (
           <option key={m} value={m}>
             {m} min
