@@ -123,6 +123,7 @@ class FakeLive implements LiveLink {
   streamEnds = 0
   frames = 0
   responses: FunctionResponse[] = []
+  responseBatches: FunctionResponse[][] = []
   notices: string[] = []
   closed = false
 
@@ -141,6 +142,7 @@ class FakeLive implements LiveLink {
     this.frames += 1
   }
   sendToolResponses = (r: FunctionResponse[]) => {
+    this.responseBatches.push(r)
     this.responses.push(...r)
   }
   sendNotice = (text: string) => {
@@ -1633,6 +1635,42 @@ describe('typed conversation uses the real exchange attribution', () => {
     text: 'Synthetic typed request',
     ...over,
   })
+  it('keeps delayed non-blocking tool continuations private and attributed through a second tool round', async () => {
+    const { session, room, live } = await ready()
+    const releases: Array<(r: MediaToolResult) => void> = []
+    service.toolCall = async (call) => {
+      service.calls.push(call)
+      return new Promise<MediaToolResult>((resolve) => releases.push(resolve))
+    }
+    room.events.typed?.(LUIS, packet())
+    live.events.toolCalls([{ id: 'typed-first', name: 'project_status', args: {} }])
+    live.events.turnComplete() // Gemini ends its first utterance before the API has replied.
+    assert.equal(room.chat.at(-1)?.packet.kind, 'accepted', 'the typed request is still waiting')
+    releases[0]?.({ status: 'ok', output: {} })
+    await flush()
+    live.events.outputTranscript('Synthetic continuation', false)
+    live.events.audio(speech(), OUT)
+    live.events.toolCalls([{ id: 'typed-second', name: 'read_selected_source', args: { entryId: ENTRY } }])
+    live.events.turnComplete()
+    assert.ok(
+      service.calls.every((call) => call.actorId === LUIS && call.inputEpoch === 1 && call.inputMode === 'text'),
+    )
+    releases[1]?.({ status: 'ok', output: {} })
+    await flush()
+    live.events.outputTranscript('Synthetic final answer', true)
+    live.events.audio(speech(), OUT)
+    live.events.turnComplete()
+    await flush()
+    assert.equal(live.responses.length, 2)
+    assert.equal(room.played.length, 0, 'no continuation enters the room audio path')
+    assert.deepEqual(
+      room.chat.map((c) => c.packet.kind),
+      ['accepted', 'delta', 'delta', 'complete'],
+    )
+    assert.ok(room.chat.every((c) => c.identity === LUIS))
+    assert.equal(JSON.stringify(logs).includes('Synthetic continuation'), false)
+    await session.close()
+  })
   it('forwards a typed turn once, attributes tools to its holder, and returns text without audio or transcript logs', async () => {
     const { session, room, live } = await ready()
     room.events.typed?.(LUIS, packet())
@@ -1648,6 +1686,7 @@ describe('typed conversation uses the real exchange attribution', () => {
     assert.equal(service.calls.at(-1)?.utterance, 1)
     assert.equal(service.calls.at(-1)?.inputMode, 'text')
     live.events.turnComplete()
+    live.events.turnComplete() // The tool response starts a separate WHEN_IDLE continuation.
     assert.deepEqual(
       room.chat.map((c) => c.packet.kind),
       ['accepted', 'delta', 'complete'],
@@ -1655,6 +1694,129 @@ describe('typed conversation uses the real exchange attribution', () => {
     assert.ok(room.chat.every((c) => c.identity === LUIS))
     assert.equal(JSON.stringify(logs).includes('Synthetic typed request'), false)
     assert.equal(JSON.stringify(logs).includes('Synthetic reply'), false)
+    await session.close()
+  })
+  it('batches fast parallel results after the first boundary and blocks new input until the continuation ends', async () => {
+    const { session, room, live } = await ready()
+    room.join([member(LUIS), member(DAVIDE)])
+    room.events.typed?.(LUIS, packet())
+    live.events.toolCalls([
+      { id: 'fast-one', name: 'project_status', args: {} },
+      { id: 'fast-two', name: 'read_selected_source', args: { entryId: ENTRY } },
+    ])
+    await flush()
+    assert.equal(live.responses.length, 0, 'no ambiguous response turn before its predecessor ended')
+    live.events.turnComplete()
+    assert.deepEqual(
+      live.responseBatches.map((batch) => batch.length),
+      [2],
+    )
+    room.events.audio(LUIS, voice16k(), 16_000, 1)
+    room.events.typed?.(LUIS, packet({ id: ENTRY }))
+    assert.equal(live.audio, 0)
+    assert.equal(live.notices.length, 1)
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+    live.events.outputTranscript('Both tools completed', true)
+    live.events.audio(speech(), OUT)
+    live.events.turnComplete()
+    await flush()
+    assert.equal(room.chat.at(-1)?.packet.kind, 'complete')
+    assert.ok(room.chat.every((item) => item.identity === LUIS))
+    assert.equal(room.played.length, 0)
+    room.events.audio(LUIS, voice16k(), 16_000, 1)
+    live.events.toolCalls([{ id: 'next-voice', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.at(-1)?.inputMode, 'voice')
+    await session.close()
+  })
+  for (const abandoned of ['handoff', 'stop', 'guest', 'cancel', 'disconnect'] as const) {
+    it(`fences an outstanding typed tool continuation on ${abandoned}`, async () => {
+      const { session, room, live } = await ready()
+      let release: ((result: MediaToolResult) => void) | undefined
+      service.toolCall = async (call) => {
+        service.calls.push(call)
+        return new Promise<MediaToolResult>((resolve) => {
+          release = resolve
+        })
+      }
+      room.events.typed?.(LUIS, packet())
+      live.events.resumption('typed-resumption', true)
+      live.events.toolCalls([{ id: 'abandoned', name: 'project_status', args: {} }])
+      live.events.turnComplete()
+      if (abandoned === 'handoff') session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, roomRevision: 2 }))
+      if (abandoned === 'stop') session.update(assignment({ playbackEpoch: 2, roomRevision: 2 }))
+      if (abandoned === 'guest') room.join([member(LUIS), { identity: 'guest', standing: 'guest' }])
+      if (abandoned === 'cancel') live.events.toolCancellations(['abandoned'])
+      if (abandoned === 'disconnect') live.events.closed('network lost')
+      release?.({ status: 'ok', output: {} })
+      live.events.outputTranscript('Abandoned continuation', true)
+      live.events.audio(speech(), OUT)
+      live.events.toolCalls([{ id: 'abandoned-late', name: 'project_status', args: {} }])
+      await flush()
+      assert.equal(live.closed, true)
+      assert.equal(live.responses.length, 0)
+      assert.equal(service.calls.length, 1, 'no abandoned continuation starts another operation')
+      assert.equal(room.played.length, 0)
+      assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+      assert.equal(
+        room.chat.some((item) => item.packet.text.includes('Abandoned continuation')),
+        false,
+      )
+      clock += 1000
+      session.tick()
+      await flush()
+      assert.equal(lives.at(-1)?.options.resumptionHandle, null, 'no resumption of private typed work')
+      await session.close()
+    })
+  }
+  it('does not reset the original deadline across typed tool continuations', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(LUIS, packet())
+    clock += TYPED_REPLY_MS - 1000
+    live.events.toolCalls([{ id: 'deadline-tool', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    clock += 1000
+    session.tick()
+    assert.equal(live.closed, true)
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+    assert.match(room.chat.at(-1)?.packet.text ?? '', /unconfirmed/)
+    live.events.audio(speech(), OUT)
+    live.events.outputTranscript('Late timed-out continuation', true)
+    await flush()
+    assert.equal(room.played.length, 0)
+    assert.equal(
+      room.chat.some((item) => item.packet.text.includes('Late timed-out')),
+      false,
+    )
+    await session.close()
+  })
+  it('shows an honest failure when a completed typed reply contains no visible text', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(LUIS, packet())
+    live.events.turnComplete()
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+    assert.match(room.chat.at(-1)?.packet.text ?? '', /did not return a text reply/)
+    assert.equal(live.notices.length, 1, 'no automatic resend')
+    await session.close()
+  })
+  it('fences unknown typed tool response delivery without repeating an input or operation', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(LUIS, packet())
+    live.events.toolCalls([{ id: 'delivery-unknown', name: 'record_mission_note', args: {} }])
+    await flush()
+    live.sendToolResponses = () => {
+      throw new Error('connection lost during send')
+    }
+    live.events.turnComplete()
+    assert.equal(live.closed, true)
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+    assert.match(room.chat.at(-1)?.packet.text ?? '', /unconfirmed/)
+    live.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(room.played.length, 0)
+    assert.equal(service.calls.length, 1)
+    assert.equal(live.notices.length, 1)
     await session.close()
   })
   it('closing an exchange stops the pending typed reply without waiting for the UI timeout', async () => {

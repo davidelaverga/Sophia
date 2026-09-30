@@ -94,3 +94,45 @@ Final exact candidate must pass CI and independent delta review before the match
 
 Revised exact-head CI and Claude review; matching release batch/current lease; migrations and deployments reconciled;
 deployed setup/real handler proof; production text chat, canonical save/returning continuity, UI checks and cleanup.
+
+## Approved release and failed hosted acceptance (2026-09-30)
+
+Direct owner grant: “Approve the prepared batch and forward-only recovery.” Actual98e7525 deployed.
+Only0019/0020 applied; schema0001–0020 checksums reconciled, application role restricted.
+API dep-dau69so93c1s73ct6gjg /ready200; bridge dep-dau6b8ugekts73d513q0;
+Studio dpl_G5zr6uYw1krSVW17KxEbNT2WLY2t metadata exact source/tree,17public asset hashes match.
+No config keys changed. Existing consent/opt-outs retained; worker/runtime0391bc6 and legacy untouched.
+Actual guide.loaded and first/returning provider.setup verify the exact prompt/skill/combined identities above,
+24410B and six real handlers; record_mission_note committed and returning project_status succeeded.
+Hosted text acceptance FAILED: no-tool text reply visible, but tool-using save and returning recall blank.
+Their asynchronous continuations played room audio (5620ms and6180ms); only the owner was present.
+No claim of actual other-member disclosure. Text recipient fencing was therefore not accepted.
+UI side/full/mobile layout, focus, canonical update/correction and editor-conflict preservation verified.
+Three inputs; first/return exchanges ended,335.161s summed lifetime and392.117s wall; zero open exchanges.
+Synthetic cleanup only previewed; irreversible final forget awaits action-time human confirmation.
+Private journal/evidence retained; sanitized immutable CX-0034 on PR22/#17. No project text published.
+
+## Forward typed-tool continuation repair (candidate in this commit)
+
+The initial Gemini turnComplete must not complete a typed request that still owns non-blocking tools.
+Typed results are collected and sent as one WHEN_IDLE batch only after the preceding provider boundary.
+The continuation retains the original input epoch, actor, text origin, recipient and60-second admission deadline.
+Further tool rounds use the same request. No microphone input/new typed request interleaves with it.
+Cancellation, Stop, handoff, guest/room access loss or disconnect abandons and cold-fences tool continuations;
+no old typed resumption, automatic resend or repeated operation. Unknown response delivery is explicit.
+A provider completion with no visible text shows a truthful failure instead of an empty Sophia reply.
+Voice-only tool behavior and the six NON_BLOCKING declarations/WHEN_IDLE results remain compatible.
+Fixed prompt/skill bytes, migrations, contract, dependencies and configuration are unchanged.
+
+Local verification: pnpm check exit0,326unit tests,51integration tests and all recorded artifact identities.
+The five real API/PostgreSQL/worker/dsh crossing tests ran separately with the disposable loopback database:5/5.
+The first check failed the complexity gate; split response routing into named helpers, then check passed.
+Original98e7525 plus the new tests in a disposable detached worktree:10failures/7passes, exit1.
+The main candidate is restored/unchanged by that mutation; its complete room-session suite is91/91 in pnpm check.
+Private logs: check-continuation.log, continuation-runtime-crossing.log, continuation-mutation.log.
+This is isolated verification, not a billed provider test or hosted acceptance.
+
+Next: independent exact-head review/CI; prepare a bridge-only forward recovery amendment naming the exact
+source, unchanged schema/config/assets, quiet window and one further bounded existing-provider qualification.
+No additional paid episode or recovery candidate deployed before matching owner authority.
+Luis PR19/20/config reconciliation remains queued until the current goal is accepted.

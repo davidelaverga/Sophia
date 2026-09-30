@@ -69,10 +69,10 @@
     "ledger": "recorded",
     "merge_PR18": "merged",
     "new_PR": "draft PR22 open",
-    "implementation": "Final deadline/metadata guards in verification after CC-0020 pass; 316 unit tests",
-    "Claude_review": "CC-0020 passes a03d42d; final guard exact-head delta review pending",
-    "exact_commit_release": "pending review and release batch",
-    "production_text_UI_test": "pending release"
+    "implementation": "Forward typed-tool continuation repair verified locally;326 unit tests",
+    "Claude_review": "CC-0021 passed98e7525; independent recovery-candidate review pending",
+    "exact_commit_release": "Owner-approved98e7525 batch deployed and reconciled; schema0001-0020",
+    "production_text_UI_test": "FAILED: tool continuations left blank text and entered shared audio; first/return ended; no open exchanges"
   },
   "current_PR": 22,
   "current_head": null,
@@ -80,13 +80,22 @@
   "release_scope": "Existing Sophia API/bridge/Studio and existing Supabase; exact reviewed candidate and authored migration hashes/order/keys must be recorded; existing providers/payers/plans; no destructive downgrade or extra bill.",
   "merge_commit": "503e38d1e1d7eb196304f98cfd6e6d353bf1f7ac",
   "branch": "codex/living-brief-text",
-  "candidate_status": "Final guard revision awaiting full gate and immutable publication",
+  "candidate_status": "Forward recovery candidate prepared locally; exact publication/CI/review and matching hosted amendment pending",
   "contract_choices": {
     "typed_chat": "Bounded ephemeral UI history, recipient-scoped; no raw transcript or browser-storage persistence. Canonical structured notes are durable under project policy and individual consent.",
     "source_attribution": "A09 + 0020 record bridge-derived text or voice origin; model arguments cannot choose actor or mode.",
     "compatible_recovery": "New text-origin data requires A09 readers. Preserve 0018 history; migrate 0019/0020 in a quiet release window, then API/bridge/Studio. Worker/runtime stay at 0391bc6 pending PR16. No old-code-only rollback after new data. API precedes A09 bridge; the older API rejects inputMode. API and bridge must retain compatible A09 readers together.",
     "test_project_capture": "Owner later default-on product direction supersedes automatic off cleanup for the prior consenting owner test project; preserve its existing automatic row and member consent. No other member consent changed.",
     "artifact_platforms": "Linux production bundle/lock preserved; Darwin dev bundle/lock separately identified and selected; both strict composition gates enforced. No runtime pin or worker/runtime deploy change.",
-    "typed_timeout": "Bridge and UI use 60-second typed deadline; replace/fence unknown provider turn without automatic resend, then restore voice. Cold reconnect loses unsaved provider context but canonical notes remain."
+    "typed_timeout": "Bridge and UI use 60-second typed deadline; replace/fence unknown provider turn without automatic resend, then restore voice. Cold reconnect loses unsaved provider context but canonical notes remain.",
+    "typed_tool_continuations": "Keep original typed attribution/recipient/deadline through NON_BLOCKING WHEN_IDLE results; batch results only after preceding provider boundary. Cancellation/access change/abandonment cold-fences old continuation, never resends input. Unsaved provider context is lost on such abandonment; eligible canonical notes remain."
+  },
+  "production_tuple": {
+    "source": "98e752504a2b03329c7464c9b26c6c3d2dfaf46b",
+    "schema": "0001-0020",
+    "api_deploy": "dep-dau69so93c1s73ct6gjg",
+    "bridge_deploy": "dep-dau6b8ugekts73d513q0",
+    "studio_deploy": "dpl_G5zr6uYw1krSVW17KxEbNT2WLY2t",
+    "acceptance": "failed; not accepted"
   }
 }
