@@ -6,11 +6,28 @@ export type Panel = 'chat' | 'brief'
 export const PANELS: readonly Panel[] = ['chat', 'brief']
 export const PANEL_TITLE: Record<Panel, string> = { chat: 'Chat', brief: 'Brief' }
 
-/** How much the chat holds: each discussion entry, each typed turn, and each reply once it begins. */
-export function chatSignature(snapshot: Snapshot | undefined, turns: readonly { reply: string }[]): number {
-  const discussion = snapshot?.discussion.length ?? 0
-  return turns.reduce((n, t) => n + 1 + (t.reply ? 1 : 0), discussion)
+/**
+ * What the chat shows, by identity: its newest discussion entry, its newest typed turn, and how many replies have
+ * begun. A new message changes it even once the kept history is full and the oldest drops out (the discussion keeps
+ * its latest 50, the typed chat 100), which a count could not see. Null until the project has loaded: a room still
+ * loading is no baseline.
+ */
+export function chatSignature(
+  snapshot: Pick<Snapshot, 'discussion'> | undefined,
+  turns: readonly { id: string; reply: string }[],
+): string | null {
+  if (!snapshot) return null
+  const replies = turns.filter((t) => t.reply).length
+  return [snapshot.discussion.at(-1)?.id ?? '', turns.at(-1)?.id ?? '', replies].join('|')
 }
+
+/** The chat has something unseen when what it shows changed since it was last in view, and it isn't in view now. */
+export const changedUnseen = (current: string | null, seen: string | null, inView: boolean): boolean =>
+  !inView && current !== null && seen !== null && current !== seen
+
+/** What counts as seen: what the chat shows while in view, and the first chat that loads (the baseline). */
+export const seenNow = (seen: string | null, current: string | null, inView: boolean): string | null =>
+  inView || seen === null ? current : seen
 
 /** The names seen so far plus the room's people now; the same map when nobody is new, so nothing re-renders. */
 export function mergeNames(

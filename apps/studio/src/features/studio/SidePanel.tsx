@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip, type IconName } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
-import { focusOnOpen, isNew, PANEL_TITLE, PANELS, toggled, type Panel } from './side-panel.ts'
+import { changedUnseen, focusOnOpen, isNew, PANEL_TITLE, PANELS, seenNow, toggled, type Panel } from './side-panel.ts'
 
 interface PanelProps {
   open: Panel | null
@@ -173,13 +173,14 @@ export function PanelToggles({ open, onOpen, unread, updated }: ToggleProps) {
   )
 }
 
-/** Whether the chat grew while it was out of view; the first count is the baseline. */
-export function useUnread(signature: number, inView: boolean): boolean {
+/** Whether what the chat shows changed while it was out of view; the first chat that loads is the baseline. */
+export function useUnread(signature: string | null, inView: boolean): boolean {
   const [seen, setSeen] = useState(signature)
+  const next = seenNow(seen, signature, inView)
   useEffect(() => {
-    if (inView) setSeen(signature)
-  }, [inView, signature])
-  return isNew(signature, seen, inView)
+    if (next !== seen) setSeen(next)
+  }, [next, seen])
+  return changedUnseen(signature, seen, inView)
 }
 
 /** The brief's revision as it is read, and whether it moved on while the brief was out of view. */
