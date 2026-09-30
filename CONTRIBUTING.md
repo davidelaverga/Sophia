@@ -121,6 +121,13 @@ writing a new one, and keep the rule when you change the code around it.
   `room-view.ts`, with tests). A visitor chooses their own name, so the word
   "guest" is what tells them from a member of the same name: it stays while
   they speak ("guest · speaking"), on their tile and on a screen they share.
+- **Every press answers, and an error reads as one.** A button that sends
+  says so while it works and what happened after ("We sent a new code… Only
+  the newest one works."), and a refusal is said where it was asked, in
+  words a person can act on (`sendFailure` in `auth-words.ts`, with tests:
+  how long to wait, that the last email still works, a lost connection).
+  On the quiet screens (sign-in, invitations) an error is rose, not the
+  body's grey (`.screen-body .form-error`).
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·

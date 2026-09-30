@@ -779,6 +779,10 @@ button.mark:hover {
   color: var(--text-2);
   max-width: 42ch;
 }
+/* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
+.screen-body .form-error {
+  color: var(--rose);
+}
 /* Account providers: one row of equal squared tiles, marks only; the name lives in the tip. */
 .providers {
   display: grid;

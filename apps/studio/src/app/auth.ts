@@ -3,6 +3,7 @@
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
+import { sendFailure } from './auth-words.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
@@ -95,11 +96,8 @@ export function useAuth(): { state: AuthState; chooseDev: (i: Identity | null) =
   }
 }
 
-/** Anyone can sign up: the first link creates the account. A server with sign-ups closed says so plainly. */
-function signInError(error: AuthError, email: string): Error {
-  const closed = error.code === 'otp_disabled' || /signups not allowed/i.test(error.message)
-  return closed ? new Error(`New accounts are closed on this server, so ${email} can’t sign up yet.`) : error
-}
+/** What stopped a sign-in email, in words a person can act on (auth-words.ts). */
+const sendError = (error: AuthError, email: string) => new Error(sendFailure(error, email))
 
 /** Magic link to the current page; locally the email lands in Mailpit. A new email gets an account. */
 export async function sendMagicLink(email: string): Promise<void> {
@@ -111,7 +109,7 @@ export async function sendMagicLink(email: string): Promise<void> {
       shouldCreateUser: true,
     },
   })
-  if (error) throw signInError(error, email)
+  if (error) throw sendError(error, email)
 }
 
 /** Supabase provider ids ("azure" is Microsoft), in the order the sign-in row shows them. */
@@ -181,7 +179,7 @@ export async function sendInvitedSignIn(email: string): Promise<void> {
     email,
     options: { emailRedirectTo: `${window.location.origin}/join`, shouldCreateUser: true },
   })
-  if (error) throw error
+  if (error) throw sendError(error, email)
 }
 
 /** The code in the sign-in email: works on any device, unlike the link, which needs this browser. */

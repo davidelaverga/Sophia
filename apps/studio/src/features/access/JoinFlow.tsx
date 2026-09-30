@@ -503,40 +503,51 @@ function Accept({
   )
 }
 
+/**
+ * The invited person's sign-in code, sent on request. Each press answers: the button waits while the email goes,
+ * a new code says it replaced the last one, and a refusal (asked again too soon) is said where it was asked.
+ */
 function InvitedSignIn({ email }: { email: string }) {
-  const [sent, setSent] = useState(false)
+  const [sent, setSent] = useState(0)
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const send = async () => {
+    setSending(true)
+    setError(null)
     try {
       await sendInvitedSignIn(email)
-      setSent(true)
+      setSent((n) => n + 1)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not send the code.')
+    } finally {
+      setSending(false)
     }
   }
-  if (sent) {
+  const refused = error && (
+    <p className="form-error" role="alert">
+      {error}
+    </p>
+  )
+  if (sent === 0) {
     return (
       <>
-        <p className="muted">
-          We sent a code to {email}.{' '}
-          <button type="button" className="text-button" onClick={() => void send()}>
-            Send it again
-          </button>
-        </p>
-        <CodeForm email={email} />
+        <button type="button" className="pill primary" disabled={sending} onClick={() => void send()}>
+          {sending ? 'Sending…' : 'Email me a sign-in code'}
+        </button>
+        {refused}
       </>
     )
   }
   return (
     <>
-      <button type="button" className="pill primary" onClick={() => void send()}>
-        Email me a sign-in code
-      </button>
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      <p className="muted" role="status">
+        {sent > 1 ? `We sent a new code to ${email}. Only the newest one works.` : `We sent a code to ${email}.`}{' '}
+        <button type="button" className="text-button" disabled={sending} onClick={() => void send()}>
+          {sending ? 'Sending…' : 'Send it again'}
+        </button>
+      </p>
+      {refused}
+      <CodeForm email={email} />
     </>
   )
 }
