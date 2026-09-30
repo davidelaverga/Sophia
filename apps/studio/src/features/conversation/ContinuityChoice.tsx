@@ -36,14 +36,23 @@ function useContinuity({
   return { mission, busy, error, choose }
 }
 
+interface Props {
+  projectId: string
+  identity: Identity
+  cursor: string | undefined
+  /** The message bar is on screen. Without it there are no turns to keep notes from, and nothing is asked. */
+  withBar: boolean
+}
+
 /**
  * Team defaults never manufacture an individual's consent: while notes are on and this person hasn't chosen, the
- * choice sits above the message bar. Otherwise nothing: the brief says where notes stand.
+ * choice sits above the message bar. Otherwise nothing: the brief says where notes stand. It stays mounted without
+ * the bar, so the answer is already known when the bar appears and nothing pops in after it.
  */
-export function ContinuityChoice(props: { projectId: string; identity: Identity; cursor: string | undefined }) {
+export function ContinuityChoice({ withBar, ...props }: Props) {
   const { mission, busy, error, choose } = useContinuity(props)
   const policy = mission.data?.notePolicy
-  if (!policy || policy.capture === 'off' || policy.consent !== 'unset') return null
+  if (!withBar || !policy || policy.capture === 'off' || policy.consent !== 'unset') return null
   return (
     <div className="continuity-choice">
       <p>Keep notes from your turns? Members can read them.</p>

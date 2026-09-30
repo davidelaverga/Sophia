@@ -1277,6 +1277,13 @@ button.mark:hover {
   padding: 10px var(--panel-pad) var(--floor);
   border-top: 1px solid var(--line);
 }
+/* Before there is a conversation to type into, the foot holds one thing: the way in, in the message bar's place and
+   size, so the floor line holds. It is dressed like Speak with Sophia in the dock, its spoken twin. */
+.chat-start {
+  width: 100%;
+  height: 48px;
+  border-radius: var(--r-4);
+}
 /* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
    controls), so one line of text makes it the dock's height. */
 .message-bar {
@@ -1336,6 +1343,9 @@ button.mark:hover {
 }
 /* Touch: the bar takes the dock's touch size (40 px controls), so the two stay one height there too. */
 @media (pointer: coarse) {
+  .chat-start {
+    height: 52px;
+  }
   .message-bar textarea {
     min-height: 40px;
     padding: 10px 0;

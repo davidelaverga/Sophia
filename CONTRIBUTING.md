@@ -64,12 +64,16 @@ when you change the room:
 - **Focus follows the panel** (`usePanelFocus`): in on open (the message bar
   where a fine pointer suggests a keyboard, the tab on a phone so no keyboard
   jumps up), back to the toggle that opened it on close.
-- **The composer** is one message bar with Send inside (Enter sends,
-  Shift+Enter breaks a line) and one status line above it (`ChatLine`): the
-  step under way, what the chat waits for, and its one action (Chat with
-  Sophia, Voice mode). The consent question shows only while one is due.
-  The bar comes last in the composer, so it never moves: whatever comes and
-  goes (the consent, the line, an error) sits above it.
+- **The chat's foot offers one thing at a time** (`chatEntry` in
+  `chat-view.ts`, with tests): Chat with Sophia until this person is in the
+  room and Sophia's exchange exists, then the message bar with Send inside
+  (Enter sends, Shift+Enter breaks a line). Never both: a bar that cannot
+  send, beside a button that starts, reads as two ways to do one thing.
+  The control comes last and never moves; what comes and goes sits above it:
+  the consent question (with the bar, and only while one is due), one status
+  line (`chatLine`: why Send waits, one reason at a time, or that typing
+  reaches Sophia, with Voice mode), an error. The room's own line names the
+  state, "Chatting with Sophia", and only once typing reaches her.
 - **Nothing circles the room.** While work runs the stage's edge is faintly
   lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
   travels the edge pulls the eye from the people; the room's line already

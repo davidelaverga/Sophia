@@ -6,6 +6,7 @@ import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
+import { reachesSophia } from '../conversation/chat-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
 import { canShareScreen, RoomDock } from './RoomDock.tsx'
@@ -162,9 +163,19 @@ function observedSophia(
 }
 
 const conversationMode = (room: ProjectRoom) => (room.textMode ? 'text' : 'voice')
-function conversationLine(room: ProjectRoom, floor: FloorView, running: number, sophia: SophiaView): RoomLine {
-  if (room.textMode && room.status === 'live' && floor.mine) return { text: 'Chat with Sophia', note: null }
-  return roomLine(room.status, floor, running, sophia)
+/**
+ * In text mode the room says so once typing actually reaches Sophia. Until then it keeps its usual line, which says
+ * what she waits for. The words name a state: "Chat with Sophia" is the button that starts it.
+ */
+function conversationLine(
+  room: ProjectRoom,
+  snapshot: Snapshot | undefined,
+  floor: FloorView,
+  running: number,
+  sophia: SophiaView,
+): RoomLine {
+  const typing = room.textMode && room.status === 'live' && floor.mine && reachesSophia(snapshot?.room.sophia)
+  return typing ? { text: 'Chatting with Sophia', note: null } : roomLine(room.status, floor, running, sophia)
 }
 
 export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, corner }: Props) {
@@ -204,7 +215,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
           <div className="stage-top">{lensBar}</div>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
           <SophiaLine
-            line={line ?? conversationLine(room, floor, running, sophia)}
+            line={line ?? conversationLine(room, snapshot, floor, running, sophia)}
             session={sessionNote(snapshot, now)}
           />
           <div className="stage-body">{lensBody}</div>

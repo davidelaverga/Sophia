@@ -14,8 +14,9 @@ interface PanelProps {
 }
 
 /**
- * Opening moves focus in: to the message bar where a keyboard is at hand, else to the tab (no keyboard jumps up on a
- * phone). Closing hands it back to the toggle that opened the panel.
+ * Opening moves focus in: to the chat's one control (the message bar, or Chat with Sophia before it) where a keyboard
+ * is at hand, else to the tab (no keyboard jumps up on a phone). Closing hands it back to the toggle that opened the
+ * panel.
  */
 function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>) {
   const previous = useRef(open)
@@ -25,7 +26,7 @@ function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>)
     if (was === open) return
     if (open && !was) {
       const typing = open === 'chat' && window.matchMedia('(pointer: fine)').matches
-      const target = panel.current?.querySelector<HTMLElement>(typing ? '#converse-draft' : `#side-tab-${open}`)
+      const target = panel.current?.querySelector<HTMLElement>(typing ? '[data-chat-entry]' : `#side-tab-${open}`)
       target?.focus({ preventScroll: true })
     } else if (!open && was) {
       document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${was}"]`)?.focus({ preventScroll: true })

@@ -1,10 +1,12 @@
-// The chat's composer, at the foot of the side panel: how to reach Sophia by text, then one message bar with its
-// Send inside, as a chat has it. The bar comes last, so it keeps its place (level with the dock) while the lines
-// above it come and go. Enter sends; Shift+Enter starts a new line.
-import { useState } from 'react'
+// The chat's foot, at the bottom of the side panel. It offers one thing at a time (chat-view.ts decides which):
+// until there is a conversation to type into, the way in (Chat with Sophia); once there is, one message bar with
+// its Send inside, as a chat has it. Whatever comes and goes (the consent, the status line, an error) sits above,
+// so the control keeps its place, level with the dock. Enter sends; Shift+Enter starts a new line.
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
+import { chatEntry, chatLine, type ChatEntry } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
@@ -25,8 +27,9 @@ function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | '
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const start = async () => {
-    if (starting) return
+  /** Joins in text mode and opens Sophia's exchange if none is open. Resolves to whether it went through. */
+  const start = async (): Promise<boolean> => {
+    if (starting) return false
     setStarting(true)
     setError(null)
     try {
@@ -40,8 +43,10 @@ function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | '
         })
       }
       await queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
+      return true
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'The conversation could not start.')
+      return false
     } finally {
       setStarting(false)
     }
@@ -80,44 +85,71 @@ function useChatSend({ snapshot, room, draft, onDraft }: Props) {
       setSending(false)
     }
   }
-  return { presence, busy, ready, error, send }
+  return { presence, busy, ready, mine: !!presence && presence.inputActorId === me, error, send }
+}
+
+/** The way in, in the message bar's place and size: it joins in text mode and asks Sophia into the conversation. */
+function ChatStart({ starting, onStart }: { starting: boolean; onStart: () => void }) {
+  return (
+    <button type="button" className="pill warm chat-start" data-chat-entry disabled={starting} onClick={onStart}>
+      {starting ? 'Connecting to Sophia…' : 'Chat with Sophia'}
+    </button>
+  )
+}
+
+interface BarProps {
+  field: RefObject<HTMLTextAreaElement | null>
+  draft: string
+  onDraft: (text: string) => void
+  canSend: boolean
+  send: () => Promise<void>
+}
+
+function MessageBar({ field, draft, onDraft, canSend, send }: BarProps) {
+  return (
+    <div className="message-bar">
+      <label htmlFor="converse-draft" className="sr-only">
+        Message Sophia
+      </label>
+      <textarea
+        ref={field}
+        id="converse-draft"
+        data-chat-entry
+        rows={1}
+        maxLength={2000}
+        value={draft}
+        placeholder="Message Sophia…"
+        onChange={(e) => onDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault()
+            void send()
+          }
+        }}
+      />
+      <button type="button" className="send has-tip" aria-label="Send" disabled={!canSend} onClick={() => void send()}>
+        <Icon name="send" />
+        <Tip label="Send" keys="Enter" side="top" align="end" />
+      </button>
+    </div>
+  )
 }
 
 interface LineProps {
+  text: string | null
   room: ProjectRoom
-  presence: Snapshot['room']['sophia'] | undefined
   starting: boolean
-  ready: boolean
   busy: boolean
-  start: () => Promise<void>
 }
 
-/** What the line above the bar says, before any button: the step under way, or what the chat waits for. */
-function lineText({ room, presence, starting, ready }: LineProps): string | null {
-  if (starting) return 'Connecting to Sophia…'
-  if (ready) return room.textMode ? 'Typing to Sophia' : null
-  if (presence?.exchange !== 'open') return null
-  return presence.voice === 'ready' ? 'Take the input floor to message Sophia.' : 'Waiting for Sophia to connect…'
-}
-
-/**
- * One line above the message bar: how the chat reaches Sophia. Typing to her needs the room live with her exchange
- * open; from outside, Chat with Sophia joins in text mode. Voice mode leads back once in text.
- */
-function ChatLine(props: LineProps) {
-  const { room, presence, starting, ready, busy, start } = props
-  const text = lineText(props)
-  const canStart = !starting && !ready && presence?.exchange !== 'open'
-  if (!text && !canStart) return null
+/** One line above the foot's control: why Send waits or that typing reaches Sophia, and the way back to voice. */
+function ChatLine({ text, room, starting, busy }: LineProps) {
+  const voice = room.textMode && !starting
+  if (!text && !voice) return null
   return (
     <p className="chat-line" role="status">
       {text}
-      {canStart && (
-        <button type="button" className="pill" onClick={() => void start()}>
-          Chat with Sophia
-        </button>
-      )}
-      {room.textMode && !starting && (
+      {voice && (
         <button type="button" className="text-button" disabled={busy} onClick={() => void room.setTextMode(false)}>
           Voice mode
         </button>
@@ -126,55 +158,52 @@ function ChatLine(props: LineProps) {
   )
 }
 
+/** After Chat with Sophia, the bar that takes the button's place takes the focus too: the person asked to type. */
+function useTypeNext(entry: ChatEntry, field: RefObject<HTMLTextAreaElement | null>) {
+  const asked = useRef(false)
+  useEffect(() => {
+    if (entry !== 'bar' || !asked.current) return
+    asked.current = false
+    field.current?.focus({ preventScroll: true })
+  }, [entry, field])
+  return asked
+}
+
 /** Typed turns use the same admitted exchange and lifecycle handlers as voice, with no microphone required. */
 export function Composer({ projectId, identity, snapshot, room, draft, onDraft }: Props) {
   const { starting, start, error: startError } = useChatStart({ projectId, identity, room })
-  const {
-    presence,
-    busy,
-    ready,
-    error: sendError,
-    send,
-  } = useChatSend({ projectId, identity, snapshot, room, draft, onDraft })
-  const error = sendError ?? startError
+  const chat = useChatSend({ projectId, identity, snapshot, room, draft, onDraft })
+  const { presence, busy, ready, send } = chat
+  const field = useRef<HTMLTextAreaElement>(null)
+  const entry = chatEntry(room.status === 'live' || room.status === 'reconnecting', presence)
+  const asked = useTypeNext(entry, field)
+  const begin = async () => {
+    asked.current = true
+    if (!(await start())) asked.current = false
+  }
+  const moment = { starting, live: room.status === 'live', mine: chat.mine, textMode: room.textMode }
+  const line = entry === 'bar' && presence ? chatLine(presence, moment) : null
+  const error = chat.error ?? startError
   return (
     <div className="composer">
-      <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} />
-      <ChatLine room={room} presence={presence} starting={starting} ready={ready} busy={busy} start={start} />
+      <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={entry === 'bar'} />
+      <ChatLine text={line} room={room} starting={starting} busy={busy} />
       {error && (
         <p className="outcome" role="status">
           {error}
         </p>
       )}
-      <div className="message-bar">
-        <label htmlFor="converse-draft" className="sr-only">
-          Message Sophia
-        </label>
-        <textarea
-          id="converse-draft"
-          rows={1}
-          maxLength={2000}
-          value={draft}
-          placeholder="Message Sophia…"
-          onChange={(e) => onDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              void send()
-            }
-          }}
+      {entry === 'bar' ? (
+        <MessageBar
+          field={field}
+          draft={draft}
+          onDraft={onDraft}
+          canSend={ready && !busy && !!draft.trim()}
+          send={send}
         />
-        <button
-          type="button"
-          className="send has-tip"
-          aria-label="Send"
-          disabled={!ready || busy || !draft.trim()}
-          onClick={() => void send()}
-        >
-          <Icon name="send" />
-          <Tip label="Send" keys="Enter" side="top" align="end" />
-        </button>
-      </div>
+      ) : (
+        <ChatStart starting={starting} onStart={() => void begin()} />
+      )}
     </div>
   )
 }
