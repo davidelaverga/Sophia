@@ -1,12 +1,13 @@
 // ProjectShell (architecture 04 §3): project header, view navigation, the one project feed every view
 // shares, and the room connection, which outlives view changes: joining in Studio and reading Goals
-// keeps you in the room. Views change the address, never the project.
+// keeps you in the room. Views change the address, never the project. The call also outlives leaving the
+// project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
+// and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
-import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -51,22 +52,6 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
   }, [closed])
 }
 
-/** The home screen lists what this device opened; a project that closed its door leaves the list. */
-function useRecentProject(
-  identity: string,
-  projectId: string,
-  snapshot: Snapshot | undefined,
-  blocked: Blocked | null,
-) {
-  const title = snapshot?.title
-  useEffect(() => {
-    if (title) rememberProject(identity, { id: projectId, title, openedAt: Date.now() })
-  }, [identity, projectId, title])
-  useEffect(() => {
-    if (blocked === 'denied') forgetProject(identity, projectId)
-  }, [identity, projectId, blocked])
-}
-
 /** The tab names the project and counts who waits at its door, so a tab in the background still calls. */
 function useTabTitle(snapshot: Snapshot | undefined) {
   const waiting = snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0
@@ -99,6 +84,21 @@ function Share({ invites, projectId, onInvite }: ShareProps) {
   return invites ? <InviteButton onClick={onInvite} /> : <CopyLinkButton projectId={projectId} />
 }
 
+/**
+ * A call in this project's room, as the rest of the app sees it: where it is, what this person is sending (each shown
+ * with its off switch wherever they are), and the room's own switches. Plain values and stable functions, so reporting
+ * it upward re-renders nothing unless something a person can see changed.
+ */
+export interface ProjectCall {
+  projectId: string
+  title: string
+  sending: { microphone: boolean; camera: boolean; screen: boolean }
+  leave: () => Promise<void>
+  setMicrophone: (on: boolean) => Promise<void>
+  setCamera: (on: boolean) => Promise<void>
+  setScreenShare: (on: boolean) => Promise<void>
+}
+
 interface Props {
   projectId: string
   view: View
@@ -107,6 +107,55 @@ interface Props {
   onShow: (view: View) => void
   onLeave: () => void
   onSignOut: () => void
+  /** Out of sight while its call goes on: nothing here is on screen or takes a key. */
+  background?: boolean
+  /** The call started or changed (what is being sent), or ended (null). */
+  onCall?: (call: ProjectCall | null) => void
+  /** Opened by "Join the room": join as soon as the room can. */
+  joinOnOpen?: boolean
+  onJoinHandled?: () => void
+}
+
+/** Tells the app whether this project's room holds a call, and what this person sends in it, whenever that changes. */
+function useReportCall(projectId: string, title: string | undefined, room: ProjectRoom, onCall: Props['onCall']) {
+  const report = useRef(onCall)
+  const latest = useRef(room)
+  useEffect(() => {
+    report.current = onCall
+    latest.current = room
+  })
+  const [switches] = useState(() => ({
+    leave: () => latest.current.leave(),
+    setMicrophone: (on: boolean) => latest.current.setMicrophone(on),
+    setCamera: (on: boolean) => latest.current.setCamera(on),
+    setScreenShare: (on: boolean) => latest.current.setScreenShare(on),
+  }))
+  const me = room.participants.find((p) => p.local)
+  const inCall = isInCall(room)
+  const [microphone, camera, screen] = [!!me?.micOn, !!me?.cameraOn, !!me?.screenOn]
+  useEffect(() => {
+    const call = { projectId, title: title ?? 'the project', sending: { microphone, camera, screen }, ...switches }
+    report.current?.(inCall ? call : null)
+  }, [inCall, projectId, title, microphone, camera, screen, switches])
+  useEffect(() => () => report.current?.(null), [])
+}
+
+/** "Join the room" from Work: once the project has loaded and the room can be joined, join it, once. */
+function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() => void) | undefined) {
+  const done = useRef(false)
+  useEffect(() => {
+    if (!joinOnOpen || done.current || !room.ready || room.status !== 'idle') return
+    done.current = true
+    void room.join()
+    onHandled?.()
+  }, [joinOnOpen, room, onHandled])
+}
+
+/** What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival. */
+function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: ProjectRoom) {
+  useTabTitle(props.background ? undefined : snapshot)
+  useReportCall(props.projectId, snapshot?.title, room, props.onCall)
+  useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
 }
 
 export function ProjectShell(props: Props) {
@@ -121,8 +170,7 @@ export function ProjectShell(props: Props) {
   const shown = blocked ? undefined : snapshot.data
   const invite = () => setInviting(true)
   useLeaveBehindClosedDoor(blocked, room)
-  useRecentProject(identity.name, projectId, snapshot.data, blocked)
-  useTabTitle(snapshot.data)
+  useBeyondTheView(props, snapshot.data, room)
   useShortcuts({ i: invite }, !!shown && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
@@ -132,7 +180,6 @@ export function ProjectShell(props: Props) {
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
         share={shown && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
         identitySwitcher={identitySwitcher}
-        inCall={isInCall(room)}
         onLeave={onLeave}
       />
       <OpeningNote loaded={loaded} blocked={blocked} />
@@ -175,13 +222,12 @@ interface HeaderProps {
   /** Invite (editors and admins) or copy the link (viewers). */
   share: React.ReactNode
   identitySwitcher: React.ReactNode
-  /** In the call: going home leaves it, and the way there says so before it is pressed. */
-  inCall: boolean
   onLeave: () => void
 }
 
-function ProjectHeader({ title, connection, nav, share, identitySwitcher, inCall, onLeave }: HeaderProps) {
-  const home = inCall ? 'Home: you leave the room' : 'Home'
+/** Home keeps a call going: the places' bar shows the room, with Leave one tap away. */
+function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
+  const home = 'Home'
   return (
     <header className="topbar">
       <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>

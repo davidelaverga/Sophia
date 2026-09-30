@@ -1,0 +1,2180 @@
+/* The three places outside a project: home (two doors), the personal space and the work space. A port of Luis's
+   prototype, direction C "Two doors" (artifact "Sophia Personal Space"), rule for rule. Every selector is scoped to
+   .places, keyframes carry a ps- prefix, and the four class names the Studio already uses elsewhere (avatar,
+   composer, empty, who) are ps-avatar, ps-composer, ps-empty and not used: nothing here reaches the rest of the Studio. */
+.places {
+  --plane: #0e0d14;
+  --plane-2: #15141d;
+  --void: #07060b;
+  --text-2: rgba(236, 235, 241, 0.68);
+  --text-3: rgba(236, 235, 241, 0.46);
+  --text-4: rgba(236, 235, 241, 0.28);
+  --line-3: rgba(236, 235, 241, 0.24);
+  --glass: rgba(18, 17, 26, 0.82);
+  --halo-soft: rgba(156, 130, 245, 0.14);
+  --warm-soft: rgba(241, 220, 199, 0.1);
+  --danger: #ff9b9b;
+  --danger-soft: rgba(255, 155, 155, 0.1);
+  /* Secondary text keeps 4.5:1 on the door surface. */
+  --text-sec: rgba(236, 235, 241, 0.62);
+  position: fixed;
+  inset: 0;
+  overflow: clip;
+  background: var(--void);
+  color: var(--text);
+  font: 400 13.5px/1.5 var(--sans);
+  letter-spacing: -0.003em;
+  isolation: isolate;
+}
+.places :focus-visible {
+  outline: 2px solid var(--halo-text);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+.places .caps {
+  font: 500 10.5px/1.2 var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.places .muted {
+  color: var(--text-3);
+}
+
+/* Buttons: squared, quiet, one primary per place. */
+.places .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: rgba(236, 235, 241, 0.03);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    border-color var(--fast),
+    background var(--fast),
+    color var(--fast);
+}
+.places .btn:hover {
+  border-color: var(--line-3);
+  background: rgba(236, 235, 241, 0.06);
+}
+.places .btn.primary {
+  background: var(--core);
+  color: #14121c;
+  border-color: transparent;
+}
+.places .btn.primary:hover {
+  background: #fff;
+}
+.places .btn.ghost {
+  border-color: transparent;
+  background: none;
+  color: var(--text-2);
+}
+.places .btn.ghost:hover {
+  color: var(--text);
+  background: rgba(236, 235, 241, 0.05);
+}
+.places .btn.danger {
+  color: var(--danger);
+  border-color: rgba(255, 155, 155, 0.3);
+}
+.places .btn.danger:hover {
+  background: var(--danger-soft);
+}
+.places .btn[aria-pressed='true'] {
+  border-color: rgba(185, 168, 255, 0.5);
+  background: var(--halo-soft);
+  color: var(--core);
+}
+.places .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.places .btn kbd {
+  margin-left: 2px;
+}
+.places .btn.primary kbd {
+  color: #14121c;
+  border-color: rgba(20, 18, 28, 0.28);
+  background: transparent;
+}
+.places .icon-btn {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+.places .link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--halo-text);
+  text-decoration: underline;
+  text-decoration-color: rgba(185, 168, 255, 0.35);
+  text-underline-offset: 3px;
+  font-size: inherit;
+}
+
+/* Tips (the Studio's Tip component, drawn as the prototype draws them): under their control, quiet, instant. */
+.places .tip {
+  top: calc(100% + 8px);
+  bottom: auto;
+  display: block;
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 9px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: rgba(25, 23, 34, 0.96);
+  backdrop-filter: blur(10px);
+  box-shadow: none;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  transform: translateX(-50%);
+  transition: opacity var(--fast);
+}
+.places .tip kbd {
+  margin-left: 4px;
+}
+.places .tip[data-align='end'] {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.places .has-tip:hover .tip,
+.places .has-tip:focus-visible .tip {
+  transform: translateX(-50%);
+  transition-delay: 0s;
+}
+.places .has-tip:hover .tip[data-align='end'],
+.places .has-tip:focus-visible .tip[data-align='end'] {
+  transform: none;
+}
+/* An open choice speaks for itself. */
+.places .has-tip[aria-expanded='true'] .tip {
+  display: none;
+}
+@media (hover: none) {
+  .places .tip {
+    display: none;
+  }
+}
+
+/* The bar: where you are, the switch, and who can see this. */
+.places .appbar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(var(--void), rgba(7, 6, 11, 0.6));
+}
+.places .appbar .left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.places .appbar .right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.places .word {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.places .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.6);
+  flex: none;
+}
+.places .home-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  font-size: 13.5px;
+}
+.places .home-btn:hover {
+  background: rgba(236, 235, 241, 0.05);
+}
+.places .seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane);
+}
+.places .seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.places .seg button[aria-pressed='true'] {
+  background: var(--plane-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.places .seg button:hover {
+  color: var(--text);
+}
+/* Three places in the switch. On a narrow phone, Home becomes its icon. */
+.places .seg-i,
+.places .seg-lock {
+  display: none;
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.places .seg button.locked .seg-lock {
+  display: block;
+  color: var(--warm);
+}
+.places .chip-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(241, 220, 199, 0.28);
+  background: none;
+  color: var(--warm);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.places .chip-private svg {
+  width: 11px;
+  height: 11px;
+}
+.places .chip-private:hover,
+.places .chip-private[aria-expanded='true'] {
+  border-color: rgba(241, 220, 199, 0.55);
+}
+.places .chip-private.team {
+  border-color: var(--line-2);
+  color: var(--text-2);
+}
+.places .ps-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid rgba(241, 220, 199, 0.4);
+  color: var(--warm);
+  font-size: 11px;
+  font-weight: 600;
+  object-fit: cover;
+}
+.places .acct {
+  position: relative;
+}
+.places .avatar-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+}
+.places .avatar-btn[aria-expanded='true'] .ps-avatar {
+  border-color: var(--warm);
+}
+.places .menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  min-width: 230px;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: rgba(22, 21, 30, 0.98);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+.places .menu-head {
+  display: grid;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.places .menu-head span {
+  color: var(--text-sec);
+  font-size: 12px;
+}
+.places .menu-head select {
+  margin-top: 6px;
+  height: 28px;
+  font-size: 12.5px;
+}
+.places .menu [role='menuitem'] {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 12.5px;
+}
+.places .menu [role='menuitem']:hover,
+.places .menu [role='menuitem']:focus-visible {
+  background: rgba(236, 235, 241, 0.06);
+  outline: none;
+}
+.places .menu .menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
+}
+/* The privacy chip answers a tap: who can see this side, and in Personal, Lock now. */
+.places .chip-pop {
+  width: 290px;
+  padding: 12px;
+  gap: 10px;
+}
+.places .chip-pop p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.places .chip-pop .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* In a room: the bar says so, and leaving is one tap away. */
+.places .room-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 3px 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(241, 220, 199, 0.35);
+  background: rgba(241, 220, 199, 0.06);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.places .room-pill .live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warm);
+  animation: ps-dot-pulse 1.4s ease-in-out infinite;
+}
+.places .room-pill .leave {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.08);
+  color: var(--text-2);
+}
+.places .room-pill .t {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.places .room-pill .leave {
+  border: 0;
+  font: inherit;
+}
+/* What is being sent, each with its switch: small, round, warm while on. */
+.places .room-pill .sw {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.08);
+  color: var(--text-3);
+}
+.places .room-pill .sw[aria-pressed='true'] {
+  color: var(--warm);
+}
+.places .room-pill .sw:hover {
+  background: rgba(236, 235, 241, 0.16);
+  color: var(--text);
+}
+.places .room-pill .leave:hover,
+.places .room-pill .leave:focus-visible {
+  background: rgba(236, 235, 241, 0.16);
+  color: var(--text);
+}
+
+/* ---------- Home: two doors ---------- */
+/* One idea per screen: a short greeting, two quiet doors (each one clickable as a whole), and a hairline with a lock
+   between them. */
+.places .c-home {
+  position: absolute;
+  inset: 52px 0 0;
+  overflow: auto;
+  padding: clamp(24px, 5vh, 56px) clamp(16px, 5vw, 72px) 32px;
+  display: grid;
+  align-content: center;
+  gap: clamp(20px, 3.6vh, 32px);
+}
+.places .c2-hello {
+  display: grid;
+}
+.places .c2-hello h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.places .c2-date {
+  margin: 4px 0 0;
+  color: var(--text-sec);
+  font-size: 13px;
+}
+.places .c2-doors {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  align-items: stretch;
+}
+.places .c2-door {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 6px;
+  min-height: clamp(260px, 44vh, 400px);
+  padding: clamp(18px, 2.4vw, 26px);
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--ease),
+    background var(--base) var(--ease);
+}
+.places .c2-door:hover {
+  border-color: var(--line-3);
+  background: #111018;
+}
+.places .c2-door:has(.c2-main:focus-visible) {
+  outline: 2px solid var(--halo-text);
+  outline-offset: 3px;
+}
+.places .c2-door h3 {
+  margin: 0;
+  font-size: clamp(24px, 2.6vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.places .c2-door .caps {
+  color: var(--text-sec);
+}
+.places .c2-door.you .caps {
+  color: var(--warm);
+}
+.places .c2-orb {
+  place-self: center;
+  width: clamp(84px, 12vw, 128px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(250, 248, 255, 0.95) 0 9%,
+    rgba(214, 204, 255, 0.55) 16%,
+    rgba(156, 130, 245, 0.22) 38%,
+    rgba(156, 130, 245, 0) 70%
+  );
+  animation: ps-breathe 5.5s ease-in-out infinite;
+}
+.places .c2-door.you:hover .c2-orb {
+  filter: brightness(1.15);
+}
+@keyframes ps-breathe {
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+.places .c2-foot {
+  grid-row: 4;
+  display: grid;
+  gap: 10px;
+}
+.places .c2-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: end;
+  column-gap: 12px;
+  width: 100%;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  border-radius: 0;
+}
+.places .c2-main:focus-visible {
+  outline: none;
+}
+/* The primary action covers the whole door, so a click anywhere opens that side. */
+.places .c2-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-4);
+}
+.places .c2-verb {
+  font-size: 16px;
+  font-weight: 560;
+  letter-spacing: -0.015em;
+}
+.places .c2-meta {
+  grid-row: 2;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+.places .c2-arrow {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-size: 18px;
+  color: var(--text-sec);
+  transition:
+    transform var(--base) var(--ease),
+    color var(--base);
+}
+.places .c2-door:hover .c2-arrow,
+.places .c2-door:has(.c2-main:focus-visible) .c2-arrow {
+  transform: translateX(4px);
+  color: var(--text);
+}
+.places .c2-door.soon .c2-verb {
+  color: var(--core);
+}
+.places .c2-acts {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  margin-left: -10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.places .c2-acts .btn.ghost {
+  color: var(--text-sec);
+}
+.places .c2-acts .btn.ghost:hover {
+  color: var(--text);
+}
+.places .c2-count {
+  padding: 0 10px;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+/* Work's centre shows who is in: people as warm presences and Sophia as the same light as on the left. */
+.places .c2-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  min-height: 0;
+}
+.places .c2-room {
+  display: flex;
+  align-items: center;
+}
+.places .c2-room .p {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(241, 220, 199, 0.45);
+  background: #17141a;
+  color: var(--warm);
+  font: 600 14px/1 var(--sans);
+}
+.places .c2-room .p + .p {
+  margin-left: -10px;
+}
+.places .c2-room .p.seat {
+  border-style: dashed;
+  border-color: rgba(241, 220, 199, 0.22);
+  background: var(--plane);
+}
+.places .c2-room .s {
+  width: 12px;
+  height: 12px;
+  margin-left: 16px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 14px 4px rgba(156, 130, 245, 0.5);
+  animation: ps-breathe 5.5s ease-in-out infinite;
+}
+.places .c2-door.job:hover .c2-room .s {
+  filter: brightness(1.2);
+}
+.places .c2-room-cap {
+  margin: 0;
+  color: var(--text-sec);
+  font-size: 12.5px;
+  text-align: center;
+}
+.places .sdot {
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 0 2px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 8px 2px rgba(156, 130, 245, 0.5);
+  flex: none;
+}
+.places .pdot {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(241, 220, 199, 0.4);
+  color: var(--warm);
+  font-size: 9.5px;
+  font-weight: 600;
+  background: var(--plane);
+}
+.places .pdot + .pdot {
+  margin-left: -12px;
+}
+.places .pdot:last-of-type {
+  margin-right: 4px;
+}
+.places .c2-line {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.places .c2-line::before {
+  content: '';
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(transparent, var(--line-3) 25%, var(--line-3) 75%, transparent);
+}
+.places .c2-lock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--void);
+  color: var(--text-sec);
+  transition:
+    color var(--fast),
+    border-color var(--fast);
+}
+.places .c2-lock svg {
+  width: 13px;
+  height: 13px;
+}
+.places .c2-lock:hover {
+  color: var(--warm);
+  border-color: rgba(241, 220, 199, 0.45);
+}
+/* The padlock shows its state: open while your side is open, shut and warm once it is locked. */
+.places .c2-lock .shut {
+  display: none;
+}
+.places .c2-lock[aria-pressed='true'] .open {
+  display: none;
+}
+.places .c2-lock[aria-pressed='true'] .shut {
+  display: block;
+}
+.places .c2-lock[aria-pressed='true'] {
+  color: var(--warm);
+  border-color: rgba(241, 220, 199, 0.55);
+  background: #15110f;
+}
+/* A locked Personal door: the light goes dark and a padlock sits where it was. */
+.places .c2-locked {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  color: var(--warm);
+}
+.places .c2-locked svg {
+  width: 18px;
+  height: 18px;
+}
+.places .c2-door.you.locked .c2-locked {
+  display: grid;
+}
+.places .c2-door.you.locked .c2-orb {
+  filter: grayscale(1) brightness(0.4);
+  animation-play-state: paused;
+}
+.places .c2-door.you.locked .caps {
+  color: var(--text-sec);
+}
+/* The line explained in one sentence, between the greeting and the doors: it never covers either door. */
+.places .c2-intro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid rgba(241, 220, 199, 0.22);
+  background: rgba(241, 220, 199, 0.04);
+  color: var(--text-2);
+  font-size: 13px;
+  animation: ps-arrive 220ms var(--ease);
+}
+.places .c2-intro strong {
+  color: var(--warm);
+  font-weight: 560;
+}
+.places .c2-intro-lock {
+  display: grid;
+  color: var(--warm);
+}
+.places .c2-intro-lock svg {
+  width: 13px;
+  height: 13px;
+}
+.places .c2-intro .link {
+  justify-self: end;
+}
+@media (max-width: 560px) {
+  .places .c2-intro {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+  .places .c2-intro-lock {
+    margin-top: 3px;
+  }
+  .places .c2-intro .link {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+.places .c2-pop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px 6px;
+}
+.places .c2-t {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: var(--r-2);
+  transition:
+    transform 460ms var(--ease),
+    opacity 460ms var(--ease);
+}
+.places .c2-t:hover {
+  background: rgba(236, 235, 241, 0.04);
+}
+.places .c2-t p {
+  margin: 0;
+  font-size: 13px;
+}
+.places .c2-to {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+}
+.places .c2-to small {
+  color: var(--text-sec);
+  font-size: 11.5px;
+}
+.places .c2-t .by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--halo-text);
+  font-size: 11.5px;
+}
+.places .c2-t .by::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 6px 1px rgba(156, 130, 245, 0.6);
+}
+.places .c2-to-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px 2px;
+}
+.places .c2-to-head .link {
+  color: var(--text-sec);
+  text-decoration: none;
+  font-size: 12px;
+}
+.places .c2-to-head .link:hover {
+  color: var(--text);
+}
+.places .c3-carry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 13px;
+}
+.places .c3-carry span {
+  color: var(--text-sec);
+  font-size: 11.5px;
+}
+.places .c3-carry:hover,
+.places .c3-carry:focus-visible {
+  border-color: rgba(241, 220, 199, 0.45);
+  background: var(--warm-soft);
+}
+
+/* ---------- The two spaces ---------- */
+/* They share one column system: the same centred width for the header and the content, and the same 64px lanes at
+   the sides where the edge with the lock lives. */
+.places .c3-space {
+  position: absolute;
+  inset: 52px 0 0;
+  z-index: 4;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  padding-inline: 64px;
+  background: var(--void);
+}
+.places .c3-head {
+  position: relative;
+  z-index: 1;
+  width: min(760px, 100%);
+  justify-self: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 22px 0 12px;
+}
+.places .c3-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.places .c3-head h2:focus {
+  outline: none;
+}
+/* With the notes open the whole column moves together, title included. */
+.places .c3-space.you .c3-head {
+  transform: translateX(var(--shift, 0px));
+  transition: transform 320ms var(--ease);
+}
+.places .c3-head-acts {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.places .c3-head-acts .btn.ghost {
+  color: var(--text-sec);
+}
+.places .c3-head-acts .btn.ghost:hover {
+  color: var(--text);
+}
+.places .c3-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--warm-soft);
+  color: var(--warm);
+  font: 600 11px/1 var(--sans);
+}
+.places .c3-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 0;
+}
+
+/* Sophia's light is the room's own light: a wash from above, not an object. It breathes a little faster while she
+   answers or listens. */
+.places .c3-ambient {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 70%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 55% 75% at 50% 0%,
+    rgba(156, 130, 245, 0.14),
+    rgba(156, 130, 245, 0.045) 50%,
+    transparent 78%
+  );
+  animation: ps-ambient 7s ease-in-out infinite;
+}
+.places .c3-space.speaking .c3-ambient,
+.places .c3-space.listening .c3-ambient {
+  animation-duration: 1.8s;
+}
+@keyframes ps-ambient {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.places .c3-glowfly {
+  position: absolute;
+  z-index: 7;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(250, 248, 255, 0.95) 0 9%,
+    rgba(214, 204, 255, 0.55) 16%,
+    rgba(156, 130, 245, 0.22) 38%,
+    rgba(156, 130, 245, 0) 70%
+  );
+}
+
+/* The conversation moves aside when the notes open on a wide screen, so nothing hides behind them. */
+.places .c3-convo {
+  --gut: 22px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 0;
+  width: min(760px, 100%);
+  justify-self: center;
+  transform: translateX(var(--shift, 0px));
+  transition: transform 320ms var(--ease);
+}
+.places .msgs {
+  position: relative;
+  z-index: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  /* The list reaches a gutter to its left so Sophia's dot has room and isn't clipped by the scroll box. */
+  padding: 18px 0 18px var(--gut);
+  margin-left: calc(-1 * var(--gut));
+  scroll-behavior: smooth;
+}
+.places .msg {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  max-width: 64ch;
+  animation: ps-arrive 280ms var(--ease);
+}
+.places .msg.me {
+  justify-self: end;
+  text-align: left;
+}
+.places .msg.me .body {
+  background: var(--warm-soft);
+  border: 1px solid rgba(241, 220, 199, 0.18);
+  padding: 9px 12px;
+  border-radius: var(--r-3);
+}
+.places .msg.sophia .body {
+  padding: 2px 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.places .msg .body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Messages from the same side group together; the time shows on hover. Sophia's turn starts with her dot. */
+.places .msg.cont {
+  margin-top: -10px;
+}
+.places .s-dot {
+  position: absolute;
+  left: calc(2px - var(--gut));
+  top: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.55);
+}
+.places .msg.typing .s-dot {
+  animation: ps-dot-pulse 1s ease-in-out infinite;
+}
+.places .msg.typing .body {
+  min-height: 22px;
+}
+@keyframes ps-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+.places .msg .at {
+  position: absolute;
+  bottom: 6px;
+  color: var(--text-4);
+  font: 10.5px var(--mono);
+  opacity: 0;
+  transition: opacity var(--fast);
+  white-space: nowrap;
+}
+.places .msg.sophia .at {
+  left: 100%;
+  margin-left: 12px;
+}
+.places .msg.me .at {
+  right: 100%;
+  margin-right: 10px;
+}
+.places .msg .note-this {
+  position: absolute;
+  right: 100%;
+  top: 2px;
+  margin-right: 6px;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  opacity: 0;
+  transition: opacity var(--fast);
+}
+.places .msg.me:has(.note-this) .at {
+  bottom: -2px;
+}
+.places .msg:hover .at,
+.places .msg:focus-within .at,
+.places .msg:hover .note-this,
+.places .msg:focus-within .note-this {
+  opacity: 1;
+}
+.places .c3-failed {
+  justify-self: start;
+  margin: -6px 0 0;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+/* Touch and narrow screens: no hover, so a tap on a message shows its time under it. */
+@media (hover: none), (max-width: 860px) {
+  .places .c3-convo {
+    --gut: 16px;
+  }
+  .places .msg .note-this {
+    opacity: 1;
+    position: static;
+    justify-self: end;
+    margin: 0;
+    display: none;
+  }
+  .places .msg.show-at .note-this {
+    display: inline-flex;
+  }
+  .places .msg .at {
+    position: static;
+    margin: 0;
+    display: none;
+    opacity: 1;
+  }
+  .places .msg.show-at .at {
+    display: block;
+  }
+  .places .msg.me .at {
+    justify-self: end;
+  }
+  .places .c3-convo .hint > span:first-child {
+    display: none;
+  }
+}
+/* The day you are reading stays at the top while you scroll back; tapping it lists the days. */
+.places .c3-daybar {
+  position: relative;
+  z-index: 3;
+  height: 0;
+  display: flex;
+  justify-content: center;
+}
+.places .c3-daypill {
+  position: absolute;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: rgba(14, 13, 20, 0.92);
+  color: var(--text-2);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: ps-arrive 200ms var(--ease);
+}
+.places .c3-daypill svg {
+  width: 10px;
+  height: 10px;
+}
+.places .c3-daypill:hover,
+.places .c3-daypill[aria-expanded='true'] {
+  color: var(--text);
+  border-color: var(--line-3);
+}
+.places .c3-convo.scrolled .msgs {
+  -webkit-mask-image: linear-gradient(transparent 0 30px, #000 68px);
+  mask-image: linear-gradient(transparent 0 30px, #000 68px);
+}
+.places .c3-daybar .menu {
+  top: 42px;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #16151e;
+}
+.places .c3-day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-sec);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  scroll-margin-top: 44px;
+}
+.places .c3-day::before,
+.places .c3-day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.places .c3-day:hover {
+  color: var(--text);
+}
+/* Note this: a short line in your own words, prefilled, kept with Enter. */
+.places .c3-noteform {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-self: end;
+  width: min(460px, 100%);
+  margin-top: -8px;
+  animation: ps-arrive 200ms var(--ease);
+}
+.places .c3-noteform input {
+  flex: 1;
+  width: auto;
+  min-width: 180px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-2);
+  border: 1px solid rgba(241, 220, 199, 0.35);
+  background: var(--plane);
+  font-size: 13.5px;
+}
+.places .c3-noteform input:focus,
+.places .c3-noteform input:focus-visible {
+  outline: none;
+  border-color: rgba(241, 220, 199, 0.6);
+  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.1);
+  background: var(--plane);
+}
+.places .c3-noteform .btn {
+  height: 32px;
+}
+.places .c3-noteform .use {
+  flex-basis: 100%;
+  color: var(--text-sec);
+  font-size: 12px;
+}
+/* Sophia never keeps a note silently: she suggests it, you keep it or let it go. */
+.places .c3-suggest {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: -6px;
+  padding: 8px 10px 8px 12px;
+  border: 1px dashed rgba(241, 220, 199, 0.35);
+  border-radius: var(--r-3);
+  background: rgba(241, 220, 199, 0.04);
+  font-size: 13px;
+  animation: ps-arrive 260ms var(--ease);
+}
+.places .c3-suggest .caps {
+  color: var(--warm);
+}
+.places .c3-suggest q {
+  color: var(--text);
+  quotes: '“' '”';
+}
+.places .c3-suggest .acts {
+  display: flex;
+  gap: 4px;
+}
+.places .c3-suggest .btn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.places .c3-kept {
+  margin: -8px 0 0;
+  color: var(--text-sec);
+  font-size: 12px;
+}
+.places .c3-kept q {
+  color: var(--text-2);
+  quotes: '“' '”';
+}
+.places .c3-kept .link {
+  font-size: 12px;
+}
+/* A first conversation starts from a blank page; three quiet ways in, gone after the first message. */
+.places .c3-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -4px;
+  animation: ps-arrive 260ms var(--ease);
+}
+.places .c3-starters .btn {
+  height: 30px;
+  color: var(--text-2);
+  background: none;
+}
+.places .c3-starters .btn:hover {
+  color: var(--text);
+  border-color: rgba(185, 168, 255, 0.45);
+}
+/* The composer. */
+.places .ps-composer {
+  padding: 10px 0 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+.places .compose-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane);
+}
+.places .compose-box:focus-within {
+  border-color: rgba(185, 168, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+}
+.places .compose-box textarea {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 30px;
+  max-height: 140px;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 6px;
+  line-height: 1.45;
+  font-size: 13.5px;
+  box-shadow: none;
+}
+.places .compose-box textarea:hover,
+.places .compose-box textarea:focus,
+.places .compose-box textarea:focus-visible {
+  outline: none;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.places .hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-4);
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.places .c3-mic {
+  color: var(--text-sec);
+}
+.places .c3-mic svg {
+  width: 16px;
+  height: 16px;
+}
+.places .c3-mic[aria-pressed='true'] {
+  color: var(--core);
+  background: rgba(156, 130, 245, 0.18);
+}
+.places .c3-mic[aria-pressed='true'] .tip {
+  display: none;
+}
+/* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
+.places .compose-box.listening textarea {
+  display: none;
+}
+.places .compose-box.listening {
+  border-color: rgba(185, 168, 255, 0.45);
+}
+.places .c3-listen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 0 8px;
+  color: var(--halo-text);
+  font-size: 13.5px;
+}
+.places .c3-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+}
+.places .c3-wave i {
+  width: 3px;
+  height: 6px;
+  border-radius: 2px;
+  background: linear-gradient(var(--core), var(--halo));
+  animation: ps-wave 1s ease-in-out infinite;
+}
+.places .c3-wave i:nth-child(2) {
+  animation-delay: -0.8s;
+}
+.places .c3-wave i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+.places .c3-wave i:nth-child(4) {
+  animation-delay: -0.4s;
+}
+.places .c3-wave i:nth-child(5) {
+  animation-delay: -0.2s;
+}
+@keyframes ps-wave {
+  0%,
+  100% {
+    height: 5px;
+    opacity: 0.6;
+  }
+  50% {
+    height: 18px;
+    opacity: 1;
+  }
+}
+
+/* Notes slide out of the edge, next to the line they may cross. */
+.places .c3-notes {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  z-index: 5;
+  width: min(340px, 100%);
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 16px 14px;
+  border-left: 1px solid var(--line-2);
+  border-radius: var(--r-3) 0 0 var(--r-3);
+  background: var(--plane);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
+  animation: ps-from-edge 260ms var(--ease);
+}
+.places .c3-notes:focus {
+  outline: none;
+}
+@keyframes ps-from-edge {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+.places .c3-notes .c2-t.crossing {
+  transform: translateX(120px);
+  opacity: 0;
+}
+.places .ps-empty {
+  margin: 8px 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+/* Keys mean nothing on a touch screen: hide them there, and let close buttons say Done instead. */
+.places .touch-only {
+  display: none;
+}
+.places .close-btn {
+  height: 26px;
+  padding: 0 8px;
+}
+@media (hover: none), (max-width: 860px) {
+  .places kbd,
+  .places .kb-only {
+    display: none;
+  }
+  .places .touch-only {
+    display: inline;
+  }
+}
+
+/* The edge crosses; it shows a padlock only when the side behind it is locked. */
+.places .c3-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-sec);
+  transition: background var(--base) var(--ease);
+}
+.places .c3-edge.right {
+  right: 0;
+}
+.places .c3-edge.left {
+  left: 0;
+}
+.places .c3-edge::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(transparent, var(--line-3) 20%, var(--line-3) 80%, transparent);
+}
+.places .c3-edge:hover {
+  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.025), transparent);
+}
+.places .c3-edge:hover .c2-lock,
+.places .c3-edge:focus-visible .c2-lock {
+  color: var(--warm);
+  border-color: rgba(241, 220, 199, 0.45);
+}
+.places .c3-edge:focus-visible {
+  outline-offset: -4px;
+}
+.places .c3-edge .shut {
+  display: none;
+}
+.places .c3-edge.locked .go {
+  display: none;
+}
+.places .c3-edge.locked .shut {
+  display: block;
+}
+.places .c3-edge-label {
+  position: absolute;
+  top: calc(50% + 26px);
+  writing-mode: vertical-rl;
+  padding: 8px 3px;
+  background: var(--void);
+  font: 500 10px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-sec);
+  transition: color var(--fast);
+}
+.places .c3-edge.left .c3-edge-label {
+  transform: rotate(180deg);
+}
+.places .c3-edge:hover .c3-edge-label,
+.places .c3-edge:focus-visible .c3-edge-label {
+  color: var(--text);
+}
+.places .c3-edge .tip {
+  top: auto;
+  bottom: calc(50% + 26px);
+}
+.places .c3-edge.right .tip[data-align='end'] {
+  right: 10px;
+}
+.places .c3-edge.left .tip {
+  left: 10px;
+  transform: none;
+}
+.places .c3-badge {
+  position: absolute;
+  top: calc(50% - 44px);
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--warm);
+  color: #1a1512;
+  font: 600 10px/1.3 var(--sans);
+}
+.places .c3-edge.pulse .c2-lock {
+  animation: ps-pulse 1.2s var(--ease);
+}
+@keyframes ps-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(241, 220, 199, 0.5);
+    color: var(--warm);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(241, 220, 199, 0);
+  }
+}
+
+/* Work: your projects, with what you carried marked as coming from your personal space. */
+.places .c3-projects {
+  width: min(760px, 100%);
+  justify-self: center;
+  overflow: auto;
+  padding: 6px 0 28px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.places .c3-proj {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  background: var(--plane);
+}
+.places .c3-proj h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.places .c3-proj .meta {
+  grid-column: 1;
+  color: var(--text-sec);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.places .c3-proj > .btn {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+.places .c3-proj .carried {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* What you carried, as you see it in Work: yours, marked with a warm dot, and yours to take back. */
+.places .c3-from {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: var(--r-2);
+  border: 1px solid rgba(241, 220, 199, 0.2);
+  background: var(--warm-soft);
+}
+.places .c3-from.new {
+  border-color: rgba(241, 220, 199, 0.5);
+}
+.places .c3-from p {
+  margin: 0;
+  font-size: 13px;
+}
+.places .c3-from .prov {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warm);
+  font-size: 11.5px;
+}
+.places .c3-from .prov::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warm);
+}
+.places .c3-from .link {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--text-sec);
+  font-size: 12px;
+  text-decoration: none;
+}
+.places .c3-from .link:hover {
+  color: var(--text);
+}
+.places .c3-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  max-width: 460px;
+  padding: 24px 0;
+  color: var(--text-sec);
+}
+.places .c3-newproj {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  width: min(760px, 100%);
+  justify-self: center;
+  animation: ps-arrive 200ms var(--ease);
+}
+.places .c3-newproj input {
+  flex: 1;
+  width: auto;
+  min-width: 200px;
+  height: 32px;
+  font-size: 13.5px;
+}
+.places .c3-newproj .btn {
+  height: 32px;
+}
+.places .c3-newproj .outcome {
+  flex-basis: 100%;
+  color: var(--text-sec);
+  font-size: 12px;
+}
+
+/* Dialogs sit over the whole frame: the check that it's you, and how privacy works. */
+.places .c3-dialog {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(7, 6, 11, 0.62);
+  backdrop-filter: blur(6px);
+  animation: ps-dlg-fade 180ms var(--ease);
+}
+@keyframes ps-dlg-fade {
+  from {
+    opacity: 0;
+  }
+}
+.places .c3-dialog-card {
+  width: min(400px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: ps-arrive 220ms var(--ease);
+}
+.places .c3-dialog-card:focus {
+  outline: none;
+}
+.places .c3-dialog-card h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.places .c3-dialog-card p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+.places .c3-dialog-card .acts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.places .c3-dialog-card small {
+  color: var(--text-sec);
+  font-size: 11.5px;
+}
+.places .c3-dialog-card .form-error {
+  color: var(--rose);
+  font-size: 12.5px;
+}
+.places .c3-dialog-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(241, 220, 199, 0.4);
+  color: var(--warm);
+  background: rgba(241, 220, 199, 0.06);
+}
+.places .c3-dialog-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.places .c3-rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+.places .c3-rules li {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.places .c3-rules strong {
+  display: block;
+  color: var(--text);
+  font-weight: 560;
+}
+/* Unlocking without a passkey: the way you signed in, or a code by email. */
+.places .c3-other {
+  justify-self: start;
+  font-size: 12.5px;
+}
+.places .c3-alt {
+  display: grid;
+  gap: 6px;
+}
+.places .c3-alt .btn {
+  justify-content: center;
+}
+.places .c3-code {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+.places .c3-code label {
+  color: var(--text-sec);
+  font-size: 12px;
+}
+.places .c3-code .row {
+  display: flex;
+  gap: 6px;
+}
+.places .c3-code input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: var(--void);
+  font: 500 14px var(--mono);
+  letter-spacing: 0.2em;
+}
+.places .c3-code input:focus,
+.places .c3-code input:focus-visible {
+  outline: none;
+  border-color: rgba(185, 168, 255, 0.5);
+  box-shadow: none;
+  background: var(--void);
+}
+
+/* Your data: a sheet from the right. */
+.places .data-sheet {
+  position: absolute;
+  top: 52px;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  width: min(380px, 100%);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: rgba(14, 13, 20, 0.98);
+  border-left: 1px solid var(--line-2);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform var(--base) var(--ease);
+}
+.places .data-sheet.open {
+  transform: none;
+  visibility: visible;
+}
+.places .drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 8px;
+}
+.places .drawer-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.places .data-body {
+  overflow: auto;
+  padding: 4px 16px 16px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+.places .data-body > p {
+  margin: 0;
+}
+.places .facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.places .fact {
+  padding: 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: var(--void);
+}
+.places .fact b {
+  display: block;
+  font: 600 18px/1.1 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+.places .fact span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.places .danger-zone {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-3);
+  border: 1px solid rgba(255, 155, 155, 0.25);
+  background: var(--danger-soft);
+}
+.places .danger-zone p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.places .danger-zone input {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: var(--void);
+}
+
+/* A notice with undo: one at a time, 8 seconds, the bar shows the time left. */
+.places .toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  transform: translate(-50%, 16px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 9px 10px 9px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: rgba(25, 23, 34, 0.97);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--base) var(--ease),
+    transform var(--base) var(--ease);
+}
+.places .toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.places .toast .bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--halo);
+  border-radius: 0 0 0 var(--r-3);
+}
+.places .toast.show .bar {
+  animation: ps-drain 8s linear forwards;
+}
+@keyframes ps-drain {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
+}
+@keyframes ps-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Narrow screens: the doors stack with a horizontal boundary, the side lanes give way to the bar's switch, notes
+   become a sheet, and being in a room becomes a strip under the bar, like a call in progress. */
+@media (max-width: 860px) {
+  .places .c2-doors {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+  }
+  .places .c2-line {
+    min-height: 34px;
+  }
+  .places .c2-line::before {
+    top: 50%;
+    bottom: auto;
+    left: 12%;
+    right: 12%;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line-3) 25%, var(--line-3) 75%, transparent);
+  }
+  .places .c3-space {
+    padding-inline: 16px;
+  }
+  .places .c3-head {
+    padding-top: 14px;
+  }
+  .places .c3-head h2 {
+    font-size: 19px;
+  }
+  .places .c3-edge {
+    display: none;
+  }
+  .places .seg [data-place='work'][data-new]::after {
+    content: attr(data-new);
+    margin-left: 6px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: var(--warm);
+    color: #1a1512;
+    font: 600 10px/1.3 var(--sans);
+  }
+  .places .c3-notes {
+    left: -16px;
+    right: -16px;
+    bottom: 0;
+    width: auto;
+    max-height: none;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+    animation: ps-sheet-up 240ms var(--ease);
+  }
+  @keyframes ps-sheet-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  .places .c3-proj {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .places .c3-proj > .btn {
+    grid-row: auto;
+    grid-column: 1;
+    justify-self: start;
+  }
+  /* Phone doors: title on the left, their light or their people on the right, the action below. */
+  .places .c2-door {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 16px;
+  }
+  .places .c2-door > .caps,
+  .places .c2-door h3 {
+    grid-column: 1;
+  }
+  .places .c2-door h3 {
+    font-size: 22px;
+  }
+  .places .c2-visual {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .places .c2-orb {
+    width: 58px;
+  }
+  .places .c2-room .p {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+  }
+  .places .c2-room .p + .p {
+    margin-left: -8px;
+  }
+  .places .c2-room .s {
+    width: 8px;
+    height: 8px;
+    margin-left: 10px;
+  }
+  .places .c2-room-cap {
+    display: none;
+  }
+  .places .c2-foot {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    gap: 4px;
+  }
+  .places .c2-main {
+    padding-top: 10px;
+  }
+  .places .c-home {
+    gap: 14px;
+    padding-top: 20px;
+    align-content: start;
+  }
+  .places .chip-private {
+    padding: 0 7px;
+  }
+  .places .appbar {
+    grid-template-columns: auto 1fr auto;
+  }
+  .places .appbar .word,
+  .places .chip-private .t {
+    display: none;
+  }
+  .places .room-pill {
+    position: absolute;
+    top: 58px;
+    left: 16px;
+    right: 16px;
+    z-index: 12;
+    justify-content: space-between;
+    height: 30px;
+    padding: 0 4px 0 12px;
+    background: #16120f;
+  }
+  .places .room-pill .t {
+    margin-right: auto;
+  }
+  .places.in-room .c3-space,
+  .places.in-room .c-home {
+    top: 94px;
+  }
+}
+@media (max-width: 420px) {
+  .places .seg-t {
+    display: none;
+  }
+  .places .seg-i {
+    display: block;
+  }
+}
+/* Touch: pills and round buttons are at least 40 px, ghosts and segmented buttons 36 px (CONTRIBUTING, Studio UI). */
+@media (pointer: coarse) {
+  .places .btn {
+    min-height: 40px;
+  }
+  .places .btn.ghost,
+  .places .seg button {
+    min-height: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .places *,
+  .places *::before,
+  .places *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

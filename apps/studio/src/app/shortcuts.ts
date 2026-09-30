@@ -8,7 +8,7 @@
 // control is text for it, as in any chat, and never a shortcut: someone who starts a message without clicking the
 // bar must not turn on a camera with its first letter. Before the chat starts, the foot is the "Chat with Sophia"
 // button: it takes the key as nothing, and still no camera, microphone or shared screen starts.
-import { useEffect, useRef } from 'react'
+import { createContext, useContext, useEffect, useRef } from 'react'
 
 export interface KeyLike {
   key: string
@@ -85,14 +85,22 @@ function keyLike(e: KeyboardEvent): KeyLike {
   }
 }
 
+/**
+ * Shortcuts inside this scope act only while it is true. A project kept running out of sight (its call goes on while
+ * the person is at home) must not take their keys: nothing changes where nobody can see it.
+ */
+export const ShortcutScope = createContext(true)
+
 /** Bind keys to actions while `enabled`; the latest actions are always used without re-subscribing. */
 export function useShortcuts(bindings: Readonly<Record<string, (() => void) | undefined>>, enabled = true): void {
+  const scoped = useContext(ShortcutScope)
+  const on = enabled && scoped
   const current = useRef(bindings)
   useEffect(() => {
     current.current = bindings
   })
   useEffect(() => {
-    if (!enabled) return undefined
+    if (!on) return undefined
     const onKey = (e: KeyboardEvent) => {
       // Stray typing: the character lands in the field, because the focus moves there before it is typed. A button
       // in the field's place takes no character, and is not focused (a space would press it).
@@ -106,5 +114,5 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [enabled])
+  }, [on])
 }

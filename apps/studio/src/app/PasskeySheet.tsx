@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ConfirmButton, Icon, Tip } from '@sophia/ui'
 import { addPasskey, listPasskeys, removePasskey, type SavedPasskey } from './auth.ts'
-import { openedLabel } from './recent-projects.ts'
+import { openedLabel } from './days-ago.ts'
 import { useDialog } from './useDialog.ts'
 
 type Load = { status: 'loading' } | { status: 'ready'; passkeys: SavedPasskey[] } | { status: 'error'; message: string }
