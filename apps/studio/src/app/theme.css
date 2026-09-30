@@ -1372,21 +1372,15 @@ button.mark:hover {
   padding: 0;
   list-style: none;
 }
+/* A line of the project's discussion: who, then what, running on from the panel's gutter. A column for the names
+   would start each line's words at a different place, as wide as its author's name. */
 .contribution {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: baseline;
-  padding: 8px 12px;
-  border-radius: var(--r-3);
-  background: var(--glass);
+  overflow-wrap: anywhere;
 }
 .contribution-author {
+  margin-right: 8px;
   color: var(--text-2);
   font-size: 12px;
-}
-.contribution-text {
-  overflow-wrap: anywhere;
 }
 .brief-request {
   display: flex;
@@ -2901,8 +2895,10 @@ div.empty {
   border: 1px solid var(--line);
   background: var(--glass);
 }
+/* Sophia's words have no box, so they start on the panel's gutter like the lines around them. */
 .chat-message.sophia {
   margin-right: 6%;
+  padding-inline: 0;
 }
 .chat-status {
   color: var(--text-3);
