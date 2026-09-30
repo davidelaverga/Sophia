@@ -79,6 +79,13 @@ when you change the room:
     tall), so "Chat" and "Converse" share a line;
   - the sides: one gutter inside the panel (`--panel-pad`) for the tabs, the
     messages, the message bar and the brief. Close's mark ends on it.
+- **The corner never touches the dock.** The stage narrows when the panel
+  opens, so the stage's own width decides (container queries on
+  `.room-stage`), never the window's: from 800 px the corner is level with
+  the dock, which keeps `--corner-room` free on each side; from 561 to 799 px
+  it goes up to the lenses' line; up to 560 px it sits under the lenses. The
+  dock wraps rather than run past the stage or under the corner. Check it in
+  a call (the dock is widest there) at 1024 px wide with the panel open.
 - **`hidden` always hides** (`[hidden]` in `theme.css`). Without that rule a
   class that sets `display` wins over the browser's own, and a hidden tab
   stays on screen.

@@ -2913,12 +2913,58 @@ div.empty {
   font-size: 14px;
   color: var(--text-2);
 }
-/* The chat and the brief in the stage's corner, level with the dock and dressed like it. */
+/* The chat and the brief in the stage's corner, level with the dock and dressed like it. The stage's own width
+   decides where the corner sits, not the window's: the stage narrows when the panel opens beside it. */
+.room-stage {
+  /* What the dock leaves free on each side for the corner: its two buttons and a gap. */
+  --corner-room: 104px;
+}
 .stage-corner {
   position: absolute;
   right: var(--gutter);
   bottom: var(--floor);
   z-index: 4;
+}
+/* The dock wraps rather than run past the stage or under the corner, at any width. */
+.dock {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+/* Room for both on one band: the dock keeps clear of the corner, and wraps if it must. */
+@container (min-width: 800px) {
+  .room-stage:has(> .stage-corner) .dock-wrap {
+    max-width: calc(100% - 2 * (var(--gutter) + var(--corner-room)));
+  }
+}
+/* No room for both (a small window, or the panel open beside the stage): the corner goes up to the lenses' line
+   (16 px down, 36 px tall; the corner is 48), and the dock has the band to itself. */
+@container (max-width: 799.98px) {
+  .stage-corner {
+    top: 10px;
+    bottom: auto;
+  }
+}
+/* No room beside the lenses either (a phone): under them. */
+@container (max-width: 560px) {
+  .stage-corner {
+    top: 72px;
+  }
+}
+/* Touch: the corner's buttons are 40 px and the lens bar's 36 px (a 44 px bar), which the corner here and the
+   panel's tabs line up with. #23 sets the same lens size in the shared touch block; one of the two goes when both
+   are in. */
+@media (pointer: coarse) {
+  .room-stage {
+    --corner-room: 112px;
+  }
+  .segmented button {
+    min-height: 36px;
+  }
+  @container (min-width: 560.02px) and (max-width: 799.98px) {
+    .stage-corner {
+      top: 12px;
+    }
+  }
 }
 .panel-toggles {
   display: flex;
@@ -2952,10 +2998,5 @@ div.empty {
     z-index: 30;
     width: auto;
     border-left: 0;
-  }
-  /* The dock wraps to two rows on a phone: the corner moves up, under the lenses. */
-  .stage-corner {
-    top: 72px;
-    bottom: auto;
   }
 }
