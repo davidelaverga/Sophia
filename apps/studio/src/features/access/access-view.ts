@@ -83,6 +83,25 @@ export function invitationState(
   return i.role ? `${i.role} · ${EMAIL_WORD[i.emailStatus]}` : EMAIL_WORD[i.emailStatus]
 }
 
+/** How long ago, in the room's short words: "just now", "12 min ago", "3 h ago", "2 days ago". */
+export function ago(at: string, now: number): string {
+  const elapsed = Math.max(0, now - Date.parse(at))
+  if (elapsed < MINUTE) return 'just now'
+  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)} min ago`
+  if (elapsed < 24 * HOUR) return `${Math.floor(elapsed / HOUR)} h ago`
+  const days = Math.floor(elapsed / (24 * HOUR))
+  return `${days} ${days === 1 ? 'day' : 'days'} ago`
+}
+
+/**
+ * A guest in the Invite sheet's door record (let in, declined or blocked): what still matters about them (a removal
+ * under way, asking again), then when it was decided. The list's title already says what was decided.
+ */
+export function doorNote(e: Pick<LobbyEntry, 'removal' | 'knocks' | 'decidedAt'>, now: number): string {
+  const when = e.decidedAt ? ago(e.decidedAt, now) : ''
+  return [removalNote(e.removal) || knockNote(e.knocks), when].filter(Boolean).join(' · ')
+}
+
 /** The first session that has not ended yet. */
 export function nextSession(sessions: readonly RoomSession[], now: number): RoomSession | null {
   return (

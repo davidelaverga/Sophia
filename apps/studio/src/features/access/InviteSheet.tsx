@@ -9,7 +9,7 @@ import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { nextInRow } from '../../app/roving.ts'
 import { useDialog } from '../../app/useDialog.ts'
-import { invitationState, knockNote, linkLimits, removalNote } from './access-view.ts'
+import { doorNote, invitationState, linkLimits } from './access-view.ts'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
@@ -216,7 +216,9 @@ function RoomLink({ token, link, onChange }: { token: string; link: Invitation; 
   return (
     <div className="room-link">
       <QrCode value={link.url} label="QR code of the room link" />
-      <p className="link-text">{link.url}</p>
+      <p className="link-text" title={link.url}>
+        {link.url}
+      </p>
       <p className="link-limits">{linkLimits(link)}</p>
       <div className="control-row">
         <CopyButton text={link.url} />
@@ -320,6 +322,7 @@ interface DoorListProps {
 
 function DoorList({ title, entries, note, children }: DoorListProps) {
   if (entries.length === 0) return null
+  const now = Date.now()
   return (
     <div className="sheet-form">
       <p className="field-label">{title}</p>
@@ -328,7 +331,7 @@ function DoorList({ title, entries, note, children }: DoorListProps) {
           <li key={e.id}>
             <span className="invitation-who">{e.displayName}</span>
             <span className="invitation-state" title={e.removal?.lastError ?? undefined}>
-              {removalNote(e.removal) || knockNote(e.knocks) || 'guest'}
+              {doorNote(e, now)}
             </span>
             <span className="invitation-actions">{children(e)}</span>
           </li>
@@ -365,7 +368,7 @@ function EmailGuest({ context, onSent }: { context: SheetContext; onSent: () => 
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <button type="submit" className="pill" disabled={create.state.status === 'sending'}>
+        <button type="submit" className="pill" disabled={create.state.status === 'sending' || !email.trim()}>
           {create.state.status === 'sending' ? 'Sending…' : 'Send'}
         </button>
       </div>
@@ -450,7 +453,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
           <option value="viewer">Viewer</option>
         </select>
       </div>
-      <button type="submit" className="pill primary" disabled={create.state.status === 'sending'}>
+      <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
         {create.state.status === 'sending' ? 'Sending…' : 'Send invitation'}
       </button>
       <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />

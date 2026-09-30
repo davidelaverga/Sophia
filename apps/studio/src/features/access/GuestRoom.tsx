@@ -102,7 +102,7 @@ export function GuestRoom({ accessToken, entry, projectTitle, anonymous }: Props
     )
   }
   return (
-    <div className="shell" data-view="studio">
+    <div className="shell" data-view="studio" data-guest>
       <header className="topbar">
         <span className="mark">
           <span className="mark-dot" data-live={live || undefined} aria-hidden />

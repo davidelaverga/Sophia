@@ -1982,8 +1982,10 @@ button.mark:hover {
   height: 1.5px;
   background: var(--text);
 }
+/* One column that never grows past the sheet: a wide field shrinks instead of pushing the rest off the edge. */
 .sheet-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding-top: 18px;
   animation: arrive 0.3s var(--ease) both;
@@ -1998,6 +2000,7 @@ button.mark:hover {
 }
 .room-link {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 12px;
   padding: 20px 16px 14px;
@@ -2015,12 +2018,16 @@ button.mark:hover {
   width: 100%;
   height: auto;
 }
+/* The link on one line, cut at the end; a click selects all of it, so it still copies whole by hand. */
 .link-text {
   max-width: 100%;
+  overflow: hidden;
   color: var(--text-3);
   font: 11px/1.5 var(--mono);
-  text-align: center;
-  word-break: break-all;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  -webkit-user-select: all;
+  user-select: all;
 }
 .room-link .control-row {
   justify-content: center;
@@ -2041,6 +2048,7 @@ button.mark:hover {
 }
 .sheet-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   justify-items: start;
 }
@@ -2053,14 +2061,30 @@ button.mark:hover {
   color: var(--text-3);
   font-size: 12.5px;
 }
+/* Date, time and length on one row where they fit whole (about 377 px); narrower, the date takes its own row. */
+.calendar-form {
+  container-type: inline-size;
+}
 .calendar-when {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 0.9fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
   gap: 6px;
   width: 100%;
 }
+.calendar-when > * {
+  min-width: 0;
+}
 .calendar-when select {
+  width: 100%;
   height: 36px;
+}
+@container (max-width: 376px) {
+  .calendar-when {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .calendar-when > :first-child {
+    grid-column: 1 / -1;
+  }
 }
 .invitation-list,
 .session-list {
@@ -2461,6 +2485,10 @@ div.empty {
 @media (max-width: 760px) {
   :root {
     --topbar: 92px;
+  }
+  /* A guest's bar has no views to list: one row. */
+  .shell[data-guest] {
+    --topbar: 48px;
   }
   .topbar {
     flex-wrap: wrap;

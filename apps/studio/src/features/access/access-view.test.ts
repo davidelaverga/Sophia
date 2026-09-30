@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  ago,
   askAgainIn,
   clock,
   countdown,
+  doorNote,
   freshJoinToken,
   invitationState,
   knockNote,
@@ -73,6 +75,25 @@ describe('room access, as the Studio shows it', () => {
     )
     assert.equal(removalNote({ state: 'removed', attempts: 1, lastError: null }), 'out of the call')
     assert.equal(removalNote({ state: 'absent', attempts: 0, lastError: null }), '', 'they were not in it')
+  })
+
+  it('says how long ago in short words, and a clock running ahead is just now', () => {
+    const now = at('2026-09-30T12:00:00Z')
+    const times = ['11:59:30', '11:48:00', '09:00:00'].map((t) => `2026-09-30T${t}Z`)
+    assert.deepEqual(
+      [...times, '2026-09-29T11:00:00Z', '2026-09-27T12:00:00Z', '2026-09-30T12:00:05Z'].map((t) => ago(t, now)),
+      ['just now', '12 min ago', '3 h ago', '1 day ago', '3 days ago', 'just now'],
+    )
+  })
+
+  it('notes a guest at the door by what still matters, then when it was decided, never a bare "guest"', () => {
+    const now = at('2026-09-30T12:00:00Z')
+    const decidedAt = '2026-09-30T11:48:00Z'
+    const removed = { state: 'removed', attempts: 1, lastError: null } as const
+    assert.equal(doorNote({ removal: null, knocks: 1, decidedAt }, now), '12 min ago')
+    assert.equal(doorNote({ removal: null, knocks: 2, decidedAt }, now), 'asked again · 12 min ago')
+    assert.equal(doorNote({ removal: removed, knocks: 3, decidedAt }, now), 'out of the call · 12 min ago')
+    assert.equal(doorNote({ removal: null, knocks: 1, decidedAt: null }, now), '')
   })
 
   it('keeps an opened link for the sign-in round trip, then lets it go', () => {
