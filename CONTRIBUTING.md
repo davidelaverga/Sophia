@@ -96,6 +96,10 @@ writing a new one, and keep the rule when you change the code around it.
   Reconnecting (`project-door.ts`, with tests): nobody is left in a call
   with an open microphone behind a notice that has no mute and no leave. A
   closed door (401, 403) shows its notice and ends the call.
+- **What a person sends stays in sight.** A microphone, a camera or a shared
+  screen that is on shows wherever this person is, with its off switch: the
+  dock in the room, the mini dock from every other view (`Sending` in
+  `MiniDock`). Nothing keeps sending out of sight because the view changed.
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·
