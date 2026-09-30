@@ -1915,6 +1915,7 @@ button.mark:hover {
   animation: veil var(--base) var(--ease) both;
 }
 .sheet {
+  --sheet-top: calc(env(safe-area-inset-top, 0px) + 12px);
   position: absolute;
   top: 0;
   right: 0;
@@ -1922,7 +1923,7 @@ button.mark:hover {
   width: min(420px, 100%);
   overflow-x: clip;
   overflow-y: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 12px) 20px 28px;
+  padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
   box-shadow: -24px 0 64px rgba(0, 0, 0, 0.5);
@@ -1930,6 +1931,16 @@ button.mark:hover {
 }
 .sheet:focus-visible {
   outline: none;
+}
+/* The title, Close and the tabs stay in reach while the sheet scrolls under them. The block reaches up over the
+   sheet's top padding, so nothing shows above it however a browser measures that padding for sticky boxes. */
+.sheet-top {
+  position: sticky;
+  top: calc(-1 * var(--sheet-top));
+  z-index: 2;
+  margin-top: calc(-1 * var(--sheet-top));
+  padding-top: var(--sheet-top);
+  background: var(--plane);
 }
 .sheet-head {
   display: flex;
@@ -2112,6 +2123,10 @@ button.mark:hover {
   white-space: nowrap;
   font-weight: 500;
 }
+/* The address or name has the first line to itself; what it is and what can be done share the second. */
+.invitation-who {
+  grid-column: 1 / -1;
+}
 .invitation-state,
 .session-when {
   grid-column: 1;
@@ -2121,7 +2136,7 @@ button.mark:hover {
 }
 .invitation-actions {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 2;
   display: flex;
   gap: 2px;
 }
@@ -2420,10 +2435,16 @@ div.empty {
   .segmented button {
     min-height: 36px;
   }
-  /* Inline actions and the mark get a finger-sized target without changing how they look. */
+  /* An inline action's target reaches past its words, so the line around it keeps its height. */
   .text-button {
-    min-height: 32px;
+    position: relative;
   }
+  .text-button::after {
+    content: '';
+    position: absolute;
+    inset: -7px -4px;
+  }
+  /* The mark gets a finger-sized target without changing how it looks. */
   .topbar > .mark {
     min-width: 40px;
     justify-content: center;
@@ -2584,11 +2605,12 @@ div.empty {
 @media (max-width: 560px) {
   /* Phones: the Invite panel rises from the bottom; the lobby spans the width under the bar. */
   .sheet {
+    --sheet-top: 12px;
     top: auto;
     left: 0;
     width: 100%;
     max-height: 90dvh;
-    padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+    padding: var(--sheet-top) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
     border-left: 0;
     border-top: 1px solid var(--line-2);
     border-radius: var(--r-4) var(--r-4) 0 0;

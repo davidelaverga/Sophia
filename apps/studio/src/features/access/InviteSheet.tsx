@@ -42,14 +42,16 @@ export function InviteSheet({ context, onClose }: { context: SheetContext; onClo
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-labelledby="invite-title" tabIndex={-1}>
-        <header className="sheet-head">
-          <h2 id="invite-title">Invite</h2>
-          <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
-            <Icon name="close" />
-            <Tip label="Close" keys="Esc" side="bottom" align="end" />
-          </button>
-        </header>
-        <SheetTabs tab={tab} onTab={setTab} />
+        <div className="sheet-top">
+          <header className="sheet-head">
+            <h2 id="invite-title">Invite</h2>
+            <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
+              <Icon name="close" />
+              <Tip label="Close" keys="Esc" side="bottom" align="end" />
+            </button>
+          </header>
+          <SheetTabs tab={tab} onTab={setTab} />
+        </div>
         <div id="invite-panel" role="tabpanel" aria-labelledby={`invite-tab-${tab}`}>
           {tab === 'guests' && <GuestsTab context={context} />}
           {tab === 'members' && <MembersTab context={context} onGuests={() => setTab('guests')} />}
