@@ -1,0 +1,1160 @@
+{
+  "schema": "sophia.request-shape.v1",
+  "recorded_from": {
+    "unit": "sophia-runtime-s1-03-dev",
+    "dsh": "0.1.7-rc.1",
+    "commit": "acfa34838b36d89c97f3802548a35a93f33e1e93",
+    "pi_ai": "0.85.1",
+    "date": "2026-09-30",
+    "how": "tests/integration/request-shape.test.mjs with SOPHIA_REQUEST_SHAPE_OUT, run in a checkout of the previous unit"
+  },
+  "shapes": [
+    {
+      "body": {
+        "model": "gpt-6-luna",
+        "input": [
+          {
+            "role": "developer",
+            "content": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          }
+        ],
+        "stream": true,
+        "prompt_cache_key": "<native session id>",
+        "store": false,
+        "max_output_tokens": 128000,
+        "tools": [
+          {
+            "type": "function",
+            "name": "create_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "objective"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "get_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "type": "function",
+            "name": "glob",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "grep",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "include": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "limit": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_image",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "skill",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "todo_write",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "todos": {
+                  "type": "array",
+                  "description": "<text>",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "<text>"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "<text>",
+                        "enum": [
+                          "pending",
+                          "in_progress",
+                          "completed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "todos"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "update_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "revision": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "<text>",
+                  "enum": [
+                    "edit",
+                    "pause",
+                    "resume",
+                    "complete",
+                    "blocked"
+                  ]
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "blocked_reason": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "goal_id",
+                "revision",
+                "action"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "workflow",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "meta": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "whenToUse": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "phases": {
+                      "type": "array",
+                      "description": "<text>",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "<text>"
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "script",
+                "meta"
+              ]
+            }
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "auto"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ]
+      },
+      "headers": {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Bearer <test key>",
+        "session_id": "<native session id>",
+        "x-client-request-id": "<native session id>",
+        "x-stainless-lang": "js",
+        "x-stainless-package-version": "6.40.0",
+        "x-stainless-runtime": "node",
+        "x-stainless-runtime-version": "v24.21.0",
+        "x-stainless-retry-count": "0",
+        "user-agent": "deepseek-harness/<dsh version> (+https://github.com/deepseek-ai/deepseek-harness)"
+      }
+    },
+    {
+      "body": {
+        "model": "gpt-6-luna",
+        "input": [
+          {
+            "role": "developer",
+            "content": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "id": "rs_mock_1",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "mock-encrypted-1"
+          },
+          {
+            "type": "function_call",
+            "id": "fc_mock_1",
+            "call_id": "call_mock_1",
+            "name": "glob",
+            "arguments": "{\"pattern\":\"*.md\"}"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "call_mock_1",
+            "output": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          }
+        ],
+        "stream": true,
+        "prompt_cache_key": "<native session id>",
+        "store": false,
+        "max_output_tokens": 128000,
+        "tools": [
+          {
+            "type": "function",
+            "name": "create_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "objective"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "get_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "type": "function",
+            "name": "glob",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "grep",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "include": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "limit": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_image",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "skill",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "todo_write",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "todos": {
+                  "type": "array",
+                  "description": "<text>",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "<text>"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "<text>",
+                        "enum": [
+                          "pending",
+                          "in_progress",
+                          "completed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "todos"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "update_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "revision": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "<text>",
+                  "enum": [
+                    "edit",
+                    "pause",
+                    "resume",
+                    "complete",
+                    "blocked"
+                  ]
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "blocked_reason": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "goal_id",
+                "revision",
+                "action"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "workflow",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "meta": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "whenToUse": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "phases": {
+                      "type": "array",
+                      "description": "<text>",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "<text>"
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "script",
+                "meta"
+              ]
+            }
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "auto"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ]
+      },
+      "headers": {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Bearer <test key>",
+        "session_id": "<native session id>",
+        "x-client-request-id": "<native session id>",
+        "x-stainless-lang": "js",
+        "x-stainless-package-version": "6.40.0",
+        "x-stainless-runtime": "node",
+        "x-stainless-runtime-version": "v24.21.0",
+        "x-stainless-retry-count": "0",
+        "user-agent": "deepseek-harness/<dsh version> (+https://github.com/deepseek-ai/deepseek-harness)"
+      }
+    },
+    {
+      "body": {
+        "model": "gpt-6-luna",
+        "input": [
+          {
+            "role": "developer",
+            "content": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "id": "rs_mock_1",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "mock-encrypted-1"
+          },
+          {
+            "type": "function_call",
+            "id": "fc_mock_1",
+            "call_id": "call_mock_1",
+            "name": "glob",
+            "arguments": "{\"pattern\":\"*.md\"}"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "call_mock_1",
+            "output": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "id": "rs_mock_2",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "mock-encrypted-2"
+          },
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "<text>",
+                "annotations": []
+              }
+            ],
+            "status": "completed",
+            "id": "msg_mock_2"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          }
+        ],
+        "stream": true,
+        "prompt_cache_key": "<native session id>",
+        "store": false,
+        "max_output_tokens": 128000,
+        "tools": [
+          {
+            "type": "function",
+            "name": "create_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "objective"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "get_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "type": "function",
+            "name": "glob",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "grep",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "include": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "limit": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_image",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "skill",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "todo_write",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "todos": {
+                  "type": "array",
+                  "description": "<text>",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "<text>"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "<text>",
+                        "enum": [
+                          "pending",
+                          "in_progress",
+                          "completed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "todos"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "update_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "revision": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "<text>",
+                  "enum": [
+                    "edit",
+                    "pause",
+                    "resume",
+                    "complete",
+                    "blocked"
+                  ]
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "blocked_reason": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "goal_id",
+                "revision",
+                "action"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "workflow",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "meta": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "whenToUse": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "phases": {
+                      "type": "array",
+                      "description": "<text>",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "<text>"
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "script",
+                "meta"
+              ]
+            }
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "auto"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ]
+      },
+      "headers": {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Bearer <test key>",
+        "session_id": "<native session id>",
+        "x-client-request-id": "<native session id>",
+        "x-stainless-lang": "js",
+        "x-stainless-package-version": "6.40.0",
+        "x-stainless-runtime": "node",
+        "x-stainless-runtime-version": "v24.21.0",
+        "x-stainless-retry-count": "0",
+        "user-agent": "deepseek-harness/<dsh version> (+https://github.com/deepseek-ai/deepseek-harness)"
+      }
+    }
+  ]
+}

@@ -183,6 +183,18 @@ test('adverse: a bundle selecting a model route other than the recorded one is r
   assert.ok(findingCodes(gate).includes('model_route_invalid'))
 })
 
+test('adverse: a bundle that drops the recorded compat pin of the route is rejected (SMC-M02 R1)', () => {
+  const gate = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    const text = readFileSync(file, 'utf8')
+    assert.ok(text.includes('            compat:\n              supportsStrictMode: false\n'))
+    writeFileSync(file, text.replace('            compat:\n              supportsStrictMode: false\n', ''))
+  }))
+  assert.equal(gate.dump.status, 0, 'upstream composes the catalog default without complaint')
+  assert.equal(gate.ok, false)
+  assert.ok(gate.checks.flatMap((c) => c.findings).some((f) => f.code === 'model_route_invalid' && /compat\.supportsStrictMode/.test(f.message)))
+})
+
 test('adverse: a profile without the recorded archive cannot be checked and is rejected', () => {
   const gate = gateOf(variant((profile) => rmSync(join(profile, unit.sophia_bundle.archive))))
   assert.equal(gate.ok, false)

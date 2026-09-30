@@ -72,6 +72,9 @@ test('the model route check accepts the recorded route and names each way it can
   assert.match(messages(rows({ profile: { apiKey: 'sk-literal' } })).join(' '), /literal credential/)
   assert.match(messages(rows({ profile: { models: [{ id: 'gpt-6-astra' }] } }))[0], /does not list model/)
   assert.match(messages(rows({ profile: { models: [{ id: 'gpt-6-luna' }] } }))[0], /does not offer reasoning effort/)
+  const pinned = { ...route, compat: { supportsStrictMode: false } }
+  assert.match(checkModelRoute(rows(), pinned)[0].message, /compat\.supportsStrictMode false/)
+  assert.deepEqual(checkModelRoute(rows({ profile: { models: [{ id: 'gpt-6-luna', reasoningEfforts: { high: 'high' }, compat: { supportsStrictMode: false } }] } }), pinned), [])
   const unpatched = rows()
   unpatched[0].patchedBy = []
   assert.match(checkModelRoute(unpatched, route)[0].message, /must be set by/)

@@ -59,8 +59,10 @@
 # route's `models` list declares it, with values copied from the pi-ai 0.87.1
 # catalog entry. At this pin dsh depends on pi-ai 0.87.1, which ships the
 # entry itself, and dsh lays each declared entry over the installed catalog
-# entry. The key is a reference: dsh resolves OPENAI_API_KEY per request and the value
-# never enters configuration. Without it, a request fails with
+# entry. The request-shape parity test (tests/integration/request-shape.test.mjs)
+# holds the wire request to the previous unit's shape; `compat` below is what
+# that needed. The key is a reference: dsh resolves OPENAI_API_KEY per request
+# and the value never enters configuration. Without it, a request fails with
 # MISSING_CREDENTIAL instead of silently switching provider.
 - id: llm-pi-ai
   config:
@@ -81,6 +83,14 @@
               high: high
               xhigh: xhigh
               max: max
+            # Pins the previous unit's request shape (SMC-M02 R1): pi-ai
+            # 0.87.1's catalog entry turns strict mode on, which sends
+            # `strict: false` on every tool; the previous unit sent no
+            # `strict` field. This is the only route difference the parity
+            # test found, and the only compat switch dsh lets a route set
+            # that it touches.
+            compat:
+              supportsStrictMode: false
 
 # Every Agent the bridge creates starts on that route. This restates the row's
 # whole config, including the reasoning effort.

@@ -161,7 +161,7 @@ export function diffAgainstArchive(archive, installedDir) {
  * default model selects it, the Sophia bundle set both rows, the credential is
  * a reference, and the chosen effort is one the model offers.
  * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
- * @param {{ provider: string, model: string, reasoningEffort: string, credential_ref: string }} route - the recorded route.
+ * @param {{ provider: string, model: string, reasoningEffort: string, credential_ref: string, compat?: Record<string, unknown> }} route - the recorded route.
  * @returns {{ code: string, message: string }[]} findings.
  */
 export function checkModelRoute(rows, route) {
@@ -193,6 +193,10 @@ export function checkModelRoute(rows, route) {
     fail(`route "${route.provider}" does not list model "${route.model}"`)
   } else if (!entry.reasoningEfforts || !(route.reasoningEffort in entry.reasoningEfforts)) {
     fail(`model "${route.model}" does not offer reasoning effort "${route.reasoningEffort}"`)
+  }
+  // SMC-M02 R1: compat values the unit records pin the request shape; the catalog must not decide them.
+  for (const [field, value] of Object.entries(route.compat ?? {})) {
+    if (entry?.compat?.[field] !== value) fail(`model "${route.model}" must set compat.${field} ${JSON.stringify(value)} as the unit records, found ${JSON.stringify(entry?.compat?.[field])}`)
   }
   return findings
 }

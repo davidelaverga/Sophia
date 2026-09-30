@@ -56,10 +56,14 @@
     "provider": "openai",
     "model": "gpt-6-luna",
     "reasoningEffort": "high",
+    "compat": {
+      "supportsStrictMode": false
+    },
     "credential_ref": "OPENAI_API_KEY",
     "model_entry_source": "declared in the Sophia bundle patch with values copied from the pi-ai 0.87.1 catalog entry. At this pin dsh depends on pi-ai 0.87.1, which ships openai/gpt-6-luna, and dsh lays the declared entry over it; the request-shape parity test records the wire difference from sophia-runtime-s1-03-dev (pi-ai 0.85.1)",
     "release_baseline": "D13: deepseek-official / deepseek-flash (unchanged; switching back is a bundle-patch change and a new recorded unit)",
-    "live_verified": false
+    "live_verified": false,
+    "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
   "workspace_lock_sha256": "535617dbd9f2bbb0792a4340ffd1c75ced95a284526278edaf28e6b4c4116720",
   "google_sdk": {
@@ -89,9 +93,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "4196ae0cbd16e37f712a6da90f425a4d07f8ad2e8c15ad80d0444c97257f01fb",
-    "archive_integrity": "sha512-5ZzPwMUUCVaFi4urWBHQEj8Fdc5EadX1TEp2Ip2Hjd/8jM7VDJyUliXUBbrOaqlKDgZi74rr3dZDV9hGNaeQDg==",
-    "artifact_digest": "sha256:4196ae0cbd16e37f712a6da90f425a4d07f8ad2e8c15ad80d0444c97257f01fb",
+    "archive_sha256": "a416afe73bacd7abfa787543b3b583235c85ad69a2d626f260a9f27ba4e34af6",
+    "archive_integrity": "sha512-DSFGdHKSKeYVMxN1fIKLSLYyjhQjj/0qhYg9t6rP1/YNlST+di3K5sTQ6ztIeinkkUCT3+1B4jCaO+RT54virw==",
+    "artifact_digest": "sha256:a416afe73bacd7abfa787543b3b583235c85ad69a2d626f260a9f27ba4e34af6",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
