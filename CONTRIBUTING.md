@@ -60,7 +60,9 @@ writing a new one, and keep the rule when you change the code around it.
   `<Tip label keys side align />` from `@sophia/ui`. Tips are `aria-hidden`,
   so when visible text moves into a tip, keep it for assistive technology:
   `aria-describedby` on the group (`LensSwitcher`), or the full sentence as
-  the `aria-label` of a short button (the notes consent's "Agree").
+  the `aria-label` of a short button (the notes consent's "Agree"). The key
+  lives in the tip, never as a hidden element inside the control: a child
+  that cannot be seen still takes its room and pushes the label off center.
 - **A disabled primary waits as an outline** (`.pill.primary:disabled` in
   `theme.css`); a key inside it drops its ink look. Disable a primary until
   it can run (an empty field, a wait); never grey it out or hide it.
@@ -74,8 +76,16 @@ writing a new one, and keep the rule when you change the code around it.
   words and video end at `--dock-h` + 40 px, so never hard-code an offset
   above the dock. Grids that hold fields and lists use `minmax(0, 1fr)`, so
   a wide control shrinks instead of pushing the rest past the edge. A screen
-  without a room passes `screen` to `SophiaLight`; `.screen-body` follows
-  the same numbers on tall phones.
+  without a room passes `screen` to `SophiaLight`, which rests the light
+  higher and smaller when the words would not fit under it (`screen-rest.ts`,
+  with tests) and marks the screen `data-rest-high`; `.screen-body` starts
+  by the same numbers. Keep the two in step.
+- **Alignment is measured.** A label sits at the center of its control.
+  Things that belong together share a line: the room's blocks one center
+  axis, the Work view's two heads one rule and one baseline. Check them as
+  numbers (label center minus control center, the y of each rule) at desktop
+  and phone widths, and look first for children that cannot be seen and
+  still take room.
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·
