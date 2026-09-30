@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { bezier, controlThrough, easeInOut, handoffFrame, spring, stepSpring } from './motion.ts'
+import { bezier, controlThrough, easeInOut, handoffFrame, settle, spring, stepSpring } from './motion.ts'
 
 describe('light motion', () => {
   it('settles a spring on its target without overshoot', () => {
@@ -13,6 +13,17 @@ describe('light motion', () => {
     }
     assert.ok(Math.abs(s.value - 1) < 1e-4)
     assert.ok(max <= 1 + 1e-9)
+  })
+
+  it('settles at once on its target and stays there, however it was moving', () => {
+    const s = spring(0, 3.2)
+    s.target = 190
+    stepSpring(s, 0.1)
+    assert.ok(s.value > 0 && s.value < 190 && s.velocity > 0, 'mid-flight, as after a layout change')
+    settle(s)
+    assert.deepEqual([s.value, s.velocity], [190, 0])
+    stepSpring(s, 1 / 60)
+    assert.ok(Math.abs(s.value - 190) < 1e-9, 'no drift once settled')
   })
 
   it('gives the same result for one long step and many short ones', () => {
