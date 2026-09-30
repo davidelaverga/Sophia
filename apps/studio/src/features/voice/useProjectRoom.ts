@@ -99,7 +99,8 @@ export function useProjectRoom(projectId: string, token: string, snapshot: Snaps
 
 /**
  * The call's devices: each change clears the note on success or says what stopped it. The microphone
- * choice a person makes is remembered for their next join; the one made for them on arrival is not.
+ * choice a person makes is remembered for their next join; the ones made for them are not (on arrival, and
+ * off when they start typing to Sophia).
  */
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
@@ -120,6 +121,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     mediaError,
     clearNote: () => setMediaError(null),
     arrive: media('microphone', (c) => c.setMicrophone(true)),
+    silence: media('microphone', (c) => c.setMicrophone(false)),
     setMicrophone: (on: boolean) => {
       rememberMic(on)
       return media('microphone', (c) => c.setMicrophone(on))()
@@ -195,8 +197,8 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
         : NOBODY,
     )
   }
-  const { clearNote, arrive, ...devices } = useDevices(calls, refresh)
-  const typedChat = useTypedChat(calls, devices.setMicrophone)
+  const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
+  const typedChat = useTypedChat(calls, silence)
 
   /**
    * Out of the call: nobody is shown as still here. A call that ended without this person leaving (a
@@ -214,9 +216,18 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const join = (options?: { textOnly?: boolean }) =>
     joinConnection({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, options)
 
+  // Leaving on purpose ends text mode: the next join says how it starts (the dock by voice, the chat by text).
+  // A call that drops keeps the mode, so rejoining does not turn on a microphone that was off.
   const leave = async () => {
     await calls.end()
+    typedChat.rememberTextMode(false)
     outOfCall(false)
+  }
+
+  // Speaking is voice: turning the microphone on leaves text mode, so Sophia is heard again.
+  const setMicrophone = async (on: boolean) => {
+    if (on && typedChat.textMode) await typedChat.setTextMode(false)
+    await devices.setMicrophone(on)
   }
 
   const startAudio = async () => {
@@ -228,6 +239,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     error,
     ...people,
     ...devices,
+    setMicrophone,
     chat: typedChat.chat,
     textMode: typedChat.textMode,
     setTextMode: typedChat.setTextMode,

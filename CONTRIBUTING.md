@@ -80,6 +80,12 @@ when you change the room:
   tests). Someone who starts a message without clicking the bar must not turn
   on a camera with its first letter. A new field that invites typing marks
   itself the same way.
+- **Text mode is said in the room.** Typing to Sophia is text mode: she is
+  not heard and the microphone is off. The dock says so (`TextMode` in
+  `RoomDock`) and one press returns to voice; so does turning the microphone
+  on, and leaving the room. It never rewrites the microphone choice the
+  person made (`silence` in `useProjectRoom`), so the next join is as they
+  left it.
 - **Nothing circles the room.** While work runs the stage's edge is faintly
   lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
   travels the edge pulls the eye from the people; the room's line already

@@ -84,6 +84,20 @@ export function Toggle({ on, label, keys, icons, onToggle }: ToggleProps) {
   )
 }
 
+/**
+ * Text mode, said in the room and left from it: Sophia is not heard and the microphone is off, which the chat
+ * panel explains but a closed panel does not. One press goes back to voice.
+ */
+function TextMode({ room }: { room: ProjectRoom }) {
+  if (!room.textMode) return null
+  return (
+    <button type="button" className="pill has-tip" aria-pressed onClick={() => void room.setTextMode(false)}>
+      Text mode
+      <Tip label="Sophia answers in the chat and is not heard. Press for voice" />
+    </button>
+  )
+}
+
 function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
   return (
     <>
@@ -94,6 +108,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         icons={['mic', 'micOff']}
         onToggle={() => void room.setMicrophone(!me?.micOn)}
       />
+      <TextMode room={room} />
       <Toggle
         on={!!me?.cameraOn}
         label="Camera"
