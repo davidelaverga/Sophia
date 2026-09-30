@@ -2328,9 +2328,13 @@ button.mark:hover {
   display: block;
   padding-left: 12px;
 }
+/* An empty list's sentence starts 18 px under the rule, where its first row would. */
 .empty {
-  padding: 24px 0;
+  padding: 18px 0 24px;
   color: var(--text-3);
+}
+.pulse .empty {
+  padding: 7px 0;
 }
 /* An empty list still leads somewhere: its way forward sits under the sentence. */
 div.empty {
