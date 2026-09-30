@@ -2944,9 +2944,10 @@ div.empty {
     bottom: auto;
   }
 }
-/* No room beside the lenses either (a phone): under them. */
+/* No room beside the lenses either (a phone): under them. With video on the stage there are no lenses, and the
+   tiles start where that would put it, so the corner keeps to the lenses' empty line. */
 @container (max-width: 560px) {
-  .stage-corner {
+  .room-stage[data-mode='light'] .stage-corner {
     top: 72px;
   }
 }
@@ -2960,7 +2961,7 @@ div.empty {
   .segmented button {
     min-height: 36px;
   }
-  @container (min-width: 560.02px) and (max-width: 799.98px) {
+  @container (max-width: 799.98px) {
     .stage-corner {
       top: 12px;
     }

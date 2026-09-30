@@ -83,9 +83,11 @@ when you change the room:
   opens, so the stage's own width decides (container queries on
   `.room-stage`), never the window's: from 800 px the corner is level with
   the dock, which keeps `--corner-room` free on each side; from 561 to 799 px
-  it goes up to the lenses' line; up to 560 px it sits under the lenses. The
+  it goes up to the lenses' line; up to 560 px it sits under the lenses, or on
+  their empty line when video fills the stage, so it never covers a tile. The
   dock wraps rather than run past the stage or under the corner. Check it in
-  a call (the dock is widest there) at 1024 px wide with the panel open.
+  a call (the dock is widest there) at 1024 px wide with the panel open, and
+  with a camera on at a phone's width.
 - **`hidden` always hides** (`[hidden]` in `theme.css`). Without that rule a
   class that sets `display` wins over the browser's own, and a hidden tab
   stays on screen.
