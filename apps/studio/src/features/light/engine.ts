@@ -20,7 +20,7 @@ export interface LightInput {
   target: LightTarget | null
   /** The person she attends to; null when nobody holds her attention. */
   attention: Point | null
-  /** Work is running in the background: a line travels the edge of the box. */
+  /** Work is running in the background: the edge of the box is faintly lit. */
   working: boolean
 }
 
@@ -242,7 +242,7 @@ export class LightEngine {
     this.gl?.draw(toFrame(this.springs, t, this.flow))
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
-    drawWorkLine(this.trace, this.edge, t, this.springs.workLine.value, this.reduced)
+    drawWorkLine(this.trace, this.edge, this.springs.workLine.value)
     if (flight && !this.reduced) drawHandoff(this.trace, flight.from, flight.to, flight.frame)
   }
 

@@ -70,6 +70,11 @@ when you change the room:
   Sophia, Voice mode). The consent question shows only while one is due.
   The bar comes last in the composer, so it never moves: whatever comes and
   goes (the consent, the line, an error) sits above it.
+- **Nothing circles the room.** While work runs the stage's edge is faintly
+  lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
+  travels the edge pulls the eye from the people; the room's line already
+  says work is running. Motion in the room is for events (a floor handoff),
+  not for states.
 - **The panel lines up with the room.** Measure these when you touch either
   side; they are what makes the two read as one screen:
   - the bottom: the dock, the corner toggles and the message bar rest on one
