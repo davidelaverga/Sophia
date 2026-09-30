@@ -135,7 +135,7 @@ function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
   useShortcuts({
-    j: room.status === 'idle' || room.status === 'failed' ? () => void room.join() : undefined,
+    j: room.ready && (room.status === 'idle' || room.status === 'failed') ? () => void room.join() : undefined,
     m: speaks ? () => void room.setMicrophone(!me?.micOn) : undefined,
     v: speaks ? () => void room.setCamera(!me?.cameraOn) : undefined,
     s: speaks && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
@@ -163,6 +163,7 @@ function observedSophia(
 }
 
 const conversationMode = (room: ProjectRoom) => (room.textMode ? 'text' : 'voice')
+const OPENING: RoomLine = { text: 'Opening the project…', note: null }
 /**
  * In text mode the room says so once typing actually reaches Sophia. Until then it keeps its usual line, which says
  * what she waits for. The words name a state: "Chat with Sophia" is the button that starts it.
@@ -174,6 +175,8 @@ function conversationLine(
   running: number,
   sophia: SophiaView,
 ): RoomLine {
+  // Until the project has loaded there is no room to describe: "The room is ready" would be a guess.
+  if (!room.ready) return OPENING
   const typing = room.textMode && room.status === 'live' && floor.mine && reachesSophia(snapshot?.room.sophia)
   return typing ? { text: 'Chatting with Sophia', note: null } : roomLine(room.status, floor, running, sophia)
 }

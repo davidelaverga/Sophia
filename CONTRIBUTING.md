@@ -73,7 +73,11 @@ when you change the room:
   the consent question (with the bar, and only while one is due), one status
   line (`chatLine`: why Send waits, one reason at a time, or that typing
   reaches Sophia, with Voice mode), an error. The room's own line names the
-  state, "Chatting with Sophia", and only once typing reaches her.
+  state, "Chatting with Sophia", and only once typing reaches her. A start
+  that fails says why here too (the room's own note: `room.error`), and asks
+  Sophia into nothing: on a phone this panel covers the dock, and a button
+  that falls back to "Chat with Sophia" without a word reads as broken.
+  Voice mode is offered in the call only.
 - **Stray typing is text.** While the message bar is on screen (it marks
   itself `data-typing-sink`), a key typed with the focus on no control goes
   into it and is never a shortcut (`shortcuts.ts`: `stray`, `typesText`, with
@@ -92,6 +96,19 @@ when you change the room:
   dock's own `Toggle`). Someone reading the chat on a phone must not have to
   close it to see that they are heard, or to mute. Beside the room the dock
   already shows them, so the head does not repeat it.
+- **A call that ends says why** (`call-end.ts`, with tests; the reason is
+  LiveKit's, read in `livekit-room.ts`). Only a lost connection is a failure
+  and offers "Try again". The same person joining from another tab or device
+  moves the call there: this tab says so and offers the plain "Join the
+  room", or two tabs take the call from each other with the same "You were
+  disconnected" and nobody knows why. Taken out of the call and a closed room
+  have their own sentence. The note shows in the dock, the mini dock and the
+  chat's foot.
+- **Nothing offers to join before it can.** Until the project has loaded
+  there is no room to join (`room.ready`): the room's line says "Opening the
+  project…", and Join, J, the mini dock's Join and Chat with Sophia wait. A
+  stage that said "The room is ready" over a button that did nothing was a
+  guess and a dead control, for as long as a slow server took.
 - **Nothing circles the room.** While work runs the stage's edge is faintly
   lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
   travels the edge pulls the eye from the people; the room's line already

@@ -36,7 +36,8 @@ export function RoomDock(props: Props) {
   return (
     <div className="dock-wrap">
       <LookingIndicator text={props.sophia.looking} />
-      {(room.mediaError ?? (room.status === 'failed' ? room.error : null)) && (
+      {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
+      {(room.mediaError ?? room.error) && (
         <p className="dock-note" role="alert">
           {room.mediaError ?? room.error}
         </p>
@@ -54,7 +55,7 @@ function JoinButton({ room }: { room: ProjectRoom }) {
     <button
       type="button"
       className="pill primary has-tip"
-      disabled={room.status === 'joining'}
+      disabled={room.status === 'joining' || !room.ready}
       onClick={() => void room.join()}
     >
       <span className="pill-dot" aria-hidden />

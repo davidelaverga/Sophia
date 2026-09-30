@@ -6,6 +6,7 @@
 // read separately through `sophia()`, from the attributes the bridge sets and from whether her sound actually
 // reaches this browser (S1-05A §6.5).
 import {
+  DisconnectReason,
   Room,
   RoomEvent,
   Track,
@@ -22,10 +23,19 @@ import {
   type ChatInput,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
+import type { CallEnd } from './call-end.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
-export type RoomStatus = 'live' | 'reconnecting' | 'ended'
+export type RoomStatus = 'live' | 'reconnecting'
+
+/** LiveKit's reason for a disconnect, as the ending a person can act on; any other is a lost connection. */
+const ENDS: Partial<Record<DisconnectReason, CallEnd>> = {
+  [DisconnectReason.DUPLICATE_IDENTITY]: 'elsewhere',
+  [DisconnectReason.PARTICIPANT_REMOVED]: 'removed',
+  [DisconnectReason.ROOM_DELETED]: 'closed',
+  [DisconnectReason.ROOM_CLOSED]: 'closed',
+}
 
 /** One video a tile can show: someone's camera or shared screen. */
 export interface VideoFeed {
@@ -59,6 +69,8 @@ export interface RoomCallbacks {
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
+  /** The call is over, and why (call-end.ts). Leaving on purpose ends it too; the caller knows it asked. */
+  onEnded: (why: CallEnd) => void
 }
 
 const toView = (p: Participant, local: boolean): RoomParticipant => ({
@@ -166,9 +178,9 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   for (const event of CHANGES) room.on(event, cb.onChange)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
-  room.on(RoomEvent.Disconnected, () => {
+  room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     for (const el of document.querySelectorAll('[data-sophia-room-audio]')) el.remove()
-    cb.onStatus('ended')
+    cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
   let textOnly = false
   room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {

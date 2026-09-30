@@ -34,7 +34,8 @@ function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | '
     setError(null)
     try {
       await room.setTextMode(true)
-      await room.join({ textOnly: true })
+      // Not in the call: the room says why (its note shows above this button too), and Sophia is not asked in.
+      if (!(await room.join({ textOnly: true }))) return false
       const fresh = await getSnapshot(identity.token, projectId)
       if (fresh.room.sophia.exchange === 'none') {
         await startExchange(identity.token, fresh.room.id, crypto.randomUUID(), {
@@ -88,10 +89,23 @@ function useChatSend({ snapshot, room, draft, onDraft }: Props) {
   return { presence, busy, ready, mine: !!presence && presence.inputActorId === me, error, send }
 }
 
+interface StartProps {
+  starting: boolean
+  /** The project has loaded: until then there is no room to join, and the button waits. */
+  ready: boolean
+  onStart: () => void
+}
+
 /** The way in, in the message bar's place and size: it joins in text mode and asks Sophia into the conversation. */
-function ChatStart({ starting, onStart }: { starting: boolean; onStart: () => void }) {
+function ChatStart({ starting, ready, onStart }: StartProps) {
   return (
-    <button type="button" className="pill warm chat-start" data-chat-entry disabled={starting} onClick={onStart}>
+    <button
+      type="button"
+      className="pill warm chat-start"
+      data-chat-entry
+      disabled={starting || !ready}
+      onClick={onStart}
+    >
       {starting ? 'Connecting to Sophia…' : 'Chat with Sophia'}
     </button>
   )
@@ -141,12 +155,14 @@ interface LineProps {
   text: string | null
   room: ProjectRoom
   starting: boolean
+  inRoom: boolean
   busy: boolean
 }
 
 /** One line above the foot's control: why Send waits or that typing reaches Sophia, and the way back to voice. */
-function ChatLine({ text, room, starting, busy }: LineProps) {
-  const voice = room.textMode && !starting
+function ChatLine({ text, room, starting, inRoom, busy }: LineProps) {
+  // The way back to voice is offered in the call only: outside it there is no voice to go back to.
+  const voice = room.textMode && !starting && inRoom
   if (!text && !voice) return null
   return (
     <p className="chat-line" role="status">
@@ -177,7 +193,8 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
   const chat = useChatSend({ projectId, identity, snapshot, room, draft, onDraft })
   const { presence, busy, ready, send } = chat
   const field = useRef<HTMLTextAreaElement>(null)
-  const entry = chatEntry(room.status === 'live' || room.status === 'reconnecting', presence)
+  const inRoom = room.status === 'live' || room.status === 'reconnecting'
+  const entry = chatEntry(inRoom, presence)
   const asked = useTypeNext(entry, field)
   const begin = async () => {
     asked.current = true
@@ -185,11 +202,13 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
   }
   const moment = { starting, live: room.status === 'live', mine: chat.mine, textMode: room.textMode }
   const line = entry === 'bar' && presence ? chatLine(presence, moment) : null
-  const error = chat.error ?? startError
+  // The room's own trouble (a join that failed, a call that ended) is said here too: on a phone this panel covers
+  // the dock, and a button that falls back to "Chat with Sophia" without a word reads as broken.
+  const error = chat.error ?? startError ?? room.error
   return (
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={entry === 'bar'} />
-      <ChatLine text={line} room={room} starting={starting} busy={busy} />
+      <ChatLine text={line} room={room} starting={starting} inRoom={inRoom} busy={busy} />
       {error && (
         <p className="outcome" role="status">
           {error}
@@ -204,7 +223,7 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
           send={send}
         />
       ) : (
-        <ChatStart starting={starting} onStart={() => void begin()} />
+        <ChatStart starting={starting} ready={room.ready} onStart={() => void begin()} />
       )}
     </div>
   )
