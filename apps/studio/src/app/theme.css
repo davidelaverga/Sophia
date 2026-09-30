@@ -2849,7 +2849,7 @@ div.empty {
   display: flex;
   overflow: hidden;
 }
-/* The consent, while one is due: the question and its two answers on one line. */
+/* The consent, while one is due: the question, then its two answers, beside it where the panel is wide enough. */
 .continuity-choice {
   display: flex;
   flex-wrap: wrap;
