@@ -53,7 +53,12 @@ export function visibleBriefBlocks(markdown: string): BriefBlock[] {
   const visible: BriefBlock[] = []
   for (const block of briefBlocks(markdown)) {
     if (block.kind === 'heading') citations = /^Cited inputs$/i.test(block.text)
-    if (citations || /^Source [0-9a-f]{6,}\b/i.test(block.text) || /^Drafted by\b/i.test(block.text)) continue
+    if (
+      citations ||
+      /^Source [0-9a-f]{8,64}$/i.test(block.text) ||
+      /^Drafted by (?:Open ?AI|Anthropic|Google)\.?$/i.test(block.text)
+    )
+      continue
     const text = block.text.replace(/\s*\[input:[^\]]+\]/g, '').trim()
     if (text) visible.push({ ...block, text })
   }

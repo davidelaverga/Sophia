@@ -11,7 +11,14 @@ import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
 import { loadMissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
-import { HOLDER_ARRIVAL_MS, HOLDER_GRACE_MS, HOLDER_RETRY_MS, PRESENCE_EVERY_MS, RoomSession } from './room-session.ts'
+import {
+  HOLDER_ARRIVAL_MS,
+  HOLDER_GRACE_MS,
+  HOLDER_RETRY_MS,
+  PRESENCE_EVERY_MS,
+  TYPED_REPLY_MS,
+  RoomSession,
+} from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
 import { DECLARED_NAMES } from './tools.ts'
@@ -1656,6 +1663,37 @@ describe('typed conversation uses the real exchange attribution', () => {
     await session.close()
     assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
     assert.match(room.chat.at(-1)?.packet.text ?? '', /ended/)
+  })
+  it('a stalled typed reply times out once, fences late output and restores voice on a fresh connection', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(LUIS, packet())
+    clock += TYPED_REPLY_MS - 1
+    session.tick()
+    assert.equal(live.closed, false)
+    clock += 1
+    session.tick()
+    await flush()
+    assert.equal(live.closed, true)
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused')
+    assert.match(room.chat.at(-1)?.packet.text ?? '', /unconfirmed/)
+    live.events.audio(speech(), OUT)
+    live.events.toolCalls([{ id: 'late-stalled-status', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.length, 0)
+    assert.equal(room.played.length, 0)
+    const replacement = lives.at(-1)
+    assert.ok(replacement && replacement !== live)
+    replacement.events.setupComplete()
+    room.events.typed?.(LUIS, packet())
+    assert.equal(replacement.notices.length, 0, 'the uncertain input is not resent')
+    room.events.audio(LUIS, voice16k(), 16_000, 1)
+    replacement.events.inputTranscript('Synthetic spoken recovery', true)
+    replacement.events.toolCalls([{ id: 'recovered-voice-status', name: 'project_status', args: {} }])
+    replacement.events.audio(speech(), OUT)
+    await flush()
+    assert.equal(service.calls.at(-1)?.inputMode, 'voice')
+    assert.ok(room.played.length > 0)
+    await session.close()
   })
   it('a handoff and provider interruption end typed mode before the next holder speaks', async () => {
     const { session, room, live } = await ready()

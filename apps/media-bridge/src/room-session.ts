@@ -71,6 +71,8 @@ const everyInterval = (fn: () => void, ms: number) => {
 }
 
 export const TICK_MS = 100
+/** An unended typed provider turn must not keep the member's microphone blocked indefinitely. */
+export const TYPED_REPLY_MS = 60_000
 /** The bridge reports what it observes at least this often; the API treats 20 s of silence as unavailable. */
 export const PRESENCE_EVERY_MS = 5000
 /** A holder who left gets this long to come back before the floor is cleared (compare-and-set, A15). */
@@ -286,6 +288,7 @@ export class RoomSession {
   private typedTurn: { identity: string; packet: ChatInput; sequence: number; generation: number } | null = null
   private typedOutputUntilTurnEnd = false
   private typedInputEpoch: number | null = null
+  private typedStartedAt: number | null = null
   private readonly typedSeen = new Set<string>()
 
   constructor(assignment: MediaAssignment, deps: SessionDeps) {
@@ -528,6 +531,7 @@ export class RoomSession {
     this.typedSeen.add(key)
     this.typedOutputUntilTurnEnd = true
     this.typedInputEpoch = packet.inputEpoch
+    this.typedStartedAt = this.deps.now()
     this.state.forwarded()
     this.wordsHeard()
     this.typedTurn = { identity, packet, sequence: 0, generation: this.state.currentGeneration() }
@@ -903,6 +907,7 @@ export class RoomSession {
     this.finishTyped('Reply interrupted. The message will not be sent again automatically.')
     this.typedOutputUntilTurnEnd = false
     this.typedInputEpoch = null
+    this.typedStartedAt = null
     if (connectionLost) this.state.connectionLost()
     else this.state.turnEnded()
     this.responding = false
@@ -1038,6 +1043,7 @@ export class RoomSession {
   tick(): void {
     if (this.closed) return
     const now = this.deps.now()
+    this.expireTyped(now)
     this.settled(now)
     this.applyPause()
     this.sendFrame(now)
@@ -1053,6 +1059,13 @@ export class RoomSession {
     this.announce(now)
     this.sendReceipts(now)
     this.publish(now)
+  }
+
+  private expireTyped(now: number): void {
+    if (this.typedStartedAt === null || now - this.typedStartedAt < TYPED_REPLY_MS) return
+    this.finishTyped('Reply unconfirmed. The message will not be sent again automatically.')
+    // Without a provider turn boundary, replacing the connection is the fence against late old audio/tools.
+    this.rebuild('typed reply timed out')
   }
 
   /**

@@ -73,3 +73,15 @@ describe('conversation view', () => {
     assert.equal(visibleBriefBlocks(markdown)[1]?.text, 'A real voice in the shared room.')
   })
 })
+
+it('brief metadata filtering keeps ordinary authored Source and Drafted by sentences', () => {
+  assert.deepEqual(
+    visibleBriefBlocks(
+      'Source facade needs a repair.\nDrafted by the team after the discussion.\nSource b7ff034b948\nDrafted by OpenAI',
+    ),
+    [
+      { kind: 'paragraph', text: 'Source facade needs a repair.' },
+      { kind: 'paragraph', text: 'Drafted by the team after the discussion.' },
+    ],
+  )
+})

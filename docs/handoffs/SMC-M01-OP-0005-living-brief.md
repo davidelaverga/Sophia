@@ -81,6 +81,15 @@ policy automatic rev1, one accepted consent, 3 current Sophia paraphrases (2 obs
 - Actual browser focus removal reproduces BODY; restored source focuses heading/control/editor. No hosted/provider effects.
 - Release API before bridge: older API rejects A09 inputMode. Keep A09 API/bridge/readers compatible after text data exists.
 
+## Final guard follow-up after CC-0020
+
+CC-0020 independently passes a03d42d, including real typed LiveKit CI and 24/24 browser checks.
+Its provider-stall note now has a 60-second bridge deadline: fence/replace the stalled connection, report unconfirmed,
+never resend, and restore voice; boundary/late-output/recovery regression and mutation pass. Cold reconnect loses
+unsaved provider context and re-reads canonical notes; no unqualified resumption is introduced.
+Metadata filtering now matches complete machine lines, preserving authored Source/Drafted by sentences; regression/mutation pass.
+Final exact candidate must pass CI and independent delta review before the matching production batch.
+
 ## Remaining obligations
 
 Revised exact-head CI and Claude review; matching release batch/current lease; migrations and deployments reconciled;
