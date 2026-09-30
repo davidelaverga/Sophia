@@ -65,7 +65,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "535617dbd9f2bbb0792a4340ffd1c75ced95a284526278edaf28e6b4c4116720",
+  "workspace_lock_sha256": "cd1f953c30f8e734bf0207f40098853b4327d191d5b63df671700552119e968e",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -93,9 +93,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "a416afe73bacd7abfa787543b3b583235c85ad69a2d626f260a9f27ba4e34af6",
-    "archive_integrity": "sha512-DSFGdHKSKeYVMxN1fIKLSLYyjhQjj/0qhYg9t6rP1/YNlST+di3K5sTQ6ztIeinkkUCT3+1B4jCaO+RT54virw==",
-    "artifact_digest": "sha256:a416afe73bacd7abfa787543b3b583235c85ad69a2d626f260a9f27ba4e34af6",
+    "archive_sha256": "4c69b9c11ff39cc7664a7f6e7bda55659f2646864d190b945f85b96634914d60",
+    "archive_integrity": "sha512-UVs13Pol/XomTomUGrrg+sz0cYRRdZa+0rk1Smfl4gpGbP/beVHfxl84EBMCJnc8FDhuN/QbTu8g02d53Q5kNA==",
+    "artifact_digest": "sha256:4c69b9c11ff39cc7664a7f6e7bda55659f2646864d190b945f85b96634914d60",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
@@ -115,6 +115,19 @@
   },
   "schema_revision": null,
   "role_revision": "v1",
+  "presets": {
+    "registry": "@deepseek-ai/dsh-agent-preset-registry",
+    "registry_default": "sophia-brief-v1",
+    "ids": [
+      "sophia-guide-v1",
+      "sophia-lead-v1",
+      "sophia-research-v1",
+      "sophia-prototype-v1",
+      "sophia-review-v1",
+      "sophia-brief-v1"
+    ],
+    "definition": "identity only: each preset composes no plugin (plugins: []). The bridge mounts the role's preset on create and resume, applies the role's tool policy, and records the preset with a digest of its definition and that policy in the attempt's execution identity (SMC-M02 G3). The gate requires exactly this roster, unbroadened."
+  },
   "model_catalog": "models.json",
   "deployment_images": {},
   "required_before_deploy": [

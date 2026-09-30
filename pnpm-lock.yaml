@@ -203,6 +203,9 @@ importers:
       '@deepseek-ai/dsh-agent-default-model':
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(5a5f69dac67942c6551ebcc62d37d3ac)
+      '@deepseek-ai/dsh-agent-preset-registry':
+        specifier: 0.2.0-rc.2
+        version: 0.2.0-rc.2(399ec41987db7050d82ab13a298b41d7)
       '@deepseek-ai/dsh-brand':
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)

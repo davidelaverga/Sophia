@@ -195,6 +195,26 @@ test('adverse: a bundle that drops the recorded compat pin of the route is rejec
   assert.ok(gate.checks.flatMap((c) => c.findings).some((f) => f.code === 'model_route_invalid' && /compat\.supportsStrictMode/.test(f.message)))
 })
 
+test('adverse: an unknown or broadened native preset fails the gate although it composes cleanly (M02-T02, SMC-M02 G3)', () => {
+  const unknown = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\n- insert:\n    - id: preset-sophia-test-inert-v1\n      name: '@deepseek-ai/dsh-agent-preset'\n      config:\n        id: sophia-test-inert-v1\n        plugins: []\n`)
+  }))
+  assert.equal(unknown.dump.status, 0, 'upstream composes any preset row')
+  assert.equal(unknown.ok, false)
+  assert.ok(unknown.checks.flatMap((c) => c.findings).some((f) => f.code === 'preset_roster_invalid' && /sophia-test-inert-v1/.test(f.message)))
+  const broadened = gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    const text = readFileSync(file, 'utf8')
+    const row = '        id: sophia-review-v1\n        plugins: []\n'
+    assert.ok(text.includes(row))
+    writeFileSync(file, text.replace(row, "        id: sophia-review-v1\n        plugins:\n          - id: review-web\n            name: '@deepseek-ai/dsh-tool-web'\n"))
+  }))
+  assert.equal(broadened.dump.status, 0)
+  assert.equal(broadened.ok, false)
+  assert.ok(broadened.checks.flatMap((c) => c.findings).some((f) => f.code === 'preset_roster_invalid' && /sophia-review-v1.*dsh-tool-web/.test(f.message)))
+})
+
 test('adverse: a profile without the recorded archive cannot be checked and is rejected', () => {
   const gate = gateOf(variant((profile) => rmSync(join(profile, unit.sophia_bundle.archive))))
   assert.equal(gate.ok, false)

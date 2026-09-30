@@ -15,13 +15,14 @@ importers:
 packages:
 
   '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz':
-    resolution: {integrity: sha512-DSFGdHKSKeYVMxN1fIKLSLYyjhQjj/0qhYg9t6rP1/YNlST+di3K5sTQ6ztIeinkkUCT3+1B4jCaO+RT54virw==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
+    resolution: {integrity: sha512-UVs13Pol/XomTomUGrrg+sz0cYRRdZa+0rk1Smfl4gpGbP/beVHfxl84EBMCJnc8FDhuN/QbTu8g02d53Q5kNA==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       '@deepseek-ai/cordis': 4.0.4
       '@deepseek-ai/dsh': 0.2.0-rc.2
       '@deepseek-ai/dsh-agent': 0.2.0-rc.2
       '@deepseek-ai/dsh-agent-default-model': 0.2.0-rc.2
+      '@deepseek-ai/dsh-agent-preset-registry': 0.2.0-rc.2
       '@deepseek-ai/dsh-brand': 0.2.0-rc.2
       '@deepseek-ai/dsh-llm': 0.2.0-rc.2
       '@deepseek-ai/dsh-session': 0.2.0-rc.2

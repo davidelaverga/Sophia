@@ -57,3 +57,21 @@ Upstream's registry "uses the current definition of that ID" after a restart and
 ## 5. What does not change
 
 The media bridge, the Live model (`gemini-3.8-live`), Google, LiveKit and React versions; the API, contracts and migrations; the runtime wire protocol version; the model route, provider and payer; the hosted services. Cutover (G5) is a Codex operation under a separate bounded approval.
+
+## 6. Implementation notes (attempt 1, recorded with the commits that made them)
+
+- **G2, as bound in §3.** One addition: the unit records the route's `compat` pin (`model_route.compat`, `supportsStrictMode: false`), and `checkModelRoute` requires it. This came from R1's parity test, not from a new route choice: provider, model, effort and credential are unchanged.
+- **G3 composition.** dsh-base composes no registry, so the Sophia bundle inserts `agent-preset-registry` (`default: sophia-brief-v1`, the tool-less role; the bridge never relies on the default) and one `@deepseek-ai/dsh-agent-preset` per role (`preset-<role>`, `plugins: []`). Tool policy stays where it was: agent-scoped `restrict` plus the monotonic guard. The bundle gains `@deepseek-ai/dsh-agent-preset-registry` as an exact peer and dev dependency. It was already in the dsh closure, so the lock changes only the bundle importer.
+- **G3 identity.** It is the journal record `sophia/identity`, written before the native create. It holds `runtimeUnitId`, `preset {id, digest}`, `route {provider, model, reasoningEffort}`, `source` (`create` or `migrated`) and `evidence`. The digest is the SHA-256 of the preset id, the registry's own rendering of the definition (`readDocument`) and the role's tool policy. The first record is authoritative. It stays in the bridge journal, not in the database or the runtime wire: the unrecovered reason already travels in the ready report, and `inspect` returns the identity and the live `composedPreset`. **No migration and no contract amendment.**
+- **Resume.** It uses the recorded route (M02 §5.4). It is refused, so the attempt is unrecovered and held, when:
+  - the digest differs;
+  - the preset is undefined or broken;
+  - the session's own last `request/header` names another route.
+
+  A journal from `sophia-runtime-s1-03-dev` or earlier carries no identity. It migrates only when its session's recorded route agrees with the unit's route, or when it never sent a request, and the identity is journaled as `migrated` with the evidence.
+- **Not done in G3:**
+  - a service-side copy of the identity, which would need a migration;
+  - per-role prompts or skills: `packages/dsh-bundle/prompts/` and `skills/` stay unbuilt;
+  - any production preset beyond the six identity-only ones.
+
+  M03 adds real research presets on this seam.

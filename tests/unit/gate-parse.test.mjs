@@ -106,3 +106,19 @@ test('every required disable is a reviewed base row and a disabled row of the So
     assert.ok(disabled.has(id), `${id} is disabled by the bundle patch`)
   }
 })
+
+test('the preset roster must be exactly the recorded one, each preset inserted by the bundle and composing nothing (SMC-M02 G3)', async () => {
+  const { checkPresetRoster } = await import('../../scripts/lib/gate.mjs')
+  const presets = { registry: '@deepseek-ai/dsh-agent-preset-registry', registry_default: 'sophia-brief-v1', ids: ['sophia-review-v1', 'sophia-brief-v1'] }
+  const registry = (config = { default: 'sophia-brief-v1' }) => ({ id: 'agent-preset-registry', name: presets.registry, origin: '@sophia/dsh-bundle', patchedBy: [], config })
+  const preset = (id, plugins = [], extra = {}) => ({ id: `preset-${id}`, name: '@deepseek-ai/dsh-agent-preset', origin: '@sophia/dsh-bundle', patchedBy: [], config: { id, plugins }, ...extra })
+  const rows = (...extra) => [registry(), preset('sophia-review-v1'), preset('sophia-brief-v1'), ...extra]
+  assert.deepEqual(checkPresetRoster(rows(), presets), [])
+  const messages = (r) => checkPresetRoster(r, presets).map((f) => f.message).join('\n')
+  assert.match(messages(rows(preset('sophia-test-inert-v1'))), /"sophia-test-inert-v1" .* not in the unit's roster/)
+  assert.match(messages([registry(), preset('sophia-review-v1', [{ id: 'web', name: '@deepseek-ai/dsh-tool-web' }]), preset('sophia-brief-v1')]), /composes .*dsh-tool-web/)
+  assert.match(messages([registry(), preset('sophia-review-v1')]), /recorded preset "sophia-brief-v1" is not composed/)
+  assert.match(messages([registry({ default: 'sophia-research-v1' }), preset('sophia-review-v1'), preset('sophia-brief-v1')]), /default is "sophia-research-v1"/)
+  assert.match(messages([registry(), preset('sophia-review-v1', [], { patchedBy: ['profile'] }), preset('sophia-brief-v1')]), /patched by no layer/)
+  assert.match(messages([preset('sophia-review-v1'), preset('sophia-brief-v1')]), /expected one @deepseek-ai\/dsh-agent-preset-registry row/)
+})

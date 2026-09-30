@@ -13,6 +13,19 @@
   "inspect": {
     "fence": "held",
     "role": "sophia-review-v1",
+    "identity": {
+      "runtimeUnitId": "sophia-runtime-m02-dev",
+      "preset": {
+        "id": "sophia-review-v1",
+        "digest": "sha256:a3889cbf6c712ffc63c1177f72021f0af87d9b6f112ef4329a9749c423556b06"
+      },
+      "route": {
+        "provider": "mock",
+        "model": "mock-model",
+        "reasoningEffort": null
+      }
+    },
+    "composedPreset": "sophia-review-v1",
     "epoch": 1,
     "live": true,
     "status": "idle",

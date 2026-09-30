@@ -100,6 +100,51 @@
     model: gpt-6-luna
     reasoningEffort: high
 
+# Native presets (SMC-M02 G3): one per Sophia role, mounted by the control
+# bridge through the public `agentPresets` registry when it creates or resumes
+# an attempt [DSH-25]. Each preset carries the role's identity and composes
+# no plugin: a role's tools are the base registrations the bridge restricts
+# and guards per role. The bridge records each attempt's preset with a digest
+# of its definition and refuses to resume one whose definition changed. The
+# registry's `default` is never used by the bridge, which always names the
+# role; it is set to the tool-less brief role so that any other caller gets
+# the least. scripts/lib/gate.mjs requires exactly this roster, unbroadened.
+- insert:
+    - id: agent-preset-registry
+      name: '@deepseek-ai/dsh-agent-preset-registry'
+      config:
+        default: sophia-brief-v1
+    - id: preset-sophia-guide-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-guide-v1
+        plugins: []
+    - id: preset-sophia-lead-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-lead-v1
+        plugins: []
+    - id: preset-sophia-research-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-research-v1
+        plugins: []
+    - id: preset-sophia-prototype-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-prototype-v1
+        plugins: []
+    - id: preset-sophia-review-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-review-v1
+        plugins: []
+    - id: preset-sophia-brief-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-brief-v1
+        plugins: []
+
 # Sophia's control bridge (S1-03). The plugin itself declares its service
 # injections (agents, sessions, tools). The config names environment
 # variables the execution-host supervisor sets. It holds no URL or secret:

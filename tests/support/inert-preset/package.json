@@ -1,0 +1,8 @@
+{
+  "name": "@sophia-test/inert-preset",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TEST ONLY (SMC-M02 G3): a strict, inert preset plugin for a disposable runtime composition. It registers nothing. Never installed into a profile outside tests.",
+  "main": "./index.js"
+}

@@ -36,9 +36,9 @@ a path updates its row in the same commit.
 
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
-| `runtime/dsh/` | built | S1-01 | `@sophia/dsh-runtime`: exact `@deepseek-ai/dsh@0.1.7-rc.1`, deployed as the runtime artifact |
-| `config/runtime-unit.json` | built | S1-01 | dsh/provider/preset compatibility unit with recorded artifact identities |
-| `config/dsh/` | built | S1-01 | Profile installation inputs: manifest, `pnpm-workspace.yaml`, lock pinning the archive, literal `[]` patch |
+| `runtime/dsh/` | built | S1-01, SMC-M02 | `@sophia/dsh-runtime`: exact `@deepseek-ai/dsh@0.2.0-rc.2` since SMC-M02 (was `0.1.7-rc.1`), deployed as the runtime artifact |
+| `config/runtime-unit.json` | built | S1-01, SMC-M02 | dsh/provider/preset compatibility unit with recorded artifact identities. SMC-M02: unit `sophia-runtime-m02-dev` with `previous_unit`, the route's `compat` pin, the native preset roster, and `platforms_pending` |
+| `config/dsh/` | built | S1-01, SMC-M02 | Profile installation inputs: manifest, `pnpm-workspace.yaml`, lock pinning the archive, literal `[]` patch. SMC-M02: `base-rows.reviewed.json`, the reviewed dsh-base rows the gate requires |
 | `config/models.json` | partial | S1-05, S1-06 | Pack design specimen of exact route ids; consumed once the media and image adapters exist |
 | `config/roles.json` | partial | S1-03 | Pack design specimen of role presets; installed by the role registry |
 | `config/supervision.json` | partial | S1-11 | Pack design specimen of lead supervision policy |
@@ -48,8 +48,8 @@ a path updates its row in the same commit.
 
 | Path | State | Goal | Contents / purpose |
 |---|---|---|---|
-| `packages/dsh-bundle/` | partial | S1-01, S1-03 | Built: manifest (`dsh.bundle.patch`), `cordis.patch.yml` (including the development model route), plugin entry, control bridge |
-| `packages/dsh-bundle/src/control-bridge.ts` | partial | S1-03, S1-02, S1-05A | Built: application command ↔ public Agent operations, a fenced Hold/Stop, a journal-backed dedupe, and restart reconciliation. S1-05A: bound to the real `/v1/runtime/*` service; every reply and item validated against the contract (A04); assistant messages carry model identity and usage; receipts and observations are retained until acknowledged, in batches bounded by items and bytes (`retained-queue.ts`) |
+| `packages/dsh-bundle/` | partial | S1-01, S1-03, SMC-M02 | Built: manifest (`dsh.bundle.patch`), `cordis.patch.yml` (including the development model route), plugin entry, control bridge. SMC-M02: the `otel` and `llm-deepseek-account` disables, the route's `compat` pin, the native preset registry and one preset per role |
+| `packages/dsh-bundle/src/control-bridge.ts` | partial | S1-03, S1-02, S1-05A | Built: application command ↔ public Agent operations, a fenced Hold/Stop, a journal-backed dedupe, and restart reconciliation. S1-05A: bound to the real `/v1/runtime/*` service; every reply and item validated against the contract (A04); assistant messages carry model identity and usage; receipts and observations are retained until acknowledged, in batches bounded by items and bytes (`retained-queue.ts`). SMC-M02: native presets mounted on create and resume, and the attempt's execution identity recorded before create and restored exactly, or held |
 | `packages/dsh-bundle/src/role-registry.ts` | partial | S1-03, S1-02+ | Built: the versioned role presets (S1-05A adds `sophia-brief-v1`, which may run no native tool) with the S1-03 native-tool policy, enforced by agent-scoped visibility and a monotonic guard that also covers workflow child agents. Sophia domain tools join as later goals build them |
 | `packages/dsh-bundle/src/tools/` | unbuilt | S1-03, S1-10 | Typed domain/workspace/source tools (`peer.ts` is S1-10) |
 | `packages/dsh-bundle/prompts/` | unbuilt | S1-11 | Stable identity/voice + role instructions |
@@ -86,11 +86,11 @@ a path updates its row in the same commit.
 | `supabase/` | built | S1-02 | Supabase CLI config for the local stack (ES256 signing keys, Auth redirects) |
 | `deploy/` | partial | S1-02, S1-05A, S1-14 | Built: `deploy/supabase/` (hosted project runbook, CA certificate) and `deploy/S1-05A-release.md` (the five processes, their settings, and how to debug them in production). S1-14 adds Render, execution-host and Vercel manifests |
 | `tests/unit/` | built | S1-01 | Toolchain, digest, patch-lint, dump-parse and map checks |
-| `tests/integration/` | partial | S1-01, S1-03, S1-05A, S1-14 | Built: profile gate, control bridge, roles, runtime supervisor and the live-steer rehearsal, all against the real pinned dsh; S1-05A adds the runtime service crossing (pinned dsh ↔ real API, PostgreSQL and worker). S1-14 adds the release crossings |
+| `tests/integration/` | partial | S1-01, S1-03, S1-05A, S1-14, SMC-M02 | Built: profile gate, control bridge, roles, runtime supervisor and the live-steer rehearsal, all against the real pinned dsh; S1-05A adds the runtime service crossing (pinned dsh ↔ real API, PostgreSQL and worker). SMC-M02 adds request-shape parity, failed-step tool recovery, native presets and identity, and the two-unit copied-log check. S1-14 adds the release crossings |
 | `tests/contracts/` | unbuilt | S1-02 | Contract fixtures |
 | `tests/e2e/` | unbuilt | S1-14 | Browser E2E |
 | `tests/fixtures/` | unbuilt | S1-02 | Synthetic fixtures |
-| `tests/support/` | built | S1-03 | LABELLED fixture Sophia service and keyless mock model for runtime tests |
+| `tests/support/` | built | S1-03, SMC-M02 | LABELLED fixture Sophia service and keyless mock model for runtime tests. SMC-M02: a Responses-endpoint stub, the request-shape reduction and its recorded expectation, a session-log reader, and two test-only plugins (a scheduler fault, an inert preset) for disposable compositions |
 | `docs/` | built | S1-01 | Pack, source map, this map, runtime-unit guide, evidence, handoffs |
 | `docs/releases/` | unbuilt | S1-14 | Release records |
 | `planning/` | unbuilt | S1-02 | Versioned goal definitions (no private runtime logs) |

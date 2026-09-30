@@ -201,6 +201,41 @@ export function checkModelRoute(rows, route) {
   return findings
 }
 
+/**
+ * The native preset roster is part of the runtime unit (SMC-M02 G3): exactly
+ * the recorded presets, each inserted by the Sophia bundle and composing no
+ * plugin, under a registry whose default is the recorded one. An unknown,
+ * missing or broadened preset would let an attempt run under a composition no
+ * reviewer read, so each is a finding.
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ registry: string, registry_default: string, ids: string[] }} presets - the recorded roster.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkPresetRoster(rows, presets) {
+  const findings = []
+  const fail = (message) => findings.push({ code: 'preset_roster_invalid', message })
+  const registry = rows.filter((row) => row.name === presets.registry)
+  if (registry.length !== 1) {
+    fail(`expected one ${presets.registry} row, found ${registry.length}`)
+  } else {
+    const [row] = registry
+    if (row.origin !== BUNDLE || row.disabled === true) fail(`${row.id} must be an enabled row inserted by ${BUNDLE}`)
+    if (row.config?.default !== presets.registry_default) fail(`${row.id} default is ${JSON.stringify(row.config?.default)}, the unit records ${JSON.stringify(presets.registry_default)}`)
+  }
+  const defined = rows.filter((row) => row.name === '@deepseek-ai/dsh-agent-preset')
+  const seen = new Set()
+  for (const row of defined) {
+    const id = row.config?.id
+    seen.add(id)
+    if (!presets.ids.includes(id)) fail(`preset "${id}" (row ${row.id}) is not in the unit's roster`)
+    if (row.origin !== BUNDLE || row.patchedBy.length > 0) fail(`preset "${id}" must be inserted by ${BUNDLE} and patched by no layer, found origin ${row.origin}${row.patchedBy.length ? `, patched by ${row.patchedBy.join(', ')}` : ''}`)
+    if (row.disabled === true) fail(`preset "${id}" is disabled`)
+    if (!Array.isArray(row.config?.plugins) || row.config.plugins.length > 0) fail(`preset "${id}" composes ${JSON.stringify(row.config?.plugins)}; the unit records presets that compose no plugin`)
+  }
+  for (const id of presets.ids) if (!seen.has(id)) fail(`recorded preset "${id}" is not composed`)
+  return findings
+}
+
 /** Directories from `start` to the filesystem root. */
 function ancestors(start) {
   const out = []
@@ -338,6 +373,7 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
       }
     }
     if (unit.model_route) findings.push(...checkModelRoute(rows, unit.model_route))
+    if (unit.presets) findings.push(...checkPresetRoster(rows, unit.presets))
     const loops = byId.get('agent-loop') ?? []
     if (loops.length !== 1 || loops[0].origin !== BASE) {
       findings.push({ code: 'agent_loop_not_single', message: `expected exactly one agent-loop row from ${BASE}, found ${loops.length}` })
