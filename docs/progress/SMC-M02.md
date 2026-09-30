@@ -90,8 +90,8 @@ The PostgreSQL is a disposable local cluster; this container has no Docker.
 | G1 Exact delta and target | done; D1 pending | §2, target spec, binding |
 | G2 Parity adapter | source done | `bd9f493`, `81a2a81`; §4 T01–T03, R1 |
 | G3 Preset identity | source done | `f0bdaa8`; §4 T02, T08; binding §6 |
-| G4 Recovery and rollback | partial: T10 (without the unknown-outcome branch), T12, T13 | `ca73057`; lease settlement and a restore rehearsal are not started |
-| G5 Exact cutover | not started; out of scope for this PR | the preflight should count sessions with unpaired failed steps (log-compat README) |
+| G4 Recovery and rollback | source and fixtures done; hosted pending | T10 (with CX-0002), T12, T13; supervisor lease tests; #16's profile upgrade; **an in-place cutover and rollback rehearsal on one disposable root** ([evidence](../evidence/SMC-M02/inplace-cutover/README.md)). Reconciled in [CC-0002](../coordination/SMC-M02/SMC-M02-CC-0002.md) §3 |
+| G5 Exact cutover | request drafted, not approved | [CC-0003](../coordination/SMC-M02/SMC-M02-CC-0003.md), on PR #29's `fe6b0fd`. Needs D1–D3, the CX-0004 decision (Studio step), and Davide's approval of the exact batch |
 
 ## 6. Owner decisions
 
@@ -108,6 +108,14 @@ The PostgreSQL is a disposable local cluster; this container has no Docker.
 | SMC-M02-OP-0001 | read and test only | [CC-0001](../coordination/SMC-M02/SMC-M02-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5916177646)) | **answered** by [CX-0001](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5916920339) (prepared) and [SMC-M02-CX-0002](https://github.com/davidelaverga/Sophia/issues/26#issuecomment-5917094857) (result), checked by Claude against CC-0001: every asked test was run with its command and exit 0, and the darwin identities were recorded. The only deviation from CC-0001 is that the tests ran on Darwin arm64, not linux. About 9 minutes; 0 provider calls, 0 production reads, 0 commits. No effect |
 
 No hosted effect, deployment, migration, paid call or credential use happened in this attempt.
+
+## 7a. PR #29 (Codex's reconciliation candidate)
+
+PR #29 carries this PR (`bcd68f9`) byte for byte, with #16, #23, #24 and #28 on `main`. [CC-0002](../coordination/SMC-M02/SMC-M02-CC-0002.md) reviews `fe6b0fd`:
+- no blocking finding, and the `profileLockPath` fix is correct;
+- `pnpm check` exit 0 on linux-x64 (396 unit, 72 integration), and CI green.
+
+[CC-0003](../coordination/SMC-M02/SMC-M02-CC-0003.md) is the G5 draft on that source.
 
 ## 8. Next action
 
