@@ -43,3 +43,22 @@ contract; this file holds the code rules.
 - **Tests use `node --test`** with `node:assert/strict`. A test that needs
   PostgreSQL is `*.db.test.ts`; one that needs a Supabase stack is
   `*.live.test.ts`. `pnpm test` runs neither.
+
+## The Studio's hosting headers
+
+`apps/studio/public/vercel.json` sets them for the hosted Studio.
+
+- **Permissions-Policy.** The camera, the microphone and screen capture are
+  for the Studio's own page only, and nothing else the page never uses
+  (location, payment, USB and the like) can be asked for.
+- **Content-Security-Policy, report-only for now.** Scripts, styles and
+  fonts come only from the Studio itself (the build has no inline script or
+  style); pictures also from the account providers' avatar hosts;
+  connections go to the API, the Supabase project and LiveKit Cloud, each
+  named. A violation shows in the browser's console and blocks nothing.
+  When the API, the Supabase project or the LiveKit project moves, move
+  `connect-src` with it. To enforce the policy, rename the header to
+  `Content-Security-Policy` once real use shows no violation.
+- **Check a change** by serving a build with the policy enforced and
+  walking the app, a call with camera and screen included: every blocked
+  resource fires `securitypolicyviolation`.
