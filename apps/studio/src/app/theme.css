@@ -2116,6 +2116,29 @@ button.mark:hover {
 .invitation-list li[data-closed] {
   opacity: 0.5;
 }
+/* One block per list of invitations, so it reads the same inside a form and on its own. */
+.invitations {
+  display: grid;
+  width: 100%;
+}
+.invitations > .form-error {
+  padding-top: 8px;
+}
+/* Closed invitations fold under one line that reads as the list's next row: "3 closed". */
+.closed-invitations {
+  border-top: 1px solid var(--line);
+}
+.closed-invitations > summary {
+  width: fit-content;
+  padding: 8px 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.closed-invitations > summary:hover {
+  color: var(--text-2);
+}
 .invitation-who,
 .session-title {
   overflow: hidden;

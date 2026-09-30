@@ -69,7 +69,7 @@ export const SUMMARY: Record<string, string> = {
   'command.steer': 'Steer sent to the lead',
   'room.input_floor': 'Input to Sophia passed',
   'room.session': 'Session scheduled',
-  'room.session_canceled': 'Session canceled',
+  'room.session_canceled': 'Session cancelled',
   'room.invitation': 'Invitation link issued',
   'room.invitation_revoked': 'Invitation link closed',
   'room.lobby_knock': 'A guest asked to come in',

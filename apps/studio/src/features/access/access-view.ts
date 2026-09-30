@@ -160,6 +160,35 @@ export function sessionFromForm(
   }
 }
 
+/** The session the form describes, or null while its date or time is incomplete (the form is being edited). */
+export function plannedSession(
+  form: { title: string; date: string; time: string; minutes: number },
+  timeZone: string,
+): SessionCreate | null {
+  if (!form.date || !form.time || Number.isNaN(Date.parse(`${form.date}T${form.time}`))) return null
+  return sessionFromForm(form, timeZone)
+}
+
+/** The first session a planned one would overlap (sessions that only touch don't), so the form can say so first. */
+export function clashWith(
+  sessions: readonly RoomSession[],
+  planned: Pick<RoomSession, 'startsAt' | 'endsAt'>,
+): RoomSession | null {
+  const start = Date.parse(planned.startsAt)
+  const end = Date.parse(planned.endsAt)
+  return sessions.find((s) => Date.parse(s.startsAt) < end && Date.parse(s.endsAt) > start) ?? null
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** The form's date and time fields for a moment, in the browser's zone: "2026-09-30" and "04:00". */
+export function formSlot(at: Date): { date: string; time: string } {
+  return {
+    date: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`,
+    time: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
+  }
+}
+
 /** One SVG path for the dark modules of a QR matrix: a square per module, on a grid with a quiet border. */
 export function qrPath(cells: readonly (readonly boolean[])[], border: number): string {
   const parts: string[] = []
