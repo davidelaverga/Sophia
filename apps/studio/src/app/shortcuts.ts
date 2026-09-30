@@ -2,9 +2,10 @@
 // is held, it is not a key repeat, and no dialog is open over the page. Every shortcut is also a visible
 // control (its tip shows the key), so the keyboard never hides a feature.
 //
-// Where a field on screen takes stray typing (the chat's message bar marks itself `data-typing-sink`), a key
-// typed with the focus on no control is text for that field, as in any chat, and never a shortcut: someone who
-// starts a message without clicking the bar must not turn on a camera with its first letter.
+// Where the chat's foot is on screen (it marks itself `data-typing-sink`), a key typed with the focus on no
+// control is text for it, as in any chat, and never a shortcut: someone who starts a message without clicking the
+// bar must not turn on a camera with its first letter. Before the chat starts, the foot is the "Chat with Sophia"
+// button: it takes the key as nothing, and still no camera, microphone or shared screen starts.
 import { useEffect, useRef } from 'react'
 
 export interface KeyLike {
@@ -36,7 +37,7 @@ export function typesText(e: Pick<KeyLike, 'key' | 'metaKey' | 'ctrlKey' | 'altK
 
 const FIELDS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
-/** The field stray typing goes to: one on screen, and only while the focus is on no control at all. */
+/** Where stray typing goes: the chat's foot on screen, and only while the focus is on no control at all. */
 function strayField(target: HTMLElement | null): HTMLElement | null {
   if (target && target !== document.body && target !== document.documentElement) return null
   const field = document.querySelector<HTMLElement>('[data-typing-sink]')
@@ -67,8 +68,10 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
   useEffect(() => {
     if (!enabled) return undefined
     const onKey = (e: KeyboardEvent) => {
-      // Stray typing: the character lands in the field, because the focus moves there before it is typed.
-      if (typesText(e)) strayField(e.target instanceof HTMLElement ? e.target : null)?.focus()
+      // Stray typing: the character lands in the field, because the focus moves there before it is typed. A button
+      // in the field's place takes no character, and is not focused (a space would press it).
+      const sink = typesText(e) ? strayField(e.target instanceof HTMLElement ? e.target : null) : null
+      if (sink && FIELDS.has(sink.tagName)) sink.focus()
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined
       if (!run) return

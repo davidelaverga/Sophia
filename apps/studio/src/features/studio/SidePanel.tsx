@@ -39,10 +39,29 @@ function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>)
   }, [open, panel])
 }
 
+/**
+ * Esc closes the panel from inside it (its own handler) and from nowhere: with the focus on no control, as after a
+ * click on the messages, a letter goes to the chat's foot (shortcuts.ts) and Esc is the one key that closes. A
+ * control outside the panel keeps its own keys.
+ */
+function useEscFromNowhere(open: Panel | null, onOpen: (panel: Panel | null) => void) {
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (e: KeyboardEvent) => {
+      const at = e.target instanceof HTMLElement ? e.target : null
+      const nowhere = !at || at === document.body || at === document.documentElement
+      if (e.key === 'Escape' && !e.defaultPrevented && nowhere) onOpen(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onOpen])
+}
+
 export function SidePanel({ open, onOpen, chat, brief, call }: PanelProps) {
   const body: Record<Panel, ReactNode> = { chat, brief }
   const panel = useRef<HTMLElement>(null)
   usePanelFocus(open, panel)
+  useEscFromNowhere(open, onOpen)
   return (
     <aside
       ref={panel}

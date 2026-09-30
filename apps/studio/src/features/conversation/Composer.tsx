@@ -103,6 +103,8 @@ function ChatStart({ starting, ready, onStart }: StartProps) {
       type="button"
       className="pill warm chat-start"
       data-chat-entry
+      // Stray typing stops here, before the chat starts (shortcuts.ts): a letter is not a camera or a screen share.
+      data-typing-sink
       disabled={starting || !ready}
       onClick={onStart}
     >

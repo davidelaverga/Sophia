@@ -56,8 +56,9 @@ when you change the room:
 - **One panel, two tabs** (Chat, Brief), opened from the stage's corner
   (`RoomStage`'s `corner` slot, `PanelToggles`) or with C and B. Both tabs
   stay mounted while hidden, so an unsent message or a brief edit survives
-  closing and switching. Esc or Close shuts the panel; on a phone it covers
-  the room below the bar and its toggles sit under the lenses.
+  closing and switching. Esc or Close shuts the panel, Esc with the focus
+  inside it or on no control at all (`useEscFromNowhere`); on a phone it
+  covers the room below the bar and its toggles sit under the lenses.
 - **New is a dot.** A violet dot on a toggle says something changed behind a
   closed panel (`useUnread`, `useBriefUpdates`, the pure `isNew`); the
   toggle's accessible name says so too ("Chat, something new").
@@ -78,12 +79,15 @@ when you change the room:
   Sophia into nothing: on a phone this panel covers the dock, and a button
   that falls back to "Chat with Sophia" without a word reads as broken.
   Voice mode is offered in the call only.
-- **Stray typing is text.** While the message bar is on screen (it marks
+- **Stray typing is text.** While the chat's foot is on screen (it marks
   itself `data-typing-sink`), a key typed with the focus on no control goes
-  into it and is never a shortcut (`shortcuts.ts`: `stray`, `typesText`, with
-  tests). Someone who starts a message without clicking the bar must not turn
-  on a camera with its first letter. A new field that invites typing marks
-  itself the same way.
+  into the message bar and is never a shortcut (`shortcuts.ts`: `stray`,
+  `typesText`, with tests). Someone who starts a message without clicking the
+  bar must not turn on a camera with its first letter. Before the chat
+  starts, the foot is "Chat with Sophia", which takes the key as nothing:
+  typing "vamos" there once turned on the camera (V), the microphone (M) and
+  a screen share (S). Esc closes the panel. A new field that invites typing
+  marks itself the same way.
 - **Text mode is said in the room.** Typing to Sophia is text mode: she is
   not heard and the microphone is off. The dock says so (`TextMode` in
   `RoomDock`) and one press returns to voice; so does turning the microphone
