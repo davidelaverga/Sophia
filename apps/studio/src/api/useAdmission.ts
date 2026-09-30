@@ -17,8 +17,17 @@ export interface Admission<A, R> {
   submit: (args: A) => Promise<R | undefined>
   /** Same intent, same key, after an unknown outcome. */
   retry: () => Promise<R | undefined>
+  /**
+   * A form's one press (pressFor): while an outcome is unknown, the open intent again, with its own arguments and key,
+   * so pressing the form's button can never make a second record; otherwise a new intent.
+   */
+  send: (args: A) => Promise<R | undefined>
   reset: () => void
 }
+
+/** What a form's press does: after no reply, only the open intent may go again. */
+export const pressFor = (status: AdmissionState<unknown, unknown>['status']): 'retry' | 'submit' =>
+  status === 'unknown' ? 'retry' : 'submit'
 
 const noReply = () => new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key')
 
@@ -46,11 +55,14 @@ export function useAdmission<A, R>(send: (key: string, args: A) => Promise<R>): 
     }
   }
 
+  const submit = (args: A) => run(args, crypto.randomUUID())
+  const retry = () =>
+    state.status === 'unknown' && key.current ? run(state.args, key.current) : Promise.resolve(undefined)
   return {
     state,
-    submit: (args) => run(args, crypto.randomUUID()),
-    retry: () =>
-      state.status === 'unknown' && key.current ? run(state.args, key.current) : Promise.resolve(undefined),
+    submit,
+    retry,
+    send: (args) => (pressFor(state.status) === 'retry' ? retry() : submit(args)),
     reset: () => setState({ status: 'idle' }),
   }
 }

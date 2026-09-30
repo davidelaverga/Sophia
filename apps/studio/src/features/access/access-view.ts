@@ -1,6 +1,7 @@
 // Room access in the Studio, as plain rules: invitation links, the room calendar and the QR code's shape.
 // Pure, so they are unit-tested; the components only render them.
 import type { Invitation, LobbyEntry, RoomSession, SessionCreate } from '@sophia/contracts'
+import type { AdmissionState } from '../../api/useAdmission.ts'
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
@@ -8,6 +9,15 @@ const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
 export function readJoinToken(hash: string): string | null {
   const token = hash.startsWith('#') ? hash.slice(1) : hash
   return TOKEN.test(token) ? token : null
+}
+
+/**
+ * A form's button for an admission: what it does, what it says while it works, and Try again once the outcome is
+ * unknown (pressing it then sends the same request again: useAdmission's send).
+ */
+export function admissionLabel(status: AdmissionState<unknown, unknown>['status'], idle: string, busy: string): string {
+  if (status === 'sending') return busy
+  return status === 'unknown' ? 'Try again' : idle
 }
 
 /** How long a declined guest waits before asking again; migration 0011 holds the same minute. */

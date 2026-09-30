@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  admissionLabel,
   ago,
   askAgainIn,
   clashWith,
@@ -184,5 +185,12 @@ describe('room access, as the Studio shows it', () => {
       ),
       'M4 4h1v1h-1zM5 5h1v1h-1z',
     )
+  })
+
+  it("names a form's button by what it does, and Try again once no reply came", () => {
+    assert.equal(admissionLabel('idle', 'Send invitation', 'Sending…'), 'Send invitation')
+    assert.equal(admissionLabel('sending', 'Send invitation', 'Sending…'), 'Sending…')
+    assert.equal(admissionLabel('unknown', 'Send invitation', 'Sending…'), 'Try again')
+    assert.equal(admissionLabel('rejected', 'Send invitation', 'Sending…'), 'Send invitation')
   })
 })

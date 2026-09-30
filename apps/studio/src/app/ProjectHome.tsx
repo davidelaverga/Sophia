@@ -81,7 +81,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const created = await (status === 'unknown' ? admission.retry() : admission.submit(title.trim()))
+    const created = await admission.send(title.trim())
     if (created) onCreated(created.projectId)
   }
 
