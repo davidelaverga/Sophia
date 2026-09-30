@@ -13,4 +13,15 @@ describe('event words in the work pulse', () => {
     assert.equal(summaryLabel('room.something_new', 'room.lobby_changed'), 'Lobby changed')
     assert.equal(summaryLabel('', 'plain'), 'Plain')
   })
+
+  it('says what was sent from the composer', () => {
+    assert.equal(summaryLabel('contribution.discuss', 'contribution.recorded'), 'Shared with the project')
+    assert.equal(summaryLabel('contribution.ask_sophia', 'contribution.recorded'), 'Question for Sophia')
+    assert.equal(summaryLabel('contribution.propose_work', 'contribution.recorded'), 'Work proposed')
+  })
+
+  it('never reduces an event to one bare word', () => {
+    assert.equal(summaryLabel('contribution.new_intent', 'contribution.recorded'), 'Contribution recorded')
+    assert.equal(summaryLabel('', 'native_task.failed'), 'Native task failed')
+  })
 })

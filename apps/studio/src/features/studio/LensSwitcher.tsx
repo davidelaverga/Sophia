@@ -1,7 +1,9 @@
 // v2LensBar → LensSwitcher (frontend bindings). A lens is this viewer's local view: switching it sends
-// nothing to the server, so it cannot move anyone else's view or retask work.
+// nothing to the server, so it cannot move anyone else's view or retask work. The lenses' tip says so, and
+// assistive technology hears it as the group's description. The tip also carries the lens's key: a key drawn
+// inside the button, hidden until hover, would reserve room on one side and push the label off its center.
 import { useRef } from 'react'
-import { useSlidingThumb } from '@sophia/ui'
+import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { LENSES, type Lens } from './viewer-state.ts'
 
@@ -25,7 +27,14 @@ export function LensSwitcher({ lens, onChange }: Props) {
   }
   return (
     <div className="lens-bar">
-      <div ref={thumb} className="segmented" role="tablist" aria-label="Your view" onKeyDown={onKeyDown}>
+      <div
+        ref={thumb}
+        className="segmented"
+        role="tablist"
+        aria-label="Your view"
+        aria-describedby="lens-note"
+        onKeyDown={onKeyDown}
+      >
         {LENSES.map((l) => (
           <button
             key={l}
@@ -34,6 +43,7 @@ export function LensSwitcher({ lens, onChange }: Props) {
             }}
             type="button"
             role="tab"
+            className="has-tip"
             id={`lens-${l}`}
             data-thumb={l}
             aria-selected={l === lens}
@@ -42,11 +52,13 @@ export function LensSwitcher({ lens, onChange }: Props) {
             onClick={() => onChange(l)}
           >
             {LENS_LABEL[l]}
-            <kbd aria-hidden>{LENSES.indexOf(l) + 1}</kbd>
+            <Tip label="Only your view changes" keys={String(LENSES.indexOf(l) + 1)} side="bottom" />
           </button>
         ))}
       </div>
-      <span className="lens-note">Only your view changes</span>
+      <span id="lens-note" className="sr-only">
+        Only your view changes
+      </span>
     </div>
   )
 }

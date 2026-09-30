@@ -45,6 +45,11 @@ html {
   background: var(--void);
   scrollbar-color: rgba(236, 235, 241, 0.12) transparent;
 }
+/* Scrollbars stay thin and quiet everywhere. Chrome ignores ::-webkit-scrollbar once scrollbar-color is set (as
+   above), so without this every scrolling box drew the system bar, arrows and all, on Windows. */
+* {
+  scrollbar-width: thin;
+}
 body {
   margin: 0;
   min-height: 100dvh;
@@ -259,6 +264,14 @@ button:disabled {
 .pill.primary:hover:not(:disabled) {
   background: #fff;
 }
+/* A primary action that can't run yet (no name, nothing typed, a wait) waits as an outline, not a greyed-out block. */
+.pill.primary:disabled {
+  opacity: 1;
+  border-color: var(--line-2);
+  background: transparent;
+  color: var(--text-3);
+  box-shadow: none;
+}
 .pill.warm {
   border-color: rgba(241, 220, 199, 0.26);
   background: rgba(241, 220, 199, 0.04);
@@ -290,7 +303,7 @@ button:disabled {
   min-width: 17px;
   font-size: 10px;
 }
-.pill.primary kbd {
+.pill.primary:not(:disabled) kbd {
   border-color: rgba(5, 4, 8, 0.16);
   background: rgba(5, 4, 8, 0.06);
   color: rgba(5, 4, 8, 0.55);
@@ -756,6 +769,12 @@ img.avatar {
   gap: 14px;
   text-align: center;
 }
+/* The words would not fit under the light at rest (a phone held upright, a home that lists projects on a laptop):
+   it rests higher and smaller and they start sooner. SophiaLight decides and marks the screen; the numbers are
+   screen-rest.ts's. */
+.screen[data-rest-high] .screen-body {
+  top: calc(26cqh + min(30cqmin, 320px) * 0.5);
+}
 .screen-title {
   font-size: clamp(22px, 2.2vw, 26px);
   line-height: 1.2;
@@ -764,6 +783,10 @@ img.avatar {
 .screen-body p {
   color: var(--text-2);
   max-width: 42ch;
+}
+/* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
+.screen-body .form-error {
+  color: var(--rose);
 }
 /* Account providers: one row of equal squared tiles, marks only; the name lives in the tip. */
 .providers {
@@ -874,8 +897,10 @@ img.avatar {
   backdrop-filter: blur(16px);
   transition: border-color var(--fast) var(--ease);
 }
+/* The input takes the row's height: on touch it grows with the 40px button beside it, so their words share a line. */
 .field input {
-  height: 32px;
+  height: auto;
+  min-height: 32px;
   border: 0;
   background: transparent;
   padding: 0 8px;
@@ -927,6 +952,11 @@ img.avatar {
 }
 .home .screen-body {
   gap: 18px;
+}
+/* The first screen says what it is: a real heading above the name field, not a placeholder that vanishes. */
+.home-intro {
+  display: grid;
+  gap: 6px;
 }
 .create {
   display: grid;
@@ -1070,7 +1100,6 @@ img.avatar {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   height: 28px;
   padding: 0 12px;
   border: 0;
@@ -1086,24 +1115,6 @@ img.avatar {
 }
 .segmented button[aria-selected='true'] {
   color: var(--text);
-}
-.segmented kbd {
-  min-width: 16px;
-  height: 16px;
-  font-size: 10px;
-  opacity: 0;
-  transition: opacity var(--fast) var(--ease);
-}
-.segmented:hover kbd,
-.segmented:focus-within kbd {
-  opacity: 1;
-}
-.lens-note {
-  color: var(--text-4);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .presences {
@@ -1188,6 +1199,13 @@ img.avatar {
 .who .you {
   color: var(--text-3);
   font-weight: 400;
+}
+/* A muted microphone beside the name, where a phone still shows it (the role line folds away there). */
+.muted-mic {
+  display: inline-flex;
+  margin-left: 6px;
+  color: var(--text-3);
+  vertical-align: -1px;
 }
 .who .role {
   color: var(--text-3);
@@ -1279,11 +1297,12 @@ img.avatar {
  * The lens body sits between Sophia's line and the dock, anchored to the dock: it never covers her line (whose
  * words are the room's state), and what does not fit scrolls inside it instead.
  */
+/* The words end 22px above the dock, whatever its height (RoomDock measures it: a note, a second row). */
 .stage-body {
   position: absolute;
   top: calc(var(--ly) + var(--lr) * 0.46 + 56px);
   left: 50%;
-  bottom: 88px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--dock-h, 48px) + 40px);
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -1636,7 +1655,7 @@ img.avatar {
   position: absolute;
   top: 80px;
   right: var(--gutter);
-  bottom: 88px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--dock-h, 48px) + 40px);
   left: var(--gutter);
   z-index: 2;
   margin: 0;
@@ -1740,8 +1759,10 @@ img.avatar {
   font-size: 12px;
   font-weight: 500;
 }
+/* The tile's name is a flex row, which trims a child's leading space: keep the one before "· floor". */
 .tile-floor {
   color: var(--warm);
+  white-space: pre;
 }
 .video {
   position: absolute;
@@ -1819,6 +1840,23 @@ img.avatar {
 .guest-tag {
   color: var(--text-3);
   font-size: 12.5px;
+}
+/* A project that is slow to open says so where the lobby would float (it has no one waiting yet). */
+.wait-note {
+  position: fixed;
+  top: calc(var(--topbar) + 24px);
+  right: var(--gutter);
+  z-index: 15;
+  width: min(300px, calc(100% - 2 * var(--gutter)));
+  padding: 9px 12px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
@@ -1941,6 +1979,7 @@ img.avatar {
   animation: veil var(--base) var(--ease) both;
 }
 .sheet {
+  --sheet-top: calc(env(safe-area-inset-top, 0px) + 12px);
   position: absolute;
   top: 0;
   right: 0;
@@ -1948,7 +1987,7 @@ img.avatar {
   width: min(420px, 100%);
   overflow-x: clip;
   overflow-y: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 12px) 20px 28px;
+  padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
   box-shadow: -24px 0 64px rgba(0, 0, 0, 0.5);
@@ -1956,6 +1995,16 @@ img.avatar {
 }
 .sheet:focus-visible {
   outline: none;
+}
+/* The title, Close and the tabs stay in reach while the sheet scrolls under them. The block reaches up over the
+   sheet's top padding, so nothing shows above it however a browser measures that padding for sticky boxes. */
+.sheet-top {
+  position: sticky;
+  top: calc(-1 * var(--sheet-top));
+  z-index: 2;
+  margin-top: calc(-1 * var(--sheet-top));
+  padding-top: var(--sheet-top);
+  background: var(--plane);
 }
 .sheet-head {
   display: flex;
@@ -2008,8 +2057,10 @@ img.avatar {
   height: 1.5px;
   background: var(--text);
 }
+/* One column that never grows past the sheet: a wide field shrinks instead of pushing the rest off the edge. */
 .sheet-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding-top: 18px;
   animation: arrive 0.3s var(--ease) both;
@@ -2024,6 +2075,7 @@ img.avatar {
 }
 .room-link {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: 12px;
   padding: 20px 16px 14px;
@@ -2041,12 +2093,16 @@ img.avatar {
   width: 100%;
   height: auto;
 }
+/* The link on one line, cut at the end; a click selects all of it, so it still copies whole by hand. */
 .link-text {
   max-width: 100%;
+  overflow: hidden;
   color: var(--text-3);
   font: 11px/1.5 var(--mono);
-  text-align: center;
-  word-break: break-all;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  -webkit-user-select: all;
+  user-select: all;
 }
 .room-link .control-row {
   justify-content: center;
@@ -2067,6 +2123,7 @@ img.avatar {
 }
 .sheet-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   justify-items: start;
 }
@@ -2079,14 +2136,30 @@ img.avatar {
   color: var(--text-3);
   font-size: 12.5px;
 }
+/* Date, time and length on one row where they fit whole (about 377 px); narrower, the date takes its own row. */
+.calendar-form {
+  container-type: inline-size;
+}
 .calendar-when {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 0.9fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
   gap: 6px;
   width: 100%;
 }
+.calendar-when > * {
+  min-width: 0;
+}
 .calendar-when select {
+  width: 100%;
   height: 36px;
+}
+@container (max-width: 376px) {
+  .calendar-when {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .calendar-when > :first-child {
+    grid-column: 1 / -1;
+  }
 }
 .invitation-list,
 .session-list {
@@ -2107,12 +2180,39 @@ img.avatar {
 .invitation-list li[data-closed] {
   opacity: 0.5;
 }
+/* One block per list of invitations, so it reads the same inside a form and on its own. */
+.invitations {
+  display: grid;
+  width: 100%;
+}
+.invitations > .form-error {
+  padding-top: 8px;
+}
+/* Closed invitations fold under one line that reads as the list's next row: "3 closed". */
+.closed-invitations {
+  border-top: 1px solid var(--line);
+}
+.closed-invitations > summary {
+  width: fit-content;
+  padding: 8px 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.closed-invitations > summary:hover {
+  color: var(--text-2);
+}
 .invitation-who,
 .session-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
+}
+/* The address or name has the first line to itself; what it is and what can be done share the second. */
+.invitation-who {
+  grid-column: 1 / -1;
 }
 .invitation-state,
 .session-when {
@@ -2123,7 +2223,7 @@ img.avatar {
 }
 .invitation-actions {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 2;
   display: flex;
   gap: 2px;
 }
@@ -2298,9 +2398,13 @@ img.avatar {
   display: block;
   padding-left: 12px;
 }
+/* An empty list's sentence starts 18 px under the rule, where its first row would. */
 .empty {
-  padding: 24px 0;
+  padding: 18px 0 24px;
   color: var(--text-3);
+}
+.pulse .empty {
+  padding: 7px 0;
 }
 /* An empty list still leads somewhere: its way forward sits under the sentence. */
 div.empty {
@@ -2317,13 +2421,16 @@ div.empty {
   position: sticky;
   top: calc(var(--topbar) + 32px);
   display: grid;
-  gap: 10px;
+  /* With a row's own 7 px, the first event starts 18 px under the rule, as the first goal does. */
+  gap: 11px;
 }
+/* Beside the work, the pulse's head is as tall as the view's head (a 24 px title line, 12 px of air, the rule), so
+   the two rules meet in one line and the small title stands on the large one's baseline. */
 .pulse-head {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-bottom: 8px;
+  align-items: flex-end;
+  min-height: 37px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 .pulse-head h4 {
@@ -2375,6 +2482,12 @@ div.empty {
   background: var(--teal);
   box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
 }
+/* How many times a change repeated close together: quiet, in the time's own mono. */
+.event-count {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
 .event.hidden-event {
   color: var(--text-3);
 }
@@ -2405,28 +2518,37 @@ div.empty {
   color: var(--text-2);
 }
 
-/* A note above the dock (a blocked microphone) lifts the composer and the video so nothing overlaps. */
-.room-stage:has(.dock-note) .stage-body {
-  bottom: 140px;
-}
-.room-stage:has(.dock-note) :is(.gallery, .present) {
-  bottom: 136px;
-}
-
 @media (pointer: coarse) {
   .pill,
   .round {
     min-height: 40px;
   }
-  .ghost {
+  .ghost,
+  .segmented button {
     min-height: 36px;
+  }
+  /* An inline action's target reaches past its words, so the line around it keeps its height. */
+  .text-button {
+    position: relative;
+  }
+  .text-button::after {
+    content: '';
+    position: absolute;
+    inset: -7px -4px;
+  }
+  /* The mark gets a finger-sized target without changing how it looks. */
+  .topbar > .mark {
+    min-width: 40px;
+    justify-content: center;
+  }
+  .sheet-head .round {
+    min-width: 40px;
   }
 }
 /* Touch: no keyboard to hint at and no hover to wait for, so keys and tips stay out of the way. */
 @media (hover: none) {
   .tip,
-  .pill kbd,
-  .segmented kbd {
+  .pill kbd {
     display: none;
   }
 }
@@ -2457,6 +2579,11 @@ div.empty {
   .pulse {
     position: static;
   }
+  /* Under the work, the pulse's head has no neighbor to line up with: it keeps to its own words. */
+  .pulse-head {
+    min-height: 0;
+    padding-bottom: 8px;
+  }
   .identity-name,
   .connection {
     display: none;
@@ -2475,6 +2602,10 @@ div.empty {
 @media (max-width: 760px) {
   :root {
     --topbar: 92px;
+  }
+  /* A guest's bar has no views to list: one row. */
+  .shell[data-guest] {
+    --topbar: 48px;
   }
   .topbar {
     flex-wrap: wrap;
@@ -2505,8 +2636,17 @@ div.empty {
     height: 44px;
     margin: 0 calc(-1 * var(--gutter));
     padding: 0 calc(var(--gutter) - 10px);
-    /* The last views fade at the edge, which says the row scrolls. */
+  }
+  /* An edge fades only where more views hide (ViewNav marks it): the row says it scrolls, and the current view,
+     scrolled into sight, is never left under the fade. */
+  .view-nav[data-more-end] {
     mask-image: linear-gradient(90deg, #000 82%, transparent);
+  }
+  .view-nav[data-more-start] {
+    mask-image: linear-gradient(90deg, transparent, #000 18%);
+  }
+  .view-nav[data-more-start][data-more-end] {
+    mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
   }
   .presence {
     gap: 8px;
@@ -2541,9 +2681,6 @@ div.empty {
     --cols: 2;
     --rows: 3;
   }
-  .stage-body {
-    bottom: 110px;
-  }
   .page {
     padding-top: 24px;
   }
@@ -2561,11 +2698,12 @@ div.empty {
 @media (max-width: 560px) {
   /* Phones: the Invite panel rises from the bottom; the lobby spans the width under the bar. */
   .sheet {
+    --sheet-top: 12px;
     top: auto;
     left: 0;
     width: 100%;
     max-height: 90dvh;
-    padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+    padding: var(--sheet-top) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
     border-left: 0;
     border-top: 1px solid var(--line-2);
     border-radius: var(--r-4) var(--r-4) 0 0;
@@ -2580,6 +2718,12 @@ div.empty {
   .shell[data-view='studio'] .lobby {
     top: calc(var(--topbar) + 84px);
   }
+  /* The wait note takes the width, right under the bar: over the lenses, which have nothing to change yet. */
+  .wait-note {
+    top: calc(var(--topbar) + 8px);
+    left: var(--gutter);
+    width: auto;
+  }
   .invite-label {
     display: none;
   }
@@ -2587,7 +2731,6 @@ div.empty {
 
 @media (max-width: 420px) {
   .mark-word,
-  .lens-note,
   .crumb-sep {
     display: none;
   }

@@ -7,6 +7,7 @@ import { currentToken, endGuestSession } from '../../app/auth.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { Centered, HomeLink } from '../../app/SignIn.tsx'
 import { VOICE_NOTE } from '../voice/room-view.ts'
+import { readJoinToken } from './access-view.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { useRoomConnection } from '../voice/useProjectRoom.ts'
 
@@ -51,17 +52,33 @@ function TakenOut({ projectTitle }: { projectTitle: string }) {
   )
 }
 
+interface VisitEndProps {
+  title: string
+  body: string
+  anonymous: boolean
+  /** The way back, in words, for a visit that may start again: offered while the link is still in the address. */
+  again?: string
+}
+
 /**
  * The end of a visit. A guest without an account has nowhere else in Sophia to go (the member home would
- * refuse them), so their anonymous session ends and the page says the tab can close.
+ * refuse them), so their anonymous session ends and the page says the tab can close. Where the visit may start
+ * again, the page offers it in place: the invitation is still in the address bar, and reloading starts over
+ * from it.
  */
-export function VisitEnd({ title, body, anonymous }: { title: string; body: string; anonymous: boolean }) {
+export function VisitEnd({ title, body, anonymous, again }: VisitEndProps) {
   useEffect(() => {
     if (anonymous) void endGuestSession()
   }, [anonymous])
+  const back = again && readJoinToken(window.location.hash) !== null
   return (
     <Centered title={title}>
       <p>{body}</p>
+      {back && (
+        <button type="button" className="pill" onClick={() => window.location.reload()}>
+          {again}
+        </button>
+      )}
       {anonymous ? <p className="muted">You can close this tab.</p> : <HomeLink />}
     </Centered>
   )
@@ -98,11 +115,16 @@ export function GuestRoom({ accessToken, entry, projectTitle, anonymous }: Props
   }
   if (left) {
     return (
-      <VisitEnd title="You left the room" body="To come back, open the invitation link again." anonymous={anonymous} />
+      <VisitEnd
+        title="You left the room"
+        body="To come back, ask again with the invitation link."
+        anonymous={anonymous}
+        again="Ask to come back"
+      />
     )
   }
   return (
-    <div className="shell" data-view="studio">
+    <div className="shell" data-view="studio" data-guest>
       <header className="topbar">
         <span className="mark">
           <span className="mark-dot" data-live={live || undefined} aria-hidden />

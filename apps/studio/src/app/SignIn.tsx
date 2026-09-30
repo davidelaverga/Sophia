@@ -6,6 +6,7 @@ import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './aut
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
+import { SLOW_NOTE, useSlow } from './useSlow.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -14,7 +15,7 @@ const MAILPIT_URL = 'http://127.0.0.1:54324'
 export function Centered({ title, children, busy }: { title: string; children?: React.ReactNode; busy?: boolean }) {
   return (
     <main className="screen" aria-busy={busy}>
-      <SophiaLight mode="rest" target={null} attention={null} working={false} />
+      <SophiaLight mode="rest" target={null} attention={null} working={false} screen />
       <div className="screen-mark">
         <span className="mark-dot" aria-hidden />
         <span className="mark-word">Sophia</span>
@@ -33,6 +34,48 @@ export function HomeLink() {
     <a className="pill" href="/">
       Go to Sophia
     </a>
+  )
+}
+
+/** For a screen that waits on the API: one line once the wait has lasted (useSlow.ts), so it never just sits. */
+export function SlowNote() {
+  if (!useSlow(true)) return null
+  return (
+    <p className="muted arrive" role="status">
+      {SLOW_NOTE}
+    </p>
+  )
+}
+
+interface OfferProps {
+  account: string
+  onAccept: () => Promise<void>
+  onDecline: () => void
+}
+
+/**
+ * A link carried a session and nobody is signed in: the account is named, as the Auth service reads it, and nothing
+ * is signed in until the person says it is theirs. Someone else's link would otherwise sign them into that account.
+ */
+export function LinkOffer({ account, onAccept, onDecline }: OfferProps) {
+  const [signing, setSigning] = useState(false)
+  const accept = async () => {
+    setSigning(true)
+    await onAccept()
+    setSigning(false)
+  }
+  return (
+    <Centered title="Sign in as this account?">
+      <p>
+        This link signs you in to Sophia as <strong>{account}</strong>. Continue only if that address is yours.
+      </p>
+      <button type="button" className="pill primary" disabled={signing} onClick={() => void accept()}>
+        {signing ? 'Signing in…' : 'Continue'}
+      </button>
+      <button type="button" className="text-button" disabled={signing} onClick={onDecline}>
+        That’s not me
+      </button>
+    </Centered>
   )
 }
 

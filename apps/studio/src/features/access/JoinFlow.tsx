@@ -9,7 +9,7 @@ import { ApiError } from '../../api/client.ts'
 import { authMode, currentToken, guestAccessToken, sendInvitedSignIn, type AuthState } from '../../app/auth.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
-import { Centered, CodeForm, HomeLink } from '../../app/SignIn.tsx'
+import { Centered, CodeForm, HomeLink, SlowNote } from '../../app/SignIn.tsx'
 import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 
@@ -62,7 +62,13 @@ export function JoinFlow({ auth, onChooseDev, onSignOut, onOpenProject }: Props)
     retry: false,
   })
   if (!token) return <MissingToken signedIn={auth.status === 'signed_in'} />
-  if (preview.isPending) return <Centered title="Opening the room…" busy />
+  if (preview.isPending) {
+    return (
+      <Centered title="Opening the room…" busy>
+        <SlowNote />
+      </Centered>
+    )
+  }
   if (preview.isError && !linkRefused(preview.error)) return <Unreachable onRetry={() => void preview.refetch()} />
   if (preview.isError) return <Closed text="This link does not open a room. Ask for a new one." />
   if (preview.data.state !== 'open') return <Closed text={CLOSED[preview.data.state]} />
@@ -132,6 +138,8 @@ type GuestStep =
   | { step: 'knocking' }
   | { step: 'waiting'; entry: LobbyEntry; accessToken: string }
   | { step: 'in'; entry: LobbyEntry; accessToken: string }
+  /** The guest stopped waiting: the page lets go of the lobby. */
+  | { step: 'gone' }
 
 /** Knocking: a guest session (or the signed-in person's), then the lobby entry; the link has done its job. */
 function useKnock(token: string, identity: Identity | null) {
@@ -174,6 +182,7 @@ function GuestJoin({
       />
     )
   }
+  if (state.step === 'gone') return <LeftLobby anonymous={anonymous} />
   if (state.step === 'waiting') {
     return (
       <Waiting
@@ -183,6 +192,7 @@ function GuestJoin({
         accessToken={state.accessToken}
         anonymous={anonymous}
         onIn={(entry) => setState({ ...state, step: 'in', entry })}
+        onLeave={() => setState({ step: 'gone' })}
       />
     )
   }
@@ -204,6 +214,18 @@ function GuestJoin({
         }}
       />
     </Centered>
+  )
+}
+
+/** The guest stopped waiting. There is no way to take a knock back yet, so the page says what stays behind. */
+function LeftLobby({ anonymous }: { anonymous: boolean }) {
+  return (
+    <VisitEnd
+      title="You left the lobby"
+      body="You’re no longer waiting. Your name may stay in the room’s lobby until someone answers it."
+      anonymous={anonymous}
+      again="Ask again"
+    />
   )
 }
 
@@ -291,10 +313,15 @@ interface WaitingProps {
   accessToken: string
   anonymous: boolean
   onIn: (e: LobbyEntry) => void
+  /** The guest gives up the wait. */
+  onLeave: () => void
 }
 
-/** The lobby from the outside: a quiet wait that ends as soon as someone inside decides. */
-function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: WaitingProps) {
+/**
+ * The lobby from the outside: a quiet wait that ends as soon as someone inside decides, or when the guest stops
+ * waiting. No wait is a screen without a way out.
+ */
+function Waiting({ preview, token, entry, accessToken, anonymous, onIn, onLeave }: WaitingProps) {
   const { current, setCurrent, misses } = useOwnEntry(entry, accessToken, onIn)
   useDocumentTitle(TITLE[current.status] ?? null)
   if (current.status === 'blocked') return <Blocked preview={preview} anonymous={anonymous} />
@@ -304,7 +331,7 @@ function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: Waitin
       if (next.status === 'admitted') onIn(next)
       else setCurrent(next)
     }
-    return <Declined preview={preview} entry={current} onAskAgain={askAgain} />
+    return <Declined preview={preview} entry={current} onAskAgain={askAgain} onLeave={onLeave} />
   }
   return (
     <Centered title={`Waiting to be let in, ${current.displayName}`} busy>
@@ -313,6 +340,9 @@ function Waiting({ preview, token, entry, accessToken, anonymous, onIn }: Waitin
       </p>
       {misses >= MISSES_TO_SAY && <p className="form-error">Can’t reach Sophia right now. Still trying…</p>}
       <SessionNote preview={preview} />
+      <button type="button" className="text-button" onClick={onLeave}>
+        Stop waiting
+      </button>
     </Centered>
   )
 }
@@ -335,10 +365,12 @@ function Declined({
   preview,
   entry,
   onAskAgain,
+  onLeave,
 }: {
   preview: InvitationPreview
   entry: LobbyEntry
   onAskAgain: () => Promise<void>
+  onLeave: () => void
 }) {
   const left = useAskAgainIn(entry.decidedAt)
   const [asking, setAsking] = useState(false)
@@ -368,6 +400,9 @@ function Declined({
           {error}
         </p>
       )}
+      <button type="button" className="text-button" onClick={onLeave}>
+        Leave
+      </button>
     </Centered>
   )
 }
@@ -468,40 +503,51 @@ function Accept({
   )
 }
 
+/**
+ * The invited person's sign-in code, sent on request. Each press answers: the button waits while the email goes,
+ * a new code says it replaced the last one, and a refusal (asked again too soon) is said where it was asked.
+ */
 function InvitedSignIn({ email }: { email: string }) {
-  const [sent, setSent] = useState(false)
+  const [sent, setSent] = useState(0)
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const send = async () => {
+    setSending(true)
+    setError(null)
     try {
       await sendInvitedSignIn(email)
-      setSent(true)
+      setSent((n) => n + 1)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not send the code.')
+    } finally {
+      setSending(false)
     }
   }
-  if (sent) {
+  const refused = error && (
+    <p className="form-error" role="alert">
+      {error}
+    </p>
+  )
+  if (sent === 0) {
     return (
       <>
-        <p className="muted">
-          We sent a code to {email}.{' '}
-          <button type="button" className="text-button" onClick={() => void send()}>
-            Send it again
-          </button>
-        </p>
-        <CodeForm email={email} />
+        <button type="button" className="pill primary" disabled={sending} onClick={() => void send()}>
+          {sending ? 'Sending…' : 'Email me a sign-in code'}
+        </button>
+        {refused}
       </>
     )
   }
   return (
     <>
-      <button type="button" className="pill primary" onClick={() => void send()}>
-        Email me a sign-in code
-      </button>
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      )}
+      <p className="muted" role="status">
+        {sent > 1 ? `We sent a new code to ${email}. Only the newest one works.` : `We sent a code to ${email}.`}{' '}
+        <button type="button" className="text-button" disabled={sending} onClick={() => void send()}>
+          {sending ? 'Sending…' : 'Send it again'}
+        </button>
+      </p>
+      {refused}
+      <CodeForm email={email} />
     </>
   )
 }

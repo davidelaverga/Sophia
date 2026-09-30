@@ -1,13 +1,23 @@
 // The room's calendar: put a session on it (in your own time zone) and take one off. The room shows how long
-// until it begins; invitations do not carry sessions yet, and the tab says so rather than promise it.
+// until it begins; invitations do not carry sessions yet, and the tab says so rather than promise it. The form
+// says when a time overlaps another session, and after scheduling it moves on, so a second click is no twin.
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { RoomSession, SessionCreate } from '@sophia/contracts'
 import { ConfirmButton } from '@sophia/ui'
 import { cancelSession, scheduleSession } from '../../api/access.ts'
-import { useAdmission } from '../../api/useAdmission.ts'
+import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
-import { countdown, sessionFromForm, sessionLabel } from './access-view.ts'
+import {
+  admissionLabel,
+  clashWith,
+  countdown,
+  formSlot,
+  plannedSession,
+  sessionFromForm,
+  sessionLabel,
+} from './access-view.ts'
+import { AdmissionNote } from './AdmissionNote.tsx'
 import { canInvite, type SheetContext } from './useAccess.ts'
 
 const DURATIONS = [30, 45, 60, 90] as const
@@ -23,16 +33,11 @@ function zoneName(): string {
   }
 }
 
-const pad = (n: number) => String(n).padStart(2, '0')
-
 /** Today's date and the next half hour, as the form's starting values. */
 function nextSlot(): { date: string; time: string } {
   const d = new Date(Date.now() + 30 * 60_000)
   d.setMinutes(d.getMinutes() < 30 ? 30 : 60, 0, 0)
-  return {
-    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-  }
+  return formSlot(d)
 }
 
 export function CalendarTab({ context }: { context: SheetContext }) {
@@ -56,16 +61,32 @@ export function CalendarTab({ context }: { context: SheetContext }) {
   )
 }
 
+interface SessionFields {
+  title: string
+  date: string
+  time: string
+  minutes: number
+}
+
 function SessionForm({ context, onScheduled }: { context: SheetContext; onScheduled: () => void }) {
-  const [form, setForm] = useState(() => ({ title: 'Room session', ...nextSlot(), minutes: 60 }))
+  const [form, setForm] = useState<SessionFields>(() => ({ title: 'Room session', ...nextSlot(), minutes: 60 }))
   const schedule = useAdmission<SessionCreate, RoomSession>((key, body) =>
     scheduleSession(context.identity.token, context.projectId, key, body),
   )
+  const set = (patch: Partial<SessionFields>) => setForm((f) => ({ ...f, ...patch }))
+  const scheduled = (created: RoomSession | undefined) => {
+    if (!created) return
+    set(formSlot(new Date(created.endsAt)))
+    onScheduled()
+  }
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await schedule.submit(sessionFromForm(form, zone()))) onScheduled()
+    scheduled(await schedule.send(sessionFromForm(form, zone())))
   }
-  const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
+  // After no reply the session asked for is still open: its fields wait, locked, until Try again answers.
+  const frozen = schedule.state.status === 'unknown'
+  const planned = plannedSession(form, zone())
+  const clash = planned ? clashWith(context.sessions, planned) : null
   return (
     <form className="sheet-form calendar-form" onSubmit={(e) => void submit(e)}>
       <label className="field-label" htmlFor="session-title">
@@ -76,39 +97,79 @@ function SessionForm({ context, onScheduled }: { context: SheetContext; onSchedu
         required
         maxLength={180}
         value={form.title}
+        readOnly={frozen}
         onChange={(e) => set({ title: e.target.value })}
       />
-      <div className="calendar-when">
-        <input
-          aria-label="Date"
-          type="date"
-          required
-          value={form.date}
-          onChange={(e) => set({ date: e.target.value })}
-        />
-        <input
-          aria-label="Start time"
-          type="time"
-          required
-          value={form.time}
-          onChange={(e) => set({ time: e.target.value })}
-        />
-        <select aria-label="Length" value={form.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })}>
-          {DURATIONS.map((m) => (
-            <option key={m} value={m}>
-              {m} min
-            </option>
-          ))}
-        </select>
-      </div>
+      <WhenFields form={form} set={set} frozen={frozen} />
       <button type="submit" className="pill primary" disabled={schedule.state.status === 'sending'}>
-        {schedule.state.status === 'sending' ? 'Scheduling…' : 'Schedule the session'}
+        {admissionLabel(schedule.state.status, 'Schedule the session', 'Scheduling…')}
       </button>
       <p className="sheet-status" role="status">
-        {schedule.state.status === 'rejected' && schedule.state.error.message}
+        <ScheduleNote state={schedule.state} clash={clash} onRetry={() => void schedule.retry().then(scheduled)} />
       </p>
     </form>
   )
+}
+
+/** When the session starts, and for how long: one row where they fit, the date on its own row where not. */
+interface WhenProps {
+  form: SessionFields
+  set: (patch: Partial<SessionFields>) => void
+  frozen: boolean
+}
+
+function WhenFields({ form, set, frozen }: WhenProps) {
+  return (
+    <div className="calendar-when">
+      <input
+        aria-label="Date"
+        type="date"
+        required
+        value={form.date}
+        disabled={frozen}
+        onChange={(e) => set({ date: e.target.value })}
+      />
+      <input
+        aria-label="Start time"
+        type="time"
+        required
+        value={form.time}
+        disabled={frozen}
+        onChange={(e) => set({ time: e.target.value })}
+      />
+      <select
+        aria-label="Length"
+        value={form.minutes}
+        disabled={frozen}
+        onChange={(e) => set({ minutes: Number(e.target.value) })}
+      >
+        {DURATIONS.map((m) => (
+          <option key={m} value={m}>
+            {m} min
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+interface NoteProps {
+  state: AdmissionState<SessionCreate, RoomSession>
+  clash: RoomSession | null
+  onRetry: () => void
+}
+
+/**
+ * The form's one line: a refusal or no answer (with its retry), an overlap before it happens, or what was just put
+ * on the calendar.
+ */
+function ScheduleNote({ state, clash, onRetry }: NoteProps) {
+  const now = Date.now()
+  if (state.status === 'rejected' || state.status === 'unknown')
+    return <AdmissionNote state={state} onRetry={onRetry} />
+  if (clash) return `Overlaps “${clash.title}” · ${sessionLabel(clash, now)}.`
+  if (state.status === 'done') return `Scheduled: ${sessionLabel(state.result, now)}.`
+  return null
 }
 
 interface ListProps {

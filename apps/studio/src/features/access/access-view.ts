@@ -1,6 +1,7 @@
 // Room access in the Studio, as plain rules: invitation links, the room calendar and the QR code's shape.
 // Pure, so they are unit-tested; the components only render them.
 import type { Invitation, LobbyEntry, RoomSession, SessionCreate } from '@sophia/contracts'
+import type { AdmissionState } from '../../api/useAdmission.ts'
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
@@ -8,6 +9,15 @@ const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
 export function readJoinToken(hash: string): string | null {
   const token = hash.startsWith('#') ? hash.slice(1) : hash
   return TOKEN.test(token) ? token : null
+}
+
+/**
+ * A form's button for an admission: what it does, what it says while it works, and Try again once the outcome is
+ * unknown (pressing it then sends the same request again: useAdmission's send).
+ */
+export function admissionLabel(status: AdmissionState<unknown, unknown>['status'], idle: string, busy: string): string {
+  if (status === 'sending') return busy
+  return status === 'unknown' ? 'Try again' : idle
 }
 
 /** How long a declined guest waits before asking again; migration 0011 holds the same minute. */
@@ -83,6 +93,25 @@ export function invitationState(
   return i.role ? `${i.role} · ${EMAIL_WORD[i.emailStatus]}` : EMAIL_WORD[i.emailStatus]
 }
 
+/** How long ago, in the room's short words: "just now", "12 min ago", "3 h ago", "2 days ago". */
+export function ago(at: string, now: number): string {
+  const elapsed = Math.max(0, now - Date.parse(at))
+  if (elapsed < MINUTE) return 'just now'
+  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)} min ago`
+  if (elapsed < 24 * HOUR) return `${Math.floor(elapsed / HOUR)} h ago`
+  const days = Math.floor(elapsed / (24 * HOUR))
+  return `${days} ${days === 1 ? 'day' : 'days'} ago`
+}
+
+/**
+ * A guest in the Invite sheet's door record (let in, declined or blocked): what still matters about them (a removal
+ * under way, asking again), then when it was decided. The list's title already says what was decided.
+ */
+export function doorNote(e: Pick<LobbyEntry, 'removal' | 'knocks' | 'decidedAt'>, now: number): string {
+  const when = e.decidedAt ? ago(e.decidedAt, now) : ''
+  return [removalNote(e.removal) || knockNote(e.knocks), when].filter(Boolean).join(' · ')
+}
+
 /** The first session that has not ended yet. */
 export function nextSession(sessions: readonly RoomSession[], now: number): RoomSession | null {
   return (
@@ -138,6 +167,35 @@ export function sessionFromForm(
     startsAt: start.toISOString(),
     endsAt: new Date(start.getTime() + form.minutes * MINUTE).toISOString(),
     timeZone,
+  }
+}
+
+/** The session the form describes, or null while its date or time is incomplete (the form is being edited). */
+export function plannedSession(
+  form: { title: string; date: string; time: string; minutes: number },
+  timeZone: string,
+): SessionCreate | null {
+  if (!form.date || !form.time || Number.isNaN(Date.parse(`${form.date}T${form.time}`))) return null
+  return sessionFromForm(form, timeZone)
+}
+
+/** The first session a planned one would overlap (sessions that only touch don't), so the form can say so first. */
+export function clashWith(
+  sessions: readonly RoomSession[],
+  planned: Pick<RoomSession, 'startsAt' | 'endsAt'>,
+): RoomSession | null {
+  const start = Date.parse(planned.startsAt)
+  const end = Date.parse(planned.endsAt)
+  return sessions.find((s) => Date.parse(s.startsAt) < end && Date.parse(s.endsAt) > start) ?? null
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** The form's date and time fields for a moment, in the browser's zone: "2026-09-30" and "04:00". */
+export function formSlot(at: Date): { date: string; time: string } {
+  return {
+    date: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`,
+    time: `${pad(at.getHours())}:${pad(at.getMinutes())}`,
   }
 }
 

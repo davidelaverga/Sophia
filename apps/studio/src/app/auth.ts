@@ -2,7 +2,19 @@
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
-import { OTHER_BROWSER_NOTICE, readAuthCallback, withoutAuthParams } from './auth-callback.ts'
+import { READ_TIMEOUT_MS } from '../api/client.ts'
+import {
+  LINK_FAILED,
+  LINK_UNCHECKED,
+  linkDecision,
+  OTHER_ACCOUNT_NOTICE,
+  OTHER_BROWSER_NOTICE,
+  readAuthCallback,
+  tokenSubject,
+  withoutAuthParams,
+} from './auth-callback.ts'
+import { sendFailure } from './auth-words.ts'
+import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
@@ -29,11 +41,20 @@ export const supabase: SupabaseClient | null =
 export type AuthMode = 'supabase' | 'dev' | 'none'
 export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length > 0 ? 'dev' : 'none'
 
-export type AuthState =
-  { status: 'loading' } | { status: 'signed_out'; notice?: string } | { status: 'signed_in'; identity: Identity }
+/** `notice`: why the last sign-in link did not do what it offered, when it did not. */
+type SignedIn = { status: 'signed_in'; identity: Identity; notice?: string }
+type SignedOut = { status: 'signed_out'; notice?: string }
+/** A link carried a session and nobody is signed in: the person says whether `account` is theirs first. */
+type LinkOffer = { status: 'link_offer'; account: string }
+export type AuthState = { status: 'loading' } | SignedOut | SignedIn | LinkOffer
+
+type LinkTokens = { accessToken: string; refreshToken: string }
+
+/** A link's session, kept in memory (never in storage) while the person decides whether it is theirs. */
+let offered: LinkTokens | null = null
 
 /** An anonymous session is a guest's (a knock at a room's door), never an account: its role says so. */
-const fromSession = (s: Session | null): AuthState =>
+const fromSession = (s: Session | null): SignedIn | SignedOut =>
   s
     ? {
         status: 'signed_in',
@@ -47,23 +68,47 @@ const fromSession = (s: Session | null): AuthState =>
     : { status: 'signed_out' }
 
 /**
- * The session after an Auth redirect, with a notice when the redirect could not sign in: an expired
- * link, or a magic link opened in a browser other than the one that asked for it.
+ * A link that carries a session (an invitation or a magic link sent from the Auth dashboard) is never used without
+ * a word (`linkDecision`). Another account signed in here stays, with a notice. With nobody signed in, the Auth
+ * service says whose the token is (a forged one fails there) and the person is asked first, by that address: a
+ * name the link's author wrote into the token never reaches the page. Resolves to the offer, or to a notice.
+ */
+async function linkOutcome(
+  client: SupabaseClient,
+  link: LinkTokens,
+): Promise<{ offer: string } | { notice: string | null }> {
+  const { data } = await client.auth.getSession()
+  const here = data.session && !data.session.user.is_anonymous ? data.session.user.id : null
+  const decision = linkDecision(here, tokenSubject(link.accessToken))
+  if (decision === 'refuse') return { notice: OTHER_ACCOUNT_NOTICE }
+  if (decision === 'keep') return { notice: null }
+  const { data: owner, error } = await client.auth.getUser(link.accessToken)
+  if (error || !owner.user.email) return { notice: LINK_FAILED }
+  return { offer: owner.user.email }
+}
+
+/**
+ * The session after an Auth redirect, with a notice when the redirect did not sign in: an expired link, a link for
+ * another account than the one signed in here, or a magic link opened in a browser other than the one that asked.
  */
 async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> {
   let notice: string | null = callback.kind === 'error' ? callback.message : null
   if (callback.kind === 'tokens') {
-    const { error } = await client.auth.setSession({
-      access_token: callback.accessToken,
-      refresh_token: callback.refreshToken,
-    })
-    if (error) notice = error.message
+    // The tokens leave the address bar before anything is asked: what they carry is a live session.
+    window.history.replaceState(null, '', withoutAuthParams(window.location.href))
+    // Whose they are is asked with an end, so a silent Auth service leaves a sign-in screen, not a loading one.
+    const outcome = await settleWithin(linkOutcome(client, callback), READ_TIMEOUT_MS, { notice: LINK_UNCHECKED })
+    if ('offer' in outcome) {
+      offered = callback
+      return { status: 'link_offer', account: outcome.offer }
+    }
+    notice = outcome.notice
   }
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange
   if (callback.kind === 'code' && !data.session) notice = OTHER_BROWSER_NOTICE
   if (callback.kind !== 'none') window.history.replaceState(null, '', withoutAuthParams(window.location.href))
-  if (data.session) return fromSession(data.session)
-  return notice ? { status: 'signed_out', notice } : { status: 'signed_out' }
+  const state = fromSession(data.session)
+  return notice ? { ...state, notice } : state
 }
 
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
@@ -72,14 +117,36 @@ function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) 
   void sessionAfterRedirect(client).then((state) => {
     if (alive) onState(state)
   })
-  const { data } = client.auth.onAuthStateChange((_event, session) => onState(fromSession(session)))
+  // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it.
+  const { data } = client.auth.onAuthStateChange((event, session) => {
+    if (event !== 'INITIAL_SESSION') onState(fromSession(session))
+  })
   return () => {
     alive = false
     data.subscription.unsubscribe()
   }
 }
 
-export function useAuth(): { state: AuthState; chooseDev: (i: Identity | null) => void; signOut: () => Promise<void> } {
+interface Auth {
+  state: AuthState
+  chooseDev: (i: Identity | null) => void
+  signOut: () => Promise<void>
+  /** The person said the offered account is theirs: sign in with the link's session. */
+  acceptLink: () => Promise<void>
+  /** Not theirs: the link's session is dropped, and nothing was signed in. */
+  declineLink: () => void
+}
+
+/** Sign in with the session a link offered, once the person said the account is theirs. */
+async function acceptOffered(client: SupabaseClient): Promise<AuthState | null> {
+  const link = offered
+  offered = null
+  if (!link) return { status: 'signed_out' }
+  const { error } = await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
+  return error ? { status: 'signed_out', notice: LINK_FAILED } : null // signed in: the auth listener says so
+}
+
+export function useAuth(): Auth {
   const [state, setState] = useState<AuthState>(() => {
     if (authMode === 'supabase') return { status: 'loading' }
     const dev = loadIdentity()
@@ -99,14 +166,19 @@ export function useAuth(): { state: AuthState; chooseDev: (i: Identity | null) =
       else saveIdentity(null)
       setState({ status: 'signed_out' })
     },
+    acceptLink: async () => {
+      const next = supabase ? await acceptOffered(supabase) : { status: 'signed_out' as const }
+      if (next) setState(next)
+    },
+    declineLink: () => {
+      offered = null
+      setState({ status: 'signed_out' })
+    },
   }
 }
 
-/** Anyone can sign up: the first link creates the account. A server with sign-ups closed says so plainly. */
-function signInError(error: AuthError, email: string): Error {
-  const closed = error.code === 'otp_disabled' || /signups not allowed/i.test(error.message)
-  return closed ? new Error(`New accounts are closed on this server, so ${email} can’t sign up yet.`) : error
-}
+/** What stopped a sign-in email, in words a person can act on (auth-words.ts). */
+const sendError = (error: AuthError, email: string) => new Error(sendFailure(error, email))
 
 /** Magic link to the current page; locally the email lands in Mailpit. A new email gets an account. */
 export async function sendMagicLink(email: string): Promise<void> {
@@ -118,7 +190,7 @@ export async function sendMagicLink(email: string): Promise<void> {
       shouldCreateUser: true,
     },
   })
-  if (error) throw signInError(error, email)
+  if (error) throw sendError(error, email)
 }
 
 /** Supabase provider ids ("azure" is Microsoft), in the order the sign-in row shows them. */
@@ -264,7 +336,7 @@ export async function sendInvitedSignIn(email: string): Promise<void> {
     email,
     options: { emailRedirectTo: `${window.location.origin}/join`, shouldCreateUser: true },
   })
-  if (error) throw error
+  if (error) throw sendError(error, email)
 }
 
 /** The code in the sign-in email: works on any device, unlike the link, which needs this browser. */

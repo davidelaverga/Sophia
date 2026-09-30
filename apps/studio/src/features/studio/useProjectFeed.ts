@@ -7,6 +7,7 @@ import { ApiError, getSnapshot } from '../../api/client.ts'
 import { followEvents } from '../../api/stream.ts'
 import { applyFrame, initialFeed, rebase, type Feed } from '../../projectors/projection.ts'
 import { runFeedLoop, type Connection, type FeedPorts } from './feed-loop.ts'
+import { closedDoor, staleRetry } from './project-door.ts'
 
 export type { Connection } from './feed-loop.ts'
 
@@ -52,6 +53,10 @@ function feedPorts(deps: PortsDeps): { ports: FeedPorts; dispose: () => void } {
     follow: (after, signal, onOpen, onFrame) =>
       followEvents({ token: deps.token, projectId: deps.projectId, after, signal, onOpen, onFrame }),
     setConnection: deps.setConnection,
+    refused: async () => {
+      await deps.queryClient.refetchQueries({ queryKey: deps.key, exact: true })
+      return closedDoor(deps.queryClient.getQueryState(deps.key)?.error)
+    },
     eventApplied: () => {
       clearTimeout(refresh)
       refresh = setTimeout(
@@ -71,6 +76,8 @@ export function useProjectFeed(projectId: string, identity: string, token: strin
     queryKey: key,
     queryFn: ({ signal }) => getSnapshot(token, projectId, signal),
     retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 3,
+    // A view that could not be refreshed stays on screen (project-door.ts) and asks again by itself.
+    refetchInterval: (query) => staleRetry(query.state.error, query.state.data !== undefined),
     refetchOnWindowFocus: false,
   })
 
