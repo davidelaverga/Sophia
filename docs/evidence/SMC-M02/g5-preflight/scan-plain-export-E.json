@@ -1,0 +1,47 @@
+{
+  "schema": "sophia.smc-m02.runtime-root-scan.v1",
+  "profiles": [],
+  "sessions": [
+    {
+      "session": "sophia-att-1",
+      "bytes": 6336,
+      "decoded": true,
+      "events": 34,
+      "last_type": "turn/end",
+      "turns": {
+        "completed": 2
+      },
+      "requested": 3,
+      "results": 3,
+      "unpaired": 0,
+      "open_turn": false
+    }
+  ],
+  "journals": [
+    {
+      "session": "sophia-att-1",
+      "records": 14,
+      "fence": "held",
+      "authority_epoch": 1,
+      "commands": {
+        "create": 1,
+        "hold": 1,
+        "input": 1
+      },
+      "unsettled_commands": 0,
+      "identity": true
+    }
+  ],
+  "totals": {
+    "sessions": 1,
+    "undecodable": 0,
+    "with_unpaired_calls": 0,
+    "open_turns": 0,
+    "journals": 1,
+    "fences": {
+      "held": 1
+    },
+    "unsettled_commands": 0,
+    "journals_without_session_log": 0
+  }
+}

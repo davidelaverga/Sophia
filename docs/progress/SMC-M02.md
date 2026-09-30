@@ -91,7 +91,7 @@ The PostgreSQL is a disposable local cluster; this container has no Docker.
 | G2 Parity adapter | source done | `bd9f493`, `81a2a81`; §4 T01–T03, R1 |
 | G3 Preset identity | source done | `f0bdaa8`; §4 T02, T08; binding §6 |
 | G4 Recovery and rollback | source and fixtures done; hosted pending | T10 (with CX-0002), T12, T13; supervisor lease tests; #16's profile upgrade; **an in-place cutover and rollback rehearsal on one disposable root** ([evidence](../evidence/SMC-M02/inplace-cutover/README.md)). Reconciled in [CC-0002](../coordination/SMC-M02/SMC-M02-CC-0002.md) §3 |
-| G5 Exact cutover | request drafted, not approved | [CC-0003](../coordination/SMC-M02/SMC-M02-CC-0003.md), on PR #29's `fe6b0fd`. Needs D1–D3, the CX-0004 decision (Studio step), and Davide's approval of the exact batch |
+| G5 Exact cutover | request drafted, not approved | [CC-0005](../coordination/SMC-M02/SMC-M02-CC-0005.md) (supersedes CC-0003), on PR #29's revision 4 `9198f58`. It settles the two finished `s1-03-dev` goals by Davide's Stop first ([evidence](../evidence/SMC-M02/g5-preflight/README.md)), then copies and scans the root, cuts over and releases main's Studio. It needs D1–D3, Davide's acceptance of the two Stops, and his grant of the exact batch |
 
 ## 6. Owner decisions
 
@@ -117,9 +117,17 @@ PR #29 carries this PR (`bcd68f9`) byte for byte, with #16, #23, #24 and #28 on 
 
 [CC-0003](../coordination/SMC-M02/SMC-M02-CC-0003.md) is the G5 draft on that source.
 
+## 7b. PR #29 revision 4 (`9198f58`)
+
+After a scope amendment by Davide (CX-0006), PR #29 carries main, #16 and #27 only. #23, #24 and #28 are deferred on their own branches, and the Studio is main's. [CC-0004](../coordination/SMC-M02/SMC-M02-CC-0004.md) reviews it:
+- **No blocking finding.** The non-doc bytes are #27's plus #16's three files, with the reviewed `profileLockPath` fix.
+- **CI attribution corrected, append-only.** CC-0002's run ids were `6cee04a`'s; `fe6b0fd`'s were 36766951057 and 36766958616, both green.
+- **The two running `s1-03-dev` bindings** are finished briefs at rest. A goal **Stop** through the member route settles each one on its own unit and keeps its result, rehearsed on both units. **Hold does not settle.**
+- **The state copy.** `reconcileProfile` deletes an existing `.previous`, hence a state copy before the deploy.
+- **A read-only scanner** for unpaired histories, validated on known homes.
+
 ## 8. Next action
 
-1. Davide decides D1–D3 on #27.
-2. Watch CI on #27 and fix anything red.
-3. After M01 merges, merge `main` into this branch and re-run `pnpm check`.
-4. Then G4's remainder (lease settlement, a restore rehearsal on a disposable home) and a G5 request, under a separate approval.
+1. Davide decides D1–D3 on #27 and accepts or amends CC-0005, including A1's two Stops.
+2. Codex re-verifies P1–P8 and runs the granted batch.
+3. Keep #27 green.
