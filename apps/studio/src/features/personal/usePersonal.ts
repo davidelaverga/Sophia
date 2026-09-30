@@ -3,7 +3,7 @@
 // committed); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { PersonalReceipt, PersonalSpace, PersonalTurn } from '@sophia/contracts'
+import type { PersonalReceipt, PersonalTurn } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import {
   carryPersonalNote,
@@ -124,7 +124,3 @@ export function usePersonalWrites(identity: Identity) {
 }
 
 export type PersonalWrites = ReturnType<typeof usePersonalWrites>
-
-/** The last thing the person said, for the Personal door. */
-export const lastPersonTurn = (space: PersonalSpace | undefined): PersonalTurn | null =>
-  space?.turns.findLast((t) => t.author === 'person') ?? null

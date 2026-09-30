@@ -236,9 +236,10 @@ when you change the room:
   left it.
 - **The call's switches follow the panel.** Where the panel covers the room
   (up to 760 px wide), its head shows the microphone, and the camera and the
-  shared screen while they are on (`CallSwitches`, the dock's own `Toggle`). Someone reading the chat on a phone must not have to
-  close it to see that they are heard, or to mute. Beside the room the dock
-  already shows them, so the head does not repeat it.
+  shared screen while they are on (`CallSwitches`, the dock's own `Toggle`).
+  Someone reading the chat on a phone must not have to close it to see that
+  they are heard, or to mute. Beside the room the dock already shows them, so
+  the head does not repeat it.
 - **A call that ends says why** (`call-end.ts`, with tests; the reason is
   LiveKit's, read in `livekit-room.ts`). Only a lost connection is a failure
   and offers "Try again". The same person joining from another tab or device
