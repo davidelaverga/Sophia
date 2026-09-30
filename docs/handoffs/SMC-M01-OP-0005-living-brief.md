@@ -26,9 +26,9 @@ Authority: direct owner goal; ledger: `docs/progress/SMC-M01-living-brief-decisi
 ## Local evidence (no hosted provider probes)
 
 - Exact Node 24.21.0 / pnpm 11.7.0; frozen installation.
-- `pnpm check`: exit 0, format/lint/build/typecheck/contracts, 307 unit tests and 56 integration tests.
+- `pnpm check`: exit 0, format/lint/build/typecheck/contracts, 309 unit tests and 56 integration tests.
 - Artifact gate reproduced recorded identities; runtime pin remains dsh 0.1.7-rc.1.
-- Bundle archive SHA256: `02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51`.
+- Darwin development archive SHA256: `02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51`.
 - `pnpm test:sql`: 20 migrations and 1 SQL test file passed on disposable PostgreSQL 17.6 / en_US.UTF-8.
 - `pnpm test:db`: 197 tests passed; focused existing-0018 rollout regression separately passed.
 - Rollout regression proves existing off/consent rows unchanged, implicit-policy revisions move and real API-role reads work.
@@ -59,6 +59,15 @@ Authority: direct owner goal; ledger: `docs/progress/SMC-M01-living-brief-decisi
 - Combined: 24410 bytes, SHA256 `7fe8f7291389574d50f075742b226fbbef5fe6f6bed50299cfa573f7fe7a8f6d`.
 - Candidate bytes match authored manifest and exact prompt + LF + skill assembly. No asset rewrite.
 - Sending text through the existing Live API is documented by [Google's capabilities guide](https://ai.google.dev/gemini-api/docs/live-api/capabilities).
+
+## Cross-platform artifact correction after initial CI
+
+Initial PR22 head 91eb46a failed the Linux archive identity gate: unchanged Linux bundle reproduces 391c89c,
+while clean Darwin reproduces 02ea91a. Preserve Linux production identities and lock, record Darwin separately,
+and select its archive/lock for local composition. Both platform gates stay strict; no runtime pin upgrade.
+New exact candidate/review/CI are required after this correction. Separate clean Darwin checkout also reproduced its recorded archive.
+Read-only production metadata at 2026-09-30T00:20Z: schema 0018 exact hash; 0 open/paused exchanges; owner project
+policy automatic rev1, one accepted consent, 3 current Sophia paraphrases (2 observations, 1 expectation). No text read.
 
 ## Remaining obligations
 

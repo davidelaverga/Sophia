@@ -91,11 +91,18 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51",
-    "archive_integrity": "sha512-7wdhare/GBHSzGhP1UWmfi0pPJ7/VBwxR8UQ9+0aJ46c2qd41l191UYtWxhqOEYdLwkSo2Y2ZMCg0TU+r+ohLA==",
-    "artifact_digest": "sha256:02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51",
+    "archive_sha256": "391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
+    "archive_integrity": "sha512-8TgUktxJ+tXMEYmXw/X2cQnVxTOcNG2Bn/PGw/vW1BnOu+skL9zl2xV49+oAWdXjXsZ+KdXXDa5/fWcotianKA==",
+    "artifact_digest": "sha256:391c89cef4bbd1fdfd7fd6797ecf68676d1607eea985e8e971a7caea8cfef4b1",
     "bridge_protocol_version": 1,
-    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
+    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)",
+    "archives_by_platform": {
+      "darwin-arm64": {
+        "archive_sha256": "02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51",
+        "archive_integrity": "sha512-7wdhare/GBHSzGhP1UWmfi0pPJ7/VBwxR8UQ9+0aJ46c2qd41l191UYtWxhqOEYdLwkSo2Y2ZMCg0TU+r+ohLA==",
+        "artifact_digest": "sha256:02ea91a8dd2a6d354d7dd3e4f4d9aa8e74d3bee877c9dbcfbc9f3c1bf07cdf51"
+      }
+    }
   },
   "profile_install": {
     "manifest": "config/dsh/profile/package.json",
