@@ -1,5 +1,7 @@
 // The people in the room, seated around Sophia's light: warm light for people, violet for her. The one
-// who holds the floor carries a warm ring; a new holder's ring ignites once when the floor lands.
+// who holds the floor carries a warm ring; a new holder's ring ignites once when the floor lands. A line says
+// only what sets someone apart (the floor, speaking, a guest, a listener); a muted microphone is its icon.
+import { Icon } from '@sophia/ui'
 import { presenceSlots, shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 
 interface Props {
@@ -11,13 +13,16 @@ interface Props {
 
 const initial = (name: string) => shortName(name).charAt(0)
 
-function role(person: RoomParticipant, holds: boolean): string {
+function role(person: RoomParticipant, holds: boolean): string | null {
   if (holds) return 'has the floor'
   if (person.speaking) return 'speaking'
-  if (person.standing === 'guest') return person.micOn ? 'guest' : 'guest · muted'
+  if (person.standing === 'guest') return 'guest'
   if (person.standing === 'viewer') return 'listening'
-  return person.micOn ? 'in the room' : 'muted'
+  return null
 }
+
+/** A listener has no microphone to mute; anyone else muted shows it beside their name. */
+const muted = (person: RoomParticipant) => !person.micOn && person.standing !== 'viewer'
 
 export function Presences({ people, floor, revision }: Props) {
   const slots = presenceSlots(people.length)
@@ -26,6 +31,7 @@ export function Presences({ people, floor, revision }: Props) {
       {people.map((person, i) => {
         const slot = slots[i] ?? { side: 'left', row: 0 }
         const holds = floor.holder?.identity === person.identity
+        const line = role(person, holds)
         return (
           <li
             key={person.identity}
@@ -44,8 +50,14 @@ export function Presences({ people, floor, revision }: Props) {
               <span className="name">
                 {shortName(person.name)}
                 {person.local && <span className="you"> · you</span>}
+                {muted(person) && (
+                  <span className="muted-mic">
+                    <Icon name="micOff" size={12} />
+                    <span className="sr-only">muted</span>
+                  </span>
+                )}
               </span>
-              <span className="role">{role(person, holds)}</span>
+              {line && <span className="role">{line}</span>}
             </span>
             <span className="meter" aria-hidden>
               <i />

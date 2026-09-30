@@ -45,6 +45,11 @@ html {
   background: var(--void);
   scrollbar-color: rgba(236, 235, 241, 0.12) transparent;
 }
+/* Scrollbars stay thin and quiet everywhere. Chrome ignores ::-webkit-scrollbar once scrollbar-color is set (as
+   above), so without this every scrolling box drew the system bar, arrows and all, on Windows. */
+* {
+  scrollbar-width: thin;
+}
 body {
   margin: 0;
   min-height: 100dvh;
@@ -1156,6 +1161,13 @@ button.mark:hover {
   color: var(--text-3);
   font-weight: 400;
 }
+/* A muted microphone beside the name, where a phone still shows it (the role line folds away there). */
+.muted-mic {
+  display: inline-flex;
+  margin-left: 6px;
+  color: var(--text-3);
+  vertical-align: -1px;
+}
 .who .role {
   color: var(--text-3);
   font-size: 12px;
@@ -1246,11 +1258,12 @@ button.mark:hover {
  * The lens body sits between Sophia's line and the dock, anchored to the dock: it never covers her line (whose
  * words are the room's state), and what does not fit scrolls inside it instead.
  */
+/* The words end 22px above the dock, whatever its height (RoomDock measures it: a note, a second row). */
 .stage-body {
   position: absolute;
   top: calc(var(--ly) + var(--lr) * 0.46 + 56px);
   left: 50%;
-  bottom: 88px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--dock-h, 48px) + 40px);
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -1603,7 +1616,7 @@ button.mark:hover {
   position: absolute;
   top: 80px;
   right: var(--gutter);
-  bottom: 88px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--dock-h, 48px) + 40px);
   left: var(--gutter);
   z-index: 2;
   margin: 0;
@@ -2440,14 +2453,6 @@ div.empty {
   color: var(--text-2);
 }
 
-/* A note above the dock (a blocked microphone) lifts the composer and the video so nothing overlaps. */
-.room-stage:has(.dock-note) .stage-body {
-  bottom: 140px;
-}
-.room-stage:has(.dock-note) :is(.gallery, .present) {
-  bottom: 136px;
-}
-
 @media (pointer: coarse) {
   .pill,
   .round {
@@ -2607,9 +2612,6 @@ div.empty {
     --cols: 2;
     --rows: 3;
   }
-  .stage-body {
-    bottom: 110px;
-  }
   .page {
     padding-top: 24px;
   }
@@ -2626,6 +2628,21 @@ div.empty {
 }
 @media (max-width: 560px) {
   /* Phones: the Invite panel rises from the bottom; the lobby spans the width under the bar. */
+  /* Send sits beside the message, so the composer is one row and still fits above a two-row dock. */
+  .composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    justify-items: stretch;
+  }
+  .composer > * {
+    grid-column: 1 / -1;
+  }
+  .composer > textarea {
+    grid-column: 1;
+  }
+  .composer > .composer-row {
+    grid-column: 2;
+  }
   .sheet {
     --sheet-top: 12px;
     top: auto;
