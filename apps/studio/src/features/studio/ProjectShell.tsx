@@ -45,6 +45,11 @@ function blockedBy(error: Error | null): Blocked | null {
   return 'unreachable'
 }
 
+/** A blocked project has no feed to report on: its notice says why, so the bar shows no status at all. */
+function shownConnection(connection: Connection, blocked: Blocked | null): Connection | null {
+  return blocked ? null : connection
+}
+
 /** The home screen lists what this device opened; a project that closed its door leaves the list. */
 function useRecentProject(
   identity: string,
@@ -91,7 +96,7 @@ export function ProjectShell(props: Props) {
     <div className="shell" data-view={view}>
       <ProjectHeader
         title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
-        connection={connection}
+        connection={shownConnection(connection, blocked)}
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
         share={
           snapshot.data ? (
@@ -138,7 +143,8 @@ export function ProjectShell(props: Props) {
 
 interface HeaderProps {
   title: string
-  connection: Connection
+  /** The feed's state; null while the project can't be shown, where the notice below says why. */
+  connection: Connection | null
   nav: React.ReactNode
   /** Invite (editors and admins) or copy the link (viewers). */
   share: React.ReactNode
@@ -160,10 +166,12 @@ function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeav
       <h1 className="project-name">{title}</h1>
       {nav}
       <div className="topbar-end">
-        <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
-          <span className="connection-dot" aria-hidden />
-          <span className="connection-label">{CONNECTION[connection]}</span>
-        </span>
+        {connection && (
+          <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
+            <span className="connection-dot" aria-hidden />
+            <span className="connection-label">{CONNECTION[connection]}</span>
+          </span>
+        )}
         {share}
         {identitySwitcher}
       </div>

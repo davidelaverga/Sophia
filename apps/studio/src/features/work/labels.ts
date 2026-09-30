@@ -92,12 +92,21 @@ export const SUMMARY: Record<string, string> = {
   'room.exchange_empty': 'Sophia left: nobody was in the room',
   'room.input_floor_released': 'Input to Sophia released',
   'project.member': 'Member joined',
+  // What someone sent from the composer, by its intent (the composer says "Shared with the project" too).
+  'contribution.discuss': 'Shared with the project',
+  'contribution.ask_sophia': 'Question for Sophia',
+  'contribution.propose_work': 'Work proposed',
 }
 
-/** Words for any event: its summary, or else its type without the code ("room.lobby_changed" → "Lobby changed"). */
+/**
+ * Words for any event: its summary, or else its type without the code ("room.lobby_changed" → "Lobby changed").
+ * A type that ends in one bare word keeps its subject ("contribution.recorded" → "Contribution recorded").
+ */
 export function summaryLabel(summaryCode: string, type: string): string {
   const known = SUMMARY[summaryCode]
   if (known) return known
-  const words = (type.split('.').pop() ?? type).replaceAll('_', ' ')
+  const parts = type.split('.')
+  const last = parts.pop() ?? type
+  const words = (last.includes('_') || parts.length === 0 ? last : `${parts.join(' ')} ${last}`).replaceAll('_', ' ')
   return words.charAt(0).toUpperCase() + words.slice(1)
 }

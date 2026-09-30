@@ -1,11 +1,12 @@
 // Entry without a project: start one (createProject, idempotent), reopen one this device opened before, or
 // open a shared link. There is no project list operation in the contract yet, so the recent list is local.
-// Sophia's light rests above.
-import { useState } from 'react'
+// Sophia's light rests above; on a tall phone it rests higher and smaller so the words start sooner.
+import { useEffect, useState } from 'react'
 import type { ProjectCreated } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { createProject } from '../api/client.ts'
 import { useAdmission } from '../api/useAdmission.ts'
+import type { LightTarget } from '../features/light/engine.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import type { Identity } from './dev-identity.ts'
 import { openedLabel, readRecent } from './recent-projects.ts'
@@ -18,10 +19,27 @@ interface Props {
   onOpen: (projectId: string) => void
 }
 
+/** A screen at least half again as tall as it is wide; theme.css moves the words by the same numbers. */
+function phoneRest(): LightTarget | null {
+  const { innerWidth: w, innerHeight: h } = window
+  return h >= w * 1.5 ? { x: w / 2, y: h * 0.26, radius: Math.min(w, h) * 0.3 } : null
+}
+
+function usePhoneRest(): LightTarget | null {
+  const [target, setTarget] = useState(phoneRest)
+  useEffect(() => {
+    const follow = () => setTarget(phoneRest())
+    window.addEventListener('resize', follow)
+    return () => window.removeEventListener('resize', follow)
+  }, [])
+  return target
+}
+
 export function ProjectHome({ identity, identityControl, onOpen }: Props) {
+  const rest = usePhoneRest()
   return (
     <main className="screen home">
-      <SophiaLight mode="rest" target={null} attention={null} working={false} />
+      <SophiaLight mode="rest" target={rest} attention={null} working={false} />
       <header className="screen-bar">
         <div className="screen-mark">
           <span className="mark-dot" aria-hidden />
@@ -30,6 +48,10 @@ export function ProjectHome({ identity, identityControl, onOpen }: Props) {
         {identityControl}
       </header>
       <div className="screen-body">
+        <div className="home-intro">
+          <h1 className="screen-title">What are we building?</h1>
+          <p>A project is where your team and Sophia build something together.</p>
+        </div>
         <CreateProjectForm token={identity.token} onCreated={onOpen} />
         <RecentProjects identity={identity.name} onOpen={onOpen} />
         <OpenProjectForm onOpen={onOpen} />
@@ -82,7 +104,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         className="title-input"
         required
         maxLength={180}
-        placeholder="What are we building?"
+        placeholder="Name the project"
         value={title}
         // Editing the title after an unknown outcome would be a new intent, so keep it locked until retried.
         readOnly={status === 'unknown'}
