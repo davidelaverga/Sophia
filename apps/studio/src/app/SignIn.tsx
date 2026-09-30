@@ -13,7 +13,7 @@ const MAILPIT_URL = 'http://127.0.0.1:54324'
 export function Centered({ title, children, busy }: { title: string; children?: React.ReactNode; busy?: boolean }) {
   return (
     <main className="screen" aria-busy={busy}>
-      <SophiaLight mode="rest" target={null} attention={null} working={false} />
+      <SophiaLight mode="rest" target={null} attention={null} working={false} screen />
       <div className="screen-mark">
         <span className="mark-dot" aria-hidden />
         <span className="mark-word">Sophia</span>

@@ -259,6 +259,14 @@ button:disabled {
 .pill.primary:hover:not(:disabled) {
   background: #fff;
 }
+/* A primary action that can't run yet (no name, nothing typed, a wait) waits as an outline, not a greyed-out block. */
+.pill.primary:disabled {
+  opacity: 1;
+  border-color: var(--line-2);
+  background: transparent;
+  color: var(--text-3);
+  box-shadow: none;
+}
 .pill.warm {
   border-color: rgba(241, 220, 199, 0.26);
   background: rgba(241, 220, 199, 0.04);
@@ -290,7 +298,7 @@ button:disabled {
   min-width: 17px;
   font-size: 10px;
 }
-.pill.primary kbd {
+.pill.primary:not(:disabled) kbd {
   border-color: rgba(5, 4, 8, 0.16);
   background: rgba(5, 4, 8, 0.06);
   color: rgba(5, 4, 8, 0.55);
@@ -751,6 +759,12 @@ button.mark:hover {
   gap: 14px;
   text-align: center;
 }
+/* A tall phone: the light rests higher and smaller (SophiaLight's screen rest, same numbers), so the words start sooner. */
+@container (max-aspect-ratio: 2 / 3) {
+  .screen-body {
+    top: calc(26cqh + min(30cqmin, 320px) * 0.5);
+  }
+}
 .screen-title {
   font-size: clamp(22px, 2.2vw, 26px);
   line-height: 1.2;
@@ -827,8 +841,10 @@ button.mark:hover {
   backdrop-filter: blur(16px);
   transition: border-color var(--fast) var(--ease);
 }
+/* The input takes the row's height: on touch it grows with the 40px button beside it, so their words share a line. */
 .field input {
-  height: 32px;
+  height: auto;
+  min-height: 32px;
   border: 0;
   background: transparent;
   padding: 0 8px;
@@ -886,12 +902,6 @@ button.mark:hover {
   display: grid;
   gap: 6px;
 }
-/* A tall phone: the light rests higher and smaller (ProjectHome gives it the same place), so the words start sooner. */
-@container (max-aspect-ratio: 2 / 3) {
-  .home .screen-body {
-    top: calc(26cqh + min(30cqmin, 320px) * 0.5);
-  }
-}
 .create {
   display: grid;
   justify-items: center;
@@ -920,14 +930,6 @@ button.mark:hover {
 }
 .title-input::placeholder {
   color: var(--text-4);
-}
-/* Until the project has a name, its button waits as an outline rather than a greyed-out block. */
-.create .pill.primary:disabled {
-  opacity: 1;
-  border-color: var(--line-2);
-  background: transparent;
-  color: var(--text-3);
-  box-shadow: none;
 }
 .outcome {
   display: flex;
@@ -2401,6 +2403,9 @@ div.empty {
   .topbar > .mark {
     min-width: 40px;
     justify-content: center;
+  }
+  .sheet-head .round {
+    min-width: 40px;
   }
 }
 /* Touch: no keyboard to hint at and no hover to wait for, so keys and tips stay out of the way. */
