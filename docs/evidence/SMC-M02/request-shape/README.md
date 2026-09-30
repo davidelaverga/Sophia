@@ -5,7 +5,7 @@
 | File | What it is |
 |---|---|
 | [previous-unit.json](previous-unit.json) | `sophia-runtime-s1-03-dev` (dsh 0.1.7-rc.1, pi-ai 0.85.1), run from `acfa348`: route shapes of the episode's 3 requests, plus a sha256 and length for every model-facing text |
-| [candidate-unit.json](candidate-unit.json) | `sophia-runtime-m02-dev` (dsh 0.2.0-rc.2, pi-ai 0.87.1) with the committed bundle patch: the same |
+| [candidate-unit.json](candidate-unit.json) | `sophia-runtime-m02-dev` (dsh 0.2.0-rc.2, pi-ai 0.87.1) with the committed bundle patch, re-captured after G3 composed the native presets (unchanged apart from the runtime-context path): the same |
 
 ## Method
 
