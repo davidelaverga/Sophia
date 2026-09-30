@@ -2411,6 +2411,12 @@ div.empty {
   background: var(--teal);
   box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
 }
+/* How many times a change repeated close together: quiet, in the time's own mono. */
+.event-count {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
 .event.hidden-event {
   color: var(--text-3);
 }

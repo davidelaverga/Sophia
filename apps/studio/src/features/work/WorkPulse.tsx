@@ -1,11 +1,12 @@
 // renderPulse → WorkPulse (frontend bindings): what changed in the project, from the SSE feed.
-// Quiet by design; no percent-complete, no invented progress, no sequence numbers.
+// Quiet by design; no percent-complete, no invented progress, no sequence numbers. Repeats close together
+// fold into one row with a count (pulse.ts).
 import { useEffect, useState } from 'react'
 import type { Event as ProjectEvent } from '@sophia/contracts'
 import { isCursorAdvance } from '@sophia/contracts/validate'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
-import { summaryLabel } from './labels.ts'
+import { pulseRows } from './pulse.ts'
 
 function ago(iso: string, now: number): string {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
@@ -44,11 +45,14 @@ export function WorkPulse({ feed, connection }: { feed: Feed | null; connection:
         <p className="empty">{QUIET[connection]}</p>
       ) : (
         <ol className="events">
-          {events.map((f) => (
-            <li key={f.eventId} className="event">
+          {pulseRows(events).map((row) => (
+            <li key={row.key} className="event">
               <span className="dot" aria-hidden />
-              <span>{summaryLabel(f.summaryCode, f.type)}</span>
-              <span className="muted">{ago(f.occurredAt, now)}</span>
+              <span>
+                {row.label}
+                {row.count > 1 && <span className="event-count"> ×{row.count}</span>}
+              </span>
+              <span className="muted">{ago(row.at, now)}</span>
             </li>
           ))}
           {hidden > 0 && (
