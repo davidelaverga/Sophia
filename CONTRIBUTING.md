@@ -43,3 +43,30 @@ contract; this file holds the code rules.
 - **Tests use `node --test`** with `node:assert/strict`. A test that needs
   PostgreSQL is `*.db.test.ts`; one that needs a Supabase stack is
   `*.live.test.ts`. `pnpm test` runs neither.
+
+## The room's side panel
+
+The room's chat and brief live beside the stage, as meeting apps have them
+(`SidePanel.tsx`; its rules are in `side-panel.ts`, with tests). Keep these
+when you change the room:
+
+- **The stage's centre** holds Sophia's light, the people, the room's line
+  and the dock. Nothing else sits under the light: the Converse lens puts its
+  conversation in the panel, not in `stage-body`.
+- **One panel, two tabs** (Chat, Brief), opened from the stage's corner
+  (`RoomStage`'s `corner` slot, `PanelToggles`) or with C and B. Both tabs
+  stay mounted while hidden, so an unsent message or a brief edit survives
+  closing and switching. Esc or Close shuts the panel; on a phone it covers
+  the room below the bar and its toggles sit under the lenses.
+- **New is a dot.** A violet dot on a toggle says something changed behind a
+  closed panel (`useUnread`, `useBriefUpdates`, the pure `isNew`); the
+  toggle's accessible name says so too ("Chat, something new").
+- **Focus follows the panel** (`usePanelFocus`): in on open (the message bar
+  where a fine pointer suggests a keyboard, the tab on a phone so no keyboard
+  jumps up), back to the toggle that opened it on close.
+- **The composer** is one message bar with Send inside (Enter sends,
+  Shift+Enter breaks a line) and one status line under it (`ChatLine`): the
+  step under way, what the chat waits for, and its one action (Chat with
+  Sophia, Voice mode). The consent question shows only while one is due.
+- **Names stay for the visit** (`mergeNames`): someone who spoke and left
+  keeps their name on their lines instead of "A member".
