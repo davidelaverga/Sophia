@@ -35,6 +35,19 @@ export interface StashedMessage {
   readonly content: readonly ContentBlock[]
 }
 
+/**
+ * The execution configuration an attempt runs under (SMC-M02 G3,
+ * CONTRACT_BINDINGS §5): fixed when the attempt is created and restored as is.
+ * The native preset carries the role; its digest covers the preset's
+ * definition in this runtime unit and the role's tool policy, so a changed
+ * composition is detected, never silently adopted.
+ */
+export interface ExecutionIdentity {
+  readonly runtimeUnitId: string
+  readonly preset: { readonly id: string; readonly digest: string }
+  readonly route: { readonly provider: string; readonly model: string; readonly reasoningEffort: string | null }
+}
+
 /** Journal record payloads by type. */
 export interface JournalRecordMap {
   /** A Sophia command reached this session; written before any native action. */
@@ -73,6 +86,12 @@ export interface JournalRecordMap {
   'sophia/receipted': { commandId: string; stage: 'incorporation_observed' }
   /** An accepted command that changes no other state (inspect) raised the authority epoch. */
   'sophia/epoch': { attemptId: string; authorityEpoch: number }
+  /**
+   * The attempt's execution identity, written before the native create. An
+   * attempt created by a unit before SMC-M02 has none; its first resume writes
+   * one resolved from recorded evidence, with `source: 'migrated'`.
+   */
+  'sophia/identity': ExecutionIdentity & { attemptId: string; source: 'create' | 'migrated'; evidence: string | null }
 }
 
 /** One journal line. */
@@ -174,6 +193,8 @@ export interface LoggedState {
   readonly attemptId: string | null
   /** Role recorded by the attempt's create command. */
   readonly role: string | null
+  /** The first recorded execution identity, if any; later records never replace it. */
+  readonly identity: JournalRecordMap['sophia/identity'] | null
   readonly authorityEpoch: number
   readonly fence: FenceState
   /** Command id -> its journal record and the message it produced. */
@@ -206,6 +227,7 @@ export function strongestFence(a: FenceState, b: FenceState): FenceState {
 export function foldLog(journal: readonly JournalRecord[], events: readonly SessionEvent[] = []): LoggedState {
   let attemptId: string | null = null
   let role: string | null = null
+  let identity: JournalRecordMap['sophia/identity'] | null = null
   let authorityEpoch = 0
   let fence: FenceState = 'active'
   const commands = new Map<string, CommandEntry>()
@@ -258,11 +280,14 @@ export function foldLog(journal: readonly JournalRecord[], events: readonly Sess
         attemptId = record.data.attemptId
         authorityEpoch = Math.max(authorityEpoch, record.data.authorityEpoch)
         break
+      case 'sophia/identity':
+        identity ??= record.data
+        break
     }
   }
   const incorporated = new Set<string>()
   for (const event of events) {
     if (event.type === 'user/message') incorporated.add((event.data as { id: string }).id)
   }
-  return { attemptId, role, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq, incorporationReceipted }
+  return { attemptId, role, identity, authorityEpoch, fence, commands, stash, unstashed, incorporated, observedSeq, incorporationReceipted }
 }

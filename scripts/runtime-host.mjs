@@ -9,16 +9,18 @@
  *
  * The model route's credential (config/runtime-unit.json#model_route.credential_ref) is passed to dsh by
  * name only and never printed. Without --rehearse, every model call is real and billable: run it only with
- * the owner's recorded allowance. The profile is installed into <root> on first use; the project home is
- * kept between runs so the bridge journal and native sessions survive restarts.
+ * the owner's recorded allowance. The profile is installed into <root> on first use, and on every later start it is
+ * reconciled with the recorded bundle: a stale one (a deploy that changed the bundle) is reinstalled in place, and the
+ * rest of the project home is kept, so the bridge journal, native sessions and workspace survive restarts and
+ * upgrades. The `profile` log line says which bundle the runtime loads.
  */
 
-import { existsSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { RuntimeSupervisor } from '../apps/execution-host/dist/runtime-supervisor.js'
 import { RUNTIME_DIR, DSH_ENTRY, loadRuntimeUnit } from './lib/common.mjs'
-import { assertRecordedArtifacts, homeLayout, installProfile } from './lib/profile.mjs'
+import { assertRecordedArtifacts, homeLayout, reconcileProfile } from './lib/profile.mjs'
 import { assertToolchain } from './lib/toolchain.mjs'
 import { mockRouteOverlay, startMockLlm } from '../tests/support/mock-llm.mjs'
 
@@ -39,7 +41,16 @@ if (!values.rehearse && !process.env[credential]) {
 assertRecordedArtifacts(unit, RUNTIME_DIR)
 const root = resolve(values.root)
 const layout = homeLayout(root)
-if (!existsSync(join(layout.dshHome, 'profiles', unit.dsh.profile))) installProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
+const profile = reconcileProfile({ unit, runtimeDir: RUNTIME_DIR, layout })
+console.log(
+  JSON.stringify({
+    at: new Date().toISOString(),
+    event: 'profile',
+    state: profile.state,
+    bundle: unit.sophia_bundle.archive_sha256,
+    changed: profile.drift,
+  }),
+)
 
 const mock = values.rehearse ? await startMockLlm() : null
 const extraArgs = []

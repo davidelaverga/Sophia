@@ -25,8 +25,12 @@ export type { RuntimeCommand, RuntimeReceipt, WorkBinding } from './protocol.js'
 /** Row id the bundle patch inserts; also the plugin name reported to Cordis. */
 export const name = 'sophia-control-bridge'
 
-/** Services the bridge drives; the row waits until all exist. `agentDefaultModel` supplies the recorded model route. */
-export const inject = ['agents', 'sessions', 'tools', 'agentDefaultModel']
+/**
+ * Services the bridge drives; the row waits until all exist. `agentDefaultModel`
+ * supplies the recorded model route, `agentPresets` the native presets roles
+ * run under (SMC-M02 G3).
+ */
+export const inject = ['agents', 'sessions', 'tools', 'agentDefaultModel', 'agentPresets']
 
 /** Wire protocol between this bridge and the Sophia service. */
 export const PROTOCOL_VERSION = 1
