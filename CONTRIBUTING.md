@@ -86,6 +86,12 @@ when you change the room:
   on, and leaving the room. It never rewrites the microphone choice the
   person made (`silence` in `useProjectRoom`), so the next join is as they
   left it.
+- **The call's switches follow the panel.** Where the panel covers the room
+  (up to 760 px wide), its head shows the microphone, and the camera and the
+  shared screen while they are on (`CallSwitches` in `StudioShell`, the
+  dock's own `Toggle`). Someone reading the chat on a phone must not have to
+  close it to see that they are heard, or to mute. Beside the room the dock
+  already shows them, so the head does not repeat it.
 - **Nothing circles the room.** While work runs the stage's edge is faintly
   lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
   travels the edge pulls the eye from the people; the room's line already

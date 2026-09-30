@@ -2817,14 +2817,21 @@ div.empty {
   height: 1.5px;
   background: var(--text);
 }
-.side-panel-head .round {
+.side-panel-head > .round {
   width: 28px;
   height: 28px;
   border-color: transparent;
   background: transparent;
 }
-.side-panel-head .round:hover {
+.side-panel-head > .round:hover {
   background: rgba(236, 235, 241, 0.06);
+}
+/* The call's switches in the head, only where the panel covers the room (see the phone block below): a live
+   microphone, camera or shared screen stays in sight with its off switch. Beside the room the dock shows them. */
+.side-panel-call {
+  display: none;
+  gap: 4px;
+  margin-left: auto;
 }
 /* Touch: finger-sized tabs and Close, still the lens bar's height (44 px there) and still on the gutter. */
 @media (pointer: coarse) {
@@ -2834,7 +2841,7 @@ div.empty {
   .side-tabs button {
     height: 44px;
   }
-  .side-panel-head .round {
+  .side-panel-head > .round {
     width: 40px;
   }
 }
@@ -3009,5 +3016,8 @@ div.empty {
     z-index: 30;
     width: auto;
     border-left: 0;
+  }
+  .side-panel-call {
+    display: flex;
   }
 }

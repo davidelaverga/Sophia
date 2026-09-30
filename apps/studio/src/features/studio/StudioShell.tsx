@@ -9,6 +9,7 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
+import { Toggle } from '../voice/RoomDock.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
@@ -44,6 +45,45 @@ function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
   const merged = mergeNames(known, room.participants)
   if (merged !== known) setKnown(merged)
   return merged
+}
+
+/**
+ * The call's switches for the panel's head: the microphone while in the call, the camera and the screen while they
+ * are on. Each is the dock's own toggle, so it says the same and does the same. The head shows them only at widths
+ * where tips are off, so the icon and its pressed state carry the meaning, as in the dock on a phone.
+ */
+function CallSwitches({ room }: { room: ProjectRoom }) {
+  const me = room.participants.find((p) => p.local)
+  if (!me) return null
+  return (
+    <>
+      <Toggle
+        on={me.micOn}
+        label="Microphone"
+        keys="M"
+        icons={['mic', 'micOff']}
+        onToggle={() => void room.setMicrophone(!me.micOn)}
+      />
+      {me.cameraOn && (
+        <Toggle
+          on
+          label="Camera"
+          keys="V"
+          icons={['camera', 'cameraOff']}
+          onToggle={() => void room.setCamera(false)}
+        />
+      )}
+      {me.screenOn && (
+        <Toggle
+          on
+          label="Stop sharing"
+          keys="S"
+          icons={['screen', 'screen']}
+          onToggle={() => void room.setScreenShare(false)}
+        />
+      )}
+    </>
+  )
 }
 
 export function StudioShell({ projectId, identity, room, snapshot }: Props) {
@@ -89,6 +129,7 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
           />
         }
         brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={brief.onRevision} />}
+        call={<CallSwitches room={room} />}
       />
     </div>
   )

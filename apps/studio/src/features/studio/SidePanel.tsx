@@ -11,6 +11,11 @@ interface PanelProps {
   onOpen: (panel: Panel | null) => void
   chat: ReactNode
   brief: ReactNode
+  /**
+   * The call's switches (microphone, and camera or screen while on). The head shows them where the panel covers
+   * the room, so what this person is sending is never out of sight; beside the room, the dock already does.
+   */
+  call: ReactNode
 }
 
 /**
@@ -34,7 +39,7 @@ function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>)
   }, [open, panel])
 }
 
-export function SidePanel({ open, onOpen, chat, brief }: PanelProps) {
+export function SidePanel({ open, onOpen, chat, brief, call }: PanelProps) {
   const body: Record<Panel, ReactNode> = { chat, brief }
   const panel = useRef<HTMLElement>(null)
   usePanelFocus(open, panel)
@@ -50,7 +55,7 @@ export function SidePanel({ open, onOpen, chat, brief }: PanelProps) {
         onOpen(null)
       }}
     >
-      <PanelHead open={open} onOpen={onOpen} />
+      <PanelHead open={open} onOpen={onOpen} call={call} />
       {PANELS.map((p) => (
         <div
           key={p}
@@ -68,7 +73,7 @@ export function SidePanel({ open, onOpen, chat, brief }: PanelProps) {
 }
 
 /** The panel's tabs (arrow keys move between them) and its Close. */
-function PanelHead({ open, onOpen }: Pick<PanelProps, 'open' | 'onOpen'>) {
+function PanelHead({ open, onOpen, call }: Pick<PanelProps, 'open' | 'onOpen' | 'call'>) {
   const tabs = useRef(new Map<Panel, HTMLButtonElement>())
   const onTabKey = (e: React.KeyboardEvent) => {
     const next = open ? nextInRow(PANELS, open, e.key) : null
@@ -98,6 +103,7 @@ function PanelHead({ open, onOpen }: Pick<PanelProps, 'open' | 'onOpen'>) {
           </button>
         ))}
       </div>
+      <div className="side-panel-call">{call}</div>
       <button type="button" className="round has-tip" aria-label="Close" onClick={() => onOpen(null)}>
         <Icon name="close" />
         <Tip label="Close" keys="Esc" side="bottom" align="end" />
