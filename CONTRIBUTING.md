@@ -43,3 +43,52 @@ contract; this file holds the code rules.
 - **Tests use `node --test`** with `node:assert/strict`. A test that needs
   PostgreSQL is `*.db.test.ts`; one that needs a Supabase stack is
   `*.live.test.ts`. `pnpm test` runs neither.
+
+## Studio UI
+
+Reviewed rather than tool-enforced, but not a matter of taste either: each
+rule names the mechanism that already does it. Use that mechanism before
+writing a new one, and keep the rule when you change the code around it.
+
+- **Say less.** Nothing repeats what a control already says (no "Floor ·
+  Open" beside "Take the floor", no "Sophia" beside "Speak with Sophia"). A
+  sentence that explains a control goes into its tip. What isn't there isn't
+  announced (no "No direction accepted yet."). When a screen feels heavy,
+  count its visible words per zone and cut the repeats first.
+- **Tips and keys.** Every single-key shortcut (`useShortcuts`) is also a
+  visible control whose tip shows the key: `className="has-tip"` plus
+  `<Tip label keys side align />` from `@sophia/ui`. Tips are `aria-hidden`,
+  so when visible text moves into a tip, keep it for assistive technology:
+  `aria-describedby` on the group (`LensSwitcher`), or the full sentence as
+  the `aria-label` of a short button (the notes consent's "Agree").
+- **A disabled primary waits as an outline** (`.pill.primary:disabled` in
+  `theme.css`); a key inside it drops its ink look. Disable a primary until
+  it can run (an empty field, a wait); never grey it out or hide it.
+- **Touch** (`@media (pointer: coarse)`): pills and round buttons are at
+  least 40 px, ghosts and segmented buttons 36 px. An inline `.text-button`
+  gets its target from an empty `::after` reaching 7 px past its words,
+  never from `min-height`, which pushes the paragraph's lines apart. A
+  field's input stretches to the height of the button beside it.
+- **Layout contracts.** The dock measures itself (a device note, a second
+  row on a phone) and sets `--dock-h` on the room (`RoomDock`); the stage's
+  words and video end at `--dock-h` + 40 px, so never hard-code an offset
+  above the dock. Grids that hold fields and lists use `minmax(0, 1fr)`, so
+  a wide control shrinks instead of pushing the rest past the edge. A screen
+  without a room passes `screen` to `SophiaLight`; `.screen-body` follows
+  the same numbers on tall phones.
+- **Admissions** (`useAdmission`). No answer offers Try again with the same
+  key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
+  create a second record. Say what happened in words ("Scheduled: Today ·
+  03:30 – 04:30."), and name a conflict before it happens ("Overlaps …").
+- **Panels keep their state.** Tabs in a sheet or panel are hidden, not
+  unmounted, so a draft or an edit in progress survives switching and
+  closing.
+- **Copy** is English, short, one spelling per word ("cancelled"). A pure
+  helper in a `*-view.ts` module owns the words (`doorNote`, `ago`,
+  `summaryLabel`, `pulseRows`) and has tests; components only render them.
+- **Verify in a browser before calling it done.** The root `pnpm build`
+  doesn't build the Studio: run `pnpm --filter @sophia/studio run build`.
+  Check the real page on the dev stack at desktop and phone widths, with
+  measurements (positions, sizes, word counts), not impressions. After many
+  quick edits Vite can serve a stale module: touch the file and confirm the
+  served code before trusting a check.
