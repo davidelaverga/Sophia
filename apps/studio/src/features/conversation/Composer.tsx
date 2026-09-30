@@ -1,5 +1,6 @@
 // The chat's composer, at the foot of the side panel: how to reach Sophia by text, then one message bar with its
-// Send inside, as a chat has it. Enter sends; Shift+Enter starts a new line.
+// Send inside, as a chat has it. The bar comes last, so it keeps its place (level with the dock) while the lines
+// above it come and go. Enter sends; Shift+Enter starts a new line.
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot } from '@sophia/contracts'
@@ -91,7 +92,7 @@ interface LineProps {
   start: () => Promise<void>
 }
 
-/** What the line under the bar says, before any button: the step under way, or what the chat waits for. */
+/** What the line above the bar says, before any button: the step under way, or what the chat waits for. */
 function lineText({ room, presence, starting, ready }: LineProps): string | null {
   if (starting) return 'Connecting to Sophia…'
   if (ready) return room.textMode ? 'Typing to Sophia' : null
@@ -100,7 +101,7 @@ function lineText({ room, presence, starting, ready }: LineProps): string | null
 }
 
 /**
- * One line under the message bar: how the chat reaches Sophia. Typing to her needs the room live with her exchange
+ * One line above the message bar: how the chat reaches Sophia. Typing to her needs the room live with her exchange
  * open; from outside, Chat with Sophia joins in text mode. Voice mode leads back once in text.
  */
 function ChatLine(props: LineProps) {
@@ -139,6 +140,12 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
   return (
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} />
+      <ChatLine room={room} presence={presence} starting={starting} ready={ready} busy={busy} start={start} />
+      {error && (
+        <p className="outcome" role="status">
+          {error}
+        </p>
+      )}
       <div className="message-bar">
         <label htmlFor="converse-draft" className="sr-only">
           Message Sophia
@@ -168,12 +175,6 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
           <Tip label="Send" keys="Enter" side="top" align="end" />
         </button>
       </div>
-      <ChatLine room={room} presence={presence} starting={starting} ready={ready} busy={busy} start={start} />
-      {error && (
-        <p className="outcome" role="status">
-          {error}
-        </p>
-      )}
     </div>
   )
 }

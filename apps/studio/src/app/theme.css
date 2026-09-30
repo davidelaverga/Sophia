@@ -33,6 +33,9 @@
   --base: 220ms;
   --gutter: max(16px, 3vw);
   --topbar: 48px;
+  /* The room's floor: the dock, the panel toggles, the chat's message bar and the mini dock of the other views all
+     rest this far above the bottom. */
+  --floor: calc(env(safe-area-inset-bottom, 0px) + 18px);
 }
 
 *,
@@ -1266,18 +1269,21 @@ button.mark:hover {
 .lens-body > * {
   min-height: 0;
 }
+/* The chat's foot. The message bar comes last and rests on the room's floor, so it stays level with the dock and
+   never moves: what changes (the consent, the status line, an error) sits above it. */
 .composer {
   display: grid;
   gap: 8px;
-  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  padding: 10px var(--panel-pad) var(--floor);
   border-top: 1px solid var(--line);
 }
-/* The message bar: the words and their Send in one field, as a chat has it. */
+/* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
+   controls), so one line of text makes it the dock's height. */
 .message-bar {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 4px 4px 4px 12px;
+  padding: 5px 5px 5px 12px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-4);
   background: var(--glass);
@@ -1292,14 +1298,14 @@ button.mark:hover {
 .message-bar textarea {
   flex: 1;
   height: auto;
-  min-height: 32px;
+  min-height: 36px;
   max-height: 30dvh;
-  padding: 6px 0;
+  padding: 8px 0;
   border: 0;
   background: transparent;
   resize: none;
   field-sizing: content;
-  line-height: 1.5;
+  line-height: 20px;
 }
 .message-bar textarea:focus-visible {
   background: transparent;
@@ -1309,8 +1315,8 @@ button.mark:hover {
   display: grid;
   flex: none;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 0;
   border-radius: var(--r-3);
   background: var(--core);
@@ -1328,6 +1334,17 @@ button.mark:hover {
   background: transparent;
   color: var(--text-4);
 }
+/* Touch: the bar takes the dock's touch size (40 px controls), so the two stay one height there too. */
+@media (pointer: coarse) {
+  .message-bar textarea {
+    min-height: 40px;
+    padding: 10px 0;
+  }
+  .send {
+    width: 40px;
+    height: 40px;
+  }
+}
 
 /* The chat in the side panel: the history takes the room and scrolls; the composer keeps its place at the foot. */
 .conversation {
@@ -1343,7 +1360,7 @@ button.mark:hover {
   align-content: start;
   gap: 12px;
   min-height: 0;
-  padding: 16px;
+  padding: var(--panel-pad);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1440,7 +1457,7 @@ button.mark:hover {
 .dock-wrap {
   position: absolute;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  bottom: var(--floor);
   z-index: 4;
   display: grid;
   justify-items: center;
@@ -1772,7 +1789,7 @@ button.mark:hover {
 .mini-dock {
   position: fixed;
   right: var(--gutter);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  bottom: var(--floor);
   z-index: 10;
   display: flex;
   align-items: center;
@@ -2744,6 +2761,8 @@ div.empty {
   min-width: 0;
 }
 .side-panel {
+  /* One gutter for everything in the panel: the tabs, the messages, the message bar, the brief. */
+  --panel-pad: 16px;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -2753,12 +2772,14 @@ div.empty {
   background: var(--plane);
   animation: slide var(--base) var(--ease) both;
 }
+/* The tabs sit in the lens bar's band (16 px down, 36 px tall), so the two rows of words share a line. Close's
+   mark, not its box, ends on the gutter. */
 .side-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 12px 0 16px;
+  padding: 16px calc(var(--panel-pad) - 4px) 0 var(--panel-pad);
   border-bottom: 1px solid var(--line);
 }
 /* Tabs as a line under words, like the Invite sheet's. */
@@ -2768,7 +2789,7 @@ div.empty {
 }
 .side-tabs button {
   position: relative;
-  height: 40px;
+  height: 36px;
   padding: 0;
   border: 0;
   background: none;
@@ -2801,6 +2822,18 @@ div.empty {
 .side-panel-head .round:hover {
   background: rgba(236, 235, 241, 0.06);
 }
+/* Touch: finger-sized tabs and Close, still the lens bar's height (44 px there) and still on the gutter. */
+@media (pointer: coarse) {
+  .side-panel-head {
+    padding-right: calc(var(--panel-pad) - 12px);
+  }
+  .side-tabs button {
+    height: 44px;
+  }
+  .side-panel-head .round {
+    width: 40px;
+  }
+}
 .side-panel-body {
   flex: 1;
   min-height: 0;
@@ -2808,8 +2841,14 @@ div.empty {
   overscroll-behavior: contain;
 }
 .side-panel-body .mission {
+  padding: var(--panel-pad);
   border-radius: 0;
   background: transparent;
+}
+/* A lone action in the brief starts at the left like everything around it; the grid would stretch it across the
+   panel and center its words. */
+.mission > .text-button {
+  justify-self: start;
 }
 /* The chat fills its panel: the history scrolls, and the composer stays at the foot. */
 .side-panel-body:has(> .conversation) {
@@ -2825,7 +2864,7 @@ div.empty {
   color: var(--text-2);
   font-size: 12.5px;
 }
-/* Under the message bar: the step under way or what the chat waits for, with its one action. */
+/* Above the message bar: the step under way or what the chat waits for, with its one action. */
 .chat-line {
   display: flex;
   flex-wrap: wrap;
@@ -2882,7 +2921,7 @@ div.empty {
 .stage-corner {
   position: absolute;
   right: var(--gutter);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  bottom: var(--floor);
   z-index: 4;
 }
 .panel-toggles {

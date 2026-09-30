@@ -65,9 +65,20 @@ when you change the room:
   where a fine pointer suggests a keyboard, the tab on a phone so no keyboard
   jumps up), back to the toggle that opened it on close.
 - **The composer** is one message bar with Send inside (Enter sends,
-  Shift+Enter breaks a line) and one status line under it (`ChatLine`): the
+  Shift+Enter breaks a line) and one status line above it (`ChatLine`): the
   step under way, what the chat waits for, and its one action (Chat with
   Sophia, Voice mode). The consent question shows only while one is due.
+  The bar comes last in the composer, so it never moves: whatever comes and
+  goes (the consent, the line, an error) sits above it.
+- **The panel lines up with the room.** Measure these when you touch either
+  side; they are what makes the two read as one screen:
+  - the bottom: the dock, the corner toggles and the message bar rest on one
+    floor (`--floor`) and share one height, 48 px. The bar is built like the
+    dock, 5 px around 36 px controls, and grows upward from that floor;
+  - the top: the panel's tabs sit in the lens bar's band (16 px down, 36 px
+    tall), so "Chat" and "Converse" share a line;
+  - the sides: one gutter inside the panel (`--panel-pad`) for the tabs, the
+    messages, the message bar and the brief. Close's mark ends on it.
 - **`hidden` always hides** (`[hidden]` in `theme.css`). Without that rule a
   class that sets `display` wins over the browser's own, and a hidden tab
   stays on screen.
