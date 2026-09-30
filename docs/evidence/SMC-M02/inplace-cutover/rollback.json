@@ -1,0 +1,65 @@
+{
+  "phase": "new",
+  "unit": "sophia-runtime-s1-03-dev",
+  "driftBefore": [
+    "profile pnpm-lock.yaml is not the committed one",
+    "profile sophia-dsh-bundle-0.1.0.tgz is not the recorded archive",
+    "installed bundle dist/control-bridge.js differs from the recorded archive",
+    "installed bundle dist/index.js differs from the recorded archive",
+    "installed bundle dist/session-events.js differs from the recorded archive",
+    "installed bundle package.json differs from the recorded archive",
+    "installed bundle dist/control-bridge.d.ts differs from the recorded archive",
+    "installed bundle dist/index.d.ts differs from the recorded archive",
+    "installed bundle dist/session-events.d.ts differs from the recorded archive",
+    "installed bundle cordis.patch.yml differs from the recorded archive"
+  ],
+  "reconcile": {
+    "state": "upgraded",
+    "driftCount": 10
+  },
+  "previousKept": true,
+  "driftAfter": [],
+  "unrecovered": [],
+  "inspect": {
+    "fence": "held",
+    "role": "sophia-review-v1",
+    "epoch": 1,
+    "live": true,
+    "status": "idle",
+    "inbox": {
+      "nextTurn": 0,
+      "nextStep": 0
+    },
+    "stash": 0,
+    "pendingIncorporation": [],
+    "lastSeq": 32
+  },
+  "resume": "delivered",
+  "newRequest": [
+    "system",
+    "user",
+    "user",
+    "calls:c1",
+    "result:c1",
+    "assistant",
+    "user",
+    "assistant",
+    "user"
+  ],
+  "journalIdentity": [
+    {
+      "source": "migrated",
+      "evidence": "native request/header mock/mock-model/default",
+      "preset": "sophia-review-v1",
+      "route": {
+        "provider": "mock",
+        "model": "mock-model",
+        "reasoningEffort": null
+      }
+    }
+  ],
+  "stderrLines": [
+    "[sophia-control-bridge] reconciled att-cut: fence=held commands=4 unsettled=0 stash=0",
+    "[sophia-control-bridge] readiness=ready"
+  ]
+}
