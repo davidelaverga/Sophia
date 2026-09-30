@@ -181,3 +181,35 @@ Learned during S1-03 (each is covered by a test):
 11. **`tools.restrict` fails on unknown names.** Role visibility is
     therefore computed from the registered tools (deny what the role does not
     allow), never from a static allowlist.
+
+Learned at SMC-M02 (dsh 0.2.0-rc.2; each is covered by a test or recorded evidence):
+
+12. **A declared model entry inherits the installed catalog's.** dsh lays a
+    route's `models` entry over pi-ai's catalog entry (`resolveEntry`, "spread,
+    never enumerate"). pi-ai 0.87.1 ships `openai/gpt-6-luna`, so the entry
+    gains `compat`, `cost`, `inputLimits` and `thinkingLevelMap`. For the
+    Responses protocol dsh lets a route set only `supportsDeveloperRole`,
+    `supportsMaxOutputTokens`, `supportsStrictMode` and
+    `supportsLongCacheRetention`; the other five compat switches follow the
+    catalog. Only `supportsStrictMode` changed the wire in Sophia's episode,
+    and the bundle pins it ([request-shape](evidence/SMC-M02/request-shape/README.md)).
+13. **Every public tool seam is fail-closed.** A throwing guard,
+    `tools/pre-execute` or `tools/post-execute` handler becomes an error
+    result, and a throwing concurrency classifier becomes `exclusive`. Tool
+    calls start only after the assistant message is committed. A failed
+    step with pending tool calls is therefore reachable only by fault
+    injection (`tests/support/fault-tool-mode`).
+14. **Under 0.1.7-rc.1 such a failed step corrupts the session for good.**
+    The log keeps the calls without results. The next request papers over
+    them with "No result provided", but after a restart the session is
+    refused as corrupt (`step/end leaves unresolved tool call`), by 0.1.7 and
+    by 0.2.0 alike. 0.2.0 records `TOOL_NOT_STARTED` / `TOOL_OUTCOME_UNKNOWN`
+    results before the step closes ([tool-recovery](evidence/SMC-M02/tool-recovery/README.md),
+    [log-compat](evidence/SMC-M02/log-compat/README.md)).
+15. **Session logs are concatenated Zstandard frames.** Node's one-shot
+    `zstdDecompressSync` stops after the first frame; tests split at frame
+    magic (`tests/support/native-log.mjs`).
+16. **The 0.1.7-rc.1 and 0.2.0-rc.2 units read each other's healthy logs.**
+    Both write format 4 with the same 17 event types in the recorded
+    episodes, and each resumes the other's copied home, bridge journal and
+    held fence included.
