@@ -576,6 +576,25 @@ button.mark:hover {
   font-size: 15px;
   font-weight: 300;
 }
+/* Work, between the mark and the project: where the project lives, and the way back to the other projects. */
+.crumb {
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-3);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+.crumb:hover {
+  color: var(--text);
+  background: rgba(236, 235, 241, 0.05);
+}
 .project-name {
   min-width: 0;
   max-width: 24ch;
@@ -669,16 +688,81 @@ button.mark:hover {
 .connection[data-state='denied'] .connection-dot {
   background: var(--rose);
 }
-.identity {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+/* The account, in every bar: the avatar opens a menu (AccountMenu). */
+.account {
+  position: relative;
   margin-left: 4px;
 }
-.identity select {
+.account-btn {
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+}
+.account-btn[aria-expanded='true'] .avatar {
+  border-color: var(--warm);
+}
+.account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 230px;
+  padding: 6px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  animation: arrive var(--base) var(--ease) both;
+}
+.menu-head {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 4px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 500;
+}
+.menu-head span {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+}
+.menu-head select {
+  margin-top: 6px;
   height: 28px;
   border-color: var(--line);
+}
+.account-menu [role='menuitem'],
+.menu-list [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+}
+.account-menu [role='menuitem']:hover,
+.account-menu [role='menuitem']:focus-visible,
+.menu-list [role='menuitem']:hover,
+.menu-list [role='menuitem']:focus-visible {
+  outline: none;
+  background: rgba(236, 235, 241, 0.06);
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
 }
 .avatar {
   display: inline-grid;
@@ -697,15 +781,6 @@ img.avatar {
   object-fit: cover;
   background: var(--glass);
 }
-.identity-name {
-  max-width: 20ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-3);
-  font-size: 12.5px;
-}
-
 /* Sophia's light: a WebGL canvas composited with `screen` (only light is added), and a 2D trace. */
 .light {
   position: absolute;
@@ -1912,6 +1987,55 @@ img.avatar {
   font-size: 12.5px;
   line-height: 1.45;
 }
+/* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
+   dock or a message bar. The time it has left runs along its foot. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--floor) + 64px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 2 * var(--gutter));
+  overflow: hidden;
+  padding: 9px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity var(--base) var(--ease),
+    transform var(--base) var(--ease);
+}
+.toast[data-shown] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+.toast-time {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  background: var(--halo);
+}
+.toast[data-shown] .toast-time {
+  animation: toast-time 8s linear forwards;
+}
+@keyframes toast-time {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
+}
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
   position: fixed;
@@ -2124,7 +2248,8 @@ img.avatar {
   font-size: 13px;
   line-height: 1.55;
 }
-.sheet-body > .pill {
+.sheet-body > .pill,
+.sheet-body > .text-button {
   justify-self: start;
 }
 .room-link {
@@ -2590,10 +2715,18 @@ div.empty {
     position: absolute;
     inset: -7px -4px;
   }
-  /* The mark gets a finger-sized target without changing how it looks. */
+  /* The mark and the account get finger-sized targets without changing how they look. */
   .topbar > .mark {
     min-width: 40px;
     justify-content: center;
+  }
+  .account-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .account-menu [role='menuitem'],
+  .menu-list [role='menuitem'] {
+    height: 40px;
   }
   .sheet-head .round {
     min-width: 40px;
@@ -2638,7 +2771,6 @@ div.empty {
     min-height: 0;
     padding-bottom: 8px;
   }
-  .identity-name,
   .connection {
     display: none;
   }
@@ -2657,8 +2789,9 @@ div.empty {
   :root {
     --topbar: 92px;
   }
-  /* A guest's bar has no views to list: one row. */
-  .shell[data-guest] {
+  /* A guest's bar and the places' bar have no views to list: one row. */
+  .shell[data-guest],
+  .places {
     --topbar: 48px;
   }
   .topbar {
@@ -2668,6 +2801,7 @@ div.empty {
     padding-top: 0;
   }
   .topbar > .mark,
+  .topbar > .crumb,
   .topbar > .crumb-sep,
   .topbar > .topbar-end {
     height: 48px;
@@ -2813,6 +2947,7 @@ div.empty {
   }
   .swap > *,
   .tip,
+  .toast,
   .segmented[data-thumb-ready]::before,
   .view-nav[data-thumb-ready]::after {
     transition-duration: 0.01s;

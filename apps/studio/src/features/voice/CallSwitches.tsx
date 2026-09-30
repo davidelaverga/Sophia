@@ -1,0 +1,80 @@
+// The call's switches wherever the call shows beyond the dock: the microphone, the camera and the shared screen while
+// they are on (from here they only turn off: nothing starts sending out of the room), and Leave where it is offered.
+// Each is the dock's own Toggle, so the chat panel's head, the mini dock and the places' bar say the same and do the
+// same. What is on is never out of sight: whatever this person sends shows here with its off switch.
+import { Icon, Tip } from '@sophia/ui'
+import { Toggle } from './RoomDock.tsx'
+import { roomKey } from './room-keys.ts'
+import type { RoomParticipant } from './room-view.ts'
+
+export interface Sending {
+  microphone: boolean
+  camera: boolean
+  screen: boolean
+}
+
+/** What this person sends, read from their own presence in the call. */
+export const sendingOf = (me: RoomParticipant | undefined): Sending => ({
+  microphone: !!me?.micOn,
+  camera: !!me?.cameraOn,
+  screen: !!me?.screenOn,
+})
+
+export interface CallControls {
+  setMicrophone: (on: boolean) => void
+  setCamera: (on: boolean) => void
+  setScreenShare: (on: boolean) => void
+  /** Offered where the dock isn't: the mini dock and the places' bar. */
+  leave?: () => void
+}
+
+interface Props {
+  sending: Sending
+  controls: CallControls
+  /** The room's keys work here (the room is on screen), so the tips show them. */
+  keys: boolean
+  /** Where the tips open: above at the foot of the screen, below in a bar. */
+  side?: 'top' | 'bottom'
+}
+
+export function CallSwitches({ sending, controls, keys, side = 'top' }: Props) {
+  const key = (action: 'microphone' | 'camera' | 'screen') => (keys ? roomKey(action) : undefined)
+  return (
+    <>
+      <Toggle
+        on={sending.microphone}
+        label="Microphone"
+        keys={key('microphone')}
+        icons={['mic', 'micOff']}
+        side={side}
+        onToggle={() => controls.setMicrophone(!sending.microphone)}
+      />
+      {sending.camera && (
+        <Toggle
+          on
+          label="Camera"
+          keys={key('camera')}
+          icons={['camera', 'cameraOff']}
+          side={side}
+          onToggle={() => controls.setCamera(false)}
+        />
+      )}
+      {sending.screen && (
+        <Toggle
+          on
+          label="Stop sharing"
+          keys={key('screen')}
+          icons={['screen', 'screen']}
+          side={side}
+          onToggle={() => controls.setScreenShare(false)}
+        />
+      )}
+      {controls.leave && (
+        <button type="button" className="round leave has-tip" aria-label="Leave the room" onClick={controls.leave}>
+          <Icon name="leave" />
+          <Tip label="Leave the room" side={side} align="end" />
+        </button>
+      )}
+    </>
+  )
+}

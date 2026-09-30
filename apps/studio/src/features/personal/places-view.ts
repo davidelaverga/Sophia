@@ -1,6 +1,8 @@
-// The words of the three places (direction C): the greeting, what each door says it opens, and how a project card in
-// Work reads. Pure, so the copy is tested and components only render it.
+// The words of the three places (direction C): the greeting, what each door says it opens, how a project card in Work
+// reads, who can see a place, how privacy works, and what a read that is slow or failed says. Pure, so the copy is
+// tested and components only render it.
 import type { PersonalTurn, ProjectSummary } from '@sophia/contracts'
+import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
 
@@ -8,6 +10,91 @@ const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 /** A session this close (or already started) makes the Work door and its card say "Join the room". */
 export const SOON_MIN = 10
+
+/** The browser tab's title in each place, the way a project's reads ("Launch plan · Sophia"). */
+export const PLACE_TITLE: Record<Place, string> = {
+  home: 'Sophia',
+  personal: 'Personal · Sophia',
+  work: 'Work · Sophia',
+}
+
+/**
+ * Where a read stands. Idle is a read that is not asked (the personal space behind the padlock); a read asked again
+ * after a failure is loading, so Try again answers at once.
+ */
+export type ReadState = 'idle' | 'loading' | 'failed' | 'ready'
+
+export function readState(read: { data: unknown; isFetching: boolean; isError: boolean }): ReadState {
+  if (read.data !== undefined) return 'ready'
+  if (read.isFetching) return 'loading'
+  return read.isError ? 'failed' : 'idle'
+}
+
+/** A failed read, said where its content would be: nothing that failed to load may look empty (or deleted). */
+export const READ_FAILED = {
+  personal: 'Couldn’t load your personal space.',
+  projects: 'Couldn’t load your projects.',
+} as const
+
+/** The first visit's one sentence about the line between the doors. */
+export const INTRO = {
+  lead: 'Private on the left, shared on the right.',
+  rest: 'Nothing crosses unless you carry it, and the padlock locks your personal space.',
+} as const
+
+/** Who can see a place, as the bar's chip says it and explains it when pressed. */
+export const WHO_SEES = {
+  personal: {
+    chip: 'Only you',
+    name: 'Who can see your personal space',
+    says: 'Only you can see this space. Your projects and their members can’t read it, and Sophia doesn’t bring it into them.',
+  },
+  work: {
+    chip: 'Your team',
+    name: 'Who can see Work',
+    says: 'Everyone in these projects sees what’s here, including what you carried over.',
+  },
+} as const
+
+/** How privacy works, in three rules. */
+export const PRIVACY_RULES = [
+  {
+    lead: 'Private on the left, shared on the right.',
+    rest: 'Your personal space is yours alone. Your projects and their members can’t read it, and Sophia doesn’t bring it into them.',
+  },
+  {
+    lead: 'Nothing crosses unless you carry it.',
+    rest: 'A note goes to one project exactly as written, and you can take it back.',
+  },
+  {
+    lead: 'The padlock locks your personal space.',
+    rest: 'Opening it again asks for your passkey. It also locks by itself when you join a room.',
+  },
+] as const
+
+/** The padlock on the line between the doors: what pressing it does, and its key when it has one. */
+export const LOCK_TIP = {
+  open: { label: 'Lock your personal space', keys: 'L' },
+  you: { label: 'Unlock with your passkey', keys: 'L' },
+  room: { label: 'Locked while you’re in a room. Leaving opens it.', keys: null },
+} as const
+
+/** The edge from Work to Personal: where it goes, or why it is shut. */
+export const EDGE_TIP = {
+  open: 'Cross to Personal',
+  you: 'Your personal space is locked. Opening it asks for your passkey.',
+  room: 'Your personal space is locked while you’re in a room.',
+} as const
+
+/** Confirming it's the same person before the personal space opens again. */
+export const UNLOCK = {
+  title: 'Unlock your personal space',
+  withPasskey: 'Confirm it’s you with your passkey.',
+  plain: 'Confirm it’s you.',
+  otherAccount: 'That was another account. Your personal space stays locked.',
+  failed: 'That didn’t work. Try another way.',
+  dev: 'Dev identities: nothing is checked here.',
+} as const
 
 /** The name a greeting uses: a provider's first name, or a dev identity's own name; never an email. */
 export function firstName(identity: { name: string; displayName?: string | null }): string | null {
@@ -34,22 +121,25 @@ export interface YouDoor {
 }
 
 /**
- * What the Personal door opens: the conversation to continue, a first one to start, or a locked side. It names the
- * last day by what it was about (its first topic), or just now by the latest one.
+ * What the Personal door opens: the conversation to continue, a first one to start, or a locked space. It names the
+ * last day by what it was about (its first topic), or just now by the latest one. Until the space has loaded it only
+ * opens: a first conversation offered over one that is still loading would read as the old one gone.
  */
 export function youDoor(input: {
   locked: LockedBy | null
-  turns: readonly PersonalTurn[]
+  /** Undefined until the space has loaded. */
+  turns: readonly PersonalTurn[] | undefined
   notes: number
   now: Date
 }): YouDoor {
   if (input.locked) {
     return {
       verb: 'Unlock',
-      meta: input.locked === 'room' ? 'Locked while you’re in a room' : 'Your side is closed',
+      meta: input.locked === 'room' ? 'Locked while you’re in a room' : 'Locked on this device',
       notes: null,
     }
   }
+  if (!input.turns) return { verb: 'Open', meta: '', notes: null }
   const said = input.turns.filter((t) => t.author === 'person')
   const last = said.at(-1)
   if (!last) return { verb: 'Start talking', meta: 'Sophia is here whenever you are', notes: null }
@@ -111,6 +201,8 @@ export interface WorkDoor {
   verb: string
   meta: string
   count: string
+  /** The projects have loaded: until then the door shows no room, not the empty seats of a first project. */
+  known: boolean
   /** The project whose room the door shows (the busiest), or null to show empty seats. */
   shown: ProjectSummary | null
   /** The project "Join the room" joins, when a session is about to start. */
@@ -126,10 +218,21 @@ function workMeta(list: readonly ProjectSummary[], callTitle: string | null, now
   return first ? `${first.title}${list.length > 1 ? ` and ${list.length - 1} more` : ''}` : ''
 }
 
-/** What the Work door opens: the projects, a room about to start, or a first project. */
-export function workDoor(projects: readonly ProjectSummary[], now: Date, callTitle: string | null): WorkDoor {
+/**
+ * What the Work door opens: the projects, a room about to start, or a first project. Until the projects have loaded it
+ * only opens them: "Start a project" over a list that is still loading would read as the projects gone.
+ */
+export function workDoor(
+  projects: readonly ProjectSummary[] | undefined,
+  now: Date,
+  callTitle: string | null,
+): WorkDoor {
+  const none = { count: '', shown: null, joins: null }
+  if (!projects) {
+    return { verb: 'Open your projects', meta: callTitle ? `You’re in ${callTitle}` : '', known: false, ...none }
+  }
   if (projects.length === 0) {
-    return { verb: 'Start a project', meta: 'Invite your team when you’re ready', count: '', shown: null, joins: null }
+    return { verb: 'Start a project', meta: 'Invite your team when you’re ready', known: true, ...none }
   }
   const list = workOrder(projects, now)
   const joins = callTitle ? null : (list.find((p) => soon(p, now)) ?? null)
@@ -139,6 +242,7 @@ export function workDoor(projects: readonly ProjectSummary[], now: Date, callTit
     verb: joins ? 'Join the room' : 'Open your projects',
     meta: workMeta(list, callTitle, now),
     count: `${projects.length} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${carried} from you` : ''}`,
+    known: true,
     shown: busiest && peopleIn(busiest) > 0 ? busiest : null,
     joins,
   }
@@ -161,6 +265,17 @@ export interface ProjectCard {
   meta: string
   action: 'leave' | 'join' | 'open'
 }
+
+/** A card's one action, in the words the room itself uses. */
+export const CARD_ACTION: Record<ProjectCard['action'], string> = {
+  leave: 'Leave the room',
+  join: 'Join the room',
+  open: 'Open',
+}
+
+/** Where a carried note came from, as Work shows it. */
+export const carriedFrom = (mine: boolean, ownerName: string) =>
+  mine ? 'from your personal space' : `from ${shortName(ownerName)}’s personal space`
 
 /** How a project reads in Work: its room if someone is in it, else its people and next session; and its one action. */
 export function projectCard(project: ProjectSummary, now: Date, inCallHere: boolean): ProjectCard {

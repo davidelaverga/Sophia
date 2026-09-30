@@ -1,8 +1,11 @@
-// A notice with undo (direction C): one at a time, eight seconds, a bar that shows the time left. What it says is
-// what happened ("Carried to Launch plan"); Undo reverses exactly that.
+// The toast: one line for a result whose place is not on screen (a note carried away, a room left from elsewhere,
+// the padlock shut), with Undo when it can be undone. One at a time for eight seconds, the time left drawn along its
+// foot; a new one replaces the last. A result whose place stays on screen is said there instead, as the lobby says
+// "Declined … · Let in instead". It rests above the floor (--floor), so it never covers the dock or a message bar.
+// The words come from the caller's view module.
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-interface Notice {
+export interface Notice {
   id: number
   message: string
   undo: (() => void) | null
@@ -26,13 +29,15 @@ export function useToast() {
   return { notice, show, hide }
 }
 
+export type ShowToast = ReturnType<typeof useToast>['show']
+
 export function Toast({ notice, onHide }: { notice: Notice | null; onHide: () => void }) {
   return (
-    <div className={`toast${notice ? ' show' : ''}`} role="status" aria-live="polite">
+    <div className="toast" data-shown={notice ? '' : undefined} role="status" aria-live="polite">
       <span>{notice?.message}</span>
       {notice?.undo && (
         <button
-          className="btn"
+          className="text-button"
           type="button"
           onClick={() => {
             onHide()
@@ -42,10 +47,8 @@ export function Toast({ notice, onHide }: { notice: Notice | null; onHide: () =>
           Undo
         </button>
       )}
-      {/* A new notice restarts the bar. */}
-      <span className="bar" key={notice?.id ?? 0} />
+      {/* A new notice restarts the line. */}
+      <span className="toast-time" key={notice?.id ?? 0} aria-hidden />
     </div>
   )
 }
-
-export type ShowToast = ReturnType<typeof useToast>['show']

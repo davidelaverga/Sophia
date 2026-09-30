@@ -2,7 +2,16 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contracts'
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
-import { firstName, greeting, projectCard, roomCaption, sessionWhen, workDoor, youDoor } from './places-view.ts'
+import {
+  firstName,
+  greeting,
+  projectCard,
+  readState,
+  roomCaption,
+  sessionWhen,
+  workDoor,
+  youDoor,
+} from './places-view.ts'
 
 const NOW = new Date(2026, 8, 30, 21, 0)
 const inMin = (m: number) => new Date(NOW.getTime() + m * 60_000).toISOString()
@@ -66,10 +75,34 @@ describe('home words', () => {
       meta: 'Locked while you’re in a room',
       notes: null,
     })
+    assert.equal(youDoor({ ...base, locked: 'you', turns: undefined }).meta, 'Locked on this device')
+  })
+
+  it('only opens a space still loading: no first conversation offered over one that may exist', () => {
+    assert.deepEqual(youDoor({ locked: null, notes: 0, now: NOW, turns: undefined }), {
+      verb: 'Open',
+      meta: '',
+      notes: null,
+    })
+    const loading = workDoor(undefined, NOW, null)
+    assert.deepEqual([loading.verb, loading.meta, loading.count, loading.known], ['Open your projects', '', '', false])
+    assert.equal(workDoor(undefined, NOW, 'Launch plan').meta, 'You’re in Launch plan')
+  })
+
+  it('tells a read that failed from one that is loading or not asked', () => {
+    assert.equal(readState({ data: undefined, isFetching: true, isError: false }), 'loading')
+    assert.equal(readState({ data: undefined, isFetching: false, isError: true }), 'failed')
+    // Try again answers at once: a failed read asked again is loading, not still failed.
+    assert.equal(readState({ data: undefined, isFetching: true, isError: true }), 'loading')
+    // A read that isn't asked (behind the padlock) is neither loading nor failed.
+    assert.equal(readState({ data: undefined, isFetching: false, isError: false }), 'idle')
+    // Data already shown stays shown while a later read fails.
+    assert.equal(readState({ data: [], isFetching: false, isError: true }), 'ready')
   })
 
   it('says what the Work door opens: a first project, the projects, or a room about to start', () => {
     assert.equal(workDoor([], NOW, null).verb, 'Start a project')
+    assert.equal(workDoor([], NOW, null).known, true)
     const quiet = workDoor([project(), project({ title: 'Pitch deck, Q4' })], NOW, null)
     assert.deepEqual(
       [quiet.verb, quiet.meta, quiet.count],

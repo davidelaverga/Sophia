@@ -1,4 +1,4 @@
-// Confirming it's the same person before their personal side opens again (the padlock, direction C). With Supabase Auth
+// Confirming it's the same person before their personal space opens again (the padlock, direction C). With Supabase Auth
 // the checks are real: the passkey, the provider they signed in with, or a code sent to their email. Each must come
 // back as the SAME account; a different one is refused (the side stays shut), and signing in as someone else never
 // opens this person's side, because a lock and a space belong to one account. Locally, dev identities have nothing to

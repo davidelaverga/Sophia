@@ -93,18 +93,20 @@ function JoinButton({ room }: { room: ProjectRoom }) {
 interface ToggleProps {
   on: boolean
   label: string
-  /** The single-key shortcut, shown in the tip (RoomStage binds it). */
-  keys: string
+  /** The shortcut, shown in the tip where it works (RoomStage binds it); none where the room's keys don't reach. */
+  keys?: string | undefined
   icons: [IconName, IconName]
+  /** Where the tip opens: above at the foot of the screen, below in a bar at its top. */
+  side?: 'top' | 'bottom'
   onToggle: () => void
 }
 
 /** A toggle: its name says what it controls, aria-pressed says whether it is on, the tip gives its key. */
-export function Toggle({ on, label, keys, icons, onToggle }: ToggleProps) {
+export function Toggle({ on, label, keys, icons, side = 'top', onToggle }: ToggleProps) {
   return (
     <button type="button" className="round has-tip" aria-pressed={on} aria-label={label} onClick={onToggle}>
       <Icon name={on ? icons[0] : icons[1]} />
-      <Tip label={label} keys={keys} />
+      <Tip label={label} side={side} {...(keys ? { keys } : {})} />
     </button>
   )
 }

@@ -3,7 +3,8 @@
 // words, Sophia's suggested note (keep it or let it go), and the wait for her reply.
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
-import { Chevron } from './icons.tsx'
+import { Icon } from '@sophia/ui'
+import { usePopover } from '../../app/usePopover.ts'
 import { daysOf, notePrefill, STARTERS, suggestionFor, type Row } from './conversation-view.ts'
 
 export interface ConversationActions {
@@ -36,28 +37,29 @@ function NoteForm(props: {
       onSubmit={(e) => {
         e.preventDefault()
         if (text.trim()) onKeep(text.trim())
-        else onClose()
       }}
     >
-      <label className="sr-only" htmlFor="c-note-in">
-        Note, in your words
-      </label>
-      <input
-        ref={input}
-        id="c-note-in"
-        maxLength={90}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Escape') return
-          e.preventDefault()
-          onClose()
-        }}
-      />
-      <button className="btn" type="submit">
-        Keep
-      </button>
-      <button className="btn ghost" type="button" onClick={onClose}>
+      <div className="field">
+        <label className="sr-only" htmlFor="c-note-in">
+          Note, in your words
+        </label>
+        <input
+          ref={input}
+          id="c-note-in"
+          maxLength={90}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return
+            e.preventDefault()
+            onClose()
+          }}
+        />
+        <button className="pill primary" type="submit" disabled={!text.trim()}>
+          Keep
+        </button>
+      </div>
+      <button className="ghost" type="button" onClick={onClose}>
         Cancel
       </button>
       {suggestion?.state === 'kept' && (
@@ -76,7 +78,7 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
     return (
       <p className="c3-kept">
         Kept ·{' '}
-        <button className="link" type="button" onClick={actions.openNotes}>
+        <button className="text-button" type="button" onClick={actions.openNotes}>
           Notes
         </button>
       </p>
@@ -86,7 +88,7 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
     return (
       <p className="c3-kept">
         Sophia suggested a note: <q>{suggestion.text}</q> ·{' '}
-        <button className="link" type="button" onClick={() => actions.decide(suggestion, 'keep')}>
+        <button className="text-button" type="button" onClick={() => actions.decide(suggestion, 'keep')}>
           Keep
         </button>
       </p>
@@ -94,13 +96,13 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
   }
   return (
     <div className="c3-suggest" role="group" aria-label="Sophia suggests a note">
-      <span className="caps">Keep a note?</span>
+      <span className="field-label">Keep a note?</span>
       <q>{suggestion.text}</q>
       <span className="acts">
-        <button className="btn" type="button" onClick={() => actions.decide(suggestion, 'keep')}>
+        <button className="pill" type="button" onClick={() => actions.decide(suggestion, 'keep')}>
           Keep
         </button>
-        <button className="btn ghost" type="button" onClick={() => actions.decide(suggestion, 'dismiss')}>
+        <button className="ghost" type="button" onClick={() => actions.decide(suggestion, 'dismiss')}>
           No thanks
         </button>
       </span>
@@ -132,7 +134,7 @@ function Turn({ row, noting, onNote }: TurnProps) {
       <div className="body">{row.text}</div>
       <span className="at">{row.at}</span>
       {me && row.turn && !noting && (
-        <button className="btn ghost note-this" type="button" onClick={onNote}>
+        <button className="ghost note-this" type="button" onClick={onNote}>
           Note this
         </button>
       )}
@@ -154,7 +156,7 @@ function Starters({ onStart }: { onStart: (text: string) => void }) {
   return (
     <div className="c3-starters" role="group" aria-label="Ways to start">
       {STARTERS.map((t) => (
-        <button key={t} className="btn" type="button" onClick={() => onStart(t)}>
+        <button key={t} className="pill" type="button" onClick={() => onStart(t)}>
           {t}
         </button>
       ))}
@@ -185,7 +187,7 @@ function Failed({ onRetry }: { onRetry: () => void }) {
   return (
     <p className="c3-failed">
       Sophia couldn’t answer this one.{' '}
-      <button className="link" type="button" onClick={onRetry}>
+      <button className="text-button" type="button" onClick={onRetry}>
         Ask again
       </button>
     </p>
@@ -252,31 +254,33 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
   return day
 }
 
+/** The day at the top of what you're reading, and the list of days it opens (so do the days' own dividers). */
 function Earlier(props: { rows: readonly Row[]; open: boolean; day: string | null; setOpen: (open: boolean) => void }) {
   const { rows, open, day, setOpen } = props
-  const menu = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (open) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
-  }, [open])
+  const menu = usePopover(open, () => setOpen(false))
   return (
-    <div className="acct c3-daybar">
+    <div ref={menu.wrap} className="c3-daybar">
       {day && (
         <button
+          ref={menu.opener}
           className="c3-daypill"
           type="button"
           aria-haspopup="menu"
           aria-expanded={open}
-          onClick={(e) => {
-            e.stopPropagation()
-            setOpen(!open)
-          }}
+          onClick={() => setOpen(!open)}
         >
           <span>{day}</span>
-          <Chevron />
+          <Icon name="chevron" size={12} />
         </button>
       )}
       {open && (
-        <div ref={menu} className="menu" role="menu" aria-label="Earlier days">
+        <div
+          ref={menu.panel}
+          className="popover menu-list"
+          role="menu"
+          aria-label="Earlier days"
+          onKeyDown={menu.onKeyDown}
+        >
           {daysOf(rows).map((d) => (
             <button
               key={d.key}
@@ -304,18 +308,21 @@ interface ConversationProps {
   list: RefObject<HTMLDivElement | null>
   earlier: boolean
   setEarlier: (open: boolean) => void
+  /** What a slow or failed read says, where the conversation would be (ReadNotes). */
+  notice: React.ReactNode
   composer: React.ReactNode
   actions: ConversationActions
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, composer, actions } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions } = props
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
   return (
     <div className={`c3-convo${day ? ' scrolled' : ''}`}>
       <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} />
       <div ref={list} className="msgs" aria-label="Conversation with Sophia">
+        {notice}
         {rows.map((row) => (
           <RowView
             key={row.key}

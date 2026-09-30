@@ -1,9 +1,10 @@
-// Writing to Sophia (direction C): Enter sends, Shift+Enter is a new line, the draft stays on this device, and the first
-// Escape only lets go of the field (the draft stays; the next one goes home). "Talk instead" dictates on the device.
+// Writing to Sophia (direction C), in the Studio's message bar: Enter sends, Shift+Enter is a new line, Send waits
+// until there is something to send, the draft stays on this device, and the first Escape only lets go of the field (the
+// draft stays; the next one goes home). "Talk instead" dictates on the device. One line above the bar says where the
+// draft came from or why it is back, as the chat's foot does (.chat-line).
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Tip } from '@sophia/ui'
+import { Icon, Tip } from '@sophia/ui'
 import { useDictation } from './dictation.ts'
-import { Mic, Stop } from './icons.tsx'
 
 const draftKey = (identity: string) => `sophia.personal.draft.v1.${identity}`
 
@@ -24,17 +25,18 @@ function writeDraft(identity: string, text: string): void {
   }
 }
 
-/** The field grows with what is written, up to a limit, then scrolls; no scrollbar until then. */
-function fit(el: HTMLTextAreaElement | null) {
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${Math.min(140, el.scrollHeight)}px`
-  el.style.overflowY = el.scrollHeight > 140 ? 'auto' : 'hidden'
-}
-
 const KEPT = 'Draft kept on this device'
 
-/** The draft, kept on this device as it is written, and the line under the field that says where it came from. */
+/** Until the space has loaded nothing is sent; without a companion the field says Sophia can't answer here. */
+type ComposerState = 'loading' | 'ready' | 'unavailable'
+
+const PLACEHOLDER: Record<ComposerState, string> = {
+  loading: 'Write to Sophia…',
+  ready: 'Write to Sophia…',
+  unavailable: 'Sophia can’t answer here yet',
+}
+
+/** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
 function useDraft(identity: string) {
   const [text, setText] = useState(() => readDraft(identity))
   const [note, setNote] = useState(() => (readDraft(identity) ? KEPT : ''))
@@ -64,14 +66,14 @@ function Listening() {
 function MicButton({ listening, onPress }: { listening: boolean; onPress: () => void }) {
   return (
     <button
-      className="btn ghost icon-btn c3-mic has-tip"
+      className="round has-tip"
       type="button"
       aria-pressed={listening}
       aria-label={listening ? 'Stop listening' : 'Talk instead'}
       onClick={onPress}
     >
-      {listening ? <Stop /> : <Mic />}
-      <Tip label="Talk instead. Your voice stays on this device." side="bottom" align="end" />
+      <Icon name={listening ? 'stop' : 'mic'} />
+      <Tip label="Talk instead. Your voice stays on this device." side="top" align="end" />
     </button>
   )
 }
@@ -79,20 +81,21 @@ function MicButton({ listening, onPress }: { listening: boolean; onPress: () => 
 interface FieldProps {
   field: RefObject<HTMLTextAreaElement | null>
   text: string
-  canSend: boolean
+  state: ComposerState
   onChange: (text: string) => void
   onSend: () => void
 }
 
-function Field({ field, text, canSend, onChange, onSend }: FieldProps) {
+function Field({ field, text, state, onChange, onSend }: FieldProps) {
   return (
     <textarea
       ref={field}
       id="c-input"
       rows={1}
-      placeholder={canSend ? 'Write to Sophia…' : 'Sophia can’t answer here yet'}
+      maxLength={4000}
+      placeholder={PLACEHOLDER[state]}
       value={text}
-      disabled={!canSend}
+      disabled={state !== 'ready'}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -109,25 +112,24 @@ function Field({ field, text, canSend, onChange, onSend }: FieldProps) {
 
 interface Props {
   identity: string
-  /** False while Sophia can't answer here (no companion): the field says so instead of sending into nothing. */
-  canSend: boolean
+  state: ComposerState
   /** Resolves to whether the words were sent; if not, they go back into the field. */
   onSend: (text: string) => Promise<boolean>
   onListening: (listening: boolean) => void
 }
 
-export function PersonalComposer({ identity, canSend, onSend, onListening }: Props) {
+export function PersonalComposer({ identity, state, onSend, onListening }: Props) {
   const { text, note, change } = useDraft(identity)
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
     change(text ? `${text} ${heard}` : heard, 'From your voice · edit it or send')
     field.current?.focus()
   })
-  useEffect(() => fit(field.current), [text])
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
+  const ready = state === 'ready'
   const send = async () => {
     const words = text.trim()
-    if (!words || !canSend) return
+    if (!words || !ready) return
     change('')
     if (!(await onSend(words))) change(words, 'Not sent: it’s back in the field')
   }
@@ -139,27 +141,27 @@ export function PersonalComposer({ identity, canSend, onSend, onListening }: Pro
         void send()
       }}
     >
-      <div className={`compose-box${dictation.listening ? ' listening' : ''}`}>
+      {note && (
+        <p className="chat-line" role="status">
+          {note}
+        </p>
+      )}
+      <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
         <label className="sr-only" htmlFor="c-input">
           Message Sophia
         </label>
-        <Field field={field} text={text} canSend={canSend} onChange={change} onSend={() => void send()} />
+        <Field field={field} text={text} state={state} onChange={change} onSend={() => void send()} />
         {dictation.listening && <Listening />}
-        {dictation.available && canSend && (
+        {dictation.available && ready && (
           <MicButton
             listening={dictation.listening}
             onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
           />
         )}
-        <button className="btn primary" type="submit" disabled={!canSend}>
-          Send
+        <button type="submit" className="send has-tip" aria-label="Send" disabled={!ready || !text.trim()}>
+          <Icon name="send" />
+          <Tip label="Send" keys="Enter" side="top" align="end" />
         </button>
-      </div>
-      <div className="hint">
-        <span>
-          <kbd>↵</kbd> send
-        </span>
-        <span>{note}</span>
       </div>
     </form>
   )

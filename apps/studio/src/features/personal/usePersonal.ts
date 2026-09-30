@@ -1,6 +1,6 @@
 // The personal space and the Work list as server state (react-query), and the writes the three places make. Every
 // write has its own Idempotency-Key and is retried once with the SAME key when no reply came (the write may have
-// committed); any other refusal is the caller's to say. Nothing is fetched while the personal side is locked.
+// committed); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { PersonalReceipt, PersonalSpace, PersonalTurn } from '@sophia/contracts'

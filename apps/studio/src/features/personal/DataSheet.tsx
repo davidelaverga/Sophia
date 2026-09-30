@@ -1,15 +1,16 @@
-// "Your data" (direction C): what the personal space keeps, counted; everything as text to copy; and deleting it all,
-// with a typed confirmation for the one thing that can't be undone. Behind the padlock, copying and deleting wait for
-// the person to confirm it's them.
-import { useEffect, useRef, useState } from 'react'
+// "Your data" (direction C), in the Studio's sheet (app/Sheet.tsx): what the personal space keeps, counted; everything
+// as text to copy; and deleting it all, with a typed confirmation for the one thing that can't be undone. Behind the
+// padlock, copying and deleting wait for the person to confirm it's them.
+import { useState } from 'react'
 import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
-import { confirmsErasure, exportText, factsOf, factWords } from './data-view.ts'
-import type { ShowToast } from './Toast.tsx'
+import { Sheet } from '../../app/Sheet.tsx'
+import type { ShowToast } from '../../app/Toast.tsx'
+import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
+import { NOTICE } from './notice-view.ts'
 import { personalFailure } from './write-words.ts'
 
 interface Props {
-  open: boolean
   token: string
   who: string
   space: PersonalSpace | undefined
@@ -46,29 +47,29 @@ function Erase({ onErase }: { onErase: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   return (
     <div className="danger-zone">
-      <strong>Delete all personal data</strong>
-      <p>Conversations and notes are removed for good. What you carried to projects stays there.</p>
-      <label className="caps" htmlFor="c-del">
-        Type <b style={{ color: 'var(--text)' }}>delete</b> to confirm
+      <strong>{DATA.erase}</strong>
+      <p>{DATA.eraseSays}</p>
+      <label className="field-label" htmlFor="c-del">
+        {DATA.confirm}
       </label>
-      <input id="c-del" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />
-      <button
-        className="btn danger"
-        type="button"
-        disabled={!confirmsErasure(typed) || busy}
-        onClick={() => {
+      <form
+        className="field"
+        onSubmit={(e) => {
+          e.preventDefault()
           setBusy(true)
           void onErase().finally(() => setBusy(false))
         }}
       >
-        {busy ? 'Deleting…' : 'Delete everything'}
-      </button>
+        <input id="c-del" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <button className="pill danger" type="submit" disabled={!confirmsErasure(typed) || busy}>
+          {busy ? 'Deleting…' : 'Delete everything'}
+        </button>
+      </form>
     </div>
   )
 }
 
 interface BodyProps {
-  erased: boolean
   space: PersonalSpace | undefined
   locked: boolean
   onUnlock: () => void
@@ -76,79 +77,57 @@ interface BodyProps {
   onErase: () => Promise<void>
 }
 
-function DataBody({ erased, space, locked, onUnlock, onCopy, onErase }: BodyProps) {
-  if (erased) return <p>Your personal space is empty. Sophia starts fresh with you, and your projects are unchanged.</p>
+function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
+  if (locked) {
+    return (
+      <>
+        <Facts space={space} />
+        <p className="muted">{DATA.locked}</p>
+        <button className="pill" type="button" onClick={onUnlock}>
+          {DATA.unlock}
+        </button>
+      </>
+    )
+  }
   return (
     <>
       <Facts space={space} />
-      {locked ? (
-        <>
-          <button className="btn" type="button" onClick={onUnlock}>
-            Unlock to copy or delete
-          </button>
-          <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-            Your personal side is locked.
-          </p>
-        </>
-      ) : (
-        <>
-          <button className="btn" type="button" onClick={onCopy}>
-            Copy everything as text
-          </button>
-          <Erase onErase={onErase} />
-        </>
-      )}
+      <button className="pill" type="button" onClick={onCopy}>
+        {DATA.copy}
+      </button>
+      <Erase onErase={onErase} />
     </>
   )
 }
 
 export function DataSheet(props: Props) {
-  const { open, token, who, space, locked, toast, onClose, onUnlock, onErase } = props
-  const close = useRef<HTMLButtonElement>(null)
+  const { token, who, space, locked, toast, onClose, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
-  useEffect(() => {
-    if (open) close.current?.focus()
-    else setErased(false)
-  }, [open])
   const copy = async () => {
     try {
       const everything = await exportPersonalSpace(token)
       await navigator.clipboard.writeText(exportText(everything, who, new Date()))
-      toast('Copied to your clipboard')
+      toast(NOTICE.copied)
     } catch (err: unknown) {
-      toast(
-        err instanceof DOMException ? 'Couldn’t copy here. Your browser blocked the clipboard.' : personalFailure(err),
-      )
+      toast(err instanceof DOMException ? NOTICE.clipboardBlocked : personalFailure(err))
     }
   }
   const erase = async () => {
     try {
       await onErase()
       setErased(true)
-      toast('Deleted. Sophia starts fresh.')
+      toast(NOTICE.erased)
     } catch (err: unknown) {
       toast(personalFailure(err))
     }
   }
   return (
-    <aside className={`data-sheet${open ? ' open' : ''}`} aria-labelledby="c-data-h" aria-hidden={!open}>
-      <div className="drawer-head">
-        <h2 id="c-data-h">Your data</h2>
-        <button ref={close} className="btn ghost close-btn" type="button" aria-label="Close" onClick={onClose}>
-          <kbd>Esc</kbd>
-          <span className="touch-only">Done</span>
-        </button>
-      </div>
-      <div className="data-body">
-        <DataBody
-          erased={erased}
-          space={space}
-          locked={locked}
-          onUnlock={onUnlock}
-          onCopy={() => void copy()}
-          onErase={erase}
-        />
-      </div>
-    </aside>
+    <Sheet id="c-data-h" title="Your data" onClose={onClose}>
+      {erased ? (
+        <p className="sheet-lead">{DATA.erased}</p>
+      ) : (
+        <DataBody space={space} locked={locked} onUnlock={onUnlock} onCopy={() => void copy()} onErase={erase} />
+      )}
+    </Sheet>
   )
 }

@@ -1,30 +1,25 @@
-// The bar over the three places (direction C): the mark goes home; the switch shows the three places, all visible, with
-// Personal's padlock when it is shut; on the right, the room you're in (back to it, or leave), who can see where you
-// are (nothing at home, where the line with the lock says it), and your account.
-import { useEffect, useRef } from 'react'
-import { Icon, Tip } from '@sophia/ui'
+// The bar over the three places (direction C), built as a project's bar is (`.topbar`, the mark, `.segmented`, the
+// account), so the two halves share one bar: the mark goes home; the switch shows the three places, all visible, with
+// Personal's padlock when it is shut; on the right, the room you're in (back to it, its switches, Leave), who can see
+// where you are (nothing at home, where the line with the lock says it), and your account.
+import { Icon, Tip, useSlidingThumb } from '@sophia/ui'
+import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
-import { AccountMenu } from './AccountMenu.tsx'
-import { HomeMark, LockShut } from './icons.tsx'
+import { usePopover } from '../../app/usePopover.ts'
+import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
+import { LOCK_TIP, WHO_SEES } from './places-view.ts'
 
 export interface InCall {
   title: string
   /** What this person sends: whatever is on shows here with its off switch (nothing sends out of sight). */
-  sending: { microphone: boolean; camera: boolean; screen: boolean }
+  sending: Sending
   /** Back to the project's room. */
   onReturn: () => void
   onLeave: () => void
   onMicrophone: (on: boolean) => void
   onCamera: (on: boolean) => void
   onScreen: (on: boolean) => void
-}
-
-interface Layers {
-  chip: boolean
-  menu: boolean
-  setChip: (open: boolean) => void
-  setMenu: (open: boolean) => void
 }
 
 interface Props {
@@ -34,15 +29,8 @@ interface Props {
   newInWork: number
   identity: Identity
   call: InCall | null
-  layers: Layers
-  actions: {
-    go: (place: Place) => void
-    lockNow: () => void
-    privacy: () => void
-    data: () => void
-    chooseDev: (identity: Identity | null) => void
-    signOut: () => void
-  }
+  chip: { open: boolean; set: (open: boolean) => void }
+  actions: AccountActions & { go: (place: Place) => void; lockNow: () => void }
 }
 
 const SWITCH: ReadonlyArray<{ place: Place; name: string; key: string }> = [
@@ -56,25 +44,33 @@ function Switch({
   locked,
   newInWork,
   go,
-}: Pick<Props, 'place' | 'locked' | 'newInWork'> & { go: (p: Place) => void }) {
+}: Pick<Props, 'place' | 'locked' | 'newInWork'> & { go: Props['actions']['go'] }) {
+  const thumb = useSlidingThumb<HTMLDivElement>(place)
   return (
-    <div className="seg" role="group" aria-label="Space">
+    <div ref={thumb} className="segmented places-switch" role="group" aria-label="Places">
       {SWITCH.map((s) => (
         <button
           key={s.place}
           type="button"
           className={`has-tip${s.place === 'personal' && locked ? ' locked' : ''}`}
+          data-thumb={s.place}
           data-place={s.place}
           data-new={s.place === 'work' && newInWork ? `${newInWork} new` : undefined}
           aria-pressed={place === s.place}
           aria-label={s.name}
           onClick={() => go(s.place)}
         >
-          {s.place === 'personal' && <LockShut className="seg-lock" width={2} />}
+          {s.place === 'personal' && (
+            <span className="seg-lock" aria-hidden>
+              <Icon name="lock" size={12} />
+            </span>
+          )}
           {s.place === 'home' ? (
             <>
               <span className="seg-t">Home</span>
-              <HomeMark className="seg-i" />
+              <span className="seg-i" aria-hidden>
+                <Icon name="home" size={14} />
+              </span>
             </>
           ) : (
             <span>{s.name}</span>
@@ -86,103 +82,66 @@ function Switch({
   )
 }
 
-/** In a room: the bar says so. Back to it, the microphone and anything else being sent, and Leave, one tap each. */
+/** In a room: the bar says so. Back to it, and the call's switches and Leave, the same as the mini dock's. */
 function RoomPill({ call }: { call: InCall }) {
-  const { sending } = call
   return (
-    <span className="room-pill" role="group" aria-label={`In ${call.title}`}>
+    <div className="room-pill" role="group" aria-label="Your call">
       <span className="live" aria-hidden />
-      <button type="button" className="t" onClick={call.onReturn} aria-label={`Back to ${call.title}`}>
+      <button type="button" className="t has-tip" onClick={call.onReturn}>
         In {call.title}
+        <Tip label="Open the room" side="bottom" />
       </button>
-      <button
-        type="button"
-        className="sw"
-        aria-pressed={sending.microphone}
-        aria-label={sending.microphone ? 'Microphone on: mute' : 'Microphone off: unmute'}
-        onClick={() => call.onMicrophone(!sending.microphone)}
-      >
-        <Icon name={sending.microphone ? 'mic' : 'micOff'} size={12} />
-      </button>
-      {sending.camera && (
-        <button
-          type="button"
-          className="sw"
-          aria-pressed
-          aria-label="Camera on: turn it off"
-          onClick={() => call.onCamera(false)}
-        >
-          <Icon name="camera" size={12} />
-        </button>
-      )}
-      {sending.screen && (
-        <button
-          type="button"
-          className="sw"
-          aria-pressed
-          aria-label="Sharing your screen: stop"
-          onClick={() => call.onScreen(false)}
-        >
-          <Icon name="screen" size={12} />
-        </button>
-      )}
-      <button type="button" className="leave" onClick={call.onLeave} aria-label={`Leave ${call.title}`}>
-        Leave
-      </button>
-    </span>
+      <CallSwitches
+        sending={call.sending}
+        controls={{
+          setMicrophone: call.onMicrophone,
+          setCamera: call.onCamera,
+          setScreenShare: call.onScreen,
+          leave: call.onLeave,
+        }}
+        keys={false}
+        side="bottom"
+      />
+    </div>
   )
 }
 
+interface ChipProps {
+  place: Place
+  chip: Props['chip']
+  onLock: () => void
+  onPrivacy: () => void
+}
+
 /** Who can see where you are, as a button: a tap explains it on any screen, and in Personal offers to lock. */
-function PrivacyChip({ place, layers, actions }: Pick<Props, 'place' | 'layers' | 'actions'>) {
-  const pop = useRef<HTMLDivElement>(null)
-  const chip = useRef<HTMLButtonElement>(null)
-  const work = place === 'work'
-  useEffect(() => {
-    if (layers.chip) pop.current?.querySelector('button')?.focus()
-  }, [layers.chip])
-  const close = () => {
-    layers.setChip(false)
-    chip.current?.focus()
-  }
+function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
+  const pop = usePopover(chip.open, () => chip.set(false))
+  const who = place === 'work' ? WHO_SEES.work : WHO_SEES.personal
   return (
-    <div className="acct chip-wrap" hidden={place === 'home'}>
+    <div ref={pop.wrap} className="chip-wrap" hidden={place === 'home'}>
       <button
-        ref={chip}
-        className={`chip-private${work ? ' team' : ''}`}
+        ref={pop.opener}
+        className={`chip-private${place === 'work' ? ' team' : ''}`}
         type="button"
         aria-haspopup="dialog"
-        aria-expanded={layers.chip}
-        aria-label={work ? 'Who can see Work' : 'Who can see your personal space'}
-        onClick={() => layers.setChip(!layers.chip)}
+        aria-expanded={chip.open}
+        aria-label={who.name}
+        onClick={() => chip.set(!chip.open)}
       >
-        <LockShut width={2} />
-        <span className="t">{work ? 'Your team' : 'Only you'}</span>
+        <Icon name="lock" size={12} />
+        <span className="t">{who.chip}</span>
       </button>
-      {layers.chip && (
-        <div
-          ref={pop}
-          className="menu chip-pop"
-          role="dialog"
-          aria-label="Who can see this"
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape') return
-            e.preventDefault()
-            close()
-          }}
-        >
-          <p>
-            {work
-              ? 'Everyone in these projects sees what’s here, including what you carried over.'
-              : 'Only you can see this space. Your projects, their members and the team’s Sophia can’t read it.'}
-          </p>
+      {chip.open && (
+        <div ref={pop.panel} className="popover chip-pop" role="dialog" aria-label={who.name} onKeyDown={pop.onKeyDown}>
+          <p>{who.says}</p>
           <div className="row">
-            {!work && (
-              <button className="btn" type="button" onClick={actions.lockNow}>
-                Lock now <kbd>L</kbd>
+            {place !== 'work' && (
+              <button className="pill has-tip" type="button" onClick={onLock}>
+                Lock now
+                <Tip label={LOCK_TIP.open.label} keys={LOCK_TIP.open.keys} side="bottom" />
               </button>
             )}
-            <button className="link" type="button" onClick={actions.privacy}>
+            <button className="text-button" type="button" onClick={onPrivacy}>
               How privacy works
             </button>
           </div>
@@ -193,22 +152,20 @@ function PrivacyChip({ place, layers, actions }: Pick<Props, 'place' | 'layers' 
 }
 
 export function PlacesBar(props: Props) {
-  const { place, locked, newInWork, identity, call, layers, actions } = props
+  const { place, locked, newInWork, identity, call, chip, actions } = props
   return (
-    <div className="appbar">
-      <div className="left">
-        <button className="home-btn has-tip" type="button" aria-label="Home" onClick={() => actions.go('home')}>
-          <span className="dot" aria-hidden />
-          <span className="word">Sophia</span>
-          <Tip label="Home" keys="H" side="bottom" />
-        </button>
-      </div>
+    <header className="topbar places-bar">
+      <button type="button" className="mark has-tip" aria-label="Home" onClick={() => actions.go('home')}>
+        <span className="mark-dot" aria-hidden />
+        <span className="mark-word">Sophia</span>
+        <Tip label="Home" keys="H" side="bottom" />
+      </button>
       <Switch place={place} locked={locked} newInWork={newInWork} go={actions.go} />
-      <div className="right">
+      <div className="topbar-end">
         {call && <RoomPill call={call} />}
-        <PrivacyChip place={place} layers={layers} actions={actions} />
-        <AccountMenu identity={identity} open={layers.menu} onOpen={layers.setMenu} actions={actions} />
+        <PrivacyChip place={place} chip={chip} onLock={actions.lockNow} onPrivacy={actions.privacy} />
+        <AccountMenu identity={identity} where="places" actions={actions} />
       </div>
-    </div>
+    </header>
   )
 }

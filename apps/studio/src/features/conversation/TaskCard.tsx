@@ -59,7 +59,7 @@ function BriefDetail({
 
 /**
  * In the room a brief opens inside the conversation's short scrolling window, below the discussion: bring its start
- * to the top of that window, scrolling nothing else (CX-0061). In the Work view there is no such window.
+ * to the top of that window, scrolling nothing else (CX-0061). In the Tasks view there is no such window.
  */
 function revealInConversation(el: HTMLElement | null): void {
   const scroller = el?.closest<HTMLElement>('.conversation')

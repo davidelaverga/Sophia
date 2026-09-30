@@ -1,15 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useCallback, useRef, useState } from 'react'
-import { Places } from '../features/personal/Places.tsx'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { callEnded } from '../features/personal/notice-view.ts'
+import { Places, type Opening } from '../features/personal/Places.tsx'
 import type { InCall } from '../features/personal/PlacesBar.tsx'
+import type { Lock } from '../features/personal/lock.ts'
 import { useLock } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
+import { AccountMenu } from './AccountMenu.tsx'
 import { useAuth } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
-import { IdentityControl } from './IdentityControl.tsx'
 import { isJoinPath } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
+import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import { useProjectRoute } from './useProjectRoute.ts'
 
 const queryClient = new QueryClient()
@@ -71,21 +74,28 @@ interface SignedInProps {
   onSignOut: () => void
 }
 
+/** Told when a call ends: the call as it was, and why when this person didn't leave it (call-end.ts). */
+type OnEnded = (call: ProjectCall, note: string | null) => void
+
 /**
  * One call at a time, wherever the person is. A project whose room holds the call stays mounted when the person goes
  * home or to their personal space (out of sight, taking no keys), so the call goes on; the places' bar shows it. A call
- * starting in another project ends the one before.
+ * starting in another project ends the one before, without a word: the person asked for the new one.
  */
-function useCall() {
+function useCall(ended: RefObject<OnEnded | null>) {
   const [call, setCall] = useState<ProjectCall | null>(null)
   const current = useRef<ProjectCall | null>(null)
-  const report = useCallback((projectId: string, next: ProjectCall | null) => {
-    const prev = current.current
-    if (!next && prev?.projectId !== projectId) return // a project without a call ends nobody's call
-    if (next && prev && prev.projectId !== projectId) void prev.leave()
-    current.current = next
-    setCall(next)
-  }, [])
+  const report = useCallback(
+    (projectId: string, next: ProjectCall | null, note: string | null = null) => {
+      const prev = current.current
+      if (!next && prev?.projectId !== projectId) return // a project without a call ends nobody's call
+      if (next && prev && prev.projectId !== projectId) void prev.leave()
+      current.current = next
+      setCall(next)
+      if (!next && prev) ended.current?.(prev, note)
+    },
+    [ended],
+  )
   return [call, report] as const
 }
 
@@ -101,17 +111,96 @@ const inCall = (call: ProjectCall, onReturn: () => void): InCall & { projectId: 
   onScreen: (on) => void call.setScreenShare(on),
 })
 
+/** A call that ends says so in the toast where its room can't (callEnded); so does a sign-in link that failed. */
+function useSayings(input: {
+  ended: RefObject<OnEnded | null>
+  say: ShowToast
+  lock: Lock
+  project: string | null
+  notice: string | undefined
+}) {
+  const { ended, say, lock, project, notice } = input
+  useEffect(() => {
+    ended.current = (endedCall, note) => {
+      const reopens = lock.locked && lock.by === 'room'
+      const message = callEnded({ title: endedCall.title, note, here: project === endedCall.projectId, reopens })
+      if (message) say(message)
+    }
+  })
+  useEffect(() => {
+    if (notice) say(notice)
+  }, [notice, say])
+}
+
+/** From a project, your data and how privacy works open at home, where the personal space's sheets are. */
+function useSheetsAtHome(leave: () => void) {
+  const [opening, setOpening] = useState<Opening | null>(null)
+  const atHome = (sheet: Opening) => () => {
+    setOpening(sheet)
+    leave()
+  }
+  const opened = useCallback(() => setOpening(null), [])
+  return { opening, opened, data: atHome('data'), privacy: atHome('privacy') }
+}
+
+interface ShellsProps {
+  /** The project on screen, and the one out of sight whose room holds the call. */
+  ids: readonly string[]
+  identity: Identity
+  account: React.ReactNode
+  routing: ReturnType<typeof useProjectRoute>
+  joining: string | null
+  onJoinHandled: () => void
+  onCall: (projectId: string, next: ProjectCall | null, note?: string | null) => void
+  onSignOut: () => void
+}
+
+function ProjectShells({ ids, identity, account, routing, joining, onJoinHandled, onCall, onSignOut }: ShellsProps) {
+  const { route, show, leave, goTo } = routing
+  return (
+    <>
+      {ids.map((id) => (
+        <div key={id} hidden={id !== route.projectId}>
+          <ShortcutScope.Provider value={id === route.projectId}>
+            <ProjectShell
+              key={`${identity.name}:${id}`}
+              projectId={id}
+              view={id === route.projectId ? route.view : 'studio'}
+              identity={identity}
+              account={account}
+              onShow={show}
+              onLeave={leave}
+              onWork={() => goTo('work')}
+              onSignOut={onSignOut}
+              background={id !== route.projectId}
+              onCall={(next, note) => onCall(id, next, note)}
+              joinOnOpen={joining === id}
+              onJoinHandled={onJoinHandled}
+            />
+          </ShortcutScope.Provider>
+        </div>
+      ))}
+    </>
+  )
+}
+
 /**
  * Everything a signed-in person reaches: the three places (home, their personal space, their work space) and an open
- * project. The personal padlock lives here, above both, so a room shuts it wherever the person is.
+ * project. The personal padlock lives here, above both, so a room shuts it wherever the person is; so does the toast,
+ * so a result is said the same way in a project and in the places, and a call that ends out of sight says why.
  */
 function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedInProps) {
-  const { route, open, show, leave, goTo } = routing
-  const [call, reportCall] = useCall()
+  const { route, open, leave, goTo } = routing
+  const toast = useToast()
+  const ended = useRef<OnEnded | null>(null)
+  const [call, reportCall] = useCall(ended)
   const [joining, setJoining] = useState<string | null>(null)
   const [lock, setLock] = useLock(identity.name, call !== null)
   const project = route.projectId
-  const shells = [project, call && call.projectId !== project ? call.projectId : null].filter(
+  useSayings({ ended, say: toast.show, lock, project, notice })
+  const sheets = useSheetsAtHome(leave)
+  const actions = { data: sheets.data, privacy: sheets.privacy, chooseDev: onChooseDev, signOut: onSignOut }
+  const ids = [project, call && call.projectId !== project ? call.projectId : null].filter(
     (id): id is string => id !== null,
   )
   const openProject = (projectId: string, join: boolean) => {
@@ -120,40 +209,33 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   }
   return (
     <>
-      {shells.map((id) => (
-        <div key={id} hidden={id !== project}>
-          <ShortcutScope.Provider value={id === project}>
-            <ProjectShell
-              key={`${identity.name}:${id}`}
-              projectId={id}
-              view={id === project ? route.view : 'studio'}
-              identity={identity}
-              identitySwitcher={<IdentityControl identity={identity} onChooseDev={onChooseDev} onSignOut={onSignOut} />}
-              onShow={show}
-              onLeave={leave}
-              onSignOut={onSignOut}
-              background={id !== project}
-              onCall={(next) => reportCall(id, next)}
-              joinOnOpen={joining === id}
-              onJoinHandled={() => setJoining(null)}
-            />
-          </ShortcutScope.Provider>
-        </div>
-      ))}
+      <ProjectShells
+        ids={ids}
+        identity={identity}
+        account={<AccountMenu identity={identity} where="project" actions={actions} />}
+        routing={routing}
+        joining={joining}
+        onJoinHandled={() => setJoining(null)}
+        onCall={reportCall}
+        onSignOut={onSignOut}
+      />
       {!project && (
         <Places
           place={route.place}
           identity={identity}
           lock={lock}
           setLock={setLock}
-          notice={notice}
           call={call ? inCall(call, () => open(call.projectId)) : null}
+          toast={toast.show}
+          opening={sheets.opening}
+          onOpened={sheets.opened}
           onGo={goTo}
           onOpenProject={openProject}
           onChooseDev={onChooseDev}
           onSignOut={onSignOut}
         />
       )}
+      <Toast notice={toast.notice} onHide={toast.hide} />
     </>
   )
 }

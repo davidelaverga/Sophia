@@ -188,6 +188,8 @@ export async function sendMagicLink(email: string): Promise<void> {
 
 /** Supabase provider ids ("azure" is Microsoft), in the order the sign-in row shows them. */
 export type OAuthProvider = 'google' | 'github' | 'azure'
+/** How a provider is named on screen. */
+export const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', github: 'GitHub', azure: 'Microsoft' }
 const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
 
 /**

@@ -1,12 +1,15 @@
-// The notes slide out of the edge, next to the line they may cross (direction C). Each note can be carried, one at a
-// time, to one of the person's projects, exactly as written; the panel says so before it happens.
+// The notes slide out of the edge, next to the line they may cross (direction C), with a sheet's head (the title and
+// Close). Each note can be carried, one at a time, to one of the person's projects, exactly as written; the panel says
+// so before it happens.
 import { useEffect, useRef, useState } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
+import { Icon, Tip } from '@sophia/ui'
 import { membersLabel } from './places-view.ts'
 
 interface Props {
   notes: readonly PersonalNote[]
-  projects: readonly ProjectSummary[]
+  /** Undefined until the projects have loaded. */
+  projects: readonly ProjectSummary[] | undefined
   onClose: () => void
   onCarry: (note: PersonalNote, project: ProjectSummary) => void
   onStartProject: () => void
@@ -15,39 +18,47 @@ interface Props {
 /** How long a carried note takes to slide across before it leaves the list. */
 const CROSSING_MS = 440
 
+const NOTES_EMPTY = 'No notes yet. Note something from the conversation, or keep what Sophia suggests.'
+
+function Where({ projects, onStartProject }: Pick<Props, 'projects' | 'onStartProject'>) {
+  if (!projects) return <small>Your projects haven’t loaded yet.</small>
+  if (projects.length === 0) {
+    return (
+      <small>
+        No project to carry it to yet.{' '}
+        <button className="text-button" type="button" onClick={onStartProject}>
+          Start a project
+        </button>
+      </small>
+    )
+  }
+  return <small>Your team sees it as yours, exactly as written. You can take it back from Work.</small>
+}
+
 function CarryTo(props: {
-  projects: readonly ProjectSummary[]
+  projects: Props['projects']
   onPick: (project: ProjectSummary) => void
   onCancel: () => void
   onStartProject: () => void
 }) {
   const { projects, onPick, onCancel, onStartProject } = props
   const group = useRef<HTMLDivElement>(null)
-  useEffect(() => group.current?.querySelector<HTMLElement>('.c3-carry, .link')?.focus(), [])
+  useEffect(() => group.current?.querySelector<HTMLElement>('.c3-carry, .text-button')?.focus(), [])
   return (
     <div ref={group} className="c2-to" role="group" aria-label="Carry to">
       <div className="c2-to-head">
-        <span className="caps">Carry to</span>
-        <button className="link" type="button" onClick={onCancel}>
+        <span className="field-label">Carry to</span>
+        <button className="text-button" type="button" onClick={onCancel}>
           Keep here
         </button>
       </div>
-      {projects.map((p) => (
+      {projects?.map((p) => (
         <button key={p.projectId} className="c3-carry" type="button" onClick={() => onPick(p)}>
           <b>{p.title}</b>
           <span>{membersLabel(p.members)}</span>
         </button>
       ))}
-      {projects.length === 0 ? (
-        <small>
-          No project to carry it to yet.{' '}
-          <button className="link" type="button" onClick={onStartProject}>
-            Start a project
-          </button>
-        </small>
-      ) : (
-        <small>Your team sees it as yours, exactly as written. You can take it back from Work.</small>
-      )}
+      <Where projects={projects} onStartProject={onStartProject} />
     </div>
   )
 }
@@ -67,19 +78,15 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
     }, CROSSING_MS)
   }
   return (
-    <aside ref={panel} id="c-notes" className="c3-notes" aria-label="Notes" tabIndex={-1}>
-      <div className="c2-pop-head">
-        <span className="caps">Notes · private</span>
-        <button className="btn ghost close-btn" type="button" aria-label="Close notes" onClick={onClose}>
-          <kbd>Esc</kbd>
-          <span className="touch-only">Done</span>
+    <aside ref={panel} id="c-notes" className="c3-notes" aria-labelledby="c-notes-h" tabIndex={-1}>
+      <header className="sheet-head">
+        <h2 id="c-notes-h">Notes</h2>
+        <button type="button" className="round has-tip" aria-label="Close notes" onClick={onClose}>
+          <Icon name="close" />
+          <Tip label="Close" keys="Esc" side="bottom" align="end" />
         </button>
-      </div>
-      {notes.length === 0 && (
-        <p className="ps-empty" style={{ padding: '4px 8px' }}>
-          No notes yet. Note something from the conversation, or keep what Sophia suggests.
-        </p>
-      )}
+      </header>
+      {notes.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
       {notes.map((note) => (
         <div key={note.id} className={`c2-t${crossing === note.id ? ' crossing' : ''}`}>
           <p>
@@ -87,7 +94,7 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
             {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
           </p>
           <button
-            className="btn ghost"
+            className="ghost"
             type="button"
             aria-expanded={carrying === note.id}
             onClick={() => setCarrying(carrying === note.id ? null : note.id)}

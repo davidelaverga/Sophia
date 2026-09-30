@@ -1,4 +1,4 @@
-// The padlock on the personal side (direction C): a privacy screen on this device. While it is shut nothing personal is
+// The padlock on the personal space (direction C): a privacy screen on this device. While it is shut nothing personal is
 // fetched or shown, and opening it asks the person to confirm it's them (app/reauth.ts). A lock set by joining a room
 // (where a screen may be shared) lifts when the room is left; a lock the person set stays until they unlock. A room
 // doesn't survive a reload, so a lock kept across one counts as the person's.

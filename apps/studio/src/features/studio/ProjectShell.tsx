@@ -13,6 +13,7 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
+import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock } from '../voice/MiniDock.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
@@ -103,14 +104,21 @@ interface Props {
   projectId: string
   view: View
   identity: Identity
-  identitySwitcher: React.ReactNode
+  /** The account control (AccountMenu), the same in every bar. */
+  account: React.ReactNode
   onShow: (view: View) => void
+  /** Home: the two doors. A call goes on (the places' bar shows it). */
   onLeave: () => void
+  /** Back to the projects, in Work: where a closed door sends you. */
+  onWork: () => void
   onSignOut: () => void
   /** Out of sight while its call goes on: nothing here is on screen or takes a key. */
   background?: boolean
-  /** The call started or changed (what is being sent), or ended (null). */
-  onCall?: (call: ProjectCall | null) => void
+  /**
+   * The call started or changed (what is being sent), or ended (null): with why (call-end.ts) when this person didn't
+   * leave it, so wherever they are it can be said.
+   */
+  onCall?: (call: ProjectCall | null, ended?: string | null) => void
   /** Opened by "Join the room": join as soon as the room can. */
   joinOnOpen?: boolean
   onJoinHandled?: () => void
@@ -130,12 +138,12 @@ function useReportCall(projectId: string, title: string | undefined, room: Proje
     setCamera: (on: boolean) => latest.current.setCamera(on),
     setScreenShare: (on: boolean) => latest.current.setScreenShare(on),
   }))
-  const me = room.participants.find((p) => p.local)
+  const { microphone, camera, screen } = sendingOf(room.participants.find((p) => p.local))
   const inCall = isInCall(room)
-  const [microphone, camera, screen] = [!!me?.micOn, !!me?.cameraOn, !!me?.screenOn]
   useEffect(() => {
     const call = { projectId, title: title ?? 'the project', sending: { microphone, camera, screen }, ...switches }
-    report.current?.(inCall ? call : null)
+    // Out of the call, the room's note says why it ended when this person didn't leave (useProjectRoom).
+    report.current?.(inCall ? call : null, inCall ? null : latest.current.error)
   }, [inCall, projectId, title, microphone, camera, screen, switches])
   useEffect(() => () => report.current?.(null), [])
 }
@@ -159,7 +167,7 @@ function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: Pr
 }
 
 export function ProjectShell(props: Props) {
-  const { projectId, view, identity, identitySwitcher, onShow, onLeave, onSignOut } = props
+  const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useMembership(projectId, identity.name, identity.token).data
@@ -171,6 +179,8 @@ export function ProjectShell(props: Props) {
   const invite = () => setInviting(true)
   useLeaveBehindClosedDoor(blocked, room)
   useBeyondTheView(props, snapshot.data, room)
+  // H goes home and W to the projects, from a project as from every place.
+  useShortcuts({ h: onLeave, w: onWork }, !inviting)
   useShortcuts({ i: invite }, !!shown && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
@@ -179,8 +189,9 @@ export function ProjectShell(props: Props) {
         connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
         share={shown && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
-        identitySwitcher={identitySwitcher}
+        account={account}
         onLeave={onLeave}
+        onWork={onWork}
       />
       <OpeningNote loaded={loaded} blocked={blocked} />
       {inviting && shown && (
@@ -195,7 +206,7 @@ export function ProjectShell(props: Props) {
         <AccessNotice
           blocked={blocked}
           identityName={identity.name}
-          actions={{ leave: onLeave, retry: () => void snapshot.refetch(), signin: onSignOut }}
+          actions={{ leave: onWork, retry: () => void snapshot.refetch(), signin: onSignOut }}
         />
       ) : (
         <ProjectBody
@@ -221,19 +232,30 @@ interface HeaderProps {
   nav: React.ReactNode
   /** Invite (editors and admins) or copy the link (viewers). */
   share: React.ReactNode
-  identitySwitcher: React.ReactNode
+  account: React.ReactNode
   onLeave: () => void
+  onWork: () => void
 }
 
-/** Home keeps a call going: the places' bar shows the room, with Leave one tap away. */
-function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
+/**
+ * The path to the project, as the places name it: the mark goes home, Work to the projects. Both keep a call going:
+ * the places' bar shows the room, with Leave one tap away.
+ */
+function ProjectHeader({ title, connection, nav, share, account, onLeave, onWork }: HeaderProps) {
   const home = 'Home'
   return (
     <header className="topbar">
       <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>
         <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
         <span className="mark-word">Sophia</span>
-        <Tip label={home} side="bottom" />
+        <Tip label={home} keys="H" side="bottom" />
+      </button>
+      <span className="crumb-sep" aria-hidden>
+        /
+      </span>
+      <button type="button" className="crumb has-tip" onClick={onWork}>
+        Work
+        <Tip label="Your projects" keys="W" side="bottom" />
       </button>
       <span className="crumb-sep" aria-hidden>
         /
@@ -248,7 +270,7 @@ function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeav
           </span>
         )}
         {share}
-        {identitySwitcher}
+        {account}
       </div>
     </header>
   )

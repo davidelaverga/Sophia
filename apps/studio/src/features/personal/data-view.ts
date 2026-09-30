@@ -45,3 +45,14 @@ export function exportText(everything: PersonalExport, who: string, now: Date): 
 
 /** The typed confirmation for the one thing that can't be undone. */
 export const confirmsErasure = (typed: string) => typed.trim().toLowerCase() === 'delete'
+
+/** What the "Your data" sheet says. */
+export const DATA = {
+  copy: 'Copy everything as text',
+  locked: 'Your personal space is locked.',
+  unlock: 'Unlock to copy or delete',
+  erase: 'Delete all personal data',
+  eraseSays: 'Conversations and notes are removed for good. What you carried to projects stays there.',
+  confirm: 'Type “delete” to confirm',
+  erased: 'Your personal space is empty. Sophia starts fresh with you, and your projects are unchanged.',
+} as const

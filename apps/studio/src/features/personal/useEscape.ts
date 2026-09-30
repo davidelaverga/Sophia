@@ -1,6 +1,7 @@
-// Escape in the three places closes what opened last: a menu, the notes, the data sheet, then the place itself goes
-// home. Each open layer registers here; one window listener asks the top one. A key inside a dialog is the dialog's
-// own (useDialog), and a key someone already handled (the composer lets go of its field first) is left alone.
+// Escape in the three places closes what opened last: the notes, the first visit's sentence, then the place itself goes
+// home. Each open layer registers here; one window listener asks the top one. A sheet is modal and owns its keys
+// (useDialog), wherever the focus is; a menu or a popover closes itself first (usePopover); and a key someone already
+// handled (the composer lets go of its field first) is left alone.
 import { useEffect, useRef } from 'react'
 
 interface Layer {
@@ -11,6 +12,7 @@ const layers: Layer[] = []
 
 function onKey(e: KeyboardEvent): void {
   if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return
+  if (document.querySelector('[aria-modal="true"]')) return
   if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return
   const top = layers.at(-1)
   if (!top) return

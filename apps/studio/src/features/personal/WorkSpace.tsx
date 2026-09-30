@@ -1,21 +1,24 @@
 // Work (direction C): the projects this person belongs to, each with its one action (join the room when someone is in
 // it or a session is about to start, else open it), and the notes carried to it: yours marked as coming from your
-// personal space and yours to take back, a teammate's marked as theirs.
+// personal space and yours to take back, a teammate's marked as theirs. Until the list has loaded it shows neither
+// projects nor "No projects yet"; a list that failed says so, with Try again.
 import { useEffect, useRef, useState } from 'react'
 import type { ProjectCreated, ProjectRelease, ProjectSummary } from '@sophia/contracts'
-import { Tip } from '@sophia/ui'
+import { Icon, Tip } from '@sophia/ui'
 import { createProject } from '../../api/client.ts'
-import { useAdmission } from '../../api/useAdmission.ts'
+import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { AdmissionNote } from '../access/AdmissionNote.tsx'
 import { shortName } from '../voice/room-view.ts'
-import { Across, LockShut } from './icons.tsx'
-import { projectCard, workOrder, type LockedBy } from './places-view.ts'
+import { CARD_ACTION, carriedFrom, EDGE_TIP, projectCard, workOrder, type LockedBy } from './places-view.ts'
+import { ReadNotes, type Read } from './ReadNotes.tsx'
 
 interface Props {
   hidden: boolean
   token: string
+  /** Undefined until the list has loaded (`read` says how that goes). */
   projects: readonly ProjectSummary[] | undefined
+  read: Read
   /** Releases carried since Work was last shown: marked, once. */
   fresh: ReadonlySet<string>
   /** The project whose room this person is in, if any. */
@@ -31,12 +34,6 @@ interface Props {
   }
 }
 
-const EDGE_TIP: Record<LockedBy | 'open', string> = {
-  open: 'Cross to Personal',
-  you: 'Personal is locked. Opening it asks for your passkey.',
-  room: 'Personal is locked while you’re in a room.',
-}
-
 function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void }) {
   return (
     <button
@@ -46,12 +43,57 @@ function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void })
       onClick={onCross}
     >
       <span className="c2-lock" aria-hidden>
-        <Across className="go" toward="left" />
-        <LockShut className="shut" />
+        <span className="go">
+          <Icon name="back" />
+        </span>
+        <span className="shut">
+          <Icon name="lock" />
+        </span>
       </span>
       <span className="c3-edge-label">Personal</span>
       <Tip label={EDGE_TIP[lock ?? 'open']} {...(lock ? {} : { keys: 'P' })} side="top" />
     </button>
+  )
+}
+
+const START_WORDS = { idle: 'Start the project', sending: 'Creating…', unknown: 'Try again' } as const
+
+interface TitleProps {
+  title: string
+  status: AdmissionState<string, ProjectCreated>['status']
+  onTitle: (title: string) => void
+  onClose: () => void
+}
+
+/** The title and its Start, in one field; Esc lets the form go. After no answer, the title waits as it was sent. */
+function TitleField({ title, status, onTitle, onClose }: TitleProps) {
+  const field = useRef<HTMLInputElement>(null)
+  useEffect(() => field.current?.focus(), [])
+  const words = status === 'sending' || status === 'unknown' ? START_WORDS[status] : START_WORDS.idle
+  return (
+    <div className="field">
+      <label className="sr-only" htmlFor="c-newproj">
+        Project title
+      </label>
+      <input
+        ref={field}
+        id="c-newproj"
+        required
+        maxLength={180}
+        placeholder="Name the project"
+        value={title}
+        readOnly={status === 'unknown'}
+        onChange={(e) => onTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape') return
+          e.preventDefault()
+          onClose()
+        }}
+      />
+      <button className="pill primary" type="submit" disabled={status === 'sending' || !title.trim()}>
+        {words}
+      </button>
+    </div>
   )
 }
 
@@ -68,8 +110,6 @@ function NewProject({
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
   const { status } = admission.state
   const slow = useSlow(status === 'sending')
-  const field = useRef<HTMLInputElement>(null)
-  useEffect(() => field.current?.focus(), [])
   const submit = async () => {
     const created = await (status === 'unknown' ? admission.retry() : admission.submit(title.trim()))
     if (created) onCreated(created.projectId)
@@ -82,33 +122,15 @@ function NewProject({
         void submit()
       }}
     >
-      <label className="sr-only" htmlFor="c-newproj">
-        Project title
-      </label>
-      <input
-        ref={field}
-        id="c-newproj"
-        required
-        maxLength={180}
-        placeholder="Name the project"
-        value={title}
-        readOnly={status === 'unknown'}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Escape') return
-          e.preventDefault()
-          onClose()
-        }}
-      />
-      <button className="btn primary" type="submit" disabled={status === 'sending' || !title.trim()}>
-        {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Try again' : 'Start the project'}
-      </button>
-      <button className="btn ghost" type="button" onClick={onClose}>
-        Cancel
-      </button>
-      <span className="outcome" role="status">
+      <div className="c3-newproj-row">
+        <TitleField title={title} status={status} onTitle={setTitle} onClose={onClose} />
+        <button className="ghost" type="button" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+      <div className="outcome" role="status">
         {slow ? SLOW_NOTE : <AdmissionNote state={admission.state} onRetry={() => void submit()} />}
-      </span>
+      </div>
     </form>
   )
 }
@@ -128,11 +150,9 @@ function Carried({
       {project.releases.map((r) => (
         <div key={r.id} className={`c3-from${fresh.has(r.id) ? ' new' : ''}`}>
           <p>{r.text}</p>
-          <span className="prov">
-            {r.mine ? 'from your personal space' : `from ${shortName(r.ownerName)}’s personal space`}
-          </span>
+          <span className="prov">{carriedFrom(r.mine, r.ownerName)}</span>
           {r.mine && (
-            <button className="link" type="button" onClick={() => onTakeBack(r, project)}>
+            <button className="ghost" type="button" onClick={() => onTakeBack(r, project)}>
               Take back
             </button>
           )}
@@ -141,8 +161,6 @@ function Carried({
     </div>
   )
 }
-
-const ACTION_WORDS = { leave: 'Leave the room', join: 'Join the room', open: 'Open' } as const
 
 function Card({ project, props }: { project: ProjectSummary; props: Props }) {
   const { actions } = props
@@ -155,8 +173,8 @@ function Card({ project, props }: { project: ProjectSummary; props: Props }) {
   return (
     <article className="c3-proj">
       <h3>{project.title}</h3>
-      <button className={`btn${card.action === 'join' ? ' primary' : ''}`} type="button" onClick={run[card.action]}>
-        {ACTION_WORDS[card.action]}
+      <button className={`pill${card.action === 'join' ? ' primary' : ''}`} type="button" onClick={run[card.action]}>
+        {CARD_ACTION[card.action]}
       </button>
       <span className="meta">
         {card.presence && project.room ? (
@@ -177,6 +195,17 @@ function Card({ project, props }: { project: ProjectSummary; props: Props }) {
   )
 }
 
+function Empty({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="c3-empty">
+      <p>No projects yet. A project is where your team and Sophia build something together.</p>
+      <button className="pill primary" type="button" onClick={onStart}>
+        Start a project
+      </button>
+    </div>
+  )
+}
+
 export function WorkSpace(props: Props) {
   const { token, projects, newProject, personalLock, actions } = props
   const list = projects ? workOrder(projects, new Date()) : []
@@ -189,24 +218,16 @@ export function WorkSpace(props: Props) {
         </h2>
         <div className="c3-head-acts">
           {!newProject.open && list.length > 0 && (
-            <button className="btn ghost" type="button" onClick={() => newProject.set(true)}>
+            <button className="ghost" type="button" onClick={() => newProject.set(true)}>
               New project
             </button>
           )}
         </div>
       </header>
       <div className="c3-projects">
+        <ReadNotes reads={[props.read]} />
         {newProject.open && <NewProject token={token} onCreated={actions.open} onClose={() => newProject.set(false)} />}
-        {projects && list.length === 0 && !newProject.open && (
-          <div className="c3-empty">
-            <p style={{ margin: 0 }}>
-              No projects yet. A project is where your team and Sophia build something together.
-            </p>
-            <button className="btn primary" type="button" onClick={() => newProject.set(true)}>
-              Start a project
-            </button>
-          </div>
-        )}
+        {projects && list.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} />
         ))}
