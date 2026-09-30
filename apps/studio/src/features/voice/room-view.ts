@@ -112,7 +112,7 @@ export interface RoomLine {
 }
 
 /** Before anyone asks Sophia into the conversation (S1-05A), the room says how she joins. */
-export const VOICE_NOTE = 'Sophia joins the conversation when someone asks her in.'
+export const VOICE_NOTE = 'Sophia joins when asked.'
 
 /** What the light and Sophia's line say while she is in the conversation (sophia-view.ts). */
 export interface SophiaLineView {

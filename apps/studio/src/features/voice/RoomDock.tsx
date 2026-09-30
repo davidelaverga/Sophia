@@ -165,7 +165,10 @@ function floorRefusal(error: ApiError): string {
   return error.message
 }
 
-/** Who may address Sophia, and the one action this person can take on it: take it, or pass it on. */
+/**
+ * Who may address Sophia, and the one action this person can take on it: take it, or pass it on. An open floor
+ * beside "Take the floor" needs no words of its own; who holds it, or an open floor nobody here can take, does.
+ */
 function FloorControl({ floor, me, context, onPassed }: FloorProps) {
   const { projectId, identity, snapshot } = context
   const queryClient = useQueryClient()
@@ -185,12 +188,17 @@ function FloorControl({ floor, me, context, onPassed }: FloorProps) {
   }
   const busy = admission.state.status === 'sending'
   const holder = floor.holder ? (floor.mine ? 'You' : shortName(floor.holder.name)) : 'Open'
+  const said = !floor.holder && floor.canTake
   return (
     <div className="floor">
-      <span className="floor-label">Floor</span>
-      <span key={holder} className="floor-name arrive">
-        {holder}
-      </span>
+      {!said && (
+        <>
+          <span className="floor-label">Floor</span>
+          <span key={holder} className="floor-name arrive">
+            {holder}
+          </span>
+        </>
+      )}
       <FloorAction floor={floor} me={me} busy={busy} onPass={(id) => void pass(id)} />
       {admission.state.status === 'rejected' && (
         <span className="floor-error" role="alert">

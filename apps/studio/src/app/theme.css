@@ -1072,13 +1072,6 @@ button.mark:hover {
 .segmented:focus-within kbd {
   opacity: 1;
 }
-.lens-note {
-  color: var(--text-4);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 
 .presences {
   margin: 0;
@@ -2661,7 +2654,6 @@ div.empty {
 
 @media (max-width: 420px) {
   .mark-word,
-  .lens-note,
   .crumb-sep {
     display: none;
   }
