@@ -671,6 +671,11 @@ button.mark:hover {
   font-size: 11px;
   font-weight: 600;
 }
+/* A provider picture keeps the same round frame as the initial. */
+img.avatar {
+  object-fit: cover;
+  background: var(--glass);
+}
 .identity-name {
   max-width: 20ch;
   overflow: hidden;
@@ -793,9 +798,51 @@ button.mark:hover {
 .provider:disabled {
   opacity: 0.55;
 }
+/* A provider on its way: the mark in grey, no lift, and no hover beyond its tip. */
+.provider.soon {
+  cursor: default;
+  box-shadow: none;
+  background: transparent;
+  border-style: dashed;
+}
+.provider.soon svg {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.provider.soon:hover {
+  border-color: var(--line-2);
+  background: transparent;
+}
 .provider[aria-busy='true'] {
   opacity: 1;
   border-color: rgba(185, 168, 255, 0.55);
+}
+/* Passkeys sheet: one row per saved passkey, the key mark leading. */
+.passkey-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.passkey-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+}
+.passkey-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  font-size: 13px;
+}
+.passkey-text strong {
+  color: var(--text);
+  font-weight: 560;
 }
 .or {
   display: grid;
