@@ -59,7 +59,7 @@ export function ContinuityChoice(props: { projectId: string; identity: Identity;
     <div className="continuity-choice">
       <p>
         Allow Sophia to keep structured notes from your turns for continuity? Existing project members can read them.
-        You can stop capture or forget notes in the brief.
+        You can change your consent or forget notes in the brief.
       </p>
       <div className="control-row">
         <button type="button" className="pill" disabled={busy} onClick={() => void choose('accepted')}>

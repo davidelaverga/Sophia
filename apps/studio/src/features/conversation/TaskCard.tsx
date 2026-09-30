@@ -6,7 +6,7 @@ import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { briefBlocks, TASK_PHASE } from './conversation-view.ts'
+import { visibleBriefBlocks, TASK_PHASE } from './conversation-view.ts'
 
 interface Props {
   task: NativeTask
@@ -75,18 +75,16 @@ function BriefView({ result }: { result: NonNullable<NativeTaskDetail['result']>
       <p className="brief-note">
         <Tag tone="lav">Candidate</Tag> For the team to review; not an accepted plan.
       </p>
-      {briefBlocks(result.markdown)
-        .filter((block) => !/\[input:|^Source [0-9a-f]{6,}|^Cited inputs$/i.test(block.text))
-        .map((block, i) => {
-          if (block.kind === 'heading') return <h4 key={i}>{block.text}</h4>
-          if (block.kind === 'item')
-            return (
-              <p key={i} className="brief-item">
-                • {block.text}
-              </p>
-            )
-          return <p key={i}>{block.text}</p>
-        })}
+      {visibleBriefBlocks(result.markdown).map((block, i) => {
+        if (block.kind === 'heading') return <h4 key={i}>{block.text}</h4>
+        if (block.kind === 'item')
+          return (
+            <p key={i} className="brief-item">
+              • {block.text}
+            </p>
+          )
+        return <p key={i}>{block.text}</p>
+      })}
     </article>
   )
 }

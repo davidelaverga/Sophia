@@ -19,7 +19,14 @@ import {
   VideoFrame,
   VideoSource,
 } from '@livekit/rtc-node'
-import { AccessToken, TrackSource as GrantSource } from 'livekit-server-sdk'
+import { issueRoomToken, issueBridgeToken, type RoomStanding } from '../../api/src/livekit.ts'
+import {
+  CHAT_INPUT_TOPIC,
+  CHAT_REPLY_TOPIC,
+  encodeChatPacket,
+  parseChatPacket,
+  type ChatInput,
+} from '@sophia/contracts/room-chat'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { after, describe, it } from 'node:test'
@@ -30,18 +37,13 @@ const KEY = process.env.SOPHIA_TEST_LIVEKIT_KEY ?? 'devkey'
 const SECRET = process.env.SOPHIA_TEST_LIVEKIT_SECRET ?? 'dev-only-livekit-secret-for-this-machine'
 
 /** Grants as the API issues them (apps/api/src/livekit.ts): only the bridge may set its own attributes. */
-async function token(room: string, identity: string, metadata: object, sources: GrantSource[]): Promise<string> {
-  const t = new AccessToken(KEY, SECRET, { identity, metadata: JSON.stringify(metadata), ttl: 600 })
-  t.addGrant({
-    roomJoin: true,
-    room,
-    canSubscribe: true,
-    canPublish: sources.length > 0,
-    canPublishSources: sources,
-    canPublishData: false,
-    canUpdateOwnMetadata: identity === SOPHIA_IDENTITY,
-  })
-  return t.toJwt()
+async function token(room: string, identity: string, metadata: RoomStanding): Promise<string> {
+  const cfg = { url: URL ?? '', apiKey: KEY, apiSecret: SECRET }
+  const issued =
+    identity === SOPHIA_IDENTITY
+      ? await issueBridgeToken(cfg, room)
+      : await issueRoomToken(cfg, { roomId: room, identity, name: null, canPublish: true, standing: metadata })
+  return issued.token
 }
 
 async function until(what: string, check: () => boolean, ms = 15_000): Promise<void> {
@@ -53,10 +55,9 @@ async function until(what: string, check: () => boolean, ms = 15_000): Promise<v
 }
 
 /** A human participant publishing a microphone tone (48 kHz stereo: the bridge must get 16 kHz mono). */
-async function human(room: string, identity: string, metadata: object, withScreen = false) {
+async function human(room: string, identity: string, metadata: RoomStanding, withScreen = false) {
   const r = new Room()
-  const sources = [GrantSource.MICROPHONE, GrantSource.SCREEN_SHARE]
-  await r.connect(URL ?? '', await token(room, identity, metadata, sources), { autoSubscribe: true, dynacast: false })
+  await r.connect(URL ?? '', await token(room, identity, metadata), { autoSubscribe: true, dynacast: false })
   const mic = new AudioSource(48_000, 2)
   await r.localParticipant?.publishTrack(
     LocalAudioTrack.createAudioTrack('mic', mic),
@@ -122,7 +123,7 @@ describe(
       const luis = await human(roomName, luisId, { role: 'editor' }, true)
       const guest = await human(roomName, `guest-${randomUUID().slice(0, 8)}`, { guest: true })
       const { seen, events } = recorder()
-      const bridgeToken = await token(roomName, SOPHIA_IDENTITY, { sophia: true }, [GrantSource.MICROPHONE])
+      const bridgeToken = await token(roomName, SOPHIA_IDENTITY, { sophia: true })
       const bridge = await joinLiveKitRoom({ serverUrl: URL ?? '', token: bridgeToken }, events)
 
       // What Luis hears from Sophia, and what he sees of her attributes.
@@ -175,6 +176,69 @@ describe(
       } finally {
         await bridge.close()
         await luis.close()
+        await guest.close()
+      }
+    })
+
+    it('carries typed input with actual API tokens and delivers replies only to the requesting member', async () => {
+      const roomName = randomUUID()
+      const author = await human(roomName, randomUUID(), { role: 'editor' })
+      const other = await human(roomName, randomUUID(), { role: 'viewer' })
+      const guest = await human(roomName, `guest-${randomUUID()}`, { guest: true })
+      const { seen, events } = recorder()
+      const admitted: Array<{ identity: string; packet: ChatInput }> = []
+      events.typed = (identity, packet) => admitted.push({ identity, packet })
+      const bridge = await joinLiveKitRoom(
+        { serverUrl: URL ?? '', token: await token(roomName, SOPHIA_IDENTITY, { sophia: true }) },
+        events,
+      )
+      const replies: string[] = []
+      const unwanted: string[] = []
+      author.room.on(RoomEvent.DataReceived, (data, who, _kind, topic) => {
+        if (who?.identity === SOPHIA_IDENTITY && topic === CHAT_REPLY_TOPIC)
+          replies.push(parseChatPacket(data)?.kind ?? 'invalid')
+      })
+      for (const participant of [other, guest])
+        participant.room.on(RoomEvent.DataReceived, (_data, _who, _kind, topic) => {
+          if (topic === CHAT_REPLY_TOPIC) unwanted.push(topic)
+        })
+      const input: ChatInput = {
+        kind: 'input',
+        id: randomUUID(),
+        exchangeId: randomUUID(),
+        inputEpoch: 1,
+        text: 'Synthetic typed crossing',
+      }
+      const authorId = author.room.localParticipant?.identity ?? ''
+      try {
+        await until('members and guest listed', () => seen.people.length === 3)
+        await author.room.localParticipant?.publishData(encodeChatPacket(input), {
+          reliable: true,
+          topic: CHAT_INPUT_TOPIC,
+          destination_identities: [SOPHIA_IDENTITY],
+        })
+        await until('typed input at bridge', () => admitted.length === 1)
+        assert.deepEqual(admitted, [{ identity: authorId, packet: input }])
+        await bridge.sendChat?.(authorId, {
+          kind: 'complete',
+          id: input.id,
+          exchangeId: input.exchangeId,
+          sequence: 1,
+          text: 'Synthetic reply',
+        })
+        await until('reply at author', () => replies.length === 1)
+        // The server may drop a denied publication or the SDK may reject it; neither may reach the bridge.
+        await guest.room.localParticipant
+          ?.publishData(encodeChatPacket({ ...input, id: randomUUID() }), { reliable: true, topic: CHAT_INPUT_TOPIC })
+          .catch(() => undefined)
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        assert.deepEqual(replies, ['complete'])
+        assert.equal(unwanted.length, 0)
+        assert.equal(admitted.length, 1)
+      } finally {
+        await bridge.close()
+        await author.close()
+        await other.close()
         await guest.close()
       }
     })

@@ -1,6 +1,6 @@
 // Viewer-local state (architecture 04 §2, 13 §3): one person's lens and unsent drafts in one project.
 // It never becomes a project mutation, so changing it cannot move another person's view or retask work.
-// It is kept per viewer and project on this device and survives resnapshots and reloads.
+// Lens and non-chat drafts are kept per viewer/project on this device. Chat drafts survive resnapshots only.
 
 export const LENSES = ['converse', 'explore', 'build'] as const
 export type Lens = (typeof LENSES)[number]
@@ -41,7 +41,8 @@ function parseObject(raw: string | null): object | null {
 function readDrafts(value: unknown): ViewerState['drafts'] {
   const drafts: ViewerState['drafts'] = {}
   if (typeof value !== 'object' || value === null) return drafts
-  for (const [key, text] of Object.entries(value)) if (isLens(key) && typeof text === 'string') drafts[key] = text
+  for (const [key, text] of Object.entries(value))
+    if (isLens(key) && key !== 'converse' && typeof text === 'string') drafts[key] = text
   return drafts
 }
 
@@ -53,4 +54,10 @@ export function readViewerState(raw: string | null): ViewerState {
     lens: 'lens' in parsed && isLens(parsed.lens) ? parsed.lens : INITIAL_VIEWER_STATE.lens,
     drafts: readDrafts('drafts' in parsed ? parsed.drafts : null),
   }
+}
+
+/** Chat drafts stay in this component session; only the other lens drafts are device conveniences. */
+export function storedViewerState(state: ViewerState): ViewerState {
+  const { converse: _chat, ...drafts } = state.drafts
+  return { ...state, drafts }
 }

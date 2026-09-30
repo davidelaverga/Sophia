@@ -127,11 +127,11 @@ function videoFeeds(): Feeds {
 
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
 function remoteAudio(room: Room, textOnly: () => boolean): void {
-  room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+  room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
     if (track.kind !== Track.Kind.Audio) return
     const el = track.attach()
-    el.dataset.sophiaRoomAudio = ''
-    el.muted = textOnly()
+    el.dataset.sophiaRoomAudio = isSophia(participant) ? 'sophia' : 'member'
+    el.muted = isSophia(participant) && textOnly()
     document.body.append(el)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
@@ -193,7 +193,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       }),
     setTextMode: (on) => {
       textOnly = on
-      for (const el of document.querySelectorAll<HTMLAudioElement>('[data-sophia-room-audio]')) el.muted = on
+      for (const el of document.querySelectorAll<HTMLAudioElement>('[data-sophia-room-audio="sophia"]')) el.muted = on
     },
     participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),

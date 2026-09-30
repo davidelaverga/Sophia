@@ -69,8 +69,19 @@ New exact candidate/review/CI are required after this correction. Separate clean
 Read-only production metadata at 2026-09-30T00:20Z: schema 0018 exact hash; 0 open/paused exchanges; owner project
 policy automatic rev1, one accepted consent, 3 current Sophia paraphrases (2 observations, 1 expectation). No text read.
 
+## Independent CC-0019 findings and correction
+
+- a8368eb passed all CI/Linux artifacts; Claude returned not-pass on F1/F2/F4/F5. F3 was fixed/independently verified.
+- F1: actual API member/bridge data grants enabled, guests denied; real-server test uses these actual tokens, recipient-only replies.
+- F2: turn-end mode reset, epoch-bound tool origin, cold provider replacement on typed handoff timeout; stale output stays fenced.
+- F4: citation tokens/section removed without dropping authored sentences; runtime brief fixture regression.
+- F5: opening/closing restores heading/control focus; reopening preserves an unsaved editor and text on mobile.
+- Minor fixes: colleagues remain audible, truthful consent copy, chat drafts excluded from storage, member text framed.
+- Local gate: 314 unit, 56 integration pass. Focused API/DB token tests: 5 pass. Mutations detect F1/F2/F4/storage regressions.
+- Actual browser focus removal reproduces BODY; restored source focuses heading/control/editor. No hosted/provider effects.
+- Release API before bridge: older API rejects A09 inputMode. Keep A09 API/bridge/readers compatible after text data exists.
+
 ## Remaining obligations
 
-Exact-head GitHub CI; independent Claude review and fixes; current lease and concrete matching release batch;
-actual migration/deploy outcomes reconciled; deployed provider setup/real handler proof; real production text conversation,
-canonical brief save and returning continuity, side/full/mobile rendering and cleanup; final requirement audit.
+Revised exact-head CI and Claude review; matching release batch/current lease; migrations and deployments reconciled;
+deployed setup/real handler proof; production text chat, canonical save/returning continuity, UI checks and cleanup.

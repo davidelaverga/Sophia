@@ -285,6 +285,7 @@ export class RoomSession {
   private guideBound = false
   private typedTurn: { identity: string; packet: ChatInput; sequence: number; generation: number } | null = null
   private typedOutputUntilTurnEnd = false
+  private typedInputEpoch: number | null = null
   private readonly typedSeen = new Set<string>()
 
   constructor(assignment: MediaAssignment, deps: SessionDeps) {
@@ -526,11 +527,12 @@ export class RoomSession {
     }
     this.typedSeen.add(key)
     this.typedOutputUntilTurnEnd = true
+    this.typedInputEpoch = packet.inputEpoch
     this.state.forwarded()
     this.wordsHeard()
     this.typedTurn = { identity, packet, sequence: 0, generation: this.state.currentGeneration() }
     try {
-      this.live?.sendNotice(packet.text)
+      this.live?.sendNotice(`[Project member typed message]\n${packet.text}`)
       this.typedReply(identity, packet, 'accepted')
       this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
     } catch {
@@ -557,7 +559,7 @@ export class RoomSession {
 
   private onAudio(identity: string, samples: Int16Array, rate: number, channels: number): void {
     const live = this.live
-    if (this.typedTurn) return
+    if (this.typedOutputUntilTurnEnd) return
     if (!live || !this.state.mayForwardAudio(identity, this.deps.now())) return
     try {
       this.chunker.push(samples, rate, channels)
@@ -832,6 +834,7 @@ export class RoomSession {
     if (this.closed) return
     this.finishTyped('Connection interrupted. The message will not be sent again automatically.')
     this.typedOutputUntilTurnEnd = false
+    this.typedInputEpoch = null
     const failedBeforeReady = this.readyConnection !== this.connection
     this.connection += 1
     this.live?.close()
@@ -878,6 +881,7 @@ export class RoomSession {
   private turnComplete(): void {
     this.finishTyped()
     this.typedOutputUntilTurnEnd = false
+    this.typedInputEpoch = null
     if (this.framer.flush(this.state.currentGeneration())) void this.pump()
     this.reply.generated()
     this.endTurn()
@@ -896,6 +900,9 @@ export class RoomSession {
 
   /** The model turn ended; when the connection was lost instead, its speaker stands for a resumed repeat. */
   private endTurn(connectionLost = false): void {
+    this.finishTyped('Reply interrupted. The message will not be sent again automatically.')
+    this.typedOutputUntilTurnEnd = false
+    this.typedInputEpoch = null
     if (connectionLost) this.state.connectionLost()
     else this.state.turnEnded()
     this.responding = false
@@ -993,7 +1000,7 @@ export class RoomSession {
       inputEpoch: who.inputEpoch,
       actorId: who.actorId,
       utterance: this.guideContext.utterance,
-      inputMode: this.typedOutputUntilTurnEnd ? 'text' : 'voice',
+      inputMode: this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
     }
     const write = WRITE_TOOLS.has(name)
     if (write) this.guideContext.writeStarted()
@@ -1056,6 +1063,13 @@ export class RoomSession {
     const settling = this.state.input(now) === 'settling'
     const pending = this.pendingReply(now)
     if (this.wasSettling && !settling && (pending || this.playing(now))) {
+      if (this.typedOutputUntilTurnEnd) {
+        // No provider turn boundary arrived. Drop the old connection so its late output cannot become voice
+        // or be attributed to the new floor holder after the typed output fence is reset.
+        this.rebuild('typed handoff timed out')
+        this.wasSettling = false
+        return
+      }
       this.state.bumpGeneration()
       this.silence(pending, 'stopped')
     }

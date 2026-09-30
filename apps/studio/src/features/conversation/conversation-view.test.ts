@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { NativeTask } from '@sophia/contracts'
-import { authorLabel, briefBlocks, currentTask, TASK_PHASE } from './conversation-view.ts'
+import { authorLabel, briefBlocks, visibleBriefBlocks, currentTask, TASK_PHASE } from './conversation-view.ts'
 
 const task = (id: string, phase: NativeTask['phase']): NativeTask => ({
   id,
@@ -43,5 +43,33 @@ describe('conversation view', () => {
     assert.equal(currentTask([task('a', 'stopped'), task('b', 'result_ready')])?.id, 'b')
     assert.notEqual(TASK_PHASE.queued.label, TASK_PHASE.running.label)
     assert.match(TASK_PHASE.result_ready.note, /candidate/i)
+  })
+
+  it('preserves the runtime brief content and removes its citation section and metadata', () => {
+    const markdown = [
+      '## Intended outcome',
+      'A real voice in the shared room [input:first].',
+      '## Retained decisions',
+      '- Keep the floor (A01).',
+      '## Proposed next implementation step',
+      'Close the runtime crossing.',
+      '## Open questions',
+      '- None yet.',
+      '## Cited inputs',
+      '- first, second',
+      'Source b7ff034b948',
+      'Drafted by OpenAI',
+    ].join('\n')
+    assert.deepEqual(visibleBriefBlocks(markdown), [
+      { kind: 'heading', text: 'Intended outcome' },
+      { kind: 'paragraph', text: 'A real voice in the shared room.' },
+      { kind: 'heading', text: 'Retained decisions' },
+      { kind: 'item', text: 'Keep the floor (A01).' },
+      { kind: 'heading', text: 'Proposed next implementation step' },
+      { kind: 'paragraph', text: 'Close the runtime crossing.' },
+      { kind: 'heading', text: 'Open questions' },
+      { kind: 'item', text: 'None yet.' },
+    ])
+    assert.equal(visibleBriefBlocks(markdown)[1]?.text, 'A real voice in the shared room.')
   })
 })
