@@ -1,10 +1,9 @@
 // ProjectShell (architecture 04 §3): project header, view navigation, the one project feed every view
 // shares, and the room connection, which outlives view changes: joining in Studio and reading Goals
 // keeps you in the room. Views change the address, never the project.
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
-import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
@@ -19,6 +18,7 @@ import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
+import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { StudioShell } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
@@ -35,19 +35,19 @@ const CONNECTION: Record<Connection, string> = {
   denied: 'No access',
 }
 
-/** Why the project cannot be shown: session ended (401), not a member (403) or unreachable. */
-type Blocked = 'expired' | 'denied' | 'unreachable'
-
-function blockedBy(error: Error | null): Blocked | null {
-  if (!error) return null
-  if (error instanceof ApiError && error.status === 401) return 'expired'
-  if (error instanceof ApiError && error.status === 403) return 'denied'
-  return 'unreachable'
-}
-
-/** A blocked project has no feed to report on: its notice says why, so the bar shows no status at all. */
-function shownConnection(connection: Connection, blocked: Blocked | null): Connection | null {
-  return blocked ? null : connection
+/**
+ * A closed door closes the call too. Signed out or no longer a member, the project's screen gives way to a notice
+ * with no dock: the call must not stay open behind it with a microphone nobody can mute.
+ */
+function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
+  const leave = useRef(room.leave)
+  useEffect(() => {
+    leave.current = room.leave
+  })
+  const closed = blocked === 'expired' || blocked === 'denied'
+  useEffect(() => {
+    if (closed) void leave.current()
+  }, [closed])
 }
 
 /** The home screen lists what this device opened; a project that closed its door leaves the list. */
@@ -88,7 +88,9 @@ export function ProjectShell(props: Props) {
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useMembership(projectId, identity.name, identity.token).data
   const [inviting, setInviting] = useState(false)
-  const blocked = blockedBy(snapshot.error)
+  const loaded = snapshot.data !== undefined
+  const blocked = blockedBy(snapshot.error, loaded)
+  useLeaveBehindClosedDoor(blocked, room)
   useRecentProject(identity.name, projectId, snapshot.data, blocked)
   useTabTitle(snapshot.data)
   useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
@@ -96,7 +98,7 @@ export function ProjectShell(props: Props) {
     <div className="shell" data-view={view}>
       <ProjectHeader
         title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
-        connection={shownConnection(connection, blocked)}
+        connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
         share={
           snapshot.data ? (
