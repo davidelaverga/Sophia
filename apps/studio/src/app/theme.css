@@ -2968,6 +2968,13 @@ div.empty {
     top: 72px;
   }
 }
+/* The lobby card takes a phone's width and sat where that puts the corner. It goes under it: someone waiting at
+   the door never hides the chat and the brief. */
+@media (max-width: 560px) {
+  .shell[data-view='studio'] .lobby {
+    top: calc(var(--topbar) + 132px);
+  }
+}
 /* Touch: the corner's buttons are 40 px and the lens bar's 36 px (a 44 px bar), which the corner here and the
    panel's tabs line up with. #23 sets the same lens size in the shared touch block; one of the two goes when both
    are in. */

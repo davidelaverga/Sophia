@@ -131,7 +131,8 @@ when you change the room:
   their empty line when video fills the stage, so it never covers a tile. The
   dock wraps rather than run past the stage or under the corner. Check it in
   a call (the dock is widest there) at 1024 px wide with the panel open, and
-  with a camera on at a phone's width.
+  with a camera on at a phone's width. On a phone the lobby card (someone at
+  the door) goes under the corner, never over it.
 - **`hidden` always hides** (`[hidden]` in `theme.css`). Without that rule a
   class that sets `display` wins over the browser's own, and a hidden tab
   stays on screen.
