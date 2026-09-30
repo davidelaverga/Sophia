@@ -6,9 +6,12 @@
 // evidence), and later the runtime's Companion agent (goal D1), another implementation of the same interface. Where
 // none is configured, the API refuses to keep a message nobody would answer.
 import type pg from 'pg'
+import type { PersonalReceipt } from '@sophia/contracts'
 import {
   failPersonalReply,
   readCompanionContext,
+  readWelcomeContext,
+  recordPersonalGreeting,
   recordPersonalReply,
   withActor,
   type CompanionContext,
@@ -23,6 +26,8 @@ export interface CompanionReply {
 export interface Companion {
   readonly mode: 'rehearsal' | 'live'
   answer(context: CompanionContext): Promise<CompanionReply>
+  /** Sophia's welcome back after a quiet spell, from the conversation so far; `name` is who she greets. */
+  greet(context: Omit<CompanionContext, 'asked'>, name: string | null): Promise<string>
 }
 
 /** How long one answer may take before the turn says it failed (the person can ask again). */
@@ -64,6 +69,17 @@ export class CompanionRunner {
     if (this.inFlight.has(turnId)) return Promise.resolve()
     this.inFlight.add(turnId)
     return this.run(actorId, turnId).finally(() => this.inFlight.delete(turnId))
+  }
+
+  /**
+   * Welcome the person back if a welcome is due (the database decides, and decides again when writing it). The
+   * companion is asked only then; a failure writes nothing, and the conversation simply goes on without one.
+   */
+  async greet(actorId: string, name: string | null): Promise<PersonalReceipt | null> {
+    const context = await withActor(this.pool, actorId, 'read', (c) => readWelcomeContext(c))
+    if (!context) return null
+    const text = await withinLimit(this.companion.greet(context, name), this.limitMs)
+    return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, text))
   }
 
   private async run(actorId: string, turnId: string): Promise<void> {

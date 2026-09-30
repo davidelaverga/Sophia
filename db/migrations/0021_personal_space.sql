@@ -9,7 +9,8 @@
 -- * The functions below are the only writers (no write grant on any table). Each re-checks the calling actor and is
 --   idempotent per owner and key (personal_requests), like the mission ledger's writes. A request keeps a SHA-256 of
 --   any text it wrote, never the text, and its receipt keeps ids only.
--- * Sophia's side is written by the companion the API runs, only as the reply to a pending turn of the same owner.
+-- * Sophia's side is written by the companion the API runs: the reply to a pending turn of the same owner, or her
+--   welcome back after a quiet spell of more than an hour.
 -- * Erasing the space deletes the conversation, suggestions and notes for good, and redacts every request, so a late
 --   retry is told its write was forgotten rather than writing again. Releases stay in their projects, as the person
 --   was told before erasing, and stay theirs to take back.
@@ -233,6 +234,22 @@ BEGIN
  RETURN sophia.personal_receipt('reply',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq,'suggestionId',suggestion_id));
 END $$;
 
+-- Sophia's welcome back after a quiet spell: a turn of hers that answers no message. Written only when the last turn
+-- is more than an hour old and is not already such a welcome; otherwise nothing, and the call says so (turnId null).
+CREATE FUNCTION sophia.record_personal_greeting(p_text text) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.personal_owner(); last sophia.personal_turns; s sophia.personal_spaces; t sophia.personal_turns;
+BEGIN
+ PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=a FOR UPDATE;
+ SELECT * INTO last FROM sophia.personal_turns WHERE owner_id=a ORDER BY seq DESC LIMIT 1;
+ IF NOT FOUND OR last.created_at>now()-interval '1 hour' OR (last.author='sophia' AND last.reply_to IS NULL) THEN
+  RETURN sophia.personal_receipt('resume',coalesce((SELECT revision FROM sophia.personal_spaces WHERE owner_id=a),1),'{}');
+ END IF;
+ s:=sophia.personal_touch();
+ t:=sophia.personal_append('sophia',sophia.personal_text(p_text,4000),NULL);
+ RETURN sophia.personal_receipt('resume',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq));
+END $$;
+
 -- The companion could not answer: the turn says so, and the person may ask again.
 CREATE FUNCTION sophia.fail_personal_reply(p_turn uuid) RETURNS void LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
@@ -407,13 +424,14 @@ BEGIN
  GET DIAGNOSTICS suggestions=ROW_COUNT;
  DELETE FROM sophia.personal_turns WHERE owner_id=a;
  GET DIAGNOSTICS turns=ROW_COUNT;
+ UPDATE sophia.personal_spaces SET turn_seq=0 WHERE owner_id=a;
  UPDATE sophia.personal_requests SET semantic_request='{"redacted":true}', receipt='{}' WHERE owner_id=a;
  RETURN sophia.personal_remember(p_key,'erase',semantic,sophia.personal_receipt('erase',s.revision,
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;
 
 GRANT EXECUTE ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,text,text),
- sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid),
+ sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) TO sophia_api;

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
-import type pg from 'pg'
+import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
@@ -153,14 +153,29 @@ describe('personal routes', () => {
     assert.equal((await space(ANA)).notes[0]?.text, 'Preparing a pitch for Friday')
   })
 
+  it('welcome her back after a quiet spell, once', async () => {
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    await owner.query(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [
+      ANA,
+    ])
+    await owner.end()
+    const welcomed = await write('/api/v1/personal/resume', ANA, { name: 'Ana' })
+    assert.equal(welcomed.operation, 'resume')
+    assert.ok(welcomed.turnId)
+    assert.equal((await write('/api/v1/personal/resume', ANA, { name: 'Ana' })).turnId, null)
+    const last = (await space(ANA)).turns.at(-1)
+    assert.match(last?.text ?? '', /^Welcome back, Ana\./)
+  })
+
   it('export everything, then erase it for good', async () => {
     const everything = parsePersonalExport((await call('/api/v1/personal/export', { as: ANA })).json)
-    assert.equal(everything.turns.length, 2)
+    assert.equal(everything.turns.length, 3)
     assert.equal(everything.notes.length, 1)
     const refused = await call('/api/v1/personal/erasure', { as: ANA, body: { confirm: 'yes' }, key: randomUUID() })
     assert.equal(refused.status, 422)
     const erased = await write('/api/v1/personal/erasure', ANA, { confirm: 'delete' })
-    assert.deepEqual(erased.erased, { turns: 2, notes: 1, suggestions: 1 })
+    assert.deepEqual(erased.erased, { turns: 3, notes: 1, suggestions: 1 })
     const erasedSpace = await space(ANA)
     assert.deepEqual([erasedSpace.turns.length, erasedSpace.notes.length], [0, 0])
   })

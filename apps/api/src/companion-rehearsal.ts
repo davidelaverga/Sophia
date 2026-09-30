@@ -80,13 +80,22 @@ export function rehearsalReply(text: string): CompanionReply {
   return { text: FALLBACKS[text.length % FALLBACKS.length] ?? 'I hear you.', suggestion: null }
 }
 
+/** The rehearsal's welcome back: by name when it has one, and back to where the conversation stopped. */
+export const rehearsalWelcome = (name: string | null) =>
+  `Welcome back${name ? `, ${name}` : ''}. How has it been since we last talked? We can pick up where we left off.`
+
 /** The rehearsal companion; `pauseMs` keeps Sophia's "writing" visible for a moment, as a reply takes. */
 export function rehearsalCompanion(pauseMs = 900): Companion {
+  const pause = () => new Promise((resolve) => setTimeout(resolve, pauseMs))
   return {
     mode: 'rehearsal',
     answer: async (context) => {
-      await new Promise((resolve) => setTimeout(resolve, pauseMs))
+      await pause()
       return rehearsalReply(context.asked.text)
+    },
+    greet: async (_context, name) => {
+      await pause()
+      return rehearsalWelcome(name)
     },
   }
 }

@@ -109,7 +109,8 @@ export type PersonalSuggestionDecision = { "decision": "keep" | "dismiss"; };
 export type PersonalNoteRequest = { "text": string; "fromTurnId"?: string; "suggestionId"?: string; };
 export type PersonalCarryRequest = { "projectId": string; };
 export type PersonalErasureRequest = { "confirm": "delete"; };
-export type PersonalReceipt = { "operation": "send_turn" | "retry_turn" | "decide_suggestion" | "keep_note" | "forget_note" | "carry_note" | "take_back" | "erase"; "revision": number; "turnId": string | null; "seq": number | null; "suggestionId": string | null; "noteId": string | null; "releaseId": string | null; "projectId": string | null; "erased": { "turns": number; "notes": number; "suggestions": number; } | null; };
+export type PersonalResumeRequest = { "name"?: string; };
+export type PersonalReceipt = { "operation": "send_turn" | "retry_turn" | "decide_suggestion" | "keep_note" | "forget_note" | "carry_note" | "take_back" | "erase" | "resume"; "revision": number; "turnId": string | null; "seq": number | null; "suggestionId": string | null; "noteId": string | null; "releaseId": string | null; "projectId": string | null; "erased": { "turns": number; "notes": number; "suggestions": number; } | null; };
 export type ProjectRelease = { "id": string; "text": string; "ownerName": string; "mine": boolean; "createdAt": string; };
 export type ProjectSummary = { "projectId": string; "title": string; "role": "admin" | "editor" | "viewer"; "members": number; "room": { "people": ReadonlyArray<string>; "sophia": boolean; } | null; "nextSession": RoomSession | null; "releases": ReadonlyArray<ProjectRelease>; };
 export type ProjectList = { "projects": ReadonlyArray<ProjectSummary>; };
@@ -198,6 +199,7 @@ export interface Operations {
   "forgetPersonalNote": { method: "POST"; path: "/api/v1/personal/notes/{noteId}/forget"; request: undefined; response: PersonalReceipt; };
   "carryPersonalNote": { method: "POST"; path: "/api/v1/personal/notes/{noteId}/carry"; request: PersonalCarryRequest; response: PersonalReceipt; };
   "takeBackPersonalRelease": { method: "POST"; path: "/api/v1/personal/releases/{releaseId}/take-back"; request: undefined; response: PersonalReceipt; };
+  "resumePersonalSpace": { method: "POST"; path: "/api/v1/personal/resume"; request: PersonalResumeRequest; response: PersonalReceipt; };
   "exportPersonalSpace": { method: "GET"; path: "/api/v1/personal/export"; request: undefined; response: PersonalExport; };
   "erasePersonalSpace": { method: "POST"; path: "/api/v1/personal/erasure"; request: PersonalErasureRequest; response: PersonalReceipt; };
 }

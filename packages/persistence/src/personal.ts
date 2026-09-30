@@ -165,6 +165,25 @@ export async function readCompanionContext(
   }
 }
 
+/** A welcome is due: the last turn is more than an hour old and is not already one. */
+const WELCOME_DUE = `SELECT (t.created_at < now() - interval '1 hour' AND NOT (t.author = 'sophia' AND t.reply_to IS NULL)) AS due
+  FROM sophia.personal_turns t WHERE t.owner_id = sophia.actor_id() ORDER BY t.seq DESC LIMIT 1`
+
+/** What Sophia's welcome back is written from, or null when none is due (so no companion is asked for one). */
+export async function readWelcomeContext(
+  c: pg.PoolClient,
+  depth = 20,
+): Promise<Omit<CompanionContext, 'asked'> | null> {
+  const due = (await c.query<{ due: boolean }>(WELCOME_DUE)).rows[0]?.due ?? false
+  if (!due) return null
+  const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq DESC LIMIT $1`, [depth])
+  const notes = await readNotes(c)
+  return {
+    history: rows.toReversed().map((r) => ({ author: r.author, text: r.body })),
+    notes: notes.map((n) => n.text),
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Writes. Each is one sophia.* function; call inside withActor(..., "write").
 
@@ -239,6 +258,10 @@ export async function recordPersonalReply(
 ): Promise<void> {
   await c.query('SELECT sophia.record_personal_reply($1, $2, $3)', [turnId, text, suggestion])
 }
+
+/** Sophia's welcome back; the function writes it only if one is still due (turnId null when not). */
+export const recordPersonalGreeting = (c: pg.PoolClient, text: string) =>
+  receipt(c, 'record_personal_greeting', 'SELECT sophia.record_personal_greeting($1) AS receipt', [text])
 
 /** The companion could not answer: the turn says so, and the person may ask again. */
 export async function failPersonalReply(c: pg.PoolClient, turnId: string): Promise<void> {

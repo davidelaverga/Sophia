@@ -21,6 +21,8 @@ import {
   readPersonalSpace,
   readPersonalTurnsAfter,
   readSnapshot,
+  readWelcomeContext,
+  recordPersonalGreeting,
   recordPersonalReply,
   retryPersonalTurn,
   sendPersonalTurn,
@@ -266,6 +268,24 @@ describe('personal space: the only crossing', () => {
     assert.ok(space.notes.some((n) => n.id === release.noteId && n.text === 'Ask Luis to rehearse Q&A'))
     const rows = await owner('SELECT 1 FROM sophia.personal_releases WHERE id = $1', [release.id])
     assert.equal(rows.length, 0)
+  })
+})
+
+describe('personal space: welcome back', () => {
+  it('is due after an hour of quiet, never twice in a row, and never for someone else', async () => {
+    const sent = await write(ANA, (c) => sendPersonalTurn(c, key(), 'Before the quiet'))
+    await write(ANA, (c) => recordPersonalReply(c, sent.turnId ?? '', 'Noted.', null))
+    assert.equal(await read(ANA, (c) => readWelcomeContext(c)), null, 'not after a turn a minute ago')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '2 hours' WHERE owner_id = $1`, [ANA])
+    const context = await read(ANA, (c) => readWelcomeContext(c))
+    assert.equal(context?.history.at(-1)?.text, 'Noted.')
+    const welcome = await write(ANA, (c) => recordPersonalGreeting(c, 'Welcome back, Ana.'))
+    assert.ok(welcome.turnId)
+    assert.equal((await write(ANA, (c) => recordPersonalGreeting(c, 'Welcome back again'))).turnId, null)
+    // Still due for no one else: another person has no conversation to be welcomed back to.
+    assert.equal(await read(OTHER, (c) => readWelcomeContext(c)), null)
+    const last = (await read(ANA, (c) => readPersonalSpace(c))).turns.at(-1)
+    assert.deepEqual([last?.author, last?.text, last?.replyTo], ['sophia', 'Welcome back, Ana.', null])
   })
 })
 

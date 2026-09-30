@@ -129,6 +129,8 @@ export {
   readPersonalExport,
   readPersonalSpace,
   readPersonalTurnsAfter,
+  readWelcomeContext,
+  recordPersonalGreeting,
   recordPersonalReply,
   retryPersonalTurn,
   sendPersonalTurn,
