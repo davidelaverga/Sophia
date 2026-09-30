@@ -1,15 +1,15 @@
 // ProjectShell (architecture 04 §3): project header, view navigation, the one project feed every view
 // shares, and the room connection, which outlives view changes: joining in Studio and reading Goals
 // keeps you in the room. Views change the address, never the project.
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
-import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { forgetProject, rememberProject } from '../../app/recent-projects.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { MiniDock } from '../voice/MiniDock.tsx'
@@ -19,6 +19,7 @@ import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
+import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { StudioShell } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
@@ -35,14 +36,19 @@ const CONNECTION: Record<Connection, string> = {
   denied: 'No access',
 }
 
-/** Why the project cannot be shown: session ended (401), not a member (403) or unreachable. */
-type Blocked = 'expired' | 'denied' | 'unreachable'
-
-function blockedBy(error: Error | null): Blocked | null {
-  if (!error) return null
-  if (error instanceof ApiError && error.status === 401) return 'expired'
-  if (error instanceof ApiError && error.status === 403) return 'denied'
-  return 'unreachable'
+/**
+ * A closed door closes the call too. Signed out or no longer a member, the project's screen gives way to a notice
+ * with no dock: the call must not stay open behind it with a microphone nobody can mute.
+ */
+function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
+  const leave = useRef(room.leave)
+  useEffect(() => {
+    leave.current = room.leave
+  })
+  const closed = blocked === 'expired' || blocked === 'denied'
+  useEffect(() => {
+    if (closed) void leave.current()
+  }, [closed])
 }
 
 /** The home screen lists what this device opened; a project that closed its door leaves the list. */
@@ -67,6 +73,32 @@ function useTabTitle(snapshot: Snapshot | undefined) {
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
 }
 
+/**
+ * A project that is slow to open says so (useSlow.ts), where the lobby would float: under the bar, out of the way.
+ * A project that cannot be shown has its notice instead.
+ */
+function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | null }) {
+  if (!useSlow(!loaded && !blocked)) return null
+  return (
+    <p className="wait-note arrive" role="status">
+      {SLOW_NOTE}
+    </p>
+  )
+}
+
+const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
+
+interface ShareProps {
+  invites: boolean
+  projectId: string
+  onInvite: () => void
+}
+
+/** Invite for editors and admins; for viewers, the project's link. */
+function Share({ invites, projectId, onInvite }: ShareProps) {
+  return invites ? <InviteButton onClick={onInvite} /> : <CopyLinkButton projectId={projectId} />
+}
+
 interface Props {
   projectId: string
   view: View
@@ -83,32 +115,31 @@ export function ProjectShell(props: Props) {
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useMembership(projectId, identity.name, identity.token).data
   const [inviting, setInviting] = useState(false)
-  const blocked = blockedBy(snapshot.error)
+  const loaded = snapshot.data !== undefined
+  const blocked = blockedBy(snapshot.error, loaded)
+  // Behind a closed door the project's last snapshot may still be in the cache: nothing acts on it (Invite, I).
+  const shown = blocked ? undefined : snapshot.data
+  const invite = () => setInviting(true)
+  useLeaveBehindClosedDoor(blocked, room)
   useRecentProject(identity.name, projectId, snapshot.data, blocked)
   useTabTitle(snapshot.data)
-  useShortcuts({ i: () => setInviting(true) }, !!snapshot.data && canInvite(membership) && !inviting)
+  useShortcuts({ i: invite }, !!shown && canInvite(membership) && !inviting)
   return (
     <div className="shell" data-view={view}>
       <ProjectHeader
         title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
-        connection={connection}
+        connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
-        share={
-          snapshot.data ? (
-            canInvite(membership) ? (
-              <InviteButton onClick={() => setInviting(true)} />
-            ) : (
-              <CopyLinkButton projectId={projectId} />
-            )
-          ) : null
-        }
+        share={shown && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
         identitySwitcher={identitySwitcher}
+        inCall={isInCall(room)}
         onLeave={onLeave}
       />
-      {inviting && snapshot.data && (
+      <OpeningNote loaded={loaded} blocked={blocked} />
+      {inviting && shown && (
         <Suspense fallback={null}>
           <InviteSheet
-            context={{ projectId, identity, membership, sessions: snapshot.data.sessions, lobby: snapshot.data.lobby }}
+            context={{ projectId, identity, membership, sessions: shown.sessions, lobby: shown.lobby }}
             onClose={() => setInviting(false)}
           />
         </Suspense>
@@ -129,7 +160,7 @@ export function ProjectShell(props: Props) {
           snapshot={snapshot.data}
           pulse={<WorkPulse feed={feed} connection={connection} />}
           onShow={onShow}
-          onInvite={() => setInviting(true)}
+          onInvite={invite}
         />
       )}
     </div>
@@ -138,21 +169,25 @@ export function ProjectShell(props: Props) {
 
 interface HeaderProps {
   title: string
-  connection: Connection
+  /** The feed's state; null while the project can't be shown, where the notice below says why. */
+  connection: Connection | null
   nav: React.ReactNode
   /** Invite (editors and admins) or copy the link (viewers). */
   share: React.ReactNode
   identitySwitcher: React.ReactNode
+  /** In the call: going home leaves it, and the way there says so before it is pressed. */
+  inCall: boolean
   onLeave: () => void
 }
 
-function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
+function ProjectHeader({ title, connection, nav, share, identitySwitcher, inCall, onLeave }: HeaderProps) {
+  const home = inCall ? 'Home: you leave the room' : 'Home'
   return (
     <header className="topbar">
-      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="Home">
+      <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>
         <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
         <span className="mark-word">Sophia</span>
-        <Tip label="Home" side="bottom" />
+        <Tip label={home} side="bottom" />
       </button>
       <span className="crumb-sep" aria-hidden>
         /
@@ -160,10 +195,12 @@ function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeav
       <h1 className="project-name">{title}</h1>
       {nav}
       <div className="topbar-end">
-        <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
-          <span className="connection-dot" aria-hidden />
-          <span className="connection-label">{CONNECTION[connection]}</span>
-        </span>
+        {connection && (
+          <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
+            <span className="connection-dot" aria-hidden />
+            <span className="connection-label">{CONNECTION[connection]}</span>
+          </span>
+        )}
         {share}
         {identitySwitcher}
       </div>

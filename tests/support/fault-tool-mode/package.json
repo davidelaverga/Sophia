@@ -1,0 +1,8 @@
+{
+  "name": "@sophia-test/fault-tool-mode",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TEST ONLY (SMC-M02 M02-T10): fault injection for a disposable runtime composition. Never installed into a profile outside tests.",
+  "main": "./index.js"
+}

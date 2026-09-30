@@ -22,14 +22,16 @@
  * @module @sophia/dsh-bundle/control-bridge
  */
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentHandle, AgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
 // Type-only: brings the `ctx.agentDefaultModel` Context augmentation into scope.
 import type {} from '@deepseek-ai/dsh-agent-default-model'
+// Type-only: brings the `ctx.agentPresets` Context augmentation into scope.
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { createUserMessage, expandAssistantStream } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, UserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, ReasoningEffortId, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
 import type { ToolGuard } from '@deepseek-ai/dsh-tools'
@@ -40,7 +42,7 @@ import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
-import type { CommandEntry, DeliveryTarget, FenceState, StashedMessage } from './session-events.js'
+import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
 import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
@@ -70,6 +72,8 @@ interface AttemptState {
   handle: AgentHandle | null
   /** Role preset the attempt runs under; fixed at create. */
   role: RolePreset | null
+  /** Execution identity recorded at create (or migrated at the first resume); null before either. */
+  identity: ExecutionIdentity | null
   epoch: number
   fence: FenceState
   /** Command id -> the receipt already sent for it. */
@@ -249,7 +253,10 @@ export class ControlBridge {
    * keeps the model from being offered what it may not run.
    */
   private setupFor(role: RolePreset): AgentSetup {
-    return (agentCtx) => {
+    return async (agentCtx) => {
+      // The role's native preset, through the public registry: before the
+      // session is published, so its composition exists from the first step.
+      await this.ctx.agentPresets.mount(agentCtx, role.id)
       const visible = this.ctx.tools.schemas().map((schema) => schema.name)
       const deny = visible.filter((name) => !role.nativeTools.has(name))
       if (deny.length > 0) agentCtx.tools.restrict({ deny })
@@ -341,13 +348,82 @@ export class ControlBridge {
   }
 
   /**
-   * The composition's default model selection. `ctx.agents` does not apply it
-   * on its own: entry points read it at creation (and resume) time. This is
-   * the route the runtime unit records and the gate checks.
+   * The composition's default model selection: the route the runtime unit
+   * records and the gate checks. `ctx.agents` does not apply it on its own.
+   * It is read only when an attempt is created; a resume uses the route the
+   * attempt recorded (M02 §5.4), never the current default.
    */
-  private agentOptions(): AgentOptions {
+  private defaultRoute(): ExecutionIdentity['route'] {
     const { provider, model, reasoningEffort } = this.ctx.agentDefaultModel.currentSelection()
-    return reasoningEffort === undefined ? { provider, model } : { provider, model, reasoningEffort }
+    return { provider, model, reasoningEffort: reasoningEffort ?? null }
+  }
+
+  private agentOptions(route: ExecutionIdentity['route']): AgentOptions {
+    return route.reasoningEffort === null ? { provider: route.provider, model: route.model } : { provider: route.provider, model: route.model, reasoningEffort: brandString<ReasoningEffortId>(route.reasoningEffort) }
+  }
+
+  /**
+   * The native preset a role runs under, and a digest of what it composes in
+   * this runtime unit: the registry's definition of the preset (its child
+   * plugin rows) and the role's tool policy. A preset the registry does not
+   * define, or cannot activate, is refused here.
+   */
+  private async presetIdentity(role: RolePreset): Promise<ExecutionIdentity['preset']> {
+    const presets = this.ctx.agentPresets
+    const resolved = await presets.resolve(role.id).catch((error: Error) => {
+      throw new ProtocolError(`native preset ${role.id} is not defined in this runtime unit: ${error.message}`)
+    })
+    if (resolved.broken !== undefined) throw new ProtocolError(`native preset ${role.id} cannot be activated in this runtime unit: ${resolved.broken}`)
+    const document = await presets.readDocument(role.id)
+    const policy = { nativeTools: [...role.nativeTools].sort(), goalContinuation: role.goalContinuation, rawHostShell: role.rawHostShell }
+    const digest = createHash('sha256').update(JSON.stringify({ preset: role.id, definition: document.content, policy })).digest('hex')
+    return { id: role.id, digest: `sha256:${digest}` }
+  }
+
+  /**
+   * The identity a new attempt records before its native create: this unit,
+   * the role's preset, and the default route. A redelivered create that a
+   * restart cut short finds the identity it already recorded.
+   */
+  private async createIdentity(attempt: AttemptState, role: RolePreset): Promise<ExecutionIdentity> {
+    const recorded = foldLog(this.journal.read(attempt.sessionId)).identity
+    if (recorded) return { runtimeUnitId: recorded.runtimeUnitId, preset: recorded.preset, route: recorded.route }
+    const identity: ExecutionIdentity = { runtimeUnitId: this.settings.runtimeUnitId, preset: await this.presetIdentity(role), route: this.defaultRoute() }
+    this.journal.append(attempt.sessionId, 'sophia/identity', { ...identity, attemptId: attempt.attemptId, source: 'create', evidence: null })
+    return identity
+  }
+
+  /**
+   * The identity a persisted attempt resumes under. A recorded one must still
+   * match this unit's preset definition; otherwise the attempt is refused (and
+   * so held), never recomposed. An attempt created before identities were
+   * recorded resumes on the default route only if its own session log agrees
+   * (checked by {@link checkRecordedRoute}); the identity is then recorded as
+   * migrated.
+   */
+  private async resumeIdentity(attempt: AttemptState, role: RolePreset, recorded: ExecutionIdentity | null): Promise<ExecutionIdentity> {
+    const preset = await this.presetIdentity(role)
+    if (!recorded) return { runtimeUnitId: this.settings.runtimeUnitId, preset, route: this.defaultRoute() }
+    if (recorded.preset.id !== preset.id || recorded.preset.digest !== preset.digest) {
+      throw new ProtocolError(`the attempt was created under native preset ${recorded.preset.id} (${recorded.preset.digest}) in runtime unit ${recorded.runtimeUnitId}; this unit defines ${preset.id} as ${preset.digest}. An attempt never resumes under a different composition: it stays held until it is reconstructed`)
+    }
+    return { runtimeUnitId: recorded.runtimeUnitId, preset: recorded.preset, route: recorded.route }
+  }
+
+  /**
+   * The route the session itself last recorded (dsh's `request/header`) must
+   * be the attempt's. A mismatch means the attempt would continue on another
+   * provider, model or effort than it ran on, so the resume is undone.
+   * @returns the evidence, or null when the session never sent a request.
+   */
+  private checkRecordedRoute(agent: Agent, route: ExecutionIdentity['route']): string | null {
+    const config = agent.session.requestHeader()?.config
+    if (!config) return null
+    const logged = { provider: config.provider, model: config.model, reasoningEffort: config.reasoningEffort ?? null }
+    if (logged.provider !== route.provider || logged.model !== route.model || (logged.reasoningEffort !== null && logged.reasoningEffort !== route.reasoningEffort)) {
+      throw new ProtocolError(`the session last ran on ${logged.provider}/${logged.model}/${logged.reasoningEffort ?? 'default'}, not the attempt's ${route.provider}/${route.model}/${route.reasoningEffort ?? 'default'}; refusing to resume on another route`)
+    }
+    return `native request/header ${logged.provider}/${logged.model}/${logged.reasoningEffort ?? 'default'}`
   }
 
   private sessionIdFor(attemptId: string): SessionId {
@@ -362,6 +438,7 @@ export class ControlBridge {
       sessionId: this.sessionIdFor(attemptId),
       handle: null,
       role: null,
+      identity: null,
       epoch,
       fence: 'active',
       receipts: new Map(),
@@ -392,14 +469,36 @@ export class ControlBridge {
     const logged = foldLog(this.journal.read(attempt.sessionId))
     const role = roleOf(logged.role)
     if (!role) throw new ProtocolError(`the attempt's recorded role ${JSON.stringify(logged.role)} is not defined in this runtime unit; refusing to resume`)
+    const identity = await this.resumeIdentity(attempt, role, logged.identity)
     attempt.role = role
     // Fence before dsh loads the session: retained inbox or goal work must
     // meet the journaled (or service-held) fence at its first pre-step.
     attempt.fence = strongestFence(attempt.fence, logged.fence)
     attempt.epoch = Math.max(attempt.epoch, logged.authorityEpoch)
-    const handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions(), setup: this.setupFor(role) })
+    const handle = await this.resumeWith(attempt, role, identity, logged.identity === null)
     this.adopt(attempt, handle.agent)
     attempt.unrecovered = null
+    return handle
+  }
+
+  /**
+   * Resume the native session on the attempt's route and preset, then check
+   * the session's own recorded route. A migrated identity is journaled only
+   * after that check passed.
+   */
+  private async resumeWith(attempt: AttemptState, role: RolePreset, identity: ExecutionIdentity, migrate: boolean): Promise<AgentHandle> {
+    const handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions(identity.route), setup: this.setupFor(role) })
+    let evidence: string | null
+    try {
+      evidence = this.checkRecordedRoute(handle.agent, identity.route)
+    } catch (error) {
+      await handle.dispose()
+      throw error
+    }
+    if (migrate) {
+      this.journal.append(attempt.sessionId, 'sophia/identity', { ...identity, attemptId: attempt.attemptId, source: 'migrated', evidence: evidence ?? 'no model request recorded; bound to the unit route at its first resume' })
+    }
+    attempt.identity = identity
     return handle
   }
 
@@ -509,6 +608,8 @@ export class ControlBridge {
     }
     const role = roleOf(command.payload.role)
     if (!role) throw new ProtocolError(`create requires payload.role, one of this bundle's role presets; got ${JSON.stringify(command.payload.role)}`)
+    // A role whose native preset this unit cannot compose is refused before any attempt state exists.
+    if (!existing) await this.presetIdentity(role)
     const attempt = existing ?? this.newAttempt(attemptId, authorityEpoch)
     attempt.role ??= role
     const live = existing ? null : this.ctx.agents.get(attempt.sessionId)
@@ -517,14 +618,17 @@ export class ControlBridge {
     } else if (live) {
       this.adopt(attempt, live)
     } else {
+      // Recorded before the native create (log-first): the identity is the attempt's from its first step.
+      const identity = await this.createIdentity(attempt, role)
+      attempt.identity = identity
       try {
-        attempt.handle = await this.ctx.agents.create({ sessionId: attempt.sessionId, meta: { cwd: this.settings.workspace }, agentOptions: this.agentOptions(), setup: this.setupFor(role) })
+        attempt.handle = await this.ctx.agents.create({ sessionId: attempt.sessionId, meta: { cwd: this.settings.workspace, agentPreset: role.id }, agentOptions: this.agentOptions(identity.route), setup: this.setupFor(role) })
       } catch (error) {
         // A persisted session with this deterministic id means an earlier
         // create reached dsh before a crash: resume it instead of forking work,
         // under the journaled fence from its first step.
         attempt.fence = strongestFence(attempt.fence, foldLog(this.journal.read(attempt.sessionId)).fence)
-        attempt.handle = await this.ctx.agents.resume({ resumeSessionId: attempt.sessionId, agentOptions: this.agentOptions(), setup: this.setupFor(role) }).catch(() => { throw error })
+        attempt.handle = await this.resumeWith(attempt, role, identity, false).catch(() => { throw error })
         this.adopt(attempt, attempt.handle.agent)
       }
     }
@@ -693,6 +797,9 @@ export class ControlBridge {
     const summary = {
       fence: attempt.fence,
       role: attempt.role?.id ?? null,
+      identity: attempt.identity,
+      // The preset the live Agent actually joined, as the registry reports it.
+      composedPreset: agent ? this.ctx.agentPresets.composedPreset(agent.ctx) ?? null : null,
       epoch: attempt.epoch,
       live: Boolean(agent),
       status: agent?.status ?? null,

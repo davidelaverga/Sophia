@@ -1,0 +1,1737 @@
+{
+  "unit": "sophia-runtime-s1-03-dev",
+  "dsh": "0.1.7-rc.1",
+  "shapes": [
+    {
+      "body": {
+        "model": "gpt-6-luna",
+        "input": [
+          {
+            "role": "developer",
+            "content": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          }
+        ],
+        "stream": true,
+        "prompt_cache_key": "<native session id>",
+        "store": false,
+        "max_output_tokens": 128000,
+        "tools": [
+          {
+            "type": "function",
+            "name": "create_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "objective"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "get_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "type": "function",
+            "name": "glob",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "grep",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "include": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "limit": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_image",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "skill",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "todo_write",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "todos": {
+                  "type": "array",
+                  "description": "<text>",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "<text>"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "<text>",
+                        "enum": [
+                          "pending",
+                          "in_progress",
+                          "completed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "todos"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "update_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "revision": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "<text>",
+                  "enum": [
+                    "edit",
+                    "pause",
+                    "resume",
+                    "complete",
+                    "blocked"
+                  ]
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "blocked_reason": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "goal_id",
+                "revision",
+                "action"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "workflow",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "meta": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "whenToUse": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "phases": {
+                      "type": "array",
+                      "description": "<text>",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "<text>"
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "script",
+                "meta"
+              ]
+            }
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "auto"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ]
+      },
+      "headers": {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Bearer <test key>",
+        "session_id": "<native session id>",
+        "x-client-request-id": "<native session id>",
+        "x-stainless-lang": "js",
+        "x-stainless-package-version": "6.40.0",
+        "x-stainless-runtime": "node",
+        "x-stainless-runtime-version": "v24.21.0",
+        "x-stainless-retry-count": "0",
+        "user-agent": "deepseek-harness/<dsh version> (+https://github.com/deepseek-ai/deepseek-harness)"
+      }
+    },
+    {
+      "body": {
+        "model": "gpt-6-luna",
+        "input": [
+          {
+            "role": "developer",
+            "content": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "id": "rs_mock_1",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "mock-encrypted-1"
+          },
+          {
+            "type": "function_call",
+            "id": "fc_mock_1",
+            "call_id": "call_mock_1",
+            "name": "glob",
+            "arguments": "{\"pattern\":\"*.md\"}"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "call_mock_1",
+            "output": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          }
+        ],
+        "stream": true,
+        "prompt_cache_key": "<native session id>",
+        "store": false,
+        "max_output_tokens": 128000,
+        "tools": [
+          {
+            "type": "function",
+            "name": "create_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "objective"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "get_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "type": "function",
+            "name": "glob",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "grep",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "include": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "limit": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_image",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "skill",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "todo_write",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "todos": {
+                  "type": "array",
+                  "description": "<text>",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "<text>"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "<text>",
+                        "enum": [
+                          "pending",
+                          "in_progress",
+                          "completed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "todos"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "update_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "revision": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "<text>",
+                  "enum": [
+                    "edit",
+                    "pause",
+                    "resume",
+                    "complete",
+                    "blocked"
+                  ]
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "blocked_reason": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "goal_id",
+                "revision",
+                "action"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "workflow",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "meta": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "whenToUse": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "phases": {
+                      "type": "array",
+                      "description": "<text>",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "<text>"
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "script",
+                "meta"
+              ]
+            }
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "auto"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ]
+      },
+      "headers": {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Bearer <test key>",
+        "session_id": "<native session id>",
+        "x-client-request-id": "<native session id>",
+        "x-stainless-lang": "js",
+        "x-stainless-package-version": "6.40.0",
+        "x-stainless-runtime": "node",
+        "x-stainless-runtime-version": "v24.21.0",
+        "x-stainless-retry-count": "0",
+        "user-agent": "deepseek-harness/<dsh version> (+https://github.com/deepseek-ai/deepseek-harness)"
+      }
+    },
+    {
+      "body": {
+        "model": "gpt-6-luna",
+        "input": [
+          {
+            "role": "developer",
+            "content": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "id": "rs_mock_1",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "mock-encrypted-1"
+          },
+          {
+            "type": "function_call",
+            "id": "fc_mock_1",
+            "call_id": "call_mock_1",
+            "name": "glob",
+            "arguments": "{\"pattern\":\"*.md\"}"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "call_mock_1",
+            "output": "<text>"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          },
+          {
+            "id": "rs_mock_2",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "mock-encrypted-2"
+          },
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "<text>",
+                "annotations": []
+              }
+            ],
+            "status": "completed",
+            "id": "msg_mock_2"
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "<text>"
+              }
+            ]
+          }
+        ],
+        "stream": true,
+        "prompt_cache_key": "<native session id>",
+        "store": false,
+        "max_output_tokens": 128000,
+        "tools": [
+          {
+            "type": "function",
+            "name": "create_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "objective"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "get_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "type": "function",
+            "name": "glob",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "grep",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "include": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "pattern"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "limit": {
+                  "type": "number",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_image",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "file_path"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "skill",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "todo_write",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "todos": {
+                  "type": "array",
+                  "description": "<text>",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "<text>"
+                      },
+                      "status": {
+                        "type": "string",
+                        "description": "<text>",
+                        "enum": [
+                          "pending",
+                          "in_progress",
+                          "completed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "content",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "todos"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "update_goal",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "revision": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "<text>",
+                  "enum": [
+                    "edit",
+                    "pause",
+                    "resume",
+                    "complete",
+                    "blocked"
+                  ]
+                },
+                "objective": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "max_goal_rounds": {
+                  "type": "number",
+                  "description": "<text>"
+                },
+                "blocked_reason": {
+                  "type": "string",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "goal_id",
+                "revision",
+                "action"
+              ]
+            }
+          },
+          {
+            "type": "function",
+            "name": "workflow",
+            "description": "<text>",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "script": {
+                  "type": "string",
+                  "description": "<text>"
+                },
+                "meta": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true,
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "whenToUse": {
+                      "type": "string",
+                      "description": "<text>"
+                    },
+                    "phases": {
+                      "type": "array",
+                      "description": "<text>",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "description": "<text>"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "<text>"
+                          }
+                        },
+                        "required": [
+                          "title"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "description"
+                  ]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "<text>",
+                  "additionalProperties": true
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "<text>"
+                }
+              },
+              "required": [
+                "script",
+                "meta"
+              ]
+            }
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "auto"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ]
+      },
+      "headers": {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Bearer <test key>",
+        "session_id": "<native session id>",
+        "x-client-request-id": "<native session id>",
+        "x-stainless-lang": "js",
+        "x-stainless-package-version": "6.40.0",
+        "x-stainless-runtime": "node",
+        "x-stainless-runtime-version": "v24.21.0",
+        "x-stainless-retry-count": "0",
+        "user-agent": "deepseek-harness/<dsh version> (+https://github.com/deepseek-ai/deepseek-harness)"
+      }
+    }
+  ],
+  "texts": [
+    {
+      "input.0.content": {
+        "sha256": "b46e1e325ee37d9ca6a142dc715b13af8a75f0ddac8cec10262dd48de1fa74c5",
+        "length": 2270
+      },
+      "input.1.content.0.text": {
+        "sha256": "a243a0289731b33cf7e4cb0aac4476c36de48eddfce1a6f767138a7fe6dd81e6",
+        "length": 32
+      },
+      "input.2.content.0.text": {
+        "sha256": "88ef14067a82dcef31a64a9e5230acdab70af362b62bf7b02079f2e879ac69ed",
+        "length": 490
+      },
+      "tools.0.description": {
+        "sha256": "6e81df317766031412e8a2dc12e99b27bd98335d621c8846d5ff53d5b6be8052",
+        "length": 342
+      },
+      "tools.0.parameters.properties.objective.description": {
+        "sha256": "95b88c093ce82a12d4ec1b361fec89307e47276b706cce678dc47bbbccbbbc7a",
+        "length": 73
+      },
+      "tools.0.parameters.properties.max_goal_rounds.description": {
+        "sha256": "4d810e7c55e48b677f21117c2d9376c7e27bd3a2cbd240ebdef48def51ae47d7",
+        "length": 70
+      },
+      "tools.1.description": {
+        "sha256": "285a354a179febeb8eccce26354d6c53463350afa196d66b500f1694f0ff9ea2",
+        "length": 236
+      },
+      "tools.2.description": {
+        "sha256": "bafceafd48afca42f69e17e9cd13c9814ea7aaa2b498eb7ddbb8f093c7330e2d",
+        "length": 407
+      },
+      "tools.2.parameters.properties.pattern.description": {
+        "sha256": "6e323c05b6b7ad015d8eb7dcbe0aebb4868118ddd84cea549adc6e20a970901f",
+        "length": 222
+      },
+      "tools.2.parameters.properties.path.description": {
+        "sha256": "24fd612f481bc8b953ee7527474d72d62bc614d59d654bb26496cb257afa83ca",
+        "length": 95
+      },
+      "tools.3.description": {
+        "sha256": "f4d2e9b3783f1a034c67719e95f99ceafde0b2e4a264a8a22c3d75273f0ae068",
+        "length": 269
+      },
+      "tools.3.parameters.properties.pattern.description": {
+        "sha256": "307803eb2bce966466e78d7182f99ec2d07444f4ffef4304dafdf675fc5ccb23",
+        "length": 50
+      },
+      "tools.3.parameters.properties.path.description": {
+        "sha256": "c8d8b4411200903ca53514f77c9f5cb7da58e709b1fecd2ef651d18758c1241a",
+        "length": 100
+      },
+      "tools.3.parameters.properties.include.description": {
+        "sha256": "8170ba0b39620f8ecd28d2d5de388416409459ff29302f932a462889c7ec22b8",
+        "length": 109
+      },
+      "tools.4.description": {
+        "sha256": "69aec1893f9b03db0eefec680d090ff85e01ceca75041bea637c8d6815175de3",
+        "length": 56
+      },
+      "tools.4.parameters.properties.file_path.description": {
+        "sha256": "44f4872c855ddb223f043e8b230a899c0ac415e0396bed967c717dd0bf633410",
+        "length": 49
+      },
+      "tools.4.parameters.properties.offset.description": {
+        "sha256": "6bad12e7cf4c477a3e58a77448ca91022cd49a0ce6f2963d69647101d7f53a61",
+        "length": 44
+      },
+      "tools.4.parameters.properties.limit.description": {
+        "sha256": "125ec0eccfb7bf245d67a96d26f1c0aca5b625b9b997516f25a36f9b6941ab59",
+        "length": 52
+      },
+      "tools.5.description": {
+        "sha256": "860f18aca0c425f038f2ca600b9185209c20a127b927bf309e827f591639dffe",
+        "length": 545
+      },
+      "tools.5.parameters.properties.file_path.description": {
+        "sha256": "2107e3af2232fe78fa0f978de2bca0fd1708e8d1515ed27910dda5cb6633b8cc",
+        "length": 59
+      },
+      "tools.6.description": {
+        "sha256": "2287663021d880d624c8aa24d12e2960cea9a5f4e9e7319c59dd4f85b37808c7",
+        "length": 183
+      },
+      "tools.6.parameters.properties.name.description": {
+        "sha256": "254788cd1cd384dc14a690dcd0fae10b39eb0511e90dcbdcbc6516ceb2442de0",
+        "length": 52
+      },
+      "tools.7.description": {
+        "sha256": "203964618c7f8eccb7b348819bf1818d4f4c90a4969ab0952987fa3ddff849d9",
+        "length": 805
+      },
+      "tools.7.parameters.properties.todos.description": {
+        "sha256": "949638f0e88e2e8e3a46d6884c0e9ebf0ca72c9978080e7175341c0e84781fcc",
+        "length": 52
+      },
+      "tools.7.parameters.properties.todos.items.properties.content.description": {
+        "sha256": "57dcb7a6ba4bed95e07eca0f17e9c8c696784322895116df3acc9cacff348f11",
+        "length": 43
+      },
+      "tools.7.parameters.properties.todos.items.properties.status.description": {
+        "sha256": "ca8e4ce54549b57adf2fd3a9344da0930d1edc592ffc1de4769ccab5025d407c",
+        "length": 61
+      },
+      "tools.8.description": {
+        "sha256": "1811db518393bfab43883b830e75c911bad46ce8d6afcddd7e5a76aad8040f7e",
+        "length": 396
+      },
+      "tools.8.parameters.properties.goal_id.description": {
+        "sha256": "e6be7e02d2e13c87ebd4c31335d95b2f86954bd7b77329d434bc6534edb10900",
+        "length": 30
+      },
+      "tools.8.parameters.properties.revision.description": {
+        "sha256": "3ecc2bb3ed692e48d2a305905500da5033553e05e265283c998c9ff121dec21b",
+        "length": 45
+      },
+      "tools.8.parameters.properties.action.description": {
+        "sha256": "9020c3bdae6d7ef9f477576952b8a0b862668b1d3dd81183e1beecd035215db5",
+        "length": 42
+      },
+      "tools.8.parameters.properties.objective.description": {
+        "sha256": "207e6bb6ade8178a40ebc4905ebdcb61f2aeadf4f22246d5982eaf06f19681a9",
+        "length": 51
+      },
+      "tools.8.parameters.properties.max_goal_rounds.description": {
+        "sha256": "4268e09942def90a41220ff59b8b890e9f1bad9ea0796e48acad1550ac3d8934",
+        "length": 45
+      },
+      "tools.8.parameters.properties.blocked_reason.description": {
+        "sha256": "67f73681db3119c6340fda26ca81488078e631117aaeffe53e496eca71f76fc3",
+        "length": 63
+      },
+      "tools.9.description": {
+        "sha256": "cd2e8501b8d141662fcd8850ed4f5ad77e49f5f12e93bd53bdc7b0261a079957",
+        "length": 2763
+      },
+      "tools.9.parameters.properties.script.description": {
+        "sha256": "8b7f27c929d94ca12f62680a2dd7271b1eeb5825d7ee7576edcc888b5b989fd7",
+        "length": 126
+      },
+      "tools.9.parameters.properties.meta.description": {
+        "sha256": "d8ffd91795bcc3e9fe55902805daa0a3943adbc82071e49a9b504883fa533b9c",
+        "length": 54
+      },
+      "tools.9.parameters.properties.meta.properties.name.description": {
+        "sha256": "7f450653a0951a772816aa7d02f38b4e2095c7b398652febf095f0cca2719451",
+        "length": 31
+      },
+      "tools.9.parameters.properties.meta.properties.description.description": {
+        "sha256": "e538d0692cb9fa07900d0d104a16496c971171d2ae89f4ee5e5215158ada57df",
+        "length": 47
+      },
+      "tools.9.parameters.properties.meta.properties.whenToUse.description": {
+        "sha256": "25e6390a82d34889738ad4cc2cefadd6aaeb897a992a0e89fec9d775d9d01aab",
+        "length": 48
+      },
+      "tools.9.parameters.properties.meta.properties.phases.description": {
+        "sha256": "8fb2c07d8e192c4c16d48808aece84b7784f2a663a9b6baad3792f906517c048",
+        "length": 53
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.title.description": {
+        "sha256": "3c7d2356bdd31061d72b80e4057d3d3de1c9c5acecf1ac8a972bf550e07a1c3b",
+        "length": 52
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.detail.description": {
+        "sha256": "a17ac798a4db012cd4ea91fff5540913bfe7c1bec2d21df7f450bf289ec76526",
+        "length": 43
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.provider.description": {
+        "sha256": "c460fb56485d828a52fe1522184d7b9f1c067dfcebe0a2179e88eb3b45b90eb7",
+        "length": 57
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.model.description": {
+        "sha256": "823202cf3371ec1977e655d98632ce3670322a2b57e4d66bf9cd414d983b9e25",
+        "length": 54
+      },
+      "tools.9.parameters.properties.args.description": {
+        "sha256": "ad9e67288c537c3d068a9376e47fa3d8be6c9f95b65dab836f5abe9d9d697e07",
+        "length": 116
+      },
+      "tools.9.parameters.properties.run_in_background.description": {
+        "sha256": "2b2eae90c0c36608da34bd45ddba5db47a2b2e4f958e55d221de001ee912fd74",
+        "length": 125
+      }
+    },
+    {
+      "input.0.content": {
+        "sha256": "b46e1e325ee37d9ca6a142dc715b13af8a75f0ddac8cec10262dd48de1fa74c5",
+        "length": 2270
+      },
+      "input.1.content.0.text": {
+        "sha256": "a243a0289731b33cf7e4cb0aac4476c36de48eddfce1a6f767138a7fe6dd81e6",
+        "length": 32
+      },
+      "input.2.content.0.text": {
+        "sha256": "88ef14067a82dcef31a64a9e5230acdab70af362b62bf7b02079f2e879ac69ed",
+        "length": 490
+      },
+      "input.5.output": {
+        "sha256": "949d59b7ee8dabf8c14f26bb88463d19a331f38aa2542534727cb77fc3b94338",
+        "length": 14
+      },
+      "input.6.content.0.text": {
+        "sha256": "3d87935e88d65915afcd98f0d26690386fe722692b1ec45fcbe680a5db3767d3",
+        "length": 23
+      },
+      "tools.0.description": {
+        "sha256": "6e81df317766031412e8a2dc12e99b27bd98335d621c8846d5ff53d5b6be8052",
+        "length": 342
+      },
+      "tools.0.parameters.properties.objective.description": {
+        "sha256": "95b88c093ce82a12d4ec1b361fec89307e47276b706cce678dc47bbbccbbbc7a",
+        "length": 73
+      },
+      "tools.0.parameters.properties.max_goal_rounds.description": {
+        "sha256": "4d810e7c55e48b677f21117c2d9376c7e27bd3a2cbd240ebdef48def51ae47d7",
+        "length": 70
+      },
+      "tools.1.description": {
+        "sha256": "285a354a179febeb8eccce26354d6c53463350afa196d66b500f1694f0ff9ea2",
+        "length": 236
+      },
+      "tools.2.description": {
+        "sha256": "bafceafd48afca42f69e17e9cd13c9814ea7aaa2b498eb7ddbb8f093c7330e2d",
+        "length": 407
+      },
+      "tools.2.parameters.properties.pattern.description": {
+        "sha256": "6e323c05b6b7ad015d8eb7dcbe0aebb4868118ddd84cea549adc6e20a970901f",
+        "length": 222
+      },
+      "tools.2.parameters.properties.path.description": {
+        "sha256": "24fd612f481bc8b953ee7527474d72d62bc614d59d654bb26496cb257afa83ca",
+        "length": 95
+      },
+      "tools.3.description": {
+        "sha256": "f4d2e9b3783f1a034c67719e95f99ceafde0b2e4a264a8a22c3d75273f0ae068",
+        "length": 269
+      },
+      "tools.3.parameters.properties.pattern.description": {
+        "sha256": "307803eb2bce966466e78d7182f99ec2d07444f4ffef4304dafdf675fc5ccb23",
+        "length": 50
+      },
+      "tools.3.parameters.properties.path.description": {
+        "sha256": "c8d8b4411200903ca53514f77c9f5cb7da58e709b1fecd2ef651d18758c1241a",
+        "length": 100
+      },
+      "tools.3.parameters.properties.include.description": {
+        "sha256": "8170ba0b39620f8ecd28d2d5de388416409459ff29302f932a462889c7ec22b8",
+        "length": 109
+      },
+      "tools.4.description": {
+        "sha256": "69aec1893f9b03db0eefec680d090ff85e01ceca75041bea637c8d6815175de3",
+        "length": 56
+      },
+      "tools.4.parameters.properties.file_path.description": {
+        "sha256": "44f4872c855ddb223f043e8b230a899c0ac415e0396bed967c717dd0bf633410",
+        "length": 49
+      },
+      "tools.4.parameters.properties.offset.description": {
+        "sha256": "6bad12e7cf4c477a3e58a77448ca91022cd49a0ce6f2963d69647101d7f53a61",
+        "length": 44
+      },
+      "tools.4.parameters.properties.limit.description": {
+        "sha256": "125ec0eccfb7bf245d67a96d26f1c0aca5b625b9b997516f25a36f9b6941ab59",
+        "length": 52
+      },
+      "tools.5.description": {
+        "sha256": "860f18aca0c425f038f2ca600b9185209c20a127b927bf309e827f591639dffe",
+        "length": 545
+      },
+      "tools.5.parameters.properties.file_path.description": {
+        "sha256": "2107e3af2232fe78fa0f978de2bca0fd1708e8d1515ed27910dda5cb6633b8cc",
+        "length": 59
+      },
+      "tools.6.description": {
+        "sha256": "2287663021d880d624c8aa24d12e2960cea9a5f4e9e7319c59dd4f85b37808c7",
+        "length": 183
+      },
+      "tools.6.parameters.properties.name.description": {
+        "sha256": "254788cd1cd384dc14a690dcd0fae10b39eb0511e90dcbdcbc6516ceb2442de0",
+        "length": 52
+      },
+      "tools.7.description": {
+        "sha256": "203964618c7f8eccb7b348819bf1818d4f4c90a4969ab0952987fa3ddff849d9",
+        "length": 805
+      },
+      "tools.7.parameters.properties.todos.description": {
+        "sha256": "949638f0e88e2e8e3a46d6884c0e9ebf0ca72c9978080e7175341c0e84781fcc",
+        "length": 52
+      },
+      "tools.7.parameters.properties.todos.items.properties.content.description": {
+        "sha256": "57dcb7a6ba4bed95e07eca0f17e9c8c696784322895116df3acc9cacff348f11",
+        "length": 43
+      },
+      "tools.7.parameters.properties.todos.items.properties.status.description": {
+        "sha256": "ca8e4ce54549b57adf2fd3a9344da0930d1edc592ffc1de4769ccab5025d407c",
+        "length": 61
+      },
+      "tools.8.description": {
+        "sha256": "1811db518393bfab43883b830e75c911bad46ce8d6afcddd7e5a76aad8040f7e",
+        "length": 396
+      },
+      "tools.8.parameters.properties.goal_id.description": {
+        "sha256": "e6be7e02d2e13c87ebd4c31335d95b2f86954bd7b77329d434bc6534edb10900",
+        "length": 30
+      },
+      "tools.8.parameters.properties.revision.description": {
+        "sha256": "3ecc2bb3ed692e48d2a305905500da5033553e05e265283c998c9ff121dec21b",
+        "length": 45
+      },
+      "tools.8.parameters.properties.action.description": {
+        "sha256": "9020c3bdae6d7ef9f477576952b8a0b862668b1d3dd81183e1beecd035215db5",
+        "length": 42
+      },
+      "tools.8.parameters.properties.objective.description": {
+        "sha256": "207e6bb6ade8178a40ebc4905ebdcb61f2aeadf4f22246d5982eaf06f19681a9",
+        "length": 51
+      },
+      "tools.8.parameters.properties.max_goal_rounds.description": {
+        "sha256": "4268e09942def90a41220ff59b8b890e9f1bad9ea0796e48acad1550ac3d8934",
+        "length": 45
+      },
+      "tools.8.parameters.properties.blocked_reason.description": {
+        "sha256": "67f73681db3119c6340fda26ca81488078e631117aaeffe53e496eca71f76fc3",
+        "length": 63
+      },
+      "tools.9.description": {
+        "sha256": "cd2e8501b8d141662fcd8850ed4f5ad77e49f5f12e93bd53bdc7b0261a079957",
+        "length": 2763
+      },
+      "tools.9.parameters.properties.script.description": {
+        "sha256": "8b7f27c929d94ca12f62680a2dd7271b1eeb5825d7ee7576edcc888b5b989fd7",
+        "length": 126
+      },
+      "tools.9.parameters.properties.meta.description": {
+        "sha256": "d8ffd91795bcc3e9fe55902805daa0a3943adbc82071e49a9b504883fa533b9c",
+        "length": 54
+      },
+      "tools.9.parameters.properties.meta.properties.name.description": {
+        "sha256": "7f450653a0951a772816aa7d02f38b4e2095c7b398652febf095f0cca2719451",
+        "length": 31
+      },
+      "tools.9.parameters.properties.meta.properties.description.description": {
+        "sha256": "e538d0692cb9fa07900d0d104a16496c971171d2ae89f4ee5e5215158ada57df",
+        "length": 47
+      },
+      "tools.9.parameters.properties.meta.properties.whenToUse.description": {
+        "sha256": "25e6390a82d34889738ad4cc2cefadd6aaeb897a992a0e89fec9d775d9d01aab",
+        "length": 48
+      },
+      "tools.9.parameters.properties.meta.properties.phases.description": {
+        "sha256": "8fb2c07d8e192c4c16d48808aece84b7784f2a663a9b6baad3792f906517c048",
+        "length": 53
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.title.description": {
+        "sha256": "3c7d2356bdd31061d72b80e4057d3d3de1c9c5acecf1ac8a972bf550e07a1c3b",
+        "length": 52
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.detail.description": {
+        "sha256": "a17ac798a4db012cd4ea91fff5540913bfe7c1bec2d21df7f450bf289ec76526",
+        "length": 43
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.provider.description": {
+        "sha256": "c460fb56485d828a52fe1522184d7b9f1c067dfcebe0a2179e88eb3b45b90eb7",
+        "length": 57
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.model.description": {
+        "sha256": "823202cf3371ec1977e655d98632ce3670322a2b57e4d66bf9cd414d983b9e25",
+        "length": 54
+      },
+      "tools.9.parameters.properties.args.description": {
+        "sha256": "ad9e67288c537c3d068a9376e47fa3d8be6c9f95b65dab836f5abe9d9d697e07",
+        "length": 116
+      },
+      "tools.9.parameters.properties.run_in_background.description": {
+        "sha256": "2b2eae90c0c36608da34bd45ddba5db47a2b2e4f958e55d221de001ee912fd74",
+        "length": 125
+      }
+    },
+    {
+      "input.0.content": {
+        "sha256": "b46e1e325ee37d9ca6a142dc715b13af8a75f0ddac8cec10262dd48de1fa74c5",
+        "length": 2270
+      },
+      "input.1.content.0.text": {
+        "sha256": "a243a0289731b33cf7e4cb0aac4476c36de48eddfce1a6f767138a7fe6dd81e6",
+        "length": 32
+      },
+      "input.2.content.0.text": {
+        "sha256": "88ef14067a82dcef31a64a9e5230acdab70af362b62bf7b02079f2e879ac69ed",
+        "length": 490
+      },
+      "input.5.output": {
+        "sha256": "949d59b7ee8dabf8c14f26bb88463d19a331f38aa2542534727cb77fc3b94338",
+        "length": 14
+      },
+      "input.6.content.0.text": {
+        "sha256": "3d87935e88d65915afcd98f0d26690386fe722692b1ec45fcbe680a5db3767d3",
+        "length": 23
+      },
+      "input.8.content.0.text": {
+        "sha256": "57bde4deb215bfafd265380441109093117699d85e5c895f591ffcf6eb10c47e",
+        "length": 13
+      },
+      "input.9.content.0.text": {
+        "sha256": "f51bead488e14b656af3a13e33eb1d6fa9580832cbb9d7a20061f84c4b1c160f",
+        "length": 7
+      },
+      "tools.0.description": {
+        "sha256": "6e81df317766031412e8a2dc12e99b27bd98335d621c8846d5ff53d5b6be8052",
+        "length": 342
+      },
+      "tools.0.parameters.properties.objective.description": {
+        "sha256": "95b88c093ce82a12d4ec1b361fec89307e47276b706cce678dc47bbbccbbbc7a",
+        "length": 73
+      },
+      "tools.0.parameters.properties.max_goal_rounds.description": {
+        "sha256": "4d810e7c55e48b677f21117c2d9376c7e27bd3a2cbd240ebdef48def51ae47d7",
+        "length": 70
+      },
+      "tools.1.description": {
+        "sha256": "285a354a179febeb8eccce26354d6c53463350afa196d66b500f1694f0ff9ea2",
+        "length": 236
+      },
+      "tools.2.description": {
+        "sha256": "bafceafd48afca42f69e17e9cd13c9814ea7aaa2b498eb7ddbb8f093c7330e2d",
+        "length": 407
+      },
+      "tools.2.parameters.properties.pattern.description": {
+        "sha256": "6e323c05b6b7ad015d8eb7dcbe0aebb4868118ddd84cea549adc6e20a970901f",
+        "length": 222
+      },
+      "tools.2.parameters.properties.path.description": {
+        "sha256": "24fd612f481bc8b953ee7527474d72d62bc614d59d654bb26496cb257afa83ca",
+        "length": 95
+      },
+      "tools.3.description": {
+        "sha256": "f4d2e9b3783f1a034c67719e95f99ceafde0b2e4a264a8a22c3d75273f0ae068",
+        "length": 269
+      },
+      "tools.3.parameters.properties.pattern.description": {
+        "sha256": "307803eb2bce966466e78d7182f99ec2d07444f4ffef4304dafdf675fc5ccb23",
+        "length": 50
+      },
+      "tools.3.parameters.properties.path.description": {
+        "sha256": "c8d8b4411200903ca53514f77c9f5cb7da58e709b1fecd2ef651d18758c1241a",
+        "length": 100
+      },
+      "tools.3.parameters.properties.include.description": {
+        "sha256": "8170ba0b39620f8ecd28d2d5de388416409459ff29302f932a462889c7ec22b8",
+        "length": 109
+      },
+      "tools.4.description": {
+        "sha256": "69aec1893f9b03db0eefec680d090ff85e01ceca75041bea637c8d6815175de3",
+        "length": 56
+      },
+      "tools.4.parameters.properties.file_path.description": {
+        "sha256": "44f4872c855ddb223f043e8b230a899c0ac415e0396bed967c717dd0bf633410",
+        "length": 49
+      },
+      "tools.4.parameters.properties.offset.description": {
+        "sha256": "6bad12e7cf4c477a3e58a77448ca91022cd49a0ce6f2963d69647101d7f53a61",
+        "length": 44
+      },
+      "tools.4.parameters.properties.limit.description": {
+        "sha256": "125ec0eccfb7bf245d67a96d26f1c0aca5b625b9b997516f25a36f9b6941ab59",
+        "length": 52
+      },
+      "tools.5.description": {
+        "sha256": "860f18aca0c425f038f2ca600b9185209c20a127b927bf309e827f591639dffe",
+        "length": 545
+      },
+      "tools.5.parameters.properties.file_path.description": {
+        "sha256": "2107e3af2232fe78fa0f978de2bca0fd1708e8d1515ed27910dda5cb6633b8cc",
+        "length": 59
+      },
+      "tools.6.description": {
+        "sha256": "2287663021d880d624c8aa24d12e2960cea9a5f4e9e7319c59dd4f85b37808c7",
+        "length": 183
+      },
+      "tools.6.parameters.properties.name.description": {
+        "sha256": "254788cd1cd384dc14a690dcd0fae10b39eb0511e90dcbdcbc6516ceb2442de0",
+        "length": 52
+      },
+      "tools.7.description": {
+        "sha256": "203964618c7f8eccb7b348819bf1818d4f4c90a4969ab0952987fa3ddff849d9",
+        "length": 805
+      },
+      "tools.7.parameters.properties.todos.description": {
+        "sha256": "949638f0e88e2e8e3a46d6884c0e9ebf0ca72c9978080e7175341c0e84781fcc",
+        "length": 52
+      },
+      "tools.7.parameters.properties.todos.items.properties.content.description": {
+        "sha256": "57dcb7a6ba4bed95e07eca0f17e9c8c696784322895116df3acc9cacff348f11",
+        "length": 43
+      },
+      "tools.7.parameters.properties.todos.items.properties.status.description": {
+        "sha256": "ca8e4ce54549b57adf2fd3a9344da0930d1edc592ffc1de4769ccab5025d407c",
+        "length": 61
+      },
+      "tools.8.description": {
+        "sha256": "1811db518393bfab43883b830e75c911bad46ce8d6afcddd7e5a76aad8040f7e",
+        "length": 396
+      },
+      "tools.8.parameters.properties.goal_id.description": {
+        "sha256": "e6be7e02d2e13c87ebd4c31335d95b2f86954bd7b77329d434bc6534edb10900",
+        "length": 30
+      },
+      "tools.8.parameters.properties.revision.description": {
+        "sha256": "3ecc2bb3ed692e48d2a305905500da5033553e05e265283c998c9ff121dec21b",
+        "length": 45
+      },
+      "tools.8.parameters.properties.action.description": {
+        "sha256": "9020c3bdae6d7ef9f477576952b8a0b862668b1d3dd81183e1beecd035215db5",
+        "length": 42
+      },
+      "tools.8.parameters.properties.objective.description": {
+        "sha256": "207e6bb6ade8178a40ebc4905ebdcb61f2aeadf4f22246d5982eaf06f19681a9",
+        "length": 51
+      },
+      "tools.8.parameters.properties.max_goal_rounds.description": {
+        "sha256": "4268e09942def90a41220ff59b8b890e9f1bad9ea0796e48acad1550ac3d8934",
+        "length": 45
+      },
+      "tools.8.parameters.properties.blocked_reason.description": {
+        "sha256": "67f73681db3119c6340fda26ca81488078e631117aaeffe53e496eca71f76fc3",
+        "length": 63
+      },
+      "tools.9.description": {
+        "sha256": "cd2e8501b8d141662fcd8850ed4f5ad77e49f5f12e93bd53bdc7b0261a079957",
+        "length": 2763
+      },
+      "tools.9.parameters.properties.script.description": {
+        "sha256": "8b7f27c929d94ca12f62680a2dd7271b1eeb5825d7ee7576edcc888b5b989fd7",
+        "length": 126
+      },
+      "tools.9.parameters.properties.meta.description": {
+        "sha256": "d8ffd91795bcc3e9fe55902805daa0a3943adbc82071e49a9b504883fa533b9c",
+        "length": 54
+      },
+      "tools.9.parameters.properties.meta.properties.name.description": {
+        "sha256": "7f450653a0951a772816aa7d02f38b4e2095c7b398652febf095f0cca2719451",
+        "length": 31
+      },
+      "tools.9.parameters.properties.meta.properties.description.description": {
+        "sha256": "e538d0692cb9fa07900d0d104a16496c971171d2ae89f4ee5e5215158ada57df",
+        "length": 47
+      },
+      "tools.9.parameters.properties.meta.properties.whenToUse.description": {
+        "sha256": "25e6390a82d34889738ad4cc2cefadd6aaeb897a992a0e89fec9d775d9d01aab",
+        "length": 48
+      },
+      "tools.9.parameters.properties.meta.properties.phases.description": {
+        "sha256": "8fb2c07d8e192c4c16d48808aece84b7784f2a663a9b6baad3792f906517c048",
+        "length": 53
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.title.description": {
+        "sha256": "3c7d2356bdd31061d72b80e4057d3d3de1c9c5acecf1ac8a972bf550e07a1c3b",
+        "length": 52
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.detail.description": {
+        "sha256": "a17ac798a4db012cd4ea91fff5540913bfe7c1bec2d21df7f450bf289ec76526",
+        "length": 43
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.provider.description": {
+        "sha256": "c460fb56485d828a52fe1522184d7b9f1c067dfcebe0a2179e88eb3b45b90eb7",
+        "length": 57
+      },
+      "tools.9.parameters.properties.meta.properties.phases.items.properties.model.description": {
+        "sha256": "823202cf3371ec1977e655d98632ce3670322a2b57e4d66bf9cd414d983b9e25",
+        "length": 54
+      },
+      "tools.9.parameters.properties.args.description": {
+        "sha256": "ad9e67288c537c3d068a9376e47fa3d8be6c9f95b65dab836f5abe9d9d697e07",
+        "length": 116
+      },
+      "tools.9.parameters.properties.run_in_background.description": {
+        "sha256": "2b2eae90c0c36608da34bd45ddba5db47a2b2e4f958e55d221de001ee912fd74",
+        "length": 125
+      }
+    }
+  ]
+}

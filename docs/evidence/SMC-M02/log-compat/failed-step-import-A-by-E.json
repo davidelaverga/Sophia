@@ -1,0 +1,19 @@
+{
+  "direction": "import",
+  "readBy": "sophia-runtime-m02-dev",
+  "dsh": "0.2.0-rc.2",
+  "writtenBy": "sophia-runtime-s1-03-dev",
+  "writtenDsh": "0.1.7-rc.1",
+  "episode": "failed-step",
+  "readiness": "ready",
+  "unrecovered": {
+    "attemptId": "att-1",
+    "reason": "session \"sophia-att-1\": stored log is corrupt: SessionFormatError: step/end leaves unresolved tool call c2 (raw log: <home>/dsh-home/sessions/<workspace key>/sophia-att-1/session.v4.jsonl.zstd)"
+  },
+  "stderr": [
+    "[sophia-control-bridge] reconcile att-1 failed: session \"sophia-att-1\": stored log is corrupt: SessionFormatError: step/end leaves unresolved tool call c2 (raw log: <home>/dsh-home/sessions/<workspace key>/sophia-att-1/session.v4.jsonl.zstd)"
+  ],
+  "inputReceipt": "the attempt was not recovered after restart (session \"sophia-att-1\": stored log is corrupt: SessionFormatError: step/end leaves unresolved tool call c2 (raw log: <home>/dsh-home/sessions/<workspace key>/sophia-att-1/session.v4.jsonl.zstd)); send `resume`",
+  "modelRequests": 0,
+  "outcome": "refused_explicitly"
+}

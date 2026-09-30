@@ -130,3 +130,17 @@ test('the journal separates settled from unsettled commands, tracks redelivered 
     rmSync(dir, { recursive: true })
   }
 })
+
+test('the first recorded execution identity is the attempt\'s; a later record never replaces it (SMC-M02 G3)', () => {
+  const identity = (model, source) => ({ attemptId: 'a1', runtimeUnitId: 'u', preset: { id: 'sophia-review-v1', digest: 'sha256:1' }, route: { provider: 'p', model, reasoningEffort: null }, source, evidence: null })
+  assert.equal(foldLog([]).identity, null)
+  const journal = [
+    { seq: 0, time: 0, type: 'sophia/identity', data: identity('m1', 'create') },
+    { seq: 1, time: 0, type: 'sophia/command', data: { commandId: 'c1', kind: 'create', attemptId: 'a1', authorityEpoch: 1, messageId: null, target: null, content: null, nativeSeq: null, role: 'sophia-review-v1' } },
+    { seq: 2, time: 0, type: 'sophia/identity', data: identity('m2', 'migrated') },
+  ]
+  const logged = foldLog(journal)
+  assert.equal(logged.identity.route.model, 'm1')
+  assert.equal(logged.identity.source, 'create')
+  assert.equal(logged.role, 'sophia-review-v1')
+})

@@ -72,7 +72,53 @@ test('the model route check accepts the recorded route and names each way it can
   assert.match(messages(rows({ profile: { apiKey: 'sk-literal' } })).join(' '), /literal credential/)
   assert.match(messages(rows({ profile: { models: [{ id: 'gpt-6-astra' }] } }))[0], /does not list model/)
   assert.match(messages(rows({ profile: { models: [{ id: 'gpt-6-luna' }] } }))[0], /does not offer reasoning effort/)
+  const pinned = { ...route, compat: { supportsStrictMode: false } }
+  assert.match(checkModelRoute(rows(), pinned)[0].message, /compat\.supportsStrictMode false/)
+  assert.deepEqual(checkModelRoute(rows({ profile: { models: [{ id: 'gpt-6-luna', reasoningEfforts: { high: 'high' }, compat: { supportsStrictMode: false } }] } }), pinned), [])
   const unpatched = rows()
   unpatched[0].patchedBy = []
   assert.match(checkModelRoute(unpatched, route)[0].message, /must be set by/)
+})
+
+test('the reviewed base-row inventory names every added, removed or repackaged dsh-base row (SMC-M02)', async () => {
+  const { checkReviewedBaseRows } = await import('../../scripts/lib/gate.mjs')
+  const reviewed = { dsh_base: '0.2.0-rc.2', rows: [{ id: 'timer', name: '@deepseek-ai/cordis-plugin-timer' }, { id: 'otel', name: '@deepseek-ai/dsh-otel' }] }
+  const base = (...entries) => [{ insert: entries.map(([id, name]) => ({ id, name })) }]
+  assert.deepEqual(checkReviewedBaseRows(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel']), reviewed, '0.2.0-rc.2'), [])
+  const codes = (rows, version = '0.2.0-rc.2') => checkReviewedBaseRows(rows, reviewed, version).map((f) => f.code)
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel'], ['otel-export', '@deepseek-ai/dsh-otel'])), ['base_row_unreviewed'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'])), ['base_row_missing'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel-next'])), ['base_row_package_changed'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel-renamed', '@deepseek-ai/dsh-otel'])), ['base_row_unreviewed', 'base_row_missing'])
+  assert.deepEqual(codes(base(['timer', '@deepseek-ai/cordis-plugin-timer'], ['otel', '@deepseek-ai/dsh-otel']), '0.2.0-rc.3'), ['base_rows_unreviewed_version'])
+})
+
+test('every required disable is a reviewed base row and a disabled row of the Sophia bundle patch (SMC-M02)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { REQUIRED_DISABLED, loadReviewedBaseRows } = await import('../../scripts/lib/gate.mjs')
+  const { parseCordisYaml } = await import('../../scripts/lib/patch-lint.mjs')
+  const reviewed = new Set(loadReviewedBaseRows().rows.map((r) => r.id))
+  const patch = parseCordisYaml(readFileSync(new URL('../../packages/dsh-bundle/cordis.patch.yml', import.meta.url), 'utf8'))
+  const disabled = new Set(patch.filter((r) => r.disabled === true).map((r) => r.id))
+  for (const id of ['otel', 'llm-deepseek-account']) assert.ok(REQUIRED_DISABLED.includes(id), `${id} is required disabled`)
+  for (const id of REQUIRED_DISABLED) {
+    assert.ok(reviewed.has(id), `${id} is a reviewed base row`)
+    assert.ok(disabled.has(id), `${id} is disabled by the bundle patch`)
+  }
+})
+
+test('the preset roster must be exactly the recorded one, each preset inserted by the bundle and composing nothing (SMC-M02 G3)', async () => {
+  const { checkPresetRoster } = await import('../../scripts/lib/gate.mjs')
+  const presets = { registry: '@deepseek-ai/dsh-agent-preset-registry', registry_default: 'sophia-brief-v1', ids: ['sophia-review-v1', 'sophia-brief-v1'] }
+  const registry = (config = { default: 'sophia-brief-v1' }) => ({ id: 'agent-preset-registry', name: presets.registry, origin: '@sophia/dsh-bundle', patchedBy: [], config })
+  const preset = (id, plugins = [], extra = {}) => ({ id: `preset-${id}`, name: '@deepseek-ai/dsh-agent-preset', origin: '@sophia/dsh-bundle', patchedBy: [], config: { id, plugins }, ...extra })
+  const rows = (...extra) => [registry(), preset('sophia-review-v1'), preset('sophia-brief-v1'), ...extra]
+  assert.deepEqual(checkPresetRoster(rows(), presets), [])
+  const messages = (r) => checkPresetRoster(r, presets).map((f) => f.message).join('\n')
+  assert.match(messages(rows(preset('sophia-test-inert-v1'))), /"sophia-test-inert-v1" .* not in the unit's roster/)
+  assert.match(messages([registry(), preset('sophia-review-v1', [{ id: 'web', name: '@deepseek-ai/dsh-tool-web' }]), preset('sophia-brief-v1')]), /composes .*dsh-tool-web/)
+  assert.match(messages([registry(), preset('sophia-review-v1')]), /recorded preset "sophia-brief-v1" is not composed/)
+  assert.match(messages([registry({ default: 'sophia-research-v1' }), preset('sophia-review-v1'), preset('sophia-brief-v1')]), /default is "sophia-research-v1"/)
+  assert.match(messages([registry(), preset('sophia-review-v1', [], { patchedBy: ['profile'] }), preset('sophia-brief-v1')]), /patched by no layer/)
+  assert.match(messages([preset('sophia-review-v1'), preset('sophia-brief-v1')]), /expected one @deepseek-ai\/dsh-agent-preset-registry row/)
 })

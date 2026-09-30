@@ -43,8 +43,6 @@ export interface ProjectRoom {
 
 type Device = 'microphone' | 'camera' | 'screen'
 
-const KEY_OF: Record<Exclude<Device, 'screen'>, string> = { microphone: 'M', camera: 'V' }
-
 /**
  * What stopped a device, and what to do about it. Null when there is nothing to say: cancelling the screen
  * picker is a choice, not an error. The note stays until the device works or the call ends.
@@ -54,14 +52,11 @@ function mediaMessage(err: unknown, device: Device): string | null {
   if (device === 'screen') {
     return name === 'NotAllowedError' || name === 'AbortError' ? null : 'Screen sharing couldn’t start. Try again.'
   }
-  const listen = device === 'microphone' ? ' You can still listen.' : ''
   const Device = device.charAt(0).toUpperCase() + device.slice(1)
-  if (name === 'NotAllowedError') {
-    return `${Device} blocked. Allow it from the icon in the address bar, then press ${KEY_OF[device]}.${listen}`
-  }
-  if (name === 'NotFoundError') return `No ${device} found.${listen}`
+  if (name === 'NotAllowedError') return `${Device} blocked. Allow it in the address bar.`
+  if (name === 'NotFoundError') return `No ${device} found.`
   if (name === 'NotReadableError') return `Another app is using your ${device}. Close it and try again.`
-  return `The ${device} couldn’t start. Try again.${listen}`
+  return `The ${device} couldn’t start. Try again.`
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */

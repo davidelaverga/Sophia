@@ -64,15 +64,10 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
   // Unavailable is said as such: it is never shown as an empty mission.
   if (mission.isError) return <p className="mission muted">The mission couldn’t be read just now.</p>
   const ctx = frozen ?? mission.data
-  const aim = direction(ctx)
   const parts = { ctx, projectId, identity, me, names, onEditing: editing }
   return (
     <section className="mission" aria-label="Mission">
-      <p className="mission-direction">
-        <span className="eyebrow">Direction</span>
-        <span className={aim.accepted ? '' : 'muted'}>{aim.statement}</span>
-        {aim.purpose && <span className="mission-purpose muted">{aim.purpose}</span>}
-      </p>
+      <DirectionLine ctx={ctx} />
       {ctx.capabilities.propose.available && (
         <EditDirection ctx={ctx} projectId={projectId} identity={identity} onEditing={editing} />
       )}
@@ -95,11 +90,22 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
       {ctx.capabilities.recordNote.available && <AddNote {...parts} />}
       <NoteConsent ctx={ctx} projectId={projectId} identity={identity} />
       <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={names} />}>
-        {ctx.capabilities.setNotePolicy.available && (
-          <CaptureSwitch ctx={ctx} projectId={projectId} identity={identity} />
-        )}
+        <CaptureOff ctx={ctx} projectId={projectId} identity={identity} />
       </MoreNotes>
     </section>
+  )
+}
+
+/** The direction the team accepted, or how a new project begins; nothing while there is none to show. */
+function DirectionLine({ ctx }: { ctx: MissionContext }) {
+  const aim = direction(ctx)
+  if (!aim) return null
+  return (
+    <p className="mission-direction">
+      <span className="eyebrow">Direction</span>
+      <span className={aim.accepted ? '' : 'muted'}>{aim.statement}</span>
+      {aim.purpose && <span className="mission-purpose muted">{aim.purpose}</span>}
+    </p>
   )
 }
 
@@ -314,40 +320,57 @@ function usePolicyWrite(projectId: string) {
   return { change, error }
 }
 
-/** Whether Sophia keeps notes for this person, and their own choice: as easy to take back as to give. */
+/**
+ * Whether Sophia keeps notes for this person, and their own choice: as easy to take back as to give. With notes off
+ * for the project there is no choice to make; an admin can turn them on right here.
+ */
 function NoteConsent({ ctx, projectId, identity }: PolicyProps) {
   const { change, error } = usePolicyWrite(projectId)
   const line = notesLine(ctx.notePolicy)
+  const off = ctx.notePolicy.capture === 'off'
   const accepted = ctx.notePolicy.consent === 'accepted'
   const choose = () => change(() => setNoteConsent(identity.token, projectId, accepted ? 'declined' : 'accepted'))
+  const turnOn = () =>
+    change(() =>
+      setNotePolicy(identity.token, projectId, { capture: 'automatic', expectedRevision: ctx.notePolicy.revision }),
+    )
   return (
     <div className="mission-policy">
       <Tag tone={line.tone}>Notes</Tag>
       <span>{line.text}</span>
-      <button type="button" className="text-button" onClick={() => void choose()}>
-        {accepted ? 'Keep no notes from my turns' : 'Agree to notes from my turns'}
-      </button>
+      {!off && (
+        <button
+          type="button"
+          className="text-button"
+          aria-label={accepted ? 'Stop keeping notes from my turns' : 'Agree to notes from my turns'}
+          onClick={() => void choose()}
+        >
+          {accepted ? 'Stop' : 'Agree'}
+        </button>
+      )}
+      {off && ctx.capabilities.setNotePolicy.available && (
+        <button type="button" className="text-button" onClick={() => void turnOn()}>
+          Turn on
+        </button>
+      )}
       {error && <Tag tone="rose">{error}</Tag>}
     </div>
   )
 }
 
-/** An admin's switch for the whole project, kept behind the disclosure: whether Sophia keeps notes by voice at all. */
-function CaptureSwitch({ ctx, projectId, identity }: PolicyProps) {
+/** An admin's switch, kept behind the disclosure while notes are on: off for everyone (on sits beside Notes). */
+function CaptureOff({ ctx, projectId, identity }: PolicyProps) {
   const { change, error } = usePolicyWrite(projectId)
-  const off = ctx.notePolicy.capture === 'off'
-  const flip = () =>
+  if (!ctx.capabilities.setNotePolicy.available || ctx.notePolicy.capture === 'off') return null
+  const turnOff = () =>
     change(() =>
-      setNotePolicy(identity.token, projectId, {
-        capture: off ? 'automatic' : 'off',
-        expectedRevision: ctx.notePolicy.revision,
-      }),
+      setNotePolicy(identity.token, projectId, { capture: 'off', expectedRevision: ctx.notePolicy.revision }),
     )
   return (
     <div className="mission-policy">
-      <span>{off ? 'Note capture is off for everyone here.' : 'Note capture is on for members who agree.'}</span>
-      <button type="button" className="text-button" onClick={() => void flip()}>
-        {off ? 'Turn note capture on' : 'Turn note capture off'}
+      <span>Note capture is on for members who agree.</span>
+      <button type="button" className="text-button" onClick={() => void turnOff()}>
+        Turn note capture off
       </button>
       {error && <Tag tone="rose">{error}</Tag>}
     </div>

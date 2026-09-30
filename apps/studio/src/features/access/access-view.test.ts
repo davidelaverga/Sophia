@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  ago,
   askAgainIn,
+  clashWith,
   clock,
   countdown,
+  doorNote,
+  formSlot,
   freshJoinToken,
   invitationState,
   knockNote,
@@ -11,6 +15,7 @@ import {
   linkLimits,
   nextSession,
   PENDING_JOIN_MS,
+  plannedSession,
   qrPath,
   readJoinToken,
   sessionFromForm,
@@ -75,6 +80,25 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(removalNote({ state: 'absent', attempts: 0, lastError: null }), '', 'they were not in it')
   })
 
+  it('says how long ago in short words, and a clock running ahead is just now', () => {
+    const now = at('2026-09-30T12:00:00Z')
+    const times = ['11:59:30', '11:48:00', '09:00:00'].map((t) => `2026-09-30T${t}Z`)
+    assert.deepEqual(
+      [...times, '2026-09-29T11:00:00Z', '2026-09-27T12:00:00Z', '2026-09-30T12:00:05Z'].map((t) => ago(t, now)),
+      ['just now', '12 min ago', '3 h ago', '1 day ago', '3 days ago', 'just now'],
+    )
+  })
+
+  it('notes a guest at the door by what still matters, then when it was decided, never a bare "guest"', () => {
+    const now = at('2026-09-30T12:00:00Z')
+    const decidedAt = '2026-09-30T11:48:00Z'
+    const removed = { state: 'removed', attempts: 1, lastError: null } as const
+    assert.equal(doorNote({ removal: null, knocks: 1, decidedAt }, now), '12 min ago')
+    assert.equal(doorNote({ removal: null, knocks: 2, decidedAt }, now), 'asked again · 12 min ago')
+    assert.equal(doorNote({ removal: removed, knocks: 3, decidedAt }, now), 'out of the call · 12 min ago')
+    assert.equal(doorNote({ removal: null, knocks: 1, decidedAt: null }, now), '')
+  })
+
   it('keeps an opened link for the sign-in round trip, then lets it go', () => {
     const token = 'b'.repeat(43)
     const saved = JSON.stringify({ token, at: 1_000 })
@@ -125,6 +149,28 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(s.title, 'Weekly')
     assert.equal(Date.parse(s.endsAt) - Date.parse(s.startsAt), 45 * 60_000)
     assert.equal(s.timeZone, 'America/Bogota')
+  })
+
+  it('plans nothing while the date or time is incomplete', () => {
+    const form = { title: 'Weekly', date: '2026-10-01', time: '10:00', minutes: 30 }
+    assert.equal(plannedSession({ ...form, date: '' }, 'UTC'), null)
+    assert.equal(plannedSession({ ...form, time: '' }, 'UTC'), null)
+    assert.deepEqual(plannedSession(form, 'UTC'), sessionFromForm(form, 'UTC'))
+  })
+
+  it('finds the session a planned one would overlap, and lets sessions that only touch pass', () => {
+    const booked = [session('a', '2026-10-01T10:00:00Z', '2026-10-01T11:00:00Z')]
+    const plan = (startsAt: string, endsAt: string) => clashWith(booked, { startsAt, endsAt })
+    assert.equal(plan('2026-10-01T10:30:00Z', '2026-10-01T11:30:00Z')?.id, 'a', 'overlaps the end')
+    assert.equal(plan('2026-10-01T09:00:00Z', '2026-10-01T12:00:00Z')?.id, 'a', 'contains it')
+    assert.equal(plan('2026-10-01T10:00:00Z', '2026-10-01T11:00:00Z')?.id, 'a', 'the same slot twice')
+    assert.equal(plan('2026-10-01T11:00:00Z', '2026-10-01T12:00:00Z'), null, 'starts as it ends')
+    assert.equal(plan('2026-10-01T09:00:00Z', '2026-10-01T10:00:00Z'), null, 'ends as it starts')
+  })
+
+  it('writes a moment as the form’s own date and time fields, in the browser’s zone', () => {
+    assert.deepEqual(formSlot(new Date(2026, 8, 30, 4, 0)), { date: '2026-09-30', time: '04:00' })
+    assert.deepEqual(formSlot(new Date(2026, 0, 5, 9, 7)), { date: '2026-01-05', time: '09:07' })
   })
 
   it('draws one square per dark module, inside the quiet border', () => {

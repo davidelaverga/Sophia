@@ -140,13 +140,13 @@ const shown = (
 ): Shown => ({ id, kind, state, revision: 1, statement, purpose: null, destination: null, origin: null, ...over })
 
 describe('mission view', () => {
-  it('says plainly when nothing is accepted, and how to begin when nothing is recorded', () => {
+  it('says nothing when no direction is accepted, and how to begin when nothing is recorded', () => {
     assert.deepEqual(direction(context({ readState: 'empty' })), {
       statement: 'Nothing recorded yet. Talk the idea through with Sophia.',
       purpose: null,
       accepted: false,
     })
-    assert.equal(direction(context()).statement, 'No direction accepted yet.')
+    assert.equal(direction(context()), null)
   })
 
   it('shows the accepted direction and its purpose', () => {
@@ -175,14 +175,11 @@ describe('mission view', () => {
     assert.deepEqual([focus?.proposal.id, focus?.alternatives], ['2', 1])
   })
 
-  it('says whether Sophia keeps notes for this person, and why not', () => {
-    assert.equal(notesLine(policy()).text, 'Sophia isn’t keeping notes in this project.')
-    assert.equal(
-      notesLine(policy({ capture: 'automatic', consent: 'accepted' })).text,
-      'Sophia keeps shared project notes during this exchange.',
-    )
-    assert.match(notesLine(policy({ capture: 'automatic', consent: 'declined' })).text, /you declined/)
-    assert.match(notesLine(policy({ capture: 'automatic' })).text, /You haven’t chosen yet/)
+  it('says in a few words whether Sophia keeps notes for this person', () => {
+    assert.equal(notesLine(policy()).text, 'Off')
+    assert.equal(notesLine(policy({ capture: 'automatic', consent: 'accepted' })).text, 'Kept from your turns')
+    assert.equal(notesLine(policy({ capture: 'automatic', consent: 'declined' })).text, 'Not kept from your turns')
+    assert.equal(notesLine(policy({ capture: 'automatic' })).text, 'Kept for members who agree')
   })
 
   it('labels a paraphrase as Sophia’s, and a forgotten note by what is left of it', () => {

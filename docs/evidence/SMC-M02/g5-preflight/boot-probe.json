@@ -1,0 +1,15 @@
+{
+  "probe": "boot-probe.mjs on a copy of the in-place rehearsal's root after its rollback (s1-03-dev profile, one held-then-resumed session)",
+  "checkout": "9198f58 (revision 4)",
+  "result": { "unit": "sophia-runtime-m02-dev", "reconcile": "upgraded", "drift": 10, "unrecovered": [] },
+  "manifest_comparison_before_vs_after": {
+    "dsh-home/sessions/<workspace>": { "same": 2 },
+    "dsh-home/sophia-bridge/<session>.jsonl": { "same": 1 },
+    "dsh-home/storages/session_projcache": { "same": 1 },
+    "dsh-home/profiles/sophia-runtime": { "same": 16, "changed": 13, "added": 1, "removed": 1 },
+    "dsh-home/profiles/.sophia-runtime.previous": { "same": 16, "changed": 13, "added": 1, "removed": 1 },
+    "home/.local/share (dsh and Node caches)": { "same": 45, "changed": 15, "added": 31, "removed": 1 },
+    "home/tmp": { "same": 2 },
+    "overlay-0.yml (the probe's mock route overlay)": { "changed": 1 }
+  }
+}

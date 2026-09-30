@@ -2,7 +2,7 @@
 // gallery. Sophia keeps a tile of her own: it is transparent, and her light shines in it from behind.
 import { useEffect, useRef } from 'react'
 import type { VideoFeed } from './livekit-room.ts'
-import { shortName, type FloorView, type RoomParticipant, type StageMode } from './room-view.ts'
+import { screenCaption, shortName, type FloorView, type RoomParticipant, type StageMode } from './room-view.ts'
 
 function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
   const video = useRef<HTMLVideoElement>(null)
@@ -77,7 +77,7 @@ export function VideoStage({ mode, people, feeds, floor }: Props) {
       <div className="present">
         <figure className="screen-main">
           <VideoView feed={screen} fit="contain" />
-          <figcaption>{presenter ? `${shortName(presenter.name)}’s screen` : 'Shared screen'}</figcaption>
+          <figcaption>{screenCaption(presenter)}</figcaption>
         </figure>
         <ul className="tile-strip" aria-label="In the room">
           {tiles}

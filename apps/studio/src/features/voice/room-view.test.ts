@@ -4,9 +4,11 @@ import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
   orderParticipants,
+  presenceRole,
   presenceSlots,
   roomLine,
   runningWork,
+  screenCaption,
   shortName,
   stageMode,
   standingOf,
@@ -77,6 +79,28 @@ describe('floor view', () => {
   })
 })
 
+describe('what sets someone apart', () => {
+  const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
+
+  it('says one thing about a person, or nothing', () => {
+    assert.equal(presenceRole(davide, true), 'has the floor')
+    assert.equal(presenceRole({ ...davide, speaking: true }, false), 'speaking')
+    assert.equal(presenceRole({ ...davide, standing: 'viewer' }, false), 'listening')
+    assert.equal(presenceRole(davide, false), null)
+  })
+
+  it('keeps a guest marked as one while they speak: their name is their own choice', () => {
+    assert.equal(presenceRole(guest, false), 'guest')
+    assert.equal(presenceRole({ ...guest, speaking: true }, false), 'guest · speaking')
+  })
+
+  it('says whose screen is shared, and that a guest is one', () => {
+    assert.equal(screenCaption(davide), 'Davide’s screen')
+    assert.equal(screenCaption(guest), 'Luis’s screen · guest')
+    assert.equal(screenCaption(undefined), 'Shared screen')
+  })
+})
+
 describe('room stage', () => {
   it('shortens emails to a first name', () => {
     assert.deepEqual(
@@ -109,7 +133,7 @@ describe('room stage', () => {
     const free = floorView(null, [luis, davide])
     assert.deepEqual(roomLine('idle', free, 0), {
       text: 'The room is ready',
-      note: 'Sophia joins the conversation when someone asks her in.',
+      note: 'Sophia joins when asked.',
     })
     assert.equal(roomLine('live', free, 0).text, 'The floor is open')
     assert.equal(roomLine('live', floorView('a', [luis, davide]), 0).text, 'You have the floor')

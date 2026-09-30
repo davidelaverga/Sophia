@@ -1,7 +1,7 @@
 // Invite: the room's link and its QR for guests, emailed invitations, and the room's calendar. A sheet over
 // the Studio; nothing here changes the room itself until someone uses a link. Every action says when it is
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
 import { ConfirmButton, Icon, SwapLabel, Tip } from '@sophia/ui'
 import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
@@ -9,7 +9,8 @@ import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { nextInRow } from '../../app/roving.ts'
 import { useDialog } from '../../app/useDialog.ts'
-import { invitationState, knockNote, linkLimits, removalNote } from './access-view.ts'
+import { doorNote, invitationState, linkLimits } from './access-view.ts'
+import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
@@ -42,14 +43,16 @@ export function InviteSheet({ context, onClose }: { context: SheetContext; onClo
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-labelledby="invite-title" tabIndex={-1}>
-        <header className="sheet-head">
-          <h2 id="invite-title">Invite</h2>
-          <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
-            <Icon name="close" />
-            <Tip label="Close" keys="Esc" side="bottom" align="end" />
-          </button>
-        </header>
-        <SheetTabs tab={tab} onTab={setTab} />
+        <div className="sheet-top">
+          <header className="sheet-head">
+            <h2 id="invite-title">Invite</h2>
+            <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
+              <Icon name="close" />
+              <Tip label="Close" keys="Esc" side="bottom" align="end" />
+            </button>
+          </header>
+          <SheetTabs tab={tab} onTab={setTab} />
+        </div>
         <div id="invite-panel" role="tabpanel" aria-labelledby={`invite-tab-${tab}`}>
           {tab === 'guests' && <GuestsTab context={context} />}
           {tab === 'members' && <MembersTab context={context} onGuests={() => setTab('guests')} />}
@@ -100,17 +103,21 @@ function useInviteList(context: SheetContext) {
   }
 }
 
-/** One action at a time, its failure said in words (the API's own when it is a refusal); then a refresh. */
+/**
+ * One action at a time, its failure said in words (the API's own when it is a refusal); then a refresh. Resolves
+ * to the action's result, or null when it failed.
+ */
 function useAction(refresh: () => void) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const run = async (key: string, action: () => Promise<unknown>, failure: string) => {
+  const run = async <T,>(key: string, action: () => Promise<T>, failure: string): Promise<T | null> => {
     setBusy(key)
     setError(null)
     try {
-      await action()
+      return await action()
     } catch (err: unknown) {
       setError(err instanceof ApiError && err.status > 0 && err.status < 500 ? err.message : failure)
+      return null
     } finally {
       setBusy(null)
       refresh()
@@ -135,20 +142,6 @@ function CopyButton({ text, quiet = false }: { text: string; quiet?: boolean }) 
     <button type="button" className={quiet ? 'ghost' : 'pill'} onClick={() => void copy()}>
       <SwapLabel value={done ? 'done' : 'copy'} labels={{ copy: 'Copy link', done: 'Copied' }} />
     </button>
-  )
-}
-
-/** An admission's outcome in words: its refusal, or an unanswered request with its retry. */
-function AdmissionNote<A, R>({ state, onRetry }: { state: AdmissionState<A, R>; onRetry: () => void }) {
-  if (state.status === 'rejected') return <>{state.error.message}</>
-  if (state.status !== 'unknown') return null
-  return (
-    <>
-      Sophia didn’t answer.{' '}
-      <button type="button" className="text-button" onClick={onRetry}>
-        Try again
-      </button>
-    </>
   )
 }
 
@@ -216,7 +209,9 @@ function RoomLink({ token, link, onChange }: { token: string; link: Invitation; 
   return (
     <div className="room-link">
       <QrCode value={link.url} label="QR code of the room link" />
-      <p className="link-text">{link.url}</p>
+      <p className="link-text" title={link.url}>
+        {link.url}
+      </p>
       <p className="link-limits">{linkLimits(link)}</p>
       <div className="control-row">
         <CopyButton text={link.url} />
@@ -320,6 +315,7 @@ interface DoorListProps {
 
 function DoorList({ title, entries, note, children }: DoorListProps) {
   if (entries.length === 0) return null
+  const now = Date.now()
   return (
     <div className="sheet-form">
       <p className="field-label">{title}</p>
@@ -328,7 +324,7 @@ function DoorList({ title, entries, note, children }: DoorListProps) {
           <li key={e.id}>
             <span className="invitation-who">{e.displayName}</span>
             <span className="invitation-state" title={e.removal?.lastError ?? undefined}>
-              {removalNote(e.removal) || knockNote(e.knocks) || 'guest'}
+              {doorNote(e, now)}
             </span>
             <span className="invitation-actions">{children(e)}</span>
           </li>
@@ -365,7 +361,7 @@ function EmailGuest({ context, onSent }: { context: SheetContext; onSent: () => 
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <button type="submit" className="pill" disabled={create.state.status === 'sending'}>
+        <button type="submit" className="pill" disabled={create.state.status === 'sending' || !email.trim()}>
           {create.state.status === 'sending' ? 'Sending…' : 'Send'}
         </button>
       </div>
@@ -450,7 +446,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
           <option value="viewer">Viewer</option>
         </select>
       </div>
-      <button type="submit" className="pill primary" disabled={create.state.status === 'sending'}>
+      <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
         {create.state.status === 'sending' ? 'Sending…' : 'Send invitation'}
       </button>
       <SentNote state={create.state} onRetry={() => void create.retry().then(onSent)} />
@@ -464,50 +460,93 @@ interface ListProps {
   onChange: () => void
 }
 
-/** Invitations sent to one person: each open one can be copied, sent again or cancelled. */
+/** Which row just did something, for two seconds: a word of thanks in place, then back. */
+function useFlash(): [string | null, (id: string) => void] {
+  const [id, setId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!id) return undefined
+    const t = setTimeout(() => setId(null), 2000)
+    return () => clearTimeout(t)
+  }, [id])
+  return [id, setId]
+}
+
+/**
+ * Invitations sent to one person: each open one can be copied, sent again or cancelled. Closed ones (joined,
+ * cancelled, expired) fold under one line, so the record stays and the list stays short.
+ */
 function InvitationList({ invitations, token, onChange }: ListProps) {
   const action = useAction(onChange)
+  const [resent, flashResent] = useFlash()
   if (invitations.length === 0) return null
   const now = Date.now()
+  const open = invitations.filter(isOpen)
+  const closed = invitations.filter((i) => !isOpen(i))
+  const row = (i: Invitation) => (
+    <InvitationRow
+      key={i.id}
+      invitation={i}
+      now={now}
+      busy={action.busy === i.id}
+      resent={resent === i.id}
+      // Sent again only when the email went; otherwise the row's state says what happened instead.
+      onResend={() =>
+        void action
+          .run(i.id, () => reissueInvitation(token, i.id), 'Couldn’t send it again. Try again.')
+          .then((next) => {
+            if (next?.emailStatus === 'sent') flashResent(i.id)
+          })
+      }
+      onCancel={() => void action.run(i.id, () => revokeInvitation(token, i.id), 'Couldn’t cancel it. Try again.')}
+    />
+  )
   return (
-    <>
-      <ul className="invitation-list">
-        {invitations.map((i) => (
-          <li key={i.id} data-closed={!isOpen(i) || undefined}>
-            <span className="invitation-who">{i.email}</span>
-            <span className="invitation-state">{invitationState(i, now)}</span>
-            {isOpen(i) && (
-              <span className="invitation-actions">
-                <CopyButton text={i.url} quiet />
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={action.busy === i.id}
-                  onClick={() =>
-                    void action.run(i.id, () => reissueInvitation(token, i.id), 'Couldn’t send it again. Try again.')
-                  }
-                >
-                  Send again
-                </button>
-                <ConfirmButton
-                  label="Cancel"
-                  warning="The emailed link stops working."
-                  confirm="Cancel invitation"
-                  disabled={action.busy === i.id}
-                  onConfirm={() =>
-                    void action.run(i.id, () => revokeInvitation(token, i.id), 'Couldn’t cancel it. Try again.')
-                  }
-                />
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
+    <div className="invitations">
+      {open.length > 0 && <ul className="invitation-list">{open.map(row)}</ul>}
+      {closed.length > 0 && (
+        <details className="closed-invitations">
+          <summary>{closed.length} closed</summary>
+          <ul className="invitation-list">{closed.map(row)}</ul>
+        </details>
+      )}
       {action.error && (
         <p className="form-error" role="alert">
           {action.error}
         </p>
       )}
-    </>
+    </div>
+  )
+}
+
+interface RowProps {
+  invitation: Invitation
+  now: number
+  busy: boolean
+  resent: boolean
+  onResend: () => void
+  onCancel: () => void
+}
+
+function InvitationRow({ invitation: i, now, busy, resent, onResend, onCancel }: RowProps) {
+  return (
+    <li data-closed={!isOpen(i) || undefined}>
+      <span className="invitation-who">{i.email}</span>
+      <span className="invitation-state">{invitationState(i, now)}</span>
+      {isOpen(i) && (
+        <span className="invitation-actions">
+          <CopyButton text={i.url} quiet />
+          <button type="button" className="ghost" disabled={busy} onClick={onResend}>
+            <SwapLabel value={resent ? 'done' : 'send'} labels={{ send: 'Send again', done: 'Sent' }} />
+          </button>
+          <ConfirmButton
+            label="Cancel"
+            warning="The emailed link stops working."
+            confirm="Cancel invitation"
+            disabled={busy}
+            onConfirm={onCancel}
+          />
+        </span>
+      )}
+    </li>
   )
 }

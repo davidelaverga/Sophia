@@ -9,19 +9,22 @@ import { useAdmission } from '../api/useAdmission.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import type { Identity } from './dev-identity.ts'
 import { openedLabel, readRecent } from './recent-projects.ts'
+import { SLOW_NOTE, useSlow } from './useSlow.ts'
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
 interface Props {
   identity: Identity
   identityControl: React.ReactNode
+  /** Why the sign-in link that brought this person here did not do what it offered (auth.ts). */
+  notice?: string | undefined
   onOpen: (projectId: string) => void
 }
 
-export function ProjectHome({ identity, identityControl, onOpen }: Props) {
+export function ProjectHome({ identity, identityControl, notice, onOpen }: Props) {
   return (
     <main className="screen home">
-      <SophiaLight mode="rest" target={null} attention={null} working={false} />
+      <SophiaLight mode="rest" target={null} attention={null} working={false} screen />
       <header className="screen-bar">
         <div className="screen-mark">
           <span className="mark-dot" aria-hidden />
@@ -30,6 +33,15 @@ export function ProjectHome({ identity, identityControl, onOpen }: Props) {
         {identityControl}
       </header>
       <div className="screen-body">
+        <div className="home-intro">
+          <h1 className="screen-title">What are we building?</h1>
+          <p>A project is where your team and Sophia build something together.</p>
+        </div>
+        {notice && (
+          <p className="form-error" role="alert">
+            {notice}
+          </p>
+        )}
         <CreateProjectForm token={identity.token} onCreated={onOpen} />
         <RecentProjects identity={identity.name} onOpen={onOpen} />
         <OpenProjectForm onOpen={onOpen} />
@@ -65,6 +77,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
   const [title, setTitle] = useState('')
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
   const { status } = admission.state
+  const slow = useSlow(status === 'sending')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,7 +95,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         className="title-input"
         required
         maxLength={180}
-        placeholder="What are we building?"
+        placeholder="Name the project"
         value={title}
         // Editing the title after an unknown outcome would be a new intent, so keep it locked until retried.
         readOnly={status === 'unknown'}
@@ -92,6 +105,7 @@ function CreateProjectForm({ token, onCreated }: { token: string; onCreated: (pr
         {status === 'sending' ? 'Creating…' : status === 'unknown' ? 'Try again' : 'Start the project'}
       </button>
       <p className="outcome" role="status" aria-live="polite">
+        {slow && <span>{SLOW_NOTE}</span>}
         {admission.state.status === 'unknown' && (
           <>
             <Tag tone="amber">Not confirmed</Tag>

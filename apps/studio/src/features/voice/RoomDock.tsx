@@ -1,7 +1,9 @@
 // invoke / mic / finishExchange → the room dock (frontend bindings): one floating control for the room.
 // Before joining it offers to join; in the room it holds microphone, camera, screen, the input floor
-// and leave. Nothing here changes project work.
+// and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
+// --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, type RefObject } from 'react'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -31,11 +33,30 @@ interface Props {
 /** Screen sharing needs getDisplayMedia, which phones do not offer; an insecure page has no mediaDevices. */
 export const canShareScreen = 'mediaDevices' in navigator && 'getDisplayMedia' in navigator.mediaDevices
 
+/** The dock's height, notes included, as --dock-h on the room around it. */
+function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const wrap = ref.current
+    const room = wrap?.closest<HTMLElement>('.room-stage')
+    if (!wrap || !room) return undefined
+    const observer = new ResizeObserver(() => {
+      room.style.setProperty('--dock-h', `${String(Math.ceil(wrap.getBoundingClientRect().height))}px`)
+    })
+    observer.observe(wrap)
+    return () => {
+      observer.disconnect()
+      room.style.removeProperty('--dock-h')
+    }
+  }, [ref])
+}
+
 export function RoomDock(props: Props) {
   const { room } = props
   const live = room.status === 'live' || room.status === 'reconnecting'
+  const wrap = useRef<HTMLDivElement>(null)
+  useDockHeight(wrap)
   return (
-    <div className="dock-wrap">
+    <div ref={wrap} className="dock-wrap">
       <LookingIndicator text={props.sophia.looking} />
       {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
       {(room.mediaError ?? room.error) && (
@@ -184,7 +205,10 @@ function floorRefusal(error: ApiError): string {
   return error.message
 }
 
-/** Who may address Sophia, and the one action this person can take on it: take it, or pass it on. */
+/**
+ * Who may address Sophia, and the one action this person can take on it: take it, or pass it on. An open floor
+ * beside "Take the floor" needs no words of its own; who holds it, or an open floor nobody here can take, does.
+ */
 function FloorControl({ floor, me, context, onPassed }: FloorProps) {
   const { projectId, identity, snapshot } = context
   const queryClient = useQueryClient()
@@ -204,12 +228,17 @@ function FloorControl({ floor, me, context, onPassed }: FloorProps) {
   }
   const busy = admission.state.status === 'sending'
   const holder = floor.holder ? (floor.mine ? 'You' : shortName(floor.holder.name)) : 'Open'
+  const said = !floor.holder && floor.canTake
   return (
     <div className="floor">
-      <span className="floor-label">Floor</span>
-      <span key={holder} className="floor-name arrive">
-        {holder}
-      </span>
+      {!said && (
+        <>
+          <span className="floor-label">Floor</span>
+          <span key={holder} className="floor-name arrive">
+            {holder}
+          </span>
+        </>
+      )}
       <FloorAction floor={floor} me={me} busy={busy} onPass={(id) => void pass(id)} />
       {admission.state.status === 'rejected' && (
         <span className="floor-error" role="alert">

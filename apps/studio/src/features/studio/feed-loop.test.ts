@@ -22,8 +22,11 @@ const advance = (sequence: string): Frame => ({ projectId: P, type: 'cursor.adva
 
 type Attempt = (after: string, onOpen: () => void, onFrame: (f: Frame) => void) => Promise<void>
 
-/** Scripted ports: each stream attempt runs the next scripted behaviour; the loop stops after them. */
-function harness(attempts: Attempt[], snapshotCursor = '0') {
+/**
+ * Scripted ports: each stream attempt runs the next scripted behaviour; the loop stops after them. `doors` answers
+ * each "was the snapshot refused too?" in turn (a closed door when none is scripted).
+ */
+function harness(attempts: Attempt[], snapshotCursor = '0', doors: boolean[] = []) {
   let feed: Feed = initialFeed('0')
   const connections: Connection[] = []
   const followedFrom: string[] = []
@@ -49,6 +52,7 @@ function harness(attempts: Attempt[], snapshotCursor = '0') {
       return next(after, onOpen, onFrame)
     },
     setConnection: (c) => connections.push(c),
+    refused: () => Promise.resolve(doors.shift() ?? true),
     eventApplied: () => (eventsApplied += 1),
     sleep: (ms) => {
       sleeps.push(ms)
@@ -108,11 +112,20 @@ describe('runFeedLoop', () => {
     assert.equal(h.eventsApplied, 0)
   })
 
-  it('stops and reports denied on 401/403', async () => {
+  it('stops and reports denied when the stream and then the snapshot are refused', async () => {
     const h = harness([denied, stream(event('1'))])
     await h.run()
     assert.equal(h.connections.at(-1), 'denied')
     assert.deepEqual(h.followedFrom, ['0'])
+  })
+
+  it('keeps trying when only the stream was refused: the snapshot still answers', async () => {
+    const h = harness([denied, denied, stream(event('1'))], '0', [false, false])
+    await h.run()
+    assert.ok(!h.connections.includes('denied'))
+    assert.deepEqual(h.connections.slice(0, 3), ['reconnecting', 'reconnecting', 'live'])
+    assert.deepEqual(h.followedFrom, ['0', '0', '0', '1'])
+    assert.deepEqual(h.sleeps.slice(0, 2), [MIN_BACKOFF_MS, 2 * MIN_BACKOFF_MS])
   })
 
   it('backs off exponentially while failing and resets after a live connection', async () => {

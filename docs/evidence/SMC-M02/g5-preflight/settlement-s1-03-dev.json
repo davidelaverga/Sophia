@@ -1,0 +1,76 @@
+{
+  "unit": "sophia-runtime-s1-03-dev",
+  "dsh": "0.1.7-rc.1",
+  "stop": {
+    "before": {
+      "binding": "running",
+      "unit": "sophia-runtime-s1-03-dev",
+      "goal": "checking",
+      "attempt": "checking",
+      "job": "succeeded",
+      "result": "a0be298c-f88e-409c-9367-e1db7d363c72",
+      "revision": 1,
+      "result_sources": 1,
+      "p3_live_bindings": 1,
+      "p3_open_native_outbox": 0,
+      "p3_unanswered_commands": 0
+    },
+    "after": {
+      "binding": "settled",
+      "unit": "sophia-runtime-s1-03-dev",
+      "goal": "stopped",
+      "attempt": "stopped",
+      "job": "succeeded",
+      "result": "a0be298c-f88e-409c-9367-e1db7d363c72",
+      "revision": 1,
+      "result_sources": 1,
+      "p3_live_bindings": 0,
+      "p3_open_native_outbox": 0,
+      "p3_unanswered_commands": 0
+    },
+    "stages": [
+      "create:delivered",
+      "create:incorporation_observed",
+      "stop:checked"
+    ],
+    "phase": "stopped",
+    "resultKept": true,
+    "modelCalls": 0
+  },
+  "hold": {
+    "before": {
+      "binding": "running",
+      "unit": "sophia-runtime-s1-03-dev",
+      "goal": "checking",
+      "attempt": "checking",
+      "job": "succeeded",
+      "result": "72da759a-a218-432b-bd8b-ab87162d46ce",
+      "revision": 1,
+      "result_sources": 1,
+      "p3_live_bindings": 1,
+      "p3_open_native_outbox": 0,
+      "p3_unanswered_commands": 0
+    },
+    "after": {
+      "binding": "idle",
+      "unit": "sophia-runtime-s1-03-dev",
+      "goal": "held",
+      "attempt": "checking",
+      "job": "succeeded",
+      "result": "72da759a-a218-432b-bd8b-ab87162d46ce",
+      "revision": 1,
+      "result_sources": 1,
+      "p3_live_bindings": 1,
+      "p3_open_native_outbox": 0,
+      "p3_unanswered_commands": 0
+    },
+    "stages": [
+      "create:delivered",
+      "create:incorporation_observed",
+      "hold:checked"
+    ],
+    "phase": "held",
+    "resultKept": true,
+    "modelCalls": 0
+  }
+}

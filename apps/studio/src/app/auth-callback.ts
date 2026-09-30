@@ -3,6 +3,11 @@
 //    PKCE client ignores those, so the Studio sets the session from them itself.
 //  - A magic link returns ?code=, which only the browser that asked for it can exchange.
 //  - A failed or expired link returns error parameters.
+//
+// Anyone can write an address, and anyone can send a link. So the words a failed link carries are never shown
+// (the page would say whatever the link's author wrote), and a link's session is never used without a word: it
+// never replaces another account, and with nobody signed in the person is asked first (a link is followed, not
+// chosen).
 
 export type AuthCallback =
   | { kind: 'tokens'; accessToken: string; refreshToken: string }
@@ -10,11 +15,32 @@ export type AuthCallback =
   | { kind: 'error'; message: string }
   | { kind: 'none' }
 
+/** A sign-in link that failed in a way the Studio does not name. */
+export const LINK_FAILED = 'That sign-in link didn’t work. Ask for a new one below.'
+
+const DID_NOT_FINISH = 'Signing in with that account didn’t finish. Try again.'
+
+/** Supabase Auth's error codes, in the Studio's words. A Map: a code from the address is never an object's key. */
+const LINK_ERRORS = new Map<string, string>([
+  ['otp_expired', 'That sign-in link has expired or was already used. Ask for a new one below.'],
+  ['signup_disabled', 'New accounts are closed on this server.'],
+  ['user_banned', 'This account can’t sign in here. Ask whoever runs this Sophia.'],
+  [
+    'provider_email_needs_verification',
+    'That account’s email isn’t verified with its provider yet. Verify it there, or sign in with your email.',
+  ],
+  ['bad_oauth_state', DID_NOT_FINISH],
+  ['bad_oauth_callback', DID_NOT_FINISH],
+  ['flow_state_expired', DID_NOT_FINISH],
+])
+
 export function readAuthCallback(href: string): AuthCallback {
   const url = new URL(href)
   const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
-  const error = hash.get('error_description') ?? url.searchParams.get('error_description')
-  if (error) return { kind: 'error', message: error.replaceAll('+', ' ') }
+  const read = (key: string) => hash.get(key) ?? url.searchParams.get(key)
+  if (read('error') ?? read('error_code') ?? read('error_description')) {
+    return { kind: 'error', message: LINK_ERRORS.get(read('error_code') ?? '') ?? LINK_FAILED }
+  }
   const accessToken = hash.get('access_token')
   const refreshToken = hash.get('refresh_token')
   if (accessToken && refreshToken) return { kind: 'tokens', accessToken, refreshToken }
@@ -29,6 +55,42 @@ export function withoutAuthParams(href: string): string {
   url.hash = ''
   return `${url.pathname}${url.search}`
 }
+
+/**
+ * The account a token was issued to: the `sub` of its payload, read without verifying it. Enough to tell whether a
+ * link would sign in as someone else; Supabase verifies the token itself when the session is set.
+ */
+export function tokenSubject(accessToken: string): string | null {
+  const payload = accessToken.split('.')[1]
+  if (!payload) return null
+  try {
+    const bytes = Uint8Array.from(atob(payload.replaceAll('-', '+').replaceAll('_', '/')), (c) => c.charCodeAt(0))
+    const claims: unknown = JSON.parse(new TextDecoder().decode(bytes))
+    return typeof claims === 'object' && claims !== null && 'sub' in claims && typeof claims.sub === 'string'
+      ? claims.sub
+      : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * What to do with a link's session, by whose it is (`incoming`) and who is signed in here (`here`):
+ * - 'ask': nobody is, so the person is asked first, by the account's address (a link is followed, not chosen);
+ * - 'keep': the same account already is, so nothing changes;
+ * - 'refuse': another account is, and a link never replaces it.
+ * A guest's session (an anonymous knock at a room's door) is no account, so `here` is null for it; a token whose
+ * account cannot be read is never the one signed in here.
+ */
+export type LinkDecision = 'ask' | 'keep' | 'refuse'
+
+export function linkDecision(here: string | null, incoming: string | null): LinkDecision {
+  if (here === null) return 'ask'
+  return here === incoming ? 'keep' : 'refuse'
+}
+
+export const OTHER_ACCOUNT_NOTICE =
+  'That sign-in link is for a different account, so you are still signed in as before. To use the other account, sign out first, then open the link again.'
 
 export const OTHER_BROWSER_NOTICE =
   'That sign-in link was opened in a different browser than the one that asked for it. Type the code from the email in that browser, or ask for a new link here.'

@@ -135,7 +135,8 @@ export function SophiaControls(props: Props) {
   const exchangeId = snapshot.room.sophia.exchangeId
   return (
     <div className="floor sophia-controls">
-      <span className="floor-label">Sophia</span>
+      {/* "Speak with Sophia" names her; once she is in, the label says whose controls these are. */}
+      {view.exchange !== 'none' && <span className="floor-label">Sophia</span>}
       {view.exchange === 'none' && <AskIn snapshot={snapshot} identity={identity} busy={busy} run={run} />}
       {view.needsAudio && (
         <button type="button" className="pill warm" onClick={onAllowAudio}>

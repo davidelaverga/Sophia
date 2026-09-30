@@ -1,0 +1,62 @@
+{
+  "unit": "sophia-runtime-s1-03-dev",
+  "dsh": "0.1.7-rc.1",
+  "requestedCalls": [
+    "c1",
+    "c2",
+    "c3"
+  ],
+  "startedCalls": [
+    {
+      "seq": 14,
+      "name": "glob"
+    }
+  ],
+  "toolResults": [
+    {
+      "seq": 15,
+      "toolCallId": "c1",
+      "isError": false,
+      "errorCode": null,
+      "sourceEventSeqs": [
+        14
+      ]
+    }
+  ],
+  "turnEnds": [
+    {
+      "turn": 1,
+      "reason": {
+        "kind": "error",
+        "error": {
+          "message": "injected scheduler failure at c2",
+          "code": "UNKNOWN"
+        }
+      }
+    },
+    {
+      "turn": 2,
+      "reason": {
+        "kind": "completed"
+      }
+    }
+  ],
+  "tail": [
+    "agent/inbox/spliced",
+    "step/start",
+    "user/message",
+    "assistant/message",
+    "step/end",
+    "turn/end"
+  ],
+  "nextRequest": [
+    "system",
+    "user",
+    "user",
+    "calls:c1,c2,c3",
+    "result:c1",
+    "result:c2",
+    "result:c3",
+    "user"
+  ]
+}
