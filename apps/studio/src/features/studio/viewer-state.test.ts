@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { INITIAL_VIEWER_STATE, readViewerState, viewerKey, viewerReducer } from './viewer-state.ts'
+import { INITIAL_VIEWER_STATE, readViewerState, storedViewerState, viewerKey, viewerReducer } from './viewer-state.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 
@@ -25,7 +25,7 @@ describe('viewer state', () => {
   })
 
   it('round-trips through storage and survives anything malformed', () => {
-    const s = { lens: 'explore' as const, drafts: { converse: 'hi' } }
+    const s = { lens: 'explore' as const, drafts: { explore: 'hi' } }
     assert.deepEqual(readViewerState(JSON.stringify(s)), s)
     for (const raw of [null, '', '{', 'null', '42', '"x"', '[]'])
       assert.deepEqual(readViewerState(raw), INITIAL_VIEWER_STATE)
@@ -34,4 +34,11 @@ describe('viewer state', () => {
       drafts: { build: 'ok' },
     })
   })
+})
+
+it('chat drafts survive resnapshots in memory but never storage serialization or legacy reload', () => {
+  const state = viewerReducer(INITIAL_VIEWER_STATE, { type: 'draft', lens: 'converse', text: 'Private unsent chat' })
+  assert.equal(state.drafts.converse, 'Private unsent chat')
+  assert.equal(JSON.stringify(storedViewerState(state)).includes('Private unsent chat'), false)
+  assert.equal(readViewerState(JSON.stringify(state)).drafts.converse, undefined)
 })

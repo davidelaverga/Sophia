@@ -1,7 +1,7 @@
 // React binding for viewer-state.ts. Storage is a per-device convenience: when it is unavailable
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
 import { useEffect, useReducer } from 'react'
-import { readViewerState, viewerKey, viewerReducer, type Lens } from './viewer-state.ts'
+import { readViewerState, storedViewerState, viewerKey, viewerReducer, type Lens } from './viewer-state.ts'
 
 function load(key: string) {
   try {
@@ -17,7 +17,7 @@ export function useViewerState(viewer: string, projectId: string) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(key, JSON.stringify(state))
+      localStorage.setItem(key, JSON.stringify(storedViewerState(state)))
     } catch {
       /* storage unavailable: the view lasts for this page only */
     }

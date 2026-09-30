@@ -52,6 +52,7 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
               projectId={projectId}
               identity={identity}
               snapshot={snapshot}
+              room={room}
               names={namesOf(room)}
               draft={state.drafts.converse ?? ''}
               onDraft={(text) => setDraft('converse', text)}

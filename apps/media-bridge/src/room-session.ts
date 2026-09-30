@@ -1,3 +1,4 @@
+import type { ChatInput, ChatReply } from '@sophia/contracts/room-chat'
 // One room exchange on the bridge (architecture 06 §2–§12, S1-05A §6): the LiveKit room, one Gemini Live
 // connection and the API's assignment, joined by the pure ExchangeState. This module acts; ExchangeState decides.
 //
@@ -70,6 +71,8 @@ const everyInterval = (fn: () => void, ms: number) => {
 }
 
 export const TICK_MS = 100
+/** An unended typed provider turn must not keep the member's microphone blocked indefinitely. */
+export const TYPED_REPLY_MS = 60_000
 /** The bridge reports what it observes at least this often; the API treats 20 s of silence as unavailable. */
 export const PRESENCE_EVERY_MS = 5000
 /** A holder who left gets this long to come back before the floor is cleared (compare-and-set, A15). */
@@ -109,6 +112,19 @@ interface Announced {
   exchangeId: string
   taskId: string
   resultRevision: number
+}
+
+/** A typed request owns every non-blocking tool continuation until its final provider boundary. */
+interface TypedTurn {
+  identity: string
+  packet: ChatInput
+  sequence: number
+  generation: number
+  pendingTools: number
+  responses: FunctionResponse[]
+  providerEnded: boolean
+  usedTools: boolean
+  toolIds: Set<string>
 }
 const CALL_ID = /^[A-Za-z0-9_.:-]{1,64}$/
 
@@ -282,6 +298,11 @@ export class RoomSession {
   private readonly guideContext: GuideContext
   /** The API confirmed it executes exactly the declared operations. Checked before the first connection. */
   private guideBound = false
+  private typedTurn: TypedTurn | null = null
+  private typedOutputUntilTurnEnd = false
+  private typedInputEpoch: number | null = null
+  private typedStartedAt: number | null = null
+  private readonly typedSeen = new Set<string>()
 
   constructor(assignment: MediaAssignment, deps: SessionDeps) {
     this.exchangeId = assignment.exchangeId
@@ -320,6 +341,7 @@ export class RoomSession {
     try {
       room = await this.deps.joinRoom(token, {
         people: (people) => this.onPeople(people),
+        typed: (identity, packet) => this.onTyped(identity, packet),
         audio: (identity, samples, rate, channels) => this.onAudio(identity, samples, rate, channels),
         frame: (identity, source, frame, at) => this.onFrame(identity, source, frame, at),
         // Leaving the room reports LiveKit's own disconnect: after close() that is the leave itself, not a loss to
@@ -380,6 +402,7 @@ export class RoomSession {
     this.applyPause()
     this.ackQuiesce()
     this.checkHolder()
+    this.checkTypedUpdate(change, next)
     this.reportDirty = true
     if (this.guideContext.observe(next)) this.rebuild('eligibility narrowed')
   }
@@ -391,6 +414,7 @@ export class RoomSession {
    */
   private rebuild(reason: string): void {
     if (this.closed) return
+    this.finishTyped('Project access changed; this reply was stopped.')
     this.deps.log('context.rebuild', { exchangeId: this.exchangeId, reason })
     this.handle = null
     const hadContext = this.live !== null || this.connecting
@@ -411,6 +435,7 @@ export class RoomSession {
   async close(): Promise<void> {
     if (this.closed) return
     this.deps.log('session.close', { exchangeId: this.exchangeId, lost: this.lost })
+    this.finishTyped('Conversation ended; this reply was stopped.')
     this.closed = true
     this.stopTicking?.()
     this.logReply('closed')
@@ -440,9 +465,12 @@ export class RoomSession {
 
   private onPeople(people: RoomPerson[]): void {
     this.people = people
+    const abandonTools = this.typedTurn?.usedTools && (this.roomDown || people.some(isGuestLike))
+    if (people.some(isGuestLike)) this.finishTyped('Conversation paused: someone without project access joined.')
     const members = people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
     this.state.setPresent(members, this.roomDown || people.some(isGuestLike))
     this.applyPause()
+    if (abandonTools && this.live) this.rebuild('typed tool audience changed')
     this.ackQuiesce()
     this.checkHolder()
     this.reportDirty = true
@@ -472,8 +500,100 @@ export class RoomSession {
     }
   }
 
+  private typedReply(identity: string, packet: ChatInput, kind: ChatReply['kind'], text = '', sequence = 0): void {
+    void this.room
+      ?.sendChat?.(identity, { kind, id: packet.id, exchangeId: this.exchangeId, text, sequence })
+      .catch(() => {
+        this.deps.log('chat.delivery_unknown', { exchangeId: this.exchangeId, turnId: packet.id })
+      })
+  }
+
+  private checkTypedUpdate(change: { handoff: boolean; stopSpeaking: boolean }, next: MediaAssignment): void {
+    if (this.typedTurn && (change.handoff || change.stopSpeaking || next.state !== 'open')) {
+      const usedTools = this.typedTurn.usedTools
+      this.finishTyped('Conversation changed; this reply was stopped.')
+      if (usedTools) this.rebuild('typed tool continuation abandoned')
+    }
+  }
+
+  private mayAcceptTyped(identity: string, packet: ChatInput): boolean {
+    return (
+      this.state.mayForwardAudio(identity, this.deps.now()) &&
+      packet.inputEpoch === this.assignment.inputEpoch &&
+      this.live !== null &&
+      !!this.room?.sendChat
+    )
+  }
+
+  private onTyped(identity: string, packet: ChatInput): void {
+    if (packet.exchangeId !== this.exchangeId) return
+    if (!this.mayAcceptTyped(identity, packet)) {
+      this.typedReply(
+        identity,
+        packet,
+        'refused',
+        'Sophia cannot receive this message now. Check the conversation and input floor.',
+      )
+      return
+    }
+    const key = `${identity}:${packet.id}`
+    if (this.typedSeen.has(key)) return // Never repeat an input after an uncertain receipt.
+    if (this.awaitingReply || this.responding || this.typedOutputUntilTurnEnd) {
+      this.typedReply(identity, packet, 'refused', 'Wait for the current reply before sending another message.')
+      return
+    }
+    if (this.typedSeen.size >= 500) {
+      this.typedReply(identity, packet, 'refused', 'End this conversation and start a new one to continue.')
+      return
+    }
+    this.typedSeen.add(key)
+    this.typedOutputUntilTurnEnd = true
+    this.typedInputEpoch = packet.inputEpoch
+    this.typedStartedAt = this.deps.now()
+    this.state.forwarded()
+    this.wordsHeard()
+    this.typedTurn = {
+      identity,
+      packet,
+      sequence: 0,
+      generation: this.state.currentGeneration(),
+      pendingTools: 0,
+      responses: [],
+      providerEnded: false,
+      usedTools: false,
+      toolIds: new Set(),
+    }
+    try {
+      this.live?.sendNotice(`[Project member typed message]\n${packet.text}`)
+      this.typedReply(identity, packet, 'accepted')
+      this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
+    } catch {
+      this.finishTyped('Delivery is unconfirmed. The message will not be sent again automatically.')
+    }
+  }
+
+  private typedOutput(text: string): void {
+    const turn = this.typedTurn
+    if (!turn || !this.state.mayPlay(turn.generation)) return
+    for (let offset = 0; offset < text.length; offset += 2000) {
+      turn.sequence += 1
+      this.typedReply(turn.identity, turn.packet, 'delta', text.slice(offset, offset + 2000), turn.sequence)
+    }
+  }
+
+  private finishTyped(reason?: string): void {
+    const turn = this.typedTurn
+    if (!turn) return
+    if (!reason && turn.sequence === 0)
+      reason = 'Sophia did not return a text reply. Your message will not be sent again automatically.'
+    turn.sequence += 1
+    this.typedReply(turn.identity, turn.packet, reason ? 'refused' : 'complete', reason ?? '', turn.sequence)
+    this.typedTurn = null
+  }
+
   private onAudio(identity: string, samples: Int16Array, rate: number, channels: number): void {
     const live = this.live
+    if (this.typedOutputUntilTurnEnd) return
     if (!live || !this.state.mayForwardAudio(identity, this.deps.now())) return
     try {
       this.chunker.push(samples, rate, channels)
@@ -547,6 +667,7 @@ export class RoomSession {
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
     this.silence(this.pendingReply(this.deps.now()), 'stopped')
+    if (this.typedTurn?.usedTools) this.rebuild('typed tool continuation paused')
   }
 
   /**
@@ -702,6 +823,7 @@ export class RoomSession {
       },
       toolCancellations: (ids) => {
         for (const id of ids) this.cancelled.add(`${connection}:${id}`)
+        if (current() && ids.some((id) => this.typedTurn?.toolIds.has(id))) this.rebuild('typed tool cancelled')
       },
       interrupted: () => {
         if (current()) this.bargeIn()
@@ -713,7 +835,9 @@ export class RoomSession {
       inputTranscript: (text) => {
         if (current() && text.trim()) this.wordsHeard()
       },
-      outputTranscript: () => undefined,
+      outputTranscript: (text) => {
+        if (current()) this.typedOutput(text)
+      },
       generationComplete: () => undefined,
       turnComplete: () => {
         if (current()) this.turnComplete()
@@ -744,6 +868,11 @@ export class RoomSession {
   /** Stop stale output, forget the connection and schedule the next one (resumed if a handle is held). */
   private recover(reason: string): void {
     if (this.closed) return
+    // Resuming abandoned typed work could deliver an uncorrelated continuation as room audio.
+    if (this.typedOutputUntilTurnEnd) this.handle = null
+    this.finishTyped('Connection interrupted. The message will not be sent again automatically.')
+    this.typedOutputUntilTurnEnd = false
+    this.typedInputEpoch = null
     const failedBeforeReady = this.readyConnection !== this.connection
     this.connection += 1
     this.live?.close()
@@ -767,6 +896,7 @@ export class RoomSession {
   }
 
   private bargeIn(): void {
+    if (this.typedTurn?.usedTools) return this.rebuild('typed tool continuation interrupted')
     this.state.bumpGeneration()
     this.silence(null, 'interrupted')
     this.endTurn()
@@ -788,6 +918,17 @@ export class RoomSession {
   }
 
   private turnComplete(): void {
+    const turn = this.typedTurn
+    if (turn && (turn.pendingTools > 0 || turn.responses.length > 0)) {
+      // WHEN_IDLE creates another provider turn. Send one batch only AFTER the current boundary, keeping
+      // attribution, recipient routing and the original 60 s deadline across every continuation.
+      turn.providerEnded = true
+      this.flushTypedTools(turn)
+      return
+    }
+    this.finishTyped()
+    this.typedOutputUntilTurnEnd = false
+    this.typedInputEpoch = null
     if (this.framer.flush(this.state.currentGeneration())) void this.pump()
     this.reply.generated()
     this.endTurn()
@@ -806,6 +947,10 @@ export class RoomSession {
 
   /** The model turn ended; when the connection was lost instead, its speaker stands for a resumed repeat. */
   private endTurn(connectionLost = false): void {
+    this.finishTyped('Reply interrupted. The message will not be sent again automatically.')
+    this.typedOutputUntilTurnEnd = false
+    this.typedInputEpoch = null
+    this.typedStartedAt = null
     if (connectionLost) this.state.connectionLost()
     else this.state.turnEnded()
     this.responding = false
@@ -816,6 +961,7 @@ export class RoomSession {
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
+    if (this.typedOutputUntilTurnEnd) return // Typed replies are visible text; no voice recording or playback is added.
     const generation = this.state.currentGeneration()
     if (this.fence) {
       // The stopped reply is (still) arriving: drop it until its turn ends. One that never began in time is over.
@@ -868,15 +1014,51 @@ export class RoomSession {
   private async runTool(call: FunctionCall, connection: number): Promise<void> {
     const id = call.id ?? ''
     const name = call.name ?? ''
+    const turn = this.typedTurn
+    if (this.typedOutputUntilTurnEnd && (!turn || !this.state.mayPlay(turn.generation))) return
+    if (turn) {
+      turn.pendingTools += 1
+      turn.usedTools = true
+      turn.toolIds.add(id)
+    }
     const response = await this.toolOutcome(id, name, call.args ?? {})
+    if (turn) turn.pendingTools -= 1
     // Never answer a call the provider cancelled, or one from a connection that has since been replaced.
     if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) {
       return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, name, connection })
     }
-    this.live?.sendToolResponses([response])
+    this.queueToolResponse(turn, response, connection)
+  }
+
+  private queueToolResponse(turn: TypedTurn | null, response: FunctionResponse, connection: number): void {
+    if (!turn) return this.answerTools([response], connection)
+    if (this.typedTurn !== turn || !this.state.mayPlay(turn.generation)) return
+    turn.responses.push(response)
+    this.flushTypedTools(turn)
+  }
+
+  private flushTypedTools(turn: TypedTurn): void {
+    if (this.typedTurn !== turn || !turn.providerEnded || turn.pendingTools > 0 || turn.responses.length === 0) return
+    const responses = turn.responses.splice(0)
+    turn.providerEnded = false
+    this.answerTools(responses, this.connection)
+  }
+
+  private answerTools(responses: FunctionResponse[], connection: number): void {
+    try {
+      this.live?.sendToolResponses(responses)
+    } catch {
+      this.deps.log('tool.delivery_unknown', { exchangeId: this.exchangeId, connection })
+      this.finishTyped('Tool reply delivery is unconfirmed. Your message will not be sent again automatically.')
+      return this.rebuild('tool response delivery unconfirmed')
+    }
+    for (const response of responses) this.logAnswered(response, connection)
+  }
+
+  private logAnswered(response: FunctionResponse, connection: number): void {
     this.deps.log('tool.answered', {
       exchangeId: this.exchangeId,
-      name,
+      name: response.name,
       status: statusOf(response),
       connection,
       ...idsOf(response),
@@ -902,6 +1084,7 @@ export class RoomSession {
       inputEpoch: who.inputEpoch,
       actorId: who.actorId,
       utterance: this.guideContext.utterance,
+      inputMode: this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
     }
     const write = WRITE_TOOLS.has(name)
     if (write) this.guideContext.writeStarted()
@@ -939,6 +1122,7 @@ export class RoomSession {
   tick(): void {
     if (this.closed) return
     const now = this.deps.now()
+    this.expireTyped(now)
     this.settled(now)
     this.applyPause()
     this.sendFrame(now)
@@ -956,6 +1140,13 @@ export class RoomSession {
     this.publish(now)
   }
 
+  private expireTyped(now: number): void {
+    if (this.typedStartedAt === null || now - this.typedStartedAt < TYPED_REPLY_MS) return
+    this.finishTyped('Reply unconfirmed. The message will not be sent again automatically.')
+    // Without a provider turn boundary, replacing the connection is the fence against late old audio/tools.
+    this.rebuild('typed reply timed out')
+  }
+
   /**
    * A handoff has settled: nothing of the old holder's reply plays over the new holder. A turn still on its way is
    * cut (the settle timed out), and so is the rest of a finished reply still playing, which Google streamed ahead.
@@ -964,6 +1155,13 @@ export class RoomSession {
     const settling = this.state.input(now) === 'settling'
     const pending = this.pendingReply(now)
     if (this.wasSettling && !settling && (pending || this.playing(now))) {
+      if (this.typedOutputUntilTurnEnd) {
+        // No provider turn boundary arrived. Drop the old connection so its late output cannot become voice
+        // or be attributed to the new floor holder after the typed output fence is reset.
+        this.rebuild('typed handoff timed out')
+        this.wasSettling = false
+        return
+      }
       this.state.bumpGeneration()
       this.silence(pending, 'stopped')
     }

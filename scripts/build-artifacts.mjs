@@ -11,8 +11,8 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { ARTIFACTS_DIR, RUNTIME_UNIT_PATH, loadRuntimeUnit, writeJson } from './lib/common.mjs'
-import { PROFILE_LOCK, buildArtifacts, getPath, setPath } from './lib/artifacts.mjs'
+import { ARTIFACTS_DIR, RUNTIME_UNIT_PATH, loadRuntimeUnit, readJson, writeJson } from './lib/common.mjs'
+import { profileLockPath, buildArtifacts, getPath, setPath } from './lib/artifacts.mjs'
 import { assertToolchain } from './lib/toolchain.mjs'
 
 const record = process.argv.includes('--record')
@@ -20,7 +20,7 @@ const record = process.argv.includes('--record')
 assertToolchain()
 const unit = loadRuntimeUnit()
 const { facts, profileLock, lintFindings } = buildArtifacts(unit)
-facts['sophia_bundle.artifact_digest'] = `sha256:${facts['sophia_bundle.archive_sha256']}`
+const profileLockFile = profileLockPath(unit)
 
 if (lintFindings.length > 0) {
   console.error('patch layers are not the intended configuration:')
@@ -31,9 +31,10 @@ if (lintFindings.length > 0) {
 writeJson(`${ARTIFACTS_DIR}/identities.json`, facts)
 
 if (record) {
-  for (const [path, value] of Object.entries(facts)) setPath(unit, path, value)
-  writeJson(RUNTIME_UNIT_PATH, unit)
-  writeFileSync(PROFILE_LOCK, profileLock)
+  const canonical = readJson(RUNTIME_UNIT_PATH)
+  for (const [path, value] of Object.entries(facts)) setPath(canonical, path, value)
+  writeJson(RUNTIME_UNIT_PATH, canonical)
+  writeFileSync(profileLockFile, profileLock)
   console.log('recorded artifact identities:')
   for (const [path, value] of Object.entries(facts)) console.log(`  ${path} = ${JSON.stringify(value)}`)
   process.exit(0)
@@ -52,10 +53,10 @@ for (const [path, value] of Object.entries(facts)) {
   console.log(`${same ? 'match   ' : 'MISMATCH'} ${path}\n         built    ${JSON.stringify(value)}${same ? '' : `\n         recorded ${JSON.stringify(recorded)}`}`)
 }
 let committedLock = null
-try { committedLock = readFileSync(PROFILE_LOCK, 'utf8') } catch {}
+try { committedLock = readFileSync(profileLockFile, 'utf8') } catch {}
 const lockSame = committedLock === profileLock
 if (!lockSame) mismatches += 1
-console.log(`${lockSame ? 'match   ' : 'MISMATCH'} config/dsh/profile/pnpm-lock.yaml`)
+console.log(`${lockSame ? 'match   ' : 'MISMATCH'} ${profileLockFile}`)
 
 if (mismatches > 0) {
   console.error(`\n${mismatches} identity mismatch(es): this checkout does not reproduce runtime unit ${unit.id}`)

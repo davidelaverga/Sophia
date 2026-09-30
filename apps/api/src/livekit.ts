@@ -60,7 +60,8 @@ export async function issueRoomToken(cfg: LiveKitConfig, grant: RoomGrant, now =
     canSubscribe: true,
     canPublish: grant.canPublish,
     canPublishSources: grant.canPublish ? PUBLISH_SOURCES : [],
-    canPublishData: false,
+    // Typed conversation is available to signed project members; guests keep their media-only grant.
+    canPublishData: 'role' in grant.standing,
     canUpdateOwnMetadata: false,
   })
   return {
@@ -88,7 +89,7 @@ export async function issueBridgeToken(cfg: LiveKitConfig, roomId: string, now =
     canSubscribe: true,
     canPublish: true,
     canPublishSources: [TrackSource.MICROPHONE],
-    canPublishData: false,
+    canPublishData: true,
     canUpdateOwnMetadata: true,
   })
   return {
