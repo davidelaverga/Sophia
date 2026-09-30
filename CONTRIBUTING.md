@@ -112,9 +112,12 @@ writing a new one, and keep the rule when you change the code around it.
   (`.wait-note`, where the lobby floats; on a phone over the lenses, which
   have nothing to change yet). A hosted API that sat idle can take close to
   a minute to answer; without the line, that minute looks broken.
-- **Going home from a call says so first.** Home ends the call (the room
-  lives in the project's page). While in the call its name and tip read
-  "Home: you leave the room".
+- **Going home keeps the call.** The project whose room holds the call stays
+  mounted out of sight (`background`, taking no keys through `ShortcutScope`)
+  and reports the call upward (`onCall`); the places' bar shows the room with
+  the microphone, anything else being sent and Leave. One call at a time: a
+  call starting in another project ends the one before (`useCall` in
+  `App.tsx`).
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, the mini dock from every other view (`Sending` in
@@ -259,6 +262,57 @@ when you change the room:
   stays on screen.
 - **Names stay for the visit** (`mergeNames`): someone who spoke and left
   keeps their name on their lines instead of "A member".
+
+## The personal space and the three places
+
+Outside a project a person is in one of three places (`features/personal`,
+direction C of Luis's prototype, "Two doors"): home with its two doors, their
+personal space with Sophia, and their work. The data side is migration 0021
+and contract amendment A10. Keep these when you change either:
+
+- **Private means owner-only, in the database.** Every personal table reads
+  `owner_id = actor` (RLS) and has no write grant; the `sophia.*` functions
+  are the only writers, each idempotent per owner and key, keeping a digest of
+  what they wrote, never the words, and receipts of ids. No project role
+  reaches a personal row, admins included, and nothing personal is joined into
+  a project read. Test a new read path as another person and as a project
+  admin (`personal.db.test.ts`): zero rows.
+- **The one crossing is a carried note.** `carry_personal_note` copies one
+  note, as written, into one project where its owner is an active member;
+  members read it attributed to the name its owner shows, and the owner can
+  take it back, which deletes the copy. Anything else that would move
+  personal words into a project (a summary, a model reading the space) is a
+  new decision for the owners, not a feature (goal D5).
+- **Sophia never keeps a note on her own.** She suggests one after a reply;
+  the person keeps it or lets it go. "Note this" keeps a line in the person's
+  own words. Erasing deletes the conversation, suggestions and notes, redacts
+  every request, and leaves carried notes where they were, still the owner's.
+- **The companion is behind one interface** (`apps/api/src/companion.ts`):
+  `answer` for a pending turn, `greet` for the welcome back. The keyless
+  rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
+  development and tests only, and the space says so (`companion:
+  'rehearsal'`). Without a companion, sending is refused and nothing is kept:
+  never store a message nobody will answer.
+- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`).
+  Shut by the person or by joining a room (a screen may be shared there); a
+  room's lock lifts when the room is left, the person's stays. While shut,
+  nothing personal is fetched or shown, and opening it asks to confirm it's
+  them (`app/reauth.ts`: passkey, the provider they signed in with, or an
+  email code, and the same account must come back).
+- **Words from the view modules.** `places-view.ts`, `conversation-view.ts`
+  and `data-view.ts` own every sentence the places say (door verbs, sessions,
+  rooms, the introduction and when it shows, days, topics, facts), with tests.
+- **The places look like the prototype.** `personal.css` is its port, scoped
+  to `.places` with `ps-` keyframes; the four class names the Studio already
+  uses elsewhere are prefixed. Compare a change side by side with the
+  artifact at the stage's size (1238 x 708) and on a phone before calling it
+  done.
+- **Keys.** H, P and W go to the three places, D opens your data, L the
+  padlock, T the notes; Enter at home goes to the side used last and the
+  arrows pick a door. Esc closes what opened last (`useEscape`), then goes
+  home; in the composer the first Esc only lets go of the field. Arriving in
+  Personal on a desktop puts the cursor in the field, so a letter typed then
+  is text, not a key.
 
 ## The Studio's hosting headers
 
