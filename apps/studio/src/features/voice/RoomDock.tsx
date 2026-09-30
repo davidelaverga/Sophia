@@ -10,6 +10,7 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
+import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
@@ -60,8 +61,10 @@ function JoinButton({ room }: { room: ProjectRoom }) {
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
-      <kbd aria-hidden>J</kbd>
-      <Tip label={micOnJoin() ? 'You join with your microphone on' : 'You join with your microphone off'} />
+      <Tip
+        label={micOnJoin() ? 'You join with your microphone on' : 'You join with your microphone off'}
+        keys={roomKey('join')}
+      />
     </button>
   )
 }
@@ -105,7 +108,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
       <Toggle
         on={!!me?.micOn}
         label="Microphone"
-        keys="M"
+        keys={roomKey('microphone')}
         icons={['mic', 'micOff']}
         onToggle={() => void room.setMicrophone(!me?.micOn)}
       />
@@ -113,7 +116,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
       <Toggle
         on={!!me?.cameraOn}
         label="Camera"
-        keys="V"
+        keys={roomKey('camera')}
         icons={['camera', 'cameraOff']}
         onToggle={() => void room.setCamera(!me?.cameraOn)}
       />
@@ -121,7 +124,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         <Toggle
           on={!!me?.screenOn}
           label={me?.screenOn ? 'Stop sharing' : 'Share your screen'}
-          keys="S"
+          keys={roomKey('screen')}
           icons={['screen', 'screen']}
           onToggle={() => void room.setScreenShare(!me?.screenOn)}
         />

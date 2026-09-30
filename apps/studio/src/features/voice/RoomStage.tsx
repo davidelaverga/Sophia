@@ -10,6 +10,7 @@ import { reachesSophia } from '../conversation/chat-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
 import { Presences } from './Presences.tsx'
 import { canShareScreen, RoomDock } from './RoomDock.tsx'
+import { ROOM_KEYS } from './room-keys.ts'
 import {
   floorView,
   orderParticipants,
@@ -130,15 +131,19 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
   )
 }
 
-/** J joins; in the room, M, V and S toggle microphone, camera and screen (the dock's tips show them). */
+/**
+ * With the command key (room-keys.ts): J joins; in the room, D, E and Shift+E toggle the microphone, the camera and
+ * the screen (the dock's tips show them). A stray letter never starts sending.
+ */
 function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
+  const joins = room.ready && (room.status === 'idle' || room.status === 'failed')
   useShortcuts({
-    j: room.ready && (room.status === 'idle' || room.status === 'failed') ? () => void room.join() : undefined,
-    m: speaks ? () => void room.setMicrophone(!me?.micOn) : undefined,
-    v: speaks ? () => void room.setCamera(!me?.cameraOn) : undefined,
-    s: speaks && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
+    [ROOM_KEYS.join]: joins ? () => void room.join() : undefined,
+    [ROOM_KEYS.microphone]: speaks ? () => void room.setMicrophone(!me?.micOn) : undefined,
+    [ROOM_KEYS.camera]: speaks ? () => void room.setCamera(!me?.cameraOn) : undefined,
+    [ROOM_KEYS.screen]: speaks && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
   })
 }
 

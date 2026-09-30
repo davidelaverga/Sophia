@@ -10,6 +10,7 @@ import { useMembership } from '../access/useAccess.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { Toggle } from '../voice/RoomDock.tsx'
+import { roomKey } from '../voice/room-keys.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
@@ -60,7 +61,7 @@ function CallSwitches({ room }: { room: ProjectRoom }) {
       <Toggle
         on={me.micOn}
         label="Microphone"
-        keys="M"
+        keys={roomKey('microphone')}
         icons={['mic', 'micOff']}
         onToggle={() => void room.setMicrophone(!me.micOn)}
       />
@@ -68,7 +69,7 @@ function CallSwitches({ room }: { room: ProjectRoom }) {
         <Toggle
           on
           label="Camera"
-          keys="V"
+          keys={roomKey('camera')}
           icons={['camera', 'cameraOff']}
           onToggle={() => void room.setCamera(false)}
         />
@@ -77,7 +78,7 @@ function CallSwitches({ room }: { room: ProjectRoom }) {
         <Toggle
           on
           label="Stop sharing"
-          keys="S"
+          keys={roomKey('screen')}
           icons={['screen', 'screen']}
           onToggle={() => void room.setScreenShare(false)}
         />

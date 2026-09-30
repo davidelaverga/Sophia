@@ -88,6 +88,13 @@ when you change the room:
   typing "vamos" there once turned on the camera (V), the microphone (M) and
   a screen share (S). Esc closes the panel. A new field that invites typing
   marks itself the same way.
+- **Capture takes the command key** (`room-keys.ts`; ⌘ on a Mac, Ctrl
+  elsewhere, as in Meet): D the microphone, E the camera, Shift+E a screen
+  share, J to join. No single letter turns on a microphone, a camera or a
+  share, or joins a call, wherever the focus is; a command combination types
+  nothing, so it acts from a field too (`shortcutKey`, `keyLabel`, with
+  tests). The tips show the combination as the platform writes it. Keys that
+  only change the view (C, B, 1 to 3, I) stay single letters.
 - **Text mode is said in the room.** Typing to Sophia is text mode: she is
   not heard and the microphone is off. The dock says so (`TextMode` in
   `RoomDock`) and one press returns to voice; so does turning the microphone

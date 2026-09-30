@@ -1,6 +1,8 @@
-// Single-key shortcuts, the way modern tools do them: a key acts only when nobody is typing, no modifier
-// is held, it is not a key repeat, and no dialog is open over the page. Every shortcut is also a visible
-// control (its tip shows the key), so the keyboard never hides a feature.
+// Shortcuts, the way modern tools do them. A single key acts only when nobody is typing, no modifier is held, it
+// is not a key repeat, and no dialog is open over the page. What turns on a microphone, a camera or a screen share,
+// or joins a call, takes the command key instead (⌘ on a Mac, Ctrl elsewhere), as in Meet: a stray letter must
+// never start sending, and a command combination types nothing, so it acts even from a field. Every shortcut is
+// also a visible control (its tip shows the key), so the keyboard never hides a feature.
 //
 // Where the chat's foot is on screen (it marks itself `data-typing-sink`), a key typed with the focus on no
 // control is text for it, as in any chat, and never a shortcut: someone who starts a message without clicking the
@@ -13,6 +15,9 @@ export interface KeyLike {
   metaKey: boolean
   ctrlKey: boolean
   altKey: boolean
+  shiftKey: boolean
+  /** The platform's command key is held, alone: ⌘ on a Mac, Ctrl elsewhere. */
+  command: boolean
   repeat: boolean
   defaultPrevented: boolean
   /** Focus is in a field (input, textarea, select, editable text): the key is text. */
@@ -23,12 +28,31 @@ export interface KeyLike {
   stray: boolean
 }
 
-/** The shortcut key an event stands for (lowercase letters and digits), or null when it must not act. */
+/** A command combination's name: "mod+d", "mod+shift+e". */
+const commandKey = (e: KeyLike) => `mod+${e.shiftKey ? 'shift+' : ''}${e.key.toLowerCase()}`
+
+/**
+ * The shortcut an event stands for, or null when it must not act: a lowercase letter or digit, or a command
+ * combination ("mod+d"). Alt, a repeat, a dialog and a key already handled never act.
+ */
 export function shortcutKey(e: KeyLike): string | null {
-  if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return null
-  if (e.typing || e.inDialog || e.stray) return null
-  return e.key.length === 1 ? e.key.toLowerCase() : null
+  if (e.defaultPrevented || e.repeat || e.altKey || e.inDialog || e.key.length !== 1) return null
+  if (e.command) return commandKey(e)
+  if (e.metaKey || e.ctrlKey || e.typing || e.stray) return null
+  return e.key.toLowerCase()
 }
+
+/** How a shortcut reads in a tip: "Ctrl+Shift+E", or "⇧⌘E" on a Mac; a single key as itself. */
+export function keyLabel(combo: string, mac: boolean): string {
+  const parts = combo.split('+')
+  const key = (parts.at(-1) ?? '').toUpperCase()
+  if (parts[0] !== 'mod') return key
+  const shift = parts.includes('shift')
+  return mac ? `${shift ? '⇧' : ''}⌘${key}` : ['Ctrl', ...(shift ? ['Shift'] : []), key].join('+')
+}
+
+/** A Mac (or an iPad with a keyboard) names its command key ⌘. */
+export const onMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 
 /** A key that types a character: one printable key, with no modifier that makes it a command. */
 export function typesText(e: Pick<KeyLike, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
@@ -51,6 +75,8 @@ function keyLike(e: KeyboardEvent): KeyLike {
     metaKey: e.metaKey,
     ctrlKey: e.ctrlKey,
     altKey: e.altKey,
+    shiftKey: e.shiftKey,
+    command: onMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey,
     repeat: e.repeat,
     defaultPrevented: e.defaultPrevented,
     typing: !!el && (el.isContentEditable || FIELDS.has(el.tagName)),
