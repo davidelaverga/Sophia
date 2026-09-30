@@ -86,6 +86,8 @@ function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | 
   )
 }
 
+const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
+
 interface ShareProps {
   invites: boolean
   projectId: string
@@ -128,6 +130,7 @@ export function ProjectShell(props: Props) {
         nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
         share={loaded && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
         identitySwitcher={identitySwitcher}
+        inCall={isInCall(room)}
         onLeave={onLeave}
       />
       <OpeningNote loaded={loaded} blocked={blocked} />
@@ -170,16 +173,19 @@ interface HeaderProps {
   /** Invite (editors and admins) or copy the link (viewers). */
   share: React.ReactNode
   identitySwitcher: React.ReactNode
+  /** In the call: going home leaves it, and the way there says so before it is pressed. */
+  inCall: boolean
   onLeave: () => void
 }
 
-function ProjectHeader({ title, connection, nav, share, identitySwitcher, onLeave }: HeaderProps) {
+function ProjectHeader({ title, connection, nav, share, identitySwitcher, inCall, onLeave }: HeaderProps) {
+  const home = inCall ? 'Home: you leave the room' : 'Home'
   return (
     <header className="topbar">
-      <button type="button" className="mark has-tip" onClick={onLeave} aria-label="Home">
+      <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>
         <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
         <span className="mark-word">Sophia</span>
-        <Tip label="Home" side="bottom" />
+        <Tip label={home} side="bottom" />
       </button>
       <span className="crumb-sep" aria-hidden>
         /

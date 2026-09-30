@@ -110,6 +110,9 @@ writing a new one, and keep the rule when you change the code around it.
   (`.wait-note`, where the lobby floats; on a phone over the lenses, which
   have nothing to change yet). A hosted API that sat idle can take close to
   a minute to answer; without the line, that minute looks broken.
+- **Going home from a call says so first.** Home ends the call (the room
+  lives in the project's page). While in the call its name and tip read
+  "Home: you leave the room".
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, the mini dock from every other view (`Sending` in
