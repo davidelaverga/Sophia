@@ -1,6 +1,10 @@
 // Single-key shortcuts, the way modern tools do them: a key acts only when nobody is typing, no modifier
 // is held, it is not a key repeat, and no dialog is open over the page. Every shortcut is also a visible
 // control (its tip shows the key), so the keyboard never hides a feature.
+//
+// Where a field on screen takes stray typing (the chat's message bar marks itself `data-typing-sink`), a key
+// typed with the focus on no control is text for that field, as in any chat, and never a shortcut: someone who
+// starts a message without clicking the bar must not turn on a camera with its first letter.
 import { useEffect, useRef } from 'react'
 
 export interface KeyLike {
@@ -14,15 +18,30 @@ export interface KeyLike {
   typing: boolean
   /** The key happened inside an open dialog, which owns it. */
   inDialog: boolean
+  /** The focus is on no control while a field on screen takes stray typing: the key is text for that field. */
+  stray: boolean
 }
 
 /** The shortcut key an event stands for (lowercase letters and digits), or null when it must not act. */
 export function shortcutKey(e: KeyLike): string | null {
-  if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.typing || e.inDialog) return null
+  if (e.defaultPrevented || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return null
+  if (e.typing || e.inDialog || e.stray) return null
   return e.key.length === 1 ? e.key.toLowerCase() : null
 }
 
+/** A key that types a character: one printable key, with no modifier that makes it a command. */
+export function typesText(e: Pick<KeyLike, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
+  return e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey
+}
+
 const FIELDS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+
+/** The field stray typing goes to: one on screen, and only while the focus is on no control at all. */
+function strayField(target: HTMLElement | null): HTMLElement | null {
+  if (target && target !== document.body && target !== document.documentElement) return null
+  const field = document.querySelector<HTMLElement>('[data-typing-sink]')
+  return field?.checkVisibility() ? field : null
+}
 
 function keyLike(e: KeyboardEvent): KeyLike {
   const el = e.target instanceof HTMLElement ? e.target : null
@@ -35,6 +54,7 @@ function keyLike(e: KeyboardEvent): KeyLike {
     defaultPrevented: e.defaultPrevented,
     typing: !!el && (el.isContentEditable || FIELDS.has(el.tagName)),
     inDialog: !!el?.closest('[role="dialog"]'),
+    stray: !!strayField(el),
   }
 }
 
@@ -47,6 +67,8 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
   useEffect(() => {
     if (!enabled) return undefined
     const onKey = (e: KeyboardEvent) => {
+      // Stray typing: the character lands in the field, because the focus moves there before it is typed.
+      if (typesText(e)) strayField(e.target instanceof HTMLElement ? e.target : null)?.focus()
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined
       if (!run) return

@@ -74,6 +74,12 @@ when you change the room:
   line (`chatLine`: why Send waits, one reason at a time, or that typing
   reaches Sophia, with Voice mode), an error. The room's own line names the
   state, "Chatting with Sophia", and only once typing reaches her.
+- **Stray typing is text.** While the message bar is on screen (it marks
+  itself `data-typing-sink`), a key typed with the focus on no control goes
+  into it and is never a shortcut (`shortcuts.ts`: `stray`, `typesText`, with
+  tests). Someone who starts a message without clicking the bar must not turn
+  on a camera with its first letter. A new field that invites typing marks
+  itself the same way.
 - **Nothing circles the room.** While work runs the stage's edge is faintly
   lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
   travels the edge pulls the eye from the people; the room's line already

@@ -115,6 +115,8 @@ function MessageBar({ field, draft, onDraft, canSend, send }: BarProps) {
         ref={field}
         id="converse-draft"
         data-chat-entry
+        // Stray typing lands here (shortcuts.ts): a message begun without clicking the bar is still a message.
+        data-typing-sink
         rows={1}
         maxLength={2000}
         value={draft}
