@@ -1759,8 +1759,10 @@ img.avatar {
   font-size: 12px;
   font-weight: 500;
 }
+/* The tile's name is a flex row, which trims a child's leading space: keep the one before "· floor". */
 .tile-floor {
   color: var(--warm);
+  white-space: pre;
 }
 .video {
   position: absolute;
