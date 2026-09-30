@@ -1,6 +1,9 @@
+// The chat's composer, at the foot of the side panel: how to reach Sophia by text, then one message bar with its
+// Send inside, as a chat has it. Enter sends; Shift+Enter starts a new line.
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot } from '@sophia/contracts'
+import { Icon, Tip } from '@sophia/ui'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
@@ -131,32 +134,33 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} />
       <ConversationMode room={room} starting={starting} ready={ready} busy={busy} start={start} />
-      <label htmlFor="converse-draft" className="sr-only">
-        Message Sophia
-      </label>
-      <textarea
-        id="converse-draft"
-        rows={2}
-        maxLength={2000}
-        value={draft}
-        placeholder="Message Sophia…"
-        onChange={(e) => onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault()
-            void send()
-          }
-        }}
-      />
-      <div className="composer-row">
-        <p className="composer-note">Chat stays in this open conversation. Saved project notes remain in the brief.</p>
+      <div className="message-bar">
+        <label htmlFor="converse-draft" className="sr-only">
+          Message Sophia
+        </label>
+        <textarea
+          id="converse-draft"
+          rows={1}
+          maxLength={2000}
+          value={draft}
+          placeholder="Message Sophia…"
+          onChange={(e) => onDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              void send()
+            }
+          }}
+        />
         <button
           type="button"
-          className="pill primary"
+          className="send has-tip"
+          aria-label="Send"
           disabled={!ready || busy || !draft.trim()}
           onClick={() => void send()}
         >
-          Send
+          <Icon name="send" />
+          <Tip label="Send" keys="Enter" side="top" align="end" />
         </button>
       </div>
       {!ready && presence?.exchange === 'open' && (

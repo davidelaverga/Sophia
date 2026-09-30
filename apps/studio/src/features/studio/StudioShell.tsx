@@ -1,13 +1,19 @@
 // renderRoom / v2StudioStage → StudioShell (frontend bindings): the shared room seen through this
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
-// are shared.
+// are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
+// stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
+import { useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { useMembership } from '../access/useAccess.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
+import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
+import { chatSignature, toggled, type Panel } from './side-panel.ts'
+import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
 
@@ -37,32 +43,49 @@ const namesOf = (room: ProjectRoom) => new Map(room.participants.map((p) => [p.i
 
 export function StudioShell({ projectId, identity, room, snapshot }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
-  useShortcuts({ '1': () => setLens('converse'), '2': () => setLens('explore'), '3': () => setLens('build') })
+  const [panel, setPanel] = useState<Panel | null>(null)
+  const unread = useUnread(chatSignature(snapshot, room.chat), panel === 'chat')
+  const brief = useBriefUpdates(panel === 'brief')
+  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
+  const names = namesOf(room)
+  useShortcuts({
+    '1': () => setLens('converse'),
+    '2': () => setLens('explore'),
+    '3': () => setLens('build'),
+    c: () => setPanel((open) => toggled(open, 'chat')),
+    b: () => setPanel((open) => toggled(open, 'brief')),
+  })
+  const common = { projectId, identity, me, names }
   return (
-    <RoomStage
-      room={room}
-      snapshot={snapshot}
-      projectId={projectId}
-      identity={identity}
-      lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-      lensBody={
-        <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
-          {state.lens === 'converse' ? (
-            <Conversation
-              projectId={projectId}
-              identity={identity}
-              snapshot={snapshot}
-              room={room}
-              names={namesOf(room)}
-              draft={state.drafts.converse ?? ''}
-              onDraft={(text) => setDraft('converse', text)}
-            />
-          ) : (
-            <ComingLens lens={state.lens} />
-          )}
-        </div>
-      }
-    />
+    <div className="studio">
+      <RoomStage
+        room={room}
+        snapshot={snapshot}
+        projectId={projectId}
+        identity={identity}
+        lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
+        lensBody={
+          <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
+            {state.lens !== 'converse' && <ComingLens lens={state.lens} />}
+          </div>
+        }
+        corner={<PanelToggles open={panel} onOpen={setPanel} unread={unread} updated={brief.updated} />}
+      />
+      <SidePanel
+        open={panel}
+        onOpen={setPanel}
+        chat={
+          <Conversation
+            {...common}
+            snapshot={snapshot}
+            room={room}
+            draft={state.drafts.converse ?? ''}
+            onDraft={(text) => setDraft('converse', text)}
+          />
+        }
+        brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={brief.onRevision} />}
+      />
+    </div>
   )
 }
 

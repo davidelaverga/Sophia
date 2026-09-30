@@ -34,6 +34,8 @@ interface Props {
   lensBody: ReactNode
   /** Sophia's line, when the room's own rules do not apply (a guest knows nothing of the floor). */
   line?: RoomLine
+  /** The stage's bottom-right corner, level with the dock (the Studio puts its chat and brief there). */
+  corner?: ReactNode
 }
 
 /** The time, again every half minute: enough for "starts in 12 min". */
@@ -165,7 +167,7 @@ function conversationLine(room: ProjectRoom, floor: FloorView, running: number, 
   return roomLine(room.status, floor, running, sophia)
 }
 
-export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line }: Props) {
+export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, corner }: Props) {
   const stage = useRef<HTMLElement>(null)
   const now = useNow()
   const light = useRef<SophiaLightHandle>(null)
@@ -219,6 +221,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
         sophia={sophia}
         onPassed={passed}
       />
+      {corner && <div className="stage-corner">{corner}</div>}
     </section>
   )
 }

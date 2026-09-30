@@ -1264,55 +1264,83 @@ button.mark:hover {
 .composer {
   display: grid;
   gap: 8px;
-  justify-items: center;
+  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  border-top: 1px solid var(--line);
 }
-.composer textarea {
-  height: auto;
-  min-height: 44px;
-  max-height: 28cqh;
-  padding: 11px 14px;
+/* The message bar: the words and their Send in one field, as a chat has it. */
+.message-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--line-2);
   border-radius: var(--r-4);
+  background: var(--glass);
+  transition:
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease);
+}
+.message-bar:focus-within {
+  border-color: rgba(185, 168, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+}
+.message-bar textarea {
+  flex: 1;
+  height: auto;
+  min-height: 32px;
+  max-height: 30dvh;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
   resize: none;
   field-sizing: content;
   line-height: 1.5;
-  background: var(--glass);
-  box-shadow: var(--lift);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
 }
-/* Read, not decoration: it says what sending does and does not do. */
-.composer-note {
-  color: var(--text-3);
-  font-size: 12px;
-  text-align: center;
+.message-bar textarea:focus-visible {
+  background: transparent;
+  box-shadow: none;
 }
-.composer-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
+.send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: var(--core);
+  color: var(--void);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.send:hover:not(:disabled) {
+  background: #fff;
+}
+/* Nothing to send yet: the arrow waits, quiet, like a primary button's outline. */
+.send:disabled {
+  opacity: 1;
+  background: transparent;
+  color: var(--text-4);
 }
 
-/* The Converse lens: the mission (SMC-M01), recent discussion, a brief still in motion, the composer. */
+/* The chat in the side panel: the history takes the room and scrolls; the composer keeps its place at the foot. */
 .conversation {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.conversation-history {
+  display: grid;
+  flex: 1;
+  align-content: start;
   gap: 12px;
-  width: min(640px, 100%);
-  margin: 0 auto;
-  /* A short window: the lens scrolls inside its bounds rather than slipping behind the dock. */
+  min-height: 0;
+  padding: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-.conversation > * {
-  flex: none;
-}
-/* The discussion gives way: it scrolls, and the composer stays in reach. The mission view does the same (below). */
-.conversation > .discussion {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
 }
 .discussion {
   display: grid;
@@ -2700,124 +2728,105 @@ div.empty {
   resize: vertical;
 }
 
-/* The conversation is the primary workspace; the living brief is a viewer-local companion panel. */
-.room-stage:has(.conversation-workspace) {
-  --ly: 15cqh;
-  --lr: min(11cqmin, 88px);
-}
-.room-stage:has(.conversation-workspace) .sophia-line {
-  top: 105px;
-}
-.room-stage:has(.conversation-workspace) .stage-body {
-  top: 165px;
-  bottom: 100px;
-  width: min(1200px, calc(100% - 2 * var(--gutter)));
-  justify-content: stretch;
-}
-.lens-body:has(.conversation-workspace) {
-  height: 100%;
-}
-.conversation-workspace {
-  position: relative;
+/* The room beside its side panel: the stage keeps Sophia's light and the people; the chat and the brief sit to
+   the right, as meeting apps have them. On a phone the panel covers the room. */
+.studio {
   display: flex;
-  gap: 20px;
-  height: 100%;
-  min-height: 0;
+  height: calc(100dvh - var(--topbar));
 }
-.conversation-workspace > .conversation {
-  width: 100%;
-  max-width: 760px;
+.studio > .room-stage {
   flex: 1;
   min-width: 0;
-  height: 100%;
-  padding-top: 44px;
 }
-.conversation-workspace .discussion {
-  flex: 1;
-}
-.living-brief {
+.side-panel {
+  display: flex;
   flex: none;
-  width: 0;
-}
-.brief-open {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 3;
-}
-.living-brief[data-view='side'] {
-  width: min(44%, 520px);
-}
-.living-brief[data-view='side'] .brief-open,
-.living-brief[data-view='full'] .brief-open {
-  display: none;
-}
-.brief-panel {
-  height: 100%;
-  display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--glass);
-  overflow: hidden;
+  width: min(380px, 42vw);
+  min-height: 0;
+  border-left: 1px solid var(--line-2);
+  background: var(--plane);
+  animation: slide var(--base) var(--ease) both;
 }
-.brief-panel[hidden] {
+.side-panel[hidden],
+.side-panel-body[hidden] {
   display: none;
 }
-.brief-panel-header {
+.side-panel-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px;
+  padding: 6px 12px 0 16px;
   border-bottom: 1px solid var(--line);
 }
-.brief-panel-header h2 {
-  margin: 0;
-  font-size: 16px;
+/* Tabs as a line under words, like the Invite sheet's. */
+.side-tabs {
+  display: flex;
+  gap: 16px;
 }
-.brief-panel-body {
-  min-height: 0;
+.side-tabs button {
+  position: relative;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color var(--fast) var(--ease);
+}
+.side-tabs button:hover {
+  color: var(--text-2);
+}
+.side-tabs button[aria-selected='true'] {
+  color: var(--text);
+}
+.side-tabs button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1.5px;
+  background: var(--text);
+}
+.side-panel-head .round {
+  width: 28px;
+  height: 28px;
+  border-color: transparent;
+  background: transparent;
+}
+.side-panel-head .round:hover {
+  background: rgba(236, 235, 241, 0.06);
+}
+.side-panel-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.brief-panel-body .mission {
+.side-panel-body .mission {
   border-radius: 0;
   background: transparent;
 }
-.living-brief[data-view='full'] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  z-index: 4;
+/* The chat fills its panel: the history scrolls, and the composer stays at the foot. */
+.side-panel-body:has(> .conversation) {
+  display: flex;
+  overflow: hidden;
 }
-.conversation-workspace:has(.living-brief[data-view='full']) > .conversation {
-  visibility: hidden;
+.chat-empty {
+  padding: 24px 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: center;
 }
-@media (max-width: 760px) {
-  .living-brief[data-view='side'] {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    z-index: 4;
-  }
-  .conversation-workspace:has(.living-brief[data-view='side']) > .conversation {
-    visibility: hidden;
-  }
-  .room-stage:has(.conversation-workspace) .stage-body {
-    top: 130px;
-    bottom: 110px;
-  }
-}
-
 .chat-messages {
-  list-style: none;
-  padding: 0;
-  margin: 0;
   display: grid;
   gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .chat-message {
   padding: 12px 16px;
@@ -2830,8 +2839,8 @@ div.empty {
 }
 .chat-message.user {
   margin-left: 12%;
-  background: var(--glass);
   border: 1px solid var(--line);
+  background: var(--glass);
 }
 .chat-message.sophia {
   margin-right: 6%;
@@ -2839,29 +2848,6 @@ div.empty {
 .chat-status {
   color: var(--text-3);
   font-size: 12px;
-}
-.conversation-workspace .composer {
-  position: sticky;
-  bottom: 0;
-  background: var(--plane);
-  padding: 12px 0;
-}
-
-.living-brief {
-  order: 2;
-}
-.conversation-workspace > .conversation {
-  order: 1;
-}
-
-.conversation-workspace > .conversation {
-  overflow: hidden;
-}
-.conversation-history {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .brief-sections {
   display: grid;
@@ -2872,15 +2858,49 @@ div.empty {
   font-size: 14px;
   color: var(--text-2);
 }
-
+/* The chat and the brief in the stage's corner, level with the dock and dressed like it. */
+.stage-corner {
+  position: absolute;
+  right: var(--gutter);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  z-index: 4;
+}
+.panel-toggles {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    var(--lift),
+    0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: rise 0.45s var(--ease) 0.1s backwards;
+}
+/* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
+.toggle-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
+}
 @media (max-width: 760px) {
-  .room-stage:has(.conversation-workspace) .sophia-line {
-    top: 80px;
+  .side-panel {
+    position: fixed;
+    inset: var(--topbar) 0 0;
+    z-index: 30;
+    width: auto;
+    border-left: 0;
   }
-  .room-stage:has(.conversation-workspace) .line-note {
-    display: none;
-  }
-  .living-brief .brief-panel {
-    background: var(--plane);
+  /* The dock wraps to two rows on a phone: the corner moves up, under the lenses. */
+  .stage-corner {
+    top: 72px;
+    bottom: auto;
   }
 }
