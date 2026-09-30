@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
-import { PasskeyLink, usePasskeyAutofill } from './PasskeySignIn.tsx'
+import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
@@ -81,7 +81,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
   const [email, setEmail] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
   const showError = useCallback((message: string) => setState({ step: 'error', message }), [])
-  usePasskeyAutofill()
+  const passkey = usePasskeySignIn(showError)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -126,7 +126,7 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
         </p>
       )}
       <p className="muted">New here? The same link creates your account.</p>
-      <PasskeyLink onError={showError} />
+      <PasskeyLink {...passkey} />
     </Centered>
   )
 }
