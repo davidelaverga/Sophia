@@ -293,6 +293,22 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
   return day
 }
 
+/** The day chosen from the days' menu: in sight, with the focus, so Tab and the keys go on from there. */
+function goToDay(key: string) {
+  const divider = document.getElementById(dayId(key))
+  divider?.focus({ preventScroll: true })
+  divider?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+/** The last page read back takes "Show earlier days" away: the focus it had goes to the menu's first day. */
+function useFocusAfterMore(panel: RefObject<HTMLDivElement | null>, open: boolean, more: boolean) {
+  useEffect(() => {
+    if (open && !more && document.activeElement === document.body) {
+      panel.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    }
+  }, [open, more, panel])
+}
+
 /** The day at the top of what you're reading, and the list of days it opens (so do the days' own dividers). */
 function Earlier(props: {
   rows: readonly Row[]
@@ -305,6 +321,7 @@ function Earlier(props: {
 }) {
   const { rows, open, day, setOpen, more, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
+  useFocusAfterMore(menu.panel, open, more)
   return (
     <div ref={menu.wrap} className="c3-daybar">
       {day && (
@@ -340,7 +357,7 @@ function Earlier(props: {
               type="button"
               onClick={() => {
                 setOpen(false)
-                document.getElementById(dayId(d.key))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                goToDay(d.key)
               }}
             >
               <span>{d.label}</span>

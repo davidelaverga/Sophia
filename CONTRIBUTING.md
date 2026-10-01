@@ -510,6 +510,9 @@ their work. Keep these when you change them:
 - **A write that is refused reads the space again.** "That changed a moment
   ago. This is how it is now" (`movedOn`, with tests) must be true: the space
   is read again, so a second press or another tab's change shows. A write
+  that went through settles once what it changed can show: the space is
+  read again until a read works, less and less often while reads fail
+  (`readUntilRead`), and a message stays on its way until then. A write
   with no answer is retried under its key only within two minutes of its
   first attempt (`once`, with tests); later it is said as not confirmed, and
   the space is read again. A message's words stay on this device until they
@@ -613,6 +616,8 @@ their work. Keep these when you change them:
   Carry, the Notes toggle; in a sheet, its Close or the first control of
   what replaced it), a sheet whose opener is gone gives it to the place
   (`returnTo` in `useDialog`), and Undo hands it back where it was (`Toast`).
+  The days' menu gives it to the day chosen, and keeps it when the last page
+  read back takes its "Show earlier days" away.
   A menu that opens a sheet hands the focus to its own button first; the
   call's pill gives it to the bar's mark when it goes, however the call ends;
   a lock from anywhere gives it to the bar's Personal switch. A press that

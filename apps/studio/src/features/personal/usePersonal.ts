@@ -1,7 +1,7 @@
 // The personal space and the Work list as server state (react-query), and the writes the three places make. Every
 // write has its own Idempotency-Key and is retried once with the SAME key when no reply came, while its first attempt
 // is recent (once.ts); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { PersonalReceipt, PersonalSpace, PersonalTurn, ProjectList } from '@sophia/contracts'
 import {
@@ -135,6 +135,23 @@ const readAfresh = (client: QueryClient, name: string) =>
   client.resetQueries({ queryKey: ['personal', name], exact: true })
 
 /**
+ * After a write, the space is read again until a read works, less and less often while reads fail (pollEvery): what
+ * the write changed shows before it settles (a message stays on its way until then). A space nobody shows now (the
+ * padlock shut, the page gone) ends the wait.
+ */
+async function readUntilRead(client: QueryClient, queryKey: QueryKey): Promise<void> {
+  for (let failures = 0; ; failures += 1) {
+    try {
+      await client.invalidateQueries({ queryKey, exact: true }, { throwOnError: true })
+      return
+    } catch {
+      if (!client.getQueryCache().find({ queryKey, exact: true })?.isActive()) return
+      await new Promise((wake) => setTimeout(wake, pollEvery(failures)))
+    }
+  }
+}
+
+/**
  * An erasure on another device, once this page hears of it from the Work list (erasedElsewhere): the space is read
  * afresh (readAfresh), so neither its conversation nor its draft stays in sight, also while reads fail.
  */
@@ -169,22 +186,26 @@ export class OnItsWay extends Error {}
  */
 function useRun(identity: Identity) {
   const client = useQueryClient()
-  const refresh = async (projects = false, erased = false) => {
-    if (erased) await readAfresh(client, identity.name)
-    else await client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
+  const space = ['personal', identity.name]
+  const work = async (projects: boolean) => {
     if (projects) await client.invalidateQueries({ queryKey: ['projects', identity.name] })
   }
   return async (write: (key: string, epoch: number) => Promise<PersonalReceipt>, projects = false, key?: string) => {
     const at = epochNow(
-      client.getQueryData<PersonalSpace>(['personal', identity.name]),
+      client.getQueryData<PersonalSpace>(space),
       client.getQueryData<ProjectList>(['projects', identity.name]),
     )
     try {
       const receipt = await once((k) => write(k, at), Date.now, key)
-      await refresh(projects, receipt.operation === 'erase')
+      // It settles once what it changed can show: an erasure is read afresh, any other write until a read works.
+      await (receipt.operation === 'erase' ? readAfresh(client, identity.name) : readUntilRead(client, space))
+      await work(projects)
       return receipt
     } catch (err: unknown) {
-      if (readsAgain(err)) await refresh(projects)
+      if (readsAgain(err)) {
+        await client.invalidateQueries({ queryKey: space, exact: true })
+        await work(projects)
+      }
       throw err
     }
   }
