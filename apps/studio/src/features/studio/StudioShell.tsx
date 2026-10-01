@@ -14,7 +14,7 @@ import { roomKey } from '../voice/room-keys.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
-import { chatSignature, mergeNames, toggled, type Panel } from './side-panel.ts'
+import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
 import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
@@ -131,7 +131,7 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
         }
         brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={brief.onRevision} />}
         call={<CallSwitches room={room} />}
-        note={room.mediaError}
+        note={panelNote(panel, room.mediaError, room.error)}
       />
     </div>
   )

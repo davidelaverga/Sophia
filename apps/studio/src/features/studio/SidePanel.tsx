@@ -4,7 +4,18 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip, type IconName } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
-import { changedUnseen, focusOnOpen, isNew, PANEL_TITLE, PANELS, seenNow, toggled, type Panel } from './side-panel.ts'
+import {
+  changedUnseen,
+  focusOnOpen,
+  focusStep,
+  isNew,
+  PANEL_TITLE,
+  PANELS,
+  seenNow,
+  toggled,
+  type Panel,
+  type PanelFocus,
+} from './side-panel.ts'
 
 interface PanelProps {
   open: Panel | null
@@ -16,7 +27,10 @@ interface PanelProps {
    * the room, so what this person is sending is never out of sight; beside the room, the dock already does.
    */
   call: ReactNode
-  /** What stopped a device switch (room.mediaError): said under the head where the panel covers the dock that says it. */
+  /**
+   * Said under the head where the panel covers the dock that says it: what stopped a device, or why the call ended or
+   * failed (panelNote).
+   */
   note: string | null
 }
 
@@ -31,19 +45,19 @@ function openingTarget(open: Panel, root: HTMLElement | null): HTMLElement | nul
 /**
  * Opening moves focus in: to the message bar where a keyboard is at hand, else to the tab (no keyboard jumps up on a
  * phone, and Chat with Sophia is never focused for a stray Space to press). Closing hands it back to the toggle that
- * opened the panel.
+ * opened the panel, also after another tab was chosen (focusStep).
  */
 function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>) {
-  const previous = useRef(open)
+  const remembered = useRef<PanelFocus>({ open, opener: open })
   useEffect(() => {
-    const was = previous.current
-    previous.current = open
-    if (was === open) return
-    if (open && !was) {
-      openingTarget(open, panel.current)?.focus({ preventScroll: true })
-    } else if (!open && was) {
-      document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${was}"]`)?.focus({ preventScroll: true })
-    }
+    const { next, move } = focusStep(remembered.current, open)
+    remembered.current = next
+    if (!move) return
+    const target =
+      'in' in move
+        ? openingTarget(move.in, panel.current)
+        : document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${move.back}"]`)
+    target?.focus({ preventScroll: true })
   }, [open, panel])
 }
 

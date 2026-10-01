@@ -175,7 +175,8 @@ when you change the room:
   toggle's accessible name says so too ("Chat, something new").
 - **Focus follows the panel** (`usePanelFocus`): in on open (the message bar
   where a fine pointer suggests a keyboard, the tab on a phone so no keyboard
-  jumps up), back to the toggle that opened it on close.
+  jumps up), back to the toggle that opened it on close, also after another
+  tab was chosen (`focusStep`, with tests).
 - **The chat's foot offers one thing at a time** (`chatEntry` in
   `chat-view.ts`, with tests): Chat with Sophia until this person is in the
   room and Sophia's exchange exists, then the message bar with Send inside
@@ -188,7 +189,10 @@ when you change the room:
   state, "Chatting with Sophia", and only once typing reaches her. A start
   that fails says why here too (the room's own note: `room.error`), and asks
   Sophia into nothing: on a phone this panel covers the dock, and a button
-  that falls back to "Chat with Sophia" without a word reads as broken.
+  that falls back to "Chat with Sophia" without a word reads as broken. The
+  room's note comes before the chat's own errors, which go with the call
+  (`footError`, with tests): a send that failed earlier must not hide that
+  the call ended.
   Voice mode is offered in the call only, so a start whose join doesn't get
   in puts text mode back as it was (`startChat` in `chat-start.ts`, with
   tests): out of the call nobody could turn it off, and the dock's Try again
@@ -223,7 +227,9 @@ when you change the room:
   shared screen while they are on (`CallSwitches` in `StudioShell`, the
   dock's own `Toggle`). Someone reading the chat on a phone must not have to
   close it to see that they are heard, or to mute. Beside the room the dock
-  already shows them, so the head does not repeat it.
+  already shows them, so the head does not repeat it. Under the head the
+  panel says what the covered dock would: what stopped a device, or, while
+  Brief is in view, why the call ended (`panelNote`, with tests).
 - **A call that ends says why** (`call-end.ts`, with tests; the reason is
   LiveKit's, read in `livekit-room.ts`). Only a lost connection is a failure
   and offers "Try again". The same person joining from another tab or device

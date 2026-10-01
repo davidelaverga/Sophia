@@ -40,6 +40,14 @@ export function chatEntry(inRoom: boolean, presence: SophiaPresence | undefined)
   return inRoom && !!presence && presence.exchange !== 'none' ? 'bar' : 'start'
 }
 
+/**
+ * The one error the chat's foot says. Why the call ended or failed comes first: it is the room's state now, and a
+ * send or a start that failed before it is old news. The chat's own errors belong to a call this person is in, so
+ * they go with it.
+ */
+export const footError = (room: string | null, inRoom: boolean, send: string | null, start: string | null) =>
+  room ?? (inRoom ? (send ?? start) : null)
+
 /** Typed words reach Sophia: her exchange is open and she is ready to take them. */
 export function reachesSophia(presence: SophiaPresence | undefined): boolean {
   return presence?.exchange === 'open' && presence.voice === 'ready'

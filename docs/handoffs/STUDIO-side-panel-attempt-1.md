@@ -17,7 +17,8 @@ What works:
 - Text mode is said in the dock and ends with voice. It needs the microphone off: when the microphone can't be turned off, text mode rolls back with a note.
 - Capture takes the command key, as in Meet: Ctrl or ⌘ with D, E, Shift+E and J.
 - A call that ends says why: another tab, removed, the room closed, or a lost connection.
-- Where the panel covers the room (760 px and below), its head keeps the call's switches and says what stopped a device.
+- Where the panel covers the room (760 px and below), its head keeps the call's switches and says what stopped a device, or, over the Brief tab, why the call ended. In the chat's foot, the call's ending comes before an older chat error.
+- Closing the panel hands the focus back to the toggle that opened it, also after another tab was chosen.
 - The panel lines up with the room (one floor, one top line, one gutter), and the corner never touches the dock.
 
 Missing or unverified:
@@ -26,15 +27,17 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (181 pass) and the Studio build. CI was green on every pushed head.
+- **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (184 pass) and the Studio build. CI was green on every pushed head.
 - **Room suites** (local dev stack, synthetic identities): chat entry (16), modes, panel alignment (44), corner (35, in a call, at 17 widths), video corner (6), keys, waits, room endings, sending, screen, safety and guest. They passed on `studio/combined-23-24-28`. The latest fixes were rechecked on 2026-09-30 with keys, sending, chat entry and modes, on this branch's own tree served against the stack.
-- **Reviews:** Codex, in five rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The panel's device note is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
+- **Reviews:** Codex, in six rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The panel's device note is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
 - **Browser checks of the last rounds:**
   - the Chat tab takes the focus, and Space starts nothing;
   - a project loaded with three entries and Chat closed reads "Chat", not "Chat, something new";
   - with the microphone blocked, at 700 px, the panel's head says why;
   - C, B and 2 typed on the focused Chat tab are taken as nothing, and Space still presses Close;
-  - after a chat start whose join failed, the dock's Try again joins by voice, with no Text mode.
+  - after a chat start whose join failed, the dock's Try again joins by voice, with no Text mode;
+  - Chat opened from its toggle, Brief chosen, Esc: the focus is back on the Chat toggle;
+  - at 700 px, a call taken by another tab says so under the head over Brief, and in the chat's foot over an older start error.
 
 ## Decisions and changes
 

@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Snapshot } from '@sophia/contracts'
-import { changedUnseen, chatSignature, focusOnOpen, isNew, mergeNames, seenNow, toggled } from './side-panel.ts'
+import {
+  changedUnseen,
+  chatSignature,
+  focusOnOpen,
+  focusStep,
+  isNew,
+  mergeNames,
+  panelNote,
+  seenNow,
+  toggled,
+} from './side-panel.ts'
 
 const discussion = (ids: readonly string[]) =>
   ({ discussion: ids.map((id) => ({ id })) }) as unknown as Pick<Snapshot, 'discussion'>
@@ -76,5 +86,21 @@ describe('the room side panel', () => {
     assert.equal(focusOnOpen('chat', true, 'start'), 'tab', 'Space on a focused Chat with Sophia would start the chat')
     assert.equal(focusOnOpen('chat', false, 'bar'), 'tab', 'no keyboard jumps up on a phone')
     assert.equal(focusOnOpen('brief', true, null), 'tab')
+  })
+
+  it('hands the focus back to the toggle that opened the panel, also after another tab was chosen', () => {
+    const opened = focusStep({ open: null, opener: null }, 'chat')
+    assert.deepEqual(opened.move, { in: 'chat' })
+    const switched = focusStep(opened.next, 'brief')
+    assert.equal(switched.move, null, 'choosing a tab moves nothing')
+    assert.deepEqual(focusStep(switched.next, null).move, { back: 'chat' }, 'Chat opened it, so Chat gets it back')
+  })
+
+  it('says why the call ended over the Brief tab, where the chat’s foot is out of sight', () => {
+    const ended = 'You joined from another tab or device, so this one left the call.'
+    assert.equal(panelNote('brief', null, ended), ended)
+    assert.equal(panelNote('chat', null, ended), null, 'the chat’s foot says it')
+    assert.equal(panelNote('chat', 'Microphone blocked.', ended), 'Microphone blocked.')
+    assert.equal(panelNote(null, null, null), null)
   })
 })

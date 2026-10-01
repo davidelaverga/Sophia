@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { startChat } from './chat-start.ts'
-import { chatEntry, chatLine, type ChatEntry } from './chat-view.ts'
+import { chatEntry, chatLine, footError, type ChatEntry } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
@@ -208,9 +208,9 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
   }
   const moment = { starting, live: room.status === 'live', mine: chat.mine, textMode: room.textMode }
   const line = entry === 'bar' && presence ? chatLine(presence, moment) : null
-  // The room's own trouble (a join that failed, a call that ended) is said here too: on a phone this panel covers
-  // the dock, and a button that falls back to "Chat with Sophia" without a word reads as broken.
-  const error = chat.error ?? startError ?? room.error
+  // The room's own trouble (a join that failed, a call that ended) is said here too, before the chat's own: on a phone
+  // this panel covers the dock, and a button that falls back to "Chat with Sophia" without a word reads as broken.
+  const error = footError(room.error, inRoom, chat.error, startError)
   return (
     <div className="composer">
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={entry === 'bar'} />
