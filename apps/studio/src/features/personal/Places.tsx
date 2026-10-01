@@ -4,7 +4,7 @@
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { initialOf } from '../../app/profile.ts'
@@ -307,6 +307,8 @@ interface View {
   now: Date
   layers: Layers
   space: ReturnType<typeof usePersonalSpace>
+  /** What the places may show of the space: nothing while it is locked, not even what was read before it shut. */
+  personal: Space | undefined
   projects: ReturnType<typeof useProjects>
   writes: PersonalWrites
   shown: readonly Place[]
@@ -329,7 +331,7 @@ const projectsRead = (v: View): Read => ({
 
 function Home({ v }: { v: View }) {
   const { props, now, nav, layers } = v
-  const data = v.space.data
+  const data = v.personal
   const work = workDoor(v.projects.data?.projects, now, props.call?.title ?? null)
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
@@ -362,7 +364,7 @@ function Personal({ v }: { v: View }) {
       hidden={!v.shown.includes('personal') || props.lock.locked}
       identity={props.identity.name}
       name={firstName(props.identity)}
-      space={v.space.data}
+      space={v.personal}
       read={personalRead(v)}
       projects={v.projects.data?.projects}
       writes={v.writes}
@@ -439,7 +441,7 @@ function Sheets({ v }: { v: View }) {
         <DataSheet
           token={identity.token}
           who={identity.displayName ?? firstName(identity) ?? identity.name}
-          space={v.space.data}
+          space={v.personal}
           locked={props.lock.locked}
           toast={props.toast}
           onClose={() => layers.setData(false)}
@@ -460,11 +462,13 @@ export function Places(props: PlacesProps) {
   const layers = useLayers()
   const explain = useExplain(identity.name)
   const nav = usePlaceNavigation(props, layers)
+  const space = usePersonalSpace(identity, !lock.locked)
   const v: View = {
     props,
     now: useNow(),
     layers,
-    space: usePersonalSpace(identity, !lock.locked),
+    space,
+    personal: lock.locked ? undefined : space.data,
     projects: useProjects(identity),
     writes: usePersonalWrites(identity),
     shown: usePlaceMotion(place, root),

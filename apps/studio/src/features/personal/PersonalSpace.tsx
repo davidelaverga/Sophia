@@ -18,7 +18,7 @@ import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
 import { PersonalComposer } from './PersonalComposer.tsx'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
-import { withStaleWaits, type PersonalWrites } from './usePersonal.ts'
+import type { PersonalWrites } from './usePersonal.ts'
 import { personalFailure } from './write-words.ts'
 
 interface Props {
@@ -138,13 +138,15 @@ function useWelcomeBack(props: Props, turns: readonly PersonalTurn[]) {
   }, [hidden, due, writes, name])
 }
 
+const NO_TURNS: readonly PersonalTurn[] = []
+
 /**
- * The conversation's rows, with a wait that has run past any answer shown as failed (so it can be asked again). None
- * until the space has loaded.
+ * The conversation's rows, none until the space has loaded. A wait that outlasted any answer comes from the server as
+ * failed, so it can be asked again (usePersonalSpace).
  */
 function useRows(props: Props) {
   const { space, writes, name } = props
-  const turns = useMemo(() => withStaleWaits(space?.turns ?? [], Date.now()), [space?.turns])
+  const turns = space?.turns ?? NO_TURNS
   const earlier = space?.earlier ?? false
   const loaded = !!space
   const rows = useMemo(

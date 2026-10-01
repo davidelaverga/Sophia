@@ -26,7 +26,8 @@ CREATE TABLE sophia.personal_spaces (
 );
 
 -- The conversation: the person's turns and Sophia's replies, in one order. A person's turn waits for its reply
--- (pending), has it (answered), or the companion could not give one (failed, and the person may ask again).
+-- (pending), has it (answered), or the companion could not give one (failed, and the person may ask again). asked_at
+-- is when the person last asked for the reply: when they sent the turn, or asked again (personal_reply_state).
 CREATE TABLE sophia.personal_turns (
  owner_id uuid NOT NULL REFERENCES sophia.personal_spaces(owner_id),
  id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -35,10 +36,12 @@ CREATE TABLE sophia.personal_turns (
  body text NOT NULL CHECK(length(body) BETWEEN 1 AND 4000),
  reply_to uuid,
  reply text CHECK(reply IN ('pending','answered','failed')),
+ asked_at timestamptz,
  created_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(owner_id,id), UNIQUE(owner_id,seq),
  FOREIGN KEY(owner_id,reply_to) REFERENCES sophia.personal_turns(owner_id,id),
  CHECK((author='person')=(reply IS NOT NULL)),
+ CHECK((author='person')=(asked_at IS NOT NULL)),
  CHECK(author='sophia' OR reply_to IS NULL)
 );
 CREATE INDEX personal_turns_pending ON sophia.personal_turns(owner_id,seq) WHERE reply='pending';
@@ -177,14 +180,15 @@ CREATE FUNCTION sophia.personal_digest(p_text text) RETURNS text LANGUAGE sql IM
  SELECT encode(sha256(convert_to(p_text,'UTF8')),'hex') $$;
 REVOKE ALL ON FUNCTION sophia.personal_digest(text) FROM PUBLIC;
 
--- A turn appended after the owner's last one.
+-- A turn appended after the owner's last one. A person's turn asks for a reply from now.
 CREATE FUNCTION sophia.personal_append(p_author text, p_body text, p_reply_to uuid) RETURNS sophia.personal_turns
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE seq_value bigint; t sophia.personal_turns;
+DECLARE seq_value bigint; t sophia.personal_turns; person boolean:=p_author='person';
 BEGIN
  UPDATE sophia.personal_spaces SET turn_seq=turn_seq+1 WHERE owner_id=sophia.personal_owner() RETURNING turn_seq INTO seq_value;
- INSERT INTO sophia.personal_turns(owner_id,seq,author,body,reply_to,reply)
- VALUES(sophia.personal_owner(),seq_value,p_author,p_body,p_reply_to,CASE WHEN p_author='person' THEN 'pending' END)
+ INSERT INTO sophia.personal_turns(owner_id,seq,author,body,reply_to,reply,asked_at)
+ VALUES(sophia.personal_owner(),seq_value,p_author,p_body,p_reply_to,CASE WHEN person THEN 'pending' END,
+  CASE WHEN person THEN now() END)
  RETURNING * INTO t;
  RETURN t;
 END $$;
@@ -192,6 +196,14 @@ REVOKE ALL ON FUNCTION sophia.personal_append(text,text,uuid) FROM PUBLIC;
 
 -- ---------------------------------------------------------------------------------------------------
 -- The conversation.
+
+-- A reply as it stands, for every read and for asking again. The API gives an answer 60 s and then marks the turn
+-- failed (ANSWER_LIMIT_MS in apps/api/src/companion.ts); a reply still pending two minutes after it was asked for
+-- was lost with the process answering it (a deploy, a crash), so it reads as failed and may be asked for again.
+CREATE FUNCTION sophia.personal_reply_state(p_reply text, p_asked_at timestamptz) RETURNS text LANGUAGE sql STABLE
+SET search_path=pg_catalog AS $$
+ SELECT CASE WHEN p_reply='pending' AND p_asked_at<now()-interval '2 minutes' THEN 'failed' ELSE p_reply END $$;
+REVOKE ALL ON FUNCTION sophia.personal_reply_state(text,timestamptz) FROM PUBLIC;
 
 -- sendPersonalTurn: the person says something; Sophia's reply is pending until the companion writes it.
 CREATE FUNCTION sophia.send_personal_turn(p_key text, p_text text) RETURNS jsonb LANGUAGE plpgsql
@@ -260,19 +272,20 @@ BEGIN
  IF FOUND THEN PERFORM sophia.personal_touch(); END IF;
 END $$;
 
--- askPersonalAgain: a turn whose reply failed waits for one again.
+-- askPersonalAgain: a turn whose reply failed, or was lost (personal_reply_state), waits for one again from now.
 CREATE FUNCTION sophia.retry_personal_turn(p_key text, p_turn uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('turnId',p_turn); prior jsonb;
- t sophia.personal_turns; s sophia.personal_spaces;
+ t sophia.personal_turns; s sophia.personal_spaces; stands text;
 BEGIN
  prior:=sophia.personal_prior(p_key,'retry_turn',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=a FOR UPDATE;
  SELECT * INTO t FROM sophia.personal_turns WHERE owner_id=a AND id=p_turn;
  IF NOT FOUND OR t.author<>'person' THEN RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
- IF t.reply<>'failed' THEN RAISE EXCEPTION 'Stale turn: it is %', t.reply USING ERRCODE='40001'; END IF;
- UPDATE sophia.personal_turns SET reply='pending' WHERE owner_id=a AND id=p_turn;
+ stands:=sophia.personal_reply_state(t.reply,t.asked_at);
+ IF stands<>'failed' THEN RAISE EXCEPTION 'Stale turn: it is %', stands USING ERRCODE='40001'; END IF;
+ UPDATE sophia.personal_turns SET reply='pending', asked_at=now() WHERE owner_id=a AND id=p_turn;
  s:=sophia.personal_touch();
  RETURN sophia.personal_remember(p_key,'retry_turn',semantic,
   sophia.personal_receipt('retry_turn',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq)));
@@ -432,6 +445,7 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,text,text),
  sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text),
+ sophia.personal_reply_state(text,timestamptz),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) TO sophia_api;

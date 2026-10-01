@@ -3,8 +3,8 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObjec
 import { callEnded } from '../features/personal/notice-view.ts'
 import { Places, type Opening } from '../features/personal/Places.tsx'
 import type { InCall } from '../features/personal/PlacesBar.tsx'
-import type { Lock } from '../features/personal/lock.ts'
-import { useLock } from '../features/personal/useLock.ts'
+import { OPEN, type Lock } from '../features/personal/lock.ts'
+import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { useAuth } from './auth.ts'
@@ -196,6 +196,10 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const [call, reportCall] = useCall(ended)
   const [joining, setJoining] = useState<string | null>(null)
   const [lock, setLock] = useLock(identity.name, call !== null)
+  useUnlockOnReturn(() => {
+    setLock(OPEN)
+    goTo('personal')
+  })
   const project = route.projectId
   useSayings({ ended, say: toast.show, lock, project, notice })
   const sheets = useSheetsAtHome(leave)

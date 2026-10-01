@@ -159,6 +159,22 @@ describe('personal space: one conversation, owner-only', () => {
     assert.equal((await read(ANA, (c) => readPersonalTurnsAfter(c, 0))).pending, true)
     await write(ANA, (c) => recordPersonalReply(c, sent.turnId ?? '', 'Here.', null))
   })
+
+  it('reads a wait that outlasted any answer as failed, and lets her ask again from then', async () => {
+    const sent = await write(ANA, (c) => sendPersonalTurn(c, key(), 'Are you there?'))
+    const id = sent.turnId ?? ''
+    assert.equal(await codeOf(write(ANA, (c) => retryPersonalTurn(c, key(), id))), 'stale_revision', 'still waiting')
+    // The process answering it went away (a deploy, a crash) and nothing marked it failed.
+    await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [id])
+    const lost = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
+    assert.deepEqual([lost.turns.find((t) => t.id === id)?.reply, lost.pending], ['failed', false])
+    assert.equal(await read(ANA, (c) => readCompanionContext(c, id)), null, 'nobody answers a lost wait')
+    await write(ANA, (c) => retryPersonalTurn(c, key(), id))
+    const again = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
+    assert.deepEqual([again.turns.find((t) => t.id === id)?.reply, again.pending], ['pending', true])
+    assert.equal(await codeOf(write(ANA, (c) => retryPersonalTurn(c, key(), id))), 'stale_revision', 'asked from now')
+    await write(ANA, (c) => recordPersonalReply(c, id, 'Here now.', null))
+  })
 })
 
 describe('personal space: notes', () => {

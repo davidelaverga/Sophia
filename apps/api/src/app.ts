@@ -63,7 +63,10 @@ export interface AppDeps {
   companion?: Companion | null
 }
 
-/** Functions the API requires in the database; /ready fails if any is missing. */
+/**
+ * Functions the API requires in the database; /ready fails if any is missing, so an instance on a database that a
+ * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call.
+ */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
   AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
@@ -81,7 +84,19 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.record_mission_entry(uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.preview_mission_withdrawal(uuid,uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.personal_reply_state(text,timestamptz)') IS NOT NULL
+  AND to_regprocedure('sophia.send_personal_turn(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.retry_personal_turn(text,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.record_personal_reply(uuid,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.fail_personal_reply(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.record_personal_greeting(text)') IS NOT NULL
+  AND to_regprocedure('sophia.decide_personal_suggestion(text,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.keep_personal_note(text,text,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.forget_personal_note(text,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.carry_personal_note(text,uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.take_back_personal_release(text,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({

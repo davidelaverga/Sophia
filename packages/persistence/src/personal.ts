@@ -32,7 +32,9 @@ interface TurnRow {
   suggestion_state: 'open' | 'kept' | 'dismissed' | null
 }
 
-const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to, t.reply,
+// A reply reads as it stands: one whose wait outlasted any answer reads as failed (0021, personal_reply_state).
+const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
+    sophia.personal_reply_state(t.reply, t.asked_at) AS reply,
     sg.id AS suggestion_id, sg.body AS suggestion_body, sg.state AS suggestion_state
   FROM sophia.personal_turns t
   LEFT JOIN sophia.personal_suggestions sg ON sg.owner_id = t.owner_id AND sg.turn_id = t.id
@@ -130,7 +132,8 @@ export async function readPersonalTurnsAfter(c: pg.PoolClient, after: number): P
     PERSONAL_PAGE_LIMIT,
   ])
   const pending = await c.query<{ pending: boolean }>(
-    `SELECT EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND reply = 'pending') AS pending`,
+    `SELECT EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND reply = 'pending'
+       AND sophia.personal_reply_state(reply, asked_at) = 'pending') AS pending`,
   )
   return { revision: await readRevision(c), turns: rows.map(turnOf), pending: onlyRow(pending.rows, 'pending').pending }
 }

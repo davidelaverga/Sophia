@@ -6723,7 +6723,7 @@
     "/api/v1/personal/turns/{turnId}/retry": {
       "post": {
         "operationId": "retryPersonalTurn",
-        "summary": "A turn whose reply failed waits for one again.",
+        "summary": "A turn whose reply failed, or was lost (still pending two minutes after it was asked for), waits for one again from now.",
         "tags": [
           "personal"
         ],

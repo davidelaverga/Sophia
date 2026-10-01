@@ -1,6 +1,6 @@
 // "Your data" (direction C), in the Studio's sheet (app/Sheet.tsx): what the personal space keeps, counted; everything
 // as text to copy; and deleting it all, with a typed confirmation for the one thing that can't be undone. Behind the
-// padlock, copying and deleting wait for the person to confirm it's them.
+// padlock it shows nothing of the space, not even the counts, until the person confirms it's them.
 import { useState } from 'react'
 import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
@@ -81,7 +81,6 @@ function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
   if (locked) {
     return (
       <>
-        <Facts space={space} />
         <p className="muted">{DATA.locked}</p>
         <button className="pill" type="button" onClick={onUnlock}>
           {DATA.unlock}

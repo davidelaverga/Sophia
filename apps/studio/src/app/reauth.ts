@@ -1,8 +1,10 @@
 // Confirming it's the same person before their personal space opens again (the padlock, direction C). With Supabase Auth
 // the checks are real: the passkey, the provider they signed in with, or a code sent to their email. Each must come
 // back as the SAME account; a different one is refused (the side stays shut), and signing in as someone else never
-// opens this person's side, because a lock and a space belong to one account. Locally, dev identities have nothing to
-// check, and the dialog says so.
+// opens this person's side, because a lock and a space belong to one account. A provider's check crosses a page load,
+// so it must also come back as a NEW sign-in: returning with Back proves nothing. Locally, dev identities have nothing
+// to check, and the dialog says so.
+import { providerCheckPassed, tokenSession, type ProviderCheck } from './auth-callback.ts'
 import { authMode, listPasskeys, oauthProviders, passkeysOffered, supabase, type OAuthProvider } from './auth.ts'
 
 export interface UnlockWays {
@@ -82,14 +84,26 @@ export async function unlockWithCode(email: string, code: string): Promise<Confi
 }
 
 const PENDING = 'sophia.personal.unlock'
-const PENDING_FOR_MS = 10 * 60_000
 
-/** Leaves for the provider; on return, `unlockAfterRedirect` opens the side if the same account came back. */
+/** Who is signed in now, as the Auth service says, and which sign-in that is (the token's session_id). */
+async function signedInNow(): Promise<{ user: string | null; session: string | null }> {
+  if (!supabase) return { user: null, session: null }
+  const token = (await supabase.auth.getSession()).data.session?.access_token // after the client's ?code= exchange
+  if (!token) return { user: null, session: null }
+  const { data } = await supabase.auth.getUser(token)
+  return { user: data.user?.id ?? null, session: tokenSession(token) }
+}
+
+/**
+ * Leaves for the provider, noting which sign-in left (this tab only); on return, `unlockAfterRedirect` opens the side
+ * if the same account signed in again there.
+ */
 export async function unlockWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) return
-  const user = await currentUser()
+  const left = await signedInNow()
+  const check: ProviderCheck = { user: left.user ?? '', session: left.session ?? '', at: Date.now() }
   try {
-    sessionStorage.setItem(PENDING, JSON.stringify({ user: user?.id ?? '', at: Date.now() }))
+    sessionStorage.setItem(PENDING, JSON.stringify(check))
   } catch {
     // storage unavailable: the person unlocks again after coming back
   }
@@ -100,23 +114,14 @@ export async function unlockWithProvider(provider: OAuthProvider): Promise<void>
   if (error) throw new Error('That sign-in didn’t start. Try another way.')
 }
 
-const isPending = (v: unknown): v is { user: string; at: number } =>
-  typeof v === 'object' &&
-  v !== null &&
-  'user' in v &&
-  typeof v.user === 'string' &&
-  'at' in v &&
-  typeof v.at === 'number'
-
-/** After a provider's redirect: true once, when the same account came back within ten minutes. */
+/** After a provider's redirect: true once, when the check passed (providerCheckPassed). Nothing pending asks nobody. */
 export async function unlockAfterRedirect(): Promise<boolean> {
-  let pending: unknown = null
+  let check: unknown = null
   try {
-    pending = JSON.parse(sessionStorage.getItem(PENDING) ?? 'null')
+    check = JSON.parse(sessionStorage.getItem(PENDING) ?? 'null')
     sessionStorage.removeItem(PENDING)
   } catch {
     return false
   }
-  if (!isPending(pending) || Date.now() - pending.at > PENDING_FOR_MS) return false
-  return (await currentUser())?.id === pending.user
+  return check !== null && providerCheckPassed(check, await signedInNow(), Date.now())
 }

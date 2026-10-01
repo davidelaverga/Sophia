@@ -3,7 +3,7 @@
 // committed); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { PersonalReceipt, PersonalTurn } from '@sophia/contracts'
+import type { PersonalReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import {
   carryPersonalNote,
@@ -22,9 +22,8 @@ import {
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Sending } from './conversation-view.ts'
 
-/** How often a client waiting for Sophia asks, and how long before a wait counts as no answer. */
+/** How often a client waiting for Sophia asks. */
 const POLL_MS = 700
-export const NO_ANSWER_MS = 120_000
 
 /** Once with a fresh key, then once more with the SAME key if no reply came: never a second write. */
 async function once(run: (key: string) => Promise<PersonalReceipt>): Promise<PersonalReceipt> {
@@ -37,23 +36,18 @@ async function once(run: (key: string) => Promise<PersonalReceipt>): Promise<Per
   }
 }
 
-/** A reply that has waited longer than any answer takes reads as failed, so the person can ask again. */
-export function withStaleWaits(turns: readonly PersonalTurn[], now: number): PersonalTurn[] {
-  return turns.map((t) =>
-    t.reply === 'pending' && now - new Date(t.createdAt).getTime() > NO_ANSWER_MS ? { ...t, reply: 'failed' } : t,
-  )
-}
-
+/**
+ * The space, and while a reply is pending, what came after the last turn until nothing is. The server says how each
+ * reply stands, a lost wait included (it reads as failed in time), so this side keeps no clock of its own. A poll that
+ * fails stops polling until the space is read again (focus, reconnecting, a write).
+ */
 export function usePersonalSpace(identity: Identity, open: boolean) {
   const client = useQueryClient()
   const queryKey = ['personal', identity.name]
   const space = useQuery({ queryKey, queryFn: () => getPersonalSpace(identity.token), enabled: open })
   const turns = space.data?.turns ?? []
-  const waiting = turns.some(
-    (t) => t.reply === 'pending' && Date.now() - new Date(t.createdAt).getTime() < NO_ANSWER_MS,
-  )
+  const waiting = turns.some((t) => t.reply === 'pending')
   const last = turns.at(-1)?.seq ?? 0
-  // Waiting for Sophia: ask for what came after the last turn until nothing is pending, then read the space again.
   useQuery({
     queryKey: [...queryKey, 'waiting', last],
     queryFn: async () => {
@@ -62,7 +56,7 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
       return page
     },
     enabled: open && waiting,
-    refetchInterval: POLL_MS,
+    refetchInterval: (query) => (query.state.status === 'error' ? false : POLL_MS),
   })
   return space
 }
