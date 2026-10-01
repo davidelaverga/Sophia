@@ -13,7 +13,6 @@ import { useAuth } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, opensJoinPage, projectOnScreen } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
-import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import { useProjectRoute } from './useProjectRoute.ts'
@@ -23,12 +22,26 @@ const queryClient = new QueryClient()
 // Invitation links are a separate door: their page loads only when someone opens one.
 const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) => ({ default: m.JoinFlow })))
 
+/**
+ * The drafts on this device belong to the account signed in: once it goes, however (signed out here or in another tab,
+ * a session that ended, a provider's return refused), or another is chosen, they go too, also what was written while
+ * a sign-out was on its way. A page that loads signed in keeps them.
+ */
+function useForgetDraftsWhenGone(signedInAs: string | null) {
+  const was = useRef<string | null>(null)
+  useEffect(() => {
+    if (was.current !== null && was.current !== signedInAs) forgetDrafts()
+    was.current = signedInAs
+  }, [signedInAs])
+}
+
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
   // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
   const signedInAs = state.status === 'signed_in' ? state.identity.name : null
   useEffect(() => () => queryClient.clear(), [signedInAs])
+  useForgetDraftsWhenGone(signedInAs)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -38,7 +51,8 @@ export function App() {
   // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
     queryClient.clear()
-    void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
+    forgetDrafts()
+    void signOut()
   }
 
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question

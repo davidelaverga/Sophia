@@ -1,7 +1,7 @@
 // The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side with
 // Sophia's dot, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
 // words, Sophia's suggested note (keep it or let it go), and the wait for her reply.
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
 import { usePopover } from '../../app/usePopover.ts'
@@ -179,7 +179,7 @@ interface RowProps {
   row: Row
   turns: readonly PersonalTurn[]
   noteAt: string | null
-  setNoteAt: (turnId: string | null) => void
+  setNoteAt: Dispatch<SetStateAction<string | null>>
   onDays: () => void
   actions: ConversationActions
 }
@@ -249,13 +249,14 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
     setNoteAt(null)
     focusSoon(`[data-note-turn="${turn.id}"]`)
   }
-  // A keep refused (notes full, a lost connection): the form opens again with its words.
+  // A keep refused (notes full, a lost connection): its words wait in its form, which opens again, unless another
+  // turn's note is being written by then (that one stays; these come back when this form opens).
   const keep = (text: string) => {
     close()
     void actions.keepNote(text, turn.id, suggestionFor(turns, turn.id)).then((kept) => {
       if (kept) return
       setRefused(text)
-      setNoteAt(turn.id)
+      setNoteAt((open) => open ?? turn.id)
     })
   }
   return (
