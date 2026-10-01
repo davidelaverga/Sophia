@@ -128,14 +128,26 @@ const apiUrl = (cfg: LiveKitConfig) => cfg.url.replace(/^ws(s?):\/\//, 'http$1:/
 export async function roomParticipants(
   cfg: LiveKitConfig,
   roomId: string,
-): Promise<Array<{ identity: string; standing: Standing }>> {
+): Promise<Array<{ identity: string; name: string; standing: Standing }>> {
   try {
     const people = await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).listParticipants(roomId)
-    return people.map((p) => ({ identity: p.identity, standing: standingOf(p.metadata) }))
+    return people.map((p) => ({ identity: p.identity, name: p.name, standing: standingOf(p.metadata) }))
   } catch (err: unknown) {
     if (err instanceof Error && /not.?found|does not exist/i.test(err.message)) return []
     throw err
   }
+}
+
+/**
+ * The rooms among `roomIds` that exist on the room server now, by one question: only those can have anyone in them, so
+ * only those are asked who is (roomParticipants). Their count of participants is not read: the server refreshes it
+ * only every few seconds, and someone who just joined would read as nobody. An unreachable server throws: callers
+ * fail closed.
+ */
+export async function liveRooms(cfg: LiveKitConfig, roomIds: readonly string[]): Promise<Set<string>> {
+  if (roomIds.length === 0) return new Set()
+  const rooms = await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).listRooms([...roomIds])
+  return new Set(rooms.map((r) => r.name))
 }
 
 /**

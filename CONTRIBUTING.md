@@ -314,6 +314,118 @@ when you change the room:
 - **Names stay for the visit** (`mergeNames`): someone who spoke and left
   keeps their name on their lines instead of "A member".
 
+## The personal space
+
+A person's private space with Sophia: one conversation, the notes they keep
+from it, and the notes they carry to one of their projects. Its data side is
+migration 0021 and contract amendment A10, served by the API's personal
+routes; the Studio's places are a separate change. Keep these when you change
+either:
+
+- **Private means owner-only, in the database.** Every personal table reads
+  `owner_id = actor` (RLS) and has no write grant; the `sophia.*` functions
+  are the only writers, each idempotent per owner and key, keeping a digest of
+  what they wrote, never the words, and receipts of ids. Each holds the
+  owner's space before it reads its key (`personal_hold`), so a retry racing
+  its first attempt gets the same receipt, never a conflict. No project role
+  reaches a personal row, admins included, and nothing personal is joined into
+  a project read. Test a new read path as another person and as a project
+  admin (`personal.db.test.ts`): zero rows. Every writer is revoked from
+  PUBLIC before it is granted to the API role (no schema default does it):
+  a test checks that no `sophia` function is executable by PUBLIC.
+- **Nothing kept is out of reach.** A space keeps at most 2000 notes and a
+  person carries at most 2000 (`notes_full`, `carried_full`, each its own
+  code), the bounds A10 lists them by, so every note and every carried note
+  is listed; a list read is bounded too, newest first, and a project's
+  carried notes list the reader's own first.
+- **The one crossing is a carried note.** `carry_personal_note` copies one
+  note, as written, into one project where its owner is an active member;
+  members read it attributed to the name its owner shows, and the owner can
+  take it back, which deletes the copy. Anything else that would move
+  personal words into a project (a summary, a model reading the space) is a
+  new decision for the owners, not a feature (goal D5).
+- **Sophia never keeps a note on her own.** She suggests one after a reply;
+  the person keeps it or lets it go, and one let go is deleted. "Note this"
+  keeps a line in the person's own words. The export carries every turn with
+  its suggestion still open. Erasing deletes the conversation, suggestions
+  and notes, keeps only the key of every request, dated at the erasure (a
+  retry from before, however late, writes nothing), and leaves carried notes
+  where they were, still the owner's; the revision and the turn order go on.
+  It also moves the space's epoch: every other personal write names the
+  epoch it was made against (`x-sophia-personal-epoch`, from the space or the
+  Work list) and is fenced to it in its transaction (`personal_fence`), so a
+  write issued before an erasure, however late its first attempt arrives,
+  writes nothing. A forgotten note's keep keeps no digest of its words
+  either.
+- **The companion is behind one interface** (`apps/api/src/companion.ts`):
+  `answer` for a pending turn, `greet` for the welcome back. The keyless
+  rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
+  development and tests only, and the space says so (`companion:
+  'rehearsal'`). Without a companion, sending is refused and nothing is kept:
+  never store a message nobody will answer. A retry still gets the receipt
+  its key keeps where no companion runs (a deploy rolling out): only new
+  work is refused there. A companion's failure is logged
+  by its name and code only (`companionFailure`): its message may carry a
+  person's words. The API claims a turn before it asks the companion
+  (`claim_personal_reply`), and a welcome under its request's key
+  (`begin_personal_greeting`), so only one process asks, whichever process a
+  retry reaches; a claim lapses after two minutes, as a wait does. Every
+  write of the answer carries its claim, so an attempt that lapsed writes
+  nothing over a later one, neither a reply nor a failure. A welcome not
+  written yet, because the companion failed (its claim goes) or the same
+  request is still writing it, answers `outcome_unknown`: the client asks
+  again under the same key. A welcome's request is its key and whom it
+  greets (a digest): the same key with another name is refused, also after
+  an attempt that failed. Each companion call is given a signal that aborts
+  when its time is up, and is waited for: a turn fails, or a welcome lets
+  its claim go, only once the call has stopped. The welcome's write is
+  fenced to the request's epoch too: an erasure meanwhile refuses it. What
+  the companion answers or welcomes from is read only under the claim that
+  holds it, renewing its lease as it goes and every few seconds while the
+  companion answers (`WATCH_MS`), so a stalled attempt asks nothing and
+  nobody takes the claim over meanwhile; a reply reads as lost two minutes
+  after it was asked for or last claimed, whichever is later. A call is
+  known to every API process while it runs, with the space's epoch then
+  (`begin_companion_call`): an erasure tells this process's calls for the
+  person to stop, every other process stops its own once it finds its claim
+  gone, and the erasure is acknowledged only once none begun before it is in
+  flight anywhere (`stoppedEverywhere`, at most 65 seconds); then they are
+  forgotten, with any a process that went away left behind. Should one
+  still run then, or the wait fail after the erasure committed, it answers
+  `outcome_unknown`: asked again under its key, it gets its receipt and
+  waits again (a call a process that went away left counts no longer after
+  two minutes), and stops no call of the conversation after it (each call
+  keeps the epoch it began in). The companion answers a conversation one
+  turn at a time, in order (`next_personal_reply`): a turn is claimed only
+  as the person's oldest one waiting, while none is being answered; the
+  process that answered one takes up the next, and each is asked with the
+  answers before it, read from the newest turns only (never the whole
+  conversation). The turns queued behind one being answered go on waiting
+  with it (its renewal renews them), so none lapses in the queue. What the
+  companion gave is never lost to a database away for a moment: a reply or a
+  welcome is written again a few times (`again`), the turn is never marked
+  failed for it, and a welcome that still can't be written keeps its claim,
+  so nothing asks the companion twice.
+- **A long conversation is read back a page at a time.** A space read lists
+  the newest 500 turns; earlier ones come a page at a time
+  (`/personal/turns/earlier`), and the space's `days` count the whole
+  conversation, in the reader's time zone. The export comes a page of at
+  most 1000 turns at a time (`after`, `next`), so one read stays bounded,
+  each read against the epoch the copy began in: a page asked for after an
+  erasure is refused (`request_erased`), so a copy never mixes an erased
+  space with what came after it.
+- **One read of the Work list stays small.** It holds at most 4000 carried
+  notes in all (`PROJECT_LIST_BOUNDS`), the reader's own first, then the
+  newest; each project's own bound still holds. The database reads no more
+  than that either: the reader's own (a person carries at most 2000), and
+  per project the newest of the others' within its bound, by index, however
+  many they carried.
+- **One read of the Work list asks the room server little.** One question
+  finds the rooms that exist (`liveRooms`); only those are asked who is in
+  them, a few at a time and within the list's time (`lookupAll`). Never by a
+  room's count of participants: the server refreshes it every few seconds,
+  and someone who just joined would read as nobody.
+
 ## The Studio's hosting headers
 
 `apps/studio/public/vercel.json` sets them for the hosted Studio.

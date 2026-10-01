@@ -39,6 +39,12 @@ const EXPORTS = [
   'MissionReceipt',
   'MissionNotePolicy',
   'MissionWithdrawalPreview',
+  'PersonalSpace',
+  'PersonalTurnPage',
+  'PersonalEarlierTurns',
+  'PersonalExport',
+  'PersonalReceipt',
+  'ProjectList',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
