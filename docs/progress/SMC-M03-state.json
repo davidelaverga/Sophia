@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "3c37f48",
+  "candidate_commit": "de6acd5",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -86,8 +86,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5930776701",
-      "state": "answered by CX-0004 (revision 3); M03-RF-0003 fixed; re-review and S3 review requested in CC-0005 (revision 4)"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5932890015",
+      "state": "awaiting_operator (revision 4: M03-RF-0003 re-review, S3 review, Mac/Linux archive comparison)"
     }
   ],
   "unknown_effects": [],
