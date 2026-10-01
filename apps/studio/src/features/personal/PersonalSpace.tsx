@@ -200,12 +200,14 @@ function useRows(props: Props) {
   const earlier = readBack.more
   const loaded = !!space
   const answers = space?.companion !== 'unavailable'
+  // A message on its way from before an erasure isn't shown over the space after it (it will be refused).
+  const sending = writes.sending && writes.sending.epoch === space?.epoch ? writes.sending : null
   const rows = useMemo(
     () =>
       loaded
         ? conversationRows({
             turns,
-            sending: writes.sending,
+            sending,
             welcoming: writes.welcoming,
             now,
             name,
@@ -213,7 +215,7 @@ function useRows(props: Props) {
             answers,
           })
         : [],
-    [loaded, turns, writes.sending, writes.welcoming, name, earlier, now, answers],
+    [loaded, turns, sending, writes.welcoming, name, earlier, now, answers],
   )
   return { turns, rows }
 }
@@ -270,12 +272,42 @@ function useHeard(space: Space | undefined, turns: readonly PersonalTurn[], writ
   return said.count % 2 === 1 ? `${said.text}\u00a0` : said.text
 }
 
-/** The latest turn is in sight whenever the conversation grows: a turn, a message on its way, Sophia writing. */
-function useLatestInSight(list: RefObject<HTMLDivElement | null>, newest: number, sending: unknown, writing: boolean) {
+/** How near its end the conversation is read for it to keep the latest turn in sight as it grows, in pixels. */
+const AT_END_PX = 48
+
+/**
+ * The latest turn comes into sight as the conversation grows (a turn, a message settling, Sophia writing) while the
+ * person reads at its end, also once they are back from another place, and always as they send. Whoever reads further
+ * up stays where they read.
+ */
+function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) {
+  const { newest, sending, writing, hidden } = grows
+  const atEnd = useRef(true)
+  const sent = useRef<unknown>(null)
   useEffect(() => {
     const box = list.current
-    if (box) box.scrollTop = box.scrollHeight
-  }, [list, newest, sending, writing])
+    if (!box) return undefined
+    const read = () => {
+      atEnd.current = box.scrollHeight - box.scrollTop - box.clientHeight < AT_END_PX
+    }
+    box.addEventListener('scroll', read, { passive: true })
+    return () => box.removeEventListener('scroll', read)
+  }, [list])
+  useEffect(() => {
+    const box = list.current
+    const theirs = sending !== null && sending !== sent.current
+    sent.current = sending
+    if (newest === 0) atEnd.current = true // nothing read yet (a lock, an erasure): it opens at its end
+    if (box && !hidden && (atEnd.current || theirs)) box.scrollTop = box.scrollHeight
+  }, [list, newest, sending, writing, hidden])
+}
+
+/** What makes the conversation grow, and whether it is out of sight (another place, the padlock). */
+interface Grows {
+  newest: number
+  sending: unknown
+  writing: boolean
+  hidden: boolean
 }
 
 /** Sending from the composer: how it went (SendOutcome); a failure is said, and the composer decides about the words. */
@@ -323,7 +355,12 @@ export function PersonalSpace(props: Props) {
   useWelcomeBack(props, turns)
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
-  useLatestInSight(list, turns.at(-1)?.seq ?? 0, writes.sending, waiting)
+  useLatestInSight(list, {
+    newest: turns.at(-1)?.seq ?? 0,
+    sending: writes.sending,
+    writing: waiting,
+    hidden: props.hidden,
+  })
   const composer = props.locked ? null : (
     <Composer props={props} starter={actions.starter} onFailed={onFailed} onListening={setListening} />
   )

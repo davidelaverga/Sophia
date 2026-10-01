@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { leaveFor, PENDING, refuseOtherAccount, type ProviderAuth } from './provider-leave.ts'
+import { forgetPendingUnlock, leaveFor, PENDING, refuseOtherAccount, type ProviderAuth } from './provider-leave.ts'
 import { CHECK_WORDS } from './unlock-check.ts'
 
 /** An Auth client whose session read `during` runs during (as the person closes the sheet); the sign-ins it starts. */
@@ -103,6 +103,16 @@ describe('back from the provider', () => {
     }
     assert.deepEqual(scopes, ['local'])
     assert.equal(held.has(PENDING), true)
+  })
+
+  it('a sign-in or sign-out of the person’s own forgets the check, so it refuses nobody later', () => {
+    const { held } = returning(left)
+    try {
+      forgetPendingUnlock()
+    } finally {
+      Reflect.deleteProperty(globalThis, 'sessionStorage')
+    }
+    assert.equal(held.has(PENDING), false)
   })
 
   it('the same account, or no unlock pending: the session is left as it is', async () => {

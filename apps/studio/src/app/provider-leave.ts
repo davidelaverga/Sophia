@@ -30,14 +30,17 @@ export async function refuseOtherAccount(
   await auth.signOut({ scope: 'local' })
   // The check goes only once that session really has: should it still be here, a reload refuses it again.
   const { data, error } = await auth.getSession()
-  if (!error && !data.session) {
-    try {
-      sessionStorage.removeItem(PENDING)
-    } catch {
-      // storage unavailable: nothing was kept
-    }
-  }
+  if (!error && !data.session) forgetPendingUnlock()
   return true
+}
+
+/** The unlock's check goes: it ended, or the person signs in or out on their own (it would refuse that sign-in). */
+export function forgetPendingUnlock(): void {
+  try {
+    sessionStorage.removeItem(PENDING)
+  } catch {
+    // storage unavailable: nothing was kept
+  }
 }
 
 /** What leaving for a provider needs of the app's Auth client. */

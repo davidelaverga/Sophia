@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
-import { focusSoon } from './focus.ts'
+import { focusLater, focusSoon } from './focus.ts'
 import { membersLabel } from './places-view.ts'
 
 interface Props {
@@ -66,9 +66,9 @@ function CarryTo(props: {
 }
 
 /**
- * One carry at a time: a second pick while a note crosses would carry it twice. Once it crossed, the panel keeps the
- * focus its buttons had (they leave with the note). The panel going away mid-slide (the notes closed, a lock) carries
- * nothing.
+ * One carry at a time: a second pick while a note crosses would carry it twice. Once it crossed, the panel takes the
+ * focus its buttons had (they leave with the note), unless the person moved on during the slide. The panel going away
+ * mid-slide (the notes closed, a lock) carries nothing.
  */
 function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry']) {
   const [carrying, setCarrying] = useState<string | null>(null)
@@ -85,13 +85,14 @@ function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry'
     if (busy.current) return
     busy.current = true
     setCrossing(note.id)
+    const land = focusLater()
     setTimeout(() => {
       busy.current = false
       if (!here.current) return
       setCrossing(null)
       setCarrying(null)
       onCarry(note, project)
-      panel.current?.focus({ preventScroll: true })
+      land(panel.current)
     }, CROSSING_MS)
   }
   return { carrying, setCarrying, crossing, carry }

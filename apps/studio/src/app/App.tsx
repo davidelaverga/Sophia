@@ -11,7 +11,8 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
-import { joinStands, opensJoinPage, projectOnScreen } from './route.ts'
+import { forgetPendingUnlock } from './provider-leave.ts'
+import { joinStands, opensJoinPage, projectOnScreen, type Place } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
@@ -57,6 +58,7 @@ export function App() {
   // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
     queryClient.clear()
+    forgetPendingUnlock()
     void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
   }
 
@@ -204,16 +206,19 @@ function useForgetWhileLocked(locked: boolean, identity: string) {
 function useProviderReturn(input: {
   call: ProjectCall | null
   project: string | null
+  place: Place
   setLock: (lock: typeof OPEN) => void
   goTo: (place: 'personal') => void
   say: ShowToast
 }) {
-  const { call, project, setLock, goTo, say } = input
+  const { call, project, place, setLock, goTo, say } = input
+  const landed = useRef(place) // where the return put them, before its check is answered
   useUnlockOnReturn({
     passed: () => {
       if (call) return
       setLock(OPEN)
-      if (!project) goTo('personal')
+      // Only while they are still where the return put them: a check that passes late never moves someone who went on.
+      if (!project && place === landed.current) goTo('personal')
     },
     unchecked: () => say(NOTICE.unchecked),
   })
@@ -287,7 +292,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const join = useJoinRequest(route.projectId)
   const [lock, setLock, lockedNow] = useLock(accountOf(identity), call?.projectId ?? null)
   const project = route.projectId
-  useProviderReturn({ call, project, setLock, goTo, say: toast.show })
+  useProviderReturn({ call, project, place: route.place, setLock, goTo, say: toast.show })
   useOneCallInSight(call, project)
   useForgetWhileLocked(lock.locked, identity.name)
   useSayings({ ended, say: toast.show, project, notice })

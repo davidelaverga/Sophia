@@ -14,7 +14,7 @@ import { modalOnScreen, useShortcuts } from '../../app/shortcuts.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
 import { epochNow } from './epoch.ts'
-import { focusConversation, focusNotesToggle, focusPersonalSwitch, placesAccount } from './focus.ts'
+import { focusConversation, focusLater, focusNotesToggle, focusPersonalSwitch, placesAccount } from './focus.ts'
 import { HomeDoors } from './HomeDoors.tsx'
 import { OPEN, lockedBy, shut, type Lock } from './lock.ts'
 import { NOTICE } from './notice-view.ts'
@@ -224,10 +224,11 @@ function takeBack(writes: PersonalWrites, toast: ShowToast) {
   return (release: ProjectRelease, project: ProjectSummary) => {
     const again = (noteId: string) => () =>
       void writes.carry(noteId, project.projectId).catch((err: unknown) => toast(personalFailure(err)))
+    const land = focusLater() // its button goes with the note: Work's heading, unless they moved on meanwhile
     void writes
       .takeBack(release.id)
       .then((receipt) => {
-        document.getElementById('c-w-h')?.focus({ preventScroll: true })
+        land(document.getElementById('c-w-h'))
         toast(NOTICE.takenBack, receipt.noteId ? again(receipt.noteId) : undefined)
       })
       .catch((err: unknown) => toast(personalFailure(err)))

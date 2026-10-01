@@ -19,7 +19,7 @@ import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
-import { pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
+import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -301,6 +301,7 @@ export async function removePasskey(id: string): Promise<void> {
 /** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
+  forgetPendingUnlock() // a sign-in of the person's own: no unlock's check refuses the account it brings back
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {

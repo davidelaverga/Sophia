@@ -6,7 +6,7 @@ import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
 import { usePopover } from '../../app/usePopover.ts'
 import { daysOf, notePrefill, STARTERS, suggestionFor, type Row } from './conversation-view.ts'
-import { focusConversation, focusSoon } from './focus.ts'
+import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
 
 export interface ConversationActions {
   start: (text: string) => void
@@ -33,7 +33,8 @@ function NoteForm(props: {
   const [text, setText] = useState(() => words ?? notePrefill(turn.text, suggestion))
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    input.current?.focus({ preventScroll: true })
+    // Note this went as it opened, so the form takes the focus; reopened late, it takes it (and the view) from nobody.
+    if (!focusIfDropped(input.current)) return
     input.current?.select()
     input.current?.closest('form')?.scrollIntoView({ block: 'nearest' })
   }, [])

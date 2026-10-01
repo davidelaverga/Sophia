@@ -37,6 +37,32 @@ export function focusNotesToggle(): void {
   })
 }
 
+/**
+ * A control that appears in place of the one that had the focus (a refused note's form): it takes the focus only if
+ * that was dropped (it went with the change). A person who moved on meanwhile keeps it where they put it. Whether it
+ * moved.
+ */
+export function focusIfDropped(el: HTMLElement | null): boolean {
+  const now = document.activeElement
+  if (now && now !== document.body) return false
+  el?.focus({ preventScroll: true })
+  return true
+}
+
+/**
+ * A focus move that waits (an answer, a slide, the voice heard), taken as the act begins: at the end it moves the focus
+ * only if the person left it where the act did, or it was dropped. The control that had it may still be on screen,
+ * about to go; whoever moved on meanwhile keeps the focus where they put it.
+ */
+export function focusLater(): (el: HTMLElement | null) => void {
+  const from = document.activeElement
+  return (el) => {
+    const now = document.activeElement
+    if (now && now !== document.body && now !== from) return
+    el?.focus({ preventScroll: true })
+  }
+}
+
 /** Once the next frame is drawn: the control that takes the focus may be the one a state change brings back. */
 export function focusSoon(selector: string): void {
   requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true }))

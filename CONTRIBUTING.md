@@ -504,7 +504,9 @@ their work. Keep these when you change them:
   another account than the one that left, that sign-in ends here and
   nobody is signed in (`refuseOtherAccount`, with tests): unlocking never
   opens another account, not even for a moment. Its check stays until that
-  session is really gone, so a reload refuses it again. Anyone else is
+  session is really gone, so a reload refuses it again; a sign-in or a
+  sign-out of the person's own forgets it (`forgetPendingUnlock`, with
+  tests), so it never refuses them later. Anyone else is
   "another account"; a check that returns nobody never is. Only the network
   has a deadline, each request on its own (20 s), never the passkey prompt:
   a prompt the person closes leaves the sheet waiting. The passkey works
@@ -566,21 +568,25 @@ their work. Keep these when you change them:
   for them is up), said so; an open field takes them back when that time
   comes. Words going out take only their own draft with them: another
   tab's newer one stays. An erasure on another device reaches an open
-  tab within the Work list's next read (every 20 s) (`erasedElsewhere`);
-  after any erasure, from this page or another, or a write refused as
-  erased (`refusedAsErased`), what was read goes at once
-  and the space is read afresh (`readAfresh`): a read that fails then says
-  so, with Try again, and shows none of it. Until the space is read the
+  tab within the Work list's next read (every 20 s) (`erasedElsewhere`).
+  After any erasure (from this page, confirmed or with its answer lost;
+  from another device; from another tab of this one, whose words are kept
+  in a newer epoch; or a write refused as erased, `refusedAsErased`)
+  everything read of the space goes at once, the turns waited for
+  included, and the space is read afresh (`readAfresh`): a read that fails
+  then says so, with Try again, and shows none of it. A message on its way
+  shows only over the space of the epoch it was sent in. Until the space is read the
   field goes by the epoch the Work list names, so a draft from before the
   erasure leaves the field and the device at once (one written after it
   stays). Waiting for a reply never stops
   reading:
   after failed reads, less and less often (`pollEvery`). The device never
   keeps words in an older epoch than it already holds (`keptEpoch`), and a
-  tab whose space is behind the draft it shows reads the space again before
+  tab whose space is behind the draft it shows reads the space afresh before
   sending it. Every personal read takes its query's signal: the padlock
   shutting stops the reads on their way (the space, the wait for a reply, a
-  page read back), and the account leaving stops the Work list's. A long conversation reads back from the Earlier days menu
+  page read back); the account leaving stops the Work list's and a page
+  read back, which a project opened over the places stops too. A long conversation reads back from the Earlier days menu
   ("Show earlier days"); turns that leave the space's window as new ones
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
@@ -659,6 +665,17 @@ their work. Keep these when you change them:
   project is back on screen. A screen reader hears Sophia writing and then
   her reply (`heard`, with tests), never what was there when the space
   loaded, nor earlier days read back.
+- **An answer never moves the person.** What comes back after a wait (an
+  answer, a slide, the voice heard) moves the focus only if the person left
+  it where the act did, or it was dropped (`focusLater`, with tests: Take
+  back, a note's carry, dictation); a control that appears in place of the
+  focused one takes it only from nobody (`focusIfDropped`: a refused note's
+  form). The conversation keeps its latest turn in sight as it grows while
+  the person reads at its end (also when they come back from another
+  place), and always as they send: whoever reads further up stays there. A
+  project made opens only while its form is in sight, and a provider's
+  check that passes late goes to Personal only while the person is still
+  where the return put them.
 
 ## The Studio's hosting headers
 

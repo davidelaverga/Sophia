@@ -7,6 +7,7 @@ import { Icon, Tip } from '@sophia/ui'
 import { WRITE_TIMEOUT_MS } from '../../api/client.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
+import { focusLater } from './focus.ts'
 import { NOTICE } from './notice-view.ts'
 import {
   afterSent,
@@ -375,16 +376,30 @@ function useBehind(at: number | undefined, epoch: number | undefined, onBehind: 
   return behind
 }
 
+/**
+ * What the voice heard goes into the field, and the focus with it (focusLater, taken as the listening starts): unless
+ * the person moved on while it listened.
+ */
+function useVoice(draft: ReturnType<typeof useDraft>, field: RefObject<HTMLTextAreaElement | null>, hidden: boolean) {
+  const land = useRef<(el: HTMLElement | null) => void>(() => undefined)
+  const dictation = useDictation((heard) => {
+    draft.change(draft.text ? `${draft.text} ${heard}` : heard, 'From your voice · edit it or send')
+    land.current(field.current)
+  }, hidden)
+  const start = () => {
+    land.current = focusLater()
+    dictation.start()
+  }
+  return { ...dictation, start }
+}
+
 export function PersonalComposer(props: Props) {
   const { account, epoch, hidden, state, busy, onSend, onListening, onBehind, starter } = props
   const draft = useDraft(account, epoch)
   const behind = useBehind(draft.at, epoch, onBehind)
   const { text, note, change } = draft
   const field = useRef<HTMLTextAreaElement>(null)
-  const dictation = useDictation((heard) => {
-    change(text ? `${text} ${heard}` : heard, 'From your voice · edit it or send')
-    field.current?.focus()
-  }, hidden)
+  const dictation = useVoice(draft, field, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready' && !behind
   const send = useSend(account, draft, ready, busy, onSend)

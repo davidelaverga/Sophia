@@ -10,6 +10,8 @@ export const STARTERS = ['Something’s on my mind', 'Help me get ready for some
 export interface Sending {
   text: string
   at: Date
+  /** The epoch of the space it was sent from: over a space of another (an erasure since), it isn't shown. */
+  epoch: number
 }
 
 export type SuggestionShown = 'open' | 'folded' | 'kept'

@@ -92,6 +92,8 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
   const listed = useRef<readonly PersonalTurn[]>(NO_TURNS)
   // The epoch of the space shown now, null while it is locked: a page that arrives for another is let go.
   const shown = useRef<number | null>(null)
+  // The page on its way stops when this goes too: the account left, or a project opened over the places.
+  useEffect(() => () => reading.current?.abort(), [])
   useEffect(() => {
     const before = listed.current
     listed.current = space?.turns ?? NO_TURNS
@@ -128,11 +130,10 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
 export type ReadBack = ReturnType<typeof useReadBack>
 
 /**
- * After an erasure, what was read of the space goes at once and the space is read afresh: a read that fails then says
- * so, with Try again, and shows none of what was erased.
+ * After an erasure, everything read of the space goes at once (the space, and the turns waited for) and it is read
+ * afresh: a read that fails then says so, with Try again, and shows none of what was erased.
  */
-const readAfresh = (client: QueryClient, name: string) =>
-  client.resetQueries({ queryKey: ['personal', name], exact: true })
+const readAfresh = (client: QueryClient, name: string) => client.resetQueries({ queryKey: ['personal', name] })
 
 /**
  * After a write, the space is read again until a read works, less and less often while reads fail (pollEvery): what
@@ -179,6 +180,10 @@ export function useProjects(identity: Identity) {
 /** A message asked to go while another is on its way: it waits, as the field's words do. */
 export class OnItsWay extends Error {}
 
+/** The epoch this page last read (epochNow): the space's when it is read, else the Work list's. */
+const epochRead = (client: QueryClient, name: string) =>
+  epochNow(client.getQueryData<PersonalSpace>(['personal', name]), client.getQueryData<ProjectList>(['projects', name]))
+
 /**
  * A personal write, run once (once.ts) against the epoch this page last read (epoch.ts): its retry names the same one,
  * so an erasure in between refuses both and nothing from before it lands after it. Then what it changed is read again,
@@ -189,12 +194,12 @@ function useRun(identity: Identity) {
   const space = ['personal', identity.name]
   const work = ['projects', identity.name]
   return async (write: (key: string, epoch: number) => Promise<PersonalReceipt>, projects = false, key?: string) => {
-    const at = epochNow(client.getQueryData<PersonalSpace>(space), client.getQueryData<ProjectList>(work))
+    const at = epochRead(client, identity.name)
     try {
       const receipt = await once((k) => write(k, at), Date.now, key)
-      // It settles once what it changed can show: an erasure is read afresh, any other write until a read works, and
-      // the Work list too when the write changed it (a note carried or taken back).
-      await (receipt.operation === 'erase' ? readAfresh(client, identity.name) : readUntilRead(client, space))
+      // It settles once what it changed can show: the space is read until a read works, and the Work list too when the
+      // write changed it (a note carried or taken back). An erasure doesn't come this way (eraseSpace).
+      await readUntilRead(client, space)
       if (projects) await readUntilRead(client, work)
       return receipt
     } catch (err: unknown) {
@@ -236,8 +241,11 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     welcoming,
     /** Moves with each erasure: the composer starts afresh, its draft forgotten with everything else. */
     erasures,
-    /** The space read again: another tab knows of an erasure this page hasn't read. */
-    readAgain: () => void client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true }),
+    /**
+     * Another tab of this device knows of an erasure this page hasn't read (its words are kept in a newer epoch): what
+     * was read goes at once and the space is read afresh, as for any erasure (readAfresh).
+     */
+    readAgain: () => void readAfresh(client, identity.name),
     resume: async (name: string | null) => {
       setWelcoming(true)
       try {
@@ -251,7 +259,7 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
       if (onItsWay.current) throw new OnItsWay('Another message is on its way')
       onItsWay.current = true
       setBusy(true)
-      setSending({ text, at: new Date() })
+      setSending({ text, at: new Date(), epoch: epochRead(client, identity.name) })
       try {
         return await run((k, at) => sendPersonalTurn(token, k, at, text), false, key)
       } finally {
@@ -269,14 +277,29 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     carry: (noteId: string, projectId: string) =>
       run((k, at) => carryPersonalNote(token, k, at, noteId, projectId), true),
     takeBack: (releaseId: string) => run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true),
-    erase: (): Promise<PersonalReceipt> =>
-      run(async (k) => {
-        const receipt = await erasePersonalSpace(token, k)
-        // Confirmed: the draft goes from the device and the field at once, before the space is read afresh.
-        forgetDraft(accountOf(identity))
-        setErasures((n) => n + 1)
-        return receipt
-      }),
+    erase: () => eraseSpace(client, identity, () => setErasures((n) => n + 1)),
+  }
+}
+
+/**
+ * Erasing: confirmed, or with no answer (it may have erased everything, as asked), the draft goes from the device and
+ * the field at once (`forgot`: the composer starts afresh) and everything read of the space goes (readAfresh): a read
+ * then shows what is really there. A refusal reads the space again, as any write's does.
+ */
+async function eraseSpace(client: QueryClient, identity: Identity, forgot: () => void): Promise<PersonalReceipt> {
+  const forgetAll = async () => {
+    forgetDraft(accountOf(identity))
+    forgot()
+    await readAfresh(client, identity.name)
+  }
+  try {
+    const receipt = await once((k) => erasePersonalSpace(identity.token, k))
+    await forgetAll()
+    return receipt
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.code === 'outcome_unknown') await forgetAll()
+    else if (readsAgain(err)) await readAfterRefusal(client, identity.name, err, false)
+    throw err
   }
 }
 

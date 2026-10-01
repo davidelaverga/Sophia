@@ -112,7 +112,7 @@ describe('conversationRows', () => {
   })
 
   it('shows what was just sent at once, with Sophia writing after it, and the starters go', () => {
-    const rows = conversationRows(input([], { fromTheStart: true, sending: { text: 'Just talk', at: NOW } }))
+    const rows = conversationRows(input([], { fromTheStart: true, sending: { text: 'Just talk', at: NOW, epoch: 0 } }))
     assert.deepEqual(shape(rows), ['day:Today', 'intro', 'person', 'typing'])
   })
 
