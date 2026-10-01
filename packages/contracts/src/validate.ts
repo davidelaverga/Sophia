@@ -22,6 +22,9 @@ import {
   validateMissionNotePolicy,
   validateMissionReceipt,
   validateMissionWithdrawalPreview,
+  validateSourceContent,
+  validateArtifactVersionList,
+  validateReportList,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
   validateProjectCreated,
@@ -80,6 +83,9 @@ export const parseMissionContext = parser('MissionContext', validateMissionConte
 export const parseMissionReceipt = parser('MissionReceipt', validateMissionReceipt)
 export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissionNotePolicy)
 export const parseMissionWithdrawalPreview = parser('MissionWithdrawalPreview', validateMissionWithdrawalPreview)
+export const parseSourceContent = parser('SourceContent', validateSourceContent)
+export const parseArtifactVersionList = parser('ArtifactVersionList', validateArtifactVersionList)
+export const parseReportList = parser('ReportList', validateReportList)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

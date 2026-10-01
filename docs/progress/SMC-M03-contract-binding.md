@@ -57,7 +57,7 @@ The S1 part covers the read side. These must ship before any writer:
 - `NativeTaskDetail.result` gains `outputs[]` (`artifactVersionId`, `format`, `sourceId`, `sha256`, `byteLength`, `limitations`) and `cacheReadTokens`/`cacheWriteTokens`.
 - `ArtifactVersion.format` gains `markdown`, plus optional `title`, `versionNumber`, `createdAt` and `renditions[]` (`ArtifactRendition`).
 - Every added property is omitted when it has no value, so older readers read every pre-M03 record unchanged.
-- Part 2 (with the byte store): Knowledge read schemas (report card, versions, compare); `SourceContent` gains `disposition`.
+- Part 2: `SourceContent` answers an inline text as `text` and stored bytes as a signed `downloadUrl`, with `byteLength`, `filename` and `disposition` (query `disposition=inline|attachment`). `listReports` (`ReportCard`, `ReportList`) and `listArtifactVersions` (`ArtifactVersionList`) with `changeNote`, `retainedNote` and `limitations` on a version. Compare, `changeFacts` and `trigger` come with publication (S4).
 
 The later parts cover the write side:
 - `RuntimeCommand.payload.role` pattern becomes `^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$`, and an optional `route` is added (S2, §8).
@@ -122,4 +122,7 @@ All routes are authenticated like observations (runtime lease and binding), idem
 | 2026-10-01 (S1) | `MediaAssignment.results[].kind` is a bounded pattern, not an enum | A generated validator fails the whole batch on an unknown enum value. A pattern lets each bridge skip only the entry it does not know |
 | 2026-10-01 (S1) | `apply_runtime_receipt` is not replaced | 0022's child-job CHECK and one-task-job-per-attempt index keep the existing single-row reads exact (§2) |
 | 2026-10-01 (S1) | 0021 and 0022 are disjoint | #30's `0021_personal_space.sql` only creates `personal_*` tables and their policies; 0022 changes none of them. The runner applies a missing version whatever its number, so either may land first |
+| 2026-10-01 (S1) | The `WorkCard` shell moves to S4 with `DocumentPane` | No research record exists before S4, so a read-only shell could not be shown or reviewed. S1 ships the three icons (L4) and the Studio API client for the new reads |
+| 2026-10-01 (S1) | Report search matches word starts (`to_tsquery('simple', 'word:* & …')`) | A search box finds "sandbox" in "Sandboxed". The words are letters and digits only, so nothing typed is query syntax. The `simple` configuration keeps EN/IT/ES alike |
+| 2026-10-01 (S1) | The byte store's credential is open for Codex and Davide | Supabase Storage's REST signing takes a key that also bypasses database RLS (service role or secret key). The API's database login is RLS-bound today, so this key would widen what an API compromise reaches. The adapter sits behind the `ByteStore` port. Before any hosted release, Codex checks whether storage-only S3 access keys can presign a GET with a download name; if they can, an S3 adapter replaces the REST one. `supabase.com` is blocked from Claude's container, so Claude could not check this |
 

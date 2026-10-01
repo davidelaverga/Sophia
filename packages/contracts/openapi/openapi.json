@@ -2012,10 +2012,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ArtifactVersion"
-                  }
+                  "$ref": "#/components/schemas/ArtifactVersionList"
                 }
               }
             }
@@ -2546,6 +2543,19 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "disposition",
+            "in": "query",
+            "required": false,
+            "description": "inline (the default) to show it; attachment to save it under its file name.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inline",
+                "attachment"
+              ]
             }
           }
         ],
@@ -6433,6 +6443,87 @@
         "x-sophia-implementation": "contract_only",
         "x-sophia-release-goal": "SMC-M01"
       }
+    },
+    "/api/v1/knowledge/reports": {
+      "get": {
+        "operationId": "listReports",
+        "summary": "Reports from one project or every project the reader is a member of, newest first; counts and names only from readable projects.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "pdf",
+                "markdown_only"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,200}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report cards.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7094,6 +7185,22 @@
             "items": {
               "$ref": "#/components/schemas/ArtifactRendition"
             }
+          },
+          "changeNote": {
+            "type": "string",
+            "description": "What changed from the previous version, in a sentence. Omitted for a first version and before notes existed."
+          },
+          "retainedNote": {
+            "type": "string",
+            "description": "What this version carried over from the previous one. Omitted for a first version."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            },
+            "description": "What the version says it could not do. Omitted when it says nothing."
           }
         },
         "required": [
@@ -8195,6 +8302,7 @@
       "SourceContent": {
         "type": "object",
         "additionalProperties": false,
+        "description": "One authorized read of a source. Exactly one of text (a text kept inline) and downloadUrl (stored bytes, until expiresAt) is set.",
         "properties": {
           "sourceId": {
             "type": "string",
@@ -8207,18 +8315,55 @@
           "mime": {
             "type": "string"
           },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "filename": {
+            "type": "string",
+            "description": "What a saved copy is called, e.g. sandboxed-pdf-rendering-v2.pdf."
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "inline",
+              "attachment"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "The source itself, when it is a text kept inline."
+          },
           "downloadUrl": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "sourceId",
           "sha256",
           "mime",
+          "byteLength",
+          "filename",
+          "disposition",
           "downloadUrl",
           "expiresAt"
         ]
@@ -12065,6 +12210,214 @@
           "byteLength",
           "mime",
           "pageCount"
+        ]
+      },
+      "ArtifactVersionList": {
+        "type": "array",
+        "maxItems": 500,
+        "items": {
+          "$ref": "#/components/schemas/ArtifactVersion"
+        },
+        "description": "Every version of one artifact the reader may see, newest first."
+      },
+      "ReportCard": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One report as Knowledge lists it: what it is, where it lives, and its latest change.",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectTitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryAuthorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "summaryUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentVersionNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versionCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "formats": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "html",
+                "pdf",
+                "pptx",
+                "ui",
+                "markdown"
+              ]
+            }
+          },
+          "latestChange": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "retained": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "note",
+              "retained"
+            ]
+          }
+        },
+        "required": [
+          "artifactId",
+          "projectId",
+          "projectTitle",
+          "title",
+          "summary",
+          "summaryAuthorId",
+          "summaryRevision",
+          "summaryUpdatedAt",
+          "currentVersionId",
+          "currentVersionNumber",
+          "versionCount",
+          "updatedAt",
+          "formats",
+          "latestChange"
+        ]
+      },
+      "ReportList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reports": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ReportCard"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "maxItems": 500,
+            "description": "Each readable project with reports matching the format and search, and how many.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "projectId",
+                "title",
+                "count"
+              ]
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reports",
+          "projects",
+          "nextCursor"
         ]
       }
     }

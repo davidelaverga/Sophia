@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": null,
+  "candidate_commit": "dfb91d6",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -39,6 +39,12 @@
       "kind": "inspect_request",
       "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526",
       "state": "awaiting_operator"
+    },
+    {
+      "operation_id": "SMC-M03-OP-0002",
+      "kind": "support_request",
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205",
+      "state": "awaiting_operator"
     }
   ],
   "unknown_effects": [],
@@ -65,6 +71,6 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S1 part 2: byte store tables and signed-URL content route, Knowledge read API (versions, report cards), WorkCard shell and icons",
+  "next_action": "S2: specialist registry, research presets, Sol route allowlist and execution policy, llm/stream guard and reservation hook, unit sophia-runtime-m03-dev",
   "checkpoint_ref": "docs/progress/SMC-M03.md"
 }

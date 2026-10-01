@@ -5,6 +5,7 @@ import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
+import type { ByteStore } from './byte-store.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
 import type { InviteConfig } from './invite-token.ts'
@@ -13,6 +14,7 @@ import { accessRoutes, GUEST_ROUTES, PUBLIC_ACCESS_ROUTES } from './routes/acces
 import { commandRoutes } from './routes/commands.ts'
 import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
+import { knowledgeRoutes } from './routes/knowledge.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { eventRoutes } from './routes/events.ts'
@@ -20,6 +22,7 @@ import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
 import { roomRoutes } from './routes/rooms.ts'
 import { RUNTIME_ROUTES, runtimeRoutes } from './routes/runtime.ts'
+import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
 
@@ -54,6 +57,8 @@ export interface AppDeps {
   mailer?: Mailer | null
   /** SHA-256 of the media bridge's capability (amendment A06); without it, /v1/media/* answers 401. */
   mediaBridgeTokenSha256?: Buffer
+  /** The report byte store (SMC-M03, D5); without it, stored bytes answer 503 and inline texts are still read. */
+  byteStore?: ByteStore | null
 }
 
 /** Functions the API requires in the database; /ready fails if any is missing. */
@@ -116,6 +121,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
+  sourceRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  knowledgeRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   return app
 }

@@ -64,6 +64,15 @@ export {
   submitContribution,
   type ContributionOrigin,
 } from './native-tasks.ts'
+export {
+  listReports,
+  readArtifactVersions,
+  readReportSource,
+  REPORT_PAGE,
+  searchQuery,
+  type ReportQuery,
+  type ReportSource,
+} from './artifacts.ts'
 export { claimRuntimeOutbox, dispatchRuntimeOutbox, reconcileRuntimeOutbox, type DispatchOutcome } from './dispatch.ts'
 export {
   ackQuiesce,

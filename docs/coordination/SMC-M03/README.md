@@ -24,3 +24,4 @@ Rules (plan §7):
 | Id | Kind | Operation | State |
 |---|---|---|---|
 | [SMC-M03-CC-0001](SMC-M03-CC-0001.md) ([#31 comment](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526)) | `inspect_request` | SMC-M03-OP-0001 (read only) | production tuple after OP-0003, schema ledger, credential presence booleans, Render Docker and private network, Supabase Storage, Studio headers, runtime disk. Awaiting Codex |
+| [SMC-M03-CC-0002](SMC-M03-CC-0002.md) ([#31 comment](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | `support_request` | SMC-M03-OP-0002 (read and test only) | independent review of S1 part 1 at `dfb91d6` (0022, A11 read side, readers) against the release order; the suites on Codex's machine; 0021 after 0022. Awaiting Codex |

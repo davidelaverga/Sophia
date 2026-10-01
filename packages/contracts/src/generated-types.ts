@@ -9,7 +9,7 @@ export type Event = { "eventId": string; "projectId": string; "sequence": string
 export type CursorAdvance = { "projectId": string; "type": "cursor.advanced"; "sequence": string; };
 export type Resource = { "id": string; "projectId": string; "ownerId": string; "label": string; "harness": "codex-native" | "claude-native" | "dsh"; "hostState": "online" | "offline" | "unknown"; "nativeState": "idle" | "running" | "blocked" | "failed" | "unknown"; "observedAt": string | null; "model": string | null; "effort": string | null; "authorityState": "active" | "revoked" | "needs_connection"; "capabilities": ReadonlyArray<string>; };
 export type HumanAction = { "id": string; "projectId": string; "ownerId": string; "bindingId": string; "nativeSessionId": string; "nativeRequestId": string; "fingerprint": string; "kind": "permission" | "login" | "clarification" | "release" | "observation_gap"; "state": "pending" | "accepted" | "declined" | "cancelled" | "expired" | "resolved_unknown" | "superseded"; "detailsRef": string | null; "nativeUrl": string | null; "expiresAt": string | null; "responseMode": "native_only" | "in_app_form" | "in_app_binary"; };
-export type ArtifactVersion = { "id": string; "artifactId": string; "projectId": string; "parentId": string | null; "sourceId": string; "sourceHash": string; "state": "candidate" | "validated" | "stable" | "rejected" | "superseded"; "previewId": string | null; "format": "html" | "pdf" | "pptx" | "ui" | "markdown"; "exportEditability": "source_editable" | "raster_pptx_with_source" | "original_only"; "title"?: string; "versionNumber"?: number; "createdAt"?: string; "renditions"?: ReadonlyArray<ArtifactRendition>; };
+export type ArtifactVersion = { "id": string; "artifactId": string; "projectId": string; "parentId": string | null; "sourceId": string; "sourceHash": string; "state": "candidate" | "validated" | "stable" | "rejected" | "superseded"; "previewId": string | null; "format": "html" | "pdf" | "pptx" | "ui" | "markdown"; "exportEditability": "source_editable" | "raster_pptx_with_source" | "original_only"; "title"?: string; "versionNumber"?: number; "createdAt"?: string; "renditions"?: ReadonlyArray<ArtifactRendition>; "changeNote"?: string; "retainedNote"?: string; "limitations"?: ReadonlyArray<string>; };
 export type Snapshot = { "projectId": string; "title": string; "cursor": string; "missionRevision": number; "audienceRevision": number; "eligibilityRevision": number; "goals": ReadonlyArray<Goal>; "resources": ReadonlyArray<Resource>; "humanActions": ReadonlyArray<HumanAction>; "artifacts": ReadonlyArray<ArtifactVersion>; "sharedFocus": { "artifactVersionId": string; "revision": number; "guideId": string; } | null; "room": Room; "lobby": ReadonlyArray<LobbyEntry>; "sessions": ReadonlyArray<RoomSession>; "discussion": ReadonlyArray<DiscussionEntry>; "work": ReadonlyArray<NativeTask>; };
 export type ProjectCreate = { "title": string; };
 export type ProjectCreated = { "projectId": string; "cursor": string; };
@@ -36,7 +36,7 @@ export type ImageRequest = { "projectId": string; "promptSourceId": string; "ref
 export type CommandStatus = { "commandId": string; "projectId": string; "stage": "admitted" | "dispatching" | "upstream_accepted" | "native_input_observed" | "checked" | "denied" | "outcome_unknown" | "superseded"; "evidenceRefs": ReadonlyArray<string>; "updatedAt": string; };
 export type SourceUploadRequest = { "projectId": string; "filename": string; "mime": string; "byteLength": number; "sha256": string; "scope": "private" | "project"; };
 export type SourceUploadReceipt = { "sourceId": string; "uploadUrl": string; "expiresAt": string; };
-export type SourceContent = { "sourceId": string; "sha256": string; "mime": string; "downloadUrl": string; "expiresAt": string; };
+export type SourceContent = { "sourceId": string; "sha256": string; "mime": string; "byteLength": number; "filename": string; "disposition": "inline" | "attachment"; "text"?: string; "downloadUrl": string | null; "expiresAt": string | null; };
 export type CandidatePublish = { "expectedStableVersionId": string | null; "expectedGoalRevision": number; "expectedAuthorityEpoch": number; "verificationSourceId": string; };
 export type GrantRevocation = { "expectedRevision": number; };
 export type Empty = {  };
@@ -98,6 +98,9 @@ export type MissionNotePolicyRequest = { "capture": "off" | "automatic"; "expect
 export type MissionNoteConsentRequest = { "state": "accepted" | "declined"; };
 export type MediaToolSurface = { "names": ReadonlyArray<string>; };
 export type ArtifactRendition = { "format": "pdf"; "sourceId": string; "sha256": string; "byteLength": number; "mime": string; "pageCount": number | null; };
+export type ArtifactVersionList = ReadonlyArray<ArtifactVersion>;
+export type ReportCard = { "artifactId": string; "projectId": string; "projectTitle": string; "title": string; "summary": string | null; "summaryAuthorId": string | null; "summaryRevision": number; "summaryUpdatedAt": string | null; "currentVersionId": string; "currentVersionNumber": number | null; "versionCount": number; "updatedAt": string; "formats": ReadonlyArray<"html" | "pdf" | "pptx" | "ui" | "markdown">; "latestChange": { "note": string | null; "retained": string | null; }; };
+export type ReportList = { "reports": ReadonlyArray<ReportCard>; "projects": ReadonlyArray<{ "projectId": string; "title": string; "count": number; }>; "nextCursor": string | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
@@ -121,7 +124,7 @@ export interface Operations {
   "getHumanAction": { method: "GET"; path: "/api/v1/human-actions/{actionId}"; request: undefined; response: HumanAction; };
   "respondToHumanAction": { method: "POST"; path: "/api/v1/human-actions/{actionId}/responses"; request: ActionResponse; response: Receipt; };
   "submitReviewIntent": { method: "POST"; path: "/api/v1/projects/{projectId}/review-intents"; request: ReviewIntent; response: Receipt; };
-  "listArtifactVersions": { method: "GET"; path: "/api/v1/artifacts/{artifactId}/versions"; request: undefined; response: ReadonlyArray<ArtifactVersion>; };
+  "listArtifactVersions": { method: "GET"; path: "/api/v1/artifacts/{artifactId}/versions"; request: undefined; response: ArtifactVersionList; };
   "submitSourcePatch": { method: "POST"; path: "/api/v1/workspaces/{workspaceId}/patches"; request: SourcePatch; response: AcceptedJob; };
   "startSourceBuild": { method: "POST"; path: "/api/v1/workspaces/{workspaceId}/builds"; request: BuildRequest; response: AcceptedJob; };
   "startImageJob": { method: "POST"; path: "/api/v1/assets/image-jobs"; request: ImageRequest; response: AcceptedJob; };
@@ -173,4 +176,5 @@ export interface Operations {
   "setMissionNotePolicy": { method: "PUT"; path: "/api/v1/projects/{projectId}/mission/note-policy"; request: MissionNotePolicyRequest; response: MissionNotePolicy; };
   "setMissionNoteConsent": { method: "PUT"; path: "/api/v1/projects/{projectId}/mission/note-consent"; request: MissionNoteConsentRequest; response: MissionNotePolicy; };
   "mediaToolSurface": { method: "GET"; path: "/v1/media/tool-surface"; request: undefined; response: MediaToolSurface; };
+  "listReports": { method: "GET"; path: "/api/v1/knowledge/reports"; request: undefined; response: ReportList; };
 }

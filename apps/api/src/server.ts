@@ -4,6 +4,7 @@ import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { parseOrigins } from './cors.ts'
 import type { InviteConfig } from './invite-token.ts'
+import { supabaseByteStore, type ByteStore } from './byte-store.ts'
 import { folderMailer, resendMailer, type Mailer } from './mail.ts'
 
 // Trimmed: a trailing CR from a CRLF env file would silently break the exact issuer check.
@@ -39,6 +40,18 @@ function inviteMailer(): Mailer | null {
   return dir ? folderMailer(dir) : null
 }
 
+/**
+ * The report byte store (SMC-M03, D5): all three or none. Without it the API still starts; stored report bytes
+ * answer 503 and inline texts are still read.
+ */
+function byteStore(): ByteStore | null {
+  const names = ['SOPHIA_STORAGE_URL', 'SOPHIA_STORAGE_KEY', 'SOPHIA_STORAGE_BUCKET'] as const
+  const [url, key, bucket] = names.map(optional)
+  if (!url && !key && !bucket) return null
+  if (!url || !key || !bucket) throw new Error(`${names.join(', ')} are set together or not at all`)
+  return supabaseByteStore({ url, key, bucket })
+}
+
 const corsOrigins = parseOrigins(optional('STUDIO_ORIGINS'))
 const invites = inviteConfig(corsOrigins)
 const livekitUrl = optional('LIVEKIT_URL')
@@ -56,6 +69,7 @@ const app = buildApp({
   corsOrigins,
   ...(invites ? { invites } : {}),
   mailer: inviteMailer(),
+  byteStore: byteStore(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

@@ -4,11 +4,11 @@ The mission: [M03](../missions/2026-09-27-companion-research/missions/M03_RESEAR
 
 This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
 
-**Checkpoint, 2026-10-01, attempt 1: S0 (bind) and S1 part 1 (readers first) are done. S1 part 2 (byte store and Knowledge read API) is next. Nothing is merged, released or deployed.**
+**Checkpoint, 2026-10-01, attempt 1: S0 (bind) and S1 (readers first, byte store, report content and Knowledge reads) are done. S2 (registry and execution policy) is next. Nothing is merged, released or deployed.**
 
 | Readiness | State |
 |---|---|
-| Source-ready | No: S0 and S1 part 1 are in PR #32; S1 part 2 to S7 are planned (plan §4) |
+| Source-ready | No: S0 and S1 are in PR #32; S2 to S7 are planned (plan §4) |
 | Merge-ready | No |
 | Release-ready | No: every hosted step is a Codex operation with Davide's bound approval (plan §5) |
 | Hosted-verified | No. This attempt touches no hosted state |
@@ -32,7 +32,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 
 | Goal | Slices (plan §4) | State |
 |---|---|---|
-| G1 Source access | S0, S1, S3 | S0 done; S1 part 1 done (§6); S1 part 2 next |
+| G1 Source access | S0, S1, S3 | S0 and S1 done (§6, §7); S3 after S2 |
 | G2 Durable Markdown | S2, S4 | planned |
 | G3 PDF | S5a (renderer host, Codex probe), S5b | planned; the host depends on CC-0001 and D6 |
 | G4 Voice and text | S6 | planned |
@@ -47,6 +47,7 @@ All recorded in plan §8. D1–D10 decided on 2026-09-30, with D1 raised to **$5
 | Operation | Kind | Request | State |
 |---|---|---|---|
 | SMC-M03-OP-0001 | read only | [CC-0001](../coordination/SMC-M03/SMC-M03-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0001 on #31 and act within its scope.` |
+| SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0002 on #31 and act within its scope.` |
 
 No hosted effect, deployment, migration, paid call or credential use happened in this attempt.
 
@@ -72,4 +73,13 @@ What a later release writes, these readers already read. No writer exists in thi
 Left for S4, where research writes usage: the task detail reports the usage of the attempt's latest model call (the brief's rule, one step). A research attempt makes many calls, so its detail will sum them per attempt.
 
 Compatibility: every added property is omitted when it has no value, so an older Studio or bridge reads every pre-M03 record unchanged. 0022 must be applied before an API that carries these readers (`/ready` says so). No research row can exist until the writer release, which follows the release carrying these readers.
+
+## 7. S1 part 2: byte store, report content and Knowledge reads
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Byte store | `ByteStore` port (`apps/api/src/byte-store.ts`): write-once objects at `<project>/<source>`, signed GET URLs with an optional download name; a Supabase Storage REST adapter (config `SOPHIA_STORAGE_URL`, `_KEY`, `_BUCKET`, all or none) and an in-memory one. **Not exercised live**; the credential question is in [binding §8](SMC-M03-contract-binding.md) | `byte-store.test.ts` 6/6 |
+| Report content | `GET /api/v1/sources/{id}/content?disposition=`: published report versions and their renditions only (never a candidate or a rejected version); inline text as text, stored bytes as a 120-second URL; `no-store`; not ready → 409; no store → 503 for stored bytes only | `sources.db.test.ts` 5/5 over HTTP, mutation-checked |
+| Knowledge | `GET /api/v1/knowledge/reports?project=<id>|all&format=&q=&cursor=` (cards, per-project counts, 30 per page) and `GET /api/v1/artifacts/{id}/versions` (published versions with notes) | `knowledge.db.test.ts` 5/5: <br>• isolation across projects (no card, count or name from another project); <br>• format and search; <br>• paging; <br>• no candidate version; <br>• guest refused |
+| Studio | Icons `download`, `expand`, `collapse` (L4); `api/artifacts.ts` for the three reads | typecheck |
 
