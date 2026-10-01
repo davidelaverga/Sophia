@@ -90,7 +90,7 @@ shape exactly.
 
 | What | Version / identity | Used for | Sophia files |
 |---|---|---|---|
-| `livekit-server-sdk` | 2.19.1 (npm) | `AccessToken` with a single-room video grant | `apps/api/src/livekit.ts` |
+| `livekit-server-sdk` | 2.19.1 (npm); `dist/AccessToken.js` SHA-256 `671c163aa97d56a0ab82272f996dc6918784823261faafe9ceb6e4371fbf28b4` | `AccessToken` with a single-room video grant. Its `toJwt()` sets `exp` (`setExpirationTime(ttl)`) and then `nbf` (`setNotBefore(new Date())`) from two reads of the clock, so a token's `exp - nbf` is its TTL or one second less | `apps/api/src/livekit.ts`, `apps/api/src/rooms.db.test.ts` (the lifetime it tolerates) |
 | `livekit-client` | 2.22.3 (npm) | Browser room connection, remote audio, active speakers | `apps/studio/src/features/voice/livekit-room.ts` |
 | `livekit/livekit-server` | v1.13.7 (Docker image, dev mode) | The local room server for the dev stack; not a deployment | `scripts/lib/livekit.ts` |
 | LK-01 … LK-03 | pack source register | Read for the room lifecycle; `@livekit/rtc-node` 1.1.0 stays the S1-05 media bridge's pin | — |
