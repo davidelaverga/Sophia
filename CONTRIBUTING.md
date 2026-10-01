@@ -39,7 +39,22 @@ contract; this file holds the code rules.
 - **Comments explain why**, not what. Each module opens with what it
   guarantees and what it does not.
 - **Every fix gets a regression test that fails without the fix.** Check it
-  by reverting the fix once (a mutation check), and say so in the PR.
+  by reverting the fix once (a mutation check), and say so in the PR. A test
+  that can hang is not a check: `node --test` counts a hang as cancelled,
+  not failed, so race what is awaited against a settled value.
+- **Before a PR is ready, read it to break it.** Happy paths and screens
+  checked by eye miss what a review finds. For each function the PR changes:
+  - walk the states it can meet: not loaded yet (null, never `[]`), empty,
+    full at a cap (a history kept at 50 or 100 entries), slow (every network
+    wait has a limit), failed (an error caught is reported to whoever needs
+    it), pressed twice, and the next key once the focus moves;
+  - a new state or a new way to fail (a status, a timeout) is checked in
+    every branch and caller that can meet it, and a protocol (retry with the
+    same key) lives in the API, not in each caller;
+  - a finding is fixed as a class: look for the same pattern elsewhere
+    before pushing;
+  - a rule written here names its mechanism and its test, and is checked
+    against the code before it is written.
 - **Tests use `node --test`** with `node:assert/strict`. A test that needs
   PostgreSQL is `*.db.test.ts`; one that needs a Supabase stack is
   `*.live.test.ts`. `pnpm test` runs neither.
