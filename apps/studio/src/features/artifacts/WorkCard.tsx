@@ -55,7 +55,7 @@ function useResearch({ task, projectId, identity }: Props) {
     research,
     outputs,
     versions,
-    words: researchState(task, outputs, research?.outputs ?? ['markdown']),
+    words: researchState(task, outputs, research?.outputs ?? ['markdown'], research?.pdfReason),
     current: versions?.find((v) => v.id === outputs[0]?.artifactVersionId),
   }
 }
@@ -110,11 +110,11 @@ function Outputs({ outputs, versions, token, open }: OutputsProps) {
     <div className="work-card-outputs">
       {outputs.map((o) => (
         <OutputRow
-          key={o.artifactVersionId}
+          key={`${o.artifactVersionId}:${o.format}`}
           output={o}
           version={versions?.find((v) => v.id === o.artifactVersionId)}
           token={token}
-          onOpen={open ? () => open({ versionId: o.artifactVersionId }) : null}
+          onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
         />
       ))}
     </div>

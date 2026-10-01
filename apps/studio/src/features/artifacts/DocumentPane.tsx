@@ -1,19 +1,28 @@
 // The report viewer (plan §2.8.3–§2.8.6): a side pane that can be enlarged to a full page in the same frame. Its head
-// names the version on screen (format, version, words, size, short hash) and downloads exactly those bytes; its tabs
-// are the Document, the Sources it cites and its History. The text is checked against the version's hash before it
-// is shown, so what is read is what downloads. A non-modal complementary region: focus moves to its title on open
+// names the version on screen (format, version, words or pages, size, short hash) and downloads exactly those bytes;
+// its tabs are the Document, the Sources it cites and its History. A version with a PDF shows either its Markdown or
+// its PDF (S5b). Every file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary region: focus moves to its title on open
 // and back to the opener on close; Esc steps down, F toggles the full page.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
-import { checkedBlob, HashMismatch, loadReportText, saveBlob, utf8, type LoadedText } from './download.ts'
+import {
+  checkedBlob,
+  HashMismatch,
+  loadReportBytes,
+  loadReportText,
+  saveBlob,
+  utf8,
+  type LoadedBytes,
+  type LoadedText,
+} from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
-import type { ReportLink, ViewerTab } from './report-link.ts'
+import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import { formatBytes, shortHash } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
@@ -26,6 +35,7 @@ interface Props {
   tab: ViewerTab
   onTab: (tab: ViewerTab) => void
   onVersion: (versionId: string) => void
+  onFormat: (format: ViewerFormat) => void
   onEnlarge: () => void
   /** Esc and "Back to side panel": full → side → closed. */
   onStepDown: () => void
@@ -33,6 +43,9 @@ interface Props {
   /** In the room: the chat in the report's place. */
   onChat?: (() => void) | undefined
 }
+
+/** pdf.js loads with the first PDF opened, never with the Studio. */
+const PdfView = lazy(() => import('./PdfView.tsx').then((m) => ({ default: m.PdfView })))
 
 /** The version the link names, else the report's current one (the history reads newest first). */
 const pick = (versions: readonly ArtifactVersion[] | undefined, id: string | null) =>
@@ -59,8 +72,20 @@ function usePaneData(identity: Identity, link: ReportLink) {
     enabled: version !== undefined,
   })
   const parsed = useMemo(() => (text.data ? parseMarkdown(text.data.text) : null), [text.data])
-  return { versions, version, text, sources, parsed }
+  // The PDF is the one rendition format (A11).
+  const rendition = version?.renditions?.[0]
+  const showPdf = link.format === 'pdf' && rendition !== undefined
+  const pdf = useQuery({
+    queryKey: ['report-pdf', rendition?.sourceId, identity.name],
+    queryFn: () => loadReportBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? ''),
+    enabled: showPdf,
+    staleTime: Infinity,
+    retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
+  })
+  return { versions, version, text, sources, parsed, rendition, showPdf, pdf }
 }
+
+type PaneData = ReturnType<typeof usePaneData>
 
 /** Esc steps down while the pane is open, unless a field or a dialog has it. */
 function useEscape(onStepDown: () => void) {
@@ -93,7 +118,7 @@ function useFocusHandoff() {
 }
 
 export function DocumentPane(props: Props) {
-  const { identity, link, tab, onTab, onVersion, onEnlarge, onStepDown, onClose, onChat } = props
+  const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
   const data = usePaneData(identity, link)
   const title = useFocusHandoff()
   const width = usePaneWidth()
@@ -112,10 +137,9 @@ export function DocumentPane(props: Props) {
       <PaneHead
         title={data.version?.title ?? 'Report'}
         titleRef={title}
-        meta={metaLine(data.version, data.text.data)}
+        {...headOf(data)}
         full={full}
-        canDownload={data.text.isSuccess}
-        onDownload={() => void viewerDownload(data.version, data.text.data, status.show)}
+        onDownload={() => void viewerDownload(data, status.show)}
         onEnlarge={onEnlarge}
         onStepDown={onStepDown}
         onClose={onClose}
@@ -126,10 +150,13 @@ export function DocumentPane(props: Props) {
         onTab={onTab}
         sources={data.sources.data?.sources.length}
         versions={data.versions.data?.length}
+        format={data.rendition ? (data.showPdf ? 'pdf' : 'markdown') : null}
+        onFormat={onFormat}
       />
       <PaneBody
         tab={tab}
         data={data}
+        full={full}
         identity={identity}
         focusSource={focusSource}
         onCite={cite}
@@ -144,17 +171,19 @@ export function DocumentPane(props: Props) {
 
 interface BodyProps {
   tab: ViewerTab
-  data: ReturnType<typeof usePaneData>
+  data: PaneData
+  full: boolean
   identity: Identity
   focusSource: string | null
   onCite: (sourceId: string) => void
   onVersion: (versionId: string) => void
 }
 
-function PaneBody({ tab, data, identity, focusSource, onCite, onVersion }: BodyProps) {
+function PaneBody({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
   return (
-    <div className="report-pane-body" role="tabpanel" aria-label={TAB_NAME[tab]}>
-      {tab === 'document' && <DocumentTab data={data} onCite={onCite} />}
+    <div className="report-pane-body" role="tabpanel" aria-label={TAB_NAME[tab]} data-pdf={data.showPdf || undefined}>
+      {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
+      {tab === 'document' && !data.showPdf && <DocumentTab data={data} onCite={onCite} />}
       {tab === 'sources' && (
         <SourcesList
           sources={data.sources.data?.sources}
@@ -194,16 +223,45 @@ function metaLine(version: ArtifactVersion | undefined, text: LoadedText | undef
     .join(' · ')
 }
 
-/** The viewer's download: the bytes already loaded, checked against the version record before they are saved. */
-async function viewerDownload(
-  version: ArtifactVersion | undefined,
-  text: LoadedText | undefined,
-  show: (text: string, error?: boolean) => void,
-): Promise<void> {
-  if (!version || !text) return
+/** What the head says about the format on screen, and whether its bytes are there to download. */
+const headOf = (data: PaneData) =>
+  data.showPdf
+    ? { format: 'pdf' as const, meta: pdfMetaLine(data), canDownload: data.pdf.isSuccess }
+    : { format: 'markdown' as const, meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
+
+/** "PDF · v2 · 3 pages · 68.0 KB · 1a2b3c4d": the PDF on screen, exactly. */
+function pdfMetaLine({ version, rendition }: PaneData): string {
+  if (!version || !rendition) return ''
+  return [
+    'PDF',
+    version.versionNumber ? `v${version.versionNumber}` : null,
+    rendition.pageCount ? `${rendition.pageCount} ${rendition.pageCount === 1 ? 'page' : 'pages'}` : null,
+    formatBytes(rendition.byteLength),
+    shortHash(rendition.sha256),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** The bytes on screen and the hash their record gives: the PDF's, or the Markdown's. */
+function onScreen({ version, text, rendition, showPdf, pdf }: PaneData) {
+  if (showPdf) return pdf.data && rendition ? { file: pdf.data, sha256: rendition.sha256 } : null
+  return text.data && version ? { file: asBytes(text.data), sha256: version.sourceHash } : null
+}
+
+const asBytes = (text: LoadedText): LoadedBytes => ({
+  bytes: utf8(text.text),
+  filename: text.filename,
+  mime: text.mime,
+})
+
+/** The viewer's download: the bytes already loaded, checked against their record again before they are saved. */
+async function viewerDownload(data: PaneData, show: (text: string, error?: boolean) => void): Promise<void> {
+  const shown = onScreen(data)
+  if (!shown) return
   try {
-    saveBlob(await checkedBlob(utf8(text.text), version.sourceHash, text.mime), text.filename)
-    show(`Downloading ${text.filename} · ${formatBytes(text.byteLength)}`)
+    saveBlob(await checkedBlob(shown.file.bytes, shown.sha256, shown.file.mime), shown.file.filename)
+    show(`Downloading ${shown.file.filename} · ${formatBytes(shown.file.bytes.byteLength)}`)
   } catch (err: unknown) {
     show(err instanceof HashMismatch ? err.message : 'The download didn’t start. Try again.', true)
   }
@@ -212,6 +270,7 @@ async function viewerDownload(
 interface HeadProps {
   title: string
   titleRef: React.RefObject<HTMLHeadingElement | null>
+  format: ViewerFormat
   meta: string
   full: boolean
   canDownload: boolean
@@ -223,12 +282,12 @@ interface HeadProps {
 }
 
 function PaneHead(props: HeadProps) {
-  const { title, titleRef, meta, full, canDownload, onDownload, onEnlarge, onStepDown, onClose, onChat } = props
+  const { title, titleRef, format, meta, full, canDownload, onDownload, onEnlarge, onStepDown, onClose, onChat } = props
   const size = full ? 'Back to side panel' : 'Enlarge'
   return (
     <header className="report-pane-head">
-      <span className="report-tile" data-format="markdown" aria-hidden>
-        MD
+      <span className="report-tile" data-format={format} aria-hidden>
+        {format === 'pdf' ? 'PDF' : 'MD'}
       </span>
       <div className="report-pane-name">
         <h2 id="report-pane-title" ref={titleRef} tabIndex={-1}>
@@ -264,11 +323,14 @@ interface TabsProps {
   onTab: (tab: ViewerTab) => void
   sources: number | undefined
   versions: number | undefined
+  /** The format on screen when the version has a PDF; null when it has only its Markdown. */
+  format: ViewerFormat | null
+  onFormat: (format: ViewerFormat) => void
 }
 
 const count = (n: number | undefined) => (n === undefined ? '' : ` ${n}`)
 
-function PaneTabs({ tab, onTab, sources, versions }: TabsProps) {
+function PaneTabs({ tab, onTab, sources, versions, format, onFormat }: TabsProps) {
   const tabs: [ViewerTab, string][] = [
     ['document', 'Document'],
     ['sources', `Sources${count(sources)}`],
@@ -281,11 +343,48 @@ function PaneTabs({ tab, onTab, sources, versions }: TabsProps) {
           {label}
         </button>
       ))}
+      {format && <FormatSwitch format={format} onFormat={onFormat} />}
     </div>
   )
 }
 
-function DocumentTab({ data, onCite }: { data: ReturnType<typeof usePaneData>; onCite: (sourceId: string) => void }) {
+/** Markdown or PDF, for a version that has both. */
+function FormatSwitch({ format, onFormat }: { format: ViewerFormat; onFormat: (format: ViewerFormat) => void }) {
+  const options: [ViewerFormat, string][] = [
+    ['markdown', 'Markdown'],
+    ['pdf', 'PDF'],
+  ]
+  return (
+    <span className="report-format" role="group" aria-label="Format">
+      {options.map(([id, label]) => (
+        <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
+          {label}
+        </button>
+      ))}
+    </span>
+  )
+}
+
+/** The version's PDF, once its bytes matched the rendition's hash. */
+function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
+  if (data.pdf.isError) {
+    return (
+      <p className="muted" role="alert">
+        {data.pdf.error instanceof HashMismatch
+          ? 'This PDF did not match its record, so it is not shown.'
+          : 'The PDF couldn’t be loaded. Try again in a moment.'}
+      </p>
+    )
+  }
+  if (!data.pdf.data) return <p className="muted">Loading the PDF…</p>
+  return (
+    <Suspense fallback={<p className="muted">Opening the PDF…</p>}>
+      <PdfView bytes={data.pdf.data.bytes} full={full} />
+    </Suspense>
+  )
+}
+
+function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: string) => void }) {
   if (data.versions.isError) return <p className="muted">This report isn’t available to you.</p>
   if (data.versions.isSuccess && !data.version) return <p className="muted">This version isn’t available.</p>
   if (data.text.isError) {

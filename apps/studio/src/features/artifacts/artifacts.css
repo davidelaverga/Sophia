@@ -63,7 +63,8 @@
 }
 .output-row {
   display: flex;
-  flex: 1 1 260px;
+  /* Two rows side by side only where each keeps its file name whole; stacked in a Work card. */
+  flex: 1 1 340px;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
@@ -610,4 +611,183 @@
   .work-card-bar > span {
     transition: none;
   }
+}
+
+/* The format switch (S5b): Markdown or PDF, for a version that has both. */
+.report-format {
+  display: inline-flex;
+  align-self: center;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+}
+.report-format button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.report-format button[aria-pressed='true'] {
+  background: rgba(236, 235, 241, 0.08);
+  color: var(--text);
+}
+
+/* The PDF (PdfView): the toolbar above the pages, the pages on the void, the rail beside them in the full page. */
+.report-pane-body[data-pdf] {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+.report-pane[data-size='full'] .report-pane-body[data-pdf] > * {
+  max-width: none;
+  margin: 0;
+}
+.pdf-view,
+.pdf-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.pdf-main {
+  flex-direction: column;
+}
+.pdf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.pdf-toolbar .round {
+  width: 30px;
+  height: 30px;
+}
+.pdf-prev .icon {
+  transform: rotate(180deg);
+}
+.pdf-pager,
+.pdf-scale {
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-scale {
+  min-width: 46px;
+  text-align: center;
+}
+.pdf-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.pdf-pages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 16px 48px;
+  background: var(--void);
+}
+.pdf-page {
+  position: relative;
+  margin: 0 auto 16px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pdf-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  width: 56px;
+  padding: 12px 8px;
+  overflow: auto;
+  border-right: 1px solid var(--line);
+}
+.pdf-rail button {
+  flex: none;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.pdf-rail button[aria-current='page'] {
+  border-color: var(--line-2);
+  background: rgba(236, 235, 241, 0.06);
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  .pdf-toolbar .round,
+  .pdf-rail button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* pdf.js's text layer (the essential rules of pdf.js web/pdf_viewer.css, Apache-2.0): transparent runs positioned over
+   the canvas, so the page's text can be selected and found. */
+.pdf-page .textLayer {
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+}
+.pdf-page .textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+.pdf-page .textLayer > :not(.markedContent),
+.pdf-page .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.pdf-page .textLayer .markedContent {
+  display: contents;
+}
+.pdf-page .textLayer ::selection {
+  background: rgba(156, 130, 245, 0.35);
+}
+.pdf-page .textLayer br::selection {
+  background: transparent;
+}
+.pdf-page-failed {
+  position: absolute;
+  inset: auto 16px 16px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--r-2);
+  background: var(--plane-2);
+  color: var(--text-2);
+  font-size: 12px;
 }

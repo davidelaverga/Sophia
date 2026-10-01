@@ -78,6 +78,27 @@ export async function downloadSource(
   return { filename: content.filename, byteLength: bytes.byteLength }
 }
 
+export interface LoadedBytes {
+  bytes: Uint8Array<ArrayBuffer>
+  filename: string
+  mime: string
+}
+
+/**
+ * A stored file's bytes for the viewer (a report's PDF), checked against its sha256 before anything is shown, so the
+ * page on screen is the file that downloads.
+ */
+export async function loadReportBytes(token: string, sourceId: string, sha256: string): Promise<LoadedBytes> {
+  const content = await getSourceContent(token, sourceId, 'inline')
+  if (content.sha256.toLowerCase() !== sha256.toLowerCase()) throw new HashMismatch()
+  let bytes: Uint8Array<ArrayBuffer>
+  if (content.text !== undefined) bytes = utf8(content.text)
+  else if (content.downloadUrl) bytes = await fetchBytes(content.downloadUrl)
+  else throw new Error('This file is not available yet.')
+  if ((await sha256Hex(bytes)) !== sha256.toLowerCase()) throw new HashMismatch()
+  return { bytes, filename: content.filename, mime: content.mime }
+}
+
 export interface LoadedText {
   text: string
   filename: string

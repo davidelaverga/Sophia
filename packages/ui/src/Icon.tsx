@@ -20,6 +20,8 @@ export type IconName =
   | 'download'
   | 'expand'
   | 'collapse'
+  | 'plus'
+  | 'minus'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -85,6 +87,8 @@ const PATHS: Record<IconName, ReactNode> = {
   download: <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" />,
   expand: <path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" />,
   collapse: <path d="M10 4v6H4M14 20v-6h6M10 10L4 4M14 14l6 6" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
 }
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

@@ -418,3 +418,40 @@ Decisions recorded in the contract binding:
 
 Not here (S5b part 2 and later): the Studio PDF viewer, the card's PDF rows and its "Partly delivered" state, "Try PDF again" (`render_research`), CSP for the pdf worker, and text extraction for the blank and short page checks.
 
+## 24. S5b part 2a: the PDF in Studio
+
+A version's PDF opens in the report viewer as a PDF: from its row on the work card, or with the Markdown/PDF switch in the pane. It reads, zooms, pages and downloads with the same hash discipline as the Markdown.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `PdfView` | pdf.js 6.3.289 (dsh's pin), legacy build, loaded with the first PDF opened (its own chunk, 435 kB; the worker a same-origin asset). Options: no XFA, no worker fetch, stop at errors, no WebAssembly. Fit-width by default, at most 150 %; zoom 25–400 %. Every page is laid out at its size and drawn only on screen or next to it, at most at 2× device pixels, each drawing on a canvas and text layer of its own, released when it leaves. A text layer keeps the text selectable and findable. A pager; in the full page, a rail of page numbers. A page that cannot be drawn says so; a cancelled one does not. The document is destroyed with the view | `pdf-zoom.test.ts`; the browser check below |
+| Viewer | `?format=pdf` in the address; the head names the PDF on screen exactly (`PDF · v2 · 2 pages · 68.0 KB · <hash>`) and downloads those bytes. The bytes are checked against the rendition's SHA-256 before anything is drawn, and again before they are saved. A version with a PDF gets the Markdown/PDF switch | `report-view.test.ts` (the link with its format) |
+| Work card | The PDF row opens the PDF. A partly delivered card says the reason the service recorded (`ResearchProgress.pdfReason`). Rows stack where they would truncate their file names. The Markdown and PDF rows of one version no longer share a React key (a fault from S4 that only a rendition shows) | `research.db.test.ts`: the reader returns the reason; `report-view.test.ts`: the card's words |
+| CSP | Unchanged, verified: a production build of the viewer under `vercel.json`'s policy, enforced, draws with its text layer and reports no violation | the CSP check below |
+
+Browser check on the dev stack (32 checks; unprivileged user, Chromium's sandbox on). The dev API has no byte store, so the harness answers the one stored PDF's content read in the contract's shape and serves its bytes; the rest is the real API and Studio. What was checked:
+- the card's two rows;
+- pdf.js absent until a PDF opens;
+- the address and the exact head;
+- a same-origin worker;
+- ink on the canvas;
+- the text layer's text;
+- fit, zoom and pager;
+- page 2 drawn when near;
+- the download's hash;
+- the switch to Markdown and back;
+- the full page with its rail;
+- Esc to side, then closed;
+- a tampered PDF not shown and not downloadable;
+- the phone width with no sideways scroll;
+- no console errors.
+
+The run found three faults, fixed before the commit:
+- **The modern pdf.js build drew nothing.** It calls JavaScript that Chromium 141 lacks, and the check's canvas-size test had hidden it. The fix is the legacy build, and the check now looks for ink.
+- **Overlapping renders shared one canvas,** so the text layer never built.
+- **The card's rows had duplicate React keys.**
+
+Run (linux-x64): `pnpm check` exit 0 (559 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:db` 291/291. `pdfjs-dist@6.3.289` is added to Studio; the bundle is unchanged.
+
+Not here (S5b part 2b): "Try PDF again" (`render_research`, a binding-less rendition, and its rendition-only version), and text extraction for the kernel's blank and short page checks.
+

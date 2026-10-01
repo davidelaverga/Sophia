@@ -2395,6 +2395,14 @@
     },
     {
       "op": "add",
+      "path": "/components/schemas/ResearchProgress/properties/pdfReason",
+      "value": {
+        "type": "string",
+        "description": "A PDF task published without its PDF: why, in one sentence (at most 300 characters, held by the database) the service wrote from the facts: not rendered, rendered from an earlier draft, or the render's failure. Omitted otherwise."
+      }
+    },
+    {
+      "op": "add",
       "path": "/components/schemas/NativeTaskDetail/properties/research",
       "value": {
         "$ref": "#/components/schemas/ResearchProgress"

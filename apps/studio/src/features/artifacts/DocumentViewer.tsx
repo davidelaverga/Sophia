@@ -5,7 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Identity } from '../../app/dev-identity.ts'
 import { DocumentPane } from './DocumentPane.tsx'
-import { readReportLink, withReportLink, type ReportLink, type ViewerTab } from './report-link.ts'
+import { readReportLink, withReportLink, type ReportLink, type ViewerFormat, type ViewerTab } from './report-link.ts'
 import './artifacts.css'
 
 export interface OpenRequest {
@@ -13,6 +13,8 @@ export interface OpenRequest {
   /** A version; omitted for the report's current one. */
   versionId?: string | null
   tab?: ViewerTab
+  /** The PDF of the version, when it has one; the Markdown otherwise. */
+  format?: ViewerFormat
 }
 
 interface ViewerApi {
@@ -99,7 +101,12 @@ export function DocumentViewerProvider({ projectId, identity, panelOpen, closePa
     (r: OpenRequest) => {
       closePanel()
       setTab(r.tab ?? 'document')
-      const next: ReportLink = { artifactId: r.artifactId, versionId: r.versionId ?? null, size: link?.size ?? 'side' }
+      const next: ReportLink = {
+        artifactId: r.artifactId,
+        versionId: r.versionId ?? null,
+        size: link?.size ?? 'side',
+        format: r.format ?? 'markdown',
+      }
       // A first open is an intent of its own (Back closes it); another report replaces the one on screen.
       write(next, link === null)
     },
@@ -122,6 +129,7 @@ export function DocumentViewerProvider({ projectId, identity, panelOpen, closePa
           tab={tab}
           onTab={setTab}
           onVersion={(versionId) => write({ ...link, versionId }, false)}
+          onFormat={(format) => write({ ...link, format }, false)}
           onEnlarge={() => write({ ...link, size: 'full' }, true)}
           onStepDown={() => (link.size === 'full' ? back(1, { ...link, size: 'side' }) : close())}
           onClose={close}

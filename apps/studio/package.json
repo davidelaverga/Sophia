@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "2.117.1",
     "@tanstack/react-query": "5.103.2",
     "livekit-client": "2.22.3",
+    "pdfjs-dist": "6.3.289",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "uqr": "0.1.3"

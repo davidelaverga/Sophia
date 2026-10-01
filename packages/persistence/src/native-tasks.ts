@@ -238,6 +238,7 @@ interface ProgressRow {
   max_searches: number
   reads: string
   max_reads: number
+  pdf_reason: string | null
 }
 
 /**
@@ -258,7 +259,7 @@ async function readResearchProgress(
             al.max_searches,
             (SELECT count(*) FROM sophia.research_reservations r WHERE r.project_id = al.project_id
                 AND r.allowance_id = al.id AND r.kind = 'read' AND r.state <> 'released') AS reads,
-            al.max_reads
+            al.max_reads, t.pdf_reason
        FROM sophia.research_tasks t
        JOIN sophia.jobs j ON j.project_id = t.project_id AND j.id = t.job_id
        JOIN sophia.research_allowances al ON al.project_id = t.project_id AND al.id = t.allowance_id
@@ -280,6 +281,7 @@ async function readResearchProgress(
     spentUsd: Number(r.spent_usd),
     searches: { used: Number(r.searches), max: r.max_searches },
     reads: { used: Number(r.reads), max: r.max_reads },
+    ...(r.pdf_reason === null ? {} : { pdfReason: r.pdf_reason }),
   }
 }
 

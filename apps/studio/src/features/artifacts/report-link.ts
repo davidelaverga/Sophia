@@ -1,20 +1,23 @@
-// The open report in the address bar (plan §2.8.4): `?report=<artifact>&version=<version>&view=full` deep-links the
-// viewer and lets a member open it in a new tab. Only these parameters are ours; the router keeps them across a
+// The open report in the address bar (plan §2.8.4): `?report=<artifact>&version=<version>&view=full&format=pdf`
+// deep-links the viewer and lets a member open it in a new tab. Only these parameters are ours; the router keeps them across a
 // change of view in the same project (useProjectRoute) and drops them when the project changes.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type ViewerTab = 'document' | 'sources' | 'history'
 export type ViewerSize = 'side' | 'full'
+/** What the Document tab shows: the report's Markdown, or the version's PDF. */
+export type ViewerFormat = 'markdown' | 'pdf'
 
 export interface ReportLink {
   artifactId: string
   /** The version on screen; null for the report's current version. */
   versionId: string | null
   size: ViewerSize
+  format: ViewerFormat
 }
 
-export const REPORT_PARAMS = ['report', 'version', 'view'] as const
+export const REPORT_PARAMS = ['report', 'version', 'view', 'format'] as const
 
 /** The report the address names, or null when it names none (or a malformed one). */
 export function readReportLink(search: string): ReportLink | null {
@@ -26,6 +29,7 @@ export function readReportLink(search: string): ReportLink | null {
     artifactId: artifactId.toLowerCase(),
     versionId: version && UUID.test(version) ? version.toLowerCase() : null,
     size: q.get('view') === 'full' ? 'full' : 'side',
+    format: q.get('format') === 'pdf' ? 'pdf' : 'markdown',
   }
 }
 
@@ -37,6 +41,7 @@ export function withReportLink(search: string, link: ReportLink | null): string 
     q.set('report', link.artifactId)
     if (link.versionId) q.set('version', link.versionId)
     if (link.size === 'full') q.set('view', 'full')
+    if (link.format === 'pdf') q.set('format', 'pdf')
   }
   const out = q.toString()
   return out ? `?${out}` : ''

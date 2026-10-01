@@ -33,14 +33,23 @@ function notProducedNote(reason: string | null): string {
 
 const ENDED_BADLY: ReadonlySet<string> = new Set(['failed', 'outcome_unknown', 'denied'])
 
-/** A delivered report: ready, or partly delivered when the PDF asked for is not among its outputs. */
-function delivered(formats: ReadonlySet<string>, asked: readonly ('markdown' | 'pdf')[]): StateWords {
+/**
+ * A delivered report: ready, or partly delivered when the PDF asked for is not among its outputs, with the reason the
+ * service recorded when there is one.
+ */
+function delivered(
+  formats: ReadonlySet<string>,
+  asked: readonly ('markdown' | 'pdf')[],
+  pdfReason?: string,
+): StateWords {
   return asked.includes('pdf') && !formats.has('pdf')
     ? {
         state: 'partial',
         label: 'Partly delivered',
         tone: 'amber',
-        note: 'The Markdown report is ready; the PDF was not produced.',
+        note: pdfReason
+          ? `The Markdown report is ready. ${pdfReason.replace(/\.?$/, '.')}`
+          : 'The Markdown report is ready; the PDF was not produced.',
       }
     : { state: 'ready', label: 'Report ready', tone: 'teal', note: null }
 }
@@ -80,9 +89,10 @@ export function researchState(
   task: Pick<NativeTask, 'phase' | 'state' | 'reason'>,
   outputs: readonly Pick<Output, 'format'>[],
   asked: readonly ('markdown' | 'pdf')[],
+  pdfReason?: string,
 ): StateWords {
   const formats = new Set<string>(outputs.map((o) => o.format))
-  return formats.has('markdown') ? delivered(formats, asked) : undelivered(task)
+  return formats.has('markdown') ? delivered(formats, asked, pdfReason) : undelivered(task)
 }
 
 /** "$0.74": cents, never fractions of one. */

@@ -2442,6 +2442,8 @@ describe('the research PDF (0031)', () => {
       [none.at.attemptId],
     )
     assert.deepEqual(state, { pdf_state: 'not_produced', pdf_reason: 'The PDF was not rendered' })
+    const read = await withActor(pool, E, 'read', (c) => readNativeTask(c, none.w.projectId, b.taskId))
+    assert.equal(read.research?.pdfReason, 'The PDF was not rendered', 'the work card reads the reason')
     const w = await world()
     const md = await started(w)
     const c = await citable(w, md.at)

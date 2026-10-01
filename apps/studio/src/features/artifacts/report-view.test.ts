@@ -35,6 +35,8 @@ describe('a research card in words', () => {
     const partial = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'])
     assert.deepEqual([partial.state, partial.label], ['partial', 'Partly delivered'])
     assert.equal(/fallback/i.test(JSON.stringify(partial)), false)
+    const why = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], 'The PDF was not rendered')
+    assert.equal(why.note, 'The Markdown report is ready. The PDF was not rendered.', 'the reason the service recorded')
     assert.equal(researchState(done, [{ format: 'markdown' }, { format: 'pdf' }], ['markdown', 'pdf']).state, 'ready')
   })
 
@@ -142,17 +144,31 @@ describe('the open report in the address bar', () => {
       artifactId: A,
       versionId: V,
       size: 'full',
+      format: 'markdown',
     })
-    assert.deepEqual(readReportLink(`?report=${A}`), { artifactId: A, versionId: null, size: 'side' })
+    assert.deepEqual(readReportLink(`?report=${A}`), {
+      artifactId: A,
+      versionId: null,
+      size: 'side',
+      format: 'markdown',
+    })
+    assert.equal(readReportLink(`?report=${A}&format=pdf`)?.format, 'pdf')
+    assert.equal(readReportLink(`?report=${A}&format=docx`)?.format, 'markdown', 'only a PDF is another format')
     assert.equal(readReportLink('?report=nope'), null)
     assert.equal(readReportLink('?x=1'), null)
     assert.equal(
-      withReportLink('?x=1', { artifactId: A, versionId: V, size: 'full' }),
+      withReportLink('?x=1', { artifactId: A, versionId: V, size: 'full', format: 'markdown' }),
       `?x=1&report=${A}&version=${V}&view=full`,
     )
+    assert.equal(
+      withReportLink('', { artifactId: A, versionId: null, size: 'side', format: 'pdf' }),
+      `?report=${A}&format=pdf`,
+    )
+    assert.equal(withReportLink(`?report=${A}&format=pdf`, null), '')
     assert.equal(withReportLink(`?x=1&report=${A}&view=full`, null), '?x=1')
     assert.equal(withReportLink(`?report=${A}`, null), '')
     assert.equal(reportSearch(`?x=1&report=${A}&view=full`), `?report=${A}&view=full`)
+    assert.equal(reportSearch(`?x=1&report=${A}&format=pdf`), `?report=${A}&format=pdf`)
     assert.equal(reportSearch('?x=1'), '')
   })
 })
