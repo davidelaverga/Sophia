@@ -177,7 +177,7 @@ function OtherWays(props: { ways: UnlockWays; me: string | null; busy: Busy; che
           key={p}
           className="pill"
           type="button"
-          onClick={() => void check('provider', () => unlockWithProvider(p))}
+          onClick={() => void check('provider', (signal) => unlockWithProvider(p, signal))}
         >
           {busy === 'provider' ? `Checking with ${PROVIDER_NAME[p]}…` : `Continue with ${PROVIDER_NAME[p]}`}
         </button>

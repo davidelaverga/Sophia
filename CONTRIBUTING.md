@@ -495,7 +495,8 @@ their work. Keep these when you change them:
   session is ended at once. A provider's check crosses a page load, so it
   must come back as a new sign-in of the same account (on the app's own
   client: it crosses a page load), and one that answers after a call began
-  opens nothing. Anyone else is
+  opens nothing. It leaves for the provider only while its sheet is there
+  (`leaveFor`, with tests): closed meanwhile, the page stays. Anyone else is
   "another account"; a check that returns nobody never is. Only the network
   has a deadline, each request on its own (20 s), never the passkey prompt:
   a prompt the person closes leaves the sheet waiting. The passkey works
@@ -539,7 +540,8 @@ their work. Keep these when you change them:
   comes. Words going out take only their own draft with them: another
   tab's newer one stays. An erasure on another device reaches an open
   tab within the Work list's next read (every 20 s), which reads the space
-  again (`erasedElsewhere`); and waiting for a reply never stops reading:
+  again until it reaches that epoch, less and less often while reads fail
+  (`erasedElsewhere`); and waiting for a reply never stops reading:
   after failed reads, less and less often (`pollEvery`). The device never
   keeps words in an older epoch than it already holds (`keptEpoch`), and a
   tab whose space is behind the draft it shows reads the space again before

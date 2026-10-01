@@ -129,7 +129,8 @@ export type ReadBack = ReturnType<typeof useReadBack>
 
 /**
  * An erasure on another device, once this page hears of it from the Work list (erasedElsewhere): the space is read
- * again, so neither its conversation nor its draft stays in sight.
+ * again, and again less and less often while a read fails, until it reaches that epoch, so neither its conversation
+ * nor its draft stays in sight.
  */
 export function useReadAgainOnErasure(
   identity: Identity,
@@ -139,7 +140,22 @@ export function useReadAgainOnErasure(
   const client = useQueryClient()
   const seen = erasedElsewhere(space, work)
   useEffect(() => {
-    if (seen) void client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
+    if (!seen) return undefined
+    let tries = 0
+    let wake: ReturnType<typeof setTimeout> | undefined
+    let done = false
+    const read = () => {
+      void client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true }).finally(() => {
+        if (done) return
+        tries += 1
+        wake = setTimeout(read, pollEvery(tries))
+      })
+    }
+    read()
+    return () => {
+      done = true
+      clearTimeout(wake)
+    }
   }, [seen, client, identity.name])
 }
 

@@ -7,6 +7,7 @@ import type { ProjectCreated, ProjectRelease, ProjectSummary } from '@sophia/con
 import { Icon, Tip } from '@sophia/ui'
 import { createProject } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
+import { useMounted } from '../../app/useMounted.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { AdmissionNote } from '../access/AdmissionNote.tsx'
 import { shortName } from '../voice/room-view.ts'
@@ -100,19 +101,25 @@ function TitleField({ title, status, onTitle, onClose }: TitleProps) {
 function NewProject({
   token,
   onCreated,
+  onAdded,
   onClose,
 }: {
   token: string
   onCreated: (id: string) => void
+  /** A project made after the form was cancelled: the Work list reads again, and nobody is taken into it. */
+  onAdded: () => void
   onClose: () => void
 }) {
   const [title, setTitle] = useState('')
   const admission = useAdmission<string, ProjectCreated>((key, t) => createProject(token, key, t))
   const { status } = admission.state
   const slow = useSlow(status === 'sending')
+  const open = useMounted()
   const submit = async () => {
     const created = await admission.send(title.trim())
-    if (created) onCreated(created.projectId)
+    if (!created) return
+    if (open.current) onCreated(created.projectId)
+    else onAdded()
   }
   return (
     <form
@@ -226,7 +233,14 @@ export function WorkSpace(props: Props) {
       </header>
       <div className="c3-projects">
         <ReadNotes reads={[props.read]} />
-        {newProject.open && <NewProject token={token} onCreated={actions.open} onClose={() => newProject.set(false)} />}
+        {newProject.open && (
+          <NewProject
+            token={token}
+            onCreated={actions.open}
+            onAdded={props.read.retry}
+            onClose={() => newProject.set(false)}
+          />
+        )}
         {projects && list.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} />

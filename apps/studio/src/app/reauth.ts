@@ -9,10 +9,10 @@
 // the app's own client, so it must come back as a NEW sign-in of the same account: returning with Back proves nothing.
 // Locally, dev identities have nothing to check, and the sheet says so.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { providerCheckPassed, tokenSession, type ProviderCheck } from './auth-callback.ts'
+import { providerCheckPassed } from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
 import { authProject, listPasskeys, oauthProviders, passkeysOffered, supabase, type OAuthProvider } from './auth.ts'
-import { orLate } from './deadline.ts'
+import { leaveFor, PENDING, signedInNow } from './provider-leave.ts'
 import { checked, CHECK_WORDS, type CheckError, type Checked } from './unlock-check.ts'
 
 export interface UnlockWays {
@@ -125,39 +125,12 @@ export async function sendUnlockCode(email: string): Promise<void> {
   if (error) throw new Error(sendFailure(error, email))
 }
 
-const PENDING = 'sophia.personal.unlock'
-
-/** Who is signed in now, as the Auth service says, and which sign-in that is (the token's session_id). */
-async function signedInNow(): Promise<{ user: string | null; session: string | null }> {
-  if (!supabase) return { user: null, session: null }
-  const token = (await supabase.auth.getSession()).data.session?.access_token // after the client's ?code= exchange
-  if (!token) return { user: null, session: null }
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error) throw error
-  return { user: data.user.id, session: tokenSession(token) }
-}
-
 /**
- * Leaves for the provider, noting which sign-in left (this tab only); on return, `unlockAfterRedirect` opens the side
- * if the same account signed in again there.
+ * Leaves for the provider (leaveFor), noting which sign-in left (this tab only); on return, `unlockAfterRedirect` opens
+ * the side if the same account signed in again there. Its sheet gone meanwhile (`signal`), nothing starts.
  */
-export async function unlockWithProvider(provider: OAuthProvider): Promise<void> {
-  if (!supabase) return
-  // Which sign-in leaves, within the checks' deadline; a failed or late read says so in the Studio's words.
-  const left = await orLate(signedInNow(), REQUEST_MS).catch(() => 'late' as const)
-  if (left === 'late') throw new Error(CHECK_WORDS.network)
-  const pending: ProviderCheck = { user: left.user ?? '', session: left.session ?? '', at: Date.now() }
-  try {
-    sessionStorage.setItem(PENDING, JSON.stringify(pending))
-  } catch {
-    // storage unavailable: the person unlocks again after coming back
-  }
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: { redirectTo: `${window.location.origin}/personal`, ...(provider === 'azure' ? { scopes: 'email' } : {}) },
-  })
-  if (error) throw new Error('That sign-in didn’t start. Try another way.')
-}
+export const unlockWithProvider = (provider: OAuthProvider, signal: AbortSignal): Promise<void> =>
+  leaveFor(provider, signal, supabase?.auth, REQUEST_MS)
 
 /**
  * After a provider's redirect: "passed" once, when the check passed (providerCheckPassed); "failed" when it didn't
@@ -172,5 +145,5 @@ export async function unlockAfterRedirect(): Promise<'passed' | 'failed' | 'none
     return 'none'
   }
   if (pending === null) return 'none'
-  return providerCheckPassed(pending, await signedInNow(), Date.now()) ? 'passed' : 'failed'
+  return providerCheckPassed(pending, await signedInNow(supabase?.auth), Date.now()) ? 'passed' : 'failed'
 }
