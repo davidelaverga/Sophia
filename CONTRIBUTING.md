@@ -351,7 +351,12 @@ either:
   and notes, keeps only the key of every request, dated at the erasure (a
   retry from before, however late, writes nothing), and leaves carried notes
   where they were, still the owner's; the revision and the turn order go on.
-  A forgotten note's keep keeps no digest of its words either.
+  It also moves the space's epoch: every other personal write names the
+  epoch it was made against (`x-sophia-personal-epoch`, from the space or the
+  Work list) and is fenced to it in its transaction (`personal_fence`), so a
+  write issued before an erasure, however late its first attempt arrives,
+  writes nothing. A forgotten note's keep keeps no digest of its words
+  either.
 - **The companion is behind one interface** (`apps/api/src/companion.ts`):
   `answer` for a pending turn, `greet` for the welcome back. The keyless
   rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for

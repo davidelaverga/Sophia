@@ -1,8 +1,9 @@
 // The personal space for signed-in people (contract amendment A10). Every read and write runs under the caller and
 // reaches their own space only (owner-only RLS in 0021); a guest never gets here (app.ts refuses anonymous callers on
 // every route but the room's door). Writes are idempotent per person and Idempotency-Key and answered with a receipt
-// of ids. Sophia's replies are written by the companion after the turn commits; where no companion runs, a message is
-// refused before anything is kept.
+// of ids; every one but erasure names the epoch of the space it was made against, and is refused when an erasure came
+// in between (personal_fence). Sophia's replies are written by the companion after the turn commits; where no
+// companion runs, a message is refused before anything is kept.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type {
@@ -18,6 +19,7 @@ import {
   carryPersonalNote,
   decidePersonalSuggestion,
   erasePersonalSpace,
+  fencePersonalWrite,
   forgetPersonalNote,
   keepPersonalNote,
   readPersonalExport,
@@ -37,6 +39,31 @@ interface Deps {
 }
 
 type Key = { 'idempotency-key': string }
+
+/** A write made against the epoch of the space the client last read (PersonalSpace.epoch, ProjectList.personalEpoch). */
+type Fenced = Key & { 'x-sophia-personal-epoch': string }
+
+/** The write's key, and its epoch: at most 15 digits, so a safe integer. */
+const fencedHeaders = {
+  type: 'object',
+  properties: {
+    ...idempotencyHeader.properties,
+    'x-sophia-personal-epoch': { type: 'string', pattern: '^(0|[1-9][0-9]{0,14})$' },
+  },
+  required: [...idempotencyHeader.required, 'x-sophia-personal-epoch'],
+} as const
+
+const epochOf = (headers: Fenced) => Number(headers['x-sophia-personal-epoch'])
+
+/**
+ * A personal write in one transaction with its fence: the space is held, and a write made against another epoch than
+ * the space's (one issued before an erasure, however late it arrives) is refused as erased.
+ */
+const fenced = <T>(pool: pg.Pool, actorId: string, headers: Fenced, write: (c: pg.PoolClient) => Promise<T>) =>
+  withActor(pool, actorId, 'write', async (c) => {
+    await fencePersonalWrite(c, epochOf(headers))
+    return write(c)
+  })
 
 const idParams = (name: string) =>
   ({
@@ -62,9 +89,9 @@ const bodySchema = (body: string) => {
   return { allOf: [{ $ref: `${body}#` }, { properties: Object.fromEntries(ids.map((id) => [id, pattern])) }] }
 }
 
-const writeSchema = (params: object | null, body: string | null) => ({
+const writeSchema = (params: object | null, body: string | null, headers: object = fencedHeaders) => ({
   ...(params ? { params } : {}),
-  headers: idempotencyHeader,
+  headers,
   ...(body ? { body: bodySchema(body) } : {}),
   response: { 202: { $ref: 'PersonalReceipt#' } },
 })
@@ -104,12 +131,12 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
 }
 
 function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
-  app.post<{ Headers: Key; Body: PersonalMessage }>(
+  app.post<{ Headers: Fenced; Body: PersonalMessage }>(
     '/api/v1/personal/turns',
     { schema: writeSchema(null, 'PersonalMessage') },
     async (req, reply) => {
       if (!companion) throw new DomainError('unavailable', NO_COMPANION)
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         sendPersonalTurn(c, req.headers['idempotency-key'], req.body.text),
       )
       if (receipt.turnId) void companion.answer(req.actorId, receipt.turnId)
@@ -118,22 +145,28 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
   )
 
   // A welcome back is written only when one is due, so a retry after a lost reply can't write a second one.
-  app.post<{ Headers: Key; Body: PersonalResumeRequest }>(
+  app.post<{ Headers: Fenced; Body: PersonalResumeRequest }>(
     '/api/v1/personal/resume',
     { schema: writeSchema(null, 'PersonalResumeRequest') },
     async (req, reply) => {
       if (!companion) throw new DomainError('unavailable', NO_COMPANION)
-      const receipt = await companion.greet(req.actorId, req.headers['idempotency-key'], req.body.name?.trim() || null)
+      const { headers } = req
+      const receipt = await companion.greet(
+        req.actorId,
+        headers['idempotency-key'],
+        epochOf(headers),
+        req.body.name?.trim() || null,
+      )
       return reply.status(202).send(receipt)
     },
   )
 
-  app.post<{ Params: { turnId: string }; Headers: Key }>(
+  app.post<{ Params: { turnId: string }; Headers: Fenced }>(
     '/api/v1/personal/turns/:turnId/retry',
     { schema: writeSchema(idParams('turnId'), null) },
     async (req, reply) => {
       if (!companion) throw new DomainError('unavailable', NO_COMPANION)
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         retryPersonalTurn(c, req.headers['idempotency-key'], req.params.turnId),
       )
       void companion.answer(req.actorId, req.params.turnId)
@@ -143,33 +176,33 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
 }
 
 function noteRoutes(app: FastifyInstance, { pool }: Deps): void {
-  app.post<{ Params: { suggestionId: string }; Headers: Key; Body: PersonalSuggestionDecision }>(
+  app.post<{ Params: { suggestionId: string }; Headers: Fenced; Body: PersonalSuggestionDecision }>(
     '/api/v1/personal/suggestions/:suggestionId/decision',
     { schema: writeSchema(idParams('suggestionId'), 'PersonalSuggestionDecision') },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         decidePersonalSuggestion(c, req.headers['idempotency-key'], req.params.suggestionId, req.body.decision),
       )
       return reply.status(202).send(receipt)
     },
   )
 
-  app.post<{ Headers: Key; Body: PersonalNoteRequest }>(
+  app.post<{ Headers: Fenced; Body: PersonalNoteRequest }>(
     '/api/v1/personal/notes',
     { schema: writeSchema(null, 'PersonalNoteRequest') },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         keepPersonalNote(c, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
     },
   )
 
-  app.post<{ Params: { noteId: string }; Headers: Key }>(
+  app.post<{ Params: { noteId: string }; Headers: Fenced }>(
     '/api/v1/personal/notes/:noteId/forget',
     { schema: writeSchema(idParams('noteId'), null) },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         forgetPersonalNote(c, req.headers['idempotency-key'], req.params.noteId),
       )
       return reply.status(202).send(receipt)
@@ -179,23 +212,23 @@ function noteRoutes(app: FastifyInstance, { pool }: Deps): void {
 
 function crossingRoutes(app: FastifyInstance, { pool }: Deps): void {
   // A carried note is attributed to the name the person shows (their token's), never to an id or to request input.
-  app.post<{ Params: { noteId: string }; Headers: Key; Body: PersonalCarryRequest }>(
+  app.post<{ Params: { noteId: string }; Headers: Fenced; Body: PersonalCarryRequest }>(
     '/api/v1/personal/notes/:noteId/carry',
     { schema: writeSchema(idParams('noteId'), 'PersonalCarryRequest') },
     async (req, reply) => {
       const { noteId } = req.params
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         carryPersonalNote(c, req.headers['idempotency-key'], noteId, req.body.projectId, req.actorName),
       )
       return reply.status(202).send(receipt)
     },
   )
 
-  app.post<{ Params: { releaseId: string }; Headers: Key }>(
+  app.post<{ Params: { releaseId: string }; Headers: Fenced }>(
     '/api/v1/personal/releases/:releaseId/take-back',
     { schema: writeSchema(idParams('releaseId'), null) },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
         takeBackPersonalRelease(c, req.headers['idempotency-key'], req.params.releaseId),
       )
       return reply.status(202).send(receipt)
@@ -204,8 +237,9 @@ function crossingRoutes(app: FastifyInstance, { pool }: Deps): void {
 
   app.post<{ Headers: Key; Body: PersonalErasureRequest }>(
     '/api/v1/personal/erasure',
-    { schema: writeSchema(null, 'PersonalErasureRequest') },
+    { schema: writeSchema(null, 'PersonalErasureRequest', idempotencyHeader) },
     async (req, reply) => {
+      // Never fenced: erasing writes nothing back, and a retry of it gets its receipt after the epoch moved.
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
         erasePersonalSpace(c, req.headers['idempotency-key'], req.body.confirm),
       )

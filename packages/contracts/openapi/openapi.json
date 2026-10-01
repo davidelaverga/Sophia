@@ -6649,6 +6649,16 @@
               "minLength": 1,
               "maxLength": 160
             }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
           }
         ],
         "responses": {
@@ -6751,6 +6761,16 @@
               "minLength": 1,
               "maxLength": 160
             }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
           }
         ],
         "responses": {
@@ -6842,6 +6862,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
             }
           }
         ],
@@ -6935,6 +6965,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
             }
           }
         ],
@@ -7038,6 +7078,16 @@
               "minLength": 1,
               "maxLength": 160
             }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
           }
         ],
         "responses": {
@@ -7129,6 +7179,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
             }
           }
         ],
@@ -7232,6 +7292,16 @@
               "minLength": 1,
               "maxLength": 160
             }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
+            }
           }
         ],
         "responses": {
@@ -7314,6 +7384,16 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the write is made against (PersonalSpace.epoch, or ProjectList.personalEpoch). A write made against another epoch, so one issued before an erasure however late it arrives, is refused (409 request_erased) and writes nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
             }
           }
         ],
@@ -13256,6 +13336,12 @@
             "items": {
               "$ref": "#/components/schemas/PersonalRelease"
             }
+          },
+          "epoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Moves with each erasure: a write names the epoch it was made against, and one made against another is refused."
           }
         },
         "required": [
@@ -13264,7 +13350,8 @@
           "turns",
           "earlier",
           "notes",
-          "releases"
+          "releases",
+          "epoch"
         ]
       },
       "PersonalTurnPage": {
@@ -13676,10 +13763,17 @@
             "items": {
               "$ref": "#/components/schemas/ProjectSummary"
             }
+          },
+          "personalEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The reader's personal epoch (PersonalSpace.epoch), for what Work writes to their notes while the personal space stays unread (locked)."
           }
         },
         "required": [
-          "projects"
+          "projects",
+          "personalEpoch"
         ]
       }
     }

@@ -12,6 +12,7 @@ import {
   beginPersonalGreeting,
   claimPersonalReply,
   failPersonalReply,
+  fencePersonalWrite,
   readCompanionContext,
   readWelcomeContext,
   recordPersonalGreeting,
@@ -97,8 +98,11 @@ export class CompanionRunner {
    * not written yet, because the companion failed (its claim goes) or an earlier attempt of the same request is still
    * writing it, is outcome_unknown: the client asks again under the same key.
    */
-  async greet(actorId: string, key: string, name: string | null): Promise<PersonalReceipt> {
-    const begun = await withActor(this.pool, actorId, 'write', (c) => beginPersonalGreeting(c, key))
+  async greet(actorId: string, key: string, epoch: number, name: string | null): Promise<PersonalReceipt> {
+    const begun = await withActor(this.pool, actorId, 'write', async (c) => {
+      await fencePersonalWrite(c, epoch)
+      return beginPersonalGreeting(c, key)
+    })
     if (begun === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
     if (!('claim' in begun)) return begun
     const { claim } = begun

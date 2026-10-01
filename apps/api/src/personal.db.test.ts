@@ -52,13 +52,14 @@ const claimsOf = (sub: string) =>
     ? { is_anonymous: true }
     : { email: `${sub === ANA ? 'ana' : sub === LEAD ? 'lead' : 'out'}@sophia.test` }
 
-async function call(path: string, init: { as: string; body?: unknown; key?: string; at?: string }) {
+async function call(path: string, init: { as: string; body?: unknown; key?: string; at?: string; epoch?: number }) {
   const res = await fetch(`${init.at ?? base}${path}`, {
     method: init.body === undefined && !init.key ? 'GET' : 'POST',
     headers: {
       authorization: `Bearer ${await token(init.as, claimsOf(init.as))}`,
       ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
       ...(init.key ? { 'idempotency-key': init.key } : {}),
+      ...(init.epoch === undefined ? {} : { 'x-sophia-personal-epoch': String(init.epoch) }),
     },
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
   })
@@ -67,8 +68,10 @@ async function call(path: string, init: { as: string; body?: unknown; key?: stri
   return { status: res.status, json }
 }
 
+/** A write as the Studio makes it: against the epoch of the space it last read. */
 const write = async (path: string, as: string, body?: unknown) => {
-  const r = await call(path, { as, body, key: randomUUID() })
+  const { epoch } = parsePersonalSpace((await call('/api/v1/personal', { as })).json)
+  const r = await call(path, { as, body, key: randomUUID(), epoch })
   assert.equal(r.status, 202, JSON.stringify(r.json))
   return parsePersonalReceipt(r.json)
 }
@@ -123,6 +126,7 @@ describe('personal routes', () => {
       body: { text: 'Hello' },
       key: randomUUID(),
       at: quietBase,
+      epoch: 0,
     })
     assert.equal(refused.status, 503)
     const empty = parsePersonalSpace((await call('/api/v1/personal', { as: ANA, at: quietBase })).json)
@@ -192,7 +196,8 @@ describe('personal routes', () => {
     // The turn committed and the API went away before answering (a deploy, a crash): nothing marks it failed.
     const lost = await withActor(pool, ANA, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Did that go through?'))
     const retry = `/api/v1/personal/turns/${lost.turnId ?? ''}/retry`
-    assert.equal((await call(retry, { as: ANA, key: randomUUID() })).status, 409, 'not while it may still come')
+    const { epoch } = await space(ANA)
+    assert.equal((await call(retry, { as: ANA, key: randomUUID(), epoch })).status, 409, 'not while it may still come')
     await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [
       lost.turnId,
     ])
@@ -208,20 +213,39 @@ describe('personal routes', () => {
   it('answer a malformed id or cursor with 422, never 503', async () => {
     const urn = `urn:uuid:${randomUUID()}`
     const note = await write('/api/v1/personal/notes', ANA, { text: 'Checked ids' })
+    const { epoch } = await space(ANA)
     const carry = await call(`/api/v1/personal/notes/${note.noteId ?? ''}/carry`, {
       as: ANA,
       body: { projectId: urn },
       key: randomUUID(),
+      epoch,
     })
     assert.equal(carry.status, 422, JSON.stringify(carry.json))
     const keep = await call('/api/v1/personal/notes', {
       as: ANA,
       body: { text: 'From a turn', fromTurnId: urn },
       key: randomUUID(),
+      epoch,
     })
     assert.equal(keep.status, 422, JSON.stringify(keep.json))
     assert.equal((await call('/api/v1/personal/turns?after=9999999999999999', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9007199254740991', { as: ANA })).status, 200)
+  })
+
+  it('refuse a write made before an erasure that arrives after it, and one that names no epoch', async () => {
+    const GONE = randomUUID()
+    await write('/api/v1/personal/turns', GONE, { text: 'Before' })
+    const sentAt = (await space(GONE)).epoch
+    const message = { as: GONE, body: { text: 'Held on its way' }, key: randomUUID(), epoch: sentAt }
+    await write('/api/v1/personal/erasure', GONE, { confirm: 'delete' })
+    assert.equal((await space(GONE)).epoch, sentAt + 1)
+    const late = await call('/api/v1/personal/turns', message)
+    assert.deepEqual([late.status, (late.json as { code?: string } | null)?.code], [409, 'request_erased'])
+    assert.deepEqual((await space(GONE)).turns, [], 'nothing came back')
+    const unnamed = await call('/api/v1/personal/turns', { as: GONE, body: { text: 'No epoch' }, key: randomUUID() })
+    assert.equal(unnamed.status, 422)
+    const work = parseProjectList((await call('/api/v1/projects', { as: GONE })).json)
+    assert.equal(work.personalEpoch, sentAt + 1, 'Work knows it too, for what it writes while the space is locked')
   })
 })
 
@@ -245,13 +269,19 @@ describe('a companion that fails', () => {
     await loud.listen({ port: 0, host: '127.0.0.1' })
     const at = `http://127.0.0.1:${String((loud.server.address() as AddressInfo).port)}`
     try {
-      const sent = await call('/api/v1/personal/turns', { as: LOG, body: { text: 'Hello' }, key: randomUUID(), at })
+      const sent = await call('/api/v1/personal/turns', {
+        as: LOG,
+        body: { text: 'Hello' },
+        key: randomUUID(),
+        at,
+        epoch: 0,
+      })
       assert.equal(sent.status, 202)
       for (let i = 0; i < 50 && !lines.some((l) => l.includes('companion')); i++) {
         await new Promise((resolve) => setTimeout(resolve, 40))
       }
       await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [LOG])
-      const greeted = await call('/api/v1/personal/resume', { as: LOG, body: {}, key: randomUUID(), at })
+      const greeted = await call('/api/v1/personal/resume', { as: LOG, body: {}, key: randomUUID(), at, epoch: 0 })
       assert.equal(greeted.status, 503)
       assert.ok(
         lines.some((l) => l.includes('E_MODEL')),
@@ -284,13 +314,13 @@ describe('a welcome the companion could not write', () => {
     await runner.answer(BACK, sent.turnId ?? '')
     await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [BACK])
     const k = randomUUID()
-    const failure: unknown = await runner.greet(BACK, k, null).then(
+    const failure: unknown = await runner.greet(BACK, k, 0, null).then(
       () => null,
       (err: unknown) => err,
     )
     assert.ok(failure instanceof DomainError)
     assert.deepEqual([failure.code, failure.retry], ['outcome_unknown', 'same_admission_key'])
-    const welcome = await runner.greet(BACK, k, null)
+    const welcome = await runner.greet(BACK, k, 0, null)
     assert.ok(welcome.turnId, 'the same request asked again, and wrote it')
     assert.equal(asked, 2)
   })
@@ -326,7 +356,10 @@ describe('a companion on two API processes', () => {
     await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [
       PERSON,
     ])
-    const [a, b] = await Promise.all([one.greet(PERSON, randomUUID(), null), two.greet(PERSON, randomUUID(), null)])
+    const [a, b] = await Promise.all([
+      one.greet(PERSON, randomUUID(), 0, null),
+      two.greet(PERSON, randomUUID(), 0, null),
+    ])
     assert.equal(greeted, 1, 'one process asked for the welcome')
     assert.equal([a, b].filter((r) => r.turnId).length, 1, 'and one welcome was written')
   })
