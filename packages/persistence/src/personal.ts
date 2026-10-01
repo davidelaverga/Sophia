@@ -177,12 +177,22 @@ export interface CompanionContext {
   notes: string[]
 }
 
-/** The context for answering `turnId`, or null when that turn is not the caller's or no longer waits. */
+/**
+ * The context for answering `turnId` under `claim` (claimPersonalReply), or null when that turn is not the caller's, no
+ * longer waits, or is held by another attempt (this process stalled past its claim): only one attempt asks the
+ * companion, so the person's words go to it once.
+ */
 export async function readCompanionContext(
   c: pg.PoolClient,
   turnId: string,
+  claim: string,
   depth = 20,
 ): Promise<CompanionContext | null> {
+  const held = await c.query(
+    `SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND id = $1 AND answering_claim = $2`,
+    [turnId, claim],
+  )
+  if (held.rowCount === 0) return null
   const asked = (await c.query<TurnRow>(`${TURNS} AND t.id = $1`, [turnId])).rows[0]
   if (!asked || asked.author !== 'person' || asked.reply !== 'pending') return null
   const { rows } = await c.query<TurnRow>(`${TURNS} AND t.seq <= $1 ORDER BY t.seq DESC LIMIT $2`, [asked.seq, depth])

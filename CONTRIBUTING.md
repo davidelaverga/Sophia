@@ -373,6 +373,9 @@ either:
   written yet, because the companion failed (its claim goes) or the same
   request is still writing it, answers `outcome_unknown`: the client asks
   again under the same key.
+- **One read of the Work list stays small.** It holds at most 4000 carried
+  notes in all (`PROJECT_LIST_BOUNDS`), the reader's own first, then the
+  newest; each project's own bound still holds.
 - **One read of the Work list asks the room server little.** One question
   finds the rooms that exist (`liveRooms`); only those are asked who is in
   them, a few at a time and within the list's time (`lookupAll`). Never by a

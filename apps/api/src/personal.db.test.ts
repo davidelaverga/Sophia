@@ -326,6 +326,45 @@ describe('a welcome the companion could not write', () => {
   })
 })
 
+describe('a welcome whose read fails after its claim', () => {
+  it('lets the claim go and answers outcome_unknown, so the same request writes it at once', async () => {
+    const BACK = randomUUID()
+    const greeter = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Noted.', suggestion: null }),
+      greet: () => Promise.resolve('Welcome back.'),
+    }
+    const steady = new CompanionRunner(pool, greeter, () => undefined)
+    const sent = await withActor(pool, BACK, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
+    await steady.answer(BACK, sent.turnId ?? '')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [BACK])
+    // The second connection (the welcome's read, after the claim) fails: the database went away for a moment.
+    let connections = 0
+    const flaky = new Proxy(pool, {
+      get(target, prop) {
+        if (prop !== 'connect') {
+          const own: unknown = Reflect.get(target, prop, target)
+          return own
+        }
+        return async () => {
+          connections += 1
+          if (connections === 2) throw new Error('The database went away')
+          return target.connect()
+        }
+      },
+    })
+    const k = randomUUID()
+    const failure: unknown = await new CompanionRunner(flaky, greeter, () => undefined).greet(BACK, k, 0, null).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    assert.ok(failure instanceof DomainError)
+    assert.deepEqual([failure.code, failure.retry], ['outcome_unknown', 'same_admission_key'])
+    const welcome = await steady.greet(BACK, k, 0, null)
+    assert.ok(welcome.turnId, 'the same request asked again at once, and wrote it')
+  })
+})
+
 /** A companion that takes a moment to answer, so two processes ask at the same time. */
 const pause = () => new Promise((resolve) => setTimeout(resolve, 100))
 

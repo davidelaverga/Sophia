@@ -193,12 +193,17 @@ describe('personal space: one conversation, owner-only', () => {
       await codeOf(write(OTHER, (c) => recordPersonalReply(c, sent.turnId ?? '', randomUUID(), 'Not yours', null))),
       'not_found',
     )
-    assert.equal(await read(OTHER, (c) => readCompanionContext(c, sent.turnId ?? '')), null)
-    const context = await read(ANA, (c) => readCompanionContext(c, sent.turnId ?? ''))
-    assert.equal(context?.asked.text, 'Still there?')
-    assert.equal(context?.history.at(-1)?.text, 'Still there?')
     const claim = await write(ANA, (c) => claimPersonalReply(c, sent.turnId ?? ''))
     assert.ok(claim)
+    assert.equal(await read(OTHER, (c) => readCompanionContext(c, sent.turnId ?? '', claim)), null)
+    assert.equal(
+      await read(ANA, (c) => readCompanionContext(c, sent.turnId ?? '', randomUUID())),
+      null,
+      'nor another claim',
+    )
+    const context = await read(ANA, (c) => readCompanionContext(c, sent.turnId ?? '', claim))
+    assert.equal(context?.asked.text, 'Still there?')
+    assert.equal(context?.history.at(-1)?.text, 'Still there?')
     await write(ANA, (c) => failPersonalReply(c, sent.turnId ?? '', claim))
     const failed = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
     assert.equal(failed.turns.find((t) => t.id === sent.turnId)?.reply, 'failed')
@@ -240,6 +245,9 @@ describe('personal space: one conversation, owner-only', () => {
     await write(FENCED, (c) => recordPersonalReply(c, turn, stalled, 'Too late.', null))
     const replacing = await write(FENCED, (c) => claimPersonalReply(c, turn))
     assert.ok(replacing && replacing !== stalled)
+    // Waking up, the stalled process is not given the context: only one attempt asks the companion.
+    assert.equal(await read(FENCED, (c) => readCompanionContext(c, turn, stalled)), null)
+    assert.ok(await read(FENCED, (c) => readCompanionContext(c, turn, replacing)))
     await write(FENCED, (c) => failPersonalReply(c, turn, stalled))
     await write(FENCED, (c) => recordPersonalReply(c, turn, stalled, 'Too late.', null))
     const waiting = await read(FENCED, (c) => readPersonalTurnsAfter(c, 0))
@@ -282,7 +290,7 @@ describe('personal space: one conversation, owner-only', () => {
     await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [id])
     const lost = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
     assert.deepEqual([lost.turns.find((t) => t.id === id)?.reply, lost.pending], ['failed', false])
-    assert.equal(await read(ANA, (c) => readCompanionContext(c, id)), null, 'nobody answers a lost wait')
+    assert.equal(await read(ANA, (c) => readCompanionContext(c, id, randomUUID())), null, 'nobody answers a lost wait')
     await write(ANA, (c) => retryPersonalTurn(c, key(), id))
     const again = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
     assert.deepEqual([again.turns.find((t) => t.id === id)?.reply, again.pending], ['pending', true])
@@ -702,11 +710,24 @@ describe('personal space: who may write it, and how much it keeps', () => {
               (gen_random_uuid(), $2, 'Peer', $3, NULL, 'Peer, 1', now() - interval '1 hour')`,
       [MINE, PEER, team],
     )
-    const listed = await read(MINE, (c) => listProjects(c, { projects: 500, releases: 3 }))
+    const listed = await read(MINE, (c) => listProjects(c, { projects: 500, releases: 3, allReleases: 4000 }))
     assert.deepEqual(
       listed.find((p) => p.projectId === team)?.releases.map((r) => r.text),
       ['Mine, oldest', 'Mine, older', 'Peer, 1'],
     )
+    // In all, the list holds a bounded number of them, the reader's own first, then the newest.
+    const other = (await seedProject(db.ownerUrl, { title: 'Busy too', admin: ADMIN, editors: [MINE, PEER] })).projectId
+    await owner(
+      `INSERT INTO sophia.personal_releases(id, owner_id, owner_name, project_id, note_id, body, created_at)
+       VALUES (gen_random_uuid(), $1, 'Mine', $3, NULL, 'Mine, elsewhere', now() - interval '7 hours'),
+              (gen_random_uuid(), $2, 'Peer', $3, NULL, 'Peer, elsewhere 2', now() - interval '30 minutes'),
+              (gen_random_uuid(), $2, 'Peer', $3, NULL, 'Peer, elsewhere 1', now() - interval '10 minutes')`,
+      [MINE, PEER, other],
+    )
+    const bounded = await read(MINE, (c) => listProjects(c, { projects: 500, releases: 3, allReleases: 4 }))
+    const texts = (id: string) => bounded.find((p) => p.projectId === id)?.releases.map((r) => r.text)
+    assert.deepEqual(texts(team), ['Mine, oldest', 'Mine, older'])
+    assert.deepEqual(texts(other), ['Mine, elsewhere', 'Peer, elsewhere 1'])
   })
 
   it('refuses text that is only whitespace, or that the database cannot keep', async () => {
