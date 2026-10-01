@@ -12,6 +12,8 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
+import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
+import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { MiniDock } from '../voice/MiniDock.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
@@ -20,7 +22,7 @@ import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
-import { StudioShell, useRoomPanel } from './StudioShell.tsx'
+import { StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 
@@ -233,12 +235,18 @@ interface BodyProps {
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
+ * A report opens in the same viewer on every view (DocumentViewer), never beside the side panel.
  */
 function ProjectBody(props: BodyProps) {
   const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite } = props
   // The side panel's state lives here, past a visit to another view (useRoomPanel).
   const panel = useRoomPanel(snapshot, room, view === 'studio')
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
+  const withViewer = (body: React.ReactNode) => (
+    <WithViewer projectId={projectId} identity={identity} panel={panel} room={view === 'studio'}>
+      {body}
+    </WithViewer>
+  )
   const lobby = (
     <LobbyPanel
       projectId={projectId}
@@ -248,7 +256,7 @@ function ProjectBody(props: BodyProps) {
     />
   )
   if (view === 'studio') {
-    return (
+    return withViewer(
       <>
         {lobby}
         <StudioShell
@@ -259,11 +267,11 @@ function ProjectBody(props: BodyProps) {
           panel={panel}
           looking={looking}
         />
-      </>
+      </>,
     )
   }
   const work = view === 'work'
-  return (
+  return withViewer(
     <>
       {lobby}
       <main className={`page${work ? ' split' : ''}`}>
@@ -277,13 +285,39 @@ function ProjectBody(props: BodyProps) {
             onOpenStudio={() => onShow('studio')}
             onInvite={onInvite}
           />
+        ) : view === 'knowledge' ? (
+          <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
         ) : (
           <PendingView view={view} onShow={onShow} />
         )}
         {work && pulse}
       </main>
       <MiniDock room={room} looking={looking} onOpen={() => onShow('studio')} />
-    </>
+    </>,
+  )
+}
+
+interface ViewerProps {
+  projectId: string
+  identity: Identity
+  panel: RoomPanel
+  /** In the room the pane covers the panel's toggles, so its head offers the chat. */
+  room: boolean
+  children: React.ReactNode
+}
+
+/** The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. */
+function WithViewer({ projectId, identity, panel, room, children }: ViewerProps) {
+  return (
+    <DocumentViewerProvider
+      projectId={projectId}
+      identity={identity}
+      panelOpen={panel.panel !== null}
+      closePanel={() => panel.show(null)}
+      openChat={room ? () => panel.toggle('chat') : undefined}
+    >
+      {children}
+    </DocumentViewerProvider>
   )
 }
 

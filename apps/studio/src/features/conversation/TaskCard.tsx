@@ -1,12 +1,13 @@
 // A native task (A05) as the team sees it: its observed phase, and once captured, the drafted brief with the model
 // that produced it. The brief is a candidate for review; Hold and Stop live on its goal (WorkControls). A research
-// task (A11) shows its phase here; its report opens from the report card (S4).
+// task (A11) is its own card (features/artifacts/WorkCard): progress, spend and the report's outputs.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { WorkCard } from '../artifacts/WorkCard.tsx'
 import { visibleBriefBlocks, taskPhase, TASK_KIND } from './conversation-view.ts'
 
 interface Props {
@@ -15,7 +16,11 @@ interface Props {
   identity: Identity
 }
 
-export function TaskCard({ task, projectId, identity }: Props) {
+export function TaskCard(props: Props) {
+  return props.task.kind === 'research' ? <WorkCard {...props} /> : <BriefCard {...props} />
+}
+
+function BriefCard({ task, projectId, identity }: Props) {
   const [open, setOpen] = useState(false)
   const phase = taskPhase(task)
   return (

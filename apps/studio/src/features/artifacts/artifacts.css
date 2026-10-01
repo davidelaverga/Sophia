@@ -1,0 +1,613 @@
+/* Reports: the research card, the viewer and Knowledge (SMC-M03 S4, plan §2.8–§2.9). Theme tokens only; keyframes
+   carry an `rp-` prefix because @keyframes names are global. */
+
+/* --- tiles and meta ------------------------------------------------------------------------------------------- */
+.report-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-2);
+  font: 600 11px/1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--void);
+  background: var(--teal);
+}
+.report-tile[data-format='pdf'] {
+  background: var(--rose);
+}
+.report-meta {
+  color: var(--text-2);
+  font: 12px/1.4 var(--mono);
+}
+
+/* --- the research card ---------------------------------------------------------------------------------------- */
+.work-card-head {
+  flex-wrap: wrap;
+}
+.work-card-spend {
+  display: inline-flex;
+  gap: 10px;
+  margin-left: auto;
+  color: var(--text-2);
+  font: 12px/1.4 var(--mono);
+}
+.work-card-question {
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.work-card-progress {
+  display: grid;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.work-card-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+.work-card-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--halo);
+  transition: width var(--base) var(--ease);
+}
+.work-card-outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  container-type: inline-size;
+}
+.output-row {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+}
+.output-open {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.output-open:hover:not(:disabled) {
+  background: rgba(236, 235, 241, 0.05);
+}
+.output-open .report-tile {
+  grid-row: span 2;
+}
+.output-name {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.output-meta {
+  grid-column: 2;
+  color: var(--text-2);
+  font: 12px/1.4 var(--mono);
+}
+.output-hint {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  align-self: center;
+  color: var(--halo-text);
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.output-open:hover .output-hint,
+.output-open:focus-visible .output-hint {
+  opacity: 1;
+}
+.output-status,
+.report-status {
+  flex-basis: 100%;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.output-status[data-error],
+.report-status[data-error],
+.report-problem {
+  color: var(--rose);
+}
+.work-card-foot {
+  display: flex;
+  gap: 16px;
+}
+@container (max-width: 420px) {
+  .output-download-label {
+    display: none;
+  }
+}
+
+/* --- the viewer ----------------------------------------------------------------------------------------------- */
+.report-pane {
+  position: fixed;
+  top: var(--topbar);
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: var(--report-w, 560px);
+  border-left: 1px solid var(--line-2);
+  background: var(--plane);
+  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.35);
+  animation: rp-slide var(--base) var(--ease);
+}
+.report-pane[data-size='full'] {
+  inset: var(--topbar) 0 0;
+  z-index: 40;
+  width: auto;
+  border-left: 0;
+  animation: rp-enlarge var(--base) var(--ease);
+}
+@keyframes rp-slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+@keyframes rp-enlarge {
+  from {
+    transform: scale(0.98);
+    opacity: 0.6;
+  }
+}
+.report-pane-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+}
+.report-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.report-pane-name {
+  flex: 1;
+  min-width: 0;
+}
+.report-pane-name h2 {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-pane-name h2:focus {
+  outline: none;
+}
+.report-tabs {
+  display: flex;
+  gap: 18px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.report-tabs button {
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.report-tabs button[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--halo);
+}
+.report-pane-body {
+  overflow: auto;
+  padding: 20px 24px 48px;
+}
+.report-pane[data-size='full'] .report-pane-body > * {
+  max-width: 780px;
+  margin-inline: auto;
+}
+.report-pane .report-status {
+  padding: 0 16px 8px;
+}
+.report-limits {
+  max-width: 68ch;
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--amber);
+  border-radius: var(--r-2);
+  background: rgba(239, 191, 134, 0.06);
+  font-size: 13px;
+}
+.report-limits h3 {
+  margin-bottom: 4px;
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.report-limits ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* The Markdown body: a 68ch reading measure at 15px/1.65. */
+.md {
+  max-width: 68ch;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.md > * + * {
+  margin-top: 0.9em;
+}
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin-top: 1.4em;
+  line-height: 1.3;
+}
+.md h2 {
+  font-size: 20px;
+}
+.md h3 {
+  font-size: 17px;
+}
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 15px;
+}
+.md a {
+  color: var(--halo-text);
+  text-underline-offset: 3px;
+}
+.md code {
+  padding: 1px 4px;
+  border-radius: var(--r-1);
+  background: rgba(236, 235, 241, 0.06);
+  font: 0.9em var(--mono);
+}
+.md pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+}
+.md pre code {
+  padding: 0;
+  background: none;
+}
+.md blockquote {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--line-3);
+  color: var(--text-2);
+}
+.md ul,
+.md ol {
+  padding-left: 22px;
+}
+.md li[data-depth='1'] {
+  margin-left: 18px;
+}
+.md li[data-depth='2'] {
+  margin-left: 36px;
+}
+.md li[data-depth='3'] {
+  margin-left: 54px;
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--line-2);
+}
+.md-table {
+  overflow-x: auto;
+}
+.md-table table {
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.md-table th,
+.md-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.md-table th {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.md .cite button {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--halo-text);
+  font: 600 0.75em var(--mono);
+}
+
+/* The Sources tab. */
+.sources {
+  display: grid;
+  gap: 14px;
+  max-width: 68ch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.source {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--r-3);
+}
+.source[data-focused] {
+  background: rgba(156, 130, 245, 0.08);
+}
+.source-n {
+  color: var(--text-2);
+  font: 600 12px/1.6 var(--mono);
+  text-align: right;
+}
+.source-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.source-title {
+  overflow-wrap: anywhere;
+}
+.source-title a {
+  color: var(--text);
+  text-underline-offset: 3px;
+}
+.source-url {
+  color: var(--text-2);
+  font: 12px var(--mono);
+}
+.source-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.source-limits {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+/* The History tab. */
+.report-history {
+  display: grid;
+  gap: 12px;
+  max-width: 68ch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.report-version {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+}
+.report-version[data-shown] {
+  border-color: var(--line-3);
+}
+.report-version-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.report-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.report-compare {
+  max-width: 68ch;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+}
+.report-compare header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.report-compare h3 {
+  font-size: 14px;
+}
+.report-compare-lists {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.report-compare-lists div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+}
+.report-compare-lists dt {
+  color: var(--text-2);
+}
+.report-compare-lists dd {
+  margin: 0;
+}
+
+/* --- Knowledge ------------------------------------------------------------------------------------------------ */
+.knowledge {
+  display: grid;
+  gap: 16px;
+}
+.knowledge-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.knowledge-projects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: none;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.filter-chip[aria-pressed='true'] {
+  border-color: transparent;
+  background: rgba(236, 235, 241, 0.1);
+  color: var(--text);
+}
+.knowledge-search {
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+.report-cards {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.report-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.report-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.report-card-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+.report-card-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.report-summary {
+  display: grid;
+  gap: 2px;
+}
+.report-attribution {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.report-summary-edit {
+  display: grid;
+  gap: 8px;
+}
+.report-summary-edit textarea {
+  height: auto;
+  padding: 8px 11px;
+  resize: vertical;
+}
+.report-change {
+  font-size: 13px;
+}
+
+/* Beside the side pane, as beside the room's side panel: the page and the room narrow, and what floats on the right
+   (the lobby, the mini dock) keeps clear. A phone's pane covers the page instead. */
+@media (min-width: 761px) {
+  .shell:has(> .report-pane[data-size='side']) > main.page {
+    max-width: none;
+    margin: 0;
+    width: calc(100% - var(--report-w));
+    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - 1040px) / 2 + var(--gutter)));
+  }
+  /* Work's pulse column goes under the goals: two columns beside the pane leave neither room to read. */
+  .shell:has(> .report-pane[data-size='side']) > main.page.split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell:has(> .report-pane[data-size='side']) > .studio {
+    margin-right: var(--report-w);
+  }
+  .shell:has(> .report-pane[data-size='side']) .lobby,
+  .shell:has(> .report-pane[data-size='side']) .mini-dock {
+    right: calc(var(--report-w) + var(--gutter));
+  }
+}
+
+/* --- small screens, coarse pointers, reduced motion ---------------------------------------------------------- */
+@media (max-width: 760px) {
+  .report-pane {
+    inset: var(--topbar) 0 0;
+    width: auto;
+    border-left: 0;
+  }
+  .report-pane-grip,
+  .report-download-label {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  .report-tabs button,
+  .output-open,
+  .filter-chip,
+  .report-pane-head .round {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-pane,
+  .report-pane[data-size='full'] {
+    animation: none;
+  }
+  .work-card-bar > span {
+    transition: none;
+  }
+}
