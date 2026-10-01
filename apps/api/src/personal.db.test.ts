@@ -15,7 +15,7 @@ import {
   parseProjectList,
 } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
-import { createPool, sendPersonalTurn, withActor } from '@sophia/persistence'
+import { createPool, erasePersonalSpace, sendPersonalTurn, withActor } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
@@ -228,6 +228,8 @@ describe('personal routes', () => {
       epoch,
     })
     assert.equal(keep.status, 422, JSON.stringify(keep.json))
+    assert.equal((await call('/api/v1/personal/turns/earlier?before=x', { as: ANA })).status, 422)
+    assert.equal((await call('/api/v1/personal?timeZone=Mars/Olympus_Mons', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9999999999999999', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9007199254740991', { as: ANA })).status, 200)
   })
@@ -323,6 +325,74 @@ describe('a welcome the companion could not write', () => {
     const welcome = await runner.greet(BACK, k, 0, null)
     assert.ok(welcome.turnId, 'the same request asked again, and wrote it')
     assert.equal(asked, 2)
+  })
+})
+
+describe('a companion that runs out of time', () => {
+  it('is told to stop, and waited for, before a turn fails or a welcome lets its claim go', async () => {
+    const SLOW = randomUUID()
+    const seen = { stopped: 0, settled: 0 }
+    const stopsWhenTold = (signal: AbortSignal) =>
+      new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => {
+          seen.stopped += 1
+          setTimeout(() => {
+            seen.settled += 1
+            reject(new Error('Stopped'))
+          }, 50)
+        })
+      })
+    const slow = {
+      mode: 'rehearsal' as const,
+      answer: (_context: unknown, signal: AbortSignal) => stopsWhenTold(signal),
+      greet: (_context: unknown, _name: string | null, signal: AbortSignal) => stopsWhenTold(signal),
+    }
+    const runner = new CompanionRunner(pool, slow, () => undefined, 30)
+    const sent = await withActor(pool, SLOW, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Are you there?'))
+    await runner.answer(SLOW, sent.turnId ?? '')
+    assert.deepEqual(seen, { stopped: 1, settled: 1 }, 'it had stopped when the turn said it failed')
+    assert.equal((await space(SLOW)).turns.find((t) => t.id === sent.turnId)?.reply, 'failed')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [SLOW])
+    const failure: unknown = await runner.greet(SLOW, randomUUID(), 0, null).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    assert.ok(failure instanceof DomainError)
+    assert.equal(failure.code, 'outcome_unknown')
+    assert.deepEqual(seen, { stopped: 2, settled: 2 }, 'and it had stopped when the welcome let its claim go')
+  })
+})
+
+describe('a welcome whose space is erased while it is written', () => {
+  it('is refused as erased, and nothing is kept under its key', async () => {
+    const GONE = randomUUID()
+    const asked = Promise.withResolvers<void>()
+    const held = Promise.withResolvers<void>()
+    const waits = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Noted.', suggestion: null }),
+      greet: async () => {
+        asked.resolve()
+        await held.promise
+        return 'Welcome back.'
+      },
+    }
+    const runner = new CompanionRunner(pool, waits, () => undefined)
+    const sent = await withActor(pool, GONE, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
+    await runner.answer(GONE, sent.turnId ?? '')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [GONE])
+    const k = randomUUID()
+    const greeting = runner.greet(GONE, k, 0, null).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    await asked.promise
+    await withActor(pool, GONE, 'write', (c) => erasePersonalSpace(c, randomUUID(), 'delete'))
+    held.resolve()
+    const failure = await greeting
+    assert.ok(failure instanceof DomainError)
+    assert.equal(failure.code, 'request_erased')
+    assert.equal((await space(GONE)).turns.length, 0)
   })
 })
 

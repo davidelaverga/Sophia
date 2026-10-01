@@ -84,17 +84,31 @@ export function rehearsalReply(text: string): CompanionReply {
 export const rehearsalWelcome = (name: string | null) =>
   `Welcome back${name ? `, ${name}` : ''}. How has it been since we last talked? We can pick up where we left off.`
 
-/** The rehearsal companion; `pauseMs` keeps Sophia's "writing" visible for a moment, as a reply takes. */
+/**
+ * The rehearsal companion; `pauseMs` keeps Sophia's "writing" visible for a moment, as a reply takes. Told to stop
+ * (its time is up), it stops at once.
+ */
 export function rehearsalCompanion(pauseMs = 900): Companion {
-  const pause = () => new Promise((resolve) => setTimeout(resolve, pauseMs))
+  const pause = (signal: AbortSignal) =>
+    new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, pauseMs)
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer)
+          reject(new Error('Stopped: its time was up'))
+        },
+        { once: true },
+      )
+    })
   return {
     mode: 'rehearsal',
-    answer: async (context) => {
-      await pause()
+    answer: async (context, signal) => {
+      await pause(signal)
       return rehearsalReply(context.asked.text)
     },
-    greet: async (_context, name) => {
-      await pause()
+    greet: async (_context, name, signal) => {
+      await pause(signal)
       return rehearsalWelcome(name)
     },
   }

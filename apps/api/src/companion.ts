@@ -28,11 +28,15 @@ export interface CompanionReply {
   suggestion: string | null
 }
 
+/**
+ * Each call is given a signal that aborts once its time is up: it must stop then (and settle), so nothing is asked
+ * again while it still runs.
+ */
 export interface Companion {
   readonly mode: 'rehearsal' | 'live'
-  answer(context: CompanionContext): Promise<CompanionReply>
+  answer(context: CompanionContext, signal: AbortSignal): Promise<CompanionReply>
   /** Sophia's welcome back after a quiet spell, from the conversation so far; `name` is who she greets. */
-  greet(context: Omit<CompanionContext, 'asked'>, name: string | null): Promise<string>
+  greet(context: Omit<CompanionContext, 'asked'>, name: string | null, signal: AbortSignal): Promise<string>
 }
 
 /**
@@ -51,15 +55,32 @@ const NO_WELCOME = 'Sophia couldn’t answer just now.'
 /** A welcome an earlier attempt of the same request is still writing. */
 const WELCOME_WRITING = 'Sophia is still writing her welcome.'
 
+/** One welcome request's attempt: who, under which key and epoch, holding which claim, greeting whom. */
+interface Attempt {
+  actorId: string
+  key: string
+  epoch: number
+  claim: string
+  name: string | null
+}
+
 /** How long one answer may take before the turn says it failed (the person can ask again). */
 export const ANSWER_LIMIT_MS = 60_000
 
-function withinLimit<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('The companion did not answer in time')), ms)
-  })
-  return Promise.race([work, late]).finally(() => clearTimeout(timer))
+/**
+ * The companion's work, given `ms`: past it, the work is told to stop (its signal aborts) and is waited for, so a turn
+ * fails, or a welcome lets its claim go, only once nothing runs. Work told to stop fails as late, whatever it returns.
+ */
+async function withinLimit<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const stop = new AbortController()
+  const timer = setTimeout(() => stop.abort(), ms)
+  try {
+    const done = await work(stop.signal)
+    if (stop.signal.aborted) throw new Error('The companion did not answer in time')
+    return done
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -101,40 +122,51 @@ export class CompanionRunner {
   async greet(actorId: string, key: string, epoch: number, name: string | null): Promise<PersonalReceipt> {
     const begun = await withActor(this.pool, actorId, 'write', async (c) => {
       await fencePersonalWrite(c, epoch)
-      return beginPersonalGreeting(c, key)
+      return beginPersonalGreeting(c, key, name)
     })
     if (begun === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
     if (!('claim' in begun)) return begun
-    const { claim } = begun
+    const attempt = { actorId, key, epoch, claim: begun.claim, name }
     try {
-      return await this.welcome(actorId, key, claim, name)
+      return await this.welcome(attempt)
     } catch (err: unknown) {
       // Whatever failed after the claim (a read, the companion, the write), the claim goes, so the same request may
-      // ask again at once; a later attempt's claim stays (the release is fenced to this one).
-      await withActor(this.pool, actorId, 'write', (c) => releasePersonalGreeting(c, claim)).catch(() => undefined)
-      if (err instanceof DomainError && err.code === 'outcome_unknown') throw err
+      // ask again at once; a later attempt's claim stays (the release is fenced to this one). A definitive refusal
+      // (the space erased meanwhile) is said as itself; anything else may be asked again under the same key.
+      await withActor(this.pool, actorId, 'write', (c) => releasePersonalGreeting(c, attempt.claim)).catch(
+        () => undefined,
+      )
+      if (err instanceof DomainError && (err.code === 'outcome_unknown' || err.retry === 'never')) throw err
       throw new DomainError('outcome_unknown', NO_WELCOME, { cause: err })
     }
   }
 
   /** The welcome under the attempt's claim: what it is written from, the companion's words, then the write. */
-  private async welcome(actorId: string, key: string, claim: string, name: string | null): Promise<PersonalReceipt> {
-    const context = await withActor(this.pool, actorId, 'read', (c) => readWelcomeContext(c))
+  private async welcome(attempt: Attempt): Promise<PersonalReceipt> {
+    const context = await withActor(this.pool, attempt.actorId, 'read', (c) => readWelcomeContext(c))
     // No longer due (a turn came meanwhile): nothing is written, and the key keeps that answer.
-    if (!context) return this.settle(actorId, key, claim, '')
+    if (!context) return this.settle(attempt, '')
     let text: string
     try {
-      text = await withinLimit(this.companion.greet(context, name), this.limitMs)
+      text = await withinLimit((signal) => this.companion.greet(context, attempt.name, signal), this.limitMs)
     } catch (err: unknown) {
       this.onError(err)
       throw new DomainError('outcome_unknown', NO_WELCOME) // no cause: the error handler logs nothing of the companion's
     }
-    return this.settle(actorId, key, claim, text)
+    return this.settle(attempt, text)
   }
 
-  /** The welcome (or nothing) under the attempt's claim; a later attempt of the request that took it over settles it. */
-  private async settle(actorId: string, key: string, claim: string, text: string): Promise<PersonalReceipt> {
-    const recorded = await withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, key, claim, text))
+  /**
+   * The welcome (or nothing) under the attempt's claim, fenced to the epoch the request was made against: an erasure
+   * since then refuses it (request_erased), and nothing is kept under the key. A later attempt of the request that took
+   * the claim over settles it.
+   */
+  private async settle(attempt: Attempt, text: string): Promise<PersonalReceipt> {
+    const { actorId, key, epoch, claim, name } = attempt
+    const recorded = await withActor(this.pool, actorId, 'write', async (c) => {
+      await fencePersonalWrite(c, epoch)
+      return recordPersonalGreeting(c, key, claim, name, text)
+    })
     if (recorded === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
     return recorded
   }
@@ -152,7 +184,7 @@ export class CompanionRunner {
     try {
       const context = await withActor(this.pool, actorId, 'read', (c) => readCompanionContext(c, turnId, claim))
       if (!context) return
-      const reply = await withinLimit(this.companion.answer(context), this.limitMs)
+      const reply = await withinLimit((signal) => this.companion.answer(context, signal), this.limitMs)
       await withActor(this.pool, actorId, 'write', (c) =>
         recordPersonalReply(c, turnId, claim, reply.text, reply.suggestion),
       )

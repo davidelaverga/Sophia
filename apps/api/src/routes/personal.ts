@@ -25,6 +25,7 @@ import {
   readPersonalExport,
   readPersonalSpace,
   readPersonalTurnsAfter,
+  readPersonalTurnsBefore,
   retryPersonalTurn,
   sendPersonalTurn,
   takeBackPersonalRelease,
@@ -98,12 +99,38 @@ const writeSchema = (params: object | null, body: string | null, headers: object
 
 const NO_COMPANION = 'Sophia can’t answer here yet. Nothing was kept.'
 
-function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
-  app.get('/api/v1/personal', { schema: { response: { 200: { $ref: 'PersonalSpace#' } } } }, async (req) => {
-    const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalSpace(c))
-    return { companion: companion?.mode ?? 'unavailable', ...space }
-  })
+/** An IANA time zone's shape (Europe/Madrid, America/Argentina/Buenos_Aires, UTC); the database says if it knows it. */
+const TIME_ZONE_PATTERN = '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$'
 
+function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
+  // Its days are counted in the reader's time zone (an IANA name; UTC without one), over the whole conversation.
+  app.get<{ Querystring: { timeZone?: string } }>(
+    '/api/v1/personal',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { timeZone: { type: 'string', maxLength: 64, pattern: TIME_ZONE_PATTERN } },
+        },
+        response: { 200: { $ref: 'PersonalSpace#' } },
+      },
+    },
+    async (req) => {
+      const timeZone = req.query.timeZone ?? 'UTC'
+      const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalSpace(c, timeZone))
+      return { companion: companion?.mode ?? 'unavailable', ...space }
+    },
+  )
+
+  app.get('/api/v1/personal/export', { schema: { response: { 200: { $ref: 'PersonalExport#' } } } }, async (req) => {
+    const everything = await withActor(pool, req.actorId, 'read', (c) => readPersonalExport(c))
+    return { exportedAt: new Date().toISOString(), ...everything }
+  })
+}
+
+/** The conversation a page at a time: what came after a turn (polling), and what came before one (reading back). */
+function pageRoutes(app: FastifyInstance, { pool }: Deps): void {
   app.get<{ Querystring: { after: string } }>(
     '/api/v1/personal/turns',
     {
@@ -124,10 +151,25 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
     },
   )
 
-  app.get('/api/v1/personal/export', { schema: { response: { 200: { $ref: 'PersonalExport#' } } } }, async (req) => {
-    const everything = await withActor(pool, req.actorId, 'read', (c) => readPersonalExport(c))
-    return { exportedAt: new Date().toISOString(), ...everything }
-  })
+  app.get<{ Querystring: { before: string } }>(
+    '/api/v1/personal/turns/earlier',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { before: { type: 'string', pattern: '^[1-9][0-9]{0,15}$' } },
+          required: ['before'],
+        },
+        response: { 200: { $ref: 'PersonalEarlierTurns#' } },
+      },
+    },
+    async (req) => {
+      const before = Number(req.query.before)
+      if (!Number.isSafeInteger(before)) throw new DomainError('invalid_request', 'before is beyond the largest turn')
+      return withActor(pool, req.actorId, 'read', (c) => readPersonalTurnsBefore(c, before))
+    },
+  )
 }
 
 function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
@@ -250,6 +292,7 @@ function crossingRoutes(app: FastifyInstance, { pool }: Deps): void {
 
 export function personalRoutes(app: FastifyInstance, deps: Deps): void {
   readRoutes(app, deps)
+  pageRoutes(app, deps)
   conversationRoutes(app, deps)
   noteRoutes(app, deps)
   crossingRoutes(app, deps)

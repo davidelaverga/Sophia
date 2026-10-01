@@ -101,8 +101,9 @@ export type PersonalSuggestion = { "id": string; "text": string; "state": "open"
 export type PersonalTurn = { "id": string; "seq": number; "author": "person" | "sophia"; "text": string; "createdAt": string; "replyTo": string | null; "reply": "pending" | "answered" | "failed" | null; "suggestion": PersonalSuggestion | null; };
 export type PersonalNote = { "id": string; "text": string; "keptBy": "person" | "sophia"; "fromTurnId": string | null; "createdAt": string; };
 export type PersonalRelease = { "id": string; "noteId": string | null; "projectId": string; "projectTitle": string | null; "text": string; "createdAt": string; };
-export type PersonalSpace = { "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; "epoch": number; };
+export type PersonalSpace = { "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; "epoch": number; "days": number; };
 export type PersonalTurnPage = { "revision": number; "turns": ReadonlyArray<PersonalTurn>; "pending": boolean; };
+export type PersonalEarlierTurns = { "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; };
 export type PersonalExport = { "exportedAt": string; "turns": ReadonlyArray<PersonalTurn>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
 export type PersonalMessage = { "text": string; };
 export type PersonalSuggestionDecision = { "decision": "keep" | "dismiss"; };
@@ -193,6 +194,7 @@ export interface Operations {
   "getPersonalSpace": { method: "GET"; path: "/api/v1/personal"; request: undefined; response: PersonalSpace; };
   "getPersonalTurns": { method: "GET"; path: "/api/v1/personal/turns"; request: undefined; response: PersonalTurnPage; };
   "sendPersonalTurn": { method: "POST"; path: "/api/v1/personal/turns"; request: PersonalMessage; response: PersonalReceipt; };
+  "getEarlierPersonalTurns": { method: "GET"; path: "/api/v1/personal/turns/earlier"; request: undefined; response: PersonalEarlierTurns; };
   "retryPersonalTurn": { method: "POST"; path: "/api/v1/personal/turns/{turnId}/retry"; request: undefined; response: PersonalReceipt; };
   "decidePersonalSuggestion": { method: "POST"; path: "/api/v1/personal/suggestions/{suggestionId}/decision"; request: PersonalSuggestionDecision; response: PersonalReceipt; };
   "keepPersonalNote": { method: "POST"; path: "/api/v1/personal/notes"; request: PersonalNoteRequest; response: PersonalReceipt; };

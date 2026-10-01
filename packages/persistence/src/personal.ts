@@ -4,6 +4,7 @@
 // except the membership and titles a carried note needs.
 import type pg from 'pg'
 import type {
+  PersonalEarlierTurns,
   PersonalExport,
   PersonalNote,
   PersonalReceipt,
@@ -133,22 +134,45 @@ async function readReleases(c: pg.PoolClient): Promise<PersonalRelease[]> {
   }))
 }
 
+/** The days on which the person wrote, over the whole conversation, as `timeZone` counts them. */
+async function readDays(c: pg.PoolClient, timeZone: string): Promise<number> {
+  const { rows } = await c.query<{ days: string }>(
+    `SELECT count(DISTINCT (created_at AT TIME ZONE $1)::date) AS days FROM sophia.personal_turns
+      WHERE owner_id = sophia.actor_id() AND author = 'person'`,
+    [timeZone],
+  )
+  return Number(onlyRow(rows, 'days').days)
+}
+
 /**
  * The calling person's space, without the companion's state (the API adds it): the latest turns in order, whether
- * earlier ones exist, the kept notes and the carried ones. Call inside withActor(..., "read").
+ * earlier ones exist, the days of the whole conversation in `timeZone` (an IANA name the database knows), the kept
+ * notes and the carried ones. Call inside withActor(..., "read").
  */
 export async function readPersonalSpace(
   c: pg.PoolClient,
+  timeZone = 'UTC',
   limit = PERSONAL_TURN_LIMIT,
 ): Promise<Omit<PersonalSpace, 'companion'>> {
   const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq DESC LIMIT $1`, [limit + 1])
   return {
     ...(await readSpaceState(c)),
+    days: await readDays(c, timeZone),
     turns: rows.slice(0, limit).map(turnOf).toReversed(),
     earlier: rows.length > limit,
     notes: await readNotes(c),
     releases: await readReleases(c),
   }
+}
+
+/** The newest page of turns before `before` (a seq), in order, and whether earlier ones exist: reading back. */
+export async function readPersonalTurnsBefore(
+  c: pg.PoolClient,
+  before: number,
+  limit = PERSONAL_PAGE_LIMIT,
+): Promise<PersonalEarlierTurns> {
+  const { rows } = await c.query<TurnRow>(`${TURNS} AND t.seq < $1 ORDER BY t.seq DESC LIMIT $2`, [before, limit + 1])
+  return { turns: rows.slice(0, limit).map(turnOf).toReversed(), earlier: rows.length > limit }
 }
 
 /** Turns after `after`, and whether any reply is still pending: what a waiting client polls. */
@@ -319,10 +343,14 @@ const greeting = <T extends object>(answer: T | { writing: true }): T | 'writing
  * getting it; the claim to write it under when this request may ask the companion (then recordPersonalGreeting, or
  * releasePersonalGreeting when it couldn't); 'writing' while an earlier attempt of the same request still is.
  */
-export async function beginPersonalGreeting(c: pg.PoolClient, key: string): Promise<Greeting | { claim: string }> {
+export async function beginPersonalGreeting(
+  c: pg.PoolClient,
+  key: string,
+  name: string | null,
+): Promise<Greeting | { claim: string }> {
   const { rows } = await c.query<{ receipt: PersonalReceipt | { claim: string } | { writing: true } }>(
-    'SELECT sophia.begin_personal_greeting($1) AS receipt',
-    [key],
+    'SELECT sophia.begin_personal_greeting($1, $2) AS receipt',
+    [key, name],
   )
   return greeting(onlyRow(rows, 'begin_personal_greeting').receipt)
 }
@@ -335,11 +363,12 @@ export async function recordPersonalGreeting(
   c: pg.PoolClient,
   key: string,
   claim: string,
+  name: string | null,
   text: string,
 ): Promise<Greeting> {
   const { rows } = await c.query<{ receipt: PersonalReceipt | { writing: true } }>(
-    'SELECT sophia.record_personal_greeting($1, $2, $3) AS receipt',
-    [key, claim, text],
+    'SELECT sophia.record_personal_greeting($1, $2, $3, $4) AS receipt',
+    [key, claim, name, text],
   )
   return greeting(onlyRow(rows, 'record_personal_greeting').receipt)
 }
