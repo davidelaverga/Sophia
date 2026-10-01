@@ -3023,7 +3023,8 @@ div.empty {
   gap: 4px;
   margin-left: auto;
 }
-/* A device that didn't switch says so under the head too, where the panel covers the dock that would say it. */
+/* What stopped a device, or why the call ended, said under the head too where the panel covers the dock that says it
+   (for the eye: the dock's own note is the one announced). */
 .side-panel-note {
   display: none;
   margin: 8px var(--panel-pad) 0;
@@ -3176,9 +3177,8 @@ div.empty {
     top: calc(var(--topbar) + 132px);
   }
 }
-/* Touch: the corner's buttons are 40 px and the lens bar's 36 px (a 44 px bar), which the corner here and the
-   panel's tabs line up with. #23 sets the same lens size in the shared touch block; one of the two goes when both
-   are in. */
+/* Touch: the corner's buttons are 40 px, beside the lens bar's 36 px (a 44 px bar; the shared touch block sets the
+   lens size), and the corner here and the panel's tabs line up with them. */
 @media (pointer: coarse) {
   .room-stage {
     --corner-room: 112px;
@@ -3214,6 +3214,13 @@ div.empty {
   background: var(--core);
   box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
 }
+.chat-show-room {
+  display: none;
+}
+/* Beside the room, the lobby card keeps clear of an open panel: its tabs and Close stay in reach. */
+.shell:has(.side-panel:not([hidden])) .lobby {
+  right: calc(min(380px, 42vw) + var(--gutter));
+}
 @media (max-width: 760px) {
   .side-panel {
     position: fixed;
@@ -3227,5 +3234,14 @@ div.empty {
   }
   .side-panel-note {
     display: block;
+  }
+  /* The chat's line points at the floor or Resume, in the dock under the panel: it offers to show the room. */
+  .chat-show-room {
+    display: inline-block;
+  }
+  /* Someone at the door is let in from over the panel, not after closing it. */
+  .shell:has(.side-panel:not([hidden])) .lobby {
+    right: var(--gutter);
+    z-index: 31;
   }
 }

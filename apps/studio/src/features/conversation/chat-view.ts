@@ -75,7 +75,7 @@ export interface ChatMoment {
 
 /**
  * The line above the message bar: why Send waits, close to the room's own words for the same states, or that typing
- * reaches Sophia. Null when the bar speaks for itself. Whenever this returns a reason, Send is disabled.
+ * reaches Sophia. Null when the bar speaks for itself. Whenever this returns a reason, Send is disabled (Composer).
  */
 export function chatLine(presence: SophiaPresence, at: ChatMoment): string | null {
   if (at.starting) return 'Connecting to Sophia…'
@@ -89,4 +89,14 @@ export function chatLine(presence: SophiaPresence, at: ChatMoment): string | nul
   if (presence.voice !== 'ready') return 'Sophia is joining…'
   if (!at.mine) return 'Take the floor to message Sophia.'
   return at.textMode ? 'Typing to Sophia' : null
+}
+
+/**
+ * The line waits on a control in the room's dock: taking the floor, or Resume. Where the panel covers the dock the
+ * chat offers to show the room, so the line never points at something out of reach.
+ */
+export function waitsOnRoom(presence: SophiaPresence, at: ChatMoment): boolean {
+  if (at.starting) return false
+  if (presence.exchange === 'paused') return presence.pauseReason !== 'guest'
+  return at.live && presence.voice === 'ready' && !at.mine
 }

@@ -65,11 +65,26 @@ export function RoomDock(props: Props) {
         </p>
       )}
       <nav className="dock" aria-label="Room controls">
-        {live ? <LiveControls {...props} /> : <JoinButton room={room} />}
+        {live ? (
+          <LiveControls {...props} />
+        ) : (
+          <>
+            <JoinButton room={room} />
+            <TextMode room={room} />
+          </>
+        )}
       </nav>
     </div>
   )
 }
+
+/** How the next join starts, as Join's tip says it: in text mode (kept after a lost connection), or by voice. */
+export const joinTip = (textMode: boolean) =>
+  textMode
+    ? 'You join typing to Sophia, with your microphone off'
+    : micOnJoin()
+      ? 'You join with your microphone on'
+      : 'You join with your microphone off'
 
 function JoinButton({ room }: { room: ProjectRoom }) {
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
@@ -82,10 +97,7 @@ function JoinButton({ room }: { room: ProjectRoom }) {
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
-      <Tip
-        label={micOnJoin() ? 'You join with your microphone on' : 'You join with your microphone off'}
-        keys={roomKey('join')}
-      />
+      <Tip label={joinTip(room.textMode)} keys={roomKey('join')} />
     </button>
   )
 }
@@ -93,7 +105,7 @@ function JoinButton({ room }: { room: ProjectRoom }) {
 interface ToggleProps {
   on: boolean
   label: string
-  /** The single-key shortcut, shown in the tip (RoomStage binds it). */
+  /** The shortcut, shown in the tip (RoomStage binds it). */
   keys: string
   icons: [IconName, IconName]
   onToggle: () => void
@@ -110,13 +122,22 @@ export function Toggle({ on, label, keys, icons, onToggle }: ToggleProps) {
 }
 
 /**
- * Text mode, said in the room and left from it: Sophia is not heard and the microphone is off, which the chat
- * panel explains but a closed panel does not. One press goes back to voice.
+ * Text mode, said wherever it holds and left from there: Sophia is not heard and the microphone is off, which the
+ * chat panel explains but a closed panel does not. Out of the call it says how the next join starts (text mode
+ * outlives a lost connection). One press goes back to voice; the pill goes with it, and the focus moves to the
+ * microphone (or Join) beside it instead of the page.
  */
-function TextMode({ room }: { room: ProjectRoom }) {
+export function TextMode({ room }: { room: ProjectRoom }) {
   if (!room.textMode) return null
+  const toVoice = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const group = e.currentTarget.parentElement
+    void room.setTextMode(false)
+    requestAnimationFrame(() =>
+      group?.querySelector<HTMLElement>('[aria-label="Microphone"], .pill.primary')?.focus({ preventScroll: true }),
+    )
+  }
   return (
-    <button type="button" className="pill has-tip" aria-pressed onClick={() => void room.setTextMode(false)}>
+    <button type="button" className="pill has-tip" aria-pressed onClick={toVoice}>
       Text mode
       <Tip label="Sophia answers in the chat and is not heard. Press for voice" />
     </button>

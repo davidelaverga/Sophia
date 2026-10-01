@@ -55,29 +55,24 @@ export const isNew = (current: number | null, seen: number | null, inView: boole
 
 /**
  * Where the focus lands when a panel opens: the chat's message bar where a keyboard is at hand, else the panel's
- * tab. Never Chat with Sophia: focused, Space would start the chat and a letter would act as a key instead of
- * being text.
+ * tab. Never Chat with Sophia: focused, a stray Space would start the chat.
  */
 export const focusOnOpen = (panel: Panel, finePointer: boolean, entry: 'bar' | 'start' | null): 'bar' | 'tab' =>
   panel === 'chat' && finePointer && entry === 'bar' ? 'bar' : 'tab'
 
-/** What the focus remembers between renders: the panel open now, and the one whose toggle opened the panel. */
-export interface PanelFocus {
-  open: Panel | null
-  opener: Panel | null
-}
-
 /**
- * One change of the open panel, for the focus: opening moves it in (`in`); closing hands it back to the toggle that
- * opened the panel (`back`), even when another tab was chosen since; switching tabs moves nothing.
+ * One change of the open panel, for the focus: opening moves it in (`in`); closing hands it back to `opener` (`back`),
+ * the corner toggle that opened the panel or last swapped it, whatever tab was chosen inside since; switching tabs
+ * moves nothing.
  */
 export function focusStep(
-  was: PanelFocus,
+  was: Panel | null,
   open: Panel | null,
-): { next: PanelFocus; move: { in: Panel } | { back: Panel } | null } {
-  if (open && !was.open) return { next: { open, opener: open }, move: { in: open } }
-  if (!open && was.open) return { next: { open: null, opener: null }, move: { back: was.opener ?? was.open } }
-  return { next: { open, opener: was.opener }, move: null }
+  opener: Panel | null,
+): { in: Panel } | { back: Panel } | null {
+  if (open && !was) return { in: open }
+  if (!open && was) return { back: opener ?? was }
+  return null
 }
 
 /**

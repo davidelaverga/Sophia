@@ -4,10 +4,10 @@
 // so the control keeps its place, level with the dock. Enter sends; Shift+Enter starts a new line.
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Snapshot } from '@sophia/contracts'
+import type { Snapshot, SophiaPresence } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { startChat } from './chat-start.ts'
-import { chatEntry, chatLine, footError, type ChatEntry } from './chat-view.ts'
+import { chatEntry, chatLine, footError, waitsOnRoom, type ChatEntry, type ChatMoment } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
@@ -22,6 +22,8 @@ interface Props {
   room: ProjectRoom
   draft: string
   onDraft: (text: string) => void
+  /** Closes the panel, so the room's dock shows: where the panel covers it, its controls are out of reach. */
+  onShowRoom: () => void
 }
 
 function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | 'identity' | 'room'>) {
@@ -61,7 +63,8 @@ function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | '
 
 function useChatSend({ snapshot, room, draft, onDraft }: Props) {
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // A failed send belongs to its call: the next call doesn't show it.
+  const [error, setError] = useState<{ text: string; call: number } | null>(null)
   const presence = snapshot?.room.sophia
   const me = room.participants.find((p) => p.local)?.identity
   const busy = sending || room.chat.some((t) => t.state === 'sending' || t.state === 'responding')
@@ -85,17 +88,22 @@ function useChatSend({ snapshot, room, draft, onDraft }: Props) {
       })
       onDraft('')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Delivery is unconfirmed; nothing is resent automatically.')
+      const text = e instanceof Error ? e.message : 'Delivery is unconfirmed; nothing is resent automatically.'
+      setError({ text, call: room.call })
     } finally {
       setSending(false)
     }
   }
-  return { presence, busy, ready, mine: !!presence && presence.inputActorId === me, error, send }
+  const shown = error?.call === room.call ? error.text : null
+  return { presence, busy, ready, mine: !!presence && presence.inputActorId === me, error: shown, send }
 }
 
 interface StartProps {
   starting: boolean
-  /** The project has loaded: until then there is no room to join, and the button waits. */
+  /**
+   * The project has loaded and no join is under way: until then the button waits (a second join for the same person
+   * would make LiveKit drop the first).
+   */
   ready: boolean
   onStart: () => void
 }
@@ -158,26 +166,46 @@ function MessageBar({ field, draft, onDraft, canSend, send }: BarProps) {
 }
 
 interface LineProps {
-  text: string | null
-  room: ProjectRoom
-  starting: boolean
-  inRoom: boolean
+  /** Sophia's presence while the bar is the way in, else undefined: the line is the bar's. */
+  presence: SophiaPresence | undefined
+  moment: ChatMoment
+  /** The way back to voice: offered in the call only, since outside it there is no voice to go back to. */
+  voice: boolean
   busy: boolean
+  onVoice: () => void
+  onShowRoom: () => void
 }
 
-/** One line above the foot's control: why Send waits or that typing reaches Sophia, and the way back to voice. */
-function ChatLine({ text, room, starting, inRoom, busy }: LineProps) {
-  // The way back to voice is offered in the call only: outside it there is no voice to go back to.
-  const voice = room.textMode && !starting && inRoom
+/**
+ * One line above the foot's control: why Send waits or that typing reaches Sophia, and the way back to voice. A line
+ * that waits on the dock (waitsOnRoom) offers to show the room, where the panel covers it.
+ */
+function ChatLine({ presence, moment, voice, busy, onVoice, onShowRoom }: LineProps) {
+  const text = presence ? chatLine(presence, moment) : null
   if (!text && !voice) return null
   return (
     <p className="chat-line" role="status">
       {text}
+      {presence && waitsOnRoom(presence, moment) && (
+        <button type="button" className="text-button chat-show-room" onClick={onShowRoom}>
+          Show the room
+        </button>
+      )}
       {voice && (
-        <button type="button" className="text-button" disabled={busy} onClick={() => void room.setTextMode(false)}>
+        <button type="button" className="text-button" disabled={busy} onClick={onVoice}>
           Voice mode
         </button>
       )}
+    </p>
+  )
+}
+
+/** The foot's error (footError): announced when it is the chat's own, shown for the eye when it is the room's. */
+function FootError({ error }: { error: { text: string; live: boolean } | null }) {
+  if (!error) return null
+  return (
+    <p className="outcome" role={error.live ? 'status' : undefined} aria-hidden={error.live ? undefined : true}>
+      {error.text}
     </p>
   )
 }
@@ -194,9 +222,9 @@ function useTypeNext(entry: ChatEntry, field: RefObject<HTMLTextAreaElement | nu
 }
 
 /** Typed turns use the same admitted exchange and lifecycle handlers as voice, with no microphone required. */
-export function Composer({ projectId, identity, snapshot, room, draft, onDraft }: Props) {
+export function Composer({ projectId, identity, snapshot, room, draft, onDraft, onShowRoom }: Props) {
   const { starting, start, error: startError } = useChatStart({ projectId, identity, room })
-  const chat = useChatSend({ projectId, identity, snapshot, room, draft, onDraft })
+  const chat = useChatSend({ projectId, identity, snapshot, room, draft, onDraft, onShowRoom })
   const { presence, busy, ready, send } = chat
   const field = useRef<HTMLTextAreaElement>(null)
   const inRoom = room.status === 'live' || room.status === 'reconnecting'
@@ -207,29 +235,37 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
     if (!(await start())) asked.current = false
   }
   const moment = { starting, live: room.status === 'live', mine: chat.mine, textMode: room.textMode }
-  const line = entry === 'bar' && presence ? chatLine(presence, moment) : null
+  const bar = entry === 'bar'
   // The room's own trouble (a join that failed, a call that ended) is said here too, before the chat's own: on a phone
-  // this panel covers the dock, and a button that falls back to "Chat with Sophia" without a word reads as broken.
-  const error = footError(room.error, inRoom, chat.error, startError)
+  // this panel covers the dock, and a button that falls back to "Chat with Sophia" without a word reads as broken. A
+  // start that failed is said while starting is still the way in.
+  const error = footError(room.error, inRoom, chat.error, bar ? null : startError)
+  const voice = () => {
+    void room.setTextMode(false)
+    field.current?.focus({ preventScroll: true }) // the pressed link goes; the focus stays at the bar
+  }
   return (
     <div className="composer">
-      <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={entry === 'bar'} />
-      <ChatLine text={line} room={room} starting={starting} inRoom={inRoom} busy={busy} />
-      {error && (
-        <p className="outcome" role={error.live ? 'status' : undefined} aria-hidden={error.live ? undefined : true}>
-          {error.text}
-        </p>
-      )}
-      {entry === 'bar' ? (
+      <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={bar} />
+      <ChatLine
+        presence={bar ? presence : undefined}
+        moment={moment}
+        voice={room.textMode && !starting && inRoom}
+        busy={busy}
+        onVoice={voice}
+        onShowRoom={onShowRoom}
+      />
+      <FootError error={error} />
+      {bar ? (
         <MessageBar
           field={field}
           draft={draft}
           onDraft={onDraft}
-          canSend={ready && !busy && !!draft.trim()}
+          canSend={ready && !busy && !starting && !!draft.trim()}
           send={send}
         />
       ) : (
-        <ChatStart starting={starting} ready={room.ready} onStart={() => void begin()} />
+        <ChatStart starting={starting} ready={room.ready && room.status !== 'joining'} onStart={() => void begin()} />
       )}
     </div>
   )

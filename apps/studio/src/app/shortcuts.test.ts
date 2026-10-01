@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keyLabel, shortcutKey, strayFrom, typesText, type KeyLike } from './shortcuts.ts'
+import { keyLabel, onScreen, shortcutKey, strayFrom, typesText, type KeyLike } from './shortcuts.ts'
 
 const press = (key: string, over: Partial<KeyLike> = {}): KeyLike => ({
   key,
@@ -92,5 +92,14 @@ describe('single-key shortcuts', () => {
     assert.equal(typesText(press('Escape')), false)
     assert.equal(typesText(press('v', { ctrlKey: true })), false)
     assert.equal(typesText(press('v', { metaKey: true })), false)
+  })
+})
+
+describe('what is on screen', () => {
+  it('asks checkVisibility where the browser has it, and the element’s boxes where it doesn’t (Safari before 17.4)', () => {
+    assert.equal(onScreen({ checkVisibility: () => false, getClientRects: () => [{}] }), false)
+    assert.equal(onScreen({ checkVisibility: () => true, getClientRects: () => [] }), true)
+    assert.equal(onScreen({ getClientRects: () => [{}] }), true)
+    assert.equal(onScreen({ getClientRects: () => [] }), false, 'a hidden ancestor leaves it no box')
   })
 })

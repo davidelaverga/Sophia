@@ -4,7 +4,7 @@ import { switchMicrophone, useTypedChat } from './useTypedChat.ts'
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
 // page leaves the room; nothing here touches goals or work.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
@@ -23,6 +23,8 @@ export interface ProjectRoom {
   sendChat: (packet: ChatInput) => Promise<void>
   status: DockStatus
   error: string | null
+  /** Which call this is: it moves when a new one begins, so what belonged to the last (a chat error) goes with it. */
+  call: number
   /** Why a microphone, camera or screen did not start, in words a person can act on. */
   mediaError: string | null
   participants: RoomParticipant[]
@@ -122,8 +124,13 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
   return {
     mediaError,
     clearNote: () => setMediaError(null),
+    /**
+     * The microphone on arrival. Text mode may start while the browser still asks for it (silencing a microphone
+     * that isn't published yet changes nothing): text mode wins, so one that came on meanwhile goes off again.
+     */
     arrive: async () => {
       await media('microphone', (c) => c.setMicrophone(true))()
+      if (connection.current?.textMode()) await media('microphone', (c) => c.setMicrophone(false))()
     },
     /** Text mode's own switch: it needs to know the microphone really went off (useTypedChat). */
     silence: media('microphone', (c) => c.setMicrophone(false)),
@@ -150,10 +157,12 @@ interface JoinPorts {
   refresh: () => void
   arrive: () => Promise<void>
   outOfCall: (why: CallEnd | null) => void
+  /** A new call began. */
+  onLive: () => void
 }
 
 async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }): Promise<boolean> {
-  const { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall } = ports
+  const { calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall, onLive } = ports
   const typed = options?.textOnly ?? typedChat.textMode
   typedChat.rememberTextMode(typed)
   if (!issue) return false
@@ -179,6 +188,7 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
     if (!calls.adopt(call, opened)) return false
     opened.setTextMode(typed)
     setStatus('live')
+    onLive()
     refresh()
     if (!typed && micOnArrival()) await arrive()
     return true
@@ -188,6 +198,23 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
     setError(joinMessage(err))
     return false
   }
+}
+
+/**
+ * One join at a time: a second connection for the same person makes LiveKit drop the first, and the call would say
+ * it moved elsewhere. A join asked for while one is under way waits on that one. `call` moves with each call begun.
+ */
+function useJoin(ports: Omit<JoinPorts, 'onLive'>) {
+  const [call, setCall] = useState(0)
+  const joining = useRef<Promise<boolean> | null>(null)
+  const join = (options?: { textOnly?: boolean }) => {
+    const onLive = () => setCall((n) => n + 1)
+    joining.current ??= joinConnection({ ...ports, onLive }, options).finally(() => {
+      joining.current = null
+    })
+    return joining.current
+  }
+  return { call, join }
 }
 
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
@@ -230,8 +257,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setError(why ? CALL_END[why].note : null)
   }
 
-  const join = (options?: { textOnly?: boolean }) =>
-    joinConnection({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, options)
+  const { call, join } = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall })
 
   const leave = async () => {
     await calls.end()
@@ -253,6 +279,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   return {
     status,
     error,
+    call,
     ...people,
     ...devices,
     setMicrophone,

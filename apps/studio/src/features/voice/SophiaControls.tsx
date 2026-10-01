@@ -156,10 +156,11 @@ export function SophiaControls(props: Props) {
 }
 
 /** The observation indicator: visible in the dock and the mini dock while Sophia is looking at anything. */
-export function LookingIndicator({ text }: { text: string | null }) {
+/** `quiet`: a copy for the eye where the announced one is covered (the panel's head over the dock). */
+export function LookingIndicator({ text, quiet = false }: { text: string | null; quiet?: boolean }) {
   if (!text) return null
   return (
-    <span className="sophia-looking" role="status">
+    <span className="sophia-looking" role={quiet ? undefined : 'status'} aria-hidden={quiet || undefined}>
       <span className="sophia-looking-dot" aria-hidden />
       {text}
     </span>

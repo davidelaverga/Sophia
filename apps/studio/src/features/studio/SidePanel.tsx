@@ -4,21 +4,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip, type IconName } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
-import {
-  changedUnseen,
-  focusOnOpen,
-  focusStep,
-  isNew,
-  PANEL_TITLE,
-  PANELS,
-  seenNow,
-  toggled,
-  type Panel,
-  type PanelFocus,
-} from './side-panel.ts'
+import { changedUnseen, focusOnOpen, focusStep, isNew, PANEL_TITLE, PANELS, seenNow, type Panel } from './side-panel.ts'
 
 interface PanelProps {
   open: Panel | null
+  /** The corner toggle that opened the panel, or last swapped it: closing hands the focus back to it. */
+  opener: Panel | null
+  /** A tab inside the panel, its Close or Esc. */
   onOpen: (panel: Panel | null) => void
   chat: ReactNode
   brief: ReactNode
@@ -44,14 +36,16 @@ function openingTarget(open: Panel, root: HTMLElement | null): HTMLElement | nul
 
 /**
  * Opening moves focus in: to the message bar where a keyboard is at hand, else to the tab (no keyboard jumps up on a
- * phone, and Chat with Sophia is never focused for a stray Space to press). Closing hands it back to the toggle that
- * opened the panel, also after another tab was chosen (focusStep).
+ * phone, and Chat with Sophia is never focused for a stray Space to press). Closing hands it back to the corner toggle
+ * that opened the panel, or last swapped it, also after another tab was chosen inside (focusStep).
  */
-function usePanelFocus(open: Panel | null, panel: RefObject<HTMLElement | null>) {
-  const remembered = useRef<PanelFocus>({ open, opener: open })
+function usePanelFocus(open: Panel | null, opener: Panel | null, panel: RefObject<HTMLElement | null>) {
+  const previous = useRef(open)
+  const lastOpener = useRef(opener)
+  lastOpener.current = opener
   useEffect(() => {
-    const { next, move } = focusStep(remembered.current, open)
-    remembered.current = next
+    const move = focusStep(previous.current, open, lastOpener.current)
+    previous.current = open
     if (!move) return
     const target =
       'in' in move
@@ -79,10 +73,10 @@ function useEscFromNowhere(open: Panel | null, onOpen: (panel: Panel | null) => 
   }, [open, onOpen])
 }
 
-export function SidePanel({ open, onOpen, chat, brief, call, note }: PanelProps) {
+export function SidePanel({ open, opener, onOpen, chat, brief, call, note }: PanelProps) {
   const body: Record<Panel, ReactNode> = { chat, brief }
   const panel = useRef<HTMLElement>(null)
-  usePanelFocus(open, panel)
+  usePanelFocus(open, opener, panel)
   useEscFromNowhere(open, onOpen)
   return (
     <aside
@@ -163,7 +157,8 @@ function PanelHead({ open, onOpen, call }: Pick<PanelProps, 'open' | 'onOpen' | 
 
 interface ToggleProps {
   open: Panel | null
-  onOpen: (panel: Panel | null) => void
+  /** Opens this panel, swaps to it, or closes it when it is the one open (useRoomPanel). */
+  onToggle: (panel: Panel) => void
   /** New messages since the chat was last in view. */
   unread: boolean
   /** The brief changed since it was last in view. */
@@ -174,7 +169,7 @@ const ICON: Record<Panel, IconName> = { chat: 'chat', brief: 'brief' }
 const KEY: Record<Panel, string> = { chat: 'C', brief: 'B' }
 
 /** The stage's corner: the chat and the brief, each a toggle, with a dot for what is new. */
-export function PanelToggles({ open, onOpen, unread, updated }: ToggleProps) {
+export function PanelToggles({ open, onToggle, unread, updated }: ToggleProps) {
   const dot: Record<Panel, boolean> = { chat: unread, brief: updated }
   return (
     <div className="panel-toggles">
@@ -186,7 +181,7 @@ export function PanelToggles({ open, onOpen, unread, updated }: ToggleProps) {
           data-panel={p}
           aria-pressed={open === p}
           aria-label={dot[p] ? `${PANEL_TITLE[p]}, something new` : PANEL_TITLE[p]}
-          onClick={() => onOpen(toggled(open, p))}
+          onClick={() => onToggle(p)}
         >
           <Icon name={ICON[p]} />
           {dot[p] && <span className="toggle-dot" aria-hidden />}

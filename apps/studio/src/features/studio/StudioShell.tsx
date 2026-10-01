@@ -9,9 +9,10 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
-import { Toggle } from '../voice/RoomDock.tsx'
+import { TextMode, Toggle } from '../voice/RoomDock.tsx'
 import { roomKey } from '../voice/room-keys.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
+import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
@@ -33,11 +34,41 @@ const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }>
   },
 }
 
+/**
+ * The side panel's state, kept by the project's body so it outlives a visit to another view: which tab is open,
+ * whose toggle opened it, and what is new behind it (a reply that finished while the person read Goals still marks
+ * Chat when they come back). `studio`: the room is on screen, so an open tab is in view.
+ */
+export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, studio: boolean) {
+  const [panel, setPanel] = useState<Panel | null>(null)
+  const [opener, setOpener] = useState<Panel | null>(null)
+  const unread = useUnread(chatSignature(snapshot, room.chat), studio && panel === 'chat')
+  const brief = useBriefUpdates(studio && panel === 'brief')
+  return {
+    panel,
+    opener,
+    unread,
+    brief,
+    /** A corner toggle or its key opens, swaps or closes the panel, and is where the focus returns on closing. */
+    toggle: (p: Panel) => {
+      setPanel((open) => toggled(open, p))
+      setOpener(p)
+    },
+    /** A tab inside the panel, or its Close: the toggle that opened it stays the one the focus returns to. */
+    show: setPanel,
+  }
+}
+
+export type RoomPanel = ReturnType<typeof useRoomPanel>
+
 interface Props {
   projectId: string
   identity: Identity
   room: ProjectRoom
   snapshot: Snapshot | undefined
+  panel: RoomPanel
+  /** What Sophia is looking at, in words, or null (lookingText). */
+  looking: string | null
 }
 
 /** Names the room has known this visit, by identity, so a line keeps its author's name after they leave. */
@@ -48,16 +79,25 @@ function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
   return merged
 }
 
+/** After a switch that goes away when pressed, the focus stays in the head, on its microphone. */
+const focusHeadMicrophone = () =>
+  requestAnimationFrame(() =>
+    document.querySelector<HTMLElement>('.side-panel-call [aria-label="Microphone"]')?.focus({ preventScroll: true }),
+  )
+
 /**
  * The call's switches for the panel's head: the microphone while in the call, the camera and the screen while they
- * are on. Each is the dock's own toggle, so it says the same and does the same. The head shows them only at widths
- * where tips are off, so the icon and its pressed state carry the meaning, as in the dock on a phone.
+ * are on, text mode while it is on, and what Sophia is looking at. Each switch is the dock's own, so it says the same
+ * and does the same. The head shows them only where the panel covers the dock (760 px and below), so the icon and its
+ * pressed state carry the meaning, as in the dock on a phone. The looking line is for the eye: the dock's own is the
+ * one announced.
  */
-function CallSwitches({ room }: { room: ProjectRoom }) {
+function CallSwitches({ room, looking }: { room: ProjectRoom; looking: string | null }) {
   const me = room.participants.find((p) => p.local)
   if (!me) return null
   return (
     <>
+      <LookingIndicator text={looking} quiet />
       <Toggle
         on={me.micOn}
         label="Microphone"
@@ -65,13 +105,17 @@ function CallSwitches({ room }: { room: ProjectRoom }) {
         icons={['mic', 'micOff']}
         onToggle={() => void room.setMicrophone(!me.micOn)}
       />
+      <TextMode room={room} />
       {me.cameraOn && (
         <Toggle
           on
           label="Camera"
           keys={roomKey('camera')}
           icons={['camera', 'cameraOff']}
-          onToggle={() => void room.setCamera(false)}
+          onToggle={() => {
+            void room.setCamera(false)
+            focusHeadMicrophone()
+          }}
         />
       )}
       {me.screenOn && (
@@ -80,26 +124,26 @@ function CallSwitches({ room }: { room: ProjectRoom }) {
           label="Stop sharing"
           keys={roomKey('screen')}
           icons={['screen', 'screen']}
-          onToggle={() => void room.setScreenShare(false)}
+          onToggle={() => {
+            void room.setScreenShare(false)
+            focusHeadMicrophone()
+          }}
         />
       )}
     </>
   )
 }
 
-export function StudioShell({ projectId, identity, room, snapshot }: Props) {
+export function StudioShell({ projectId, identity, room, snapshot, panel, looking }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
-  const [panel, setPanel] = useState<Panel | null>(null)
-  const unread = useUnread(chatSignature(snapshot, room.chat), panel === 'chat')
-  const brief = useBriefUpdates(panel === 'brief')
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
   useShortcuts({
     '1': () => setLens('converse'),
     '2': () => setLens('explore'),
     '3': () => setLens('build'),
-    c: () => setPanel((open) => toggled(open, 'chat')),
-    b: () => setPanel((open) => toggled(open, 'brief')),
+    c: () => panel.toggle('chat'),
+    b: () => panel.toggle('brief'),
   })
   const common = { projectId, identity, me, names }
   return (
@@ -115,11 +159,19 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
             {state.lens !== 'converse' && <ComingLens lens={state.lens} />}
           </div>
         }
-        corner={<PanelToggles open={panel} onOpen={setPanel} unread={unread} updated={brief.updated} />}
+        corner={
+          <PanelToggles
+            open={panel.panel}
+            onToggle={panel.toggle}
+            unread={panel.unread}
+            updated={panel.brief.updated}
+          />
+        }
       />
       <SidePanel
-        open={panel}
-        onOpen={setPanel}
+        open={panel.panel}
+        opener={panel.opener}
+        onOpen={panel.show}
         chat={
           <Conversation
             {...common}
@@ -127,11 +179,12 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
             room={room}
             draft={state.drafts.converse ?? ''}
             onDraft={(text) => setDraft('converse', text)}
+            onShowRoom={() => panel.show(null)}
           />
         }
-        brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={brief.onRevision} />}
-        call={<CallSwitches room={room} />}
-        note={panelNote(panel, room.mediaError, room.error)}
+        brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
+        call={<CallSwitches room={room} looking={looking} />}
+        note={panelNote(panel.panel, room.mediaError, room.error)}
       />
     </div>
   )

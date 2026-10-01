@@ -89,11 +89,12 @@ describe('the room side panel', () => {
   })
 
   it('hands the focus back to the toggle that opened the panel, also after another tab was chosen', () => {
-    const opened = focusStep({ open: null, opener: null }, 'chat')
-    assert.deepEqual(opened.move, { in: 'chat' })
-    const switched = focusStep(opened.next, 'brief')
-    assert.equal(switched.move, null, 'choosing a tab moves nothing')
-    assert.deepEqual(focusStep(switched.next, null).move, { back: 'chat' }, 'Chat opened it, so Chat gets it back')
+    assert.deepEqual(focusStep(null, 'chat', 'chat'), { in: 'chat' })
+    assert.equal(focusStep('chat', 'brief', 'chat'), null, 'choosing a tab moves nothing')
+    assert.deepEqual(focusStep('brief', null, 'chat'), { back: 'chat' }, 'Chat opened it, so Chat gets it back')
+    // The Brief toggle swapped the panel: it is the one the focus goes back to (useRoomPanel records it).
+    assert.deepEqual(focusStep('brief', null, 'brief'), { back: 'brief' })
+    assert.deepEqual(focusStep('chat', null, null), { back: 'chat' }, 'no toggle recorded: the last tab')
   })
 
   it('says why the call ended over the Brief tab, where the chat’s foot is out of sight', () => {

@@ -59,7 +59,7 @@ export function ContinuityChoice({ withBar, ...props }: Props) {
       <button
         type="button"
         className="pill"
-        aria-label="Allow shared notes from my turns"
+        aria-label="Allow: shared notes from my turns"
         disabled={busy}
         onClick={() => void choose('accepted')}
       >
@@ -68,7 +68,7 @@ export function ContinuityChoice({ withBar, ...props }: Props) {
       <button
         type="button"
         className="text-button"
-        aria-label="Keep no notes from my turns"
+        aria-label="No thanks: keep no notes from my turns"
         disabled={busy}
         onClick={() => void choose('declined')}
       >

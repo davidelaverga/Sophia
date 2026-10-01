@@ -76,10 +76,19 @@ function focusAt(target: HTMLElement | null, field: HTMLElement): FocusAt {
   return target.closest('[data-typing-scope]')?.contains(field) ? 'scope' : 'elsewhere'
 }
 
+/**
+ * Whether an element is on screen: checkVisibility where the browser has it, else whether it has a box (a hidden
+ * ancestor takes it away). Safari before 17.4 has no checkVisibility, and the build targets Safari 16.4: calling it
+ * there threw on every key, and no shortcut worked.
+ */
+export function onScreen(el: { getClientRects: () => ArrayLike<unknown>; checkVisibility?: () => boolean }): boolean {
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : el.getClientRects().length > 0
+}
+
 /** Where stray typing goes: the chat's foot, when it is on screen and the key is stray (strayFrom). */
 function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
   const field = document.querySelector<HTMLElement>('[data-typing-sink]')
-  return field?.checkVisibility() && strayFrom(focusAt(target, field), key) ? field : null
+  return field && onScreen(field) && strayFrom(focusAt(target, field), key) ? field : null
 }
 
 function keyLike(e: KeyboardEvent): KeyLike {
