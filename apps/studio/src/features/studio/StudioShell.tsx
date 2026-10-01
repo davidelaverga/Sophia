@@ -1,13 +1,21 @@
 // renderRoom / v2StudioStage → StudioShell (frontend bindings): the shared room seen through this
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
-// are shared.
+// are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
+// stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
+import { useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { useMembership } from '../access/useAccess.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
+import { MissionPanel } from '../mission/MissionPanel.tsx'
+import { Toggle } from '../voice/RoomDock.tsx'
+import { roomKey } from '../voice/room-keys.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
+import { chatSignature, mergeNames, toggled, type Panel } from './side-panel.ts'
+import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
 
@@ -32,37 +40,99 @@ interface Props {
   snapshot: Snapshot | undefined
 }
 
-/** Names the room knows by identity, so discussion can say who spoke. */
-const namesOf = (room: ProjectRoom) => new Map(room.participants.map((p) => [p.identity, p.name]))
+/** Names the room has known this visit, by identity, so a line keeps its author's name after they leave. */
+function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
+  const [known, setKnown] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const merged = mergeNames(known, room.participants)
+  if (merged !== known) setKnown(merged)
+  return merged
+}
+
+/**
+ * The call's switches for the panel's head: the microphone while in the call, the camera and the screen while they
+ * are on. Each is the dock's own toggle, so it says the same and does the same. The head shows them only at widths
+ * where tips are off, so the icon and its pressed state carry the meaning, as in the dock on a phone.
+ */
+function CallSwitches({ room }: { room: ProjectRoom }) {
+  const me = room.participants.find((p) => p.local)
+  if (!me) return null
+  return (
+    <>
+      <Toggle
+        on={me.micOn}
+        label="Microphone"
+        keys={roomKey('microphone')}
+        icons={['mic', 'micOff']}
+        onToggle={() => void room.setMicrophone(!me.micOn)}
+      />
+      {me.cameraOn && (
+        <Toggle
+          on
+          label="Camera"
+          keys={roomKey('camera')}
+          icons={['camera', 'cameraOff']}
+          onToggle={() => void room.setCamera(false)}
+        />
+      )}
+      {me.screenOn && (
+        <Toggle
+          on
+          label="Stop sharing"
+          keys={roomKey('screen')}
+          icons={['screen', 'screen']}
+          onToggle={() => void room.setScreenShare(false)}
+        />
+      )}
+    </>
+  )
+}
 
 export function StudioShell({ projectId, identity, room, snapshot }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
-  useShortcuts({ '1': () => setLens('converse'), '2': () => setLens('explore'), '3': () => setLens('build') })
+  const [panel, setPanel] = useState<Panel | null>(null)
+  const unread = useUnread(chatSignature(snapshot, room.chat), panel === 'chat')
+  const brief = useBriefUpdates(panel === 'brief')
+  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
+  const names = useKnownNames(room)
+  useShortcuts({
+    '1': () => setLens('converse'),
+    '2': () => setLens('explore'),
+    '3': () => setLens('build'),
+    c: () => setPanel((open) => toggled(open, 'chat')),
+    b: () => setPanel((open) => toggled(open, 'brief')),
+  })
+  const common = { projectId, identity, me, names }
   return (
-    <RoomStage
-      room={room}
-      snapshot={snapshot}
-      projectId={projectId}
-      identity={identity}
-      lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-      lensBody={
-        <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
-          {state.lens === 'converse' ? (
-            <Conversation
-              projectId={projectId}
-              identity={identity}
-              snapshot={snapshot}
-              room={room}
-              names={namesOf(room)}
-              draft={state.drafts.converse ?? ''}
-              onDraft={(text) => setDraft('converse', text)}
-            />
-          ) : (
-            <ComingLens lens={state.lens} />
-          )}
-        </div>
-      }
-    />
+    <div className="studio">
+      <RoomStage
+        room={room}
+        snapshot={snapshot}
+        projectId={projectId}
+        identity={identity}
+        lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
+        lensBody={
+          <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
+            {state.lens !== 'converse' && <ComingLens lens={state.lens} />}
+          </div>
+        }
+        corner={<PanelToggles open={panel} onOpen={setPanel} unread={unread} updated={brief.updated} />}
+      />
+      <SidePanel
+        open={panel}
+        onOpen={setPanel}
+        chat={
+          <Conversation
+            {...common}
+            snapshot={snapshot}
+            room={room}
+            draft={state.drafts.converse ?? ''}
+            onDraft={(text) => setDraft('converse', text)}
+          />
+        }
+        brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={brief.onRevision} />}
+        call={<CallSwitches room={room} />}
+      />
+    </div>
   )
 }
 

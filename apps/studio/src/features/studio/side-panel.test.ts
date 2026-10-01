@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import type { Snapshot } from '@sophia/contracts'
+import { changedUnseen, chatSignature, focusOnOpen, isNew, mergeNames, seenNow, toggled } from './side-panel.ts'
+
+const discussion = (ids: readonly string[]) =>
+  ({ discussion: ids.map((id) => ({ id })) }) as unknown as Pick<Snapshot, 'discussion'>
+const ids = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `m${from + i}`)
+
+describe('the room side panel', () => {
+  it('knows the chat by what it shows, so a new message counts even once the kept history is full', () => {
+    assert.equal(chatSignature(undefined, []), null, 'a room still loading is no baseline')
+    // The discussion keeps its latest 50: the 51st message drops the first, and the count stays 50.
+    assert.notEqual(chatSignature(discussion(ids(1, 50)), []), chatSignature(discussion(ids(2, 51)), []))
+    // The typed chat keeps its latest 100 turns the same way.
+    const turns = (from: number, to: number) => ids(from, to).map((id) => ({ id, reply: 'Hi' }))
+    assert.notEqual(chatSignature(discussion([]), turns(1, 100)), chatSignature(discussion([]), turns(2, 101)))
+    // A reply that begins on an earlier turn is new too; the same chat is the same signature.
+    const asked = [
+      { id: 't1', reply: '' },
+      { id: 't2', reply: '' },
+    ]
+    const replied = [{ id: 't1', reply: 'Hi' }, asked[1] ?? { id: 't2', reply: '' }]
+    assert.notEqual(chatSignature(discussion([]), asked), chatSignature(discussion([]), replied))
+    assert.equal(chatSignature(discussion(['m1']), asked), chatSignature(discussion(['m1']), [...asked]))
+  })
+
+  it('points at the chat only when what it shows changed out of view, from a loaded baseline', () => {
+    assert.equal(changedUnseen('b', 'a', false), true)
+    assert.equal(changedUnseen('b', 'a', true), false, 'in view: nothing to point at')
+    assert.equal(changedUnseen('a', 'a', false), false)
+    assert.equal(changedUnseen('a', null, false), false, 'nothing seen yet')
+    assert.equal(seenNow(null, 'loaded', false), 'loaded', 'the first loaded chat is the baseline, not news')
+    assert.equal(seenNow('old', 'new', false), 'old')
+    assert.equal(seenNow('old', 'new', true), 'new')
+  })
+
+  it('closes a panel opened twice, and swaps to another in place', () => {
+    assert.equal(toggled(null, 'chat'), 'chat')
+    assert.equal(toggled('chat', 'chat'), null)
+    assert.equal(toggled('chat', 'brief'), 'brief')
+  })
+
+  it('marks something new only when it grew and is out of view', () => {
+    assert.equal(isNew(5, 3, false), true)
+    assert.equal(isNew(5, 3, true), false, 'in view: nothing to point at')
+    assert.equal(isNew(3, 3, false), false)
+    assert.equal(isNew(null, 3, false), false, 'not read yet')
+    assert.equal(isNew(5, null, false), false, 'nothing seen yet: the first read is the baseline')
+  })
+
+  it('keeps every name seen this visit, and the same map when nobody is new', () => {
+    const known = mergeNames(new Map(), [{ identity: 'a', name: 'Ana' }])
+    assert.equal(mergeNames(known, [{ identity: 'a', name: 'Ana' }]), known, 'nothing new: the same map')
+    const later = mergeNames(known, [{ identity: 'b', name: 'Bo' }])
+    assert.deepEqual(
+      [...later],
+      [
+        ['a', 'Ana'],
+        ['b', 'Bo'],
+      ],
+      'Ana left the room and keeps her name',
+    )
+    assert.equal(mergeNames(later, [{ identity: 'b', name: 'Bob' }]).get('b'), 'Bob', 'a renamed person is renamed')
+  })
+
+  it('puts the focus in the message bar, never on Chat with Sophia', () => {
+    assert.equal(focusOnOpen('chat', true, 'bar'), 'bar')
+    assert.equal(focusOnOpen('chat', true, 'start'), 'tab', 'Space on a focused Chat with Sophia would start the chat')
+    assert.equal(focusOnOpen('chat', false, 'bar'), 'tab', 'no keyboard jumps up on a phone')
+    assert.equal(focusOnOpen('brief', true, null), 'tab')
+  })
+})

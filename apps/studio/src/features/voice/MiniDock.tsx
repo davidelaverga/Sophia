@@ -51,7 +51,7 @@ function Sending({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefi
 export function MiniDock({ room, looking, onOpen }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const me = room.participants.find((p) => p.local)
-  const note = room.mediaError ?? (room.status === 'failed' ? room.error : null)
+  const note = room.mediaError ?? room.error
   return (
     <div className="mini-dock" role="group" aria-label="Project room">
       <LookingIndicator text={looking} />
@@ -89,7 +89,12 @@ export function MiniDock({ room, looking, onOpen }: Props) {
           </button>
         </>
       ) : (
-        <button type="button" className="pill" disabled={room.status === 'joining'} onClick={() => void room.join()}>
+        <button
+          type="button"
+          className="pill"
+          disabled={room.status === 'joining' || !room.ready}
+          onClick={() => void room.join()}
+        >
           <span className="pill-dot" aria-hidden />
           {room.status === 'joining' ? 'Joining…' : room.status === 'failed' ? 'Try again' : 'Join the room'}
         </button>

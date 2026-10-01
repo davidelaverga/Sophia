@@ -9,14 +9,17 @@ const unknown = (t: ChatTurn): ChatTurn =>
     ? { ...t, state: 'unknown', reason: 'Reply unconfirmed. Nothing is resent automatically.' }
     : t
 
-/** Ephemeral typed messages are bounded and never written to storage or logs. */
-export function useTypedChat(connection: Connection, microphone: (on: boolean) => Promise<void>) {
+/**
+ * Ephemeral typed messages are bounded and never written to storage or logs. Text mode turns the microphone off
+ * through `silence`, which the room provides: it is done for the person, so it is not remembered as their choice.
+ */
+export function useTypedChat(connection: Connection, silence: () => Promise<void>) {
   const [chat, setChat] = useState<ChatTurn[]>([])
   const [textMode, rememberTextMode] = useState(false)
   const setTextMode = async (on: boolean) => {
     rememberTextMode(on)
     connection.current?.setTextMode(on)
-    if (on) await microphone(false)
+    if (on) await silence()
   }
   const sendChat = async (packet: ChatInput) => {
     const c = connection.current
