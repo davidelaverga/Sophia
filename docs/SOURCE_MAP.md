@@ -122,6 +122,18 @@ The runtime unit `sophia-runtime-m02-dev` pins `deepseek-ai/deepseek-harness@639
 | DSH-24 | `packages/core/agent-loop/src/agent.ts`, `tool-calls.ts`; `packages/core/session/src/repair.ts` (`ToolCallRecovery`); commit `6a6f350` | A step that fails with pending tool calls records `tool/result` for each: committed results kept, started calls `TOOL_OUTCOME_UNKNOWN`, never-started calls `TOOL_NOT_STARTED`; the original error ends the turn | `tests/integration/tool-recovery.test.mjs` |
 | DSH-25 | `packages/preset/agent-preset-registry/README.md` | `ctx.agentPresets`: definitions are plugin rows; `modeSelectionEnabled` retired; after a restart a session's preset id resolves to the **current** definition and only a missing one is rejected. dsh-base composes no registry row | `packages/dsh-bundle/src/control-bridge.ts` (`setupFor`, `presetIdentity`), `packages/dsh-bundle/cordis.patch.yml`, `scripts/lib/gate.mjs` (`checkPresetRoster`) |
 
+## 2d. Upstream sources at SMC-M03
+
+Read in the installed packages of dsh `0.2.0-rc.2` (`639ed01`) and pi-ai `0.87.1`; nothing is copied.
+
+| Source id | Upstream file (installed package at `639ed015`) | Used for | Sophia files |
+|---|---|---|---|
+| DSH-26 | `@deepseek-ai/dsh-workflow-ptc` (`agent()` options) and `@deepseek-ai/dsh-subagent` (`resolveChildAgentOptions`) | A `workflow` program may give a child agent its own `provider` and `model`; the child otherwise inherits the parent's latest route, and a route change without an effort clears the parent's effort. A failed child resolves to `null` | the `llm/stream` route guard and `sophia/route-refused` (`packages/dsh-bundle/src/control-bridge.ts`); `tests/integration/route-guard.test.mjs` |
+| DSH-27 | `@deepseek-ai/dsh-compaction-basic` (`summarizeWithLlm`, `compactIfNeeded`, `commitCompactionBody`) | Compaction summarizes on a configured summarization model, else the session's latest route, naming no effort, with `purpose: 'compaction'`. It runs on `agent/pre-step`, priced from the latest request; the default headroom is 65536 tokens. `compaction/summary` carries the call's provider, model and usage | the gate's compaction checks (`scripts/lib/gate.mjs`), the usage projection, `tests/integration/compaction-usage.test.mjs` |
+| DSH-28 | `@deepseek-ai/dsh-llm` (`TokenUsage`) and pi-ai 0.87.1 `dist/api/openai-responses-shared.js` | Counts are disjoint: input is uncached input; `cached_tokens` and `cache_write_tokens` become `cacheReadTokens` and `cacheWriteTokens`, and a zero counter is left out | the usage projection and `db/migrations/0023_usage_cache.sql` |
+| DSH-29 | `@deepseek-ai/dsh-llm-pi-ai` (credential resolution) | A provider route whose `apiKeyEnv` is unset fails its request with `MISSING_CREDENTIAL`; no other route is tried | `scripts/runtime-host.mjs` (research keys by name) |
+| DSH-30 | `@deepseek-ai/dsh-app-boot` (bundle manifest) | `dsh.bundle.patch` may be one file or a list of files | the preset patch files, moved to S4 (`docs/progress/SMC-M03-contract-binding.md` §8) |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

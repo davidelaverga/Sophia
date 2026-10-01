@@ -4,11 +4,11 @@ The mission: [M03](../missions/2026-09-27-companion-research/missions/M03_RESEAR
 
 This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
 
-**Checkpoint, 2026-10-01, attempt 1: S0 (bind), S1 (readers first, byte store, report content and Knowledge reads), S2 part 1 (the research route and its guard, unit `sophia-runtime-m03-dev`) and S2 part 2 (usage with cache counters and compaction calls, 0023) are done. S2 part 3 (specialist registry, preset files) is next. Nothing is merged, released or deployed.**
+**Checkpoint, 2026-10-01, attempt 1: S0 (bind), S1 (readers first, byte store, report content and Knowledge reads) and S2 (the research route and its guard, usage with cache counters and compaction calls, the specialist registry; unit `sophia-runtime-m03-dev`) are done. S2 awaits Codex's review (CC-0004); S3 (source access) is next. Nothing is merged, released or deployed.**
 
 | Readiness | State |
 |---|---|
-| Source-ready | No: S0, S1 and S2 parts 1–2 are in PR #32; S2 part 3 to S7 are planned (plan §4) |
+| Source-ready | No: S0, S1 and S2 are in PR #32; S3 to S7 are planned (plan §4) |
 | Merge-ready | No |
 | Release-ready | No: every hosted step is a Codex operation with Davide's bound approval (plan §5) |
 | Hosted-verified | No. This attempt touches no hosted state |
@@ -33,7 +33,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 | Goal | Slices (plan §4) | State |
 |---|---|---|
 | G1 Source access | S0, S1, S3 | S0 and S1 done (§6, §7); S3 after S2 |
-| G2 Durable Markdown | S2, S4 | S2 parts 1 and 2 done (§8, §9) |
+| G2 Durable Markdown | S2, S4 | S2 done (§8–§10); S4 next after S3 |
 | G3 PDF | S5a (renderer host, Codex probe), S5b | planned; the host depends on CC-0001 and D6 |
 | G4 Voice and text | S6 | planned |
 | G5 Mission loop and release | S7 | planned |
@@ -47,7 +47,7 @@ All recorded in plan §8. D1–D10 decided on 2026-09-30, with D1 raised to **$5
 | Operation | Kind | Request | State |
 |---|---|---|---|
 | SMC-M03-OP-0001 | read only | [CC-0001](../coordination/SMC-M03/SMC-M03-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0001 on #31 and act within its scope.` |
-| SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | **answered** by the operator Codex in [CX-0002](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5923248971) at `dfb91d6` (the cloud attempt CX-0001 was blocked). Every suite exit 0 on Node 24.21.0 and PostgreSQL 16.13; 0021 after 0022 exit 0; compatibility and RLS hold. One finding, **M03-RF-0001 (P2)**: the task detail's `outputs` took the task's newest version even when it was not published. **Fixed**: outputs read only published versions, with a regression case for candidate, validated and rejected versions by the task and by a child job (`research-readers.db.test.ts`, fails without the fix). Returned to Codex for re-review in [CC-0003](../coordination/SMC-M03/SMC-M03-CC-0003.md), with S1 part 2. Wake line: `SMC-M03: read SMC-M03-CC-0003 on #31 and act within its scope.` |
+| SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | **answered** by the operator Codex in [CX-0002](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5923248971) at `dfb91d6` (the cloud attempt CX-0001 was blocked). Every suite exit 0 on Node 24.21.0 and PostgreSQL 16.13; 0021 after 0022 exit 0; compatibility and RLS hold. One finding, **M03-RF-0001 (P2)**: the task detail's `outputs` took the task's newest version even when it was not published. **Fixed**: outputs read only published versions, with a regression case for candidate, validated and rejected versions by the task and by a child job (`research-readers.db.test.ts`, fails without the fix). Returned to Codex for re-review in [CC-0003](../coordination/SMC-M03/SMC-M03-CC-0003.md), with S1 part 2. Wake line: `SMC-M03: read SMC-M03-CC-0003 on #31 and act within its scope.` <br>**Revision 2 answered** in [CX-0003](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5930015231) at `569fc75`: M03-RF-0001 verified fixed; `pnpm check` exit 0 (415 unit; 72 integration, 2 skipped) with the runtime-service suite inside it; `test:sql` 21 migrations; `test:db` 214/214. One new finding, **M03-RF-0002 (P2)**: a Knowledge cursor whose microseconds exceed `bigint` passed validation and failed in SQL as a retryable 503. **Fixed**: the decoder refuses it, and any cursor with extra segments, as `invalid_request` (422) before any query; `knowledge.db.test.ts` covers bigint max (200), max + 1 and beyond (422), zero (200) and an extra segment (422), and fails without the fix. Returned with S2 in CC-0004 |
 
 Cloud Codex review of #32 at `29bb825` (Davide's request, [comment](https://github.com/davidelaverga/Sophia/pull/32#issuecomment-5922653573)): verified by Claude.
 - The PR is not end to end yet. That is true, and by plan: it stays a draft until S7.
@@ -114,7 +114,7 @@ The runtime unit becomes `sophia-runtime-m03-dev` (previous: `sophia-runtime-m02
 
 Run on this host (Node 24.21.0, pnpm 11.7.0, PostgreSQL 16.13): `pnpm check` exit 0 (419 unit; 73 integration, 2 skipped as before), `pnpm test:sql` 21 migrations, `pnpm test:db` 214/214. Unchanged by this part: the schema, the API and Studio.
 
-Left for S2 part 3: the specialist registry (`config/specialists.json`), the preset patch files and `bundlePatchFiles()`. Usage forwarding is part 2 (§9). Moved to S4, with the research tools they guard: the reservation hook and the `skill-filesystem` closure ([binding §8](SMC-M03-contract-binding.md)).
+The specialist registry is part 3 (§10); usage forwarding is part 2 (§9). Moved to S4, with the research tools they guard: the reservation hook and the `skill-filesystem` closure ([binding §8](SMC-M03-contract-binding.md)).
 
 ## 9. S2 part 2: usage with cache counters and compaction calls
 
@@ -130,3 +130,18 @@ The bundle changes, so the unit's linux-x64 bundle archive is re-recorded: `sha2
 Compatibility: 0023 only adds a defaulted column and replaces the writer, so the readers released with 0022 keep working before and after it. An older bundle sends no cache counters and a null compaction projection; the writer records nothing new for it. The API with the purpose filter needs 0023 first, and `/ready` says so.
 
 Known gap, unchanged from M02: a `workflow` child's own model calls are not observed (the bridge forwards bound sessions only), so their usage is not recorded. Research roles have no `workflow`; the M02 `sophia-research-v1` does. Recorded for S4's allowance work, where every call is reserved before it runs.
+
+## 10. S2 part 3: the specialist registry
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Registry | `config/specialists.json` (schema `config/schemas/specialists.schema.json`): per specialist its family, task kind, outputs (Markdown always), route, native tool policy, output profile, admission fields, source policy and continuation owner; `workflow`, `peer` and `raw_host_shell` are `false` by schema. `config/roles.json` is back to the roles before M03 | `tests/unit/specialists.test.mjs`: the schema refuses a host shell, workflows, peers, no Markdown, the `default` route, an unknown field, a PDF output without its renderer, and a duplicate id |
+| Generation | `packages/contracts/scripts/generate-specialists.ts` validates the registry and writes `packages/dsh-bundle/src/specialists.generated.ts` (id, family, outputs, route, native tools). It runs in `pnpm --filter @sophia/contracts generate`, and its `--check` in `pnpm contracts:check` | a registry edit without regeneration fails `contracts:check` (mutation-checked) |
+| Bundle | `role-registry.ts` derives the specialist presets from the generated module: their tool policy is the registry's, never restated; no goal continuation | `role-registry.test.mjs`: the presets are exactly `roles.json` plus the registry |
+| Equality | The unit's `role_routes` and the bridge row's `roleRoutes` equal the registry's routes; each route is recorded by the unit and each preset is in its roster | `specialists.test.mjs` (a changed route fails it, mutation-checked) |
+
+The research specialists' tool policy now names the research tools S4 builds. Until S4 registers them, a research attempt is offered only `todo_write` (`research-route.test.mjs`); the policy changes the presets' digests, so the bundle archive is re-recorded: linux-x64 `sha256:b085f3f9f7c225ceac3390fa3df2883263759ba6b3c3882ea793bd225ecb00a1` (replacing §9's `c119dbae…`). darwin-arm64 is still pending Codex.
+
+Moved to S4 with the research tools ([binding §8](SMC-M03-contract-binding.md)): the preset patch files and `bundlePatchFiles()`, the research-base and output plugins, prompt sections, and the registry's `prompt_sections`. The API's admission resolution against the registry is S4's as planned. SOURCE_MAP §2d and DESTINATION_MAP record S2's upstream sources and paths.
+
+A test fix found by this part's full run: `tool-recovery.test.mjs` (M02-T10) read the native session log as soon as the service had observed the second turn's end, and once, with the runtime-service suite inside the run, the log did not hold that event yet (`['error']` for `['error', 'completed']`; it passed 3/3 alone). The service sees an event when dsh appends it and the log file is written after, so the test now waits until the log holds both turn ends before asserting. No product code changed.

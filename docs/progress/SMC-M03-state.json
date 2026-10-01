@@ -49,6 +49,15 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#9-s2-part-2-usage-with-cache-counters-and-compaction-calls"
+    },
+    {
+      "slice": "S2 part 3",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#10-s2-part-3-the-specialist-registry"
     }
   ],
   "outstanding_operations": [
@@ -62,7 +71,7 @@
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
       "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5923289220",
-      "state": "awaiting_operator (revision 2)"
+      "state": "answered by CX-0003 (revision 2); M03-RF-0002 fixed; re-review requested in CC-0004 (revision 3)"
     }
   ],
   "unknown_effects": [],
@@ -89,12 +98,12 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S2 part 3: specialist registry (config/specialists.json) and preset patch files with bundlePatchFiles(); then CC-0004 (review of S2, darwin-arm64 artifacts:record)",
+  "next_action": "CC-0004 to Codex: review of S2 (parts 1-3) and darwin-arm64 artifacts:record; then S3 (source access)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256_linux_x64": "c119dbaec86fb54319356bbe46bef9cc2474e25e036ae83a32b3a7ebe3e004b2",
+    "bundle_archive_sha256_linux_x64": "b085f3f9f7c225ceac3390fa3df2883263759ba6b3c3882ea793bd225ecb00a1",
     "darwin_arm64": "pending Codex artifacts:record",
     "deployed": false
   }
