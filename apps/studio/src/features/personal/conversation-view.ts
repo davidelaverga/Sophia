@@ -160,13 +160,15 @@ export function conversationRows(input: ConversationInput): Row[] {
   const { turns, sending, welcoming, now, fromTheStart } = input
   const layout: Layout = { rows: [], lastDay: null, lastSide: null }
   if (fromTheStart) introduce(layout, input)
+  // Whether the person said something after a turn, without a pass over the rest for every turn.
+  const lastAsked = turns.findLastIndex((t) => t.author === 'person')
   turns.forEach((turn, i) => {
     addTurn(layout, turn, now)
     if (turn.author === 'person' && turn.reply === 'failed') {
       layout.rows.push({ kind: 'failed', key: `failed-${turn.id}`, turnId: turn.id })
       layout.lastSide = null
     }
-    const movedOn = !!sending || turns.slice(i + 1).some((t) => t.author === 'person')
+    const movedOn = !!sending || i < lastAsked
     addSuggestion(layout, turn, movedOn)
   })
   if (sending) {

@@ -90,10 +90,12 @@ interface BodyProps {
   locked: boolean
   onUnlock: () => void
   onCopy: () => void
+  /** An erasure is under way: no copy starts (it would read what is being erased). */
+  erasing: boolean
   onErase: () => Promise<void>
 }
 
-function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
+function DataBody({ space, locked, onUnlock, onCopy, erasing, onErase }: BodyProps) {
   if (locked) {
     return (
       <>
@@ -107,7 +109,7 @@ function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
   return (
     <>
       <Facts space={space} />
-      <button id="c-data-copy" className="pill" type="button" onClick={onCopy}>
+      <button id="c-data-copy" className="pill" type="button" aria-disabled={erasing || undefined} onClick={onCopy}>
         {DATA.copy}
       </button>
       <Erase onErase={onErase} />
@@ -169,8 +171,11 @@ export function DataSheet(props: Props) {
   // after an erasure is refused.
   // The copy on its way, so an erasure waits for its clipboard write to settle: nothing erased lands there after.
   const copying = useRef<Promise<void>>(Promise.resolve())
+  // An erasure under way: no copy starts meanwhile, so the two never overlap.
+  const [erasing, setErasing] = useState(false)
+  const erasingNow = useRef(false)
   const copy = () => {
-    copying.current = copyNow()
+    if (!erasingNow.current) copying.current = copyNow()
   }
   const copyNow = async () => {
     try {
@@ -184,6 +189,8 @@ export function DataSheet(props: Props) {
     }
   }
   const erase = async () => {
+    erasingNow.current = true
+    setErasing(true)
     calledOff.all() // what is being copied goes with what is erased
     await copying.current // and a clipboard write already under way settles first
     try {
@@ -193,6 +200,9 @@ export function DataSheet(props: Props) {
       toast(NOTICE.erased)
     } catch (err: unknown) {
       toast(personalFailure(err))
+    } finally {
+      erasingNow.current = false
+      setErasing(false)
     }
   }
   return (
@@ -200,7 +210,7 @@ export function DataSheet(props: Props) {
       {erased ? (
         <p className="sheet-lead">{DATA.erased}</p>
       ) : (
-        <DataBody space={space} locked={locked} onUnlock={onUnlock} onCopy={copy} onErase={erase} />
+        <DataBody space={space} locked={locked} onUnlock={onUnlock} onCopy={copy} erasing={erasing} onErase={erase} />
       )}
     </Sheet>
   )

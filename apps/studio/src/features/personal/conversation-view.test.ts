@@ -73,6 +73,21 @@ describe('conversationRows', () => {
     assert.equal(introText(null).startsWith('Hi, I’m Sophia.'), true)
   })
 
+  it('reads each turn a bounded number of times, however long the conversation read back', () => {
+    const many = Array.from({ length: 2_000 }, (_, i) =>
+      turn(i % 2 ? 'sophia' : 'person', `Turn ${String(i)}`, at(0, 10)),
+    )
+    let reads = 0
+    const counted = new Proxy(many, {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && /^\d+$/.test(key)) reads += 1
+        return Reflect.get(target, key, receiver) as unknown
+      },
+    })
+    conversationRows(input(counted))
+    assert.ok(reads < many.length * 10, `${String(reads)} reads of ${String(many.length)} turns`)
+  })
+
   it('offers no ways in where Sophia can’t answer: the field says why', () => {
     const rows = conversationRows(input([], { fromTheStart: true, answers: false }))
     assert.deepEqual(shape(rows), ['day:Today', 'intro'])

@@ -100,13 +100,16 @@ function TitleField({ title, status, onTitle, onClose }: TitleProps) {
 
 function NewProject({
   token,
+  shown,
   onCreated,
   onAdded,
   onClose,
 }: {
   token: string
+  /** Work is the place on screen (it stays mounted, hidden, while the person is elsewhere). */
+  shown: boolean
   onCreated: (id: string) => void
-  /** A project made after the form was cancelled: the Work list reads again, and nobody is taken into it. */
+  /** A project made after the form was cancelled or Work was left: the Work list reads again, nobody is taken into it. */
   onAdded: () => void
   onClose: () => void
 }) {
@@ -115,10 +118,14 @@ function NewProject({
   const { status } = admission.state
   const slow = useSlow(status === 'sending')
   const open = useMounted()
+  const inSight = useRef(shown)
+  useEffect(() => {
+    inSight.current = shown
+  })
   const submit = async () => {
     const created = await admission.send(title.trim())
     if (!created) return
-    if (open.current) onCreated(created.projectId)
+    if (open.current && inSight.current) onCreated(created.projectId)
     else onAdded()
   }
   return (
@@ -236,6 +243,7 @@ export function WorkSpace(props: Props) {
         {newProject.open && (
           <NewProject
             token={token}
+            shown={!props.hidden}
             onCreated={actions.open}
             onAdded={props.read.retry}
             onClose={() => newProject.set(false)}

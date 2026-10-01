@@ -582,7 +582,8 @@ their work. Keep these when you change them:
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
   carries every turn, and an erasure waits for a copy's clipboard write to
-  settle, so nothing erased lands there after. Your data's days are the server's count, over the whole
+  settle, so nothing erased lands there after; while an erasure is under
+  way no copy starts (Copy waits, aria-disabled). Your data's days are the server's count, over the whole
   conversation, in this device's time zone (UTC where the server doesn't
   know it). While the padlock is shut the field is off the page and the
   page keeps none of the space's words: neither a message on its way nor
