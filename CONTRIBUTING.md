@@ -390,10 +390,17 @@ either:
   person's words. The API claims a turn before it asks the companion
   (`claim_personal_reply`), and a welcome under its request's key
   (`begin_personal_greeting`), so only one process asks, whichever process a
-  retry reaches; a claim lapses after two minutes, as a wait does.
+  retry reaches; a claim lapses after two minutes, as a wait does. Every
+  write of the answer carries its claim, so an attempt that lapsed writes
+  nothing over a later one, neither a reply nor a failure. A welcome not
+  written yet, because the companion failed (its claim goes) or the same
+  request is still writing it, answers `outcome_unknown`: the client asks
+  again under the same key.
 - **One read of the Work list asks the room server little.** One question
-  finds the rooms someone is in (`occupiedRooms`); only those are asked who
-  is in them, a few at a time and within the list's time (`lookupAll`).
+  finds the rooms that exist (`liveRooms`); only those are asked who is in
+  them, a few at a time and within the list's time (`lookupAll`). Never by a
+  room's count of participants: the server refreshes it every few seconds,
+  and someone who just joined would read as nobody.
 
 ## The three places
 
