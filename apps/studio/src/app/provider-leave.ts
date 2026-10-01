@@ -23,16 +23,20 @@ export function pendingUnlock(): unknown {
  * here (scope local), the check goes with it, and true is said, so nobody is signed in. Anything else is left as it is.
  */
 export async function refuseOtherAccount(
-  auth: Pick<SupabaseClient['auth'], 'signOut'>,
+  auth: Pick<SupabaseClient['auth'], 'signOut' | 'getSession'>,
   user: string | null,
 ): Promise<boolean> {
   if (!otherAccountBack(pendingUnlock(), user)) return false
-  try {
-    sessionStorage.removeItem(PENDING)
-  } catch {
-    // storage unavailable: nothing was kept
-  }
   await auth.signOut({ scope: 'local' })
+  // The check goes only once that session really has: should it still be here, a reload refuses it again.
+  const { data, error } = await auth.getSession()
+  if (!error && !data.session) {
+    try {
+      sessionStorage.removeItem(PENDING)
+    } catch {
+      // storage unavailable: nothing was kept
+    }
+  }
   return true
 }
 

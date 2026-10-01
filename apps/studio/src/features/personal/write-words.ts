@@ -9,6 +9,9 @@ const MOVED_ON = new Set(['stale_revision', 'invalid_state', 'not_found', 'reque
  */
 export const movedOn = (err: unknown): boolean => err instanceof ApiError && MOVED_ON.has(err.code)
 
+/** Refused because the space was erased since this page read it: what was read is from before the erasure. */
+export const refusedAsErased = (err: unknown): boolean => err instanceof ApiError && err.code === 'request_erased'
+
 /** The space is read again after this failure: it moved on, or no answer came back and it may have changed. */
 export const readsAgain = (err: unknown): boolean =>
   movedOn(err) || (err instanceof ApiError && err.code === 'outcome_unknown')

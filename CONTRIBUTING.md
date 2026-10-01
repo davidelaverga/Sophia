@@ -503,7 +503,8 @@ their work. Keep these when you change them:
   the page is told to try another way). Back as
   another account than the one that left, that sign-in ends here and
   nobody is signed in (`refuseOtherAccount`, with tests): unlocking never
-  opens another account, not even for a moment. Anyone else is
+  opens another account, not even for a moment. Its check stays until that
+  session is really gone, so a reload refuses it again. Anyone else is
   "another account"; a check that returns nobody never is. Only the network
   has a deadline, each request on its own (20 s), never the passkey prompt:
   a prompt the person closes leaves the sheet waiting. The passkey works
@@ -517,7 +518,8 @@ their work. Keep these when you change them:
   is read again, so a second press or another tab's change shows. A write
   that went through settles once what it changed can show: the space is
   read again until a read works, less and less often while reads fail
-  (`readUntilRead`), and a message stays on its way until then. A write
+  (`readUntilRead`), and the Work list too when the write changed it (a
+  note carried or taken back); a message stays on its way until then. A write
   with no answer is retried under its key only within two minutes of its
   first attempt (`once`, with tests); later it is said as not confirmed, and
   the space is read again. A message's words stay on this device until they
@@ -565,7 +567,8 @@ their work. Keep these when you change them:
   comes. Words going out take only their own draft with them: another
   tab's newer one stays. An erasure on another device reaches an open
   tab within the Work list's next read (every 20 s) (`erasedElsewhere`);
-  after any erasure, from this page or another, what was read goes at once
+  after any erasure, from this page or another, or a write refused as
+  erased (`refusedAsErased`), what was read goes at once
   and the space is read afresh (`readAfresh`): a read that fails then says
   so, with Try again, and shows none of it. Until the space is read the
   field goes by the epoch the Work list names, so a draft from before the

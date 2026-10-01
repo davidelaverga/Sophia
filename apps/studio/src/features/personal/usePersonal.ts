@@ -27,7 +27,7 @@ import { forgetDraft } from './draft.ts'
 import { epochNow, erasedElsewhere } from './epoch.ts'
 import { once } from './once.ts'
 import { pollEvery } from './polling.ts'
-import { readsAgain } from './write-words.ts'
+import { readsAgain, refusedAsErased } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
 
@@ -187,28 +187,28 @@ export class OnItsWay extends Error {}
 function useRun(identity: Identity) {
   const client = useQueryClient()
   const space = ['personal', identity.name]
-  const work = async (projects: boolean) => {
-    if (projects) await client.invalidateQueries({ queryKey: ['projects', identity.name] })
-  }
+  const work = ['projects', identity.name]
   return async (write: (key: string, epoch: number) => Promise<PersonalReceipt>, projects = false, key?: string) => {
-    const at = epochNow(
-      client.getQueryData<PersonalSpace>(space),
-      client.getQueryData<ProjectList>(['projects', identity.name]),
-    )
+    const at = epochNow(client.getQueryData<PersonalSpace>(space), client.getQueryData<ProjectList>(work))
     try {
       const receipt = await once((k) => write(k, at), Date.now, key)
-      // It settles once what it changed can show: an erasure is read afresh, any other write until a read works.
+      // It settles once what it changed can show: an erasure is read afresh, any other write until a read works, and
+      // the Work list too when the write changed it (a note carried or taken back).
       await (receipt.operation === 'erase' ? readAfresh(client, identity.name) : readUntilRead(client, space))
-      await work(projects)
+      if (projects) await readUntilRead(client, work)
       return receipt
     } catch (err: unknown) {
-      if (readsAgain(err)) {
-        await client.invalidateQueries({ queryKey: space, exact: true })
-        await work(projects)
-      }
+      if (readsAgain(err)) await readAfterRefusal(client, identity.name, err, projects)
       throw err
     }
   }
+}
+
+/** After a refusal what it may have changed is read once; refused as erased, what was read goes at once (readAfresh). */
+async function readAfterRefusal(client: QueryClient, name: string, err: unknown, projects: boolean) {
+  if (refusedAsErased(err)) await readAfresh(client, name)
+  else await client.invalidateQueries({ queryKey: ['personal', name], exact: true })
+  if (projects) await client.invalidateQueries({ queryKey: ['projects', name] })
 }
 
 /**

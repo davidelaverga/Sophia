@@ -59,8 +59,11 @@ describe('unlocking with a provider', () => {
   })
 })
 
-/** This tab's sessionStorage, holding `pending` as the check an unlock left with; the sign-outs asked of Auth. */
-function returning(pending: object | null) {
+/**
+ * This tab's sessionStorage, holding `pending` as the check an unlock left with; the sign-outs asked of Auth, and
+ * whether the session is still there after one (`stays`: a sign-out that failed).
+ */
+function returning(pending: object | null, stays = false) {
   const held = new Map<string, string>(pending ? [[PENDING, JSON.stringify(pending)]] : [])
   Reflect.set(globalThis, 'sessionStorage', {
     getItem: (k: string) => held.get(k) ?? null,
@@ -70,8 +73,9 @@ function returning(pending: object | null) {
   const signing = {
     signOut: (o: { scope: string }) => {
       scopes.push(o.scope)
-      return Promise.resolve({ error: null })
+      return Promise.resolve({ error: stays ? new Error('offline') : null })
     },
+    getSession: () => Promise.resolve({ data: { session: stays ? { user: { id: 'ben' } } : null }, error: null }),
   }
   return { held, scopes, client: signing as unknown as Parameters<typeof refuseOtherAccount>[0] }
 }
@@ -88,6 +92,17 @@ describe('back from the provider', () => {
     }
     assert.deepEqual(scopes, ['local'])
     assert.equal(held.has(PENDING), false)
+  })
+
+  it('its sign-out failed, the session still here: the check stays, so a reload refuses it again', async () => {
+    const { held, scopes, client } = returning(left, true)
+    try {
+      assert.equal(await refuseOtherAccount(client, 'ben'), true)
+    } finally {
+      Reflect.deleteProperty(globalThis, 'sessionStorage')
+    }
+    assert.deepEqual(scopes, ['local'])
+    assert.equal(held.has(PENDING), true)
   })
 
   it('the same account, or no unlock pending: the session is left as it is', async () => {

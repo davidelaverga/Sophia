@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
-import { movedOn, personalFailure, readsAgain, unsent } from './write-words.ts'
+import { movedOn, personalFailure, readsAgain, refusedAsErased, unsent } from './write-words.ts'
 
 const refused = (code: string, status = 409) => new ApiError(status, code, 'database words', 'never')
 
@@ -16,6 +16,8 @@ describe('a refused personal write', () => {
 
   it('says a write the person erased since is gone for good, and reads the space again', () => {
     assert.equal(movedOn(refused('request_erased')), true)
+    assert.equal(refusedAsErased(refused('request_erased')), true)
+    assert.equal(refusedAsErased(refused('stale_revision')), false)
     assert.equal(personalFailure(refused('request_erased')), 'Your personal space was erased. This is how it is now.')
   })
 
