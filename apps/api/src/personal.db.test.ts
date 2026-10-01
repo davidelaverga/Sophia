@@ -272,7 +272,9 @@ describe('personal routes', () => {
       at: quietBase,
     })
     assert.equal(fresh.status, 503, 'new work is refused there')
-    // Asking again for a lost reply, the same way.
+    // Asking again for a lost reply, the same way. The conversation is answered first: once it is, nothing takes up
+    // a turn nobody asked the companion about (the process that answers one goes on with the next waiting).
+    await settled(SAME)
     const lost = await withActor(pool, SAME, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Lost on the way'))
     await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [
       lost.turnId,
