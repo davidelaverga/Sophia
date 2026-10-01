@@ -16,10 +16,12 @@ import {
   decidePersonalSuggestion,
   erasePersonalSpace,
   failPersonalReply,
+  fencePersonalWrite,
   forgetPersonalNote,
   keepPersonalNote,
   listProjects,
   readCompanionContext,
+  readPersonalEpoch,
   readPersonalExport,
   readPersonalSpace,
   readPersonalTurnsAfter,
@@ -45,6 +47,7 @@ const QUIET = randomUUID() // someone coming back after a quiet spell, asked for
 const FENCED = randomUUID() // someone whose reply a stalled process tries to write after another took it over
 const AGAIN = randomUUID() // someone whose welcome is asked for again under the same key while it is written
 const LATE = randomUUID() // someone whose welcome fails once, then is written by a later attempt of the same key
+const BEFORE = randomUUID() // someone whose message, sent before she erased everything, reaches the database after it
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -601,6 +604,33 @@ async function filled(who: string, notes: number, carried: { project: string; co
     [who, carried.project, carried.count],
   )
 }
+
+describe('personal space: writes from before an erasure', () => {
+  it('refuses a write made against an older epoch, however late it reaches the database', async () => {
+    const fenced = (epoch: number, k: string, text: string) =>
+      write(BEFORE, async (c) => {
+        await fencePersonalWrite(c, epoch)
+        return sendPersonalTurn(c, k, text)
+      })
+    assert.equal(await read(BEFORE, (c) => readPersonalEpoch(c)), 0, 'a space never written is at 0')
+    await fenced(0, key(), 'Before')
+    assert.equal((await read(BEFORE, (c) => readPersonalSpace(c))).epoch, 0)
+    // She sends one more message and erases everything; the message, held on its way, reaches the database after.
+    const late = key()
+    await write(BEFORE, (c) => erasePersonalSpace(c, key(), 'delete'))
+    assert.equal((await read(BEFORE, (c) => readPersonalSpace(c))).epoch, 1, 'each erasure moves the epoch')
+    assert.equal(await codeOf(fenced(0, late, 'Sent before the erasure')), 'request_erased')
+    assert.deepEqual((await read(BEFORE, (c) => readPersonalSpace(c))).turns, [], 'nothing came back')
+    // Made against the space as it is now, a write goes; only the space's own epoch passes.
+    await fenced(1, key(), 'After')
+    assert.deepEqual(
+      (await read(BEFORE, (c) => readPersonalSpace(c))).turns.map((t) => t.text),
+      ['After'],
+    )
+    assert.equal(await codeOf(fenced(2, key(), 'From an epoch to come')), 'request_erased')
+    assert.equal(await read(BEFORE, (c) => readPersonalEpoch(c)), 1)
+  })
+})
 
 describe('personal space: who may write it, and how much it keeps', () => {
   it('lets only the API role call a personal writer: no function of the schema is executable by everyone', async () => {

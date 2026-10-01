@@ -101,7 +101,7 @@ export type PersonalSuggestion = { "id": string; "text": string; "state": "open"
 export type PersonalTurn = { "id": string; "seq": number; "author": "person" | "sophia"; "text": string; "createdAt": string; "replyTo": string | null; "reply": "pending" | "answered" | "failed" | null; "suggestion": PersonalSuggestion | null; };
 export type PersonalNote = { "id": string; "text": string; "keptBy": "person" | "sophia"; "fromTurnId": string | null; "createdAt": string; };
 export type PersonalRelease = { "id": string; "noteId": string | null; "projectId": string; "projectTitle": string | null; "text": string; "createdAt": string; };
-export type PersonalSpace = { "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
+export type PersonalSpace = { "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; "epoch": number; };
 export type PersonalTurnPage = { "revision": number; "turns": ReadonlyArray<PersonalTurn>; "pending": boolean; };
 export type PersonalExport = { "exportedAt": string; "turns": ReadonlyArray<PersonalTurn>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; };
 export type PersonalMessage = { "text": string; };
@@ -113,7 +113,7 @@ export type PersonalResumeRequest = { "name"?: string; };
 export type PersonalReceipt = { "operation": "send_turn" | "retry_turn" | "decide_suggestion" | "keep_note" | "forget_note" | "carry_note" | "take_back" | "erase" | "resume"; "revision": number; "turnId": string | null; "seq": number | null; "suggestionId": string | null; "noteId": string | null; "releaseId": string | null; "projectId": string | null; "erased": { "turns": number; "notes": number; "suggestions": number; } | null; };
 export type ProjectRelease = { "id": string; "text": string; "ownerName": string; "mine": boolean; "createdAt": string; };
 export type ProjectSummary = { "projectId": string; "title": string; "role": "admin" | "editor" | "viewer"; "members": number; "room": { "people": ReadonlyArray<string>; "sophia": boolean; } | null; "nextSession": RoomSession | null; "releases": ReadonlyArray<ProjectRelease>; };
-export type ProjectList = { "projects": ReadonlyArray<ProjectSummary>; };
+export type ProjectList = { "projects": ReadonlyArray<ProjectSummary>; "personalEpoch": number; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };

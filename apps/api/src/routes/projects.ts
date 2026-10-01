@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { ProjectCreate, ProjectSummary } from '@sophia/contracts'
-import { createProject, listProjects, withActor, type ProjectListing } from '@sophia/persistence'
+import { createProject, listProjects, readPersonalEpoch, withActor, type ProjectListing } from '@sophia/persistence'
 import { liveRooms, roomParticipants, type LiveKitConfig } from '../livekit.ts'
 import { lookupAll } from '../presence.ts'
 import { idempotencyHeader } from './schemas.ts'
@@ -88,8 +88,13 @@ export function projectRoutes(
   )
 
   app.get('/api/v1/projects', { schema: { response: { 200: { $ref: 'ProjectList#' } } } }, async (req) => {
-    const listed = await withActor(pool, req.actorId, 'read', (c) => listProjects(c))
+    // With the reader's personal epoch: Work's writes to their notes (taking one back) are fenced to it too.
+    const { listed, personalEpoch } = await withActor(pool, req.actorId, 'read', async (c) => ({
+      listed: await listProjects(c),
+      personalEpoch: await readPersonalEpoch(c),
+    }))
     const rooms = await roomsNow(livekit, listed)
-    return { projects: listed.map(({ roomId: _room, ...rest }, i) => ({ ...rest, room: rooms[i] ?? null })) }
+    const projects = listed.map(({ roomId: _room, ...rest }, i) => ({ ...rest, room: rooms[i] ?? null }))
+    return { projects, personalEpoch }
   })
 }

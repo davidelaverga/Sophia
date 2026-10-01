@@ -26,12 +26,14 @@
 -- 0001–0020 are not edited.
 BEGIN;
 
--- One row per person who ever wrote here: the order of their turns and a revision that moves with every write. It
--- keeps no date: nothing says when the person first wrote.
+-- One row per person who ever wrote here: the order of their turns, a revision that moves with every write, and an
+-- epoch that moves with each erasure (a write made against an older one is refused: personal_fence). It keeps no
+-- date: nothing says when the person first wrote.
 CREATE TABLE sophia.personal_spaces (
  owner_id uuid PRIMARY KEY,
  turn_seq bigint NOT NULL DEFAULT 0 CHECK(turn_seq>=0),
- revision bigint NOT NULL DEFAULT 1 CHECK(revision>0)
+ revision bigint NOT NULL DEFAULT 1 CHECK(revision>0),
+ epoch bigint NOT NULL DEFAULT 0 CHECK(epoch>=0)
 );
 
 -- The conversation: the person's turns and Sophia's replies, in one order. A person's turn waits for its reply
@@ -156,6 +158,17 @@ BEGIN
  PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=sophia.personal_owner() FOR UPDATE;
 END $$;
 REVOKE ALL ON FUNCTION sophia.personal_hold() FROM PUBLIC;
+
+-- Before every personal write the API makes but erasure, in its transaction: the space is held, and a write made
+-- against an epoch other than the space's (one issued before an erasure, however late it reaches the database) is
+-- refused as erased: nothing written before an erasure comes back after it.
+CREATE FUNCTION sophia.personal_fence(p_epoch bigint) RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ PERFORM sophia.personal_hold();
+ IF p_epoch IS DISTINCT FROM (SELECT epoch FROM sophia.personal_spaces WHERE owner_id=sophia.personal_owner()) THEN
+  RAISE EXCEPTION 'Stale request: what it wrote has since been erased' USING ERRCODE='40001'; END IF;
+END $$;
 
 -- The stored receipt of an earlier identical request, or NULL; a changed request under the same key is refused, a
 -- request whose writes were erased is told so, whatever it says now, and so is the keep of a note since forgotten (it
@@ -582,6 +595,7 @@ BEGIN
  prior:=sophia.personal_prior(p_key,'erase',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
+ UPDATE sophia.personal_spaces SET epoch=epoch+1 WHERE owner_id=a;
  UPDATE sophia.personal_releases SET note_id=NULL WHERE owner_id=a;
  DELETE FROM sophia.personal_greeting_claims WHERE owner_id=a;
  DELETE FROM sophia.personal_notes WHERE owner_id=a;
@@ -596,14 +610,14 @@ BEGIN
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
+REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid),
  sophia.record_personal_greeting(text,uuid,text),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
+GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid),
  sophia.record_personal_greeting(text,uuid,text),

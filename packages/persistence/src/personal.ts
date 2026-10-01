@@ -56,11 +56,26 @@ function turnOf(r: TurnRow): PersonalTurn {
   }
 }
 
-async function readRevision(c: pg.PoolClient): Promise<number> {
-  const { rows } = await c.query<{ revision: string }>(
-    `SELECT revision FROM sophia.personal_spaces WHERE owner_id = sophia.actor_id()`,
+/** The calling person's revision and epoch: 1 and 0 for a space never written. */
+async function readSpaceState(c: pg.PoolClient): Promise<{ revision: number; epoch: number }> {
+  const { rows } = await c.query<{ revision: string; epoch: string }>(
+    `SELECT revision, epoch FROM sophia.personal_spaces WHERE owner_id = sophia.actor_id()`,
   )
-  return rows[0] ? Number(rows[0].revision) : 1
+  const row = rows[0]
+  return row ? { revision: Number(row.revision), epoch: Number(row.epoch) } : { revision: 1, epoch: 0 }
+}
+
+const readRevision = async (c: pg.PoolClient) => (await readSpaceState(c)).revision
+
+/** The calling person's epoch: 0 until their space is first erased, one more with each erasure (0021). */
+export const readPersonalEpoch = async (c: pg.PoolClient) => (await readSpaceState(c)).epoch
+
+/**
+ * In a personal write's transaction, before it: holds the space and refuses (request_erased) a write made against
+ * another epoch than the space's, so one issued before an erasure writes nothing however late it arrives (0021).
+ */
+export async function fencePersonalWrite(c: pg.PoolClient, epoch: number): Promise<void> {
+  await c.query('SELECT sophia.personal_fence($1)', [epoch])
 }
 
 /**
@@ -128,7 +143,7 @@ export async function readPersonalSpace(
 ): Promise<Omit<PersonalSpace, 'companion'>> {
   const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq DESC LIMIT $1`, [limit + 1])
   return {
-    revision: await readRevision(c),
+    ...(await readSpaceState(c)),
     turns: rows.slice(0, limit).map(turnOf).toReversed(),
     earlier: rows.length > limit,
     notes: await readNotes(c),
