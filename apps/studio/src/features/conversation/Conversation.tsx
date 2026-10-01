@@ -19,6 +19,8 @@ interface Props {
   room: ProjectRoom
   draft: string
   onDraft: (text: string) => void
+  /** Closes the panel, so the room's dock shows (Composer). */
+  onShowRoom: () => void
 }
 
 /** Opening the panel (or resizing it) keeps the newest line in view while the reader follows along. */
@@ -34,7 +36,8 @@ function useFollowOnResize(history: RefObject<HTMLDivElement | null>, following:
   }, [history, following])
 }
 
-export function Conversation({ projectId, identity, snapshot, me, names, room, draft, onDraft }: Props) {
+export function Conversation(props: Props) {
+  const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
   const discussion = snapshot?.discussion ?? []
   const history = useRef<HTMLDivElement>(null)
   const following = useRef(true)
@@ -84,6 +87,7 @@ export function Conversation({ projectId, identity, snapshot, me, names, room, d
         room={room}
         draft={draft}
         onDraft={onDraft}
+        onShowRoom={onShowRoom}
       />
     </div>
   )

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
+  mediaMessage,
   orderParticipants,
   presenceRole,
   presenceSlots,
@@ -27,6 +28,38 @@ const person = (identity: string, name: string, local = false): RoomParticipant 
 })
 const luis = person('a', 'luis@sophia.test', true)
 const davide = person('b', 'davide@sophia.test')
+
+const refused = (name: string) => Object.assign(new Error('refused'), { name })
+
+describe('a device that didn’t do what was asked', () => {
+  it('says why it didn’t start, in words a person can act on', () => {
+    assert.equal(
+      mediaMessage(refused('NotAllowedError'), 'microphone', true),
+      'Microphone blocked. Allow it in the address bar.',
+    )
+    assert.equal(mediaMessage(refused('NotFoundError'), 'camera', true), 'No camera found.')
+    assert.equal(
+      mediaMessage(refused('NotReadableError'), 'microphone', true),
+      'Another app is using your microphone. Close it and try again.',
+    )
+    assert.equal(mediaMessage(new Error('x'), 'camera', true), 'The camera couldn’t start. Try again.')
+  })
+
+  it('says nothing when the screen picker was cancelled', () => {
+    assert.equal(mediaMessage(refused('NotAllowedError'), 'screen', true), null)
+    assert.equal(mediaMessage(refused('AbortError'), 'screen', true), null)
+    assert.equal(mediaMessage(new Error('x'), 'screen', true), 'Screen sharing couldn’t start. Try again.')
+  })
+
+  it('says a device couldn’t be turned off, never that it couldn’t start', () => {
+    assert.equal(mediaMessage(new Error('x'), 'microphone', false), 'The microphone couldn’t be turned off. Try again.')
+    assert.equal(
+      mediaMessage(refused('NotAllowedError'), 'camera', false),
+      'The camera couldn’t be turned off. Try again.',
+    )
+    assert.equal(mediaMessage(refused('AbortError'), 'screen', false), 'Screen sharing couldn’t stop. Try again.')
+  })
+})
 
 describe('floor view', () => {
   it('offers a free floor to whoever is in the room', () => {

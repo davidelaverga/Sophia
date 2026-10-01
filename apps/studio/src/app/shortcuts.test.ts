@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keyLabel, shortcutKey, typesText, type KeyLike } from './shortcuts.ts'
+import { keyLabel, onScreen, shortcutKey, strayFrom, typesText, type KeyLike } from './shortcuts.ts'
 
 const press = (key: string, over: Partial<KeyLike> = {}): KeyLike => ({
   key,
@@ -46,6 +46,15 @@ describe('single-key shortcuts', () => {
     for (const key of ['v', 'm', 's', 'j', 'c', '1']) assert.equal(shortcutKey(press(key, { stray: true })), null, key)
   })
 
+  it('takes a key typed on the panel’s tab or buttons as stray too, but leaves Space to press them', () => {
+    // Opening Chat focuses its tab: the message typed next must not close the panel (C), swap it (B) or a lens (1).
+    for (const key of ['c', 'b', '1', 'h']) assert.equal(strayFrom('scope', key), true, key)
+    assert.equal(strayFrom('scope', ' '), false)
+    assert.equal(strayFrom('nowhere', ' '), true)
+    // A control elsewhere (the dock, the lens bar) keeps its shortcuts: C there opens the chat.
+    assert.equal(strayFrom('elsewhere', 'c'), false)
+  })
+
   it('reads a command combination (⌘ on a Mac, Ctrl elsewhere), even from a field: it types nothing', () => {
     const ctrl = { ctrlKey: true, command: true }
     assert.equal(shortcutKey(press('d', ctrl)), 'mod+d')
@@ -83,5 +92,14 @@ describe('single-key shortcuts', () => {
     assert.equal(typesText(press('Escape')), false)
     assert.equal(typesText(press('v', { ctrlKey: true })), false)
     assert.equal(typesText(press('v', { metaKey: true })), false)
+  })
+})
+
+describe('what is on screen', () => {
+  it('asks checkVisibility where the browser has it, and the element’s boxes where it doesn’t (Safari before 17.4)', () => {
+    assert.equal(onScreen({ checkVisibility: () => false, getClientRects: () => [{}] }), false)
+    assert.equal(onScreen({ checkVisibility: () => true, getClientRects: () => [] }), true)
+    assert.equal(onScreen({ getClientRects: () => [{}] }), true)
+    assert.equal(onScreen({ getClientRects: () => [] }), false, 'a hidden ancestor leaves it no box')
   })
 })

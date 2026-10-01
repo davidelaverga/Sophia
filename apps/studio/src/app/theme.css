@@ -3016,12 +3016,33 @@ div.empty {
 .side-panel-head > .round:hover {
   background: rgba(236, 235, 241, 0.06);
 }
-/* The call's switches in the head, only where the panel covers the room (see the phone block below): a live
-   microphone, camera or shared screen stays in sight with its off switch. Beside the room the dock shows them. */
+/* The panel's top: its head, then (where the panel covers the room) the call's switches and the note. Someone at the
+   door is shown under it there (--panel-top), never over the tabs or Close. */
+.side-panel-top {
+  flex: none;
+}
+/* The call's switches, a row of their own under the head, only where the panel covers the room (see the phone block
+   below): a live microphone, camera or shared screen stays in sight with its off switch, and the row wraps rather
+   than push Close off a phone's screen. Beside the room the dock shows them. */
 .side-panel-call {
   display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  margin-left: auto;
+  padding: 8px calc(var(--panel-pad) - 4px) 0 var(--panel-pad);
+}
+/* What stopped a device, or why the call ended, said under the head too where the panel covers the dock that says it
+   (for the eye: the dock's own note is the one announced). */
+.side-panel-note {
+  display: none;
+  margin: 8px var(--panel-pad) 0;
+  padding: 7px 11px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: 12.5px;
 }
 /* Touch: finger-sized tabs and Close, still the lens bar's height (44 px there) and still on the gutter. */
 @media (pointer: coarse) {
@@ -3165,15 +3186,11 @@ div.empty {
     top: calc(var(--topbar) + 132px);
   }
 }
-/* Touch: the corner's buttons are 40 px and the lens bar's 36 px (a 44 px bar), which the corner here and the
-   panel's tabs line up with. #23 sets the same lens size in the shared touch block; one of the two goes when both
-   are in. */
+/* Touch: the corner's buttons are 40 px, beside the lens bar's 36 px (a 44 px bar; the shared touch block sets the
+   lens size), and the corner here and the panel's tabs line up with them. */
 @media (pointer: coarse) {
   .room-stage {
     --corner-room: 112px;
-  }
-  .segmented button {
-    min-height: 36px;
   }
   @container (max-width: 799.98px) {
     .stage-corner {
@@ -3206,6 +3223,13 @@ div.empty {
   background: var(--core);
   box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
 }
+.chat-show-room {
+  display: none;
+}
+/* Beside the room, the lobby card keeps clear of an open panel: its tabs and Close stay in reach. */
+.shell:has(.side-panel:not([hidden])) .lobby {
+  right: calc(min(380px, 42vw) + var(--gutter));
+}
 @media (max-width: 760px) {
   .side-panel {
     position: fixed;
@@ -3216,5 +3240,21 @@ div.empty {
   }
   .side-panel-call {
     display: flex;
+  }
+  .side-panel-note {
+    display: block;
+  }
+  /* The chat's line points at the floor or Resume, in the dock under the panel: it offers to show the room. */
+  .chat-show-room {
+    display: inline-block;
+  }
+  /* Someone at the door is let in from over the panel, not after closing it: under the panel's top, so the tabs,
+     Close and the call's switches stay in reach. */
+  .shell:has(.side-panel:not([hidden])) .lobby {
+    top: calc(var(--panel-top, var(--topbar)) + 8px);
+    left: var(--gutter);
+    right: var(--gutter);
+    width: auto;
+    z-index: 31;
   }
 }

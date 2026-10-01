@@ -40,6 +40,23 @@ export function chatEntry(inRoom: boolean, presence: SophiaPresence | undefined)
   return inRoom && !!presence && presence.exchange !== 'none' ? 'bar' : 'start'
 }
 
+/**
+ * The one error the chat's foot says. Why the call ended or failed comes first: it is the room's state now, and a
+ * send or a start that failed before it is old news. The chat's own errors belong to a call this person is in, so
+ * they go with it. `live`: the foot announces it to screen readers; the room's note is announced by the dock, which
+ * stays in the accessibility tree even where the panel covers it, so here it is said for the eye only.
+ */
+export function footError(
+  room: string | null,
+  inRoom: boolean,
+  send: string | null,
+  start: string | null,
+): { text: string; live: boolean } | null {
+  if (room) return { text: room, live: false }
+  const own = inRoom ? (send ?? start) : null
+  return own ? { text: own, live: true } : null
+}
+
 /** Typed words reach Sophia: her exchange is open and she is ready to take them. */
 export function reachesSophia(presence: SophiaPresence | undefined): boolean {
   return presence?.exchange === 'open' && presence.voice === 'ready'
@@ -58,7 +75,7 @@ export interface ChatMoment {
 
 /**
  * The line above the message bar: why Send waits, close to the room's own words for the same states, or that typing
- * reaches Sophia. Null when the bar speaks for itself. Whenever this returns a reason, Send is disabled.
+ * reaches Sophia. Null when the bar speaks for itself. Whenever this returns a reason, Send is disabled (Composer).
  */
 export function chatLine(presence: SophiaPresence, at: ChatMoment): string | null {
   if (at.starting) return 'Connecting to Sophia…'
@@ -72,4 +89,14 @@ export function chatLine(presence: SophiaPresence, at: ChatMoment): string | nul
   if (presence.voice !== 'ready') return 'Sophia is joining…'
   if (!at.mine) return 'Take the floor to message Sophia.'
   return at.textMode ? 'Typing to Sophia' : null
+}
+
+/**
+ * The line waits on a control in the room's dock: taking the floor, or Resume. Where the panel covers the dock the
+ * chat offers to show the room, so the line never points at something out of reach.
+ */
+export function waitsOnRoom(presence: SophiaPresence, at: ChatMoment): boolean {
+  if (at.starting) return false
+  if (presence.exchange === 'paused') return presence.pauseReason !== 'guest'
+  return at.live && presence.voice === 'ready' && !at.mine
 }

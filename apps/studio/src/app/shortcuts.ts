@@ -6,8 +6,11 @@
 //
 // Where the chat's foot is on screen (it marks itself `data-typing-sink`), a key typed with the focus on no
 // control is text for it, as in any chat, and never a shortcut: someone who starts a message without clicking the
-// bar must not turn on a camera with its first letter. Before the chat starts, the foot is the "Chat with Sophia"
-// button: it takes the key as nothing, and still no camera, microphone or shared screen starts.
+// bar must not turn on a camera with its first letter. So is a key typed on a control of the part that holds the foot
+// (`data-typing-scope`: the side panel's tabs, Close, Send): opening the chat focuses its tab, and the message typed
+// next must not close the panel with its first C. Space stays the control's, to press it. Before the chat starts, the
+// foot is the "Chat with Sophia" button: it takes the key as nothing, and still no camera, microphone or shared screen
+// starts.
 import { useEffect, useRef } from 'react'
 
 export interface KeyLike {
@@ -61,11 +64,31 @@ export function typesText(e: Pick<KeyLike, 'key' | 'metaKey' | 'ctrlKey' | 'altK
 
 const FIELDS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
-/** Where stray typing goes: the chat's foot on screen, and only while the focus is on no control at all. */
-function strayField(target: HTMLElement | null): HTMLElement | null {
-  if (target && target !== document.body && target !== document.documentElement) return null
+/** Where the focus is, for stray typing: on no control, on a control of the foot's own part, or elsewhere. */
+export type FocusAt = 'nowhere' | 'scope' | 'elsewhere'
+
+/** Whether a key typed there is stray (text for the foot): from nowhere, or from a control of its part but Space. */
+export const strayFrom = (at: FocusAt, key: string) => at === 'nowhere' || (at === 'scope' && key !== ' ')
+
+function focusAt(target: HTMLElement | null, field: HTMLElement): FocusAt {
+  if (!target || target === document.body || target === document.documentElement) return 'nowhere'
+  if (target.isContentEditable || FIELDS.has(target.tagName)) return 'elsewhere' // a field keeps its own typing
+  return target.closest('[data-typing-scope]')?.contains(field) ? 'scope' : 'elsewhere'
+}
+
+/**
+ * Whether an element is on screen: checkVisibility where the browser has it, else whether it has a box (a hidden
+ * ancestor takes it away). Safari before 17.4 has no checkVisibility, and the build targets Safari 16.4: calling it
+ * there threw on every key, and no shortcut worked.
+ */
+export function onScreen(el: { getClientRects: () => ArrayLike<unknown>; checkVisibility?: () => boolean }): boolean {
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : el.getClientRects().length > 0
+}
+
+/** Where stray typing goes: the chat's foot, when it is on screen and the key is stray (strayFrom). */
+function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
   const field = document.querySelector<HTMLElement>('[data-typing-sink]')
-  return field?.checkVisibility() ? field : null
+  return field && onScreen(field) && strayFrom(focusAt(target, field), key) ? field : null
 }
 
 function keyLike(e: KeyboardEvent): KeyLike {
@@ -81,7 +104,7 @@ function keyLike(e: KeyboardEvent): KeyLike {
     defaultPrevented: e.defaultPrevented,
     typing: !!el && (el.isContentEditable || FIELDS.has(el.tagName)),
     inDialog: !!el?.closest('[role="dialog"]'),
-    stray: !!strayField(el),
+    stray: !!strayField(el, e.key),
   }
 }
 
@@ -96,7 +119,7 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
     const onKey = (e: KeyboardEvent) => {
       // Stray typing: the character lands in the field, because the focus moves there before it is typed. A button
       // in the field's place takes no character, and is not focused (a space would press it).
-      const sink = typesText(e) ? strayField(e.target instanceof HTMLElement ? e.target : null) : null
+      const sink = typesText(e) ? strayField(e.target instanceof HTMLElement ? e.target : null, e.key) : null
       if (sink && FIELDS.has(sink.tagName)) sink.focus()
       const key = shortcutKey(keyLike(e))
       const run = key ? current.current[key] : undefined

@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { it } from 'node:test'
 import type { SophiaPresence } from '@sophia/contracts'
-import { chatEntry, chatLine, reachesSophia, receiveChat, type ChatMoment, type ChatTurn } from './chat-view.ts'
+import {
+  chatEntry,
+  chatLine,
+  footError,
+  reachesSophia,
+  receiveChat,
+  waitsOnRoom,
+  type ChatMoment,
+  type ChatTurn,
+} from './chat-view.ts'
 const turn: ChatTurn = {
   id: 'a',
   exchangeId: 'e',
@@ -80,6 +89,29 @@ it('the line above the bar says why Send waits, one reason at a time', () => {
 it('once Send can work the line only names text mode, and says nothing in voice mode', () => {
   assert.equal(chatLine(sophia(), typing), 'Typing to Sophia')
   assert.equal(chatLine(sophia(), { ...typing, textMode: false }), null)
+})
+
+it('says why the call ended before an older chat error, and drops the chat’s errors out of the call', () => {
+  const ended = 'You were disconnected from the room.'
+  const sendFailed = 'Delivery unconfirmed. Nothing is resent automatically.'
+  assert.deepEqual(footError(ended, false, sendFailed, null), { text: ended, live: false }, 'the dock announces it')
+  assert.equal(footError(null, false, sendFailed, 'start failed'), null, 'left on purpose: nothing old stays')
+  assert.deepEqual(footError(null, true, sendFailed, 'start failed'), { text: sendFailed, live: true })
+  assert.deepEqual(footError(null, true, null, 'start failed'), { text: 'start failed', live: true })
+})
+
+it('knows when the line waits on the room’s dock (taking the floor, Resume), so the room can be shown', () => {
+  assert.equal(waitsOnRoom(sophia(), { ...typing, mine: false }), true, 'Take the floor to message Sophia.')
+  assert.equal(waitsOnRoom(sophia({ exchange: 'paused', pauseReason: 'holder_left' }), typing), true, 'Resume')
+  assert.equal(
+    waitsOnRoom(sophia({ exchange: 'paused', pauseReason: 'guest' }), typing),
+    false,
+    'a guest: nothing to press',
+  )
+  assert.equal(waitsOnRoom(sophia(), typing), false, 'typing reaches her')
+  assert.equal(waitsOnRoom(sophia(), { ...typing, mine: false, live: false }), false, 'reconnecting')
+  assert.equal(waitsOnRoom(sophia({ voice: 'connecting' }), { ...typing, mine: false }), false, 'she is joining')
+  assert.equal(waitsOnRoom(sophia(), { ...typing, mine: false, starting: true }), false)
 })
 
 it('typed words reach Sophia only with her exchange open and her voice ready', () => {

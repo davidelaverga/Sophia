@@ -25,6 +25,7 @@ import {
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
+import { deviceChange } from './device-change.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -56,6 +57,8 @@ export interface VideoFeed {
 export interface RoomConnection {
   sendChat: (packet: ChatInput) => Promise<void>
   setTextMode: (on: boolean) => void
+  /** Sophia is read, not heard: the call is in text mode now. */
+  textMode: () => boolean
   participants: () => RoomParticipant[]
   /** The `sophia` participant as observed here, or null when she is not in the room. */
   sophia: () => SophiaSignal | null
@@ -143,17 +146,28 @@ function videoFeeds(): Feeds {
 }
 
 /** Remote voices (and a shared screen's sound) play through hidden audio elements, removed with the track. */
-function remoteAudio(room: Room, textOnly: () => boolean): void {
+/**
+ * The room's voices, as audio elements this room owns: a room that ends removes its own, never another's (a join that
+ * was superseded and left must not silence the call that replaced it).
+ */
+function remoteAudio(room: Room, textOnly: () => boolean): Set<HTMLMediaElement> {
+  const mine = new Set<HTMLMediaElement>()
   room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
     if (track.kind !== Track.Kind.Audio) return
     const el = track.attach()
     el.dataset.sophiaRoomAudio = isSophia(participant) ? 'sophia' : 'member'
     el.muted = isSophia(participant) && textOnly()
     document.body.append(el)
+    mine.add(el)
   })
   room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-    if (track.kind === Track.Kind.Audio) for (const el of track.detach()) el.remove()
+    if (track.kind !== Track.Kind.Audio) return
+    for (const el of track.detach()) {
+      el.remove()
+      mine.delete(el)
+    }
   })
+  return mine
 }
 
 const CHANGES = [
@@ -183,17 +197,18 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   for (const event of CHANGES) room.on(event, cb.onChange)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
+  let textOnly = false
+  const audio = remoteAudio(room, () => textOnly)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-    for (const el of document.querySelectorAll('[data-sophia-room-audio]')) el.remove()
+    for (const el of audio) el.remove()
+    audio.clear()
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
-  let textOnly = false
   room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
     if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
     const packet = parseChatPacket(bytes)
     if (packet && packet.kind !== 'input') cb.onChat?.(packet)
   })
-  remoteAudio(room, () => textOnly)
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
@@ -201,6 +216,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     cb.onChange()
   }
   const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
+  const me = room.localParticipant
   return {
     sendChat: (packet) =>
       room.localParticipant.publishData(encodeChatPacket(packet), {
@@ -210,18 +226,25 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       }),
     setTextMode: (on) => {
       textOnly = on
-      for (const el of document.querySelectorAll<HTMLAudioElement>('[data-sophia-room-audio="sophia"]')) el.muted = on
+      for (const el of audio) if (el.dataset.sophiaRoomAudio === 'sophia') el.muted = on
     },
+    textMode: () => textOnly,
     participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
     startAudio: () => after(room.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
-    setMicrophone: (on) => after(room.localParticipant.setMicrophoneEnabled(on)),
-    setCamera: (on) => after(room.localParticipant.setCameraEnabled(on)),
+    // Each device as LiveKit leaves it, not as its answer says (deviceChange).
+    setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
+    setCamera: (on) => after(deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on)),
     // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.
     setScreenShare: (on) =>
-      after(room.localParticipant.setScreenShareEnabled(on, { audio: true, selfBrowserSurface: 'exclude' })),
+      after(
+        deviceChange(
+          me.setScreenShareEnabled(on, { audio: true, selfBrowserSurface: 'exclude' }),
+          () => me.isScreenShareEnabled === on,
+        ),
+      ),
     leave: () => room.disconnect(),
   }
 }
