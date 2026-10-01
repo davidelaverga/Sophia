@@ -129,8 +129,8 @@ function Line({ lockedBy, onLock }: { lockedBy: LockedBy | null; onLock: () => v
       <button
         className="c2-lock has-tip"
         type="button"
-        aria-pressed={!!lockedBy}
-        aria-label={LOCK_TIP.open.label}
+        data-locked={lockedBy ? 'true' : 'false'}
+        aria-label={tip.label}
         onClick={onLock}
       >
         <span className="open">

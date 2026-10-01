@@ -60,7 +60,9 @@ writing a new one, and keep the rule when you change the code around it.
   `<Tip label keys side align />` from `@sophia/ui`. Tips are `aria-hidden`,
   so when visible text moves into a tip, keep it for assistive technology:
   `aria-describedby` on the group (`LensSwitcher`), or the full sentence as
-  the `aria-label` of a short button (the notes consent's "Agree"). The key
+  the `aria-label` of a short button (the notes consent's "Agree"). A control
+  whose press changes with its state is named for what it does now (the
+  padlock: lock, or unlock), never pressed or not. The key
   lives in the tip, never as a hidden element inside the control: a child
   that cannot be seen still takes its room and pushes the label off center.
 - **A disabled primary waits as an outline** (`.pill.primary:disabled` in
@@ -615,9 +617,10 @@ their work. Keep these when you change them:
   is being answered keeps the focus as it waits ("Sending…", "Checking…",
   "Deleting…": `aria-disabled`, never `disabled`). A modal sheet on screen
   takes every key and every stray letter (`modalOnScreen`); one left open in
-  a project out of sight takes none. A screen reader hears
-  Sophia writing and then her reply (`heard`, with tests), never what was
-  there when the space loaded.
+  a project out of sight takes none, and takes the focus again when the
+  project is back on screen. A screen reader hears Sophia writing and then
+  her reply (`heard`, with tests), never what was there when the space
+  loaded, nor earlier days read back.
 
 ## The Studio's hosting headers
 

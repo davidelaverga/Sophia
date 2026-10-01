@@ -294,7 +294,9 @@ export function heard(
 ): string | null {
   if (previous === null) return null
   const before = new Map(previous.map((t) => [t.id, t]))
-  const replies = next.filter((t) => t.author === 'sophia' && !before.has(t.id))
+  // Only what came after the newest turn shown: earlier days read back are not news.
+  const newest = previous.reduce((most, t) => Math.max(most, t.seq), 0)
+  const replies = next.filter((t) => t.author === 'sophia' && !before.has(t.id) && t.seq > newest)
   if (replies.length > 0) return replies.map((t) => `Sophia: ${t.text}`).join(' ')
   const failed = next.some((t) => t.author === 'person' && t.reply === 'failed' && before.get(t.id)?.reply !== 'failed')
   if (failed) return 'Sophia couldn’t answer this one.'

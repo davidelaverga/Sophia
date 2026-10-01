@@ -166,6 +166,13 @@ describe('what a screen reader hears', () => {
     assert.equal(heard(null, [before, answered, reply], false, false), null)
   })
 
+  it('nothing when earlier days are read back: old replies are not news', () => {
+    const old = [turn('person', 'Long ago', at(9, 10)), turn('sophia', 'An old reply.', at(9, 10, 1))]
+    const recent = [turn('person', 'Today', at(0, 10)), turn('sophia', 'A recent reply.', at(0, 10, 1))]
+    const older = old.map((t, i) => ({ ...t, id: `old-${String(i)}`, seq: i + 1 }))
+    assert.equal(heard(recent, [...older, ...recent], false, false), null)
+  })
+
   it('Sophia beginning to write, then her reply, never the person’s own turn', () => {
     assert.equal(heard([before], [before, asked], true, false), 'Sophia is writing…')
     assert.equal(heard([before, asked], [before, answered, reply], false, true), 'Sophia: I am.')

@@ -436,13 +436,13 @@
 .places .c2-lock .shut {
   display: none;
 }
-.places .c2-lock[aria-pressed='true'] .open {
+.places .c2-lock[data-locked='true'] .open {
   display: none;
 }
-.places .c2-lock[aria-pressed='true'] .shut {
+.places .c2-lock[data-locked='true'] .shut {
   display: block;
 }
-.places .c2-lock[aria-pressed='true'] {
+.places .c2-lock[data-locked='true'] {
   color: var(--warm);
   border-color: rgba(241, 220, 199, 0.55);
   background: #15110f;

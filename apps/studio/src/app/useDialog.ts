@@ -47,6 +47,9 @@ export function useDialog(
   }, [panel])
   useEffect(() => {
     if (!scoped) return undefined
+    // Back on screen (a project kept for its call, shown again), it takes the focus again: the browser moved it out
+    // when its part of the page was hidden.
+    if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close.current()
       else if (e.key === 'Tab' && panel.current) keepFocusInside(e, panel.current)
