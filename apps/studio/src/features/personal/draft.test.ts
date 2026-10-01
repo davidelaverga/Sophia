@@ -80,13 +80,21 @@ describe('the words on their way', () => {
   const words = draftOf('On its way')
 
   it('leave the draft, and are kept apart from it, so no other tab shows them in its field', () => {
-    const out = goingOut(words, 5_000)
+    const out = goingOut({ draft: words, sending: null }, words, 5_000)
     assert.equal(out.draft, null)
     assert.deepEqual(out.sending, { ...words, until: 5_000 })
     const typed = { ...out, draft: draftOf('Typed meanwhile') }
     const read = keptIn(keptAs(typed, 1), 1)
     assert.equal(read.draft?.text, 'Typed meanwhile', 'what another tab’s field shows')
     assert.deepEqual(read.sending, out.sending)
+  })
+
+  it('leave another tab’s newer draft where it is, when this tab hadn’t heard of it', () => {
+    const theirs = draftOf('Newer, from the other tab')
+    assert.deepEqual(goingOut({ draft: theirs, sending: null }, words, 5_000), {
+      draft: theirs,
+      sending: { ...words, until: 5_000 },
+    })
   })
 
   it('are let go once sent, and only they: the draft stays, and so do another tab’s words on their way', () => {

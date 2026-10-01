@@ -108,8 +108,14 @@ export function writeKept(account: string, kept: Kept, epoch: number): number {
   }
 }
 
-/** The words go, until `until`: out of the draft, kept apart until they are sent. */
-export const goingOut = (words: Draft, until: number): Kept => ({ draft: null, sending: { ...words, until } })
+/**
+ * The words go, until `until`: out of the draft when it holds them (another tab's newer words, under another key,
+ * stay), kept apart until they are sent.
+ */
+export const goingOut = (kept: Kept, words: Draft, until: number): Kept => ({
+  draft: kept.draft?.key === words.key ? null : kept.draft,
+  sending: { ...words, until },
+})
 
 /** Sent: the words on their way are let go, and only they (another tab's stay); the draft stays as it is then. */
 export const afterSent = (kept: Kept, sent: Draft): Kept => ({

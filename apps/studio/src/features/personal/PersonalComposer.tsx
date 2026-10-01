@@ -65,7 +65,7 @@ const openingNote = (open: { draft: Draft | null; back: boolean }) =>
 function useDraftFollows(
   account: string,
   epoch: number | undefined,
-  adopt: (draft: Draft | null, why: string, at: number) => void,
+  adopt: (draft: Draft | null, why: string, at: number, theirs: number | null) => void,
 ) {
   const follow = useRef(adopt)
   useEffect(() => {
@@ -78,10 +78,15 @@ function useDraftFollows(
     if (read.current !== epoch) {
       if (read.current === undefined) {
         const open = opened(account, epoch)
-        follow.current(open.draft, openingNote(open), open.at)
+        follow.current(
+          open.draft,
+          openingNote(open),
+          open.at,
+          open.back ? null : (readKept(account, epoch).sending?.until ?? null),
+        )
       } else {
         const kept = readKept(account, epoch)
-        follow.current(kept.draft, '', kept.at ?? epoch)
+        follow.current(kept.draft, '', kept.at ?? epoch, kept.sending?.until ?? null)
       }
       read.current = epoch
     }
@@ -89,11 +94,38 @@ function useDraftFollows(
     const onStorage = (e: StorageEvent) => {
       if (e.key !== key && e.key !== null) return
       const kept = readKept(account, epoch)
-      follow.current(kept.draft, '', kept.at ?? epoch)
+      follow.current(kept.draft, '', kept.at ?? epoch, kept.sending?.until ?? null)
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
   }, [account, epoch])
+}
+
+/**
+ * Words another tab has on their way, until `until`: should that tab go away before they are answered, they come back
+ * to this field once their time is up (onOpening), said so; `back` is told them and the epoch they are kept in.
+ */
+function useLeftBehind(
+  account: string,
+  epoch: number | undefined,
+  until: number | null,
+  back: (draft: Draft | null, at: number) => void,
+) {
+  const restore = useRef(back)
+  useEffect(() => {
+    restore.current = back
+  })
+  useEffect(() => {
+    if (until === null || epoch === undefined) return undefined
+    const wake = setTimeout(
+      () => {
+        const open = onOpening(readKept(account, epoch), Date.now())
+        if (open.back) restore.current(open.draft, writeKept(account, { draft: open.draft, sending: null }, epoch))
+      },
+      Math.max(0, until - Date.now()) + 50,
+    )
+    return () => clearTimeout(wake)
+  }, [account, epoch, until])
 }
 
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
@@ -113,9 +145,17 @@ function useDraft(account: string, epoch: number | undefined) {
     setText(draft?.text ?? '')
     setNote(why)
   }
-  useDraftFollows(account, epoch, (draft, why, kept) => {
+  // Words another tab has on their way (never this tab's own): their time, for useLeftBehind.
+  const [theirs, setTheirs] = useState<number | null>(null)
+  useDraftFollows(account, epoch, (draft, why, kept, until) => {
     show(draft, why)
     setAt(kept)
+    setTheirs(sending.current ? null : until)
+  })
+  useLeftBehind(account, epoch, theirs, (draft, kept) => {
+    show(draft, BACK.unconfirmed)
+    setAt(kept)
+    setTheirs(null)
   })
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
@@ -140,7 +180,7 @@ function useDraft(account: string, epoch: number | undefined) {
     go: (words: Draft) => {
       sending.current = words
       show(null, '')
-      keep(() => goingOut(words, Date.now() + WRITE_TIMEOUT_MS))
+      keep((kept) => goingOut(kept, words, Date.now() + WRITE_TIMEOUT_MS))
     },
     /** Sent (or erased with the space): the device lets those words go and keeps its draft as it is then. */
     sent: () => {

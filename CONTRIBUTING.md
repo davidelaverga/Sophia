@@ -517,9 +517,11 @@ their work. Keep these when you change them:
   Signing out or erasing forgets the draft (`draft.ts`). One message is on
   its way at a time, from the field or a way to start (`OnItsWay`): the
   field waits meanwhile. Every write but erasure names the epoch of the
-  space as this page last read it (`epochNow`: the space or the Work list,
-  the newer), and its retry names the same one, so nothing sent before an
-  erasure lands after it. The field follows the one draft the device keeps:
+  space as this page last read it (`epochNow`: the space's when it is
+  shown, else the Work list's), and its retry names the same one, so
+  nothing sent before an erasure lands after it, nor anything a space shown
+  from before one writes, though the Work list may already name the newer
+  epoch. The field follows the one draft the device keeps:
   another tab's change at once, and an erasure anywhere (it moves the epoch;
   also one whose answer was lost) takes the words written before it. The
   draft keeps the epoch it was written in (`draftIn`), so words from before
@@ -533,7 +535,9 @@ their work. Keep these when you change them:
   from the draft (`Kept`): no other tab shows them in its field or sends
   them again, and what is typed after them is a message of its own; they
   come back to the field only if the tab that sent them went away (its time
-  for them is up), said so. An erasure on another device reaches an open
+  for them is up), said so; an open field takes them back when that time
+  comes. Words going out take only their own draft with them: another
+  tab's newer one stays. An erasure on another device reaches an open
   tab within the Work list's next read (every 20 s), which reads the space
   again (`erasedElsewhere`); and waiting for a reply never stops reading:
   after failed reads, less and less often (`pollEvery`). The device never
