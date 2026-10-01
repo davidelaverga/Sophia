@@ -553,7 +553,10 @@ their work. Keep these when you change them:
   tab within the Work list's next read (every 20 s) (`erasedElsewhere`);
   after any erasure, from this page or another, what was read goes at once
   and the space is read afresh (`readAfresh`): a read that fails then says
-  so, with Try again, and shows none of it. Waiting for a reply never stops
+  so, with Try again, and shows none of it. Until the space is read the
+  field goes by the epoch the Work list names, so a draft from before the
+  erasure leaves the field and the device at once (one written after it
+  stays). Waiting for a reply never stops
   reading:
   after failed reads, less and less often (`pollEvery`). The device never
   keeps words in an older epoch than it already holds (`keptEpoch`), and a

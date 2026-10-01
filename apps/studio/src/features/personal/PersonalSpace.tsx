@@ -43,6 +43,11 @@ interface Props {
   name: string | null
   /** Undefined until it has loaded (`read` says how that goes). */
   space: Space | undefined
+  /**
+   * The epoch the page knows: the space's once read, else the one the Work list names. An erasure heard of while the
+   * space can't be read takes the draft from before it out of the field at once (one written after it stays).
+   */
+  epoch: number | undefined
   /** A long conversation read back, before what the space lists. */
   readBack: ReadBack
   read: Read
@@ -297,7 +302,7 @@ export function PersonalSpace(props: Props) {
     <PersonalComposer
       // An erasure forgets the draft too: the composer starts afresh.
       key={writes.erasures}
-      {...{ account, epoch: space?.epoch, hidden: props.hidden, busy: writes.busy, onBehind: writes.readAgain }}
+      {...{ account, epoch: props.epoch, hidden: props.hidden, busy: writes.busy, onBehind: writes.readAgain }}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={setListening}
       onSend={sender(writes, onFailed)}

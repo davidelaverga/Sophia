@@ -385,6 +385,7 @@ function Personal({ v }: { v: View }) {
       account={accountOf(props.identity)}
       name={firstName(props.identity)}
       space={v.personal}
+      epoch={v.personal?.epoch ?? v.projects.data?.personalEpoch}
       readBack={v.readBack}
       read={personalRead(v)}
       projects={v.projects.data?.projects}
