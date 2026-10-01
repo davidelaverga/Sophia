@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { afterSent, draftIn, draftKept, draftOf, draftToStore, forgetDrafts, restoredDraft } from './draft.ts'
+import {
+  afterSent,
+  draftOf,
+  forgetDrafts,
+  goingOut,
+  keptAs,
+  keptIn,
+  NOTHING_KEPT,
+  onOpening,
+  restoredDraft,
+} from './draft.ts'
 
 /** A store holding these keys, as a browser's localStorage lists them. */
 function store(keys: string[]) {
@@ -34,20 +44,20 @@ describe('a draft and the erasures since it was written', () => {
   const hello = draftOf('Hello')
 
   it('shows the words written in the space’s epoch, or in a later one another tab has read, with their key', () => {
-    assert.deepEqual(draftIn(draftKept(hello, 3), 3), hello)
-    assert.deepEqual(draftIn(draftKept(hello, 4), 3), hello)
+    assert.deepEqual(keptIn(keptAs({ draft: hello, sending: null }, 3), 3).draft, hello)
+    assert.deepEqual(keptIn(keptAs({ draft: hello, sending: null }, 4), 3).draft, hello)
   })
 
   it('shows none written before an erasure, wherever it happened, nor anything it can’t read', () => {
-    assert.equal(draftIn(draftKept(hello, 2), 3), null)
-    assert.equal(draftIn('Hello', 0), null, 'words kept without their epoch, as before it was kept')
-    assert.equal(draftIn('{"text":"Hello","epoch":0}', 0), null, 'nor without the key they go under')
-    assert.equal(draftIn(null, 0), null)
+    assert.deepEqual(keptIn(keptAs({ draft: hello, sending: null }, 2), 3), NOTHING_KEPT)
+    assert.deepEqual(keptIn('Hello', 0), NOTHING_KEPT, 'words kept without their epoch, as before it was kept')
+    assert.equal(keptIn('{"text":"Hello","epoch":0}', 0).draft, null, 'nor without the key they go under')
+    assert.deepEqual(keptIn(null, 0), NOTHING_KEPT)
   })
 
-  it('keeps nothing for an empty field', () => {
-    assert.equal(draftKept(draftOf(''), 1), null)
-    assert.equal(draftKept(null, 1), null)
+  it('keeps nothing for an empty field with nothing on its way', () => {
+    assert.equal(keptAs({ draft: draftOf(''), sending: null }, 1), null)
+    assert.equal(keptAs(NOTHING_KEPT, 1), null)
   })
 
   it('gives each version of the words a key of its own', () => {
@@ -55,25 +65,47 @@ describe('a draft and the erasures since it was written', () => {
   })
 })
 
-describe('the draft once a message went', () => {
-  const sent = draftOf('On its way')
+describe('the words on their way', () => {
+  const words = draftOf('On its way')
 
-  it('keeps nothing when the device holds just the words that went', () => {
-    assert.equal(afterSent(sent, sent), null)
-    assert.equal(afterSent(null, sent), null)
+  it('leave the draft, and are kept apart from it, so no other tab shows them in its field', () => {
+    const out = goingOut(words, 5_000)
+    assert.equal(out.draft, null)
+    assert.deepEqual(out.sending, { ...words, until: 5_000 })
+    const typed = { ...out, draft: draftOf('Typed meanwhile') }
+    const read = keptIn(keptAs(typed, 1), 1)
+    assert.equal(read.draft?.text, 'Typed meanwhile', 'what another tab’s field shows')
+    assert.deepEqual(read.sending, out.sending)
   })
 
-  it('keeps what was typed after them, as words of their own (a key of their own)', () => {
-    const rest = afterSent(draftOf('On its way\nAnd more'), sent)
-    assert.equal(rest?.text, 'And more')
-    assert.notEqual(rest?.key, sent.key)
+  it('are let go once sent, and only they: the draft stays, and so do another tab’s words on their way', () => {
+    const typed = draftOf('Typed meanwhile')
+    assert.deepEqual(afterSent({ draft: typed, sending: { ...words, until: 1 } }, words), {
+      draft: typed,
+      sending: null,
+    })
+    const theirs = { ...draftOf('Theirs'), until: 1 }
+    assert.deepEqual(afterSent({ draft: typed, sending: theirs }, words), { draft: typed, sending: theirs })
+  })
+})
+
+describe('words on their way that a tab left behind', () => {
+  const words = draftOf('On its way')
+
+  it('stay away while the tab sending them may still be waiting for them', () => {
+    const kept = { draft: draftOf('Typed'), sending: { ...words, until: 2_000 } }
+    assert.deepEqual(onOpening(kept, 1_000), { draft: kept.draft, back: false })
   })
 
-  it('keeps another tab’s words as they are', () => {
-    const theirs = draftOf('Written in the other tab')
-    assert.equal(afterSent(theirs, sent), theirs)
-    const same = draftOf('On its way')
-    assert.equal(afterSent(same, sent), same, 'the same words written again are another message')
+  it('come back once its time is up, under their own key when nothing was typed after them', () => {
+    assert.deepEqual(onOpening({ draft: null, sending: { ...words, until: 1_000 } }, 2_000), {
+      draft: words,
+      back: true,
+    })
+    const ahead = onOpening({ draft: draftOf('Typed'), sending: { ...words, until: 1_000 } }, 2_000)
+    assert.equal(ahead.draft?.text, 'On its way\nTyped')
+    assert.notEqual(ahead.draft?.key, words.key, 'with what was typed after them, a message of its own')
+    assert.equal(ahead.back, true)
   })
 })
 
@@ -82,14 +114,6 @@ describe('words that didn’t go', () => {
     assert.equal(restoredDraft('First thought', ''), 'First thought')
     assert.equal(restoredDraft('First thought', '  '), 'First thought')
     assert.equal(restoredDraft('First thought', 'and a second'), 'First thought\nand a second')
-  })
-})
-
-describe('the draft while a message is on its way', () => {
-  it('keeps the words on their way ahead of anything typed meanwhile, so closing the page loses neither', () => {
-    assert.equal(draftToStore(null, 'Typing'), 'Typing')
-    assert.equal(draftToStore('On its way', ''), 'On its way')
-    assert.equal(draftToStore('On its way', 'More'), 'On its way\nMore')
   })
 })
 

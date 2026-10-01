@@ -523,7 +523,14 @@ their work. Keep these when you change them:
   under (`Draft`), so the same draft sent from two tabs, or again from one
   that hadn't heard it went, is one message; a message that settles leaves
   the device's draft as it is then, without its words (`afterSent`), so
-  words another tab wrote meanwhile stay. A long conversation reads back from the Earlier days menu
+  words another tab wrote meanwhile stay. Words on their way are kept apart
+  from the draft (`Kept`): no other tab shows them in its field or sends
+  them again, and what is typed after them is a message of its own; they
+  come back to the field only if the tab that sent them went away (its time
+  for them is up), said so. An erasure on another device reaches an open
+  tab within the Work list's next read (every 20 s), which reads the space
+  again (`erasedElsewhere`); and waiting for a reply never stops reading:
+  after failed reads, less and less often (`pollEvery`). A long conversation reads back from the Earlier days menu
   ("Show earlier days"); turns that leave the space's window as new ones
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it

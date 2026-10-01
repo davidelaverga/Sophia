@@ -7,3 +7,12 @@ export const epochNow = (
   space: Pick<PersonalSpace, 'epoch'> | undefined,
   work: Pick<ProjectList, 'personalEpoch'> | undefined,
 ): number => Math.max(space?.epoch ?? 0, work?.personalEpoch ?? 0)
+
+/**
+ * An erasure this page hasn't read yet: the Work list, read every 20 s, names a newer epoch than the space shown. The
+ * space is read again then, and goes with its draft.
+ */
+export const erasedElsewhere = (
+  space: Pick<PersonalSpace, 'epoch'> | undefined,
+  work: Pick<ProjectList, 'personalEpoch'> | undefined,
+): boolean => space !== undefined && work !== undefined && work.personalEpoch > space.epoch

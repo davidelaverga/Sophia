@@ -24,12 +24,12 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { backOnSpaceRead, withEarlierPage, type ReadBackState, type Sending } from './conversation-view.ts'
 import { forgetDraft } from './draft.ts'
-import { epochNow } from './epoch.ts'
+import { epochNow, erasedElsewhere } from './epoch.ts'
 import { once } from './once.ts'
+import { pollEvery } from './polling.ts'
 import { readsAgain } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
-const POLL_MS = 700
 
 const NO_TURNS: readonly PersonalTurn[] = []
 
@@ -73,7 +73,7 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
       return page
     },
     enabled: open && waiting,
-    refetchInterval: (query) => (query.state.status === 'error' ? false : POLL_MS),
+    refetchInterval: (query) => pollEvery(query.state.fetchFailureCount),
   })
   return space
 }
@@ -120,6 +120,22 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
 }
 
 export type ReadBack = ReturnType<typeof useReadBack>
+
+/**
+ * An erasure on another device, once this page hears of it from the Work list (erasedElsewhere): the space is read
+ * again, so neither its conversation nor its draft stays in sight.
+ */
+export function useReadAgainOnErasure(
+  identity: Identity,
+  space: PersonalSpace | undefined,
+  work: ProjectList | undefined,
+) {
+  const client = useQueryClient()
+  const seen = erasedElsewhere(space, work)
+  useEffect(() => {
+    if (seen) void client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
+  }, [seen, client, identity.name])
+}
 
 export function useProjects(identity: Identity) {
   return useQuery({

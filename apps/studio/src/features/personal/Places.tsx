@@ -28,6 +28,7 @@ import {
   usePersonalSpace,
   usePersonalWrites,
   useProjects,
+  useReadAgainOnErasure,
   useReadBack,
   type PersonalWrites,
   type ReadBack,
@@ -515,6 +516,8 @@ export function Places(props: PlacesProps) {
   const explain = useExplain(identity.name)
   const nav = usePlaceNavigation(props, layers)
   const space = usePersonalSpace(identity, !lock.locked)
+  const projects = useProjects(identity)
+  useReadAgainOnErasure(identity, lock.locked ? undefined : space.data, projects.data)
   const v: View = {
     props,
     now: useNow(),
@@ -522,7 +525,7 @@ export function Places(props: PlacesProps) {
     space,
     personal: lock.locked ? undefined : space.data,
     readBack: useReadBack(identity, lock.locked ? undefined : space.data),
-    projects: useProjects(identity),
+    projects,
     writes: usePersonalWrites(identity, lock.locked),
     shown: usePlaceMotion(place, root),
     nav,

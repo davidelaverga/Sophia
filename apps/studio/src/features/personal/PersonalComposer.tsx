@@ -4,16 +4,18 @@
 // draft came from or why it is back, as the chat's foot does (.chat-line).
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
+import { WRITE_TIMEOUT_MS } from '../../api/client.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
 import {
   afterSent,
   draftKey,
   draftOf,
-  draftToStore,
-  readDraft,
+  goingOut,
+  onOpening,
+  readKept,
   restoredDraft,
-  writeDraft,
+  writeKept,
   type Draft,
 } from './draft.ts'
 import type { Unsent } from './write-words.ts'
@@ -39,15 +41,31 @@ const PLACEHOLDER: Record<ComposerState, string> = {
 }
 
 /**
- * The field follows the one draft this device keeps, as the space's epoch shows it (readDraft): once the epoch is
+ * The draft a field opens with in `epoch` (onOpening): words on their way a tab left behind come back ahead of it, and
+ * the device keeps them so, apart from nothing.
+ */
+function opened(account: string, epoch: number): { draft: Draft | null; back: boolean } {
+  const kept = readKept(account, epoch)
+  const open = onOpening(kept, Date.now())
+  if (open.back) writeKept(account, { draft: open.draft, sending: null }, epoch)
+  return open
+}
+
+/** The line above the field for the draft it opens with. */
+const openingNote = (open: { draft: Draft | null; back: boolean }) =>
+  open.back ? BACK.unconfirmed : open.draft ? KEPT : ''
+
+/**
+ * The field follows the one draft this device keeps, as the space's epoch shows it (readKept): once the epoch is
  * known, another tab's change (a send there, an erasure there) at once; and an erasure anywhere (another device, one
  * whose answer was lost, one while this device was locked) moves the epoch, which takes the words written before it
- * from the field and from this device. `adopt` is told whether the words are the draft the device kept, read first.
+ * from the field and from this device. Words on their way are never shown here. `adopt` is told the line above the
+ * field.
  */
 function useDraftFollows(
   account: string,
   epoch: number | undefined,
-  adopt: (draft: Draft | null, first: boolean) => void,
+  adopt: (draft: Draft | null, why: string) => void,
 ) {
   const follow = useRef(adopt)
   useEffect(() => {
@@ -58,12 +76,13 @@ function useDraftFollows(
   useEffect(() => {
     if (epoch === undefined) return undefined
     if (read.current !== epoch) {
-      follow.current(readDraft(account, epoch), read.current === undefined)
+      const open = read.current === undefined ? opened(account, epoch) : { draft: readKept(account, epoch).draft }
+      follow.current(open.draft, 'back' in open ? openingNote(open) : '')
       read.current = epoch
     }
     const key = draftKey(account)
     const onStorage = (e: StorageEvent) => {
-      if (e.key === key || e.key === null) follow.current(readDraft(account, epoch), false)
+      if (e.key === key || e.key === null) follow.current(readKept(account, epoch).draft, '')
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -72,28 +91,30 @@ function useDraftFollows(
 
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
 function useDraft(account: string, epoch: number | undefined) {
-  const [first] = useState(() => (epoch === undefined ? null : readDraft(account, epoch)))
-  const [text, setText] = useState(first?.text ?? '')
-  const [note, setNote] = useState(first ? KEPT : '')
+  const [first] = useState(() => (epoch === undefined ? null : opened(account, epoch)))
+  const [text, setText] = useState(first?.draft?.text ?? '')
+  const [note, setNote] = useState(first ? openingNote(first) : '')
   // What the field holds now, with its key, for words that come back after a send that waited (restoredDraft).
-  const latest = useRef<Draft | null>(first)
-  // Words on their way, with their key: the device keeps them ahead of anything typed meanwhile until they are sent.
+  const latest = useRef<Draft | null>(first?.draft ?? null)
+  // Words on their way, with their key: the device keeps them apart from the draft until they are sent.
   const sending = useRef<Draft | null>(null)
   const show = (draft: Draft | null, why: string) => {
     latest.current = draft
     setText(draft?.text ?? '')
     setNote(why)
   }
-  useDraftFollows(account, epoch, (draft, read) => show(draft, read && draft ? KEPT : ''))
+  useDraftFollows(account, epoch, show)
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
-  const keep = (draft: Draft | null) => {
-    if (epoch !== undefined) writeDraft(account, draft, epoch)
+  const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
+    if (epoch === undefined) return null
+    const now = change(readKept(account, epoch))
+    writeKept(account, now, epoch)
+    return now
   }
-  /** Words typed (a key of their own), or words back with the key they went under: the device keeps them. */
+  /** Words in the field: the device keeps them as its draft, with what is on its way (any tab's) as it is. */
   const set = (draft: Draft | null, why: string) => {
     show(draft, why)
-    const words = sending.current
-    keep(words && draft ? draftOf(draftToStore(words.text, draft.text)) : (words ?? draft))
+    keep((kept) => ({ ...kept, draft }))
   }
   return {
     text,
@@ -101,26 +122,26 @@ function useDraft(account: string, epoch: number | undefined) {
     change: (value: string, why = value ? KEPT : '') => set(value ? draftOf(value) : null, why),
     /** The words in the field, with the key they go under. */
     current: () => latest.current,
-    /** The words go, under their key: the field empties at once, and the device keeps them until they're sent. */
+    /** The words go, under their key: the field empties at once, and the device keeps them apart until they're sent. */
     go: (words: Draft) => {
       sending.current = words
       show(null, '')
-      keep(words)
+      keep(() => goingOut(words, Date.now() + WRITE_TIMEOUT_MS))
     },
-    /** Sent (or erased with the space): the device keeps what it holds without those words (afterSent). */
+    /** Sent (or erased with the space): the device lets those words go and keeps its draft as it is then. */
     sent: () => {
       const words = sending.current
       sending.current = null
-      if (!words || epoch === undefined) return
-      const now = afterSent(readDraft(account, epoch), words)
-      keep(now)
-      show(now, '')
+      const now = words ? keep((kept) => afterSent(kept, words)) : null
+      if (now) show(now.draft, '')
     },
     /** Not sent: the words come back to the field, under the key they went with when nothing was typed meanwhile. */
     back: (words: Draft, why: string) => {
       sending.current = null
       const typed = latest.current?.text ?? ''
-      set(typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words, why)
+      const draft = typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words
+      show(draft, why)
+      keep((kept) => ({ ...afterSent(kept, words), draft }))
     },
   }
 }

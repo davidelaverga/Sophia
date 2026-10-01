@@ -2,8 +2,9 @@
 // tab loses nothing, with the epoch of the space it was written in: words from before an erasure, wherever it happened
 // (another device, while this one was locked), never come back. Each version of the words has the admission key it is
 // sent under, kept with it, so every tab sends the same draft under the same key: one message, whichever tab sends it,
-// however often. It belongs to the account signed in (accountOf): signing out forgets every draft on this device, and
-// erasing the personal space forgets theirs.
+// however often. Words on their way are kept apart from the draft: no other tab shows them in its field or sends them
+// again, and they come back only if the tab that sent them went away. It belongs to the account signed in (accountOf):
+// signing out forgets every draft on this device, and erasing the personal space forgets theirs.
 const FAMILY = 'sophia.personal.draft.'
 const PREFIX = `${FAMILY}v2.`
 export const draftKey = (account: string) => `${PREFIX}${account}`
@@ -14,62 +15,102 @@ export interface Draft {
   key: string
 }
 
+/** Words a tab has on their way, under their key, and until when that tab waits for them (its write's time limit). */
+export interface OnItsWay extends Draft {
+  until: number
+}
+
+/** What the device keeps: the draft in the field, and apart from it the words on their way. */
+export interface Kept {
+  draft: Draft | null
+  sending: OnItsWay | null
+}
+
+export const NOTHING_KEPT: Kept = { draft: null, sending: null }
+
 /** These words as a draft of their own: a key minted for them. */
 export const draftOf = (text: string, key: string = crypto.randomUUID()): Draft => ({ text, key })
 
+const field = (value: object, name: string): unknown => Reflect.get(value, name)
+
+function draftFrom(value: object): Draft | null {
+  const text = field(value, 'text')
+  const key = field(value, 'key')
+  return typeof text === 'string' && text && typeof key === 'string' ? { text, key } : null
+}
+
+function onItsWayFrom(value: unknown): OnItsWay | null {
+  if (typeof value !== 'object' || value === null) return null
+  const words = draftFrom(value)
+  const until = field(value, 'until')
+  return words && typeof until === 'number' ? { ...words, until } : null
+}
+
 /**
- * A kept draft as the field shows it in the space's `epoch`: its words and key, or none when it was written before an
- * erasure (or can't be read). One from a later epoch is another tab's that read the space since: it shows.
+ * What the device keeps, as the space's `epoch` shows it: nothing when it was written before an erasure (or can't be
+ * read). What a later epoch keeps is another tab's that read the space since: it shows.
  */
-export function draftIn(kept: string | null, epoch: number): Draft | null {
-  if (kept === null) return null
+export function keptIn(kept: string | null, epoch: number): Kept {
+  if (kept === null) return NOTHING_KEPT
   try {
     const value: unknown = JSON.parse(kept)
-    if (typeof value !== 'object' || value === null) return null
-    const at: unknown = Reflect.get(value, 'epoch')
-    const text: unknown = Reflect.get(value, 'text')
-    const key: unknown = Reflect.get(value, 'key')
-    const readable = typeof at === 'number' && typeof text === 'string' && typeof key === 'string'
-    return readable && at >= epoch && text ? { text, key } : null
+    if (typeof value !== 'object' || value === null) return NOTHING_KEPT
+    const at = field(value, 'epoch')
+    if (typeof at !== 'number' || at < epoch) return NOTHING_KEPT
+    return { draft: draftFrom(value), sending: onItsWayFrom(field(value, 'sending')) }
   } catch {
-    return null
+    return NOTHING_KEPT
   }
 }
 
-/** What the device keeps of a draft written in `epoch`; nothing for an empty field. */
-export const draftKept = (draft: Draft | null, epoch: number): string | null =>
-  draft?.text ? JSON.stringify({ epoch, text: draft.text, key: draft.key }) : null
+/** How the device keeps it, in `epoch`; nothing for an empty field with nothing on its way. */
+export function keptAs(kept: Kept, epoch: number): string | null {
+  const draft = kept.draft?.text ? kept.draft : null
+  if (!draft && !kept.sending) return null
+  return JSON.stringify({ epoch, ...draft, ...(kept.sending ? { sending: kept.sending } : {}) })
+}
 
-/** The draft this device keeps, as the field shows it in `epoch`; one from before an erasure goes from the device. */
-export function readDraft(account: string, epoch: number): Draft | null {
+/** What this device keeps, as the space's `epoch` shows it; what is from before an erasure goes from the device. */
+export function readKept(account: string, epoch: number): Kept {
   try {
-    const kept = localStorage.getItem(draftKey(account))
-    const draft = draftIn(kept, epoch)
-    if (kept !== null && !draft) localStorage.removeItem(draftKey(account))
-    return draft
+    const stored = localStorage.getItem(draftKey(account))
+    const kept = keptIn(stored, epoch)
+    if (stored !== null && !kept.draft && !kept.sending) localStorage.removeItem(draftKey(account))
+    return kept
   } catch {
-    return null
+    return NOTHING_KEPT
   }
 }
 
-export function writeDraft(account: string, draft: Draft | null, epoch: number): void {
+export function writeKept(account: string, kept: Kept, epoch: number): void {
   try {
-    const kept = draftKept(draft, epoch)
-    if (kept) localStorage.setItem(draftKey(account), kept)
+    const stored = keptAs(kept, epoch)
+    if (stored) localStorage.setItem(draftKey(account), stored)
     else localStorage.removeItem(draftKey(account))
   } catch {
     // storage unavailable: the draft lasts for this page only
   }
 }
 
+/** The words go, until `until`: out of the draft, kept apart until they are sent. */
+export const goingOut = (words: Draft, until: number): Kept => ({ draft: null, sending: { ...words, until } })
+
+/** Sent: the words on their way are let go, and only they (another tab's stay); the draft stays as it is then. */
+export const afterSent = (kept: Kept, sent: Draft): Kept => ({
+  draft: kept.draft,
+  sending: kept.sending?.key === sent.key ? null : kept.sending,
+})
+
 /**
- * What the device keeps once `sent` went, from what it keeps now (another tab may have written since): nothing when it
- * holds just those words; what was typed after them, as words of their own; another tab's words as they are.
+ * The draft a field opens with: what the device keeps, and words on their way the tab that sent them left behind (its
+ * time is up), back ahead of it; under their own key when nothing was typed after them.
  */
-export function afterSent(kept: Draft | null, sent: Draft): Draft | null {
-  if (!kept || kept.key === sent.key) return null
-  const ahead = `${sent.text}\n`
-  return kept.text.startsWith(ahead) ? draftOf(kept.text.slice(ahead.length)) : kept
+export function onOpening(kept: Kept, now: number): { draft: Draft | null; back: boolean } {
+  const left = kept.sending && kept.sending.until < now ? kept.sending : null
+  if (!left) return { draft: kept.draft, back: false }
+  const typed = kept.draft?.text ?? ''
+  const words = { text: left.text, key: left.key }
+  return { draft: typed.trim() ? draftOf(restoredDraft(left.text, typed)) : words, back: true }
 }
 
 /** Erasing the space: the device keeps none of its draft. */
@@ -102,10 +143,3 @@ export function forgetDrafts(given?: Store): void {
 /** Words that didn't go come back ahead of anything written meanwhile, so nothing typed is lost. */
 export const restoredDraft = (words: string, current: string): string =>
   current.trim() ? `${words}\n${current}` : words
-
-/**
- * What the device keeps of the draft: what is typed, and while a message is on its way (`sending`) those words ahead
- * of it, so closing the page then loses neither.
- */
-export const draftToStore = (sending: string | null, typed: string): string =>
-  sending === null ? typed : restoredDraft(sending, typed)
