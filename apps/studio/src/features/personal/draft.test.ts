@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { draftToStore, forgetDrafts, restoredDraft } from './draft.ts'
+import { draftIn, draftKept, draftToStore, forgetDrafts, restoredDraft } from './draft.ts'
 
 /** A store holding these keys, as a browser's localStorage lists them. */
 function store(keys: string[]) {
@@ -22,11 +22,29 @@ describe('drafts on this device', () => {
     const s = store([
       'sophia.personal.draft.v1.ana@sophia.test',
       'sophia.mic.v1',
-      'sophia.personal.draft.v1.luis@sophia.test',
+      'sophia.personal.draft.v2.luis@sophia.test',
       'sophia.personal.lock.v1.ana@sophia.test',
     ])
     forgetDrafts(s)
     assert.deepEqual(s.held, ['sophia.mic.v1', 'sophia.personal.lock.v1.ana@sophia.test'])
+  })
+})
+
+describe('a draft and the erasures since it was written', () => {
+  it('shows the words written in the space’s epoch, or in a later one another tab has read', () => {
+    assert.equal(draftIn(draftKept('Hello', 3), 3), 'Hello')
+    assert.equal(draftIn(draftKept('Hello', 4), 3), 'Hello')
+  })
+
+  it('shows none written before an erasure, wherever it happened, nor anything it can’t read', () => {
+    assert.equal(draftIn(draftKept('Hello', 2), 3), '')
+    assert.equal(draftIn('Hello', 0), '', 'words kept without their epoch, as before it was kept')
+    assert.equal(draftIn('{"text":"Hello"}', 0), '')
+    assert.equal(draftIn(null, 0), '')
+  })
+
+  it('keeps nothing for an empty field', () => {
+    assert.equal(draftKept('', 1), null)
   })
 })
 

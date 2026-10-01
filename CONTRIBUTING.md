@@ -139,7 +139,9 @@ writing a new one, and keep the rule when you change the code around it.
   starting in another project ends the one before (`useCall` in `App.tsx`),
   and opening another project leaves it, the toast saying so
   (`useOneCallInSight`): a project's bar has no room for another room's call,
-  and nothing may keep sending out of sight.
+  and nothing may keep sending out of sight. The call's project stays on
+  screen, with its controls, until the call has left (`projectOnScreen`);
+  the other opens, and joins if asked, only then.
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, and everywhere else the dock's own toggles
@@ -500,10 +502,14 @@ their work. Keep these when you change them:
   the newer), and its retry names the same one, so nothing sent before an
   erasure lands after it. The field follows the one draft the device keeps:
   another tab's change at once, and an erasure anywhere (it moves the epoch;
-  also one whose answer was lost) takes the words written before it.
-  A long conversation reads back from the Earlier days menu ("Show earlier
-  days"); turns that leave the space's window as new ones come stay with
-  what was read; Your data's copy reads the export a page at a time, so it
+  also one whose answer was lost) takes the words written before it. The
+  draft keeps the epoch it was written in (`draftIn`), so words from before
+  an erasure never come back, also when it happened on another device while
+  this one was locked; the field reads the draft only once the space's epoch
+  is known. A long conversation reads back from the Earlier days menu
+  ("Show earlier days"); turns that leave the space's window as new ones
+  come stay with what was read, also while a page is on its way (it joins
+  what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
   carries every turn. Your data's days are the server's count, over the whole
   conversation, in this device's time zone (UTC where the server doesn't
   know it). While the padlock is shut the field is off the page and the

@@ -13,6 +13,8 @@ import {
   type ConversationInput,
   withReadBack,
   keptOnReadBack,
+  backOnSpaceRead,
+  withEarlierPage,
 } from './conversation-view.ts'
 
 const NOW = new Date(2026, 8, 30, 21, 0)
@@ -221,5 +223,31 @@ describe('a long conversation read back', () => {
     assert.deepEqual([kept.length, kept[0]?.seq, kept.at(-1)?.seq], [110, 401, 510])
     assert.equal(keptOnReadBack(read, before, before), read, 'nothing left the window: the same turns')
     assert.equal(withReadBack(kept, after).length, 610)
+  })
+
+  it('lets what was read back go once the space is erased: another epoch keeps none of it', () => {
+    const back = { epoch: 1, turns: run(401, 500), more: true }
+    assert.equal(backOnSpaceRead(back, run(501, 1000), { epoch: 2, turns: run(1, 3) }), null)
+    assert.equal(backOnSpaceRead(null, [], { epoch: 2, turns: [] }), null)
+    const same = backOnSpaceRead(back, run(501, 1000), { epoch: 1, turns: run(511, 1010) })
+    assert.deepEqual([same?.turns.length, same?.turns.at(-1)?.seq], [110, 510], 'the same epoch keeps what left')
+  })
+
+  it('joins a page that arrives to what was read back by then, each turn once', () => {
+    // 401..500 read back; while 301..400 was on its way, 501..510 left the window into what was read back.
+    const now = { epoch: 1, turns: run(401, 510), more: true }
+    const joined = withEarlierPage(now, 1, { turns: run(301, 400), earlier: true })
+    assert.deepEqual(
+      [joined.turns.length, joined.turns[0]?.seq, joined.turns.at(-1)?.seq, joined.more],
+      [210, 301, 510, true],
+    )
+    const overlapping = withEarlierPage(now, 1, { turns: run(391, 410), earlier: false })
+    assert.equal(new Set(overlapping.turns.map((t) => t.seq)).size, overlapping.turns.length, 'each turn once')
+    const fresh = withEarlierPage(now, 2, { turns: run(1, 3), earlier: false })
+    assert.deepEqual(
+      fresh.turns.map((t) => t.seq),
+      [1, 2, 3],
+      'nothing read back in another epoch is joined',
+    )
   })
 })

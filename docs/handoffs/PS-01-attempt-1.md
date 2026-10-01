@@ -25,11 +25,11 @@ What works, on the local dev stack with the rehearsal companion:
   - the three places (home, Personal, Work) under one bar, built from the Studio's own controls;
   - the padlock: one value per device and account (never the address, which can change); the person shuts it and so does every call; a call's end opens nothing; only the person opens it, by confirming it's them (a passkey or an emailed code on a client of its own, so the app's session is never touched; or the provider they signed in with, as a new sign-in);
   - Your data: copy everything (with the suggestions not decided yet), delete everything;
-  - a call that goes on across the places, with its switches, text mode, what Sophia is looking at and what stopped a device in the places' bar; opening another project leaves it, and says so; "Join the room" from Work joins on that opening only;
+  - a call that goes on across the places, with its switches, text mode, what Sophia is looking at and what stopped a device in the places' bar; opening another project leaves it, and says so, its project staying on screen with its controls until it has left; "Join the room" from Work joins on that opening only;
   - for the keyboard and screen readers: Sophia's replies are said once; a letter typed with the focus nowhere in Personal goes into the message bar (never the padlock), and never into a field the notes cover; a modal sheet takes every key; the focus is handed on wherever a control goes away;
   - a message's words stay on the device until they were sent, also while they are on their way, and come back when a send fails or gets no answer; not when the space was erased;
   - one message on its way at a time, from the field or a way to start; every write but erasure names the space's epoch as last read, so nothing sent before an erasure lands after it;
-  - the field follows the device's one draft across tabs, and an erasure anywhere takes the words written before it; a long conversation reads back a page at a time, Your data counts all its days, and its copy reads the export a page at a time, stopping at once when the padlock shuts or its sheet closes;
+  - the field follows the device's one draft across tabs, and an erasure anywhere takes the words written before it, also one on another device while this one was locked (the draft keeps its epoch); a long conversation reads back a page at a time, Your data counts all its days, and its copy reads the export a page at a time, stopping at once when the padlock shuts or its sheet closes;
   - while the padlock is shut the field is off the page and the page keeps none of the space's words; the days follow the clock.
 
 Missing or unverified:
@@ -43,7 +43,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 508 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 277; database tests: 250 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 514 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 283; database tests: 250 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
@@ -53,6 +53,7 @@ Missing or unverified:
   - Codex's fifth review of #30 (`personal-codex30d`): erasing in one tab empties another tab's field; an erasure whose answers were lost; a conversation of 620 turns (days counted whole, earlier days read back, nothing missing as new turns come); a time zone the server doesn't know; a copy of 1100 turns, longer than one page of the export; a page read back that arrives after the padlock shut;
   - Codex's sixth review of #30 (`personal-codex30e`): the padlock shut with a draft and a message on its way; open across midnight; and in `personal-codex30d`, a lock lets what was read back go;
   - Codex's seventh review of #30 (`personal-codex30f`, a conversation three pages of the export long): a copy still paging when another tab shuts the padlock, and when its sheet closes (the page on its way stopped at once, none after it asked for, nothing copied); left alone, it reads all three pages;
+  - Codex's eighth review of #30 (`personal-codex30g`): a draft typed before an erasure on another device while this one was locked (and, as control, with no erasure); another project opened during a call (the call never out of sight beside it); a page read back while new turns come (every turn there);
   - the earlier suites on this Studio: the previous rounds (31 checks), the places’ keys and flows (37), a call across the places (12 of 13: a teammate's Work showed who had just joined only once the room server's count caught up, up to five seconds later; the data side's next commit asks the rooms themselves), the call and interface checks (6, 33 and 8), and the room’s suites from #24 (43).
 - **Mutation checks:** every logic fix has a unit or database test that fails without it; every fix the tests can't reach was undone in the browser to see its scenario fail (this round, 4 Studio rules, 7 database rules and 4 API rules each failed their test before the fix, and of 10 browser fixes undone 9 were caught by their scenario, the tenth being backed by a second mechanism the scenario also exercises; the second round, 14 rules and 22 browser fixes, all caught).
 - **Reviews:**
@@ -76,6 +77,7 @@ Missing or unverified:
   - Codex on #30's `67f9974`: two P2 (the field, and a message on its way, kept on the page while the padlock is shut; the days not following the clock), fixed with what was read back, which a lock lets go too; each undone once fails its scenario.
   - Codex on #30's `9dea6f2`: one P2 (a page read back that arrived after the padlock shut was kept), fixed; its scenario failed before the fix.
   - Codex on #30's `8d07bb8`: one P2 (a copy's export went on paging after the padlock shut), fixed: the export takes a signal the padlock or the sheet's going aborts; its three unit tests failed before the fix, and each part undone once fails its test or scenario.
+  - Codex on #30's `19f8f90`: two P1 (a draft from before an erasure on another device came back after a lock; another project shown while the call's project, its microphone on, was out of sight) and two P2 (what was read back of an erased space kept in memory; a page read back dropped the turns that left the window while it was on its way), fixed; each scenario failed before the fix, and each part undone once fails its test or scenario.
 
 ## Decisions and changes
 

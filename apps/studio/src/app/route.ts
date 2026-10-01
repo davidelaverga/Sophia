@@ -63,3 +63,11 @@ export function routePath({ projectId, view, place }: { projectId: string | null
  */
 export const joinStands = (joining: string | null, onScreen: string | null): string | null =>
   joining !== null && joining === onScreen ? joining : null
+
+/**
+ * The project on screen: the one asked for; but while a call runs in another, that one, until the call has left
+ * (opening another project leaves it): its controls stay in sight, nothing of it goes on out of sight, and the other
+ * opens (and joins, if asked) only after.
+ */
+export const projectOnScreen = (asked: string | null, calling: string | null): string | null =>
+  asked !== null && calling !== null && asked !== calling ? calling : asked

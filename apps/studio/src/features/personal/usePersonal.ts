@@ -22,8 +22,8 @@ import {
 import { ApiError } from '../../api/client.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { keptOnReadBack, type Sending } from './conversation-view.ts'
-import { writeDraft } from './draft.ts'
+import { backOnSpaceRead, withEarlierPage, type ReadBackState, type Sending } from './conversation-view.ts'
+import { forgetDraft } from './draft.ts'
 import { epochNow } from './epoch.ts'
 import { once } from './once.ts'
 import { readsAgain } from './write-words.ts'
@@ -81,10 +81,11 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
 /**
  * A long conversation read back a page at a time, before the newest turns the space lists: what was read so far
  * (oldest first), whether more exist, and the next page. What leaves the window as new turns come stays
- * (keptOnReadBack); an erasure (a new epoch) starts again, and a lock lets all of it go.
+ * (backOnSpaceRead), and a page joins what was read back by the time it arrives (withEarlierPage); an erasure (a new
+ * epoch) lets it go, and so does a lock.
  */
 export function useReadBack(identity: Identity, space: PersonalSpace | undefined) {
-  const [back, setBack] = useState<{ epoch: number; turns: readonly PersonalTurn[]; more: boolean } | null>(null)
+  const [back, setBack] = useState<ReadBackState | null>(null)
   const reading = useRef(false)
   const listed = useRef<readonly PersonalTurn[]>(NO_TURNS)
   // The epoch of the space shown now, null while it is locked: a page that arrives for another is let go.
@@ -97,11 +98,7 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
       setBack(null) // locked (or not read yet): nothing read back is kept
       return
     }
-    setBack((now) => {
-      if (now?.epoch !== space.epoch) return now
-      const turns = keptOnReadBack(now.turns, before, space.turns)
-      return turns === now.turns ? now : { ...now, turns }
-    })
+    setBack((now) => backOnSpaceRead(now, before, space))
   }, [space])
   const current = back && space && back.epoch === space.epoch ? back : null
   const older = current?.turns ?? NO_TURNS
@@ -114,7 +111,7 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
     try {
       const page = await getEarlierPersonalTurns(identity.token, from)
       if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
-      setBack({ epoch, turns: [...page.turns, ...older], more: page.earlier })
+      setBack((now) => withEarlierPage(now, epoch, page))
     } finally {
       reading.current = false
     }
@@ -219,7 +216,7 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     takeBack: (releaseId: string) => run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true),
     erase: async () => {
       const receipt = await run((k) => erasePersonalSpace(token, k))
-      writeDraft(accountOf(identity), '')
+      forgetDraft(accountOf(identity))
       setErasures((n) => n + 1)
       return receipt
     },

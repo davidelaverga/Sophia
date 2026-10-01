@@ -11,7 +11,7 @@ import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
 import { useAuth } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
-import { joinStands, opensJoinPage } from './route.ts'
+import { joinStands, opensJoinPage, projectOnScreen } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
@@ -160,7 +160,8 @@ function useJoinRequest(onScreen: string | null) {
 
 /**
  * One call, and the project or place on screen with it: opening another project leaves the call (the toast says
- * so). A project's bar has no room for another room's call, and nothing may keep sending out of sight.
+ * so), and the call's project stays on screen until it has (projectOnScreen). A project's bar has no room for another
+ * room's call, and nothing may keep sending out of sight.
  */
 function useOneCallInSight(call: ProjectCall | null, project: string | null) {
   useEffect(() => {
@@ -212,6 +213,8 @@ function useSheetsAtHome(leave: () => void) {
 interface ShellsProps {
   /** The project on screen, and the one out of sight whose room holds the call. */
   ids: readonly string[]
+  /** The project on screen (projectOnScreen): the one asked for, or the call's until it has left. */
+  onScreen: string | null
   identity: Identity
   account: React.ReactNode
   routing: ReturnType<typeof useProjectRoute>
@@ -221,13 +224,14 @@ interface ShellsProps {
   onSignOut: () => void
 }
 
-function ProjectShells({ ids, identity, account, routing, joining, onJoinHandled, onCall, onSignOut }: ShellsProps) {
+function ProjectShells(props: ShellsProps) {
+  const { ids, onScreen, identity, account, routing, joining, onJoinHandled, onCall, onSignOut } = props
   const { route, show, leave, goTo } = routing
   return (
     <>
       {ids.map((id) => (
-        <div key={id} hidden={id !== route.projectId}>
-          <ShortcutScope.Provider value={id === route.projectId}>
+        <div key={id} hidden={id !== onScreen}>
+          <ShortcutScope.Provider value={id === onScreen}>
             <ProjectShell
               key={`${identity.name}:${id}`}
               projectId={id}
@@ -238,7 +242,7 @@ function ProjectShells({ ids, identity, account, routing, joining, onJoinHandled
               onLeave={leave}
               onWork={() => goTo('work')}
               onSignOut={onSignOut}
-              background={id !== route.projectId}
+              background={id !== onScreen}
               onCall={(next, note) => onCall(id, next, note)}
               joinOnOpen={joining === id}
               onJoinHandled={onJoinHandled}
@@ -269,7 +273,8 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
   const actions = { data: sheets.data, privacy: sheets.privacy, chooseDev: onChooseDev, signOut: onSignOut }
-  const ids = [project, call && call.projectId !== project ? call.projectId : null].filter(
+  const onScreen = projectOnScreen(project, call?.projectId ?? null)
+  const ids = [onScreen, call && call.projectId !== onScreen ? call.projectId : null].filter(
     (id): id is string => id !== null,
   )
   const openProject = (projectId: string, joins: boolean) => {
@@ -280,6 +285,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
     <>
       <ProjectShells
         ids={ids}
+        onScreen={onScreen}
         identity={identity}
         account={<AccountMenu identity={identity} where="project" actions={actions} />}
         routing={routing}

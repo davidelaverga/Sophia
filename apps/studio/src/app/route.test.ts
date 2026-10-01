@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { HOME, joinStands, opensJoinPage, parseRoute, PLACES, routePath, VIEWS } from './route.ts'
+import { HOME, joinStands, opensJoinPage, parseRoute, PLACES, projectOnScreen, routePath, VIEWS } from './route.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 const project = (view: string) => ({ projectId: P, view, place: 'work' })
@@ -45,5 +45,14 @@ describe('a join asked for on opening a project', () => {
     assert.equal(opensJoinPage('/join', 'loading'), true)
     assert.equal(opensJoinPage('/join', 'signed_in'), true)
     assert.equal(opensJoinPage(`/p/${P}/studio`, 'signed_in'), false)
+  })
+})
+
+describe('the project on screen', () => {
+  it('is the one asked for, but while a call runs in another, that one until the call has left', () => {
+    assert.equal(projectOnScreen('p2', null), 'p2')
+    assert.equal(projectOnScreen('p1', 'p1'), 'p1')
+    assert.equal(projectOnScreen('p2', 'p1'), 'p1', 'its controls stay in sight; the other opens after')
+    assert.equal(projectOnScreen(null, 'p1'), null, 'in the places, the call goes on out of sight')
   })
 })

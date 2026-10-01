@@ -30,52 +30,55 @@ const PLACEHOLDER: Record<ComposerState, string> = {
 }
 
 /**
- * The field follows the one draft this device keeps: another tab's change (a send there, an erasure there) at once; and
- * an erasure anywhere (another device, or one whose answer was lost) moves the space's epoch, which takes the words
- * written before it from the field and from this device.
+ * The field follows the one draft this device keeps, as the space's epoch shows it (readDraft): once the epoch is
+ * known, another tab's change (a send there, an erasure there) at once; and an erasure anywhere (another device, one
+ * whose answer was lost, one while this device was locked) moves the epoch, which takes the words written before it
+ * from the field and from this device. `adopt` is told whether the words are the draft the device kept, read first.
  */
-function useDraftFollows(account: string, epoch: number | undefined, adopt: (value: string) => void) {
+function useDraftFollows(account: string, epoch: number | undefined, adopt: (value: string, first: boolean) => void) {
   const follow = useRef(adopt)
   useEffect(() => {
     follow.current = adopt
   })
+  // The epoch the field's words were read in (none yet while the space loads: the field shows nothing then).
+  const read = useRef(epoch)
   useEffect(() => {
+    if (epoch === undefined) return undefined
+    if (read.current !== epoch) {
+      follow.current(readDraft(account, epoch), read.current === undefined)
+      read.current = epoch
+    }
     const key = draftKey(account)
     const onStorage = (e: StorageEvent) => {
-      if (e.key === key || e.key === null) follow.current(readDraft(account))
+      if (e.key === key || e.key === null) follow.current(readDraft(account, epoch), false)
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [account])
-  const seen = useRef(epoch)
-  useEffect(() => {
-    const was = seen.current
-    if (epoch === undefined) return
-    seen.current = epoch
-    if (was === undefined || epoch <= was) return
-    writeDraft(account, '')
-    follow.current('')
   }, [account, epoch])
 }
 
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
 function useDraft(account: string, epoch: number | undefined) {
-  const [text, setText] = useState(() => readDraft(account))
-  const [note, setNote] = useState(() => (readDraft(account) ? KEPT : ''))
+  const [text, setText] = useState(() => (epoch === undefined ? '' : readDraft(account, epoch)))
+  const [note, setNote] = useState(() => (text ? KEPT : ''))
   // What the field holds now, for words that come back after a send that waited (restoredDraft).
   const latest = useRef(text)
   // Words on their way: the device keeps them ahead of anything typed meanwhile until they are sent (draftToStore).
   const sending = useRef<string | null>(null)
-  useDraftFollows(account, epoch, (value) => {
+  useDraftFollows(account, epoch, (value, first) => {
     latest.current = value
     setText(value)
-    setNote('')
+    setNote(first && value ? KEPT : '')
   })
+  // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
+  const keep = (words: string) => {
+    if (epoch !== undefined) writeDraft(account, words, epoch)
+  }
   const change = (value: string, why = value ? KEPT : '') => {
     latest.current = value
     setText(value)
     setNote(why)
-    writeDraft(account, draftToStore(sending.current, value))
+    keep(draftToStore(sending.current, value))
   }
   return {
     text,
@@ -88,12 +91,12 @@ function useDraft(account: string, epoch: number | undefined) {
       latest.current = ''
       setText('')
       setNote('')
-      writeDraft(account, draftToStore(words, ''))
+      keep(draftToStore(words, ''))
     },
     /** Sent (or erased with the space): the device keeps only what was typed meanwhile. */
     sent: () => {
       sending.current = null
-      writeDraft(account, latest.current)
+      keep(latest.current)
     },
     /** Not sent: the words come back to the field (change), which the device then keeps. */
     back: (words: string, why: string) => {

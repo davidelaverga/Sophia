@@ -220,6 +220,42 @@ export function keptOnReadBack(
   return left.length === 0 ? read : [...read, ...left].toSorted((a, b) => a.seq - b.seq)
 }
 
+/** What was read back of a long conversation: in which epoch of the space, its turns (oldest first), and if more exist. */
+export interface ReadBackState {
+  epoch: number
+  turns: readonly PersonalTurn[]
+  more: boolean
+}
+
+/**
+ * What was read back, as the space is read again: in the same epoch, kept, with the turns that left the window
+ * (keptOnReadBack); in another (an erasure), let go.
+ */
+export function backOnSpaceRead(
+  now: ReadBackState | null,
+  before: readonly PersonalTurn[],
+  space: { epoch: number; turns: readonly PersonalTurn[] },
+): ReadBackState | null {
+  if (now?.epoch !== space.epoch) return null
+  const turns = keptOnReadBack(now.turns, before, space.turns)
+  return turns === now.turns ? now : { ...now, turns }
+}
+
+/**
+ * A page read back in `epoch`, joined to what was read back by the time it arrived (in the same epoch; turns may have
+ * left the window into it meanwhile): in order, each turn once.
+ */
+export function withEarlierPage(
+  now: ReadBackState | null,
+  epoch: number,
+  page: { turns: readonly PersonalTurn[]; earlier: boolean },
+): ReadBackState {
+  const kept = now?.epoch === epoch ? now.turns : []
+  const have = new Set(kept.map((t) => t.seq))
+  const turns = [...page.turns.filter((t) => !have.has(t.seq)), ...kept].toSorted((a, b) => a.seq - b.seq)
+  return { epoch, turns, more: page.earlier }
+}
+
 /** The days of the conversation for the "earlier" menu: each day and what the person talked about in it. */
 export function daysOf(rows: readonly Row[]): Array<{ key: string; label: string; topics: string }> {
   const days: Array<{ key: string; label: string; topics: string[] }> = []
