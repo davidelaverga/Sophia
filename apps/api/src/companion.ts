@@ -143,7 +143,7 @@ export class CompanionRunner {
 
   /** The welcome under the attempt's claim: what it is written from, the companion's words, then the write. */
   private async welcome(attempt: Attempt): Promise<PersonalReceipt> {
-    const context = await withActor(this.pool, attempt.actorId, 'read', (c) => readWelcomeContext(c, attempt.claim))
+    const context = await withActor(this.pool, attempt.actorId, 'write', (c) => readWelcomeContext(c, attempt.claim))
     // No longer due (a turn came meanwhile), or the claim went to another attempt: nothing is asked or written here.
     if (!context) return this.settle(attempt, '')
     let text: string
@@ -182,7 +182,8 @@ export class CompanionRunner {
     )
     if (!claim) return
     try {
-      const context = await withActor(this.pool, actorId, 'read', (c) => readCompanionContext(c, turnId, claim))
+      // Its lease is renewed as the context goes to the companion: no other attempt takes the turn meanwhile.
+      const context = await withActor(this.pool, actorId, 'write', (c) => readCompanionContext(c, turnId, claim))
       if (!context) return
       const reply = await withinLimit((signal) => this.companion.answer(context, signal), this.limitMs)
       await withActor(this.pool, actorId, 'write', (c) =>

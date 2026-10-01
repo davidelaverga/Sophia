@@ -267,12 +267,14 @@ REVOKE ALL ON FUNCTION sophia.personal_append(text,text,uuid) FROM PUBLIC;
 -- The conversation.
 
 -- A reply as it stands, for every read and for asking again. The API gives an answer 60 s and then marks the turn
--- failed (ANSWER_LIMIT_MS in apps/api/src/companion.ts); a reply still pending two minutes after it was asked for
--- was lost with the process answering it (a deploy, a crash), so it reads as failed and may be asked for again.
-CREATE FUNCTION sophia.personal_reply_state(p_reply text, p_asked_at timestamptz) RETURNS text LANGUAGE sql STABLE
-SET search_path=pg_catalog AS $$
- SELECT CASE WHEN p_reply='pending' AND p_asked_at<now()-interval '2 minutes' THEN 'failed' ELSE p_reply END $$;
-REVOKE ALL ON FUNCTION sophia.personal_reply_state(text,timestamptz) FROM PUBLIC;
+-- failed (ANSWER_LIMIT_MS in apps/api/src/companion.ts); a reply still pending two minutes after it was asked for, or
+-- after a process last claimed or renewed its claim on it (whichever is later), was lost with the process answering it
+-- (a deploy, a crash), so it reads as failed and may be asked for again.
+CREATE FUNCTION sophia.personal_reply_state(p_reply text, p_asked_at timestamptz, p_answering_since timestamptz)
+RETURNS text LANGUAGE sql STABLE SET search_path=pg_catalog AS $$
+ SELECT CASE WHEN p_reply='pending' AND greatest(p_asked_at,coalesce(p_answering_since,p_asked_at))<now()-interval '2 minutes'
+  THEN 'failed' ELSE p_reply END $$;
+REVOKE ALL ON FUNCTION sophia.personal_reply_state(text,timestamptz,timestamptz) FROM PUBLIC;
 
 -- sendPersonalTurn: the person says something; Sophia's reply is pending until the companion writes it. Asked only to
 -- replay (p_replay_only: where no companion runs), it returns the key's kept receipt, or NULL, and writes nothing; so do
@@ -407,11 +409,23 @@ BEGIN
  UPDATE sophia.personal_greeting_claims SET claim=NULL WHERE owner_id=sophia.personal_owner() AND claim=p_claim;
 END $$;
 
--- Whether `p_claim` is the calling owner's welcome claim now: an attempt reads what to welcome from only while it
--- holds the claim, so only one attempt asks the companion.
-CREATE FUNCTION sophia.personal_greeting_held(p_claim uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path=pg_catalog,sophia AS $$
- SELECT EXISTS(SELECT 1 FROM sophia.personal_greeting_claims WHERE owner_id=sophia.personal_owner() AND claim=p_claim) $$;
+-- An attempt about to hand what to answer from to the companion renews its claim's lease, and goes on only while it
+-- holds the claim: so no other attempt takes the claim over while the companion answers (it has 60 s; a lease, two
+-- minutes), and only one attempt asks. For a reply (renew_personal_reply) and a welcome (renew_personal_greeting).
+CREATE FUNCTION sophia.renew_personal_reply(p_turn uuid, p_claim uuid) RETURNS boolean LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ UPDATE sophia.personal_turns SET answering_since=now()
+  WHERE owner_id=sophia.personal_owner() AND id=p_turn AND reply='pending' AND answering_claim=p_claim;
+ RETURN FOUND;
+END $$;
+
+CREATE FUNCTION sophia.renew_personal_greeting(p_claim uuid) RETURNS boolean LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ UPDATE sophia.personal_greeting_claims SET claimed_at=now() WHERE owner_id=sophia.personal_owner() AND claim=p_claim;
+ RETURN FOUND;
+END $$;
 
 -- The API process about to ask the companion claims the pending turn first: its claim, which the reply or the failure
 -- must carry, or NULL when another process is answering it (a retry reached another process, a restart). A claim
@@ -451,7 +465,7 @@ BEGIN
  IF prior IS NOT NULL OR p_replay_only THEN RETURN prior; END IF;
  SELECT * INTO t FROM sophia.personal_turns WHERE owner_id=a AND id=p_turn;
  IF NOT FOUND OR t.author<>'person' THEN RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
- stands:=sophia.personal_reply_state(t.reply,t.asked_at);
+ stands:=sophia.personal_reply_state(t.reply,t.asked_at,t.answering_since);
  IF stands<>'failed' THEN RAISE EXCEPTION 'Stale turn: it is %', stands USING ERRCODE='40001'; END IF;
  UPDATE sophia.personal_turns SET reply='pending', asked_at=now(), answering_since=NULL, answering_claim=NULL
   WHERE owner_id=a AND id=p_turn;
@@ -636,18 +650,20 @@ BEGIN
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
+REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
+ sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
  sophia.record_personal_greeting(text,uuid,text,text),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
+GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
+ sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
  sophia.record_personal_greeting(text,uuid,text,text),
- sophia.personal_reply_state(text,timestamptz),
+ sophia.personal_reply_state(text,timestamptz,timestamptz),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) TO sophia_api;

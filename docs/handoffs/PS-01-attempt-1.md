@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** first commit `c3f8968` on `studio/personal-space` (#30), 2026-09-30. On 2026-10-01 Luis asked to split it: the data and API on `personal/data` (from main `860a01a`), and the Studio's places on top of it (#30).
-- **End:** the data side's code at `cb0bc71` (#35's head); the Studio's at `852f53e` (tree `6a5e3e0133b1`), the head the checks below ran on. The commit after it changes only this line.
+- **End:** the data side's code at `7de9907` (#35's head); the Studio's at the merge that brings it in, named once its checks ran.
 - **Writable scope:** this repository. **No hosted service was changed.** Migration 0021 is on no hosted database.
 
 ## Outcome
@@ -43,7 +43,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 274; database tests: 241 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 274; database tests: 243 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
@@ -68,6 +68,7 @@ Missing or unverified:
   - Codex on #35's `f600665`: three P2 (a welcome's key not tied to whom it greets; a companion call past its time left running; a welcome's write not fenced to its epoch), and on #30's `3d8bc84`, its data half (a conversation past 500 turns could not be read back, and its days were counted from the newest 500 only), all fixed, each undone once to see its test fail.
   - Codex on #35's `4fd79b5`: one P2 (a welcome's attempt that stalled past its claim still read what to welcome from), fixed; undone once, its test fails.
   - Codex on #35's `ce11764`: two P2 (a retry refused where no companion runs, before its kept receipt was looked up; an export with no bound), fixed; each undone once fails its test.
+  - Codex on #35's `d183cae`: two P2 (asking again cleared a claim just taken, judged by when the reply was asked for; a claim not renewed as its context went to the companion), fixed, also for the welcome's claim; each undone once fails its test.
   - Codex on #30's `3d8bc84`: two P2 (another tab kept the erased draft; a conversation past 500 turns lost its earlier days and undercounted them), fixed on both sides; each Studio fix undone once fails its scenario.
   - Codex on #30's `67f9974`: two P2 (the field, and a message on its way, kept on the page while the padlock is shut; the days not following the clock), fixed with what was read back, which a lock lets go too; each undone once fails its scenario.
 

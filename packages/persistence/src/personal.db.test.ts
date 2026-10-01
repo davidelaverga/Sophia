@@ -52,6 +52,8 @@ const BEFORE = randomUUID() // someone whose message, sent before she erased eve
 const NAMED = randomUUID() // someone welcomed back by name, under one key
 const LONG = randomUUID() // someone with a conversation longer than one read lists
 const ZONED = randomUUID() // someone who wrote on either side of midnight in UTC
+const LEASED = randomUUID() // someone whose reply's process paused after claiming, then asked the companion
+const GREETED = randomUUID() // someone whose welcome's process paused after claiming, then asked the companion
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -199,13 +201,13 @@ describe('personal space: one conversation, owner-only', () => {
     )
     const claim = await write(ANA, (c) => claimPersonalReply(c, sent.turnId ?? ''))
     assert.ok(claim)
-    assert.equal(await read(OTHER, (c) => readCompanionContext(c, sent.turnId ?? '', claim)), null)
+    assert.equal(await write(OTHER, (c) => readCompanionContext(c, sent.turnId ?? '', claim)), null)
     assert.equal(
-      await read(ANA, (c) => readCompanionContext(c, sent.turnId ?? '', randomUUID())),
+      await write(ANA, (c) => readCompanionContext(c, sent.turnId ?? '', randomUUID())),
       null,
       'nor another claim',
     )
-    const context = await read(ANA, (c) => readCompanionContext(c, sent.turnId ?? '', claim))
+    const context = await write(ANA, (c) => readCompanionContext(c, sent.turnId ?? '', claim))
     assert.equal(context?.asked.text, 'Still there?')
     assert.equal(context?.history.at(-1)?.text, 'Still there?')
     await write(ANA, (c) => failPersonalReply(c, sent.turnId ?? '', claim))
@@ -233,6 +235,29 @@ describe('personal space: one conversation, owner-only', () => {
     await answerTurn(OTHER, turn, 'Once.', null) // asking again clears the claim
   })
 
+  it('renews a claim as its context goes to the companion, and reads a fresh claim as waiting', async () => {
+    const sent = await write(LEASED, (c) => sendPersonalTurn(c, key(), 'Are you still there?'))
+    const turn = sent.turnId ?? ''
+    const claim = await write(LEASED, (c) => claimPersonalReply(c, turn))
+    assert.ok(claim)
+    // The process paused 100 s after claiming; then it reads what to answer from, and asks the companion.
+    await owner(`UPDATE sophia.personal_turns SET answering_since = now() - interval '100 seconds' WHERE id = $1`, [
+      turn,
+    ])
+    assert.ok(await write(LEASED, (c) => readCompanionContext(c, turn, claim)))
+    // 30 s into that call, its claim still holds: nobody else claims the turn.
+    await owner(
+      `UPDATE sophia.personal_turns SET answering_since = answering_since - interval '30 seconds' WHERE id = $1`,
+      [turn],
+    )
+    assert.equal(await write(LEASED, (c) => claimPersonalReply(c, turn)), null, 'the renewed claim holds')
+    // Asked long ago but claimed just now: the reply is still on its way, not lost, and asking again is refused.
+    await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '3 minutes' WHERE id = $1`, [turn])
+    const page = await read(LEASED, (c) => readPersonalTurnsAfter(c, 0))
+    assert.deepEqual([page.turns.find((t) => t.id === turn)?.reply, page.pending], ['pending', true])
+    assert.equal(await codeOf(write(LEASED, (c) => retryPersonalTurn(c, key(), turn))), 'stale_revision')
+  })
+
   it('fences a reply and a failure to the claim that asked: a lapsed attempt writes neither', async () => {
     const sent = await write(FENCED, (c) => sendPersonalTurn(c, key(), 'Who answers me?'))
     const turn = sent.turnId ?? ''
@@ -250,8 +275,8 @@ describe('personal space: one conversation, owner-only', () => {
     const replacing = await write(FENCED, (c) => claimPersonalReply(c, turn))
     assert.ok(replacing && replacing !== stalled)
     // Waking up, the stalled process is not given the context: only one attempt asks the companion.
-    assert.equal(await read(FENCED, (c) => readCompanionContext(c, turn, stalled)), null)
-    assert.ok(await read(FENCED, (c) => readCompanionContext(c, turn, replacing)))
+    assert.equal(await write(FENCED, (c) => readCompanionContext(c, turn, stalled)), null)
+    assert.ok(await write(FENCED, (c) => readCompanionContext(c, turn, replacing)))
     await write(FENCED, (c) => failPersonalReply(c, turn, stalled))
     await write(FENCED, (c) => recordPersonalReply(c, turn, stalled, 'Too late.', null))
     const waiting = await read(FENCED, (c) => readPersonalTurnsAfter(c, 0))
@@ -294,7 +319,7 @@ describe('personal space: one conversation, owner-only', () => {
     await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [id])
     const lost = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
     assert.deepEqual([lost.turns.find((t) => t.id === id)?.reply, lost.pending], ['failed', false])
-    assert.equal(await read(ANA, (c) => readCompanionContext(c, id, randomUUID())), null, 'nobody answers a lost wait')
+    assert.equal(await write(ANA, (c) => readCompanionContext(c, id, randomUUID())), null, 'nobody answers a lost wait')
     await write(ANA, (c) => retryPersonalTurn(c, key(), id))
     const again = await read(ANA, (c) => readPersonalTurnsAfter(c, 0))
     assert.deepEqual([again.turns.find((t) => t.id === id)?.reply, again.pending], ['pending', true])
@@ -452,10 +477,10 @@ describe('personal space: welcome back', () => {
     await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '2 hours' WHERE owner_id = $1`, [ANA])
     const k = key()
     const claim = claimOf(await write(ANA, (c) => beginPersonalGreeting(c, k, null)))
-    const context = await read(ANA, (c) => readWelcomeContext(c, claim))
+    const context = await write(ANA, (c) => readWelcomeContext(c, claim))
     assert.equal(context?.history.at(-1)?.text, 'Noted.')
     assert.equal(
-      await read(ANA, (c) => readWelcomeContext(c, randomUUID())),
+      await write(ANA, (c) => readWelcomeContext(c, randomUUID())),
       null,
       'only under the claim that holds it',
     )
@@ -472,7 +497,7 @@ describe('personal space: welcome back', () => {
     assert.equal(again.turnId, null)
     assert.deepEqual(await write(ANA, (c) => beginPersonalGreeting(c, k2, null)), again)
     // Read by no one else: another person holds no claim of hers.
-    assert.equal(await read(OTHER, (c) => readWelcomeContext(c, claim)), null)
+    assert.equal(await write(OTHER, (c) => readWelcomeContext(c, claim)), null)
     const last = (await read(ANA, (c) => readPersonalSpace(c))).turns.at(-1)
     assert.deepEqual([last?.author, last?.text, last?.replyTo], ['sophia', 'Welcome back, Ana.', null])
   })
@@ -493,13 +518,33 @@ describe('personal space: welcome back', () => {
     )
     const taken = claimOf(await write(QUIET, (c) => beginPersonalGreeting(c, key(), null)))
     // The stalled first attempt, waking up, is not given what to welcome from: only one attempt asks the companion.
-    assert.equal(await read(QUIET, (c) => readWelcomeContext(c, held)), null)
-    assert.ok(await read(QUIET, (c) => readWelcomeContext(c, taken)))
+    assert.equal(await write(QUIET, (c) => readWelcomeContext(c, held)), null)
+    assert.ok(await write(QUIET, (c) => readWelcomeContext(c, taken)))
     // The first request's late answer writes nothing: its claim was taken over.
     const late = receiptOf(
       await write(QUIET, (c) => recordPersonalGreeting(c, first, held, null, 'Welcome back, late')),
     )
     assert.equal(late.turnId, null)
+  })
+
+  it('renews a welcome’s claim as its context goes to the companion', async () => {
+    const sent = await write(GREETED, (c) => sendPersonalTurn(c, key(), 'Back after a while'))
+    await answerTurn(GREETED, sent.turnId ?? '', 'Good to see you.', null)
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '2 hours' WHERE owner_id = $1`, [
+      GREETED,
+    ])
+    const held = claimOf(await write(GREETED, (c) => beginPersonalGreeting(c, key(), null)))
+    await owner(
+      `UPDATE sophia.personal_greeting_claims SET claimed_at = now() - interval '100 seconds' WHERE owner_id = $1`,
+      [GREETED],
+    )
+    assert.ok(await write(GREETED, (c) => readWelcomeContext(c, held)))
+    await owner(
+      `UPDATE sophia.personal_greeting_claims SET claimed_at = claimed_at - interval '30 seconds' WHERE owner_id = $1`,
+      [GREETED],
+    )
+    const other = receiptOf(await write(GREETED, (c) => beginPersonalGreeting(c, key(), null)))
+    assert.equal(other.turnId, null, 'the renewed claim holds: another request gets nothing to write')
   })
 
   it('keeps a key’s welcome for the attempt writing it: the same request meanwhile is told it is being written', async () => {

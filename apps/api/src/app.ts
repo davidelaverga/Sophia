@@ -86,9 +86,10 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.preview_mission_withdrawal(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text)') IS NOT NULL
-  AND to_regprocedure('sophia.personal_reply_state(text,timestamptz)') IS NOT NULL
+  AND to_regprocedure('sophia.personal_reply_state(text,timestamptz,timestamptz)') IS NOT NULL
   AND to_regprocedure('sophia.personal_fence(bigint)') IS NOT NULL
-  AND to_regprocedure('sophia.personal_greeting_held(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.renew_personal_reply(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.renew_personal_greeting(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.send_personal_turn(text,text,boolean)') IS NOT NULL
   AND to_regprocedure('sophia.retry_personal_turn(text,uuid,boolean)') IS NOT NULL
   AND to_regprocedure('sophia.record_personal_reply(uuid,uuid,text,text)') IS NOT NULL

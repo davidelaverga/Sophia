@@ -409,7 +409,10 @@ either:
   its claim go, only once the call has stopped. The welcome's write is
   fenced to the request's epoch too: an erasure meanwhile refuses it. What
   the companion answers or welcomes from is read only under the claim that
-  holds it, so a stalled attempt asks nothing.
+  holds it, renewing its lease as it goes, so a stalled attempt asks nothing
+  and nobody takes the claim over while the companion answers; a reply
+  reads as lost two minutes after it was asked for or last claimed,
+  whichever is later.
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole
