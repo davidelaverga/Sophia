@@ -103,30 +103,40 @@ export function useProjectRoom(projectId: string, token: string, snapshot: Snaps
  */
 function useDevices(connection: { current: RoomConnection | null }, refresh: () => void) {
   const [mediaError, setMediaError] = useState<string | null>(null)
-  const media = (device: Device, change: (c: RoomConnection) => Promise<void>) => async () => {
+  /** One device change: true when it took (or there is no call to change), false when it failed and says so. */
+  const media = (device: Device, change: (c: RoomConnection) => Promise<void>) => async (): Promise<boolean> => {
     const c = connection.current
-    if (!c) return
+    if (!c) return true
     try {
       await change(c)
       if (connection.current === c) setMediaError(null)
+      return true
     } catch (err: unknown) {
       // A call left while the browser was still asking for the device says nothing about the next one.
-      if (connection.current !== c) return
+      if (connection.current !== c) return true
       setMediaError(mediaMessage(err, device))
       refresh()
+      return false
     }
   }
   return {
     mediaError,
     clearNote: () => setMediaError(null),
-    arrive: media('microphone', (c) => c.setMicrophone(true)),
-    silence: media('microphone', (c) => c.setMicrophone(false)),
-    setMicrophone: (on: boolean) => {
-      rememberMic(on)
-      return media('microphone', (c) => c.setMicrophone(on))()
+    arrive: async () => {
+      await media('microphone', (c) => c.setMicrophone(true))()
     },
-    setCamera: (on: boolean) => media('camera', (c) => c.setCamera(on))(),
-    setScreenShare: (on: boolean) => media('screen', (c) => c.setScreenShare(on))(),
+    /** Text mode's own switch: it needs to know the microphone really went off (useTypedChat). */
+    silence: media('microphone', (c) => c.setMicrophone(false)),
+    setMicrophone: async (on: boolean) => {
+      rememberMic(on)
+      await media('microphone', (c) => c.setMicrophone(on))()
+    },
+    setCamera: async (on: boolean) => {
+      await media('camera', (c) => c.setCamera(on))()
+    },
+    setScreenShare: async (on: boolean) => {
+      await media('screen', (c) => c.setScreenShare(on))()
+    },
   }
 }
 

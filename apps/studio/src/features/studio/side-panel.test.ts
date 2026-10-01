@@ -6,6 +6,8 @@ import { changedUnseen, chatSignature, focusOnOpen, isNew, mergeNames, seenNow, 
 const discussion = (ids: readonly string[]) =>
   ({ discussion: ids.map((id) => ({ id })) }) as unknown as Pick<Snapshot, 'discussion'>
 const ids = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `m${from + i}`)
+/** A chat of one typed turn, as far as its reply has come. */
+const chat = (sequence: number, state: string) => chatSignature(discussion([]), [{ id: 't1', sequence, state }])
 
 describe('the room side panel', () => {
   it('knows the chat by what it shows, so a new message counts even once the kept history is full', () => {
@@ -13,16 +15,21 @@ describe('the room side panel', () => {
     // The discussion keeps its latest 50: the 51st message drops the first, and the count stays 50.
     assert.notEqual(chatSignature(discussion(ids(1, 50)), []), chatSignature(discussion(ids(2, 51)), []))
     // The typed chat keeps its latest 100 turns the same way.
-    const turns = (from: number, to: number) => ids(from, to).map((id) => ({ id, reply: 'Hi' }))
+    const turns = (from: number, to: number) => ids(from, to).map((id) => ({ id, sequence: 3, state: 'complete' }))
     assert.notEqual(chatSignature(discussion([]), turns(1, 100)), chatSignature(discussion([]), turns(2, 101)))
     // A reply that begins on an earlier turn is new too; the same chat is the same signature.
-    const asked = [
-      { id: 't1', reply: '' },
-      { id: 't2', reply: '' },
-    ]
-    const replied = [{ id: 't1', reply: 'Hi' }, asked[1] ?? { id: 't2', reply: '' }]
+    const sent = { id: 't2', sequence: -1, state: 'sending' }
+    const asked = [{ id: 't1', sequence: -1, state: 'sending' }, sent]
+    const replied = [{ id: 't1', sequence: 0, state: 'responding' }, sent]
     assert.notEqual(chatSignature(discussion([]), asked), chatSignature(discussion([]), replied))
     assert.equal(chatSignature(discussion(['m1']), asked), chatSignature(discussion(['m1']), [...asked]))
+  })
+
+  it('counts a reply that goes on, or ends refused or unconfirmed, behind a closed panel', () => {
+    assert.notEqual(chat(1, 'responding'), chat(2, 'responding'), 'more of the same reply')
+    assert.notEqual(chat(2, 'responding'), chat(3, 'complete'), 'the reply ends')
+    assert.notEqual(chat(0, 'responding'), chat(0, 'unknown'), 'the reply is left unconfirmed')
+    assert.equal(chat(2, 'responding'), chat(2, 'responding'))
   })
 
   it('points at the chat only when what it shows changed out of view, from a loaded baseline', () => {

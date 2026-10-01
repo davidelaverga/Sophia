@@ -9,18 +9,36 @@ const unknown = (t: ChatTurn): ChatTurn =>
     ? { ...t, state: 'unknown', reason: 'Reply unconfirmed. Nothing is resent automatically.' }
     : t
 
+export const MIC_STILL_ON = 'Your microphone couldn’t be turned off, so typing to Sophia didn’t start. Try again.'
+
+interface TextModePorts {
+  remember: (on: boolean) => void
+  connection: { current: { setTextMode: (on: boolean) => void } | null }
+  /** Resolves true once the microphone is off (or there is no call), false when it couldn't be turned off. */
+  silence: () => Promise<boolean>
+}
+
+/**
+ * Text mode promises the microphone is off. When it can't be turned off, text mode goes back off and the caller is
+ * told, so a chat is neither started nor sent while the microphone still publishes.
+ */
+export async function switchTextMode(on: boolean, { remember, connection, silence }: TextModePorts): Promise<void> {
+  remember(on)
+  connection.current?.setTextMode(on)
+  if (!on || (await silence())) return
+  remember(false)
+  connection.current?.setTextMode(false)
+  throw new Error(MIC_STILL_ON)
+}
+
 /**
  * Ephemeral typed messages are bounded and never written to storage or logs. Text mode turns the microphone off
  * through `silence`, which the room provides: it is done for the person, so it is not remembered as their choice.
  */
-export function useTypedChat(connection: Connection, silence: () => Promise<void>) {
+export function useTypedChat(connection: Connection, silence: () => Promise<boolean>) {
   const [chat, setChat] = useState<ChatTurn[]>([])
   const [textMode, rememberTextMode] = useState(false)
-  const setTextMode = async (on: boolean) => {
-    rememberTextMode(on)
-    connection.current?.setTextMode(on)
-    if (on) await silence()
-  }
+  const setTextMode = (on: boolean) => switchTextMode(on, { remember: rememberTextMode, connection, silence })
   const sendChat = async (packet: ChatInput) => {
     const c = connection.current
     if (!c) throw new Error('Join the conversation first.')
