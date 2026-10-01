@@ -73,6 +73,11 @@ describe('conversationRows', () => {
     assert.equal(introText(null).startsWith('Hi, I’m Sophia.'), true)
   })
 
+  it('offers no ways in where Sophia can’t answer: the field says why', () => {
+    const rows = conversationRows(input([], { fromTheStart: true, answers: false }))
+    assert.deepEqual(shape(rows), ['day:Today', 'intro'])
+  })
+
   it('divides by day, groups turns from the same side, and shows the wait at the end', () => {
     const turns = [
       turn('person', 'I keep putting off the slides', at(2, 21, 10)),

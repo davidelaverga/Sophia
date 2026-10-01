@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, it } from 'node:test'
-import { exportPersonalSpace, getPersonalSpace } from './personal.ts'
+import { exportPersonalSpace, getPersonalSpace, listProjects } from './personal.ts'
 
 const realFetch = globalThis.fetch
 const AT = '2026-10-01T10:00:00.000Z'
@@ -111,5 +111,31 @@ describe('reading the space', () => {
     stop.abort()
     assert.equal(asking?.aborted, true, 'stopped at once')
     await assert.rejects(read)
+  })
+})
+
+describe('the Work list', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it('takes its query’s signal: an account that leaves stops its read at once', async () => {
+    let asked: AbortSignal | null | undefined
+    globalThis.fetch = (_url, init) => {
+      asked = init?.signal
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      })
+    }
+    const stop = new AbortController()
+    const reading = listProjects('token', stop.signal).then(
+      () => 'answered',
+      () => 'stopped',
+    )
+    stop.abort()
+    // Against a sentinel, so a read that goes on (until its own time is up) fails here instead of hanging.
+    const now = await Promise.race([reading, new Promise((done) => setTimeout(() => done('still reading'), 300))])
+    assert.equal(now, 'stopped')
+    assert.equal(asked?.aborted, true)
   })
 })

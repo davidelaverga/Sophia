@@ -170,7 +170,7 @@ export function useReadAgainOnErasure(
 export function useProjects(identity: Identity) {
   return useQuery({
     queryKey: ['projects', identity.name],
-    queryFn: () => listProjects(identity.token),
+    queryFn: ({ signal }) => listProjects(identity.token, signal), // an account that leaves stops its read
     // Who is in a room and when a session starts change without us: the Work side reads them again now and then.
     refetchInterval: 20_000,
   })

@@ -16,9 +16,8 @@ import {
   oneAtATime,
   onOpening,
   readKept,
-  RENEW_MS,
-  renewed,
   restoredDraft,
+  sendingNow,
   waitsFor,
   writeKept,
   type Draft,
@@ -26,6 +25,8 @@ import {
 import type { Unsent } from './write-words.ts'
 
 const KEPT = 'Draft kept on this device'
+/** How often a field looks again at words on their way whose tab still sends them. */
+const LOOK_AGAIN_MS = 5_000
 
 /** Why words are back in the field: they weren't sent, or no answer came back (they may have been). */
 const BACK: Record<Exclude<Unsent, 'erased'>, string> = {
@@ -50,10 +51,9 @@ const PLACEHOLDER: Record<ComposerState, string> = {
  * the device keeps them so, apart from nothing.
  */
 function opened(account: string, epoch: number): { draft: Draft | null; back: boolean; at: number } {
+  // Words another tab left on their way come back only once it is known that tab no longer sends them (useLeftBehind).
   const kept = readKept(account, epoch)
-  const open = onOpening(kept, Date.now())
-  const at = open.back ? writeKept(account, { draft: open.draft, sending: null }, epoch) : (kept.at ?? epoch)
-  return { ...open, at }
+  return { draft: kept.draft, back: false, at: kept.at ?? epoch }
 }
 
 /**
@@ -132,14 +132,24 @@ function useLeftBehind(
   })
   useEffect(() => {
     if (until === null || epoch === undefined) return undefined
-    const wake = setTimeout(
-      () => {
-        const open = onOpening(readKept(account, epoch), Date.now())
-        if (open.back) restore.current(open.draft, writeKept(account, { draft: open.draft, sending: null }, epoch))
-      },
-      Math.max(0, until - Date.now()) + 50,
-    )
-    return () => clearTimeout(wake)
+    let wake: ReturnType<typeof setTimeout> | undefined
+    let done = false
+    const look = async () => {
+      // Their tab still sends them (it holds the device's send): they stay its own; look again in a while.
+      const theirs = await sendingNow(account)
+      if (done) return
+      if (theirs) {
+        wake = setTimeout(() => void look(), LOOK_AGAIN_MS)
+        return
+      }
+      const open = onOpening(readKept(account, epoch), Date.now())
+      if (open.back) restore.current(open.draft, writeKept(account, { draft: open.draft, sending: null }, epoch))
+    }
+    wake = setTimeout(() => void look(), Math.max(0, until - Date.now()) + 50)
+    return () => {
+      done = true
+      clearTimeout(wake)
+    }
   }, [account, epoch, until])
 }
 
@@ -215,8 +225,6 @@ function useDraft(account: string, epoch: number | undefined) {
       if (field) show(null, '')
       keep((kept) => goingOut(kept, words, Date.now() + WRITE_TIMEOUT_MS))
     },
-    /** While this tab sends them, their time is kept ahead (renewed). */
-    renew: (words: Draft) => keep((kept) => renewed(kept, words, Date.now() + WRITE_TIMEOUT_MS)),
     /** Sent (or erased with the space): the device lets those words go and keeps its draft as it is then. */
     sent: () => {
       const words = sending.current
@@ -345,9 +353,8 @@ function useSend(
     await oneAtATime(account, async (taken) => {
       if (draft.waits(words, taken)) return
       draft.go(words, !given)
-      // While this tab sends them their time is kept ahead: another tab takes them back only if this one went away.
-      const renew = setInterval(() => draft.renew(words), RENEW_MS)
-      const outcome = await onSend(text, words.key).finally(() => clearInterval(renew))
+      // This tab holds the device's send until they settle: another tab takes them back only if this one went away.
+      const outcome = await onSend(text, words.key)
       // Sent (or erased): the device lets them go, also when the field went meanwhile (the padlock shut).
       if (outcome === 'sent' || outcome === 'erased') draft.sent()
       else if (mounted.current) draft.back(words, BACK[outcome])

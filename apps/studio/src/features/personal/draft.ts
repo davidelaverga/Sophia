@@ -127,6 +127,9 @@ export const onItsWayNow = (kept: Kept, now: number): boolean => kept.sending !=
 export const waitsFor = (kept: Kept, words: Draft, now: number): boolean =>
   onItsWayNow(kept, now) && kept.sending?.key !== words.key
 
+/** The browser's lock a tab holds while it sends for `account` (oneAtATime). */
+const sendLock = (account: string) => `sophia.personal.send.${account}`
+
 /**
  * One message on its way per device and account: the browser's lock (Web Locks, across tabs) is asked for before the
  * words go and held until they have settled, so two presses in two tabs never both go; `taken` says another tab holds
@@ -135,15 +138,20 @@ export const waitsFor = (kept: Kept, words: Draft, now: number): boolean =>
 export function oneAtATime<T>(account: string, run: (taken: boolean) => Promise<T>): Promise<T> {
   const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
   if (!locks) return run(false)
-  return locks.request(`sophia.personal.send.${account}`, { ifAvailable: true }, (lock) => run(lock === null))
+  return locks.request(sendLock(account), { ifAvailable: true }, (lock) => run(lock === null))
 }
 
-/** How often a tab that sends words keeps their time ahead: well inside a write's own time. */
-export const RENEW_MS = 30_000
-
-/** Their time kept ahead (`until`) while their tab still sends them; another tab's words on their way stay as they are. */
-export const renewed = (kept: Kept, words: Draft, until: number): Kept =>
-  kept.sending?.key === words.key ? { ...kept, sending: { ...kept.sending, until } } : kept
+/**
+ * Whether a tab of this device is sending for `account` now: it holds the send's lock (oneAtATime), which the browser
+ * lets go when that tab goes away. Its words on their way stay its own, however long the send takes; without Web
+ * Locks, none is known to be sending.
+ */
+export async function sendingNow(account: string): Promise<boolean> {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
+  if (!locks) return false
+  const { held = [] } = await locks.query()
+  return held.some((lock) => lock.name === sendLock(account))
+}
 
 /** Sent: the words on their way are let go, and only they (another tab's stay); the draft stays as it is then. */
 export const afterSent = (kept: Kept, sent: Draft): Kept => ({

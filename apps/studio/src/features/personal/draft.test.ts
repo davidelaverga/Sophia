@@ -14,8 +14,8 @@ import {
   onOpening,
   oneAtATime,
   onItsWayNow,
-  renewed,
   restoredDraft,
+  sendingNow,
   waitsFor,
 } from './draft.ts'
 
@@ -165,11 +165,14 @@ describe('one send at a time on the device', () => {
 })
 
 describe('words on their way while their tab still sends them', () => {
-  it('keep their time ahead; another tab’s words on their way stay as they are', () => {
-    const mine = { ...draftOf('Mine'), until: 1_000 }
-    assert.deepEqual(renewed({ draft: null, sending: mine }, mine, 9_000).sending, { ...mine, until: 9_000 })
-    const theirs = { ...draftOf('Theirs'), until: 1_000 }
-    assert.deepEqual(renewed({ draft: null, sending: theirs }, mine, 9_000).sending, theirs)
+  it('show as sending while that tab holds the device’s send, for that account only', async () => {
+    const held = Promise.withResolvers<void>()
+    const first = oneAtATime('ana', () => held.promise)
+    assert.equal(await sendingNow('ana'), true)
+    assert.equal(await sendingNow('ben'), false)
+    held.resolve()
+    await first
+    assert.equal(await sendingNow('ana'), false)
   })
 })
 

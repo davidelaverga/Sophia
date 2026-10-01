@@ -199,6 +199,7 @@ function useRows(props: Props) {
   const turns = useMemo(() => withReadBack(readBack.older, listed), [readBack.older, listed])
   const earlier = readBack.more
   const loaded = !!space
+  const answers = space?.companion !== 'unavailable'
   const rows = useMemo(
     () =>
       loaded
@@ -209,9 +210,10 @@ function useRows(props: Props) {
             now,
             name,
             fromTheStart: opensWithIntro(turns, earlier, now),
+            answers,
           })
         : [],
-    [loaded, turns, writes.sending, writes.welcoming, name, earlier, now],
+    [loaded, turns, writes.sending, writes.welcoming, name, earlier, now, answers],
   )
   return { turns, rows }
 }

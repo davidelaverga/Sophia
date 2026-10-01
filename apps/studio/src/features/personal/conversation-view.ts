@@ -139,17 +139,27 @@ export interface ConversationInput {
   name: string | null
   /** The first turn ever is loaded (or there is none): the introduction leads the conversation. */
   fromTheStart: boolean
+  /** Sophia can answer here (a companion is set up): only then are there ways to start. */
+  answers?: boolean
+}
+
+/**
+ * The introduction leads a conversation from its start; ways to start follow while nothing has been said, where Sophia
+ * can answer.
+ */
+function introduce(layout: Layout, { turns, sending, now, name, answers = true }: ConversationInput) {
+  addDay(layout, turns[0] ? new Date(turns[0].createdAt) : now, now)
+  layout.rows.push({ kind: 'intro', key: 'intro', text: introText(name) })
+  layout.lastSide = 'sophia'
+  const first = !sending && !turns.some((t) => t.author === 'person')
+  if (answers && first) layout.rows.push({ kind: 'starters', key: 'starters' })
 }
 
 /** The rows of the conversation, in order. */
-export function conversationRows({ turns, sending, welcoming, now, name, fromTheStart }: ConversationInput): Row[] {
+export function conversationRows(input: ConversationInput): Row[] {
+  const { turns, sending, welcoming, now, fromTheStart } = input
   const layout: Layout = { rows: [], lastDay: null, lastSide: null }
-  if (fromTheStart) {
-    addDay(layout, turns[0] ? new Date(turns[0].createdAt) : now, now)
-    layout.rows.push({ kind: 'intro', key: 'intro', text: introText(name) })
-    layout.lastSide = 'sophia'
-    if (!sending && !turns.some((t) => t.author === 'person')) layout.rows.push({ kind: 'starters', key: 'starters' })
-  }
+  if (fromTheStart) introduce(layout, input)
   turns.forEach((turn, i) => {
     addTurn(layout, turn, now)
     if (turn.author === 'person' && turn.reply === 'failed') {

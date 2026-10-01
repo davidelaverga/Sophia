@@ -167,7 +167,12 @@ export function DataSheet(props: Props) {
   // (closed, signing out) copies nothing; one still on its way then stops at once, and so does one when the space is
   // erased (here, or anywhere this page hears of). Its pages are read against the epoch it began in: one asked for
   // after an erasure is refused.
-  const copy = async () => {
+  // The copy on its way, so an erasure waits for its clipboard write to settle: nothing erased lands there after.
+  const copying = useRef<Promise<void>>(Promise.resolve())
+  const copy = () => {
+    copying.current = copyNow()
+  }
+  const copyNow = async () => {
     try {
       const signal = calledOff.signal()
       const load = async () => exportText(await exportPersonalSpace(token, epoch, signal), who, new Date())
@@ -180,6 +185,7 @@ export function DataSheet(props: Props) {
   }
   const erase = async () => {
     calledOff.all() // what is being copied goes with what is erased
+    await copying.current // and a clipboard write already under way settles first
     try {
       await onErase()
       setErased(true)
@@ -194,7 +200,7 @@ export function DataSheet(props: Props) {
       {erased ? (
         <p className="sheet-lead">{DATA.erased}</p>
       ) : (
-        <DataBody space={space} locked={locked} onUnlock={onUnlock} onCopy={() => void copy()} onErase={erase} />
+        <DataBody space={space} locked={locked} onUnlock={onUnlock} onCopy={copy} onErase={erase} />
       )}
     </Sheet>
   )

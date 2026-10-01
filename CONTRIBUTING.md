@@ -536,9 +536,11 @@ their work. Keep these when you change them:
   field or a way to start (`OnItsWay`), and from any tab of the device: a
   send holds the browser's lock across tabs until it settles
   (`oneAtATime`, with tests), and a tab's words on their way stay on the
-  device (`waitsFor`, with tests), their time kept ahead while their tab
-  still sends them (`renewed`, with tests), and go once sent, also when the
-  field went meanwhile. A way to start goes the same way, under its own
+  device (`waitsFor`, with tests) and stay that tab's while it still sends
+  them, however long: another tab takes them back only once the browser
+  has let go of that tab's lock (`sendingNow`, with tests); nothing
+  rewrites them meanwhile. They go once sent, also when the field went
+  meanwhile. A way to start goes the same way, under its own
   key, the field left as it is. The field waits meanwhile, so no tab's
   words on their way are lost and they arrive in order. Every write but
   erasure names the epoch of the space as this page last read it (`epochNow`: the space's when it is
@@ -575,11 +577,12 @@ their work. Keep these when you change them:
   tab whose space is behind the draft it shows reads the space again before
   sending it. Every personal read takes its query's signal: the padlock
   shutting stops the reads on their way (the space, the wait for a reply, a
-  page read back). A long conversation reads back from the Earlier days menu
+  page read back), and the account leaving stops the Work list's. A long conversation reads back from the Earlier days menu
   ("Show earlier days"); turns that leave the space's window as new ones
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
-  carries every turn. Your data's days are the server's count, over the whole
+  carries every turn, and an erasure waits for a copy's clipboard write to
+  settle, so nothing erased lands there after. Your data's days are the server's count, over the whole
   conversation, in this device's time zone (UTC where the server doesn't
   know it). While the padlock is shut the field is off the page and the
   page keeps none of the space's words: neither a message on its way nor
@@ -600,7 +603,8 @@ their work. Keep these when you change them:
 - **Nothing still loading looks empty** (`readState`, `ReadNotes`). A door
   whose read hasn't come back only opens (no "Start talking", no "Start a
   project"); the personal space offers no introduction, no ways to start and
-  no field to type in until it has loaded (it waits, disabled), and its notes
+  no field to type in until it has loaded (it waits, disabled), no ways to
+  start where Sophia can't answer (the field says why), and its notes
   say nothing and count nothing before; a slow read adds the Studio's wait
   line and a failed one says so with Try again. In a private space, what looks empty
   reads as deleted.
