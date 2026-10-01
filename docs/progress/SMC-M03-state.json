@@ -1,0 +1,47 @@
+{
+  "schema": "sophia.mission-state.v1",
+  "mission_id": "SMC-M03",
+  "current_goal": "G1",
+  "repository": "davidelaverga/Sophia",
+  "branch": "claude/smc-m03-research",
+  "base_commit": "ba983e7",
+  "candidate_commit": null,
+  "implementation_pr": null,
+  "coordination_issue": 31,
+  "status": {
+    "source": "in_progress",
+    "merge": "not_requested",
+    "release": "not_requested",
+    "hosted_verification": "not_run",
+    "product_acceptance": "not_requested"
+  },
+  "owners": {
+    "implementation": "Claude Code",
+    "operations_support": "Codex",
+    "product_authority": "Davide",
+    "ui_review": "Luis_when_relevant"
+  },
+  "completed_goals": [],
+  "test_evidence": [],
+  "outstanding_operations": [
+    {
+      "operation_id": "SMC-M03-OP-0001",
+      "kind": "inspect_request",
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526",
+      "state": "awaiting_operator"
+    }
+  ],
+  "unknown_effects": [],
+  "hosted_tuple_ref": null,
+  "migration_ledger_ref": null,
+  "approval_refs": [],
+  "remaining_allowance_ref": null,
+  "file_ownership": [
+    { "path": "pnpm-lock.yaml", "owner": "Claude Code", "rule": "single writer, in the commit that changes dependencies" },
+    { "path": "db/migrations/0022_*.sql and later", "owner": "Claude Code" },
+    { "path": "packages/contracts/amendments/A11-research-and-knowledge.json", "owner": "Claude Code" },
+    { "path": "db/migrations/0021_personal_space.sql, packages/contracts/amendments/A10-personal-space.json", "owner": "Luis (#30)" }
+  ],
+  "next_action": "S1 readers first: migration 0022, A11 read side, persistence readers, kind-tolerant bridge and Studio parsers",
+  "checkpoint_ref": "docs/progress/SMC-M03.md"
+}
