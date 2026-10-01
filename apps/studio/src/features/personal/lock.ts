@@ -1,8 +1,9 @@
-// The padlock on the personal space (direction C): a privacy screen on this device, the same in every tab of it. While
-// it is shut nothing personal is fetched or shown, and opening it asks the person to confirm it's them
-// (app/reauth.ts). The person shuts it, and so does every call (a screen may be shared there); only the person opens
-// it again. One stored value is the truth (useLock): every write only shuts it, but the person's own unlock, so writes
-// from any number of tabs, in any order, leave it shut once a call has shut it.
+// The padlock on the personal space (direction C): a privacy screen on this device, the same in every tab of it, kept
+// for the account (never its address, which can change). While it is shut nothing personal is fetched or shown, and
+// opening it asks the person to confirm it's them (app/reauth.ts). The person shuts it, and so does every call (a screen
+// may be shared there); only the person opens it again. One stored value is the truth (useLock): every write only
+// shuts it, but the person's own unlock, so writes from any number of tabs, in any order, leave it shut once a call
+// has shut it.
 import type { LockedBy } from './places-view.ts'
 
 export type Lock = { locked: false } | { locked: true; by: LockedBy }
@@ -14,7 +15,7 @@ export const shut = (lock: Lock, by: LockedBy): Lock => (lock.locked ? lock : { 
 
 export const lockedBy = (lock: Lock): LockedBy | null => (lock.locked ? lock.by : null)
 
-export const lockKey = (identity: string) => `sophia.personal.lock.v1.${identity}`
+export const lockKey = (account: string) => `sophia.personal.lock.v1.${account}`
 
 /**
  * The stored value as the padlock: absent is open; "room", shut by a call; anything else ("you", and "locked" as it was

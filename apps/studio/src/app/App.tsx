@@ -8,6 +8,7 @@ import { OPEN } from '../features/personal/lock.ts'
 import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
+import { accountOf } from './auth-callback.ts'
 import { useAuth } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, opensJoinPage } from './route.ts'
@@ -260,7 +261,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const ended = useRef<OnEnded | null>(null)
   const [call, reportCall] = useCall(ended)
   const join = useJoinRequest(route.projectId)
-  const [lock, setLock] = useLock(identity.name, call?.projectId ?? null)
+  const [lock, setLock, lockedNow] = useLock(accountOf(identity), call?.projectId ?? null)
   const project = route.projectId
   useProviderReturn({ call, project, setLock, goTo, say: toast.show })
   useOneCallInSight(call, project)
@@ -293,6 +294,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
           identity={identity}
           lock={lock}
           setLock={setLock}
+          lockedNow={lockedNow}
           call={call ? inCall(call, () => open(call.projectId)) : null}
           toast={toast.show}
           opening={sheets.opening}

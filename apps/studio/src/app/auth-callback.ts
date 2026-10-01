@@ -80,6 +80,12 @@ function tokenClaim(accessToken: string, name: string): string | null {
  */
 export const tokenSubject = (accessToken: string) => tokenClaim(accessToken, 'sub')
 
+/**
+ * Whose things on this device are (the padlock, the draft): the account signed in, its token's subject, which an email
+ * change keeps; its name only where the token carries none.
+ */
+export const accountOf = (identity: { name: string; token: string }) => tokenSubject(identity.token) ?? identity.name
+
 /** The sign-in a token belongs to (its `session_id`): every sign-in starts a new one, and a refresh keeps it. */
 export const tokenSession = (accessToken: string) => tokenClaim(accessToken, 'session_id')
 

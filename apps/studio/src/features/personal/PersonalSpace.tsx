@@ -34,7 +34,8 @@ import { personalFailure, unsent } from './write-words.ts'
 interface Props {
   /** Not on screen (another place is): kept mounted, so a draft and the scroll survive. */
   hidden: boolean
-  identity: string
+  /** Whose draft the composer keeps (accountOf). */
+  account: string
   name: string | null
   /** Undefined until it has loaded (`read` says how that goes). */
   space: Space | undefined
@@ -271,7 +272,7 @@ const sender =
   }
 
 export function PersonalSpace(props: Props) {
-  const { identity, space, projects, writes, notes, earlier, toast } = props
+  const { account, space, projects, writes, notes, earlier, toast } = props
   const body = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [listening, setListening] = useState(false)
@@ -288,7 +289,7 @@ export function PersonalSpace(props: Props) {
     <PersonalComposer
       // An erasure forgets the draft too: the composer starts afresh.
       key={writes.erasures}
-      {...{ identity, hidden: props.hidden }}
+      {...{ account, hidden: props.hidden }}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={setListening}
       onSend={sender(writes, onFailed)}

@@ -5,7 +5,7 @@
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
-import { tokenSubject } from '../../app/auth-callback.ts'
+import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { initialOf } from '../../app/profile.ts'
@@ -37,6 +37,8 @@ export interface PlacesProps {
   identity: Identity
   lock: Lock
   setLock: (lock: Lock) => void
+  /** The padlock as stored this moment (useLock), for what arrives later: a copy's export. */
+  lockedNow: () => boolean
   /** The room this person is in, if any: the bar shows it, and Personal stays locked while it lasts. */
   call: (InCall & { projectId: string }) | null
   toast: ShowToast
@@ -367,7 +369,7 @@ function Personal({ v }: { v: View }) {
   return (
     <PersonalSpace
       hidden={!v.shown.includes('personal') || props.lock.locked}
-      identity={props.identity.name}
+      account={accountOf(props.identity)}
       name={firstName(props.identity)}
       space={v.personal}
       read={personalRead(v)}
@@ -448,6 +450,7 @@ function Sheets({ v }: { v: View }) {
           who={identity.displayName ?? firstName(identity) ?? identity.name}
           space={v.personal}
           locked={props.lock.locked}
+          lockedNow={props.lockedNow}
           toast={props.toast}
           onClose={() => layers.setData(false)}
           returnTo={placesAccount}

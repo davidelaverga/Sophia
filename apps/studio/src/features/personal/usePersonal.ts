@@ -18,6 +18,7 @@ import {
   sendPersonalTurn,
   takeBackPersonalRelease,
 } from '../../api/personal.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Sending } from './conversation-view.ts'
 import { writeDraft } from './draft.ts'
@@ -117,7 +118,7 @@ export function usePersonalWrites(identity: Identity) {
     takeBack: (releaseId: string) => run((k) => takeBackPersonalRelease(token, k, releaseId), true),
     erase: async () => {
       const receipt = await run((k) => erasePersonalSpace(token, k))
-      writeDraft(identity.name, '')
+      writeDraft(accountOf(identity), '')
       setErasures((n) => n + 1)
       return receipt
     },

@@ -4,6 +4,7 @@
 // draft came from or why it is back, as the chat's foot does (.chat-line).
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
+import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
 import { draftToStore, readDraft, restoredDraft, writeDraft } from './draft.ts'
 import type { Unsent } from './write-words.ts'
@@ -29,9 +30,9 @@ const PLACEHOLDER: Record<ComposerState, string> = {
 }
 
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
-function useDraft(identity: string) {
-  const [text, setText] = useState(() => readDraft(identity))
-  const [note, setNote] = useState(() => (readDraft(identity) ? KEPT : ''))
+function useDraft(account: string) {
+  const [text, setText] = useState(() => readDraft(account))
+  const [note, setNote] = useState(() => (readDraft(account) ? KEPT : ''))
   // What the field holds now, for words that come back after a send that waited (restoredDraft).
   const latest = useRef(text)
   // Words on their way: the device keeps them ahead of anything typed meanwhile until they are sent (draftToStore).
@@ -40,7 +41,7 @@ function useDraft(identity: string) {
     latest.current = value
     setText(value)
     setNote(why)
-    writeDraft(identity, draftToStore(sending.current, value))
+    writeDraft(account, draftToStore(sending.current, value))
   }
   return {
     text,
@@ -53,12 +54,12 @@ function useDraft(identity: string) {
       latest.current = ''
       setText('')
       setNote('')
-      writeDraft(identity, draftToStore(words, ''))
+      writeDraft(account, draftToStore(words, ''))
     },
     /** Sent (or erased with the space): the device keeps only what was typed meanwhile. */
     sent: () => {
       sending.current = null
-      writeDraft(identity, latest.current)
+      writeDraft(account, latest.current)
     },
     /** Not sent: the words come back to the field (change), which the device then keeps. */
     back: (words: string, why: string) => {
@@ -66,18 +67,6 @@ function useDraft(identity: string) {
       change(restoredDraft(words, latest.current), why)
     },
   }
-}
-
-/** Whether this composer is still on the page (false once it went: signing out, an erasure). */
-function useMounted() {
-  const mounted = useRef(false)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
-  return mounted
 }
 
 function Listening() {
@@ -146,8 +135,9 @@ function Field({ field, text, state, onChange, onSend }: FieldProps) {
 }
 
 interface Props {
-  identity: string
-  /** The space is out of sight (a lock, another place): dictation stops. */
+  /** Whose draft this is (accountOf). */
+  account: string
+  /** The space is out of sight (a lock, another place): dictation stops, and a start still waiting is called off. */
   hidden: boolean
   state: ComposerState
   /** Resolves to how the send went; words that didn't go come back into the field, unless erased with the space. */
@@ -177,19 +167,15 @@ function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, onSend: Pro
   return { sending, send }
 }
 
-export function PersonalComposer({ identity, hidden, state, onSend, onListening }: Props) {
-  const draft = useDraft(identity)
+export function PersonalComposer({ account, hidden, state, onSend, onListening }: Props) {
+  const draft = useDraft(account)
   const { text, note, change } = draft
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
     change(text ? `${text} ${heard}` : heard, 'From your voice · edit it or send')
     field.current?.focus()
-  })
+  }, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
-  const { listening, stop } = dictation
-  useEffect(() => {
-    if (hidden && listening) stop()
-  }, [hidden, listening, stop])
   const ready = state === 'ready'
   const { sending, send } = useSend(draft, ready, onSend)
   return (

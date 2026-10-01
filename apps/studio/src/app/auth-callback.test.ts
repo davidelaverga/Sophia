@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  accountOf,
   LINK_FAILED,
   linkDecision,
   providerCheckPassed,
@@ -60,6 +61,14 @@ describe('a link that carries a session', () => {
     for (const bad of ['not-a-token', 'a.b.c', token({ user: 'x' }), token({ sub: 7 }), '']) {
       assert.equal(tokenSubject(bad), null)
     }
+  })
+
+  it('keys what the device keeps for someone by their account, which an email change keeps', () => {
+    const before = { name: 'ana@sophia.test', token: token({ sub: 'a1b2', email: 'ana@sophia.test' }) }
+    const after = { name: 'ana.new@sophia.test', token: token({ sub: 'a1b2', email: 'ana.new@sophia.test' }) }
+    assert.equal(accountOf(before), 'a1b2')
+    assert.equal(accountOf(after), accountOf(before))
+    assert.equal(accountOf({ name: 'Luis', token: 'not-a-token' }), 'Luis')
   })
 
   it('never replaces another account signed in here, and never one it cannot read', () => {

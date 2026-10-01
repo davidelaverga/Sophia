@@ -403,8 +403,10 @@ personal space with Sophia (its data side is "The personal space" above), and
 their work. Keep these when you change them:
 
 - **The padlock is this device's privacy screen** (`lock.ts`, `useLock`,
-  with tests), the same in every tab: one stored value per person (open,
+  with tests), the same in every tab: one stored value per account (open,
   shut by the person, shut by a call), read again whenever a tab comes back.
+  It is kept, as the draft is, by the account (`accountOf`), never by the
+  address, which can change.
   The person shuts it (L, the padlock, the bar's chip), and so does every
   call that begins, also one that moves to another project without a pause
   (`onCallStart`); nothing else writes it but the person's own unlock, so
@@ -415,6 +417,11 @@ their work. Keep these when you change them:
   any change of who is signed in clears the cache: nothing personal is
   fetched, shown or kept in memory while it is shut. A place that can't be shown (a locked
   personal space) takes its history entry's place, so Back goes on past it.
+  A copy of the space reads the padlock as stored when its export arrives,
+  and copies nothing once it shut or its sheet went. Dictation stops when the
+  space goes out of sight, and a start still waiting for the device's
+  language is called off (`useDictation`): the microphone never turns on out
+  of sight.
 - **Unlocking checks the same person** (`app/reauth.ts`; `unlock-check.ts`,
   with tests). A passkey or an email code is checked on a client of its own,
   off the app's session, that stores and refreshes nothing;

@@ -1,21 +1,21 @@
 // The message being written to Sophia, kept on this device as it is written (PersonalComposer), so a reload or a closed
-// tab loses nothing. It belongs to the person signed in: signing out forgets every draft on this device, and erasing
-// the personal space forgets theirs.
+// tab loses nothing. It belongs to the account signed in (accountOf): signing out forgets every draft on this device,
+// and erasing the personal space forgets theirs.
 const PREFIX = 'sophia.personal.draft.v1.'
-const draftKey = (identity: string) => `${PREFIX}${identity}`
+const draftKey = (account: string) => `${PREFIX}${account}`
 
-export function readDraft(identity: string): string {
+export function readDraft(account: string): string {
   try {
-    return localStorage.getItem(draftKey(identity)) ?? ''
+    return localStorage.getItem(draftKey(account)) ?? ''
   } catch {
     return ''
   }
 }
 
-export function writeDraft(identity: string, text: string): void {
+export function writeDraft(account: string, text: string): void {
   try {
-    if (text) localStorage.setItem(draftKey(identity), text)
-    else localStorage.removeItem(draftKey(identity))
+    if (text) localStorage.setItem(draftKey(account), text)
+    else localStorage.removeItem(draftKey(account))
   } catch {
     // storage unavailable: the draft lasts for this page only
   }

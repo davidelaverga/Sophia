@@ -23,7 +23,7 @@ What works, on the local dev stack with the rehearsal companion:
 - **API:** the personal routes, the project list with who is in each room (one question finds the occupied rooms; only those are asked, a few at a time), readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only. The API claims a turn, and a welcome under its key, before it asks the companion, so one process asks.
 - **Studio** (#30, on top of the data side):
   - the three places (home, Personal, Work) under one bar, built from the Studio's own controls;
-  - the padlock: one value per device; the person shuts it and so does every call; a call's end opens nothing; only the person opens it, by confirming it's them (a passkey or an emailed code on a client of its own, so the app's session is never touched; or the provider they signed in with, as a new sign-in);
+  - the padlock: one value per device and account (never the address, which can change); the person shuts it and so does every call; a call's end opens nothing; only the person opens it, by confirming it's them (a passkey or an emailed code on a client of its own, so the app's session is never touched; or the provider they signed in with, as a new sign-in);
   - Your data: copy everything (with the suggestions not decided yet), delete everything;
   - a call that goes on across the places, with its switches, text mode, what Sophia is looking at and what stopped a device in the places' bar; opening another project leaves it, and says so; "Join the room" from Work joins on that opening only;
   - for the keyboard and screen readers: Sophia's replies are said once; a letter typed with the focus nowhere in Personal goes into the message bar (never the padlock), and never into a field the notes cover; a modal sheet takes every key; the focus is handed on wherever a control goes away;
@@ -40,7 +40,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 263; database tests: 225 (`pnpm test:db`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 271; database tests: 225 (`pnpm test:db`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;

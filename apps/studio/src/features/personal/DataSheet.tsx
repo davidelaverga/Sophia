@@ -6,6 +6,7 @@ import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
+import { useMounted } from '../../app/useMounted.ts'
 import { browserClip, copyFetched, CopyCalledOff } from './copy.ts'
 import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
 import { focusSoon } from './focus.ts'
@@ -17,6 +18,8 @@ interface Props {
   who: string
   space: PersonalSpace | undefined
   locked: boolean
+  /** The padlock as stored this moment (useLock): a copy reads it when its export arrives. */
+  lockedNow: () => boolean
   toast: ShowToast
   onClose: () => void
   /** Where the focus goes on closing when what opened the sheet is gone (a project's account menu). */
@@ -127,18 +130,16 @@ function useSwapFocus(locked: boolean) {
 }
 
 export function DataSheet(props: Props) {
-  const { token, who, space, locked, toast, onClose, returnTo, onUnlock, onErase } = props
+  const { token, who, space, locked, lockedNow, toast, onClose, returnTo, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
+  const open = useMounted()
   useSwapFocus(locked)
-  // The padlock as it is now, for a copy whose export arrives after a lock: then nothing is copied.
-  const lockedNow = useRef(locked)
-  useEffect(() => {
-    lockedNow.current = locked
-  })
+  // A copy whose export arrives once the padlock is shut (as stored then, wherever it was shut) or the sheet has gone
+  // (closed, signing out) copies nothing.
   const copy = async () => {
     try {
       const load = async () => exportText(await exportPersonalSpace(token), who, new Date())
-      await copyFetched(load, browserClip(), () => !lockedNow.current)
+      await copyFetched(load, browserClip(), () => open.current && !lockedNow())
       toast(NOTICE.copied)
     } catch (err: unknown) {
       if (err instanceof CopyCalledOff) return // the locked body already says why

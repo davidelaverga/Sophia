@@ -15,9 +15,13 @@ function deviceStorage(): Storage | null {
   }
 }
 
-/** `room`: the project whose room holds this tab's call, or null. */
-export function useLock(identity: string, room: string | null): readonly [Lock, (next: Lock) => void] {
-  const key = lockKey(identity)
+/**
+ * `account`: whose padlock (accountOf). `room`: the project whose room holds this tab's call, or null. Also returns the
+ * padlock as stored this moment, for work that ends later (a copy): a lock written anywhere counts at once, before this
+ * page draws it.
+ */
+export function useLock(account: string, room: string | null): readonly [Lock, (next: Lock) => void, () => boolean] {
+  const key = lockKey(account)
   const store = useMemo(() => lockStore(key, deviceStorage()), [key])
   // Read again on this tab's own writes, on another tab's (the storage event; a null key is storage cleared), and when
   // the tab comes back from the background or the back-forward cache, where an event may have been missed.
@@ -41,13 +45,14 @@ export function useLock(identity: string, room: string | null): readonly [Lock, 
   )
   const stored = useSyncExternalStore(subscribe, store.read)
   const set = useCallback((next: Lock) => store.write(next.locked ? next.by : null), [store])
+  const lockedNow = useCallback(() => storedLock(store.read()).locked, [store])
   const lastRoom = useRef<string | null>(null)
   useEffect(() => {
     const was = lastRoom.current
     lastRoom.current = room
     if (room !== null && room !== was) store.write(onCallStart(store.read()))
   }, [room, store])
-  return [storedLock(stored), set] as const
+  return [storedLock(stored), set, lockedNow] as const
 }
 
 /** How long the check of a provider's return may take before the person is told it couldn't be read. */
