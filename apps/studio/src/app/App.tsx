@@ -13,6 +13,7 @@ import { useAuth } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, opensJoinPage, projectOnScreen } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
+import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import { useProjectRoute } from './useProjectRoute.ts'
@@ -37,8 +38,7 @@ export function App() {
   // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
     queryClient.clear()
-    forgetDrafts()
-    void signOut()
+    void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
   }
 
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question

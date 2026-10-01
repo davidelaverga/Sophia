@@ -110,6 +110,14 @@ const isProviderCheck = (v: unknown): v is ProviderCheck =>
   typeof v.at === 'number'
 
 /**
+ * Whether the account a provider sent back is another than the one that left from this tab to unlock (`check`): its
+ * session is never adopted. With no check pending, or nobody back, nothing is refused.
+ */
+export function otherAccountBack(check: unknown, user: string | null): boolean {
+  return isProviderCheck(check) && check.user !== '' && user !== null && user !== check.user
+}
+
+/**
  * Whether a check with a provider passed: the account that left for it came back from a new sign-in there, in time.
  * Coming back with Back or Cancel keeps the sign-in it left with, and another account opens nothing.
  */
@@ -139,6 +147,9 @@ export function linkDecision(here: string | null, incoming: string | null): Link
 
 export const OTHER_ACCOUNT_NOTICE =
   'That sign-in link is for a different account, so you are still signed in as before. To use the other account, sign out first, then open the link again.'
+
+export const UNLOCK_OTHER_ACCOUNT_NOTICE =
+  'That sign-in was a different account than the one whose personal space was locked, so nobody is signed in here now. Sign in again.'
 
 export const OTHER_BROWSER_NOTICE =
   'That sign-in link was opened in a different browser than the one that asked for it. Type the code from the email in that browser, or ask for a new link here.'

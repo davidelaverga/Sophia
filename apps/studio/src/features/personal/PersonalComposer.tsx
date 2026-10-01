@@ -15,12 +15,14 @@ import {
   onOpening,
   readKept,
   restoredDraft,
+  waitsFor,
   writeKept,
   type Draft,
 } from './draft.ts'
 import type { Unsent } from './write-words.ts'
 
 const KEPT = 'Draft kept on this device'
+const WAITS = 'Another message is on its way: send this one after it'
 
 /** Why words are back in the field: they weren't sent, or no answer came back (they may have been). */
 const BACK: Record<Exclude<Unsent, 'erased'>, string> = {
@@ -49,6 +51,13 @@ function opened(account: string, epoch: number): { draft: Draft | null; back: bo
   const open = onOpening(kept, Date.now())
   const at = open.back ? writeKept(account, { draft: open.draft, sending: null }, epoch) : (kept.at ?? epoch)
   return { ...open, at }
+}
+
+/** Whether `words` wait for another tab's on their way (waitsFor); if so, the line above the field says so. */
+function waiting(account: string, epoch: number | undefined, words: Draft, say: (why: string) => void): boolean {
+  const wait = epoch !== undefined && waitsFor(readKept(account, epoch), words, Date.now())
+  if (wait) say(WAITS)
+  return wait
 }
 
 /** The line above the field for the draft it opens with. */
@@ -176,6 +185,8 @@ function useDraft(account: string, epoch: number | undefined) {
     change: (value: string, why = value ? KEPT : '') => set(value ? draftOf(value) : null, why),
     /** The words in the field, with the key they go under. */
     current: () => latest.current,
+    /** Another tab's message is on its way: these words wait in the field, said so (waiting). */
+    waits: (words: Draft) => waiting(account, epoch, words, setNote),
     /** The words go, under their key: the field empties at once, and the device keeps them apart until they're sent. */
     go: (words: Draft) => {
       sending.current = words
@@ -298,6 +309,7 @@ function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, busy: boole
     const text = current?.text.trim() ?? ''
     if (!current || !text || !ready || busy) return
     const words = { text, key: current.key }
+    if (draft.waits(words)) return
     draft.go(words)
     const outcome = await onSend(text, words.key)
     if (!mounted.current) return

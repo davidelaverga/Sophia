@@ -11,6 +11,7 @@ import {
   OTHER_BROWSER_NOTICE,
   readAuthCallback,
   tokenSubject,
+  UNLOCK_OTHER_ACCOUNT_NOTICE,
   withoutAuthParams,
 } from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
@@ -18,6 +19,7 @@ import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
+import { pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -109,6 +111,10 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange
   if (callback.kind === 'code' && !data.session) notice = OTHER_BROWSER_NOTICE
   if (callback.kind !== 'none') window.history.replaceState(null, '', withoutAuthParams(window.location.href))
+  // Back from a provider an unlock left for, as another account: nobody is signed in, and nothing of it opens.
+  if (await refuseOtherAccount(client.auth, data.session?.user.id ?? null)) {
+    return { status: 'signed_out', notice: UNLOCK_OTHER_ACCOUNT_NOTICE }
+  }
   const state = fromSession(data.session)
   return notice ? { ...state, notice } : state
 }
@@ -116,12 +122,16 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
 function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) => void): () => void {
   let alive = true
+  // Back from a provider an unlock left for, nothing the client says is adopted before the redirect's state: the
+  // account it signed in may be another, which never opens (its SIGNED_IN comes on its own, a moment later).
+  let returning = pendingUnlock() !== null
   void sessionAfterRedirect(client).then((state) => {
+    returning = false
     if (alive) onState(state)
   })
   // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it.
   const { data } = client.auth.onAuthStateChange((event, session) => {
-    if (event !== 'INITIAL_SESSION') onState(fromSession(session))
+    if (event !== 'INITIAL_SESSION' && !returning) onState(fromSession(session))
   })
   return () => {
     alive = false

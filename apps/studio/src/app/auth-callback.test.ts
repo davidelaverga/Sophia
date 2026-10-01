@@ -4,6 +4,7 @@ import {
   accountOf,
   LINK_FAILED,
   linkDecision,
+  otherAccountBack,
   providerCheckPassed,
   readAuthCallback,
   tokenSession,
@@ -99,6 +100,13 @@ describe('the padlock’s check with a provider, across the redirect', () => {
   it('fails on coming back with Back or Cancel: the sign-in it left with proves nothing', () => {
     assert.equal(providerCheckPassed(left, { user: 'ana', session: 's1' }, AT + 60_000), false)
     assert.equal(providerCheckPassed(left, { user: 'ana', session: null }, AT + 60_000), false)
+  })
+
+  it('knows another account back from the one that left, and nothing else as one', () => {
+    assert.equal(otherAccountBack(left, 'ben'), true)
+    assert.equal(otherAccountBack(left, 'ana'), false)
+    assert.equal(otherAccountBack(left, null), false)
+    for (const none of [null, 'x', { ...left, user: '' }]) assert.equal(otherAccountBack(none, 'ben'), false)
   })
 
   it('fails for another account, late, or a check that is not one', () => {

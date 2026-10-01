@@ -117,6 +117,13 @@ export const goingOut = (kept: Kept, words: Draft, until: number): Kept => ({
   sending: { ...words, until },
 })
 
+/**
+ * Whether `words` wait: another tab's are on their way under another key, still in time. The device keeps one message
+ * going, so neither is lost and they reach the conversation in the order they were sent.
+ */
+export const waitsFor = (kept: Kept, words: Draft, now: number): boolean =>
+  kept.sending !== null && kept.sending.key !== words.key && kept.sending.until > now
+
 /** Sent: the words on their way are let go, and only they (another tab's stay); the draft stays as it is then. */
 export const afterSent = (kept: Kept, sent: Draft): Kept => ({
   draft: kept.draft,

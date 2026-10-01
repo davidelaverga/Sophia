@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { leaveFor, type ProviderAuth } from './provider-leave.ts'
+import { leaveFor, PENDING, refuseOtherAccount, type ProviderAuth } from './provider-leave.ts'
 
 /** An Auth client whose session read `during` runs during (as the person closes the sheet); the sign-ins it starts. */
 function auth(during: () => void) {
@@ -36,5 +36,53 @@ describe('unlocking with a provider', () => {
       Reflect.deleteProperty(globalThis, 'window')
     }
     assert.deepEqual(started, ['github'])
+  })
+})
+
+/** This tab's sessionStorage, holding `pending` as the check an unlock left with; the sign-outs asked of Auth. */
+function returning(pending: object | null) {
+  const held = new Map<string, string>(pending ? [[PENDING, JSON.stringify(pending)]] : [])
+  Reflect.set(globalThis, 'sessionStorage', {
+    getItem: (k: string) => held.get(k) ?? null,
+    removeItem: (k: string) => void held.delete(k),
+  })
+  const scopes: string[] = []
+  const signing = {
+    signOut: (o: { scope: string }) => {
+      scopes.push(o.scope)
+      return Promise.resolve({ error: null })
+    },
+  }
+  return { held, scopes, client: signing as unknown as Parameters<typeof refuseOtherAccount>[0] }
+}
+
+describe('back from the provider', () => {
+  const left = { user: 'ana', session: 's1', at: Date.now() }
+
+  it('another account than the one that left: its session ends here, and nobody is signed in', async () => {
+    const { held, scopes, client } = returning(left)
+    try {
+      assert.equal(await refuseOtherAccount(client, 'ben'), true)
+    } finally {
+      Reflect.deleteProperty(globalThis, 'sessionStorage')
+    }
+    assert.deepEqual(scopes, ['local'])
+    assert.equal(held.has(PENDING), false)
+  })
+
+  it('the same account, or no unlock pending: the session is left as it is', async () => {
+    for (const [pending, user] of [
+      [left, 'ana'],
+      [null, 'ben'],
+      [left, null],
+    ] as const) {
+      const { scopes, client } = returning(pending)
+      try {
+        assert.equal(await refuseOtherAccount(client, user), false)
+      } finally {
+        Reflect.deleteProperty(globalThis, 'sessionStorage')
+      }
+      assert.deepEqual(scopes, [])
+    }
   })
 })

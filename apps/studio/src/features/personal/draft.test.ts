@@ -11,6 +11,7 @@ import {
   NOTHING_KEPT,
   onOpening,
   restoredDraft,
+  waitsFor,
 } from './draft.ts'
 
 /** A store holding these keys, as a browser's localStorage lists them. */
@@ -105,6 +106,21 @@ describe('the words on their way', () => {
     })
     const theirs = { ...draftOf('Theirs'), until: 1 }
     assert.deepEqual(afterSent({ draft: typed, sending: theirs }, words), { draft: typed, sending: theirs })
+  })
+})
+
+describe('one message on its way per device', () => {
+  const theirs = { ...draftOf('On its way from another tab'), until: 5_000 }
+  const mine = draftOf('Typed here')
+
+  it('words wait while another tab’s are on their way, in time', () => {
+    assert.equal(waitsFor({ draft: mine, sending: theirs }, mine, 4_000), true)
+  })
+
+  it('they don’t wait for the same draft (one message), for words whose time is up, or for nothing', () => {
+    assert.equal(waitsFor({ draft: null, sending: theirs }, theirs, 4_000), false)
+    assert.equal(waitsFor({ draft: mine, sending: theirs }, mine, 5_000), false)
+    assert.equal(waitsFor({ draft: mine, sending: null }, mine, 4_000), false)
   })
 })
 

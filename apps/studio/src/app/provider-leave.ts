@@ -2,12 +2,39 @@
 // only), then the provider's sign-in starts. The Auth client is given, so the leaving can be checked on its own.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OAuthProvider } from './auth.ts'
-import { tokenSession, type ProviderCheck } from './auth-callback.ts'
+import { otherAccountBack, tokenSession, type ProviderCheck } from './auth-callback.ts'
 import { orLate } from './deadline.ts'
 import { CHECK_WORDS } from './unlock-check.ts'
 
 /** Where this tab notes which sign-in left for the provider. */
 export const PENDING = 'sophia.personal.unlock'
+
+/** The check this tab left for a provider with, while it is pending (null: none, or storage unavailable). */
+export function pendingUnlock(): unknown {
+  try {
+    return JSON.parse(sessionStorage.getItem(PENDING) ?? 'null')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Back from the provider as another account than the one that left to unlock (otherAccountBack): that session ends
+ * here (scope local), the check goes with it, and true is said, so nobody is signed in. Anything else is left as it is.
+ */
+export async function refuseOtherAccount(
+  auth: Pick<SupabaseClient['auth'], 'signOut'>,
+  user: string | null,
+): Promise<boolean> {
+  if (!otherAccountBack(pendingUnlock(), user)) return false
+  try {
+    sessionStorage.removeItem(PENDING)
+  } catch {
+    // storage unavailable: nothing was kept
+  }
+  await auth.signOut({ scope: 'local' })
+  return true
+}
 
 /** What leaving for a provider needs of the app's Auth client. */
 export type ProviderAuth = Pick<SupabaseClient['auth'], 'getSession' | 'getUser' | 'signInWithOAuth'>

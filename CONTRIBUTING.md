@@ -498,7 +498,10 @@ their work. Keep these when you change them:
   must come back as a new sign-in of the same account (on the app's own
   client: it crosses a page load), and one that answers after a call began
   opens nothing. It leaves for the provider only while its sheet is there
-  (`leaveFor`, with tests): closed meanwhile, the page stays. Anyone else is
+  (`leaveFor`, with tests): closed meanwhile, the page stays. Back as
+  another account than the one that left, that sign-in ends here and
+  nobody is signed in (`refuseOtherAccount`, with tests): unlocking never
+  opens another account, not even for a moment. Anyone else is
   "another account"; a check that returns nobody never is. Only the network
   has a deadline, each request on its own (20 s), never the passkey prompt:
   a prompt the person closes leaves the sheet waiting. The passkey works
@@ -520,9 +523,12 @@ their work. Keep these when you change them:
   when the send failed ("Not sent") or got no answer ("Not confirmed: check
   the conversation"), never when the space was erased (`request_erased`) or
   the field went with a sign-out (`restoredDraft`, `unsent`, with tests).
-  Signing out or erasing forgets the draft (`draft.ts`). One message is on
-  its way at a time, from the field or a way to start (`OnItsWay`): the
-  field waits meanwhile. Every write but erasure names the epoch of the
+  Signing out forgets the drafts at once and again once it has settled
+  (`signOutForgetting`, with tests), so nothing written meanwhile stays;
+  erasing forgets the draft (`draft.ts`). One message is on its way at a time, from the
+  field or a way to start (`OnItsWay`), and from any tab of the device
+  (`waitsFor`, with tests): the field waits meanwhile, so no tab's words on
+  their way are lost and they arrive in order. Every write but erasure names the epoch of the
   space as this page last read it (`epochNow`: the space's when it is
   shown, else the Work list's), and its retry names the same one, so
   nothing sent before an erasure lands after it, nor anything a space shown
