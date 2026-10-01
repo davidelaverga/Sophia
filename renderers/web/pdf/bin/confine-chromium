@@ -1,0 +1,39 @@
+#!/bin/sh
+# Starts the render browser for Playwright, confined (architecture 14 §5B, SMC-M03 plan §2.7):
+# - an empty environment (PATH, HOME, TMPDIR and LANG only);
+# - resource limits: no core files, bounded open files, file size and CPU time;
+# - a non-root user with no new privileges (when started as root, the render uid named by the launcher);
+# - fresh user, network (no interface up), PID and mount namespaces; killing this process kills the namespace.
+# Playwright speaks to the browser over inherited pipes (fds 3 and 4), which survive every exec below.
+# Chromium's own sandbox stays on: any flag that turns it off is refused, and there is no fallback without it.
+set -eu
+
+for arg in "$@"; do
+  case "$arg" in
+    --no-sandbox | --disable-setuid-sandbox | --disable-namespace-sandbox | --disable-seccomp-filter-sandbox | \
+      --no-zygote | --single-process | --remote-debugging-port* | --remote-debugging-address*)
+      echo "confine-chromium: refusing $arg" >&2
+      exit 64
+      ;;
+  esac
+done
+
+: "${SOPHIA_CHROMIUM:?confine-chromium: SOPHIA_CHROMIUM names the browser}"
+: "${SOPHIA_RENDER_HOME:?confine-chromium: SOPHIA_RENDER_HOME names the job scratch directory}"
+
+if [ "$(id -u)" = 0 ]; then
+  : "${SOPHIA_RENDER_UID:?confine-chromium: started as root, so a render uid is required}"
+  : "${SOPHIA_RENDER_GID:?confine-chromium: started as root, so a render gid is required}"
+  if [ "$SOPHIA_RENDER_UID" = 0 ] || [ "$SOPHIA_RENDER_GID" = 0 ]; then
+    echo "confine-chromium: the render user is not root" >&2
+    exit 64
+  fi
+  set -- setpriv --reuid="$SOPHIA_RENDER_UID" --regid="$SOPHIA_RENDER_GID" --clear-groups --no-new-privs -- \
+    unshare --user --map-current-user --net --pid --mount --fork --kill-child --mount-proc -- "$SOPHIA_CHROMIUM" "$@"
+else
+  set -- setpriv --no-new-privs -- \
+    unshare --user --map-current-user --net --pid --mount --fork --kill-child --mount-proc -- "$SOPHIA_CHROMIUM" "$@"
+fi
+
+exec env -i PATH=/usr/bin:/bin HOME="$SOPHIA_RENDER_HOME" TMPDIR="$SOPHIA_RENDER_HOME" LANG=C.UTF-8 \
+  prlimit --core=0 --nofile=4096 --fsize=268435456 --cpu=600 -- "$@"

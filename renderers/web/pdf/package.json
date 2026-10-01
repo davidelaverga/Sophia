@@ -1,0 +1,19 @@
+{
+  "name": "@sophia/renderer-pdf",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The confined HTML-to-PDF render kernel (SMC-M03 S5), adapted from Sophia-Agent's render_html_to_pdf.mjs.",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "bin": {
+    "sophia-render-pdf": "./render-html.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

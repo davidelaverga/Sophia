@@ -138,6 +138,14 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#20-cx-0006-m03-rf-00080012"
+    },
+    {
+      "slice": "S5a part 1 (PDF kernel, confined)",
+      "commands": [
+        "pnpm check",
+        "node --test renderers/web/pdf/test/render-html.test.ts (real Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#21-s5a-part-1-the-pdf-kernel-confined-rendererswebpdf"
     }
   ],
   "outstanding_operations": [
@@ -178,7 +186,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0009 awaits Codex (re-review of M03-RF-0008..0012, the Mac gate). Then S5: the PDF (renderer host probe as a Codex operation, the PDF preset, research_render_pdf, PdfView)",
+  "next_action": "CC-0009 awaits Codex. S5a part 2: render jobs, the render-runner capability and supervisor, research_render_pdf. Then S5b",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
