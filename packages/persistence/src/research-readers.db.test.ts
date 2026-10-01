@@ -246,6 +246,52 @@ describe('research readers (0022, A11)', () => {
     assert.deepEqual(Object.keys(old.task).includes('artifactId'), false)
   })
 
+  it('keeps a task’s outputs on its published version while a newer one is unpublished (M03-RF-0001)', async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+    const research = await task(p.projectId, p.goalId, 'research')
+    const r = await report(p.projectId, p.goalId, research.jobId)
+    await owner.query(
+      `UPDATE sophia.jobs SET state='succeeded', result_source_id=$3, result_revision=1 WHERE project_id=$1 AND id=$2`,
+      [p.projectId, research.jobId, r.markdown.id],
+    )
+    const outputs = async () =>
+      (await withActor(pool, E, 'read', (c) => readNativeTask(c, p.projectId, research.jobId))).result?.outputs?.map(
+        (o) => [o.artifactVersionId, o.format, o.sourceId],
+      )
+    const published = [
+      [r.versionId, 'markdown', r.markdown.id],
+      [r.versionId, 'pdf', r.pdf.id],
+    ]
+    assert.deepEqual(await outputs(), published)
+    const draft = await textSource(p.projectId, 'text/markdown', '# Hosts\n\nA draft not yet published.')
+    const v2 = (job: string, state: string) =>
+      one<{ id: string }>(
+        `INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
+           authority_epoch,state,version_number,job_id) VALUES($1,$2,$3,$4,$5,$6,1,1,$7,2,$8) RETURNING id`,
+        [p.projectId, r.artifactId, r.versionId, draft.id, draft.sha256, p.goalId, state, job],
+      )
+    for (const job of [research.jobId, r.renderJobId]) {
+      for (const state of ['candidate', 'validated', 'rejected']) {
+        const unpublished = await v2(job, state)
+        assert.deepEqual(
+          await outputs(),
+          published,
+          `a ${state} v2 by ${job === research.jobId ? 'the task' : 'a child'}`,
+        )
+        await owner.query(`DELETE FROM sophia.artifact_versions WHERE project_id=$1 AND id=$2`, [
+          p.projectId,
+          unpublished.id,
+        ])
+      }
+    }
+    await owner.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE project_id=$1 AND id=$2`, [
+      p.projectId,
+      r.versionId,
+    ])
+    const next = await v2(r.renderJobId, 'stable')
+    assert.deepEqual(await outputs(), [[next.id, 'markdown', draft.id]], 'a published version by a child job is newest')
+  })
+
   it('lists a research result for the bridge with its kind, never a child job', async () => {
     const p = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
     const snap = await snapshotOf(A, p.projectId)

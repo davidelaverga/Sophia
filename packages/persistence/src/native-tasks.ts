@@ -162,14 +162,15 @@ interface OutputRow {
 }
 
 /**
- * What a task published: every stored format of the newest report version written by the task or one of its child
- * jobs (a rendition). The Markdown first, then the renditions by format. Empty for a brief.
+ * What a task published: every stored format of the newest published report version written by the task or one of
+ * its child jobs (a rendition). The Markdown first, then the renditions by format. A newer version that is not
+ * published (a draft, a repair, a rejection) never replaces it (M03-RF-0001). Empty for a brief.
  */
 async function readOutputs(c: pg.PoolClient, projectId: string, taskId: string): Promise<Output[]> {
   const { rows } = await c.query<OutputRow>(
     `WITH latest AS (
        SELECT v.id, v.source_id, v.limitations FROM sophia.artifact_versions v
-        WHERE v.project_id = $1 AND v.job_id IN (
+        WHERE v.project_id = $1 AND v.state IN ('stable', 'superseded') AND v.job_id IN (
           SELECT j.id FROM sophia.jobs j WHERE j.project_id = $1 AND (j.id = $2 OR j.parent_job_id = $2))
         ORDER BY v.version_number DESC NULLS LAST, v.created_at DESC, v.id DESC LIMIT 1)
      SELECT l.id AS artifact_version_id, 'markdown' AS format, s.id AS source_id, s.sha256, s.byte_length, l.limitations, '' AS k
