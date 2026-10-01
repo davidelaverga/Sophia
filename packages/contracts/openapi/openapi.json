@@ -7554,7 +7554,7 @@
     "/api/v1/personal/export": {
       "get": {
         "operationId": "exportPersonalSpace",
-        "summary": "Everything the personal space keeps for the calling person, a page of turns at a time: the turns after `after` (a seq; 0 or none for the first page), at most 1000 and in order, `next` where the next page starts (null on the last), and the notes and the carried notes on every page.",
+        "summary": "Everything the personal space keeps for the calling person, a page of turns at a time: the turns after `after` (a seq; 0 or none for the first page), at most 1000 and in order, `next` where the next page starts (null on the last), and the notes and the carried notes on every page. Each page is read against the epoch it names: one asked for after an erasure is refused (409 request_erased), so a copy never mixes an erased space with what came after it.",
         "tags": [
           "personal"
         ],
@@ -7572,6 +7572,16 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "x-sophia-personal-epoch",
+            "in": "header",
+            "required": true,
+            "description": "The epoch of the space the export is read against (PersonalSpace.epoch, as the copy began). A page asked for after an erasure moved it is refused (409 request_erased).",
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,14})$"
             }
           }
         ],
@@ -7591,6 +7601,16 @@
           },
           "403": {
             "description": "Not permitted (a guest has no personal space)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The space was erased since the export began (request_erased)",
             "content": {
               "application/json": {
                 "schema": {

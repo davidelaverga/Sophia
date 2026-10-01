@@ -189,7 +189,8 @@ describe('personal routes', () => {
   })
 
   it('export everything, then erase it for good', async () => {
-    const everything = parsePersonalExport((await call('/api/v1/personal/export', { as: ANA })).json)
+    const { epoch } = await space(ANA)
+    const everything = parsePersonalExport((await call('/api/v1/personal/export', { as: ANA, epoch })).json)
     assert.equal(everything.turns.length, 3)
     assert.equal(everything.notes.length, 1)
     const refused = await call('/api/v1/personal/erasure', { as: ANA, body: { confirm: 'yes' }, key: randomUUID() })
@@ -237,7 +238,7 @@ describe('personal routes', () => {
     })
     assert.equal(keep.status, 422, JSON.stringify(keep.json))
     assert.equal((await call('/api/v1/personal/turns/earlier?before=x', { as: ANA })).status, 422)
-    assert.equal((await call('/api/v1/personal/export?after=x', { as: ANA })).status, 422)
+    assert.equal((await call('/api/v1/personal/export?after=x', { as: ANA, epoch })).status, 422)
     const first = (await space(ANA)).turns[0]
     const back = await call(`/api/v1/personal/turns/earlier?before=${String((first?.seq ?? 0) + 1)}`, { as: ANA })
     assert.deepEqual(
@@ -296,6 +297,19 @@ describe('personal routes', () => {
       at: quietBase,
     })
     assert.deepEqual([welcomedAgain.status, welcomedAgain.json], [202, welcomed.json])
+  })
+
+  it('read the export against the epoch it names: a page asked for after an erasure is refused', async () => {
+    const COPY = randomUUID()
+    await withActor(pool, COPY, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Copy me'))
+    const page = (epoch?: number) =>
+      call('/api/v1/personal/export', epoch === undefined ? { as: COPY } : { as: COPY, epoch })
+    assert.equal((await page(0)).status, 200)
+    assert.equal((await page()).status, 422, 'an export names the epoch it is read against')
+    await write('/api/v1/personal/erasure', COPY, { confirm: 'delete' })
+    const late = await page(0)
+    assert.deepEqual([late.status, (late.json as { code?: string } | null)?.code], [409, 'request_erased'])
+    assert.deepEqual(parsePersonalExport((await page(1)).json).turns, [], 'against the new epoch: the space as it is')
   })
 
   it('refuse a write made before an erasure that arrives after it, and one that names no epoch', async () => {

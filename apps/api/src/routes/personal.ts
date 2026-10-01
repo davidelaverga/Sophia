@@ -23,6 +23,7 @@ import {
   fencePersonalWrite,
   forgetPersonalNote,
   keepPersonalNote,
+  readPersonalEpoch,
   readPersonalExport,
   readPersonalSpace,
   readPersonalTurnsAfter,
@@ -58,7 +59,16 @@ const fencedHeaders = {
   required: [...idempotencyHeader.required, 'x-sophia-personal-epoch'],
 } as const
 
-const epochOf = (headers: Fenced) => Number(headers['x-sophia-personal-epoch'])
+/** A read made against the space's epoch (the export): one asked for after an erasure is refused as erased. */
+type Epoch = { 'x-sophia-personal-epoch': string }
+
+const epochHeader = {
+  type: 'object',
+  properties: { 'x-sophia-personal-epoch': fencedHeaders.properties['x-sophia-personal-epoch'] },
+  required: ['x-sophia-personal-epoch'],
+} as const
+
+const epochOf = (headers: Epoch) => Number(headers['x-sophia-personal-epoch'])
 
 /**
  * A personal write in one transaction with its fence: the space is held, and a write made against another epoch than
@@ -103,6 +113,9 @@ const writeSchema = (params: object | null, body: string | null, headers: object
 
 const NO_COMPANION = 'Sophia can’t answer here yet. Nothing was kept.'
 
+/** An export page asked for against an epoch an erasure has since moved. */
+const ERASED_SINCE = 'Everything was deleted since this copy began.'
+
 /** An erasure that committed, but whose wait for the companion to stop could not finish: asked again, it ends. */
 const UNFINISHED_ERASURE = 'Everything was deleted, but it is not finished yet. Ask again.'
 
@@ -145,10 +158,11 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
   )
 
   // A page of turns at a time (after `after`, a seq), so one read stays bounded however long the conversation.
-  app.get<{ Querystring: { after?: string } }>(
+  app.get<{ Querystring: { after?: string }; Headers: Epoch }>(
     '/api/v1/personal/export',
     {
       schema: {
+        headers: epochHeader,
         querystring: {
           type: 'object',
           additionalProperties: false,
@@ -160,7 +174,12 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
     async (req) => {
       const after = Number(req.query.after ?? 0)
       if (!Number.isSafeInteger(after)) throw new DomainError('invalid_request', 'after is beyond the largest turn')
-      const page = await withActor(pool, req.actorId, 'read', (c) => readPersonalExport(c, after))
+      // Read against the epoch the copy began in: a page asked for after an erasure is refused, so a copy never mixes
+      // an erased space with what came after it, nor outlives it.
+      const page = await withActor(pool, req.actorId, 'read', async (c) => {
+        if ((await readPersonalEpoch(c)) !== epochOf(req.headers)) throw new DomainError('request_erased', ERASED_SINCE)
+        return readPersonalExport(c, after)
+      })
       return { exportedAt: new Date().toISOString(), ...page }
     },
   )
