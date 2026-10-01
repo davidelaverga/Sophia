@@ -3,7 +3,8 @@
 // authentication, because a browser sends them without the Authorization header.
 import type { FastifyInstance } from 'fastify'
 
-const ALLOWED_HEADERS = 'authorization, content-type, idempotency-key'
+/** Every header the Studio sends: the personal space's writes name its epoch (A10). */
+const ALLOWED_HEADERS = 'authorization, content-type, idempotency-key, x-sophia-personal-epoch'
 /** Every method the Studio sends: PUT sets the mission's note capture and a member's consent (A08). */
 const ALLOWED_METHODS = 'GET, POST, PUT, DELETE'
 const PREFLIGHT_MAX_AGE_SECONDS = 600

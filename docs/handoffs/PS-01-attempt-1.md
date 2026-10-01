@@ -29,7 +29,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck and contracts check; unit tests: 437 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); database tests: 250 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck and contracts check; unit tests: 438 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); database tests: 250 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Reviews:**
   - Codex on #30's `8bf2acf`: one P1 and four P2, all fixed.
   - An independent review of #30's whole diff: its data findings are fixed here (a retry racing its first attempt, a suggestion let go, erasure's records).
@@ -45,6 +45,7 @@ Missing or unverified:
   - Codex on `d183cae`: two P2 (asking again cleared a claim just taken, judged by when the reply was asked for; a claim not renewed as its context went to the companion), fixed, also for the welcome's claim; each undone once fails its test.
   - Codex on `256ee70`: one P2 (an erasure acknowledged while a call to the companion for that space still ran), fixed for replies and welcomes, in this process and in others; each part undone once fails its test.
   - Codex on `82a882e`: three P2 (an erasure whose wait failed after it committed answered as a failed read; a call a process that went away left kept after the erasure; the Work list's carried notes all ranked before its bound applied), fixed; each part undone once fails its test.
+  - Codex on `3f20d0e`: one P1 (the personal space's epoch header was not allowed across origins, so a deployed Studio's writes would be refused by the browser), fixed; its test failed before the fix.
 - Every logic fix has a database test that fails without it (a mutation check on each).
 
 ## Decisions and changes
