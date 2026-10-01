@@ -390,9 +390,16 @@ either:
   person to stop, every other process stops its own once it finds its claim
   gone, and the erasure is acknowledged only once none begun before it is in
   flight anywhere (`stoppedEverywhere`, at most 65 seconds); then they are
-  forgotten, with any a process that went away left behind. Should that
-  wait fail after the erasure committed, it answers `outcome_unknown`: asked
-  again under its key, it gets its receipt and waits again.
+  forgotten, with any a process that went away left behind. Should one
+  still run then, or the wait fail after the erasure committed, it answers
+  `outcome_unknown`: asked again under its key, it gets its receipt and
+  waits again (a call a process that went away left counts no longer after
+  two minutes), and stops no call of the conversation after it (each call
+  keeps the epoch it began in). The companion answers a conversation one
+  turn at a time, in order (`next_personal_reply`): a turn is claimed only
+  as the person's oldest one waiting, while none is being answered; the
+  process that answered one takes up the next, and each is asked with the
+  answers before it.
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole

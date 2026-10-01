@@ -24,6 +24,7 @@ import {
   forgetPersonalNote,
   keepPersonalNote,
   listProjects,
+  nextPersonalReply,
   readCompanionContext,
   readPersonalEpoch,
   readPersonalExport,
@@ -60,6 +61,8 @@ const LEASED = randomUUID() // someone whose reply's process paused after claimi
 const GREETED = randomUUID() // someone whose welcome's process paused after claiming, then asked the companion
 const CALLING = randomUUID() // someone the companion is answering, in one process or another, as she erases
 const READER = randomUUID() // a member of a project where someone else carried many notes
+const QUEUED = randomUUID() // someone who says two things before Sophia answers the first
+const ASKED_AGAIN = randomUUID() // someone who asks again for a lost reply while a process takes up the next turn
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -248,6 +251,39 @@ describe('personal space: one conversation, owner-only', () => {
     assert.equal(await write(OTHER, (c) => claimPersonalReply(c, turn)), null, 'not once failed')
     await write(OTHER, (c) => retryPersonalTurn(c, key(), turn))
     await answerTurn(OTHER, turn, 'Once.', null) // asking again clears the claim
+  })
+
+  it('lets the companion answer a person’s turns one at a time, the oldest first, whichever process asks', async () => {
+    const first = (await write(QUEUED, (c) => sendPersonalTurn(c, key(), 'First'))).turnId ?? ''
+    const second = (await write(QUEUED, (c) => sendPersonalTurn(c, key(), 'Second'))).turnId ?? ''
+    assert.equal(await write(QUEUED, (c) => claimPersonalReply(c, second)), null, 'not before the one said first')
+    const claim = await write(QUEUED, (c) => claimPersonalReply(c, first))
+    assert.ok(claim)
+    assert.equal(await write(QUEUED, (c) => claimPersonalReply(c, second)), null, 'nor while another is answered')
+    assert.equal(await read(QUEUED, (c) => nextPersonalReply(c)), null, 'and none is next meanwhile')
+    await write(QUEUED, (c) => recordPersonalReply(c, first, claim, 'One.', null))
+    assert.equal(await read(QUEUED, (c) => nextPersonalReply(c)), second, 'then the next one waiting')
+    const third = (await write(QUEUED, (c) => sendPersonalTurn(c, key(), 'Third'))).turnId ?? ''
+    await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '3 minutes' WHERE id = $1`, [second])
+    assert.equal(await read(QUEUED, (c) => nextPersonalReply(c)), third, 'one whose wait lapsed holds none up')
+    assert.ok(await write(QUEUED, (c) => claimPersonalReply(c, third)))
+  })
+
+  it('claims a turn only once a write of the space before it is done: a turn asked again comes first', async () => {
+    const first = (await write(ASKED_AGAIN, (c) => sendPersonalTurn(c, key(), 'Lost'))).turnId ?? ''
+    await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '3 minutes' WHERE id = $1`, [first])
+    const second = (await write(ASKED_AGAIN, (c) => sendPersonalTurn(c, key(), 'Next'))).turnId ?? ''
+    const retried = Promise.withResolvers<void>()
+    const retrying = write(ASKED_AGAIN, async (c) => {
+      await retryPersonalTurn(c, key(), first) // holds the space until it commits
+      retried.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+    await retried.promise
+    const claimed = await write(ASKED_AGAIN, (c) => claimPersonalReply(c, second))
+    await retrying
+    assert.equal(claimed, null, 'the claim waited, then found the turn asked again first')
+    assert.equal(await read(ASKED_AGAIN, (c) => nextPersonalReply(c)), first)
   })
 
   it('renews a claim as its context goes to the companion, and reads a fresh claim as waiting', async () => {

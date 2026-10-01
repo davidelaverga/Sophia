@@ -87,11 +87,11 @@ const write = async (path: string, as: string, body?: unknown) => {
 const space = async (as: string) => parsePersonalSpace((await call('/api/v1/personal', { as })).json)
 
 /** As the migration owner: what the API role may not do (age a turn, take a function away). */
-async function owner(sql: string, params: unknown[] = []): Promise<void> {
+async function owner<T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> {
   const c = new pg.Client({ connectionString: db.ownerUrl })
   await c.connect()
   try {
-    await c.query(sql, params)
+    return (await c.query<T>(sql, params)).rows
   } finally {
     await c.end()
   }
@@ -528,16 +528,46 @@ describe('an erasure while the companion answers', () => {
     )
   })
 
-  it('waits for a call a process that went away left only so long, then forgets it', async () => {
+  it('is unfinished while a call from before it runs on, and forgets it once it no longer counts', async () => {
     const LEFT = randomUUID()
     await withActor(pool, LEFT, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Asked just before it went away'))
     await withActor(pool, LEFT, 'write', (c) => beginCompanionCall(c, randomUUID())) // never ended
     await withActor(pool, LEFT, 'write', (c) => erasePersonalSpace(c, randomUUID(), 'delete'))
     const started = Date.now()
-    await stoppedEverywhere(pool, LEFT, null, 300)
+    await assert.rejects(stoppedEverywhere(pool, LEFT, null, 300), 'still in flight when its time is up: not done')
     assert.ok(Date.now() - started >= 300, 'it waited for it, so long')
-    const left = await withActor(pool, LEFT, 'read', (c) => erasedCompanionCalls(c))
-    assert.equal(left, 0, 'then forgot it: nothing from before the erasure is kept')
+    const kept = await withActor(pool, LEFT, 'read', (c) => erasedCompanionCalls(c))
+    assert.equal(kept, 1, 'and kept it, for the same erasure asked again to wait for it')
+    await owner(
+      `UPDATE sophia.personal_companion_calls SET started_at = now() - interval '2 minutes' WHERE owner_id = $1`,
+      [LEFT],
+    )
+    await stoppedEverywhere(pool, LEFT, null, 300) // a process that went away: it no longer counts
+    const rows = await owner('SELECT call_id FROM sophia.personal_companion_calls WHERE owner_id = $1', [LEFT])
+    assert.equal(rows.length, 0, 'then forgot it: nothing from before the erasure is kept')
+  })
+
+  it('stops no call of the conversation after it when the same erasure is asked again', async () => {
+    const AGAIN = randomUUID()
+    const { seen, companion } = holding()
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const busy = buildApp({ pool, verifyActor, companion })
+    await busy.listen({ port: 0, host: '127.0.0.1' })
+    const at = `http://127.0.0.1:${String((busy.server.address() as AddressInfo).port)}`
+    const erase = (key: string) => call('/api/v1/personal/erasure', { as: AGAIN, body: { confirm: 'delete' }, key, at })
+    try {
+      const k = randomUUID()
+      assert.equal((await erase(k)).status, 202)
+      const body = { text: 'After the erasure' }
+      const sent = await call('/api/v1/personal/turns', { as: AGAIN, body, key: randomUUID(), epoch: 1, at })
+      assert.equal(sent.status, 202)
+      await seen.asked.promise
+      assert.equal((await erase(k)).status, 202, 'the first erasure’s answer was lost: it is asked again')
+      assert.equal(seen.stopped, 0, 'and the call of the conversation after it goes on')
+    } finally {
+      await erase(randomUUID()) // a new erasure stops it
+      await busy.close()
+    }
   })
 
   it('tells a welcome being written elsewhere to stop, too', async () => {
@@ -563,6 +593,37 @@ describe('an erasure while the companion answers', () => {
     )
     assert.ok(Date.now() - asked < WATCH_MS, 'told on its next look at its claim, not at its time limit')
     assert.equal(await greeting, null, 'and it wrote nothing')
+  })
+})
+
+describe('a conversation answered one turn at a time', () => {
+  it('asks the companion about one turn at a time, in order, each with the answers before it', async () => {
+    const TWICE = randomUUID()
+    const seen = { running: 0, most: 0, histories: [] as string[][] }
+    const companion = {
+      mode: 'rehearsal' as const,
+      answer: async (context: { history: Array<{ text: string }> }) => {
+        seen.running += 1
+        seen.most = Math.max(seen.most, seen.running)
+        seen.histories.push(context.history.map((h) => h.text))
+        await pause()
+        seen.running -= 1
+        return { text: `Answer ${String(seen.histories.length)}`, suggestion: null }
+      },
+      greet: () => Promise.resolve('Welcome back.'),
+    }
+    const runner = new CompanionRunner(pool, companion, () => undefined)
+    const first = await withActor(pool, TWICE, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'First'))
+    const second = await withActor(pool, TWICE, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Second'))
+    await Promise.all([runner.answer(TWICE, second.turnId ?? ''), runner.answer(TWICE, first.turnId ?? '')])
+    assert.equal(seen.most, 1, 'one at a time')
+    assert.deepEqual(
+      seen.histories[1]?.slice(-3),
+      ['First', 'Answer 1', 'Second'],
+      'the second asked with the answer to the first',
+    )
+    const said = (await space(TWICE)).turns.map((t) => t.text)
+    assert.deepEqual(said, ['First', 'Second', 'Answer 1', 'Answer 2'], 'answered in order')
   })
 })
 

@@ -441,16 +441,17 @@ BEGIN
  RETURN FOUND;
 END $$;
 
--- A call to the companion begins, in the space's epoch (clearing the caller's calls a process that went away left
--- behind), and ends. erased_companion_calls says how many begun before the space's latest erasure are still in flight,
+-- A call to the companion begins, in the space's epoch, which it returns (clearing the caller's calls a process that
+-- went away left behind), and ends. erased_companion_calls says how many begun before the space's latest erasure are still in flight,
 -- in any process, for the erasure to wait on; once none is, forget_erased_companion_calls lets every one of them go.
-CREATE FUNCTION sophia.begin_companion_call(p_call uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
+CREATE FUNCTION sophia.begin_companion_call(p_call uuid) RETURNS bigint LANGUAGE sql SECURITY DEFINER
 SET search_path=pg_catalog,sophia AS $$
  DELETE FROM sophia.personal_companion_calls
   WHERE owner_id=sophia.personal_owner() AND started_at<=now()-interval '2 minutes';
  INSERT INTO sophia.personal_companion_calls(owner_id,call_id,epoch)
   VALUES(sophia.personal_owner(),p_call,
-   coalesce((SELECT epoch FROM sophia.personal_spaces WHERE owner_id=sophia.personal_owner()),0)) $$;
+   coalesce((SELECT epoch FROM sophia.personal_spaces WHERE owner_id=sophia.personal_owner()),0))
+  RETURNING epoch $$;
 
 CREATE FUNCTION sophia.end_companion_call(p_call uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
 SET search_path=pg_catalog,sophia AS $$
@@ -468,13 +469,30 @@ SET search_path=pg_catalog,sophia AS $$
   WHERE c.owner_id=sophia.personal_owner()
    AND c.epoch<coalesce((SELECT epoch FROM sophia.personal_spaces s WHERE s.owner_id=c.owner_id),0) $$;
 
+-- The person's next turn for the companion to answer: the oldest one waiting (its wait not lapsed), while none is being
+-- answered; or NULL. A conversation is answered one turn at a time, in order, each with the answers before it,
+-- whichever processes are asked.
+CREATE FUNCTION sophia.next_personal_reply() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT t.id FROM sophia.personal_turns t
+  WHERE t.owner_id=sophia.personal_owner() AND t.author='person'
+   AND sophia.personal_reply_state(t.reply,t.asked_at,t.answering_since)='pending'
+   AND NOT EXISTS (SELECT 1 FROM sophia.personal_turns o
+    WHERE o.owner_id=t.owner_id AND o.reply='pending' AND o.answering_claim IS NOT NULL
+     AND o.answering_since>now()-interval '2 minutes')
+  ORDER BY t.seq LIMIT 1 $$;
+
 -- The API process about to ask the companion claims the pending turn first: its claim, which the reply or the failure
--- must carry, or NULL when another process is answering it (a retry reached another process, a restart). A claim
--- lapses after two minutes, as the wait does (personal_reply_state); asking again clears it.
+-- must carry, or NULL when another process is answering it (a retry reached another process, a restart), or it is not
+-- the person's next turn to answer (next_personal_reply: one at a time, in order). Claims of a person are taken one at
+-- a time (the space is held). A claim lapses after two minutes, as the wait does (personal_reply_state); asking again
+-- clears it.
 CREATE FUNCTION sophia.claim_personal_reply(p_turn uuid) RETURNS uuid LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE taken uuid;
 BEGIN
+ PERFORM sophia.personal_hold();
+ IF p_turn IS DISTINCT FROM sophia.next_personal_reply() THEN RETURN NULL; END IF;
  UPDATE sophia.personal_turns SET answering_since=now(), answering_claim=gen_random_uuid()
   WHERE owner_id=sophia.personal_owner() AND id=p_turn AND author='person' AND reply='pending'
    AND (answering_since IS NULL OR answering_since<now()-interval '2 minutes')
@@ -694,6 +712,7 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
+ sophia.next_personal_reply(),
  sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.erased_companion_calls(),
  sophia.forget_erased_companion_calls(),
  sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
@@ -704,6 +723,7 @@ REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_repl
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
+ sophia.next_personal_reply(),
  sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.erased_companion_calls(),
  sophia.forget_erased_companion_calls(),
  sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),

@@ -93,6 +93,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.begin_companion_call(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.end_companion_call(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.erased_companion_calls()') IS NOT NULL
+  AND to_regprocedure('sophia.next_personal_reply()') IS NOT NULL
   AND to_regprocedure('sophia.forget_erased_companion_calls()') IS NOT NULL
   AND to_regprocedure('sophia.send_personal_turn(text,text,boolean)') IS NOT NULL
   AND to_regprocedure('sophia.retry_personal_turn(text,uuid,boolean)') IS NOT NULL
