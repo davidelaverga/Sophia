@@ -55,17 +55,40 @@ export type AuthState = { status: 'loading' } | SignedOut | SignedIn | LinkOffer
 
 type LinkTokens = { accessToken: string; refreshToken: string }
 
+/** Signing in with a link's session (link-accept.ts), and the account the link is for. */
+type Offer = { acceptance: LinkAcceptance; account: string | null }
+
 /** A link's session, kept in memory (never in storage) while the person decides whether it is theirs. */
-let offered: LinkAcceptance | null = null
-/** A link declined while signing in with it was under way: its session, if it lands, is signed out unseen. */
-let declined: LinkAcceptance | null = null
+let offered: Offer | null = null
+/**
+ * A link declined while signing in with it was under way: if its session lands, it is signed out, and nothing of
+ * that account shows while any of it is left on this device. Other accounts are not held up.
+ */
+let declined: Offer | null = null
+
+/**
+ * This device's copy of the session, removed under the Auth client's own storage key: for a sign-out that returned an
+ * error or threw before removing it, so a refused session can't come back on the next load.
+ */
+function forgetStoredSession(client: SupabaseClient): void {
+  const stored: unknown = Reflect.get(client.auth, 'storageKey')
+  if (typeof stored !== 'string') return
+  try {
+    localStorage.removeItem(stored)
+    localStorage.removeItem(`${stored}-code-verifier`)
+  } catch {
+    // storage unavailable: the session could not have been kept there either
+  }
+}
 
 /** Signing in with a link's session, through the Auth client (link-accept.ts). */
 const sessionOf = (client: SupabaseClient, link: LinkTokens): SessionPort => ({
   set: async () =>
     !(await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })).error,
   signOut: async () => {
-    await client.auth.signOut({ scope: 'local' })
+    const { error } = await client.auth.signOut({ scope: 'local' }).catch((err: unknown) => ({ error: err }))
+    if (error) forgetStoredSession(client)
+    if ((await client.auth.getSession()).data.session) throw new Error('A refused session is still on this device')
   },
 })
 
@@ -115,7 +138,8 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
     // Whose they are is asked with an end, so a silent Auth service leaves a sign-in screen, not a loading one.
     const outcome = await settleWithin(linkOutcome(client, callback), READ_TIMEOUT_MS, { notice: LINK_UNCHECKED })
     if ('offer' in outcome) {
-      offered = linkAcceptance(sessionOf(client, callback), READ_TIMEOUT_MS)
+      const acceptance = linkAcceptance(sessionOf(client, callback), READ_TIMEOUT_MS)
+      offered = { acceptance, account: tokenSubject(callback.accessToken) }
       return { status: 'link_offer', account: outcome.offer }
     }
     notice = outcome.notice
@@ -127,6 +151,10 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
   return notice ? { ...state, notice } : state
 }
 
+/** The session is a declined link's, still being signed out (or that couldn't be): it never shows. */
+const refused = (session: Session | null): boolean =>
+  !!declined?.acceptance.refusing() && !!session && session.user.id === declined.account
+
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
 function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) => void): () => void {
   let alive = true
@@ -134,9 +162,9 @@ function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) 
     if (alive) onState(state)
   })
   // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it.
-  // A declined link's session that lands late is signed out at once: nothing shows it meanwhile.
+  // A declined link's session that lands late is signed out at once: nothing of that account shows meanwhile.
   const { data } = client.auth.onAuthStateChange((event, session) => {
-    if (event === 'INITIAL_SESSION' || (declined?.refusing() && event !== 'SIGNED_OUT')) return
+    if (event === 'INITIAL_SESSION' || (event !== 'SIGNED_OUT' && refused(session))) return
     onState(fromSession(session))
   })
   return () => {
@@ -161,7 +189,7 @@ interface Auth {
  */
 async function acceptOffered(account: string): Promise<AuthState | null> {
   if (!offered) return { status: 'signed_out' }
-  const outcome = await offered.accept()
+  const outcome = await offered.acceptance.accept()
   if (outcome === 'late') return { status: 'link_offer', account, notice: LINK_SLOW }
   offered = null
   return outcome === 'in' ? null : { status: 'signed_out', notice: LINK_FAILED } // in: the auth listener says so
@@ -192,7 +220,7 @@ export function useAuth(): Auth {
       if (next) setState(next)
     },
     declineLink: () => {
-      if (offered?.decline()) declined = offered
+      if (offered?.acceptance.decline()) declined = offered
       offered = null
       setState({ status: 'signed_out' })
     },

@@ -5,8 +5,8 @@ import { linkAcceptance, type SessionPort } from './link-accept.ts'
 const WAIT_MS = 20
 const UNASKED = (_signedIn: boolean) => undefined
 
-/** An Auth service that answers when told to, counting what it was asked. */
-function auth() {
+/** An Auth service that answers when told to, counting what it was asked; its sign-out may leave the session. */
+function auth(signsOut = true) {
   let answer: (signedIn: boolean) => void = UNASKED
   const asked = { set: 0, signOut: 0 }
   const port: SessionPort = {
@@ -18,7 +18,7 @@ function auth() {
     },
     signOut: () => {
       asked.signOut += 1
-      return Promise.resolve()
+      return signsOut ? Promise.resolve() : Promise.reject(new Error('still on this device'))
     },
   }
   return { port, asked, answer: (signedIn: boolean) => answer(signedIn) }
@@ -62,6 +62,16 @@ describe('signing in with a link’s session', () => {
     await tick()
     assert.equal(slow.asked.signOut, 1)
     assert.equal(offer.refusing(), false)
+  })
+
+  it('keeps refusing a declined session it couldn’t sign out, so it never shows', async () => {
+    const stuck = auth(false)
+    const offer = linkAcceptance(stuck.port, WAIT_MS)
+    await settle(offer.accept())
+    offer.decline()
+    stuck.answer(true)
+    await tick()
+    assert.deepEqual([stuck.asked.signOut, offer.refusing()], [1, true])
   })
 
   it('refuses nothing once a declined attempt fails, and nothing when none was made', async () => {
