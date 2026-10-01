@@ -216,8 +216,8 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft }
       <ContinuityChoice projectId={projectId} identity={identity} cursor={snapshot?.cursor} withBar={entry === 'bar'} />
       <ChatLine text={line} room={room} starting={starting} inRoom={inRoom} busy={busy} />
       {error && (
-        <p className="outcome" role="status">
-          {error}
+        <p className="outcome" role={error.live ? 'status' : undefined} aria-hidden={error.live ? undefined : true}>
+          {error.text}
         </p>
       )}
       {entry === 'bar' ? (

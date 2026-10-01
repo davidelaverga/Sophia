@@ -25,3 +25,10 @@ export const CALL_END: Record<CallEnd, EndNote> = {
   removed: { note: 'You were taken out of the call.', failed: false },
   closed: { note: 'The room was closed.', failed: false },
 }
+
+/**
+ * Whether the text mode a call was in outlives its end: only after a lost connection, so trying again doesn't turn
+ * on a microphone that was off. Any other end (leaving, another tab, taken out, closed) is over, and the next join
+ * is as the person's microphone choice says.
+ */
+export const keepsTextMode = (why: CallEnd | null): boolean => why !== null && CALL_END[why].failed

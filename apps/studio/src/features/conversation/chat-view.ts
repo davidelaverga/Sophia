@@ -43,10 +43,19 @@ export function chatEntry(inRoom: boolean, presence: SophiaPresence | undefined)
 /**
  * The one error the chat's foot says. Why the call ended or failed comes first: it is the room's state now, and a
  * send or a start that failed before it is old news. The chat's own errors belong to a call this person is in, so
- * they go with it.
+ * they go with it. `live`: the foot announces it to screen readers; the room's note is announced by the dock, which
+ * stays in the accessibility tree even where the panel covers it, so here it is said for the eye only.
  */
-export const footError = (room: string | null, inRoom: boolean, send: string | null, start: string | null) =>
-  room ?? (inRoom ? (send ?? start) : null)
+export function footError(
+  room: string | null,
+  inRoom: boolean,
+  send: string | null,
+  start: string | null,
+): { text: string; live: boolean } | null {
+  if (room) return { text: room, live: false }
+  const own = inRoom ? (send ?? start) : null
+  return own ? { text: own, live: true } : null
+}
 
 /** Typed words reach Sophia: her exchange is open and she is ready to take them. */
 export function reachesSophia(presence: SophiaPresence | undefined): boolean {

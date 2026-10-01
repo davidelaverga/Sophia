@@ -93,10 +93,10 @@ it('once Send can work the line only names text mode, and says nothing in voice 
 it('says why the call ended before an older chat error, and drops the chat’s errors out of the call', () => {
   const ended = 'You were disconnected from the room.'
   const sendFailed = 'Delivery unconfirmed. Nothing is resent automatically.'
-  assert.equal(footError(ended, false, sendFailed, null), ended, 'the call dropped after a send failed')
+  assert.deepEqual(footError(ended, false, sendFailed, null), { text: ended, live: false }, 'the dock announces it')
   assert.equal(footError(null, false, sendFailed, 'start failed'), null, 'left on purpose: nothing old stays')
-  assert.equal(footError(null, true, sendFailed, 'start failed'), sendFailed)
-  assert.equal(footError(null, true, null, 'start failed'), 'start failed')
+  assert.deepEqual(footError(null, true, sendFailed, 'start failed'), { text: sendFailed, live: true })
+  assert.deepEqual(footError(null, true, null, 'start failed'), { text: 'start failed', live: true })
 })
 
 it('typed words reach Sophia only with her exchange open and her voice ready', () => {

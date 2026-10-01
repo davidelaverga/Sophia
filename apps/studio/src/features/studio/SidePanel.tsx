@@ -99,8 +99,9 @@ export function SidePanel({ open, onOpen, chat, brief, call, note }: PanelProps)
       }}
     >
       <PanelHead open={open} onOpen={onOpen} call={call} />
+      {/* For the eye only: the dock's own note, still in the accessibility tree under the panel, is the one announced. */}
       {note && (
-        <p className="side-panel-note" role="alert">
+        <p className="side-panel-note" aria-hidden>
           {note}
         </p>
       )}

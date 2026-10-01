@@ -7,7 +7,7 @@ import { switchMicrophone, useTypedChat } from './useTypedChat.ts'
 import { useEffect, useState } from 'react'
 import type { RoomToken, Snapshot } from '@sophia/contracts'
 import { ApiError, issueRoomToken } from '../../api/client.ts'
-import { CALL_END, type CallEnd } from './call-end.ts'
+import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
@@ -217,10 +217,12 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   /**
    * Out of the call: nobody is shown as still here. A call that ended without this person leaving says why
    * (call-end.ts) instead of silently resetting: a lost connection offers to try again; a call that moved to
-   * another tab, or was ended on purpose, offers the plain way back.
+   * another tab, or was ended on purpose, offers the plain way back. Text mode ends with the call, unless the
+   * connection was lost (keepsTextMode): the next join says how it starts (the dock by voice, the chat by text).
    */
   const outOfCall = (why: CallEnd | null) => {
     typedChat.interrupted()
+    if (!keepsTextMode(why)) typedChat.rememberTextMode(false)
     calls.current = null
     setPeople(NOBODY)
     clearNote()
@@ -231,11 +233,8 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   const join = (options?: { textOnly?: boolean }) =>
     joinConnection({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, options)
 
-  // Leaving on purpose ends text mode: the next join says how it starts (the dock by voice, the chat by text).
-  // A call that drops keeps the mode, so rejoining does not turn on a microphone that was off.
   const leave = async () => {
     await calls.end()
-    typedChat.rememberTextMode(false)
     outOfCall(null)
   }
 
