@@ -40,6 +40,7 @@ Missing or unverified:
   - Codex on #30's `9a72043`, one P1 on this side: a write issued before an erasure whose first attempt reached the database after it wrote again. Erasure now moves the space's epoch, and every other write names the epoch it was made against and is fenced to it (`personal_fence`); each part undone once fails its test.
   - Codex on `baf9c83` and `cf1fef8`: three P2 (a welcome's claim kept when its read failed; a stalled attempt given the context after its claim lapsed; the Work list's carried notes bounded per project only), all fixed, each undone once to see its test fail.
   - Codex on `f600665`: three P2 (a welcome's key not tied to whom it greets; a companion call past its time left running; a welcome's write not fenced to its epoch), and on #30's `3d8bc84`, its data half (a conversation past 500 turns could not be read back, and its days were counted from the newest 500 only), all fixed, each undone once to see its test fail.
+  - Codex on `4fd79b5`: one P2 (a welcome's attempt that stalled past its claim still read what to welcome from), fixed; undone once, its test fails.
 - Every logic fix has a database test that fails without it (a mutation check on each).
 
 ## Decisions and changes

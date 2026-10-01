@@ -143,8 +143,8 @@ export class CompanionRunner {
 
   /** The welcome under the attempt's claim: what it is written from, the companion's words, then the write. */
   private async welcome(attempt: Attempt): Promise<PersonalReceipt> {
-    const context = await withActor(this.pool, attempt.actorId, 'read', (c) => readWelcomeContext(c))
-    // No longer due (a turn came meanwhile): nothing is written, and the key keeps that answer.
+    const context = await withActor(this.pool, attempt.actorId, 'read', (c) => readWelcomeContext(c, attempt.claim))
+    // No longer due (a turn came meanwhile), or the claim went to another attempt: nothing is asked or written here.
     if (!context) return this.settle(attempt, '')
     let text: string
     try {

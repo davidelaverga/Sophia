@@ -232,11 +232,17 @@ export async function readCompanionContext(
 const WELCOME_DUE = `SELECT (t.created_at < now() - interval '1 hour' AND NOT (t.author = 'sophia' AND t.reply_to IS NULL)) AS due
   FROM sophia.personal_turns t WHERE t.owner_id = sophia.actor_id() ORDER BY t.seq DESC LIMIT 1`
 
-/** What Sophia's welcome back is written from, or null when none is due (so no companion is asked for one). */
+/**
+ * What Sophia's welcome back is written from, for the attempt holding the welcome's `claim` (beginPersonalGreeting), or
+ * null when none is due or another attempt holds it (this process stalled past its claim): no companion is asked then.
+ */
 export async function readWelcomeContext(
   c: pg.PoolClient,
+  claim: string,
   depth = 20,
 ): Promise<Omit<CompanionContext, 'asked'> | null> {
+  const held = await c.query<{ held: boolean }>('SELECT sophia.personal_greeting_held($1) AS held', [claim])
+  if (!onlyRow(held.rows, 'personal_greeting_held').held) return null
   const due = (await c.query<{ due: boolean }>(WELCOME_DUE)).rows[0]?.due ?? false
   if (!due) return null
   const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq DESC LIMIT $1`, [depth])

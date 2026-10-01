@@ -447,12 +447,18 @@ describe('personal space: welcome back', () => {
   it('is due after an hour of quiet, never twice in a row, and never for someone else', async () => {
     const sent = await write(ANA, (c) => sendPersonalTurn(c, key(), 'Before the quiet'))
     await answerTurn(ANA, sent.turnId ?? '', 'Noted.', null)
-    assert.equal(await read(ANA, (c) => readWelcomeContext(c)), null, 'not after a turn a minute ago')
+    const early = receiptOf(await write(ANA, (c) => beginPersonalGreeting(c, key(), null)))
+    assert.equal(early.turnId, null, 'not after a turn a minute ago')
     await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '2 hours' WHERE owner_id = $1`, [ANA])
-    const context = await read(ANA, (c) => readWelcomeContext(c))
-    assert.equal(context?.history.at(-1)?.text, 'Noted.')
     const k = key()
     const claim = claimOf(await write(ANA, (c) => beginPersonalGreeting(c, k, null)))
+    const context = await read(ANA, (c) => readWelcomeContext(c, claim))
+    assert.equal(context?.history.at(-1)?.text, 'Noted.')
+    assert.equal(
+      await read(ANA, (c) => readWelcomeContext(c, randomUUID())),
+      null,
+      'only under the claim that holds it',
+    )
     const welcome = receiptOf(await write(ANA, (c) => recordPersonalGreeting(c, k, claim, null, 'Welcome back, Ana.')))
     assert.ok(welcome.turnId)
     // Its key answers every retry the same way, also after another quiet hour: never a second welcome under it.
@@ -465,8 +471,8 @@ describe('personal space: welcome back', () => {
     const again = receiptOf(await write(ANA, (c) => beginPersonalGreeting(c, k2, null)))
     assert.equal(again.turnId, null)
     assert.deepEqual(await write(ANA, (c) => beginPersonalGreeting(c, k2, null)), again)
-    // Still due for no one else: another person has no conversation to be welcomed back to.
-    assert.equal(await read(OTHER, (c) => readWelcomeContext(c)), null)
+    // Read by no one else: another person holds no claim of hers.
+    assert.equal(await read(OTHER, (c) => readWelcomeContext(c, claim)), null)
     const last = (await read(ANA, (c) => readPersonalSpace(c))).turns.at(-1)
     assert.deepEqual([last?.author, last?.text, last?.replyTo], ['sophia', 'Welcome back, Ana.', null])
   })
@@ -485,7 +491,10 @@ describe('personal space: welcome back', () => {
       `UPDATE sophia.personal_greeting_claims SET claimed_at = now() - interval '3 minutes' WHERE owner_id = $1`,
       [QUIET],
     )
-    claimOf(await write(QUIET, (c) => beginPersonalGreeting(c, key(), null)))
+    const taken = claimOf(await write(QUIET, (c) => beginPersonalGreeting(c, key(), null)))
+    // The stalled first attempt, waking up, is not given what to welcome from: only one attempt asks the companion.
+    assert.equal(await read(QUIET, (c) => readWelcomeContext(c, held)), null)
+    assert.ok(await read(QUIET, (c) => readWelcomeContext(c, taken)))
     // The first request's late answer writes nothing: its claim was taken over.
     const late = receiptOf(
       await write(QUIET, (c) => recordPersonalGreeting(c, first, held, null, 'Welcome back, late')),
