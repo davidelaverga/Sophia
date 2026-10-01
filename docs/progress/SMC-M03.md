@@ -4,11 +4,11 @@ The mission: [M03](../missions/2026-09-27-companion-research/missions/M03_RESEAR
 
 This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
 
-**Checkpoint, 2026-10-01, attempt 1: S0 (bind), S1 (readers first, byte store, report content and Knowledge reads) and S2 part 1 (the research route and its guard, unit `sophia-runtime-m03-dev`) are done. S2 part 2 (specialist registry, preset files, usage forwarding) is next. Nothing is merged, released or deployed.**
+**Checkpoint, 2026-10-01, attempt 1: S0 (bind), S1 (readers first, byte store, report content and Knowledge reads), S2 part 1 (the research route and its guard, unit `sophia-runtime-m03-dev`) and S2 part 2 (usage with cache counters and compaction calls, 0023) are done. S2 part 3 (specialist registry, preset files) is next. Nothing is merged, released or deployed.**
 
 | Readiness | State |
 |---|---|
-| Source-ready | No: S0, S1 and S2 part 1 are in PR #32; S2 part 2 to S7 are planned (plan §4) |
+| Source-ready | No: S0, S1 and S2 parts 1–2 are in PR #32; S2 part 3 to S7 are planned (plan §4) |
 | Merge-ready | No |
 | Release-ready | No: every hosted step is a Codex operation with Davide's bound approval (plan §5) |
 | Hosted-verified | No. This attempt touches no hosted state |
@@ -33,7 +33,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 | Goal | Slices (plan §4) | State |
 |---|---|---|
 | G1 Source access | S0, S1, S3 | S0 and S1 done (§6, §7); S3 after S2 |
-| G2 Durable Markdown | S2, S4 | S2 part 1 done (§8) |
+| G2 Durable Markdown | S2, S4 | S2 parts 1 and 2 done (§8, §9) |
 | G3 PDF | S5a (renderer host, Codex probe), S5b | planned; the host depends on CC-0001 and D6 |
 | G4 Voice and text | S6 | planned |
 | G5 Mission loop and release | S7 | planned |
@@ -114,4 +114,19 @@ The runtime unit becomes `sophia-runtime-m03-dev` (previous: `sophia-runtime-m02
 
 Run on this host (Node 24.21.0, pnpm 11.7.0, PostgreSQL 16.13): `pnpm check` exit 0 (419 unit; 73 integration, 2 skipped as before), `pnpm test:sql` 21 migrations, `pnpm test:db` 214/214. Unchanged by this part: the schema, the API and Studio.
 
-Left for S2 part 2: the specialist registry (`config/specialists.json`), the preset patch files and `bundlePatchFiles()`, the research-base and output plugin skeletons, and usage and compaction forwarding with cache tokens. Moved to S4, with the research tools they guard: the reservation hook and the `skill-filesystem` closure ([binding §8](SMC-M03-contract-binding.md)).
+Left for S2 part 3: the specialist registry (`config/specialists.json`), the preset patch files and `bundlePatchFiles()`. Usage forwarding is part 2 (§9). Moved to S4, with the research tools they guard: the reservation hook and the `skill-filesystem` closure ([binding §8](SMC-M03-contract-binding.md)).
+
+## 9. S2 part 2: usage with cache counters and compaction calls
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Bridge | An assistant message's usage adds `cacheReadTokens` and `cacheWriteTokens` when the adapter reported them. A `compaction/summary` event is projected as its own model call (`compactionId`, provider, model, usage), never its summary text. dsh's counts are disjoint, and `llm-pi-ai` leaves a zero cache counter out, so an absent counter means zero or not reported | `research-route.test.mjs`: the stub reports 1200 cached and 100 written tokens on turn 2; the service receives input 200 (uncached), read 1200, write 100, and no counters on turn 1. `compaction-usage.test.mjs`: a real compaction on a bound attempt passes the route guard (nothing refused) and reaches the service as one call, without the summary text |
+| Schema | `0023_usage_cache.sql`: `usage_records.purpose` (`turn` or `compaction`, default `turn`); `runtime_record_observations` fills the cache columns and records compaction calls; `usage_count(jsonb)` reads a count or null | `pnpm test:sql`: 22 migrations |
+| Persistence | A task's result reports the turn that produced it (`purpose = 'turn'`), never a later compaction | `runtime.db.test.ts`: per-call rows, null when not reported, a summary without usage records nothing, the result unchanged by a later compaction (mutation-checked: without the filter the case fails) |
+| API | `/ready` requires 0023 | `pnpm check` |
+
+The bundle changes, so the unit's linux-x64 bundle archive is re-recorded: `sha256:c119dbaec86fb54319356bbe46bef9cc2474e25e036ae83a32b3a7ebe3e004b2` (replacing §8's `6344b0c5…`). The runtime tree is unchanged; darwin-arm64 is still pending Codex.
+
+Compatibility: 0023 only adds a defaulted column and replaces the writer, so the readers released with 0022 keep working before and after it. An older bundle sends no cache counters and a null compaction projection; the writer records nothing new for it. The API with the purpose filter needs 0023 first, and `/ready` says so.
+
+Known gap, unchanged from M02: a `workflow` child's own model calls are not observed (the bridge forwards bound sessions only), so their usage is not recorded. Research roles have no `workflow`; the M02 `sophia-research-v1` does. Recorded for S4's allowance work, where every call is reserved before it runs.

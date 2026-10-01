@@ -40,6 +40,15 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#8-s2-part-1-execution-policy-the-research-route"
+    },
+    {
+      "slice": "S2 part 2",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#9-s2-part-2-usage-with-cache-counters-and-compaction-calls"
     }
   ],
   "outstanding_operations": [
@@ -80,12 +89,12 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S2 part 2: specialist registry (config/specialists.json), preset patch files and bundlePatchFiles(), research-base and output plugin skeletons, usage and compaction forwarding with cache tokens; then CC-0004 (review of S2, darwin-arm64 artifacts:record)",
+  "next_action": "S2 part 3: specialist registry (config/specialists.json) and preset patch files with bundlePatchFiles(); then CC-0004 (review of S2, darwin-arm64 artifacts:record)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256_linux_x64": "6344b0c5827fff52ee9fca8778255e03a90be81abc9c487b5330a7ea23c48f0e",
+    "bundle_archive_sha256_linux_x64": "c119dbaec86fb54319356bbe46bef9cc2474e25e036ae83a32b3a7ebe3e004b2",
     "darwin_arm64": "pending Codex artifacts:record",
     "deployed": false
   }

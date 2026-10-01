@@ -94,7 +94,7 @@ All routes are authenticated like observations (runtime lease and binding), idem
 | Presets | six, `plugins: []` | + two research presets in separate patch files (list form of `dsh.bundle.patch`) |
 | Bridge | `defaultRoute()` for every role | `routeFor(command)` against the allowlist and a global `llm/stream` route guard (**S2 part 1, done**); the reservation hook (S4) |
 | Skill discovery | base `skill-filesystem` with default roots and watch | Restated with `includeDefaultRoots:false`, `watch:false` (S4, with the research tools) |
-| Usage projection | `assistant/message` input and output | + cache tokens and `compaction/summary` |
+| Usage projection | `assistant/message` input and output | + cache tokens and `compaction/summary` (**S2 part 2, done**: 0023) |
 | Cutover | — | Codex operation after S2 review. Precondition: zero non-final bindings on `sophia-runtime-m02-dev` |
 
 ## 6. What does not change
@@ -130,3 +130,5 @@ All routes are authenticated like observations (runtime lease and binding), idem
 | 2026-10-01 (S2) | The reservation hook moves from S2 to S4 | It reserves allowance for research tool calls (search, read, render). Those tools are real only in S4, and the reservation service is S3's; a hook with nothing to reserve could not be tested |
 | 2026-10-01 (S2) | The `skill-filesystem` closure moves from S2 to S4 | Research roles are offered no `skill` tool (the role's tool policy, tested), so nothing reads the skill catalog before the research presets mount their own sections in S4. The test that the research catalog holds only Sophia content moves with it |
 | 2026-10-01 (S2) | Compaction must run on the session's own route | `compaction-basic` targets the session's latest route unless a summarization model is configured; the route guard would refuse such a model, so the gate refuses it at install |
+| 2026-10-01 (S2) | Migration 0023 records cache counters and compaction calls | 0022 shipped the cache columns for the readers; the writer fills them once the bundle reports them. Compaction calls get `purpose = 'compaction'`, so "the turn that produced a result" stays one row. Taken as the next free number after 0022; #30 keeps 0021 |
+| 2026-10-01 (S2) | A null cache counter means zero or not reported | `llm-pi-ai` leaves a zero counter out of its usage, so the bridge cannot tell the two apart. 0022's "null is never zero" holds for what the service writes, not for what the adapter reports |

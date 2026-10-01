@@ -81,7 +81,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.preview_mission_withdrawal(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text)') IS NOT NULL
   AND to_regprocedure('sophia.is_task_kind(text)') IS NOT NULL
-  AND to_regclass('sophia.artifact_renditions') IS NOT NULL AS ok`
+  AND to_regclass('sophia.artifact_renditions') IS NOT NULL
+  AND to_regprocedure('sophia.usage_count(jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({

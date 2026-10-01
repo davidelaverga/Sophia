@@ -1018,21 +1018,41 @@ const ASSISTANT_TEXT_LIMIT = 120_000
 type AssistantEventData = {
   stream: Parameters<typeof expandAssistantStream>[0]
   message?: { source?: { provider?: unknown; model?: unknown } }
-  usage?: { inputTokens?: unknown; outputTokens?: unknown }
+  usage?: UsageData
   interrupted?: true
 }
+
+type UsageData = { inputTokens?: unknown; outputTokens?: unknown; cacheReadTokens?: unknown; cacheWriteTokens?: unknown }
 
 const count = (value: unknown): number | null => (Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : null)
 const label = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value.slice(0, 200) : null)
 
 /**
+ * A model call's usage for the service. dsh's counts are disjoint (input is uncached input only). A cache counter is
+ * added only when the adapter reported one (SMC-M03); `llm-pi-ai` leaves a zero counter out, so absent means zero or
+ * not reported.
+ */
+function usageOf(usage: UsageData | undefined): Record<string, number | null> {
+  const cacheRead = count(usage?.cacheReadTokens)
+  const cacheWrite = count(usage?.cacheWriteTokens)
+  return {
+    inputTokens: count(usage?.inputTokens),
+    outputTokens: count(usage?.outputTokens),
+    ...(cacheRead === null ? {} : { cacheReadTokens: cacheRead }),
+    ...(cacheWrite === null ? {} : { cacheWriteTokens: cacheWrite }),
+  }
+}
+
+/**
  * A bounded, model-free projection of one durable event for the service. An
  * assistant message also names the provider and model that produced it and
  * the usage the adapter reported (null when it reported none), so the
- * service keeps the actual model identity with a captured result.
+ * service keeps the actual model identity with a captured result. A
+ * compaction summary reports its own model call the same way.
  */
 function summarize(event: SessionEvent): unknown {
-  switch (event.type) {
+  // A string switch: `compaction/summary` is compaction-basic's event, outside this bundle's typed event map.
+  switch (event.type as string) {
     case 'user/message': {
       const data = event.data as UserMessage
       return { id: data.id, text: textOf(data.content) }
@@ -1048,10 +1068,14 @@ function summarize(event: SessionEvent): unknown {
         truncated: text.length > ASSISTANT_TEXT_LIMIT,
         provider: label(data.message?.source?.provider),
         model: label(data.message?.source?.model),
-        inputTokens: count(data.usage?.inputTokens),
-        outputTokens: count(data.usage?.outputTokens),
+        ...usageOf(data.usage),
         interrupted: data.interrupted === true,
       }
+    }
+    case 'compaction/summary': {
+      // The summary's own model call: who made it and what it cost, never the summary text.
+      const data = event.data as { compactionId?: unknown; provider?: unknown; model?: unknown; usage?: UsageData }
+      return { compactionId: label(data.compactionId), provider: label(data.provider), model: label(data.model), ...usageOf(data.usage) }
     }
     case 'turn/start':
     case 'turn/end':

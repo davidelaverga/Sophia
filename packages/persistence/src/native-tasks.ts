@@ -192,7 +192,7 @@ async function readOutputs(c: pg.PoolClient, projectId: string, taskId: string):
   }))
 }
 
-/** The result's source and the model identity and usage of the step that produced it. */
+/** The result's source and the model identity and usage of the step that produced it (a turn's call, never compaction's). */
 async function readResult(c: pg.PoolClient, projectId: string, task: TaskRow): Promise<NativeTaskDetail['result']> {
   if (!task.result_source_id) return null
   const { rows } = await c.query<ResultRow>(
@@ -201,7 +201,8 @@ async function readResult(c: pg.PoolClient, projectId: string, task: TaskRow): P
        FROM sophia.source_objects s JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
        LEFT JOIN LATERAL (SELECT provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
           FROM sophia.usage_records
-          WHERE project_id = s.project_id AND attempt_id = $3 ORDER BY recorded_at DESC, id DESC LIMIT 1) u ON true
+          WHERE project_id = s.project_id AND attempt_id = $3 AND purpose = 'turn'
+          ORDER BY recorded_at DESC, id DESC LIMIT 1) u ON true
       WHERE s.project_id = $1 AND s.id = $2`,
     [projectId, task.result_source_id, task.attempt_id],
   )

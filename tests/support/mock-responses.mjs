@@ -37,7 +37,7 @@ export async function startMockResponses() {
     const answer = step.toolCall
       ? { id: `fc_mock_${n}`, type: 'function_call', status: 'completed', call_id: `call_mock_${n}`, name: step.toolCall.name, arguments: JSON.stringify(step.toolCall.arguments ?? {}) }
       : { id: `msg_mock_${n}`, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: step.text, annotations: [] }] }
-    const response = (status, output) => ({ id, object: 'response', created_at: 0, model: body.model, status, output, usage: status === 'completed' ? { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } : null })
+    const response = (status, output) => ({ id, object: 'response', created_at: 0, model: body.model, status, output, usage: status === 'completed' ? { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 }, ...step.usage } : null })
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
     let sequence = 0
     const send = (type, payload) => { if (!closed) res.write(`event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: sequence++, ...payload })}\n\n`) }
@@ -63,7 +63,10 @@ export async function startMockResponses() {
   return {
     baseURL: `http://127.0.0.1:${port}/v1`,
     requests,
-    /** Queue answers; each request consumes one (default: a short "ok"). `{ toolCall: { name, arguments } }` calls a tool. */
+    /**
+     * Queue answers; each request consumes one (default: a short "ok"). `{ toolCall: { name, arguments } }` calls a tool;
+     * `usage` replaces fields of the reported usage.
+     */
     script: (...steps) => { queue.push(...steps) },
     get active() { return active },
     close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve) }),

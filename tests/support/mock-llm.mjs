@@ -55,7 +55,7 @@ export async function startMockLlm() {
       }
     }
     send({ ...base, choices: [{ index: 0, delta: {}, finish_reason: finish }] })
-    if (body.stream_options?.include_usage) send({ ...base, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })
+    if (body.stream_options?.include_usage) send({ ...base, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, ...step.usage } })
     if (!closed) res.end('data: [DONE]\n\n')
     active -= 1
   })
@@ -64,7 +64,10 @@ export async function startMockLlm() {
   return {
     baseURL: `http://127.0.0.1:${port}/v1`,
     requests,
-    /** Queue replies; each request consumes one (default: a short "ok"). `toolCall` or `toolCalls: [{ id?, name, arguments }]` calls tools. */
+    /**
+     * Queue replies; each request consumes one (default: a short "ok"). `toolCall` or `toolCalls: [{ id?, name, arguments }]`
+     * calls tools; `usage` replaces fields of the reported usage.
+     */
     script: (...steps) => { queue.push(...steps) },
     /** All user-visible text the model has been sent so far. */
     sentText: () => JSON.stringify(requests.map((r) => r.messages)),

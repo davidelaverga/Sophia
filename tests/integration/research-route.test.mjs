@@ -3,7 +3,7 @@
  *
  * The unit's real `openai-research` route (the bundle's own `llm-pi-ai` entry for gpt-6.1-sol, only pointed at a local
  * Responses stub with a dummy key) runs a research role's create and a second turn. Every request must carry the
- * route the unit records and the cache shape decided for it: medium reasoning, `prompt_cache_key` equal to the native
+ * route the unit records and the cache shape decided for it, and its usage must reach the service with the cache counters: medium reasoning, `prompt_cache_key` equal to the native
  * session id and nothing else about caching, the 16000-token output cap, `strict: false` on every tool, and only the
  * role's tools. The attempt records the route in its identity, and a create that names another route is refused.
  */
@@ -27,7 +27,9 @@ after(cleanup)
 test('a research role runs on the recorded research route with the decided cache shape', async (t) => {
   const w = await world(t)
   await w.start()
-  w.llm.script({ text: 'Here is what I found.' }, { text: 'You are welcome.' })
+  // The second answer reports a cache hit and a cache write, as the live route is expected to from turn 2 (live checklist).
+  const cachedTurn = { input_tokens: 1500, output_tokens: 20, total_tokens: 1520, input_tokens_details: { cached_tokens: 1200, cache_write_tokens: 100 } }
+  w.llm.script({ text: 'Here is what I found.' }, { text: 'You are welcome.', usage: cachedTurn })
   w.send(w.cmd('create', { text: 'Which hosts can render PDFs with the sandbox on?', role: 'sophia-research-md-v1', route: 'research-sol-medium-v1' }))
   await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the first turn')
   w.send(w.cmd('input', { text: 'Thanks.' }))
@@ -54,6 +56,14 @@ test('a research role runs on the recorded research route with the decided cache
   const [first, second] = w.llm.requests
   assert.deepEqual(second.body.instructions ?? null, first.body.instructions ?? null, 'the instructions prefix is stable across turns')
   assert.deepEqual(second.body.tools, first.body.tools, 'the tool prefix is stable across turns')
+
+  // Usage reaches the service with the cache counters, input counted without them (dsh's disjoint counts). The adapter
+  // omits a zero counter, so the first turn carries none.
+  const usage = w.sessionEvents('assistant/message').map(({ data }) => [data.provider, data.model, data.inputTokens, data.outputTokens, data.cacheReadTokens, data.cacheWriteTokens])
+  assert.deepEqual(usage, [
+    ['openai-research', route.model, 1, 1, undefined, undefined],
+    ['openai-research', route.model, 200, 20, 1200, 100],
+  ])
 
   const identity = w.journal().find((entry) => entry.type === 'sophia/identity')
   assert.deepEqual(identity?.data?.route, { provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort })
