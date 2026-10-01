@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { chromiumPath, judgeSandbox, launchConfined, renderHtmlToPdf, renderUserOf } from '../index.mjs'
 import { pageChecks, pageTexts, SHORT_PAGE_WORDS } from '../pdf-text.mjs'
@@ -50,7 +50,16 @@ interface Job {
   entry: FileRef
   assets: FileRef[]
   language: string
+  scratchDir: string
 }
+
+/**
+ * This file's renders keep their scratch here, so the leftover-process checks see only this file's browsers, never
+ * one another test file renders at the same time (host-probe.test.ts). Open to the render user.
+ */
+const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-kernel-test-'))
+fs.chmodSync(SCRATCH, 0o755)
+after(() => fs.rmSync(SCRATCH, { recursive: true, force: true }))
 
 /** A source package: files written world-readable (the render user reads them), with its manifest. */
 function sourcePackage(
@@ -66,7 +75,14 @@ function sourcePackage(
   }
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-out-'))
   const ref = (p: string): FileRef => ({ path: p, sha256: sha(fs.readFileSync(path.join(root, p))) })
-  return { sourceRoot: root, outputDir, entry: ref('report.html'), assets: assets.map(ref), language: 'it' }
+  return {
+    sourceRoot: root,
+    outputDir,
+    entry: ref('report.html'),
+    assets: assets.map(ref),
+    language: 'it',
+    scratchDir: SCRATCH,
+  }
 }
 
 /** Processes still running for any render of this file. */
@@ -76,7 +92,7 @@ const lingering = () =>
     .filter((n) => /^\d+$/.test(n))
     .filter((pid) => {
       try {
-        return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes('sophia-render-')
+        return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').includes(SCRATCH)
       } catch {
         return false
       }
@@ -307,7 +323,7 @@ describe('the confined PDF kernel', () => {
   })
 
   it('never starts with the sandbox off: the wrapper refuses the flag before Chromium runs', { skip }, async () => {
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-render-'))
+    const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-render-'))
     try {
       await assert.rejects(
         launchConfined({ workDir, env, extraArgs: ['--no-sandbox'], timeoutMs: 15_000 }),
