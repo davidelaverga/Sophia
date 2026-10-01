@@ -148,6 +148,11 @@ test('the research routes, role routes and compaction must be exactly the record
   assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000 } } } })), /allows routes/)
   assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 128000 } } } })), /allows routes/, 'a raised bridge ceiling (M03-RF-0003)')
   assert.match(messages(rows({ bridge: { roleRoutes: { 'sophia-research-md-v1': 'research-sol-medium-v1' } } })), /maps roles/)
+  const priced = { ...unit, model_routes: { 'research-sol-medium-v1': { ...route, prices: { input: 2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 } } } }
+  const bridgeRoute = (prices) => ({ routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000, prices } } })
+  assert.deepEqual(checkModelRoutes(rows({ bridge: bridgeRoute(priced.model_routes['research-sol-medium-v1'].prices) }), priced), [])
+  assert.match(messages(rows({ bridge: bridgeRoute({ input: 0.2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 }) }), priced), /allows routes/, 'the bridge meters at the unit\'s prices (S4)')
+  assert.match(messages(rows(), priced), /allows routes/, 'an unpriced bridge route meters nothing')
   assert.match(messages(rows({ profile: { apiKeyEnv: 'OPENAI_API_KEY' } })), /OPENAI_RESEARCH_API_KEY through apiKeyEnv/)
   assert.match(messages(rows({ profile: { cacheRetention: 'long' } })), /must not set cacheRetention "long"/)
   assert.match(messages(rows({ entry: { maxTokens: 128000 } })), /recorded maxTokens 16000/)
@@ -161,4 +166,15 @@ test('the research routes, role routes and compaction must be exactly the record
   assert.match(checkCompaction(rows(), { ...unit, model_routes: {} })[0].message, /for no recorded route/)
   const summarizing = { ...unit.compaction, summarizationProvider: 'openai-research', summarizationModel: 'gpt-6.1-sol' }
   assert.match(checkCompaction(rows({ compaction: summarizing }), { ...unit, compaction: summarizing }).map((f) => f.message).join(' | '), /names a summarization model/)
+})
+
+test('the research providers are named by reference only, and no endpoint is overridden (SMC-M03 S4)', async () => {
+  const { checkResearchSources } = await import('../../scripts/lib/gate.mjs')
+  const unit = { research_sources: { tavily: { credential_ref: 'TAVILY_API_KEY' }, jina: { credential_ref: 'JINA_API_KEY' } } }
+  const rows = (sources) => [{ id: 'sophia-control-bridge', origin: '@sophia/dsh-bundle', patchedBy: [], config: { protocolVersion: 1, ...(sources ? { sources } : {}) } }]
+  assert.deepEqual(checkResearchSources(rows({ tavilyKeyEnv: 'TAVILY_API_KEY', jinaKeyEnv: 'JINA_API_KEY' }), unit), [])
+  assert.match(checkResearchSources(rows({ tavilyKeyEnv: 'TAVILY_API_KEY', jinaKeyEnv: 'JINA_API_KEY', tavilyEndpoint: 'http://127.0.0.1:9/' }), unit)[0].message, /sources are/)
+  assert.match(checkResearchSources(rows({ tavilyKeyEnv: 'OPENAI_API_KEY', jinaKeyEnv: 'JINA_API_KEY' }), unit)[0].message, /sources are/)
+  assert.match(checkResearchSources(rows(null), unit)[0].message, /sources are null/)
+  assert.deepEqual(checkResearchSources(rows(null), {}), [], 'a unit without research names no sources')
 })

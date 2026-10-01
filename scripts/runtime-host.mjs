@@ -9,7 +9,9 @@
  *
  * Every model route's credential (config/runtime-unit.json: model_route and model_routes, by credential_ref) is
  * passed to dsh by name only and never printed. The default route's is required; a research route whose credential
- * is absent stays unusable (its requests fail with MISSING_CREDENTIAL, never another route), and the host says so. Without --rehearse, every model call is real and billable: run it only with
+ * is absent stays unusable (its requests fail with MISSING_CREDENTIAL, never another route), and the host says so. The
+ * research providers' keys (research_sources) pass the same way; without them the research tools refuse before any
+ * network call (the adapters never go keyless). Without --rehearse, every model call is real and billable: run it only with
  * the owner's recorded allowance. The profile is installed into <root> on first use, and on every later start it is
  * reconciled with the recorded bundle: a stale one (a deploy that changed the bundle) is reinstalled in place, and the
  * rest of the project home is kept, so the bridge journal, native sessions and workspace survive restarts and
@@ -35,7 +37,13 @@ if (!values.root || !url || !token) {
 assertToolchain()
 const unit = loadRuntimeUnit()
 const credential = unit.model_route.credential_ref
-const credentials = [...new Set([credential, ...Object.values(unit.model_routes ?? {}).map((route) => route.credential_ref)])]
+const credentials = [
+  ...new Set([
+    credential,
+    ...Object.values(unit.model_routes ?? {}).map((route) => route.credential_ref),
+    ...Object.values(unit.research_sources ?? {}).flatMap((source) => (source?.credential_ref ? [source.credential_ref] : [])),
+  ]),
+]
 if (!values.rehearse && !process.env[credential]) {
   console.error(`runtime-host needs ${credential} in the environment (reference only; the value is never printed), or --rehearse`)
   process.exit(2)

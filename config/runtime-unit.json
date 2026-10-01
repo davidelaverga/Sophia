@@ -97,9 +97,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "778ce55d1627f91df62926a107e686ee4237a8ca99aac5ecd93e759312fe65ad",
-    "archive_integrity": "sha512-ln861FZnpOI4G7hMtrDj/Cq4DbzdW7mRu79e7eQV8UgWjl3xjadYUkuR7I9JRLwC6gyscOvwzsgX0+L6UR/8Bw==",
-    "artifact_digest": "sha256:778ce55d1627f91df62926a107e686ee4237a8ca99aac5ecd93e759312fe65ad",
+    "archive_sha256": "3d9f4db0344066b09a56e95ba6823733670c512e017db4dc3d4fe528efc6782a",
+    "archive_integrity": "sha512-Zr7jldpFfpc6ToiCvfpEYf4X3/05Na59LpgX0BHtIWC6etnZTub3TYvnI1zE6Yjb5ZELcq8y8SM09IP/3z8yWw==",
+    "artifact_digest": "sha256:3d9f4db0344066b09a56e95ba6823733670c512e017db4dc3d4fe528efc6782a",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
@@ -179,6 +179,12 @@
       "model": "gpt-6.1-sol",
       "reasoningEffort": "medium",
       "maxTokens": 16000,
+      "prices": {
+        "input": 2,
+        "cacheRead": 0.1,
+        "cacheWrite": 2.5,
+        "output": 10
+      },
       "contextWindow": 272000,
       "baseURL": "https://api.openai.com/v1",
       "cacheRetention": null,
@@ -195,6 +201,15 @@
   "role_routes": {
     "sophia-research-md-v1": "research-sol-medium-v1",
     "sophia-research-pdf-v1": "research-sol-medium-v1"
+  },
+  "research_sources": {
+    "decided": "2026-09-30 by Davide (owner), plan §2.6 and D1: Tavily Search and Jina Reader for the web pilot, each on its own key with a provider-side hard budget; keys pass to the runtime by reference only",
+    "tavily": {
+      "credential_ref": "TAVILY_API_KEY"
+    },
+    "jina": {
+      "credential_ref": "JINA_API_KEY"
+    }
   },
   "compaction": {
     "modelPolicies": [

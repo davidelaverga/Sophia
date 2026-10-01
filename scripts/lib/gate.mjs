@@ -237,9 +237,29 @@ export function checkPresetRoster(rows, presets) {
   return findings
 }
 
-/** A route as the bridge row allows it: provider, model and effort. */
-/** A route as the bridge row must allow it: provider, model, effort and the output ceiling the bridge enforces (M03-RF-0003). */
-const allowed = (route) => ({ provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort ?? null, maxTokens: route.maxTokens ?? null })
+/**
+ * A route as the bridge row must allow it: provider, model, effort, the output ceiling the bridge enforces
+ * (M03-RF-0003) and the prices it meters calls at (S4).
+ */
+const allowed = (route) => ({
+  provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort ?? null, maxTokens: route.maxTokens ?? null, prices: route.prices ?? null,
+})
+
+/**
+ * The research providers' keys (SMC-M03 S4): the bridge row names exactly the unit's credential references and
+ * overrides no endpoint (an override exists only for loopback test stubs).
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ research_sources?: { tavily: { credential_ref: string }, jina: { credential_ref: string } } }} unit - the recorded unit.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkResearchSources(rows, unit) {
+  const sources = rows.find((row) => row.id === BRIDGE_ROW)?.config?.sources ?? null
+  const expected = unit.research_sources
+    ? { tavilyKeyEnv: unit.research_sources.tavily.credential_ref, jinaKeyEnv: unit.research_sources.jina.credential_ref }
+    : null
+  if (isDeepStrictEqual(sources, expected)) return []
+  return [{ code: 'research_sources_invalid', message: `${BRIDGE_ROW} sources are ${JSON.stringify(sources)}, the unit records ${JSON.stringify(expected)}` }]
+}
 
 /**
  * Every route the unit allows beyond the default (SMC-M03), and which role runs on which. The bridge row must allow
@@ -465,6 +485,7 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     if (unit.model_route) findings.push(...checkModelRoute(rows, unit.model_route))
     if (unit.presets) findings.push(...checkPresetRoster(rows, unit.presets))
     if (unit.model_routes || unit.role_routes) findings.push(...checkModelRoutes(rows, unit))
+    findings.push(...checkResearchSources(rows, unit))
     if (unit.compaction) findings.push(...checkCompaction(rows, unit))
     const loops = byId.get('agent-loop') ?? []
     if (loops.length !== 1 || loops[0].origin !== BASE) {

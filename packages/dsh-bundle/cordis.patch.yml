@@ -232,6 +232,17 @@
             model: gpt-6.1-sol
             reasoningEffort: medium
             maxTokens: 16000
+            # USD per million tokens (the unit's prices): every call on this route is reserved from the
+            # research allowance before it leaves and settled from its usage (SMC-M03 S4).
+            prices:
+              input: 2
+              cacheRead: 0.1
+              cacheWrite: 2.5
+              output: 10
         roleRoutes:
           sophia-research-md-v1: research-sol-medium-v1
           sophia-research-pdf-v1: research-sol-medium-v1
+        # The research providers' keys, by reference (the unit's research_sources); never an endpoint override.
+        sources:
+          tavilyKeyEnv: TAVILY_API_KEY
+          jinaKeyEnv: JINA_API_KEY

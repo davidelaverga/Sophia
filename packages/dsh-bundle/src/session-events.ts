@@ -97,6 +97,8 @@ export interface JournalRecordMap {
    * one and was refused before any request (SMC-M03). Audit only: replay ignores it.
    */
   'sophia/route-refused': { attemptId: string; sessionId: string; requested: ExecutionIdentity['route']; reason: string }
+  /** A model call refused because its allowance could not reserve it (SMC-M03 S4); audit only, like a route refusal. */
+  'sophia/spend-refused': { attemptId: string; sessionId: string; reason: string }
 }
 
 /** One journal line. */

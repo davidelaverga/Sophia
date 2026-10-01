@@ -20,7 +20,23 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const waiters = new Set()
   let seq = 0
   let polls = 0
-  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false }
+  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {} }
+  // The runtime research operations (SMC-M03 S4, A11): every call recorded; each answered by a test's handler, or by
+  // a well-formed default (an empty task, a reservation, its settlement, a capture, a draft).
+  const research = []
+  let researchSeq = 0
+  const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+  const researchDefaults = {
+    context: (body) => body.sourceId === undefined
+      ? { taskId: uuid(1), rootTaskId: uuid(1), question: 'Fixture question?', outputs: ['markdown'], preferences: {}, assumptions: [], inputs: [], urls: [], base: null,
+          allowance: { capUsd: 5, headroomUsd: 0.5, committedUsd: 0, searchesLeft: 5, readsLeft: 8 }, draft: null, roster: [] }
+      : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 0, truncated: false, text: '' },
+    reserve: (body) => ({ reservationId: uuid(1000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd,
+      target: body.kind === 'read' ? { ref: body.targetRef, url: 'https://example.org/page' } : null }),
+    settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
+    capture: (body) => ({ sourceId: uuid(2000 + ++researchSeq), sha256: 'a'.repeat(64), byteLength: 1, kind: body.kind, refs: [] }),
+    draft: () => ({ sourceId: uuid(3000 + ++researchSeq), sha256: 'b'.repeat(64), seq: 1 }),
+  }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
 
@@ -65,6 +81,13 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       notify()
       return reply(204)
     }
+    const op = req.method === 'POST' && /^\/v1\/runtime\/research\/(context|reserve|settle|capture|draft)$/.exec(url.pathname)?.[1]
+    if (op) {
+      research.push({ op, body: json })
+      notify()
+      const answer = (state.research[op] ?? researchDefaults[op])(json)
+      return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
+    }
     if (req.method === 'POST' && url.pathname === '/v1/runtime/ready') {
       if (state.refuseReady) return reply(503, { error: 'fixture refuses the ready report' })
       readiness.push(json)
@@ -98,6 +121,13 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     observations,
     hellos,
     readiness,
+    /** Every research operation the runtime called, in order: `{ op, body }`. */
+    research,
+    /**
+     * Answer one research operation with `handler(body)`: a reply body, or `{ status, body }` for a refusal such as
+     * `{ status: 409, body: { code: 'research_limit_reached' } }`. Null restores the default.
+     */
+    onResearch: (op, handler) => { state.research[op] = handler ?? undefined },
     setBindings: (next) => { state.bindings = [...next] },
     /** Make `POST ready` fail (adverse tests). */
     refuseReady: (value = true) => { state.refuseReady = value },
