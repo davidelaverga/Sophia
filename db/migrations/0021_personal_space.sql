@@ -274,15 +274,18 @@ SET search_path=pg_catalog AS $$
  SELECT CASE WHEN p_reply='pending' AND p_asked_at<now()-interval '2 minutes' THEN 'failed' ELSE p_reply END $$;
 REVOKE ALL ON FUNCTION sophia.personal_reply_state(text,timestamptz) FROM PUBLIC;
 
--- sendPersonalTurn: the person says something; Sophia's reply is pending until the companion writes it.
-CREATE FUNCTION sophia.send_personal_turn(p_key text, p_text text) RETURNS jsonb LANGUAGE plpgsql
+-- sendPersonalTurn: the person says something; Sophia's reply is pending until the companion writes it. Asked only to
+-- replay (p_replay_only: where no companion runs), it returns the key's kept receipt, or NULL, and writes nothing; so do
+-- retry_personal_turn and begin_personal_greeting.
+CREATE FUNCTION sophia.send_personal_turn(p_key text, p_text text, p_replay_only boolean DEFAULT false) RETURNS jsonb
+LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE body text:=sophia.personal_text(p_text,4000); semantic jsonb; prior jsonb; s sophia.personal_spaces; t sophia.personal_turns;
 BEGIN
  semantic:=jsonb_build_object('text',sophia.personal_digest(body));
  PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'send_turn',semantic);
- IF prior IS NOT NULL THEN RETURN prior; END IF;
+ IF prior IS NOT NULL OR p_replay_only THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
  t:=sophia.personal_append('person',body,NULL);
  RETURN sophia.personal_remember(p_key,'send_turn',semantic,
@@ -338,14 +341,15 @@ REVOKE ALL ON FUNCTION sophia.personal_greeting_request(text) FROM PUBLIC;
 -- claim, it says so ('{"writing":true}') and keeps nothing; when none is due, or another request has it, the receipt
 -- saying nothing was written is kept under the key. The same key greeting someone else is another request: refused,
 -- while its attempt runs, once let go and once kept.
-CREATE FUNCTION sophia.begin_personal_greeting(p_key text, p_name text) RETURNS jsonb LANGUAGE plpgsql
+CREATE FUNCTION sophia.begin_personal_greeting(p_key text, p_name text, p_replay_only boolean DEFAULT false)
+RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=sophia.personal_greeting_request(p_name); prior jsonb;
  held_by sophia.personal_greeting_claims; held boolean; taken uuid;
 BEGIN
  PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'resume',semantic);
- IF prior IS NOT NULL THEN RETURN prior; END IF;
+ IF prior IS NOT NULL OR p_replay_only THEN RETURN prior; END IF;
  SELECT * INTO held_by FROM sophia.personal_greeting_claims WHERE owner_id=a;
  held:=FOUND;
  IF held AND held_by.request_key=p_key AND held_by.semantic<>semantic THEN
@@ -436,14 +440,15 @@ BEGIN
 END $$;
 
 -- askPersonalAgain: a turn whose reply failed, or was lost (personal_reply_state), waits for one again from now.
-CREATE FUNCTION sophia.retry_personal_turn(p_key text, p_turn uuid) RETURNS jsonb LANGUAGE plpgsql
+CREATE FUNCTION sophia.retry_personal_turn(p_key text, p_turn uuid, p_replay_only boolean DEFAULT false) RETURNS jsonb
+LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('turnId',p_turn); prior jsonb;
  t sophia.personal_turns; s sophia.personal_spaces; stands text;
 BEGIN
  PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'retry_turn',semantic);
- IF prior IS NOT NULL THEN RETURN prior; END IF;
+ IF prior IS NOT NULL OR p_replay_only THEN RETURN prior; END IF;
  SELECT * INTO t FROM sophia.personal_turns WHERE owner_id=a AND id=p_turn;
  IF NOT FOUND OR t.author<>'person' THEN RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
  stands:=sophia.personal_reply_state(t.reply,t.asked_at);
@@ -631,16 +636,16 @@ BEGIN
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
- sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text), sophia.release_personal_greeting(uuid),
- sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid),
+REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
+ sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
+ sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
  sophia.record_personal_greeting(text,uuid,text,text),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
- sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text), sophia.release_personal_greeting(uuid),
- sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid),
+GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
+ sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
+ sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
  sophia.record_personal_greeting(text,uuid,text,text),
  sophia.personal_reply_state(text,timestamptz),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),

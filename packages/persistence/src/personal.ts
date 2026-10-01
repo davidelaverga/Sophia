@@ -189,9 +189,22 @@ export async function readPersonalTurnsAfter(c: pg.PoolClient, after: number): P
 }
 
 /** Everything kept for the calling person: every turn, the notes, the carried notes. */
-export async function readPersonalExport(c: pg.PoolClient): Promise<Omit<PersonalExport, 'exportedAt'>> {
-  const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq`)
-  return { turns: rows.map(turnOf), notes: await readNotes(c), releases: await readReleases(c) }
+/** How many turns one page of the export holds (A10's maxItems). */
+export const PERSONAL_EXPORT_PAGE = 1000
+
+/**
+ * Everything the personal space keeps, a page of turns at a time: the turns after `after` (a seq), in order, and where
+ * the next page starts (null on the last); the notes and the carried notes, bounded, on every page.
+ */
+export async function readPersonalExport(
+  c: pg.PoolClient,
+  after = 0,
+  limit = PERSONAL_EXPORT_PAGE,
+): Promise<Omit<PersonalExport, 'exportedAt'>> {
+  const { rows } = await c.query<TurnRow>(`${TURNS} AND t.seq > $1 ORDER BY t.seq LIMIT $2`, [after, limit + 1])
+  const turns = rows.slice(0, limit).map(turnOf)
+  const next = rows.length > limit ? (turns.at(-1)?.seq ?? null) : null
+  return { turns, next, notes: await readNotes(c), releases: await readReleases(c) }
 }
 
 /** What the companion answers from: the pending turn, the conversation up to it, and the notes the person keeps. */
@@ -260,6 +273,26 @@ async function receipt(c: pg.PoolClient, statement: string, sql: string, params:
   const { rows } = await c.query<{ receipt: PersonalReceipt }>(sql, params)
   return onlyRow(rows, statement).receipt
 }
+
+/** A keyed write asked only to replay (no companion runs here): the receipt its key keeps, or null; nothing is written. */
+async function replay(
+  c: pg.PoolClient,
+  statement: string,
+  sql: string,
+  params: unknown[],
+): Promise<PersonalReceipt | null> {
+  const { rows } = await c.query<{ receipt: PersonalReceipt | null }>(sql, params)
+  return onlyRow(rows, statement).receipt
+}
+
+export const replayPersonalTurn = (c: pg.PoolClient, key: string, text: string) =>
+  replay(c, 'send_personal_turn', 'SELECT sophia.send_personal_turn($1, $2, true) AS receipt', [key, text])
+
+export const replayPersonalRetry = (c: pg.PoolClient, key: string, turnId: string) =>
+  replay(c, 'retry_personal_turn', 'SELECT sophia.retry_personal_turn($1, $2, true) AS receipt', [key, turnId])
+
+export const replayPersonalGreeting = (c: pg.PoolClient, key: string, name: string | null) =>
+  replay(c, 'begin_personal_greeting', 'SELECT sophia.begin_personal_greeting($1, $2, true) AS receipt', [key, name])
 
 export const sendPersonalTurn = (c: pg.PoolClient, key: string, text: string) =>
   receipt(c, 'send_personal_turn', 'SELECT sophia.send_personal_turn($1, $2) AS receipt', [key, text])

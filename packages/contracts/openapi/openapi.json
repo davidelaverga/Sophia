@@ -6642,7 +6642,7 @@
       },
       "post": {
         "operationId": "sendPersonalTurn",
-        "summary": "The person says something to Sophia. The turn is kept and Sophia's reply is pending until the companion writes it. Refused (503, nothing kept) where no companion runs. Idempotent per person and key.",
+        "summary": "The person says something to Sophia. The turn is kept and Sophia's reply is pending until the companion writes it. Refused (503, nothing kept) where no companion runs. Idempotent per person and key. Where no companion runs, a retry still gets its key's receipt; only new work is refused (503).",
         "tags": [
           "personal"
         ],
@@ -6818,7 +6818,7 @@
     "/api/v1/personal/turns/{turnId}/retry": {
       "post": {
         "operationId": "retryPersonalTurn",
-        "summary": "A turn whose reply failed, or was lost (still pending two minutes after it was asked for), waits for one again from now.",
+        "summary": "A turn whose reply failed, or was lost (still pending two minutes after it was asked for), waits for one again from now. Where no companion runs, a retry still gets its key's receipt; only new work is refused (503).",
         "tags": [
           "personal"
         ],
@@ -7451,7 +7451,7 @@
     "/api/v1/personal/resume": {
       "post": {
         "operationId": "resumePersonalSpace",
-        "summary": "The person is back after a quiet spell: Sophia welcomes them with a turn of hers, written only when the last turn is more than an hour old and is not already a welcome (turnId null otherwise). `name` is the name she greets them by. Never two welcomes in a row, and idempotent by its key: a retry, however late, gets the first receipt, and while one request is getting a welcome another gets nothing written. A welcome not written yet (the companion failed, or an earlier attempt of the same request is still writing it) answers 503 outcome_unknown: ask again under the same key. The request is its key and whom it greets: the same key with another `name` is refused (409 idempotency_conflict), also after an attempt that failed.",
+        "summary": "The person is back after a quiet spell: Sophia welcomes them with a turn of hers, written only when the last turn is more than an hour old and is not already a welcome (turnId null otherwise). `name` is the name she greets them by. Never two welcomes in a row, and idempotent by its key: a retry, however late, gets the first receipt, and while one request is getting a welcome another gets nothing written. A welcome not written yet (the companion failed, or an earlier attempt of the same request is still writing it) answers 503 outcome_unknown: ask again under the same key. The request is its key and whom it greets: the same key with another `name` is refused (409 idempotency_conflict), also after an attempt that failed. Where no companion runs, a retry still gets its key's receipt; only new work is refused (503).",
         "tags": [
           "personal"
         ],
@@ -7554,7 +7554,7 @@
     "/api/v1/personal/export": {
       "get": {
         "operationId": "exportPersonalSpace",
-        "summary": "Everything the personal space keeps for the calling person: every turn, the notes, the carried notes.",
+        "summary": "Everything the personal space keeps for the calling person, a page of turns at a time: the turns after `after` (a seq; 0 or none for the first page), at most 1000 and in order, `next` where the next page starts (null on the last), and the notes and the carried notes on every page.",
         "tags": [
           "personal"
         ],
@@ -7563,7 +7563,18 @@
             "supabaseBearer": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -13504,7 +13515,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PersonalTurn"
-            }
+            },
+            "maxItems": 1000
           },
           "notes": {
             "type": "array",
@@ -13519,13 +13531,27 @@
             "items": {
               "$ref": "#/components/schemas/PersonalRelease"
             }
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the next page starts (pass it as `after`); null on the last page."
           }
         },
         "required": [
           "exportedAt",
           "turns",
           "notes",
-          "releases"
+          "releases",
+          "next"
         ]
       },
       "PersonalMessage": {

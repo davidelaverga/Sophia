@@ -230,6 +230,7 @@ describe('personal routes', () => {
     })
     assert.equal(keep.status, 422, JSON.stringify(keep.json))
     assert.equal((await call('/api/v1/personal/turns/earlier?before=x', { as: ANA })).status, 422)
+    assert.equal((await call('/api/v1/personal/export?after=x', { as: ANA })).status, 422)
     const first = (await space(ANA)).turns[0]
     const back = await call(`/api/v1/personal/turns/earlier?before=${String((first?.seq ?? 0) + 1)}`, { as: ANA })
     assert.deepEqual(
@@ -240,6 +241,54 @@ describe('personal routes', () => {
     assert.equal((await call('/api/v1/personal?timeZone=Mars/Olympus_Mons', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9999999999999999', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9007199254740991', { as: ANA })).status, 200)
+  })
+
+  it('replay what a keyed write kept where no companion runs, and refuse only new work there', async () => {
+    const SAME = randomUUID()
+    const k = randomUUID()
+    const sent = await call('/api/v1/personal/turns', { as: SAME, body: { text: 'Hello again' }, key: k, epoch: 0 })
+    assert.equal(sent.status, 202)
+    const replayed = await call('/api/v1/personal/turns', {
+      as: SAME,
+      body: { text: 'Hello again' },
+      key: k,
+      epoch: 0,
+      at: quietBase,
+    })
+    assert.deepEqual([replayed.status, replayed.json], [202, sent.json], 'its receipt, where no companion runs')
+    const fresh = await call('/api/v1/personal/turns', {
+      as: SAME,
+      body: { text: 'Something new' },
+      key: randomUUID(),
+      epoch: 0,
+      at: quietBase,
+    })
+    assert.equal(fresh.status, 503, 'new work is refused there')
+    // Asking again for a lost reply, the same way.
+    const lost = await withActor(pool, SAME, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Lost on the way'))
+    await owner(`UPDATE sophia.personal_turns SET asked_at = now() - interval '121 seconds' WHERE id = $1`, [
+      lost.turnId,
+    ])
+    const retryPath = `/api/v1/personal/turns/${lost.turnId ?? ''}/retry`
+    const q = randomUUID()
+    const asked = await call(retryPath, { as: SAME, key: q, epoch: 0 })
+    assert.equal(asked.status, 202)
+    const askedAgain = await call(retryPath, { as: SAME, key: q, epoch: 0, at: quietBase })
+    assert.deepEqual([askedAgain.status, askedAgain.json], [202, asked.json])
+    // And a welcome back.
+    await settled(SAME)
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [SAME])
+    const r = randomUUID()
+    const welcomed = await call('/api/v1/personal/resume', { as: SAME, body: { name: 'Sam' }, key: r, epoch: 0 })
+    assert.equal(welcomed.status, 202)
+    const welcomedAgain = await call('/api/v1/personal/resume', {
+      as: SAME,
+      body: { name: 'Sam' },
+      key: r,
+      epoch: 0,
+      at: quietBase,
+    })
+    assert.deepEqual([welcomedAgain.status, welcomedAgain.json], [202, welcomed.json])
   })
 
   it('refuse a write made before an erasure that arrives after it, and one that names no epoch', async () => {
@@ -486,7 +535,7 @@ describe('a companion on two API processes', () => {
 describe('readiness', () => {
   it('fails while the personal space is missing from the database', async () => {
     assert.equal((await fetch(`${base}/ready`)).status, 200)
-    await owner('DROP FUNCTION sophia.send_personal_turn(text,text)')
+    await owner('DROP FUNCTION sophia.send_personal_turn(text,text,boolean)')
     const res = await fetch(`${base}/ready`)
     assert.deepEqual([res.status, await res.json()], [503, { ready: false, reason: 'schema' }])
   })
