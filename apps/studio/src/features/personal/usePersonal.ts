@@ -21,6 +21,8 @@ import {
 } from '../../api/personal.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Sending } from './conversation-view.ts'
+import { writeDraft } from './draft.ts'
+import { movedOn } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
 const POLL_MS = 700
@@ -70,25 +72,36 @@ export function useProjects(identity: Identity) {
   })
 }
 
-/** The personal writes, each refreshing what it changed. `sending` shows a message at once, before its receipt. */
+/**
+ * The personal writes, each refreshing what it changed, and what a refusal says moved on ("This is how it is now":
+ * movedOn). `sending` shows a message at once, before its receipt.
+ */
 export function usePersonalWrites(identity: Identity) {
   const client = useQueryClient()
   const [sending, setSending] = useState<Sending | null>(null)
   const [welcoming, setWelcoming] = useState(false)
+  const [erasures, setErasures] = useState(0)
   const { token } = identity
   const refresh = async (projects = false) => {
     await client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
     if (projects) await client.invalidateQueries({ queryKey: ['projects', identity.name] })
   }
   const run = async (write: (key: string) => Promise<PersonalReceipt>, projects = false) => {
-    const receipt = await once(write)
-    await refresh(projects)
-    return receipt
+    try {
+      const receipt = await once(write)
+      await refresh(projects)
+      return receipt
+    } catch (err: unknown) {
+      if (movedOn(err)) await refresh(projects)
+      throw err
+    }
   }
   return {
     sending,
     /** Sophia is writing her welcome back. */
     welcoming,
+    /** Moves with each erasure: the composer starts afresh, its draft forgotten with everything else. */
+    erasures,
     resume: async (name: string | null) => {
       setWelcoming(true)
       try {
@@ -113,7 +126,12 @@ export function usePersonalWrites(identity: Identity) {
     forget: (noteId: string) => run((k) => forgetPersonalNote(token, k, noteId)),
     carry: (noteId: string, projectId: string) => run((k) => carryPersonalNote(token, k, noteId, projectId), true),
     takeBack: (releaseId: string) => run((k) => takeBackPersonalRelease(token, k, releaseId), true),
-    erase: () => run((k) => erasePersonalSpace(token, k)),
+    erase: async () => {
+      const receipt = await run((k) => erasePersonalSpace(token, k))
+      writeDraft(identity.name, '')
+      setErasures((n) => n + 1)
+      return receipt
+    },
   }
 }
 

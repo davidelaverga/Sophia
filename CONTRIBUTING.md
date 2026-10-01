@@ -295,7 +295,9 @@ and contract amendment A10. Keep these when you change either:
 - **Private means owner-only, in the database.** Every personal table reads
   `owner_id = actor` (RLS) and has no write grant; the `sophia.*` functions
   are the only writers, each idempotent per owner and key, keeping a digest of
-  what they wrote, never the words, and receipts of ids. No project role
+  what they wrote, never the words, and receipts of ids. Each holds the
+  owner's space before it reads its key (`personal_hold`), so a retry racing
+  its first attempt gets the same receipt, never a conflict. No project role
   reaches a personal row, admins included, and nothing personal is joined into
   a project read. Test a new read path as another person and as a project
   admin (`personal.db.test.ts`): zero rows.
@@ -306,21 +308,38 @@ and contract amendment A10. Keep these when you change either:
   personal words into a project (a summary, a model reading the space) is a
   new decision for the owners, not a feature (goal D5).
 - **Sophia never keeps a note on her own.** She suggests one after a reply;
-  the person keeps it or lets it go. "Note this" keeps a line in the person's
-  own words. Erasing deletes the conversation, suggestions and notes, redacts
-  every request, and leaves carried notes where they were, still the owner's.
+  the person keeps it or lets it go, and one let go is deleted. "Note this"
+  keeps a line in the person's own words. Copy everything as text includes
+  the suggestions not decided yet. Erasing deletes the conversation,
+  suggestions and notes, deletes the requests older than ten minutes and
+  redacts the rest (a late retry still writes nothing), and leaves carried
+  notes where they were, still the owner's.
 - **The companion is behind one interface** (`apps/api/src/companion.ts`):
   `answer` for a pending turn, `greet` for the welcome back. The keyless
   rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
   development and tests only, and the space says so (`companion:
   'rehearsal'`). Without a companion, sending is refused and nothing is kept:
   never store a message nobody will answer.
-- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`).
-  Shut by the person or by joining a room (a screen may be shared there); a
-  room's lock lifts when the room is left, the person's stays. While shut,
-  nothing personal is fetched or shown, and opening it asks to confirm it's
-  them (`app/reauth.ts`: passkey, the provider they signed in with, or an
-  email code, and the same account must come back).
+- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`), in
+  every tab of it: another tab's lock reaches this one, and a tab in a call
+  never opens with another (`followed`, with tests). Shut by the person or by
+  joining a room (a screen may be shared there), every new call shuts it,
+  also one straight after another (`onCallChange`, with tests); a room's lock
+  lifts when the room is left, the person's stays. While shut, nothing
+  personal is fetched or shown, and opening it asks to confirm it's them
+  (`app/reauth.ts`: passkey, the provider they signed in with, or an email
+  code, and the same account must come back). In a call no provider is
+  offered: signing in again leaves the page and would end the call. A code
+  that couldn't be sent, or ways that couldn't load, say so and can be tried
+  again. A place that can't be shown (a locked personal space) takes its
+  history entry's place, so Back goes on past it.
+- **A write that is refused reads the space again.** "That changed a moment
+  ago. This is how it is now" (`movedOn`, with tests) must be true: the space
+  is read again, so a second press or another tab's change shows. The draft
+  stays on this device until its words were sent, and signing out or erasing
+  forgets it (`draft.ts`). "Join the room" from Work asks to join on that
+  opening only (`joinStands`, with tests): leaving before the room could join
+  drops it.
 - **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,
   `data-view.ts` and `notice-view.ts` own every sentence the places say (door
   verbs, sessions, rooms, the introduction and when it shows, days, topics,
@@ -346,9 +365,14 @@ and contract amendment A10. Keep these when you change either:
   arrows pick a door; in a project, H and W work too. Every key is in a tip,
   never drawn inside a control. Esc closes what opened last (`useEscape`),
   then goes home; a sheet or a popover takes its own Esc first; in the
-  composer the first Esc only lets go of the field. Arriving in Personal on a
-  desktop puts the cursor in the field, so a letter typed then is text, not
-  a key.
+  composer the first Esc only lets go of the field; the notes take Esc only
+  where they are on screen. Arriving in Personal on a desktop puts the cursor
+  in the field, and a letter typed with the focus nowhere goes into it
+  (`data-typing-sink`), so a message's first L never locks the space. A
+  control that goes away when pressed hands the focus on (`focus.ts`: the
+  conversation, Note this, the Notes toggle), and Undo hands it back where it
+  was (`Toast`). A screen reader hears Sophia writing and then her reply
+  (`heard`, with tests), never what was there when the space loaded.
 
 ## The Studio's hosting headers
 

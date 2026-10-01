@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { forgetDrafts } from '../features/personal/draft.ts'
 import { callEnded } from '../features/personal/notice-view.ts'
 import { Places, type Opening } from '../features/personal/Places.tsx'
 import type { InCall } from '../features/personal/PlacesBar.tsx'
@@ -9,7 +10,7 @@ import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.
 import { AccountMenu } from './AccountMenu.tsx'
 import { useAuth } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
-import { isJoinPath } from './route.ts'
+import { isJoinPath, joinStands } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
@@ -29,8 +30,10 @@ export function App() {
     queryClient.clear()
     chooseDev(identity)
   }
+  // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
     queryClient.clear()
+    forgetDrafts()
     void signOut()
   }
 
@@ -132,6 +135,19 @@ function useSayings(input: {
   }, [notice, say])
 }
 
+/**
+ * "Join the room" from Work: the project joins as soon as it can, on that opening only (joinStands). Leaving it before
+ * then (home, Back, a closed door) drops the request, so a later visit never joins on its own.
+ */
+function useJoinRequest(onScreen: string | null) {
+  const [joining, setJoining] = useState<string | null>(null)
+  const stands = joinStands(joining, onScreen)
+  useEffect(() => {
+    if (joining !== stands) setJoining(stands)
+  }, [joining, stands])
+  return { joining: stands, ask: setJoining, handled: () => setJoining(null) }
+}
+
 /** From a project, your data and how privacy works open at home, where the personal space's sheets are. */
 function useSheetsAtHome(leave: () => void) {
   const [opening, setOpening] = useState<Opening | null>(null)
@@ -194,8 +210,8 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
   const [call, reportCall] = useCall(ended)
-  const [joining, setJoining] = useState<string | null>(null)
-  const [lock, setLock] = useLock(identity.name, call !== null)
+  const join = useJoinRequest(route.projectId)
+  const [lock, setLock] = useLock(identity.name, call?.projectId ?? null)
   useUnlockOnReturn(() => {
     setLock(OPEN)
     goTo('personal')
@@ -207,8 +223,8 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const ids = [project, call && call.projectId !== project ? call.projectId : null].filter(
     (id): id is string => id !== null,
   )
-  const openProject = (projectId: string, join: boolean) => {
-    if (join) setJoining(projectId)
+  const openProject = (projectId: string, joins: boolean) => {
+    join.ask(joins ? projectId : null)
     open(projectId)
   }
   return (
@@ -218,8 +234,8 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
         identity={identity}
         account={<AccountMenu identity={identity} where="project" actions={actions} />}
         routing={routing}
-        joining={joining}
-        onJoinHandled={() => setJoining(null)}
+        joining={join.joining}
+        onJoinHandled={join.handled}
         onCall={reportCall}
         onSignOut={onSignOut}
       />

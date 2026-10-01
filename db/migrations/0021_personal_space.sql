@@ -7,13 +7,14 @@
 --   member, readable by that project's members and attributed to the name its owner shows. Taking it back deletes the
 --   copy, and the note returns to its owner's notes; the project keeps nothing but the event saying it happened.
 -- * The functions below are the only writers (no write grant on any table). Each re-checks the calling actor and is
---   idempotent per owner and key (personal_requests), like the mission ledger's writes. A request keeps a SHA-256 of
+--   idempotent per owner and key (personal_requests), like the mission ledger's writes: it holds the owner's space
+--   before it reads the key, so a retry racing its first attempt gets the same receipt. A request keeps a SHA-256 of
 --   any text it wrote, never the text, and its receipt keeps ids only.
 -- * Sophia's side is written by the companion the API runs: the reply to a pending turn of the same owner, or her
---   welcome back after a quiet spell of more than an hour.
--- * Erasing the space deletes the conversation, suggestions and notes for good, and redacts every request, so a late
---   retry is told its write was forgotten rather than writing again. Releases stay in their projects, as the person
---   was told before erasing, and stay theirs to take back.
+--   welcome back after a quiet spell of more than an hour. A suggestion she makes is kept as a note or deleted.
+-- * Erasing the space deletes the conversation, suggestions and notes for good, deletes the requests older than ten
+--   minutes and redacts the rest, so a late retry is told its write was forgotten rather than writing again. Releases
+--   stay in their projects, as the person was told before erasing, and stay theirs to take back.
 -- 0001–0020 are not edited.
 BEGIN;
 
@@ -46,12 +47,13 @@ CREATE TABLE sophia.personal_turns (
 );
 CREATE INDEX personal_turns_pending ON sophia.personal_turns(owner_id,seq) WHERE reply='pending';
 
--- A note Sophia suggests after one of her replies. It is never kept silently: the person keeps it or lets it go.
+-- A note Sophia suggests after one of her replies. It is never kept silently: the person keeps it (a note in her words)
+-- or lets it go, and then it is deleted: nothing of a suggestion the person declined is kept.
 CREATE TABLE sophia.personal_suggestions (
  owner_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(),
  turn_id uuid NOT NULL,
  body text NOT NULL CHECK(length(body) BETWEEN 1 AND 90),
- state text NOT NULL DEFAULT 'open' CHECK(state IN ('open','kept','dismissed')),
+ state text NOT NULL DEFAULT 'open' CHECK(state IN ('open','kept')),
  created_at timestamptz NOT NULL DEFAULT now(), decided_at timestamptz,
  PRIMARY KEY(owner_id,id), UNIQUE(owner_id,turn_id),
  FOREIGN KEY(owner_id,turn_id) REFERENCES sophia.personal_turns(owner_id,id)
@@ -121,8 +123,19 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.personal_owner() FROM PUBLIC;
 
+-- The owner's space, created on their first write, and locked for this transaction before anything is read: two writes
+-- under one key (a retry racing its first attempt) are taken in turn, so the second finds the first's receipt instead
+-- of failing on the key. Every keyed write starts here; a project it locks comes after.
+CREATE FUNCTION sophia.personal_hold() RETURNS void LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ INSERT INTO sophia.personal_spaces(owner_id) VALUES(sophia.personal_owner()) ON CONFLICT (owner_id) DO NOTHING;
+ PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=sophia.personal_owner() FOR UPDATE;
+END $$;
+REVOKE ALL ON FUNCTION sophia.personal_hold() FROM PUBLIC;
+
 -- The stored receipt of an earlier identical request, or NULL; a changed request under the same key is refused, and a
--- request whose writes were erased is told so, whatever it says now.
+-- request whose writes were erased is told so, whatever it says now. Called with the space held (personal_hold).
 CREATE FUNCTION sophia.personal_prior(p_key text, p_operation text, p_semantic jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE prior sophia.personal_requests;
@@ -211,6 +224,7 @@ SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE body text:=sophia.personal_text(p_text,4000); semantic jsonb; prior jsonb; s sophia.personal_spaces; t sophia.personal_turns;
 BEGIN
  semantic:=jsonb_build_object('text',sophia.personal_digest(body));
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'send_turn',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
@@ -240,7 +254,7 @@ BEGIN
  -- A suggestion that repeats a note the person keeps, or one already offered, is not offered again.
  IF suggestion IS NOT NULL AND length(suggestion)<=90
   AND NOT EXISTS(SELECT 1 FROM sophia.personal_notes WHERE owner_id=a AND lower(body)=lower(suggestion))
-  AND NOT EXISTS(SELECT 1 FROM sophia.personal_suggestions WHERE owner_id=a AND lower(body)=lower(suggestion) AND state<>'dismissed') THEN
+  AND NOT EXISTS(SELECT 1 FROM sophia.personal_suggestions WHERE owner_id=a AND lower(body)=lower(suggestion)) THEN
   INSERT INTO sophia.personal_suggestions(owner_id,turn_id,body) VALUES(a,t.id,suggestion) RETURNING id INTO suggestion_id;
  END IF;
  RETURN sophia.personal_receipt('reply',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq,'suggestionId',suggestion_id));
@@ -278,9 +292,9 @@ SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('turnId',p_turn); prior jsonb;
  t sophia.personal_turns; s sophia.personal_spaces; stands text;
 BEGIN
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'retry_turn',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
- PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=a FOR UPDATE;
  SELECT * INTO t FROM sophia.personal_turns WHERE owner_id=a AND id=p_turn;
  IF NOT FOUND OR t.author<>'person' THEN RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
  stands:=sophia.personal_reply_state(t.reply,t.asked_at);
@@ -294,7 +308,8 @@ END $$;
 -- ---------------------------------------------------------------------------------------------------
 -- Notes.
 
--- decidePersonalSuggestion: keep Sophia's suggestion as a note in her words, or let it go.
+-- decidePersonalSuggestion: keep Sophia's suggestion as a note in her words, or let it go (deleted). A suggestion
+-- already let go reads as gone.
 CREATE FUNCTION sophia.decide_personal_suggestion(p_key text, p_suggestion uuid, p_decision text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb; prior jsonb; sg sophia.personal_suggestions; s sophia.personal_spaces;
@@ -302,31 +317,34 @@ DECLARE a uuid:=sophia.personal_owner(); semantic jsonb; prior jsonb; sg sophia.
 BEGIN
  IF p_decision IS NULL OR p_decision NOT IN ('keep','dismiss') THEN RAISE EXCEPTION 'Invalid decision' USING ERRCODE='22023'; END IF;
  semantic:=jsonb_build_object('suggestionId',p_suggestion,'decision',p_decision);
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'decide_suggestion',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
  SELECT * INTO sg FROM sophia.personal_suggestions WHERE owner_id=a AND id=p_suggestion FOR UPDATE;
- IF NOT FOUND THEN RAISE EXCEPTION 'Suggestion not found' USING ERRCODE='22023'; END IF;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Stale suggestion: it is gone' USING ERRCODE='40001'; END IF;
  IF sg.state<>'open' THEN RAISE EXCEPTION 'Stale suggestion: it is already %', sg.state USING ERRCODE='40001'; END IF;
- UPDATE sophia.personal_suggestions SET state=CASE WHEN p_decision='keep' THEN 'kept' ELSE 'dismissed' END, decided_at=now()
- WHERE owner_id=a AND id=p_suggestion;
  IF p_decision='keep' THEN
+  UPDATE sophia.personal_suggestions SET state='kept', decided_at=now() WHERE owner_id=a AND id=p_suggestion;
   SELECT reply_to INTO asked FROM sophia.personal_turns WHERE owner_id=a AND id=sg.turn_id;
   INSERT INTO sophia.personal_notes(owner_id,body,kept_by,from_turn,suggestion_id) VALUES(a,sg.body,'sophia',asked,sg.id)
   RETURNING id INTO note_id;
+ ELSE
+  DELETE FROM sophia.personal_suggestions WHERE owner_id=a AND id=p_suggestion;
  END IF;
  RETURN sophia.personal_remember(p_key,'decide_suggestion',semantic,
   sophia.personal_receipt('decide_suggestion',s.revision,jsonb_build_object('suggestionId',sg.id,'noteId',note_id)));
 END $$;
 
 -- keepPersonalNote: a line the person keeps from one of their own turns, in their words. Keeping exactly what Sophia
--- suggested for that turn keeps her suggestion.
+-- suggested for that turn keeps her suggestion; a suggestion let go meanwhile leaves the note theirs.
 CREATE FUNCTION sophia.keep_personal_note(p_key text, p_text text, p_from_turn uuid, p_suggestion uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); body text:=sophia.personal_text(p_text,90); semantic jsonb; prior jsonb;
  s sophia.personal_spaces; sg sophia.personal_suggestions; kept_by text:='person'; note_id uuid;
 BEGIN
  semantic:=jsonb_build_object('text',sophia.personal_digest(body),'fromTurn',p_from_turn,'suggestionId',p_suggestion);
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'keep_note',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
@@ -334,8 +352,7 @@ BEGIN
   RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
  IF p_suggestion IS NOT NULL THEN
   SELECT * INTO sg FROM sophia.personal_suggestions WHERE owner_id=a AND id=p_suggestion FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Suggestion not found' USING ERRCODE='22023'; END IF;
-  IF sg.state='open' AND sg.body=body THEN
+  IF FOUND AND sg.state='open' AND sg.body=body THEN
    UPDATE sophia.personal_suggestions SET state='kept', decided_at=now() WHERE owner_id=a AND id=sg.id;
    kept_by:='sophia';
   END IF;
@@ -352,6 +369,7 @@ SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('noteId',p_note); prior jsonb;
  s sophia.personal_spaces; n sophia.personal_notes;
 BEGIN
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'forget_note',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
@@ -376,6 +394,7 @@ DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('not
  s sophia.personal_spaces; n sophia.personal_notes; release_id uuid:=gen_random_uuid();
  shown text:=left(coalesce(nullif(btrim(coalesce(p_name,'')),''),'A member'),320);
 BEGIN
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'carry_note',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
@@ -398,6 +417,7 @@ SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('releaseId',p_release); prior jsonb;
  s sophia.personal_spaces; r sophia.personal_releases; note_id uuid;
 BEGIN
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'take_back',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  SELECT * INTO r FROM sophia.personal_releases WHERE id=p_release AND owner_id=a;
@@ -420,13 +440,16 @@ END $$;
 -- Erasure.
 
 -- erasePersonalSpace: the conversation, suggestions and notes are deleted for good; releases stay where they were
--- carried. Every earlier request is redacted, so a late retry of one can't write again.
+-- carried. A request from the last ten minutes is redacted, so a late retry of one can't write again (a retry follows
+-- its first attempt at once, and the API gives up on any request after 90 s); an older one is deleted, so no record of
+-- when or how the person wrote outlives the erasure.
 CREATE FUNCTION sophia.erase_personal_space(p_key text, p_confirm text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('confirm',p_confirm); prior jsonb;
  s sophia.personal_spaces; turns bigint; notes bigint; suggestions bigint;
 BEGIN
  IF p_confirm IS DISTINCT FROM 'delete' THEN RAISE EXCEPTION 'Erasing needs the word delete' USING ERRCODE='22023'; END IF;
+ PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'erase',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
@@ -438,6 +461,7 @@ BEGIN
  DELETE FROM sophia.personal_turns WHERE owner_id=a;
  GET DIAGNOSTICS turns=ROW_COUNT;
  UPDATE sophia.personal_spaces SET turn_seq=0 WHERE owner_id=a;
+ DELETE FROM sophia.personal_requests WHERE owner_id=a AND created_at<now()-interval '10 minutes';
  UPDATE sophia.personal_requests SET semantic_request='{"redacted":true}', receipt='{}' WHERE owner_id=a;
  RETURN sophia.personal_remember(p_key,'erase',semantic,sophia.personal_receipt('erase',s.revision,
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));

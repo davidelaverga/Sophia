@@ -21,6 +21,29 @@ interface Props {
   onErase: () => Promise<unknown>
 }
 
+/**
+ * Copies text still being fetched. Safari allows a copy only while the press itself is handled, and the export comes
+ * later: the clipboard is handed the text as a promise there and then. Where that isn't offered, it is copied once
+ * fetched. A failed fetch says so as itself, not as a blocked clipboard.
+ */
+async function copyFetched(load: () => Promise<string>): Promise<void> {
+  if (!('ClipboardItem' in window)) {
+    await navigator.clipboard.writeText(await load())
+    return
+  }
+  const fetched: { error?: unknown } = {}
+  const text = load().catch((err: unknown) => {
+    fetched.error = err
+    throw err
+  })
+  const blob = text.then((t) => new Blob([t], { type: 'text/plain' }))
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
+  } catch (err: unknown) {
+    throw fetched.error ?? err
+  }
+}
+
 function Facts({ space }: { space: PersonalSpace | undefined }) {
   const facts = space ? factsOf(space) : null
   const words = factWords(facts ?? { days: 0, notes: 0, carried: 0 })
@@ -104,8 +127,7 @@ export function DataSheet(props: Props) {
   const [erased, setErased] = useState(false)
   const copy = async () => {
     try {
-      const everything = await exportPersonalSpace(token)
-      await navigator.clipboard.writeText(exportText(everything, who, new Date()))
+      await copyFetched(async () => exportText(await exportPersonalSpace(token), who, new Date()))
       toast(NOTICE.copied)
     } catch (err: unknown) {
       toast(err instanceof DOMException ? NOTICE.clipboardBlocked : personalFailure(err))

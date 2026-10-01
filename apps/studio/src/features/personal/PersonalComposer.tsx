@@ -5,25 +5,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { useDictation } from './dictation.ts'
-
-const draftKey = (identity: string) => `sophia.personal.draft.v1.${identity}`
-
-function readDraft(identity: string): string {
-  try {
-    return localStorage.getItem(draftKey(identity)) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function writeDraft(identity: string, text: string): void {
-  try {
-    if (text) localStorage.setItem(draftKey(identity), text)
-    else localStorage.removeItem(draftKey(identity))
-  } catch {
-    // storage unavailable: the draft lasts for this page only
-  }
-}
+import { readDraft, writeDraft } from './draft.ts'
 
 const KEPT = 'Draft kept on this device'
 
@@ -45,7 +27,20 @@ function useDraft(identity: string) {
     setNote(why)
     writeDraft(identity, value)
   }
-  return { text, note, change }
+  return {
+    text,
+    note,
+    change,
+    /** The words go: the field empties at once, and the copy on this device stays until they're sent. */
+    go: () => {
+      setText('')
+      setNote('')
+    },
+    /** Sent: the copy on this device goes too, unless something new was written meanwhile. */
+    sent: (draft: string) => {
+      if (readDraft(identity) === draft) writeDraft(identity, '')
+    },
+  }
 }
 
 function Listening() {
@@ -91,6 +86,9 @@ function Field({ field, text, state, onChange, onSend }: FieldProps) {
     <textarea
       ref={field}
       id="c-input"
+      // Stray typing lands here while it can take it (shortcuts.ts): a message begun with the focus nowhere is a
+      // message, never a place's key (its first L would lock the space).
+      data-typing-sink={state === 'ready' ? '' : undefined}
       rows={1}
       maxLength={4000}
       placeholder={PLACEHOLDER[state]}
@@ -119,7 +117,7 @@ interface Props {
 }
 
 export function PersonalComposer({ identity, state, onSend, onListening }: Props) {
-  const { text, note, change } = useDraft(identity)
+  const { text, note, change, go, sent } = useDraft(identity)
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
     change(text ? `${text} ${heard}` : heard, 'From your voice · edit it or send')
@@ -127,11 +125,14 @@ export function PersonalComposer({ identity, state, onSend, onListening }: Props
   })
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready'
+  // Closing the page while the words are on their way loses nothing: they come back as the draft.
   const send = async () => {
-    const words = text.trim()
+    const draft = text
+    const words = draft.trim()
     if (!words || !ready) return
-    change('')
-    if (!(await onSend(words))) change(words, 'Not sent: it’s back in the field')
+    go()
+    if (await onSend(words)) sent(draft)
+    else change(words, 'Not sent: it’s back in the field')
   }
   return (
     <form

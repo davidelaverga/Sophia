@@ -73,6 +73,18 @@ const write = <T>(actor: string, fn: (c: pg.PoolClient) => Promise<T>) => withAc
 const read = <T>(actor: string, fn: (c: pg.PoolClient) => Promise<T>) => withActor(pool, actor, 'read', fn)
 const key = () => randomUUID()
 
+/** Until some statement in the database waits on a lock another transaction holds. */
+async function untilSomeoneWaits(): Promise<void> {
+  for (let i = 0; i < 100; i += 1) {
+    const rows = await owner<{ n: string }>(
+      `SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+    )
+    if (rows[0]?.n !== '0') return
+    await new Promise((r) => setTimeout(r, 30))
+  }
+  throw new Error('nothing waited on the held space')
+}
+
 /** Ana says something and Sophia answers, suggesting a note. Returns the two turns' ids and the suggestion's. */
 async function exchange(text: string, reply: string, suggestion: string | null) {
   const sent = await write(ANA, (c) => sendPersonalTurn(c, key(), text))
@@ -160,6 +172,28 @@ describe('personal space: one conversation, owner-only', () => {
     await write(ANA, (c) => recordPersonalReply(c, sent.turnId ?? '', 'Here.', null))
   })
 
+  it('takes a retry that races its first attempt in turn: the same receipt, and one turn', async () => {
+    const k = key()
+    const held = Promise.withResolvers<void>()
+    const written = Promise.withResolvers<void>()
+    // The first attempt writes and keeps its transaction open (its reply was lost on the way back).
+    const first = write(ANA, async (c) => {
+      const receipt = await sendPersonalTurn(c, k, 'Racing myself')
+      written.resolve()
+      await held.promise
+      return receipt
+    })
+    await written.promise
+    const second = write(ANA, (c) => sendPersonalTurn(c, k, 'Racing myself'))
+    await untilSomeoneWaits()
+    held.resolve()
+    const [a, b] = await Promise.all([first, second])
+    assert.deepEqual(b, a)
+    const turns = (await read(ANA, (c) => readPersonalSpace(c))).turns.filter((t) => t.text === 'Racing myself')
+    assert.equal(turns.length, 1)
+    await write(ANA, (c) => recordPersonalReply(c, a.turnId ?? '', 'Only once.', null))
+  })
+
   it('reads a wait that outlasted any answer as failed, and lets her ask again from then', async () => {
     const sent = await write(ANA, (c) => sendPersonalTurn(c, key(), 'Are you there?'))
     const id = sent.turnId ?? ''
@@ -196,6 +230,26 @@ describe('personal space: notes', () => {
     // The same words are not suggested again.
     const again = await exchange('Still not sleeping', 'That sounds tiring.', 'Sleep has been short')
     assert.equal(again.suggestionId, null)
+  })
+
+  it('deletes a suggestion she lets go: nothing of it is kept, and it reads as gone', async () => {
+    const { asked, suggestionId } = await exchange('Too many meetings', 'Which one could go?', 'Fewer meetings')
+    assert.ok(suggestionId)
+    await write(ANA, (c) => decidePersonalSuggestion(c, key(), suggestionId, 'dismiss'))
+    const space = await read(ANA, (c) => readPersonalSpace(c))
+    assert.equal(
+      space.turns.some((t) => t.suggestion?.id === suggestionId),
+      false,
+    )
+    assert.equal((await owner('SELECT 1 FROM sophia.personal_suggestions WHERE id = $1', [suggestionId])).length, 0)
+    const again = write(ANA, (c) => decidePersonalSuggestion(c, key(), suggestionId, 'keep'))
+    assert.equal(await codeOf(again), 'stale_revision')
+    // A note kept from that turn, prefilled with it before it went, is hers.
+    const kept = await write(ANA, (c) =>
+      keepPersonalNote(c, key(), { text: 'Fewer meetings', fromTurnId: asked, suggestionId }),
+    )
+    const note = (await read(ANA, (c) => readPersonalSpace(c))).notes.find((n) => n.id === kept.noteId)
+    assert.equal(note?.keptBy, 'person')
   })
 
   it('keeps a note in her own words, and forgetting it reopens the suggestion it kept', async () => {
@@ -312,6 +366,12 @@ describe('personal space: erasure', () => {
     const note = await write(ANA, (c) => keepPersonalNote(c, key(), { text: 'Take a real day off' }))
     await write(ANA, (c) => carryPersonalNote(c, key(), note.noteId ?? '', projectId, 'Ana'))
     assert.equal(await codeOf(write(ANA, (c) => erasePersonalSpace(c, key(), 'yes'))), 'invalid_request')
+    // Her earlier writes, from this test file's first minutes, are older than ten minutes by now.
+    await owner(
+      `UPDATE sophia.personal_requests SET created_at = now() - interval '11 minutes'
+        WHERE owner_id = $1 AND idempotency_key <> $2`,
+      [ANA, k],
+    )
     const erased = await write(ANA, (c) => erasePersonalSpace(c, key(), 'delete'))
     assert.ok((erased.erased?.turns ?? 0) > 0)
     const space = await read(ANA, (c) => readPersonalSpace(c))
@@ -327,6 +387,20 @@ describe('personal space: erasure', () => {
       [ANA],
     )
     assert.equal(left[0]?.n, '0')
+    // No record of when or how she wrote outlives the erasure but the last ten minutes', each redacted.
+    const requests = await owner<{ operation: string; key: string; redacted: boolean }>(
+      `SELECT operation, idempotency_key AS key, semantic_request ? 'redacted' AS redacted
+         FROM sophia.personal_requests WHERE owner_id = $1 ORDER BY created_at`,
+      [ANA],
+    )
+    assert.deepEqual(
+      requests.map((r) => [r.operation, r.key === k, r.redacted]),
+      [
+        ['send_turn', true, true],
+        ['erase', false, false],
+      ],
+    )
+    // A late retry from those ten minutes writes nothing.
     assert.equal(await codeOf(write(ANA, (c) => sendPersonalTurn(c, k, 'One more thing'))), 'stale_revision')
     // Taking the carried note back after erasing brings it back as a note.
     await write(ANA, (c) => takeBackPersonalRelease(c, key(), space.releases[0]?.id ?? ''))

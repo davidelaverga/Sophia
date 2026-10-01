@@ -6,6 +6,7 @@ import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
 import { usePopover } from '../../app/usePopover.ts'
 import { daysOf, notePrefill, STARTERS, suggestionFor, type Row } from './conversation-view.ts'
+import { focusConversation, focusSoon } from './focus.ts'
 
 export interface ConversationActions {
   start: (text: string) => void
@@ -74,6 +75,11 @@ function NoteForm(props: {
 
 function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }>; actions: ConversationActions }) {
   const { suggestion, shown } = row
+  // The row changes once the decision is written, and its buttons with it: the focus goes to the conversation first.
+  const decide = (decision: 'keep' | 'dismiss') => {
+    actions.decide(suggestion, decision)
+    focusConversation()
+  }
   if (shown === 'kept') {
     return (
       <p className="c3-kept">
@@ -88,7 +94,7 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
     return (
       <p className="c3-kept">
         Sophia suggested a note: <q>{suggestion.text}</q> ·{' '}
-        <button className="text-button" type="button" onClick={() => actions.decide(suggestion, 'keep')}>
+        <button className="text-button" type="button" onClick={() => decide('keep')}>
           Keep
         </button>
       </p>
@@ -99,10 +105,10 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
       <span className="field-label">Keep a note?</span>
       <q>{suggestion.text}</q>
       <span className="acts">
-        <button className="pill" type="button" onClick={() => actions.decide(suggestion, 'keep')}>
+        <button className="pill" type="button" onClick={() => decide('keep')}>
           Keep
         </button>
-        <button className="ghost" type="button" onClick={() => actions.decide(suggestion, 'dismiss')}>
+        <button className="ghost" type="button" onClick={() => decide('dismiss')}>
           No thanks
         </button>
       </span>
@@ -134,7 +140,7 @@ function Turn({ row, noting, onNote }: TurnProps) {
       <div className="body">{row.text}</div>
       <span className="at">{row.at}</span>
       {me && row.turn && !noting && (
-        <button className="ghost note-this" type="button" onClick={onNote}>
+        <button className="ghost note-this" type="button" data-note-turn={row.turn.id} onClick={onNote}>
           Note this
         </button>
       )}
@@ -208,7 +214,14 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
   if (row.kind === 'intro') return <Intro text={row.text} />
   if (row.kind === 'starters') return <Starters onStart={actions.start} />
   if (row.kind === 'typing') return <Typing first={row.first} />
-  if (row.kind === 'failed') return <Failed onRetry={() => actions.retry(row.turnId)} />
+  if (row.kind === 'failed') {
+    // Ask again goes as the wait begins: the focus goes to the conversation first.
+    const retry = () => {
+      actions.retry(row.turnId)
+      focusConversation()
+    }
+    return <Failed onRetry={retry} />
+  }
   return <Suggestion row={row} actions={actions} />
 }
 
@@ -217,6 +230,11 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
   const turn = row.turn
   if (!turn) return <Turn row={row} noting={false} onNote={() => undefined} />
   const noting = noteAt === turn.id
+  // The form goes with its Keep, Cancel or Esc: the focus goes back to the turn's Note this, which comes back with it.
+  const close = () => {
+    setNoteAt(null)
+    focusSoon(`[data-note-turn="${turn.id}"]`)
+  }
   return (
     <>
       <Turn row={row} noting={noting} onNote={() => setNoteAt(turn.id)} />
@@ -224,9 +242,9 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
         <NoteForm
           turn={turn}
           suggestion={suggestionFor(turns, turn.id)}
-          onClose={() => setNoteAt(null)}
+          onClose={close}
           onKeep={(text) => {
-            setNoteAt(null)
+            close()
             actions.keepNote(text, turn.id, suggestionFor(turns, turn.id))
           }}
         />

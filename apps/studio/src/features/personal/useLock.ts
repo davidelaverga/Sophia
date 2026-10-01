@@ -1,10 +1,12 @@
-// The padlock's state for the signed-in person (lock.ts), kept on this device. It lives with the app, not a place:
-// joining a room shuts it wherever the person is, and leaving the room lifts a lock the room set.
+// The padlock's state for the signed-in person (lock.ts), kept on this device and the same in each of its tabs. It
+// lives with the app, not a place: joining a room shuts it wherever the person is, and leaving the room lifts a lock
+// the room set.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { unlockAfterRedirect } from '../../app/reauth.ts'
-import { afterRoom, readLock, shut, writeLock, type Lock } from './lock.ts'
+import { followed, lockKey, onCallChange, readLock, storedLock, writeLock, type Lock } from './lock.ts'
 
-export function useLock(identity: string, inRoom: boolean): readonly [Lock, (next: Lock) => void] {
+/** `room`: the project whose room holds this tab's call, or null. */
+export function useLock(identity: string, room: string | null): readonly [Lock, (next: Lock) => void] {
   const [lock, setLock] = useState<Lock>(() => readLock(identity))
   const set = useCallback(
     (next: Lock) => {
@@ -13,17 +15,37 @@ export function useLock(identity: string, inRoom: boolean): readonly [Lock, (nex
     },
     [identity],
   )
-  const wasInRoom = useRef(false)
+  const lastRoom = useRef<string | null>(null)
   useEffect(() => {
-    if (inRoom === wasInRoom.current) return
-    wasInRoom.current = inRoom
+    const was = lastRoom.current
+    lastRoom.current = room
+    if (was === room) return
     setLock((prev) => {
-      const next = inRoom ? shut(prev, 'room') : afterRoom(prev)
+      const next = onCallChange(prev, was, room)
       writeLock(identity, next)
       return next
     })
-  }, [inRoom, identity])
+  }, [room, identity])
+  useOtherTabs(identity, room !== null, setLock)
   return [lock, set] as const
+}
+
+/**
+ * Another tab of this person shut the padlock or opened it (the browser tells every other tab): this one follows, so a
+ * screen shared from that tab never shows this one open. A tab in a call itself stays shut (followed).
+ */
+function useOtherTabs(identity: string, inRoom: boolean, setLock: (lock: Lock) => void) {
+  const room = useRef(inRoom)
+  useEffect(() => {
+    room.current = inRoom
+  })
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === lockKey(identity)) setLock(followed(storedLock(e.newValue), room.current))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [identity, setLock])
 }
 
 /**

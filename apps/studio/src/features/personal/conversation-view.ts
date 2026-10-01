@@ -108,17 +108,18 @@ function addTurn(layout: Layout, turn: PersonalTurn, now: Date): void {
   layout.lastSide = turn.author
 }
 
-/** A suggestion is open until the person moves on: then it folds into a quiet line they can still act on. */
-function suggestionShown(state: PersonalSuggestion['state'], movedOn: boolean): SuggestionShown | null {
+/**
+ * A suggestion is open until the person moves on: then it folds into a quiet line they can still act on. One they let
+ * go is deleted (it never comes back to show).
+ */
+function suggestionShown(state: PersonalSuggestion['state'], movedOn: boolean): SuggestionShown {
   if (state === 'kept') return 'kept'
-  if (state === 'dismissed') return null
   return movedOn ? 'folded' : 'open'
 }
 
 function addSuggestion(layout: Layout, turn: PersonalTurn, movedOn: boolean): void {
   if (!turn.suggestion) return
   const shown = suggestionShown(turn.suggestion.state, movedOn)
-  if (!shown) return
   layout.rows.push({
     kind: 'suggestion',
     key: `sg-${turn.suggestion.id}`,
@@ -220,4 +221,19 @@ export function notePrefill(text: string, suggestion: PersonalSuggestion | null)
 /** The suggestion Sophia made in her reply to `turnId`, if any. */
 export function suggestionFor(turns: readonly PersonalTurn[], turnId: string): PersonalSuggestion | null {
   return turns.find((t) => t.replyTo === turnId)?.suggestion ?? null
+}
+
+/** The id of Sophia's newest turn, or null: what was already there when the space loaded (heard). */
+export const newestFromSophia = (turns: readonly PersonalTurn[]): string | null =>
+  turns.findLast((t) => t.author === 'sophia')?.id ?? null
+
+/**
+ * What a screen reader hears as the conversation moves on: Sophia writing, then her newest reply. Never what was there
+ * when the space loaded (`baseline`: her newest turn then; undefined until it has loaded), and never the person's own.
+ */
+export function heard(turns: readonly PersonalTurn[], baseline: string | null | undefined, writing: boolean): string {
+  if (baseline === undefined) return ''
+  if (writing) return 'Sophia is writing…'
+  const newest = turns.findLast((t) => t.author === 'sophia')
+  return newest && newest.id !== baseline ? `Sophia: ${newest.text}` : ''
 }

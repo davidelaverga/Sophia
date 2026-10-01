@@ -25,7 +25,10 @@ export const factWords = (facts: Facts) => ({
   carried: 'carried to work',
 })
 
-/** Everything, readable: the notes, what was carried and where, then the conversation by day. */
+/**
+ * Everything, readable: the notes, what was carried and where, then the conversation by day, with each note Sophia
+ * suggested and the person hasn't decided on yet (one kept is in the notes; one let go is deleted).
+ */
 export function exportText(everything: PersonalExport, who: string, now: Date): string {
   const lines = [`${who} · personal space with Sophia`, '', 'Notes:', ...everything.notes.map((n) => `- ${n.text}`)]
   if (everything.releases.length > 0) {
@@ -39,6 +42,7 @@ export function exportText(everything: PersonalExport, who: string, now: Date): 
     if (label !== day) lines.push('', label)
     day = label
     lines.push(`${t.author === 'person' ? 'You' : 'Sophia'}: ${t.text}`)
+    if (t.suggestion?.state === 'open') lines.push(`  Suggested note, not kept: ${t.suggestion.text}`)
   }
   return lines.join('\n')
 }

@@ -156,7 +156,18 @@ describe('your data', () => {
   it('counts days with Sophia by the days the person wrote, and copies everything as text', () => {
     const everything: PersonalExport = {
       exportedAt: NOW.toISOString(),
-      turns: [turn('I have a pitch', 60 * 24), { ...turn('Still here', 5), id: 't2', seq: 2 }],
+      turns: [
+        turn('I have a pitch', 60 * 24),
+        { ...turn('Still here', 5), id: 't2', seq: 2 },
+        {
+          ...turn('Glad you are', 4),
+          id: 't3',
+          seq: 3,
+          author: 'sophia',
+          reply: null,
+          suggestion: { id: 's', text: 'Pitch on Friday', state: 'open' },
+        },
+      ],
       notes: [{ id: 'n', text: 'Take a day off', keptBy: 'person', fromTurnId: null, createdAt: NOW.toISOString() }],
       releases: [
         {
@@ -173,7 +184,10 @@ describe('your data', () => {
     const text = exportText(everything, 'Ana', NOW)
     assert.match(text, /^Ana · personal space with Sophia\n\nNotes:\n- Take a day off/)
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)
-    assert.match(text, /\nYesterday\nYou: I have a pitch\n\nToday\nYou: Still here$/)
+    assert.match(
+      text,
+      /\nYesterday\nYou: I have a pitch\n\nToday\nYou: Still here\nSophia: Glad you are\n {2}Suggested note, not kept: Pitch on Friday$/,
+    )
     assert.equal(confirmsErasure(' Delete '), true)
     assert.equal(confirmsErasure('del'), false)
   })

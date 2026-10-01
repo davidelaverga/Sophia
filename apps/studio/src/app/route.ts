@@ -48,3 +48,10 @@ export function routePath({ projectId, view, place }: { projectId: string | null
   if (projectId) return `/p/${projectId}/${view}`
   return !place || place === 'home' ? '/' : `/${place}`
 }
+
+/**
+ * "Join the room" asks to join on that opening of the project only. Once the person is anywhere else (home, Back,
+ * another project) before the room could join, the request is dropped: a later visit never joins on its own.
+ */
+export const joinStands = (joining: string | null, onScreen: string | null): string | null =>
+  joining !== null && joining === onScreen ? joining : null

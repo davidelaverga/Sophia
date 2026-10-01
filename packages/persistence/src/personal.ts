@@ -29,7 +29,7 @@ interface TurnRow {
   reply: 'pending' | 'answered' | 'failed' | null
   suggestion_id: string | null
   suggestion_body: string | null
-  suggestion_state: 'open' | 'kept' | 'dismissed' | null
+  suggestion_state: 'open' | 'kept' | null
 }
 
 // A reply reads as it stands: one whose wait outlasted any answer reads as failed (0021, personal_reply_state).

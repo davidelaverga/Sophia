@@ -18,8 +18,9 @@ export function useProjectRoute() {
     return () => window.removeEventListener('popstate', onPop)
   }, [route])
 
-  const go = (next: Route) => {
-    window.history.pushState(null, '', routePath(next))
+  const go = (next: Route, replace = false) => {
+    if (replace) window.history.replaceState(null, '', routePath(next))
+    else window.history.pushState(null, '', routePath(next))
     setRoute(next)
   }
   return {
@@ -28,7 +29,10 @@ export function useProjectRoute() {
     show: (view: View) => go({ ...route, view }),
     /** Out of the project, back to the two doors. */
     leave: () => go(HOME),
-    /** One of the three places outside a project. */
-    goTo: (place: Place) => go({ ...HOME, place }),
+    /**
+     * One of the three places outside a project. `replace` takes this entry's place instead of adding one: a place that
+     * can't be shown (a locked personal space) is never left in the history for Back to land on again.
+     */
+    goTo: (place: Place, replace = false) => go({ ...HOME, place }, replace),
   }
 }

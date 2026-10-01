@@ -9,16 +9,29 @@ export interface Notice {
   id: number
   message: string
   undo: (() => void) | null
+  /** The control the focus was on when it appeared: Undo, which goes with the toast, hands the focus back there. */
+  from: HTMLElement | null
 }
 
 const SHOWN_MS = 8000
+
+/** Where the focus is, when it is on a control (not the page). */
+function focused(): HTMLElement | null {
+  const at = document.activeElement
+  return at instanceof HTMLElement && at !== document.body ? at : null
+}
+
+/** Back to `el`, while it is still on screen. */
+function handBack(el: HTMLElement | null) {
+  if (el?.isConnected && el.getClientRects().length > 0) el.focus({ preventScroll: true })
+}
 
 export function useToast() {
   const [notice, setNotice] = useState<Notice | null>(null)
   const next = useRef(0)
   const show = useCallback((message: string, undo?: () => void) => {
     next.current += 1
-    setNotice({ id: next.current, message, undo: undo ?? null })
+    setNotice({ id: next.current, message, undo: undo ?? null, from: focused() })
   }, [])
   const hide = useCallback(() => setNotice(null), [])
   useEffect(() => {
@@ -42,6 +55,7 @@ export function Toast({ notice, onHide }: { notice: Notice | null; onHide: () =>
           onClick={() => {
             onHide()
             notice.undo?.()
+            handBack(notice.from)
           }}
         >
           Undo

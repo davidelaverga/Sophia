@@ -94,6 +94,12 @@ export const UNLOCK = {
   otherAccount: 'That was another account. Your personal space stays locked.',
   failed: 'That didn’t work. Try another way.',
   dev: 'Dev identities: nothing is checked here.',
+  waysFailed: 'The ways to confirm it’s you couldn’t load.',
+  noOther: 'No other way is set up for this account.',
+  sending: (to: string) => `Sending a code to ${to}…`,
+  sent: (to: string) => `Code sent to ${to}`,
+  /** Signing in again with a provider leaves the page, and a call can't come along. */
+  inCall: (names: string) => `${names} isn’t offered during a call: it leaves this page, and the call would end.`,
 } as const
 
 /** The name a greeting uses: a provider's first name, or a dev identity's own name; never an email. */

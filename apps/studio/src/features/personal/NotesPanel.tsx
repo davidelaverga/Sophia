@@ -67,14 +67,23 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
   const panel = useRef<HTMLElement>(null)
   const [carrying, setCarrying] = useState<string | null>(null)
   const [crossing, setCrossing] = useState<string | null>(null)
+  const busy = useRef(false)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
+  /**
+   * One carry at a time: a second pick while a note crosses would carry it twice. Once it crossed, the panel keeps the
+   * focus its buttons had (they leave with the note).
+   */
   const carry = (note: PersonalNote, project: ProjectSummary) => {
+    if (busy.current) return
+    busy.current = true
     setCrossing(note.id)
     setTimeout(() => {
+      busy.current = false
       setCrossing(null)
       setCarrying(null)
       onCarry(note, project)
+      panel.current?.focus({ preventScroll: true })
     }, CROSSING_MS)
   }
   return (

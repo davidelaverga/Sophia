@@ -5,7 +5,9 @@ import {
   conversationRows,
   dayLabel,
   daysOf,
+  heard,
   introText,
+  newestFromSophia,
   notePrefill,
   topicOf,
   type ConversationInput,
@@ -110,11 +112,6 @@ describe('conversationRows', () => {
       folded.flatMap((r) => (r.kind === 'suggestion' ? [r.shown] : [])),
       ['folded'],
     )
-    const dismissed = { ...reply, suggestion: { id: 's1', text: 'Sleep has been short', state: 'dismissed' as const } }
-    assert.deepEqual(
-      conversationRows(input([asked, dismissed])).filter((r) => r.kind === 'suggestion'),
-      [],
-    )
     // A suggestion row breaks the grouping: the next Sophia turn opens with her dot again.
     assert.deepEqual(shape(conversationRows(input([asked, reply, turn('sophia', 'Also…', at(0, 20, 1))]))), [
       'day:Today',
@@ -152,5 +149,25 @@ describe('the words around the conversation', () => {
     assert.equal(notePrefill('I have a pitch', { id: 's', text: 'Pitch on Friday', state: 'open' }), 'Pitch on Friday')
     assert.equal(notePrefill('I have a pitch', { id: 's', text: 'Pitch on Friday', state: 'kept' }), 'I have a pitch')
     assert.equal(notePrefill('x'.repeat(80), null), `${'x'.repeat(70)}…`)
+  })
+})
+
+describe('what a screen reader hears', () => {
+  const asked = turn('person', 'Are you there?', at(0, 20))
+  const before = turn('sophia', 'Hello again.', at(0, 19))
+  const reply = turn('sophia', 'I am.', at(0, 20, 1))
+
+  it('nothing of what was there when the space loaded, nor before it loaded', () => {
+    const loaded = [before, asked]
+    assert.equal(heard(loaded, undefined, false), '')
+    assert.equal(heard(loaded, newestFromSophia(loaded), false), '')
+    assert.equal(heard([asked], newestFromSophia([asked]), false), '')
+  })
+
+  it('Sophia writing, then her newest reply, never the person’s own turn', () => {
+    const baseline = newestFromSophia([before, asked])
+    assert.equal(heard([before, asked], baseline, true), 'Sophia is writing…')
+    assert.equal(heard([before, asked, reply], baseline, false), 'Sophia: I am.')
+    assert.equal(heard([before, asked, reply, turn('person', 'Good', at(0, 20, 2))], baseline, false), 'Sophia: I am.')
   })
 })

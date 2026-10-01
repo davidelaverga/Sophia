@@ -12,6 +12,7 @@ import type { Place } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
+import { focusConversation, focusNotesToggle } from './focus.ts'
 import { HomeDoors } from './HomeDoors.tsx'
 import { OPEN, lockedBy, shut, type Lock } from './lock.ts'
 import { NOTICE } from './notice-view.ts'
@@ -40,7 +41,8 @@ export interface PlacesProps {
   toast: ShowToast
   opening: Opening | null
   onOpened: () => void
-  onGo: (place: Place) => void
+  /** `replace`: take this history entry's place (a place that can't be shown, which Back must not land on again). */
+  onGo: (place: Place, replace?: boolean) => void
   onOpenProject: (projectId: string, join: boolean) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
@@ -140,15 +142,14 @@ function useCarried(place: Place) {
 
 type Carried = ReturnType<typeof useCarried>
 
-/** Where to land after arriving: the field on a desktop (no phone keyboard popping up uninvited), else the heading. */
+/** Where to land after arriving: the door left, the conversation (focusConversation), or Work's heading. */
 function focusOnArrival(place: Place, left: Place) {
-  const touch = matchMedia('(hover: none)').matches
-  let target: HTMLElement | null
-  if (place === 'home') target = document.querySelector(`[data-door="${left}"] .c2-main`)
-  else if (place === 'personal' && !touch) target = document.querySelector('#c-input:not(:disabled)')
-  else target = null
-  target ??= document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h')
-  target?.focus({ preventScroll: true })
+  if (place === 'personal') {
+    focusConversation()
+    return
+  }
+  const door = place === 'home' ? document.querySelector<HTMLElement>(`[data-door="${left}"] .c2-main`) : null
+  ;(door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h'))?.focus({ preventScroll: true })
 }
 
 function useArrival(place: Place) {
@@ -186,7 +187,7 @@ function usePlaceNavigation(props: PlacesProps, layers: Layers) {
   const lockNow = () => {
     setLock(shut(lock, 'you'))
     layers.setNotes(false)
-    if (place === 'personal') onGo('home')
+    if (place === 'personal') onGo('home', true)
     toast(NOTICE.locked)
   }
   return {
@@ -269,9 +270,10 @@ function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav, explain: Exp
   // sheets close themselves (usePopover, useDialog).
   useEscape(place !== 'home', () => nav.enter('home'))
   useEscape(place === 'home' && explain.shown, explain.dismiss)
-  useEscape(layers.notes, () => {
+  // Only where the notes are on screen: elsewhere they stay open for the way back, and Esc goes home.
+  useEscape(layers.notes && place === 'personal', () => {
     layers.setNotes(false)
-    document.querySelector<HTMLElement>('[aria-controls="c-notes"]')?.focus()
+    focusNotesToggle()
   })
 }
 
@@ -436,7 +438,7 @@ function Sheets({ v }: { v: View }) {
   const { identity } = props
   return (
     <>
-      <PlaceDialogs layers={layers} onUnlocked={nav.unlocked} />
+      <PlaceDialogs layers={layers} inCall={!!props.call} onUnlocked={nav.unlocked} />
       {layers.data && (
         <DataSheet
           token={identity.token}
@@ -480,9 +482,10 @@ export function Places(props: PlacesProps) {
   usePlaceKeys(props, layers, nav, explain)
   useOpening(props, layers)
   useDocumentTitle(PLACE_TITLE[place])
-  // A shut space is never on screen: arriving at it (a reload, Back, a room joined) lands at home instead.
+  // A shut space is never on screen: arriving at it (a reload, Back, a room joined) lands at home instead, in its
+  // history entry's place, so Back goes on past it rather than landing there again.
   useEffect(() => {
-    if (place === 'personal' && lock.locked) onGo('home')
+    if (place === 'personal' && lock.locked) onGo('home', true)
   }, [place, lock.locked, onGo])
   return (
     <div ref={root} className={`places${props.call ? ' in-room' : ''}`} data-place={place}>

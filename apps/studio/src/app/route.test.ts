@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { HOME, parseRoute, PLACES, routePath, VIEWS } from './route.ts'
+import { HOME, joinStands, parseRoute, PLACES, routePath, VIEWS } from './route.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 const project = (view: string) => ({ projectId: P, view, place: 'work' })
@@ -25,5 +25,17 @@ describe('route', () => {
     assert.deepEqual(parseRoute('/p/not-a-project/studio'), HOME)
     assert.deepEqual(parseRoute('/anything'), HOME)
     assert.deepEqual(parseRoute('/personal/notes'), HOME)
+  })
+})
+
+describe('a join asked for on opening a project', () => {
+  it('stands while that project is on screen', () => {
+    assert.equal(joinStands('p1', 'p1'), 'p1')
+  })
+
+  it('is dropped once the person is anywhere else, so a later visit joins nothing on its own', () => {
+    assert.equal(joinStands('p1', null), null)
+    assert.equal(joinStands('p1', 'p2'), null)
+    assert.equal(joinStands(null, 'p1'), null)
   })
 })

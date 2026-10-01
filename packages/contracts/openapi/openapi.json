@@ -6815,7 +6815,7 @@
     "/api/v1/personal/suggestions/{suggestionId}/decision": {
       "post": {
         "operationId": "decidePersonalSuggestion",
-        "summary": "Keep a note Sophia suggested, in her words, or let it go. Nothing is kept silently.",
+        "summary": "Keep a note Sophia suggested, in her words, or let it go (it is deleted). Nothing is kept silently.",
         "tags": [
           "personal"
         ],
@@ -13039,8 +13039,7 @@
             "type": "string",
             "enum": [
               "open",
-              "kept",
-              "dismissed"
+              "kept"
             ]
           }
         },
