@@ -117,12 +117,15 @@ export const goingOut = (kept: Kept, words: Draft, until: number): Kept => ({
   sending: { ...words, until },
 })
 
+/** Some tab's words are on their way, still in time. */
+export const onItsWayNow = (kept: Kept, now: number): boolean => kept.sending !== null && kept.sending.until > now
+
 /**
  * Whether `words` wait: another tab's are on their way under another key, still in time. The device keeps one message
  * going, so neither is lost and they reach the conversation in the order they were sent.
  */
 export const waitsFor = (kept: Kept, words: Draft, now: number): boolean =>
-  kept.sending !== null && kept.sending.key !== words.key && kept.sending.until > now
+  onItsWayNow(kept, now) && kept.sending?.key !== words.key
 
 /**
  * One message on its way per device and account: the browser's lock (Web Locks, across tabs) is asked for before the

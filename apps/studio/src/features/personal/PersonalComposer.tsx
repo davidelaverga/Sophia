@@ -7,6 +7,7 @@ import { Icon, Tip } from '@sophia/ui'
 import { WRITE_TIMEOUT_MS } from '../../api/client.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
+import { NOTICE } from './notice-view.ts'
 import {
   afterSent,
   draftKey,
@@ -23,7 +24,6 @@ import {
 import type { Unsent } from './write-words.ts'
 
 const KEPT = 'Draft kept on this device'
-const WAITS = 'Another message is on its way: send this one after it'
 
 /** Why words are back in the field: they weren't sent, or no answer came back (they may have been). */
 const BACK: Record<Exclude<Unsent, 'erased'>, string> = {
@@ -60,7 +60,7 @@ function opened(account: string, epoch: number): { draft: Draft | null; back: bo
  */
 function waiting(account: string, epoch: number | undefined, words: Draft, say: (why: string) => void, taken: boolean) {
   const wait = taken || (epoch !== undefined && waitsFor(readKept(account, epoch), words, Date.now()))
-  if (wait) say(WAITS)
+  if (wait) say(NOTICE.waits)
   return wait
 }
 

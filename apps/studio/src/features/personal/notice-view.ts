@@ -10,6 +10,8 @@ export const NOTICE = {
   copied: 'Copied to your clipboard',
   clipboardBlocked: 'Couldn’t copy here. Your browser blocked the clipboard.',
   erased: 'Deleted. Sophia starts fresh.',
+  /** Another tab's message is on its way (oneAtATime): this one waits, in the field or to be pressed again. */
+  waits: 'Another message is on its way: send this one after it',
   /** Back from a provider, the check couldn't be read in time (reauth.ts): nothing opened. */
   unchecked: 'Couldn’t confirm it’s you. Your personal space stays locked.',
 } as const

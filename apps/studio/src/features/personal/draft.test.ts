@@ -11,6 +11,7 @@ import {
   NOTHING_KEPT,
   onOpening,
   oneAtATime,
+  onItsWayNow,
   restoredDraft,
   waitsFor,
 } from './draft.ts'
@@ -116,6 +117,12 @@ describe('one message on its way per device', () => {
 
   it('words wait while another tab’s are on their way, in time', () => {
     assert.equal(waitsFor({ draft: mine, sending: theirs }, mine, 4_000), true)
+  })
+
+  it('a way to start (no draft of its own) waits for any tab’s words on their way, in time', () => {
+    assert.equal(onItsWayNow({ draft: null, sending: theirs }, 4_000), true)
+    assert.equal(onItsWayNow({ draft: null, sending: theirs }, 5_000), false)
+    assert.equal(onItsWayNow(NOTHING_KEPT, 4_000), false)
   })
 
   it('they don’t wait for the same draft (one message), for words whose time is up, or for nothing', () => {

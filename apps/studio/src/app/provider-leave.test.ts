@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { leaveFor, PENDING, refuseOtherAccount, type ProviderAuth } from './provider-leave.ts'
+import { CHECK_WORDS } from './unlock-check.ts'
 
 /** An Auth client whose session read `during` runs during (as the person closes the sheet); the sign-ins it starts. */
 function auth(during: () => void) {
@@ -30,12 +31,31 @@ describe('unlocking with a provider', () => {
   it('control: with its sheet still there, it leaves for the provider', async () => {
     const { started, client } = auth(() => undefined)
     Reflect.set(globalThis, 'window', { location: { origin: 'http://studio.test' } })
+    Reflect.set(globalThis, 'sessionStorage', { setItem: () => undefined })
     try {
       await leaveFor('github', new AbortController().signal, client, 1000)
     } finally {
       Reflect.deleteProperty(globalThis, 'window')
+      Reflect.deleteProperty(globalThis, 'sessionStorage')
     }
     assert.deepEqual(started, ['github'])
+  })
+
+  it('starts no sign-in when this tab can’t note which sign-in left: its return couldn’t be checked', async () => {
+    const { started, client } = auth(() => undefined)
+    Reflect.set(globalThis, 'sessionStorage', {
+      setItem: () => {
+        throw new Error('blocked')
+      },
+    })
+    try {
+      await assert.rejects(leaveFor('github', new AbortController().signal, client, 1000), {
+        message: CHECK_WORDS.storage,
+      })
+    } finally {
+      Reflect.deleteProperty(globalThis, 'sessionStorage')
+    }
+    assert.deepEqual(started, [])
   })
 })
 

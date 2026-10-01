@@ -70,7 +70,8 @@ export async function leaveFor(
   try {
     sessionStorage.setItem(PENDING, JSON.stringify(pending))
   } catch {
-    // storage unavailable: the person unlocks again after coming back
+    // Not noted, its return couldn't tell another account from the one that left (refuseOtherAccount): it stays.
+    throw new Error(CHECK_WORDS.storage)
   }
   const { error } = await auth.signInWithOAuth({
     provider,

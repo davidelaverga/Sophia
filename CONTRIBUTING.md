@@ -498,7 +498,9 @@ their work. Keep these when you change them:
   must come back as a new sign-in of the same account (on the app's own
   client: it crosses a page load), and one that answers after a call began
   opens nothing. It leaves for the provider only while its sheet is there
-  (`leaveFor`, with tests): closed meanwhile, the page stays. Back as
+  (`leaveFor`, with tests): closed meanwhile, the page stays; and only once
+  this tab has noted which sign-in left (a browser that keeps nothing for
+  the page is told to try another way). Back as
   another account than the one that left, that sign-in ends here and
   nobody is signed in (`refuseOtherAccount`, with tests): unlocking never
   opens another account, not even for a moment. Anyone else is
@@ -533,8 +535,9 @@ their work. Keep these when you change them:
   field or a way to start (`OnItsWay`), and from any tab of the device: a
   send holds the browser's lock across tabs until it settles
   (`oneAtATime`, with tests), and a tab's words on their way stay on the
-  device (`waitsFor`, with tests). The field waits meanwhile, so no tab's
-  words on their way are lost and they arrive in order. Every write but
+  device (`waitsFor`, with tests). The field waits meanwhile, and a way to
+  start says so and doesn't go, so no tab's words on their way are lost and
+  they arrive in order. Every write but
   erasure names the epoch of the space as this page last read it (`epochNow`: the space's when it is
   shown, else the Work list's), and its retry names the same one, so
   nothing sent before an erasure lands after it, nor anything a space shown

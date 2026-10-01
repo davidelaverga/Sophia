@@ -23,6 +23,7 @@ import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, type ConversationActions } from './Conversation.tsx'
 import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
+import { oneAtATime, onItsWayNow, readKept } from './draft.ts'
 import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
@@ -99,6 +100,22 @@ function useNotesCover(open: boolean): boolean {
   return open && narrow
 }
 
+/**
+ * A way to start goes as a message from the field does: one at a time on the device, across tabs (oneAtATime, and
+ * another tab's words on their way); while another is on its way, it says so and nothing goes.
+ */
+function startOne(props: Props, text: string): Promise<unknown> {
+  const { account, epoch, writes, toast } = props
+  return oneAtATime(account, async (taken) => {
+    const theirs = epoch !== undefined && onItsWayNow(readKept(account, epoch), Date.now())
+    if (taken || theirs) {
+      toast(NOTICE.waits)
+      return null
+    }
+    return writes.send(text)
+  })
+}
+
 /** Writes that say what happened, and offer Undo where it can be undone. */
 function useActions(
   props: Props,
@@ -114,7 +131,7 @@ function useActions(
     [onFailed],
   )
   return {
-    start: (text) => attempt(() => writes.send(text)),
+    start: (text) => attempt(() => startOne(props, text)),
     decide: (suggestion: PersonalSuggestion, decision) => attempt(() => writes.decide(suggestion.id, decision)),
     openNotes: () => props.notes.set(true),
     retry: (turnId) => attempt(() => writes.retry(turnId)),

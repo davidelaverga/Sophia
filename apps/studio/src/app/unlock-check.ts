@@ -12,6 +12,7 @@ export const CHECK_WORDS = {
   expired: 'That took too long. Use your passkey again.',
   code: 'That code didn’t work, or it has expired.',
   tooMany: 'Too many tries. Wait a minute and try again.',
+  storage: 'This browser keeps nothing for this page, so that sign-in can’t be checked here. Try another way.',
 } as const
 
 /** What the Studio reads of an error: its name (the browser's, for a passkey prompt), its code and its status. */
