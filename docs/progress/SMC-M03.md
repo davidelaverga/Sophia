@@ -84,7 +84,7 @@ Compatibility: every added property is omitted when it has no value, so an older
 
 | Surface | Change | Evidence |
 |---|---|---|
-| Byte store | `ByteStore` port (`apps/api/src/byte-store.ts`): write-once objects at `<project>/<source>`, signed GET URLs with an optional download name; a Supabase Storage REST adapter (config `SOPHIA_STORAGE_URL`, `_KEY`, `_BUCKET`, all or none) and an in-memory one. **Not exercised live**; the credential question is in [binding §8](SMC-M03-contract-binding.md) | `byte-store.test.ts` 6/6 |
+| Byte store | `ByteStore` port (`apps/api/src/byte-store.ts`): write-once objects at `<project>/<source>`, signed GET URLs with an optional download name; a Supabase Storage REST adapter (config `SOPHIA_STORAGE_URL`, `_KEY`, `_BUCKET`, all or none) and an in-memory one. **Not exercised live**; the credential question is in [binding §8](SMC-M03-contract-binding.md). The REST adapter is replaced by an S3 one in S4 part 5 (§19) | `byte-store.test.ts` 6/6 |
 | Report content | `GET /api/v1/sources/{id}/content?disposition=`: published report versions and their renditions only (never a candidate or a rejected version); inline text as text, stored bytes as a 120-second URL; `no-store`; not ready → 409; no store → 503 for stored bytes only | `sources.db.test.ts` 5/5 over HTTP, mutation-checked |
 | Knowledge | `GET /api/v1/knowledge/reports?project=<id>|all&format=&q=&cursor=` (cards, per-project counts, 30 per page) and `GET /api/v1/artifacts/{id}/versions` (published versions with notes) | `knowledge.db.test.ts` 5/5: <br>• isolation across projects (no card, count or name from another project); <br>• format and search; <br>• paging; <br>• no candidate version; <br>• guest refused |
 | Studio | Icons `download`, `expand`, `collapse` (L4); `api/artifacts.ts` for the three reads | typecheck |
@@ -302,4 +302,22 @@ The bundle archive is re-recorded: `sha256:289c0f7c96a9b8668c9d800bad749ae9dd3cb
 Still to come in S4:
 - revocation (T19);
 - the S3-key byte store, before the PDF (S5).
+
+## 19. S4 part 5: revocation (T19) and the S3-key byte store (0028)
+
+Research now stops when a source it read is withdrawn, and continues without it. The report byte store takes a Storage-only key.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0028 revocation | Forgetting a mission note erases its source (0018); since 0028 that also revokes every research task still under way that consumed it. "Consumed" means the task's admitted inputs and the version it amends. The attempt becomes `revoked`, which is terminal: a trigger keeps it through late receipts and later Stops. Its task fails with a `revoked:` reason, and its live session is stopped by an ordinary `native.stop` cleanup under a stop command. A binding that never launched is settled where it stands, and the session's queued deliveries are superseded | `research.db.test.ts`: the revoked attempt, task, binding and stop; the old session's operations refused; the rebuilt task's context without the input and without the old draft; the withdrawn source unreadable |
+| Restart and refusals | The hello reports a revoked attempt's binding as `stopped`, so a restarted bridge never loads it. Resume, steer and input are refused for a revoked attempt, or for one whose consumed sources are no longer eligible (`native_delivery_ineligible`) | `research.db.test.ts`: a restart's hello; a steer admitted before the old session stopped, refused for it and delivered to the rebuilt task |
+| Rebuild and placement | In the same transaction, the task is rebuilt under the same goal, allowance and lineage, from the same request without the withdrawn inputs. Its manifest says how many inputs were withdrawn and names the task it replaces. The draft is not carried over, because it may quote the withdrawn text; captures stay readable. A working goal gets the rebuilt task queued at once. A held goal keeps it waiting until Resume, and at Resume (a commit-time trigger) research that never started is queued under the Resume's authority. Resume rows naming a revoked or never-started session give way, and a Resume left with nothing else to deliver is settled. A stopping or stopped goal gets no rebuild | `research.db.test.ts`: the held task revoked, nothing queued while held, then exactly the create, the stop and the Resume's settle; the Resume ends `checked`, never denied; the rebuilt task runs. Mutation-checked (the hello label, the refusal, the Resume trigger, the placement) |
+| Byte store | An S3 adapter (Signature Version 4, path-style, as Supabase's S3 endpoint uses) replaces the REST one. A write is a HEAD first, then a PUT with `If-None-Match: *`; either refusal is 409, so an object is never replaced. A read is a presigned GET for the content route's 120 s (`CONTENT_URL_SECONDS`), with `response-content-disposition` carrying the file name when the reader asked to save it. Configured by `SOPHIA_STORAGE_S3_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` and `SOPHIA_STORAGE_BUCKET`, all or none. The retired REST settings stop the API from starting | `byte-store.test.ts`: AWS's two published signatures (header and presigned); the put's signed headers and body hash; both refusals; the presigned read and named download; the secret never in a request |
+| Studio and diagnostics | A revoked task reads "Replaced": a source it read was withdrawn, so it stopped, and the task continues without it. A `no_result_submitted` reason is now matched by its prefix. The diagnostics vocabulary knows `native_task.revoked` and `native_task.rebuilt`. `/ready` requires 0027's `edit_report_summary` (missing since part 4) and 0028's `research_revoke_source` | `report-view.test.ts` |
+
+Run at `938102d`: `pnpm check` exit 0 (522 unit; 86 integration, 84 passed and 2 skipped, with the runtime-service crossings), `pnpm test:sql` 27 migrations, `pnpm test:db` 265/265. The bundle is unchanged.
+
+The review request is [CC-0008](../coordination/SMC-M03/SMC-M03-CC-0008.md), which supersedes CC-0007 before Codex answered it, so that one review covers all of S4.
+
+Not live-verified: the S3 adapter has not run against Supabase. Codex's qualification checks it before any hosted release, in particular whether Supabase's S3 endpoint honours `If-None-Match` on PUT. If it rejects the header, the HEAD check is kept and the header goes.
 

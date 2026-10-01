@@ -120,6 +120,15 @@
         "browser: 55 checks on the dev stack at 1440x900 and 390x844"
       ],
       "ref": "docs/progress/SMC-M03.md#18-s4-part-4-report-facts-the-delivery-ui-and-knowledge-0027"
+    },
+    {
+      "slice": "S4 part 5",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#19-s4-part-5-revocation-t19-and-the-s3-key-byte-store-0028"
     }
   ],
   "outstanding_operations": [
@@ -132,8 +141,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5936912846",
-      "state": "awaiting_operator (revision 6, CC-0007: S4 review at 84a705d, M03-RF-0004..0007 re-review, Mac gate with no local record)"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5937391469",
+      "state": "awaiting_operator (revision 7, CC-0008: S4 review at 938102d, M03-RF-0004..0007 re-review, Mac gate with no local record)"
     }
   ],
   "unknown_effects": [],
@@ -148,7 +157,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0027 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0028 so far)",
       "owner": "Claude Code"
     },
     {
@@ -160,7 +169,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S4 part 5: revocation (T19) and the S3-key byte store before PDF (S5). CC-0007 (supersedes CC-0006) asks Codex to review S4 and re-review M03-RF-0004..0007",
+  "next_action": "S5: the PDF (renderer host probe as a Codex operation, the PDF preset, research_render_pdf, PdfView). CC-0008 awaits Codex",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
