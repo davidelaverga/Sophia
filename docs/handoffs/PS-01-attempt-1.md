@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** first commit `c3f8968` on `studio/personal-space` (#30), 2026-09-30. On 2026-10-01 Luis asked to split it: the data and API on `personal/data` (from main `860a01a`), and the Studio's places on top of it (#30).
-- **End:** the data side's code at `65a4e6f` (#35's head); the Studio's at the merge that brings it in, named once its checks ran.
+- **End:** the data side's code at `964aade` (#35's head); the Studio's at the merge that brings it in, named once its checks ran.
 - **Writable scope:** this repository. **No hosted service was changed.** Migration 0021 is on no hosted database.
 
 ## Outcome
@@ -18,7 +18,7 @@ What works, on the local dev stack with the rehearsal companion:
   - a reply lost with the process answering it reads as failed after two minutes, and can be asked for again (`personal_reply_state`);
   - Sophia's welcome back after an hour of quiet.
 - **Erasure:** the conversation, suggestions and notes are deleted; every request keeps only its key, dated at the erasure, so a retry from before writes nothing however late it comes; carried notes stay in their projects, still the person's. The space's revision and its turn order go on. Erasure moves the space's epoch, and every other write names the epoch it was made against: one issued before an erasure, however late its first attempt arrives, writes nothing (`personal_fence`).
-- **Limits:** a space keeps at most 2000 notes and a person carries at most 2000 (each refused by its own code), so every one is listed; the lists are bounded as the contract says, and a project's carried notes list the reader's own first.
+- **Limits:** a space keeps at most 2000 notes and a person carries at most 2000 (each refused by its own code), so every one is listed; the lists are bounded as the contract says, and a project's carried notes list the reader's own first; the Work list holds at most 4000 carried notes in all.
 - **Who may write:** only the API role can call the personal writers.
 - **API:** the personal routes, the project list with who is in each room (one question finds the rooms that exist, never by their count, which the room server refreshes every few seconds; only those are asked, a few at a time), readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only. The API claims a turn, and a welcome under its key, before it asks the companion, so one process asks; every write of the answer carries its claim, so an attempt that lapsed writes nothing over a later one, and a welcome not written yet answers `outcome_unknown`, for the same request to ask again.
 - **Studio** (#30, on top of the data side):
@@ -41,7 +41,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 272; database tests: 234 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 272; database tests: 235 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
@@ -60,6 +60,7 @@ Missing or unverified:
   - Codex on #35's `18b00d1`: three P2 (the same welcome request asked again while its first attempt wrote it settled its key with nothing; a reply or a failure written by an attempt whose claim had lapsed; a failed welcome not retried under its key), all fixed with a claim each attempt carries, each undone once to see its test fail. Checking #30 against `18b00d1` found the Work list read the room server's count of participants, which lags a join by up to five seconds: it now asks every room that exists (a test against a real LiveKit server, `pnpm test:livekit`).
   - Codex on #30's `9a72043`, one P1 on the data side: a write issued before an erasure whose first attempt reached the database after it wrote again. Erasure now moves the space's epoch, and every other write names the epoch it was made against and is fenced to it (`personal_fence`); each part undone once fails its test.
   - Codex on #30's `9a72043`, on the Studio side: the P1's other half (every write but erasure names the epoch as last read, and its retry the same one) and one P2 (a way to start and the field shared no guard, so two messages could be on their way at once), fixed; each undone once fails its scenario, but for the guard's backstop inside the writes, which the field's wait already covers.
+  - Codex on #35's `baf9c83` and `cf1fef8`: three P2 (a welcome's claim kept when its read failed; a stalled attempt given the context after its claim lapsed; the Work list's carried notes bounded per project only), all fixed, each undone once to see its test fail.
 
 ## Decisions and changes
 

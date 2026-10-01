@@ -1797,7 +1797,7 @@
       "path": "/paths/~1api~1v1~1projects/get",
       "value": {
         "operationId": "listProjects",
-        "summary": "The projects the calling person is an active member of, for their Work side: title, role, member count, who is in the room now (the room server's own list; null when it can't be asked), the next session, and the notes carried to each. The newest 500 projects, and in each the newest 2000 carried notes, the caller's own first (one person carries at most 2000, so none they can take back is left out).",
+        "summary": "The projects the calling person is an active member of, for their Work side: title, role, member count, who is in the room now (the room server's own list; null when it can't be asked), the next session, and the notes carried to each. The newest 500 projects, and in each the newest 2000 carried notes, the caller's own first (one person carries at most 2000, so none they can take back is left out). In all, the list holds at most 4000 carried notes, again the caller's own first, then the newest.",
         "tags": ["projects"],
         "security": [
           {

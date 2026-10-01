@@ -106,6 +106,19 @@ export class CompanionRunner {
     if (begun === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
     if (!('claim' in begun)) return begun
     const { claim } = begun
+    try {
+      return await this.welcome(actorId, key, claim, name)
+    } catch (err: unknown) {
+      // Whatever failed after the claim (a read, the companion, the write), the claim goes, so the same request may
+      // ask again at once; a later attempt's claim stays (the release is fenced to this one).
+      await withActor(this.pool, actorId, 'write', (c) => releasePersonalGreeting(c, claim)).catch(() => undefined)
+      if (err instanceof DomainError && err.code === 'outcome_unknown') throw err
+      throw new DomainError('outcome_unknown', NO_WELCOME, { cause: err })
+    }
+  }
+
+  /** The welcome under the attempt's claim: what it is written from, the companion's words, then the write. */
+  private async welcome(actorId: string, key: string, claim: string, name: string | null): Promise<PersonalReceipt> {
     const context = await withActor(this.pool, actorId, 'read', (c) => readWelcomeContext(c))
     // No longer due (a turn came meanwhile): nothing is written, and the key keeps that answer.
     if (!context) return this.settle(actorId, key, claim, '')
@@ -114,7 +127,6 @@ export class CompanionRunner {
       text = await withinLimit(this.companion.greet(context, name), this.limitMs)
     } catch (err: unknown) {
       this.onError(err)
-      await withActor(this.pool, actorId, 'write', (c) => releasePersonalGreeting(c, claim)).catch(() => undefined)
       throw new DomainError('outcome_unknown', NO_WELCOME) // no cause: the error handler logs nothing of the companion's
     }
     return this.settle(actorId, key, claim, text)
@@ -138,7 +150,7 @@ export class CompanionRunner {
     )
     if (!claim) return
     try {
-      const context = await withActor(this.pool, actorId, 'read', (c) => readCompanionContext(c, turnId))
+      const context = await withActor(this.pool, actorId, 'read', (c) => readCompanionContext(c, turnId, claim))
       if (!context) return
       const reply = await withinLimit(this.companion.answer(context), this.limitMs)
       await withActor(this.pool, actorId, 'write', (c) =>
