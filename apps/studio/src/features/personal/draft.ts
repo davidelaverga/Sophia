@@ -23,9 +23,13 @@ export function writeDraft(identity: string, text: string): void {
 
 type Store = Pick<Storage, 'length' | 'key' | 'removeItem'>
 
-/** Signing out: no draft of anyone's stays on this device. */
-export function forgetDrafts(store: Store = localStorage): void {
+/**
+ * Signing out: no draft of anyone's stays on this device. Storage is reached inside the guard: where even reaching it
+ * throws (storage blocked), nothing was kept, and signing out goes on.
+ */
+export function forgetDrafts(given?: Store): void {
   try {
+    const store = given ?? localStorage
     for (let i = store.length - 1; i >= 0; i -= 1) {
       const key = store.key(i)
       if (key?.startsWith(PREFIX)) store.removeItem(key)

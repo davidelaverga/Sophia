@@ -45,3 +45,10 @@ describe('the draft while a message is on its way', () => {
     assert.equal(draftToStore('On its way', 'More'), 'On its way\nMore')
   })
 })
+
+describe('signing out where the browser keeps nothing', () => {
+  it('never throws: a page without storage still signs out', () => {
+    // Node has no localStorage: reaching it throws, as it does in a browser that blocks storage.
+    assert.doesNotThrow(() => forgetDrafts())
+  })
+})

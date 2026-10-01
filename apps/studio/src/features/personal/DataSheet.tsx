@@ -6,6 +6,7 @@ import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
+import { browserClip, copyFetched, CopyCalledOff } from './copy.ts'
 import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
 import { focusSoon } from './focus.ts'
 import { NOTICE } from './notice-view.ts'
@@ -22,29 +23,6 @@ interface Props {
   returnTo: () => HTMLElement | null
   onUnlock: () => void
   onErase: () => Promise<unknown>
-}
-
-/**
- * Copies text still being fetched. Safari allows a copy only while the press itself is handled, and the export comes
- * later: the clipboard is handed the text as a promise there and then. Where that isn't offered, it is copied once
- * fetched. A failed fetch says so as itself, not as a blocked clipboard.
- */
-async function copyFetched(load: () => Promise<string>): Promise<void> {
-  if (!('ClipboardItem' in window)) {
-    await navigator.clipboard.writeText(await load())
-    return
-  }
-  const fetched: { error?: unknown } = {}
-  const text = load().catch((err: unknown) => {
-    fetched.error = err
-    throw err
-  })
-  const blob = text.then((t) => new Blob([t], { type: 'text/plain' }))
-  try {
-    await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
-  } catch (err: unknown) {
-    throw fetched.error ?? err
-  }
 }
 
 function Facts({ space }: { space: PersonalSpace | undefined }) {
@@ -152,11 +130,18 @@ export function DataSheet(props: Props) {
   const { token, who, space, locked, toast, onClose, returnTo, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
   useSwapFocus(locked)
+  // The padlock as it is now, for a copy whose export arrives after a lock: then nothing is copied.
+  const lockedNow = useRef(locked)
+  useEffect(() => {
+    lockedNow.current = locked
+  })
   const copy = async () => {
     try {
-      await copyFetched(async () => exportText(await exportPersonalSpace(token), who, new Date()))
+      const load = async () => exportText(await exportPersonalSpace(token), who, new Date())
+      await copyFetched(load, browserClip(), () => !lockedNow.current)
       toast(NOTICE.copied)
     } catch (err: unknown) {
+      if (err instanceof CopyCalledOff) return // the locked body already says why
       toast(err instanceof DOMException ? NOTICE.clipboardBlocked : personalFailure(err))
     }
   }

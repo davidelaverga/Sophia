@@ -155,9 +155,31 @@ interface Props {
   onListening: (listening: boolean) => void
 }
 
-export function PersonalComposer({ identity, hidden, state, onSend, onListening }: Props) {
-  const { text, note, change, go, sent, back } = useDraft(identity)
+/**
+ * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
+ * A composer that went meanwhile (signing out, an erasure) takes nothing back: those words went with the rest. One
+ * message is on its way at a time, as the device keeps one: the next waits, and what is typed meanwhile stays.
+ */
+function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, onSend: Props['onSend']) {
   const mounted = useMounted()
+  const [sending, setSending] = useState(false)
+  const send = async () => {
+    const words = draft.text.trim()
+    if (!words || !ready || sending) return
+    setSending(true)
+    draft.go(words)
+    const outcome = await onSend(words)
+    if (!mounted.current) return
+    setSending(false)
+    if (outcome === 'sent' || outcome === 'erased') draft.sent()
+    else draft.back(words, BACK[outcome])
+  }
+  return { sending, send }
+}
+
+export function PersonalComposer({ identity, hidden, state, onSend, onListening }: Props) {
+  const draft = useDraft(identity)
+  const { text, note, change } = draft
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
     change(text ? `${text} ${heard}` : heard, 'From your voice · edit it or send')
@@ -169,17 +191,7 @@ export function PersonalComposer({ identity, hidden, state, onSend, onListening 
     if (hidden && listening) stop()
   }, [hidden, listening, stop])
   const ready = state === 'ready'
-  // Closing the page while the words are on their way loses nothing: they come back as the draft. A composer that went
-  // meanwhile (signing out, an erasure) takes nothing back: those words went with the rest.
-  const send = async () => {
-    const words = text.trim()
-    if (!words || !ready) return
-    go(words)
-    const outcome = await onSend(words)
-    if (!mounted.current) return
-    if (outcome === 'sent' || outcome === 'erased') sent()
-    else back(words, BACK[outcome])
-  }
+  const { sending, send } = useSend(draft, ready, onSend)
   return (
     <form
       className="ps-composer"
@@ -205,7 +217,13 @@ export function PersonalComposer({ identity, hidden, state, onSend, onListening 
             onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
           />
         )}
-        <button type="submit" className="send has-tip" aria-label="Send" disabled={!ready || !text.trim()}>
+        <button
+          type="submit"
+          className="send has-tip"
+          aria-label="Send"
+          disabled={!ready || !text.trim()}
+          aria-disabled={sending || undefined}
+        >
           <Icon name="send" />
           <Tip label="Send" keys="Enter" side="top" align="end" />
         </button>
