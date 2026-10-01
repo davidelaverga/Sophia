@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { READ_TIMEOUT_MS } from '../api/client.ts'
 import {
   LINK_FAILED,
+  LINK_SLOW,
   LINK_UNCHECKED,
   linkDecision,
   OTHER_ACCOUNT_NOTICE,
@@ -16,6 +17,7 @@ import {
 import { sendFailure } from './auth-words.ts'
 import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
+import { linkAcceptance, type LinkAcceptance, type SessionPort } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
 
@@ -44,14 +46,28 @@ export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length >
 /** `notice`: why the last sign-in link did not do what it offered, when it did not. */
 type SignedIn = { status: 'signed_in'; identity: Identity; notice?: string }
 type SignedOut = { status: 'signed_out'; notice?: string }
-/** A link carried a session and nobody is signed in: the person says whether `account` is theirs first. */
-type LinkOffer = { status: 'link_offer'; account: string }
+/**
+ * A link carried a session and nobody is signed in: the person says whether `account` is theirs first. `notice`: why
+ * the last Continue didn't sign in yet.
+ */
+type LinkOffer = { status: 'link_offer'; account: string; notice?: string }
 export type AuthState = { status: 'loading' } | SignedOut | SignedIn | LinkOffer
 
 type LinkTokens = { accessToken: string; refreshToken: string }
 
 /** A link's session, kept in memory (never in storage) while the person decides whether it is theirs. */
-let offered: LinkTokens | null = null
+let offered: LinkAcceptance | null = null
+/** A link declined while signing in with it was under way: its session, if it lands, is signed out unseen. */
+let declined: LinkAcceptance | null = null
+
+/** Signing in with a link's session, through the Auth client (link-accept.ts). */
+const sessionOf = (client: SupabaseClient, link: LinkTokens): SessionPort => ({
+  set: async () =>
+    !(await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })).error,
+  signOut: async () => {
+    await client.auth.signOut({ scope: 'local' })
+  },
+})
 
 /** An anonymous session is a guest's (a knock at a room's door), never an account: its role says so. */
 const fromSession = (s: Session | null): SignedIn | SignedOut =>
@@ -99,7 +115,7 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
     // Whose they are is asked with an end, so a silent Auth service leaves a sign-in screen, not a loading one.
     const outcome = await settleWithin(linkOutcome(client, callback), READ_TIMEOUT_MS, { notice: LINK_UNCHECKED })
     if ('offer' in outcome) {
-      offered = callback
+      offered = linkAcceptance(sessionOf(client, callback), READ_TIMEOUT_MS)
       return { status: 'link_offer', account: outcome.offer }
     }
     notice = outcome.notice
@@ -118,8 +134,10 @@ function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) 
     if (alive) onState(state)
   })
   // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it.
+  // A declined link's session that lands late is signed out at once: nothing shows it meanwhile.
   const { data } = client.auth.onAuthStateChange((event, session) => {
-    if (event !== 'INITIAL_SESSION') onState(fromSession(session))
+    if (event === 'INITIAL_SESSION' || (declined?.refusing() && event !== 'SIGNED_OUT')) return
+    onState(fromSession(session))
   })
   return () => {
     alive = false
@@ -137,13 +155,16 @@ interface Auth {
   declineLink: () => void
 }
 
-/** Sign in with the session a link offered, once the person said the account is theirs. */
-async function acceptOffered(client: SupabaseClient): Promise<AuthState | null> {
-  const link = offered
+/**
+ * Sign in with the session a link offered, once the person said the account is theirs. An Auth service that doesn't
+ * answer in time gives the offer back, with Continue and "That's not me" (link-accept.ts).
+ */
+async function acceptOffered(account: string): Promise<AuthState | null> {
+  if (!offered) return { status: 'signed_out' }
+  const outcome = await offered.accept()
+  if (outcome === 'late') return { status: 'link_offer', account, notice: LINK_SLOW }
   offered = null
-  if (!link) return { status: 'signed_out' }
-  const { error } = await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
-  return error ? { status: 'signed_out', notice: LINK_FAILED } : null // signed in: the auth listener says so
+  return outcome === 'in' ? null : { status: 'signed_out', notice: LINK_FAILED } // in: the auth listener says so
 }
 
 export function useAuth(): Auth {
@@ -167,10 +188,11 @@ export function useAuth(): Auth {
       setState({ status: 'signed_out' })
     },
     acceptLink: async () => {
-      const next = supabase ? await acceptOffered(supabase) : { status: 'signed_out' as const }
+      const next = state.status === 'link_offer' ? await acceptOffered(state.account) : null
       if (next) setState(next)
     },
     declineLink: () => {
+      if (offered?.decline()) declined = offered
       offered = null
       setState({ status: 'signed_out' })
     },

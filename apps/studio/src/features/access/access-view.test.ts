@@ -19,6 +19,7 @@ import {
   plannedSession,
   qrPath,
   readJoinToken,
+  scheduleLines,
   sessionFromForm,
   sessionLabel,
 } from './access-view.ts'
@@ -167,6 +168,19 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(plan('2026-10-01T10:00:00Z', '2026-10-01T11:00:00Z')?.id, 'a', 'the same slot twice')
     assert.equal(plan('2026-10-01T11:00:00Z', '2026-10-01T12:00:00Z'), null, 'starts as it ends')
     assert.equal(plan('2026-10-01T09:00:00Z', '2026-10-01T10:00:00Z'), null, 'ends as it starts')
+  })
+
+  it('says what was scheduled, and an overlap of the next slot beside it, never instead of it', () => {
+    const now = at('2026-10-01T08:00:00Z')
+    const made = session('made', '2026-10-01T09:00:00Z', '2026-10-01T10:00:00Z')
+    const weekly = session('Weekly', '2026-10-01T09:30:00Z', '2026-10-01T10:30:00Z')
+    assert.deepEqual(scheduleLines(made, weekly, now, 'UTC'), [
+      'Scheduled: Today · 09:00 – 10:00.',
+      'Next: overlaps “Weekly” · Today · 09:30 – 10:30.',
+    ])
+    assert.deepEqual(scheduleLines(null, weekly, now, 'UTC'), ['Overlaps “Weekly” · Today · 09:30 – 10:30.'])
+    assert.deepEqual(scheduleLines(made, null, now, 'UTC'), ['Scheduled: Today · 09:00 – 10:00.'])
+    assert.deepEqual(scheduleLines(null, null, now, 'UTC'), [])
   })
 
   it('writes a moment as the form’s own date and time fields, in the browser’s zone', () => {

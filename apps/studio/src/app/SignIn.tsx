@@ -49,6 +49,8 @@ export function SlowNote() {
 
 interface OfferProps {
   account: string
+  /** Why the last Continue didn't sign in yet (it took too long): the offer stands. */
+  notice?: string | undefined
   onAccept: () => Promise<void>
   onDecline: () => void
 }
@@ -57,7 +59,7 @@ interface OfferProps {
  * A link carried a session and nobody is signed in: the account is named, as the Auth service reads it, and nothing
  * is signed in until the person says it is theirs. Someone else's link would otherwise sign them into that account.
  */
-export function LinkOffer({ account, onAccept, onDecline }: OfferProps) {
+export function LinkOffer({ account, notice, onAccept, onDecline }: OfferProps) {
   const [signing, setSigning] = useState(false)
   const accept = async () => {
     setSigning(true)
@@ -69,6 +71,11 @@ export function LinkOffer({ account, onAccept, onDecline }: OfferProps) {
       <p>
         This link signs you in to Sophia as <strong>{account}</strong>. Continue only if that address is yours.
       </p>
+      {notice && !signing && (
+        <p className="form-error" role="alert">
+          {notice}
+        </p>
+      )}
       <button type="button" className="pill primary" disabled={signing} onClick={() => void accept()}>
         {signing ? 'Signing in…' : 'Continue'}
       </button>

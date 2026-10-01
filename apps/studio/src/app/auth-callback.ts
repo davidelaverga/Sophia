@@ -22,6 +22,9 @@ export const LINK_FAILED = 'That sign-in link didn’t work. Ask for a new one b
 export const LINK_UNCHECKED =
   'That sign-in link couldn’t be checked in time. Open it again, or ask for a new one below.'
 
+/** The Auth service didn't set a link's session in time after Continue: the offer stands, to retry or decline. */
+export const LINK_SLOW = 'Signing in didn’t finish in time. Press Continue to try again.'
+
 const DID_NOT_FINISH = 'Signing in with that account didn’t finish. Try again.'
 
 /** Supabase Auth's error codes, in the Studio's words. A Map: a code from the address is never an object's key. */

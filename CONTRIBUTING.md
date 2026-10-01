@@ -137,10 +137,15 @@ writing a new one, and keep the rule when you change the code around it.
   and with nobody signed in it asks first (`LinkOffer`), naming the account
   as the Auth service reads it from the token (`getUser`), never as the
   token's own payload says. The session waits in memory until then.
+  Continue has an end too (`link-accept.ts`, with tests): an Auth service
+  that doesn't answer gives the offer back, and a sign-in that lands after
+  "That's not me" is signed out on this device, unseen.
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·
-  03:30 – 04:30."), and name a conflict before it happens ("Overlaps …").
+  03:30 – 04:30."), and name a conflict before it happens ("Overlaps …"),
+  both when both are true: an overlap never hides a receipt
+  (`scheduleLines`, with tests).
 - **Tabs keep their state.** A sheet's tabs are hidden, not unmounted
   (`TabPanel` in `InviteSheet`), so an address or a session half typed
   survives switching between them. Closing a sheet unmounts it: what was
