@@ -8,6 +8,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
+  parsePersonalEarlierTurns,
   parsePersonalExport,
   parsePersonalReceipt,
   parsePersonalSpace,
@@ -229,6 +230,13 @@ describe('personal routes', () => {
     })
     assert.equal(keep.status, 422, JSON.stringify(keep.json))
     assert.equal((await call('/api/v1/personal/turns/earlier?before=x', { as: ANA })).status, 422)
+    const first = (await space(ANA)).turns[0]
+    const back = await call(`/api/v1/personal/turns/earlier?before=${String((first?.seq ?? 0) + 1)}`, { as: ANA })
+    assert.deepEqual(
+      parsePersonalEarlierTurns(back.json).turns.map((t) => t.id),
+      [first?.id],
+      'read back from just after the first turn: that turn',
+    )
     assert.equal((await call('/api/v1/personal?timeZone=Mars/Olympus_Mons', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9999999999999999', { as: ANA })).status, 422)
     assert.equal((await call('/api/v1/personal/turns?after=9007199254740991', { as: ANA })).status, 200)

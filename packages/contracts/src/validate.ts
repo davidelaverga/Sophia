@@ -24,6 +24,7 @@ import {
   validateMissionWithdrawalPreview,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
+  validatePersonalEarlierTurns,
   validatePersonalExport,
   validatePersonalReceipt,
   validatePersonalSpace,
@@ -87,6 +88,7 @@ export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissio
 export const parseMissionWithdrawalPreview = parser('MissionWithdrawalPreview', validateMissionWithdrawalPreview)
 export const parsePersonalSpace = parser('PersonalSpace', validatePersonalSpace)
 export const parsePersonalTurnPage = parser('PersonalTurnPage', validatePersonalTurnPage)
+export const parsePersonalEarlierTurns = parser('PersonalEarlierTurns', validatePersonalEarlierTurns)
 export const parsePersonalExport = parser('PersonalExport', validatePersonalExport)
 export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalReceipt)
 export const parseProjectList = parser('ProjectList', validateProjectList)
