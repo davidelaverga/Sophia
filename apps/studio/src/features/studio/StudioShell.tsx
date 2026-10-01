@@ -131,6 +131,7 @@ export function StudioShell({ projectId, identity, room, snapshot }: Props) {
         }
         brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={brief.onRevision} />}
         call={<CallSwitches room={room} />}
+        note={room.mediaError}
       />
     </div>
   )

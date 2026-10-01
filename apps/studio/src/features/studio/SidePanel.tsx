@@ -16,6 +16,8 @@ interface PanelProps {
    * the room, so what this person is sending is never out of sight; beside the room, the dock already does.
    */
   call: ReactNode
+  /** What stopped a device switch (room.mediaError): said under the head where the panel covers the dock that says it. */
+  note: string | null
 }
 
 /** The control a panel's focus goes to as it opens (focusOnOpen): the message bar, or the panel's tab. */
@@ -63,7 +65,7 @@ function useEscFromNowhere(open: Panel | null, onOpen: (panel: Panel | null) => 
   }, [open, onOpen])
 }
 
-export function SidePanel({ open, onOpen, chat, brief, call }: PanelProps) {
+export function SidePanel({ open, onOpen, chat, brief, call, note }: PanelProps) {
   const body: Record<Panel, ReactNode> = { chat, brief }
   const panel = useRef<HTMLElement>(null)
   usePanelFocus(open, panel)
@@ -81,6 +83,11 @@ export function SidePanel({ open, onOpen, chat, brief, call }: PanelProps) {
       }}
     >
       <PanelHead open={open} onOpen={onOpen} call={call} />
+      {note && (
+        <p className="side-panel-note" role="alert">
+          {note}
+        </p>
+      )}
       {PANELS.map((p) => (
         <div
           key={p}

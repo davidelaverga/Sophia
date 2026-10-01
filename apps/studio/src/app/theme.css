@@ -3023,6 +3023,17 @@ div.empty {
   gap: 4px;
   margin-left: auto;
 }
+/* A device that didn't switch says so under the head too, where the panel covers the dock that would say it. */
+.side-panel-note {
+  display: none;
+  margin: 8px var(--panel-pad) 0;
+  padding: 7px 11px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
 /* Touch: finger-sized tabs and Close, still the lens bar's height (44 px there) and still on the gutter. */
 @media (pointer: coarse) {
   .side-panel-head {
@@ -3216,5 +3227,8 @@ div.empty {
   }
   .side-panel-call {
     display: flex;
+  }
+  .side-panel-note {
+    display: block;
   }
 }
