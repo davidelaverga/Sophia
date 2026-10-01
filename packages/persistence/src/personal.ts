@@ -41,6 +41,15 @@ const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
   LEFT JOIN sophia.personal_suggestions sg ON sg.owner_id = t.owner_id AND sg.turn_id = t.id
   WHERE t.owner_id = sophia.actor_id()`
 
+/**
+ * The conversation as the companion reads it to answer the turn at `$1`: each turn with the answer to it, up to that one
+ * (an answer written after a later turn was said stays with its own), at most `$2` of them, newest first.
+ */
+const HISTORY = `SELECT t.author, t.body FROM sophia.personal_turns t
+  LEFT JOIN sophia.personal_turns q ON q.owner_id = t.owner_id AND q.id = t.reply_to
+  WHERE t.owner_id = sophia.actor_id() AND coalesce(q.seq, t.seq) <= $1
+  ORDER BY coalesce(q.seq, t.seq) DESC, t.seq DESC LIMIT $2`
+
 function turnOf(r: TurnRow): PersonalTurn {
   return {
     id: r.id,
@@ -230,7 +239,7 @@ export async function readCompanionContext(
   if (!onlyRow(held.rows, 'renew_personal_reply').held) return null
   const asked = (await c.query<TurnRow>(`${TURNS} AND t.id = $1`, [turnId])).rows[0]
   if (!asked || asked.author !== 'person' || asked.reply !== 'pending') return null
-  const { rows } = await c.query<TurnRow>(`${TURNS} AND t.seq <= $1 ORDER BY t.seq DESC LIMIT $2`, [asked.seq, depth])
+  const { rows } = await c.query<{ author: 'person' | 'sophia'; body: string }>(HISTORY, [asked.seq, depth])
   const notes = await readNotes(c)
   return {
     asked: turnOf(asked),
@@ -365,6 +374,12 @@ export async function recordPersonalReply(
  * The claim under which this process may answer the pending turn, or null while another process is answering it. The
  * reply or the failure is written only under it (0021).
  */
+/** The person's next turn for the companion to answer (one at a time, in order), or null. */
+export async function nextPersonalReply(c: pg.PoolClient): Promise<string | null> {
+  const { rows } = await c.query<{ turn: string | null }>('SELECT sophia.next_personal_reply() AS turn')
+  return onlyRow(rows, 'next_personal_reply').turn
+}
+
 export async function claimPersonalReply(c: pg.PoolClient, turnId: string): Promise<string | null> {
   const { rows } = await c.query<{ claim: string | null }>('SELECT sophia.claim_personal_reply($1) AS claim', [turnId])
   return onlyRow(rows, 'claim_personal_reply').claim
@@ -426,9 +441,13 @@ export async function renewPersonalGreeting(c: pg.PoolClient, claim: string): Pr
   return onlyRow(rows, 'renew_personal_greeting').held
 }
 
-/** A call to the companion begins (an erasure anywhere waits for it to end): an id, nothing of the words. */
-export async function beginCompanionCall(c: pg.PoolClient, callId: string): Promise<void> {
-  await c.query('SELECT sophia.begin_companion_call($1)', [callId])
+/**
+ * A call to the companion begins (an erasure anywhere waits for it to end): an id, nothing of the words. It returns the
+ * space's epoch it began in.
+ */
+export async function beginCompanionCall(c: pg.PoolClient, callId: string): Promise<number> {
+  const { rows } = await c.query<{ epoch: string }>('SELECT sophia.begin_companion_call($1) AS epoch', [callId])
+  return Number(onlyRow(rows, 'begin_companion_call').epoch)
 }
 
 export async function endCompanionCall(c: pg.PoolClient, callId: string): Promise<void> {

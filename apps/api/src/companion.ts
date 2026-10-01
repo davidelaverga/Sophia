@@ -19,7 +19,9 @@ import {
   failPersonalReply,
   fencePersonalWrite,
   forgetErasedCompanionCalls,
+  nextPersonalReply,
   readCompanionContext,
+  readPersonalEpoch,
   readWelcomeContext,
   recordPersonalGreeting,
   recordPersonalReply,
@@ -99,9 +101,10 @@ async function withinLimit<T>(work: (signal: AbortSignal) => Promise<T>, ms: num
   }
 }
 
-/** One call to the companion in this process: it can be told to stop, and waited for. */
+/** One call to the companion in this process, begun in an epoch of the space: it can be told to stop, and waited for. */
 interface Call {
   id: string
+  epoch: number
   stop: AbortController
   settled: PromiseWithResolvers<void>
 }
@@ -134,9 +137,12 @@ export class CompanionRunner {
     this.watchMs = watchMs
   }
 
-  /** Tell this process's calls for `actorId` to stop, and wait until they have (their claims are let go too). */
-  async stopFor(actorId: string): Promise<void> {
-    const mine = [...(this.calls.get(actorId) ?? [])]
+  /**
+   * Tell this process's calls for `actorId` begun before `epoch` (an erasure's) to stop, and wait until they have (their
+   * claims are let go too). Calls of the conversation after it go on.
+   */
+  async stopFor(actorId: string, epoch: number): Promise<void> {
+    const mine = [...(this.calls.get(actorId) ?? [])].filter((call) => call.epoch < epoch)
     for (const call of mine) call.stop.abort()
     await Promise.all(mine.map((call) => call.settled.promise))
   }
@@ -151,7 +157,9 @@ export class CompanionRunner {
     holds: (c: pg.PoolClient) => Promise<boolean>,
     body: (stop: AbortSignal) => Promise<T>,
   ): Promise<T> {
-    const call: Call = { id: randomUUID(), stop: new AbortController(), settled: Promise.withResolvers<void>() }
+    const id = randomUUID()
+    const epoch = await withActor(this.pool, actorId, 'write', (c) => beginCompanionCall(c, id))
+    const call: Call = { id, epoch, stop: new AbortController(), settled: Promise.withResolvers<void>() }
     const mine = this.calls.get(actorId) ?? new Set<Call>()
     mine.add(call)
     this.calls.set(actorId, mine)
@@ -164,7 +172,6 @@ export class CompanionRunner {
       )
     }, this.watchMs)
     try {
-      await withActor(this.pool, actorId, 'write', (c) => beginCompanionCall(c, call.id))
       return await body(call.stop.signal)
     } finally {
       clearInterval(watch)
@@ -250,7 +257,20 @@ export class CompanionRunner {
     return recorded
   }
 
+  /**
+   * The person's conversation from `turnId` on, one turn at a time: that turn if it is the next to answer, then the next
+   * waiting, while no other process is answering one (next_personal_reply).
+   */
   private async run(actorId: string, turnId: string): Promise<void> {
+    await this.answerOne(actorId, turnId)
+    const next = await withActor(this.pool, actorId, 'read', (c) => nextPersonalReply(c)).catch((err: unknown) => {
+      this.onError(err)
+      return null
+    })
+    if (next) await this.answer(actorId, next)
+  }
+
+  private async answerOne(actorId: string, turnId: string): Promise<void> {
     // One process asks the companion for a turn, under its claim: another one answering it (a retry that reached it)
     // leaves it, and an attempt whose claim lapsed (it stalled past it) writes neither its reply nor its failure.
     const claim = await withActor(this.pool, actorId, 'write', (c) => claimPersonalReply(c, turnId)).catch(
@@ -285,8 +305,9 @@ export class CompanionRunner {
 /**
  * After an erasure: the person's calls to the companion in this process are told to stop and waited for, and those of
  * every other process (each stops its own once its claim is gone, within WATCH_MS): this waits until none begun before
- * the erasure is in flight anywhere, within `ms` (a companion that never stops, a process that went away), so the
- * erasure is acknowledged only once nothing of the space is being answered; then they are all forgotten.
+ * the erasure is in flight anywhere, within `ms`, so the erasure is acknowledged only once nothing of the space is being
+ * answered; then they are all forgotten. One still running then (a companion that won't stop) leaves it unfinished, to
+ * be asked again; one a process that went away left counts no longer after two minutes.
  */
 export async function stoppedEverywhere(
   pool: pg.Pool,
@@ -295,9 +316,15 @@ export async function stoppedEverywhere(
   ms = STOPPING_MS,
 ): Promise<void> {
   const end = Date.now() + ms
-  await Promise.race([runner?.stopFor(actorId), delay(ms, undefined, { ref: false })])
-  while ((await withActor(pool, actorId, 'read', (c) => erasedCompanionCalls(c))) > 0 && Date.now() <= end) {
+  const epoch = await withActor(pool, actorId, 'read', (c) => readPersonalEpoch(c))
+  await Promise.race([runner?.stopFor(actorId, epoch), delay(ms, undefined, { ref: false })])
+  const running = () => withActor(pool, actorId, 'read', (c) => erasedCompanionCalls(c))
+  let left = await running()
+  while (left > 0 && Date.now() <= end) {
     await delay(100)
+    left = await running()
   }
+  // Not done while one runs on (the same request asks again, and waits again); forgotten once none counts.
+  if (left > 0) throw new Error('A call to the companion from before the erasure is still running')
   await withActor(pool, actorId, 'write', (c) => forgetErasedCompanionCalls(c))
 }

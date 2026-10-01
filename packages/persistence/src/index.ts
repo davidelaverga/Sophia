@@ -127,6 +127,7 @@ export {
   keepPersonalNote,
   PERSONAL_PAGE_LIMIT,
   PERSONAL_TURN_LIMIT,
+  nextPersonalReply,
   readCompanionContext,
   readPersonalEpoch,
   readPersonalExport,
