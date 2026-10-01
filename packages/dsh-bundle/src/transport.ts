@@ -40,6 +40,8 @@ import type {
   ResearchReserveRequest,
   ResearchSettleRequest,
   ResearchSettlement,
+  ResearchSubmission,
+  ResearchSubmitRequest,
   RuntimeCommandBatch,
   RuntimeHello,
   RuntimeHelloReply,
@@ -183,5 +185,11 @@ export class ServiceTransport {
   async researchDraft(body: ResearchDraftRequest, signal?: AbortSignal): Promise<ResearchDraft> {
     checked('draft request', wire.ResearchDraftRequest, body)
     return checked('draft', wire.ResearchDraft, await this.request('POST', '/v1/runtime/research/draft', body, signal))
+  }
+
+  /** Never takes a signal: ending a task is one transaction that must come back with its outcome. */
+  async researchSubmit(body: ResearchSubmitRequest): Promise<ResearchSubmission> {
+    checked('submit request', wire.ResearchSubmitRequest, body)
+    return checked('submission', wire.ResearchSubmission, await this.request('POST', '/v1/runtime/research/submit', body))
   }
 }

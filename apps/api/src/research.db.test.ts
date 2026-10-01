@@ -241,6 +241,8 @@ describe('the runtime research routes (A11)', () => {
       text: '# Again',
     })
     assert.deepEqual([stale.status, stale.json.code], [409, 'stale_revision'])
+    const neither = await w.runtime('/v1/runtime/research/submit', { ...at, callId: 's0' })
+    assert.equal(neither.status, 422, 'a submit carries a result or a blocker')
     const other = await w.runtime('/v1/runtime/research/context', { ...at, nativeSessionId: 'sophia-not-mine' })
     assert.deepEqual([other.status, other.json.code], [403, 'forbidden'])
     const spend = await w.runtime('/v1/runtime/research/reserve', {
@@ -264,5 +266,18 @@ describe('the runtime research routes (A11)', () => {
     assert.equal(unknownField.status, 422)
     const member = await w.runtime('/v1/runtime/research/context', at, await token(E))
     assert.equal(member.status, 401, 'a member token is not a runtime capability')
+
+    const result = {
+      draftSha256: draft.json.sha256,
+      title: 'Sandboxed PDF hosts',
+      summary: 'Which hosts render PDFs in a sandbox.',
+      resultSummary: 'One host found.',
+      limitations: [],
+      citations: [capture.json.sourceId],
+    }
+    const submitted = await w.runtime('/v1/runtime/research/submit', { ...at, callId: 's1', result })
+    assert.deepEqual([submitted.status, submitted.json.outcome, submitted.json.versionNumber], [200, 'published', 1])
+    const again = await w.runtime('/v1/runtime/research/submit', { ...at, callId: 's2', result })
+    assert.deepEqual([again.status, again.json.code], [409, 'invalid_state'], 'the task has ended')
   })
 })

@@ -51,7 +51,7 @@ test('a research role runs on the recorded research route with the decided cache
     assert.equal(body.max_output_tokens, route.maxTokens)
     assert.equal(body.store, false)
     // The role's tools that exist (S4 part 2 registers the research tools in the research agent's own scope).
-    assert.deepEqual(body.tools.map((tool) => tool.name).toSorted(), ['research_read_context', 'research_read_source', 'research_search', 'research_write_draft', 'todo_write'], 'only the role\'s tools are offered')
+    assert.deepEqual(body.tools.map((tool) => tool.name).toSorted(), ['research_read_context', 'research_read_source', 'research_report_blocker', 'research_search', 'research_submit_result', 'research_write_draft', 'todo_write'], 'only the role\'s tools are offered')
     for (const tool of body.tools) assert.equal(tool.strict, false, `${tool.name} carries strict: false`)
   }
   const [first, second] = w.llm.requests

@@ -22,3 +22,7 @@ export type ResearchCaptureRequest = { "attemptId": string; "nativeSessionId": s
 export type ResearchCapture = { "sourceId": string; "sha256": string; "byteLength": number; "kind": "search_results" | "web_read"; "refs": ReadonlyArray<string>; };
 export type ResearchDraftRequest = { "attemptId": string; "nativeSessionId": string; "callId": string; "expectedSha256": null | string; "text": string; };
 export type ResearchDraft = { "sourceId": string; "sha256": string; "seq": number; };
+export type ResearchResult = { "draftSha256": string; "title": string; "summary": string; "resultSummary": string; "changeNote"?: string; "retainedNote"?: string; "limitations": ReadonlyArray<string>; "citations": ReadonlyArray<string>; };
+export type ResearchBlocker = { "reason": string; "remainingWork"?: string; };
+export type ResearchSubmitRequest = { "attemptId": string; "nativeSessionId": string; "callId": string; "result"?: ResearchResult; "blocker"?: ResearchBlocker; };
+export type ResearchSubmission = { "taskId": string; "outcome": "published" | "blocked"; "artifactId"?: string; "versionId"?: string; "versionNumber"?: number; "sourceId"?: string; "sha256"?: string; "resultSourceId": string; };

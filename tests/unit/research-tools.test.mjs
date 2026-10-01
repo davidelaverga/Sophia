@@ -60,6 +60,13 @@ function fakeService(overrides = {}) {
       if (overrides.draft) return overrides.draft(body)
       return { sourceId: '44444444-4444-4444-8444-444444444444', sha256: 'c'.repeat(64), seq: 1 }
     },
+    async researchSubmit(body) {
+      calls.push(['submit', body])
+      if (overrides.submit) return overrides.submit(body)
+      return body.result
+        ? { taskId: 't', outcome: 'published', artifactId: 'a', versionId: 'v', versionNumber: 1, sourceId: 's', sha256: body.result.draftSha256, resultSourceId: 'r' }
+        : { taskId: 't', outcome: 'blocked', resultSourceId: 'r' }
+    },
   }
   return { client, calls, kinds: () => calls.map(([k]) => k) }
 }
@@ -235,3 +242,25 @@ test('a model call is reserved at its worst case and settled at its reported usa
   assert.equal(costOfUsage({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 10000, cacheWriteTokens: 2000 }, prices), (1000 * 2 + 10000 * 0.1 + 2000 * 2.5 + 500 * 10) / 1e6)
   assert.equal(costOfUsage({ inputTokens: 1000, outputTokens: 500 }, prices), (1000 * 2 + 500 * 10) / 1e6, 'absent cache counters are zero')
 })
+
+test('research_submit_result: the current draft with its citations, once; research_report_blocker: the reason', async () => {
+  const service = fakeService()
+  const { byName } = tools(service, fakeSources())
+  const out = await byName.research_submit_result.execute(
+    { draftSha256: 'c'.repeat(64), title: 'T', summary: 'S', resultSummary: 'R', citations: ['33333333-3333-4333-8333-333333333333'], changeNote: 'Added costs.' },
+    exec('call_s'),
+  )
+  assert.deepEqual([out.outcome, out.versionNumber], ['published', 1])
+  const body = service.calls.find(([k]) => k === 'submit')[1]
+  assert.deepEqual([body.callId, body.result.limitations, body.result.changeNote, 'blocker' in body], ['call_s', [], 'Added costs.', false])
+  const blocked = await byName.research_report_blocker.execute({ reason: 'Behind a login.', remainingWork: 'Find a mirror.' }, exec('call_b'))
+  assert.equal(blocked.outcome, 'blocked')
+  assert.deepEqual(service.calls.filter(([k]) => k === 'submit')[1][1].blocker, { reason: 'Behind a login.', remainingWork: 'Find a mirror.' })
+  const stale = fakeService({ submit: () => { throw new TransportError('stale', 409, 'stale_revision') } })
+  const refused = await tools(stale, fakeSources()).byName.research_submit_result.execute(
+    { draftSha256: 'c'.repeat(64), title: 'T', summary: 'S', resultSummary: 'R', citations: ['33333333-3333-4333-8333-333333333333'] },
+    exec(),
+  )
+  assert.equal(refused.code, 'stale_revision')
+})
+

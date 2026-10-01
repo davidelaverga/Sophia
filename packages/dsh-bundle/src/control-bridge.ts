@@ -39,6 +39,7 @@ import { commandText, parseCommand, ProtocolError } from './protocol.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
+import { RESEARCH_PROMPT } from './research-prompt.js'
 import { researchTools, type ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
@@ -364,10 +365,19 @@ export class ControlBridge {
     }
     return (async function* () {
       let reservationId: string
+      const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
+      // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
+      const reserve = (purpose: 'call' | 'partial_result') =>
+        transport.researchReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
       try {
-        const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
-        // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
-        reservationId = (await transport.researchReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose: 'call' })).reservationId
+        try {
+          reservationId = (await reserve('call')).reservationId
+        } catch (error) {
+          // The finalize step: once ordinary calls no longer fit, the model call that writes up the partial result
+          // may draw on the headroom (the service allows one such call in flight, and no search or read).
+          if (!(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
+          reservationId = (await reserve('partial_result')).reservationId
+        }
       } catch (error) {
         const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this research's allowance could not reserve the model call (${why})`)
@@ -413,9 +423,14 @@ export class ControlBridge {
       const visible = this.ctx.tools.schemas().map((schema) => schema.name)
       const deny = visible.filter((name) => !role.nativeTools.has(name))
       if (deny.length > 0) agentCtx.tools.restrict({ deny })
-      // The research tools exist only in a research agent's own scope (SMC-M03 S4), and only those its role names.
-      for (const tool of this.researchToolset ?? []) {
-        if (role.nativeTools.has(tool.name)) agentCtx.tools.register(tool)
+      // The research tools exist only in a research agent's own scope (SMC-M03 S4), and only those its role names,
+      // with the research section of its system prompt.
+      const tools = (this.researchToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
+      for (const tool of tools) agentCtx.tools.register(tool)
+      if (tools.length > 0) {
+        const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
+        if (!prompts) throw new ProtocolError('this runtime unit has no system prompt service for the research section')
+        prompts.section({ name: 'sophia-research', order: RESEARCH_PROMPT.order, text: RESEARCH_PROMPT.text, interpolate: false })
       }
     }
   }
@@ -1142,6 +1157,11 @@ export function offRoute(options: GenerateOptions, route: RouteSpec, ceiling: nu
 
 /** A model call refused before it reaches the provider. */
 export class RouteRefused extends Error {}
+
+/** The part of dsh's system prompt service the bridge uses: a named section in the agent's own scope. */
+interface PromptSections {
+  section(section: { name: string; order: number; text: string; interpolate?: boolean }): () => void
+}
 
 /** How long the hello waits for a role's preset to load: 100 tries 100 ms apart. */
 const PRESET_WAIT_ATTEMPTS = 100

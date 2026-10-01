@@ -33,9 +33,10 @@ export const name = 'sophia-control-bridge'
 /**
  * Services the bridge drives; the row waits until all exist. `agentDefaultModel`
  * supplies the recorded model route, `agentPresets` the native presets roles
- * run under (SMC-M02 G3).
+ * run under (SMC-M02 G3), `systemPrompt` the research section a research agent
+ * gets in its own scope (SMC-M03 S4).
  */
-export const inject = ['agents', 'sessions', 'tools', 'agentDefaultModel', 'agentPresets']
+export const inject = ['agents', 'sessions', 'tools', 'agentDefaultModel', 'agentPresets', 'systemPrompt']
 
 /** Wire protocol between this bridge and the Sophia service. */
 export const PROTOCOL_VERSION = 1

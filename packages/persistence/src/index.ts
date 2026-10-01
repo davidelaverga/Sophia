@@ -63,6 +63,7 @@ export {
   runtimeResearchDraft,
   runtimeResearchReserve,
   runtimeResearchSettle,
+  runtimeResearchSubmit,
   type ResearchAdmission,
   type ResearchAdmissionCall,
   type ResearchAdmissionRequest,

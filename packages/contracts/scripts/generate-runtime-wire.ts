@@ -37,6 +37,10 @@ const SCHEMAS = [
   'ResearchCapture',
   'ResearchDraftRequest',
   'ResearchDraft',
+  'ResearchResult',
+  'ResearchBlocker',
+  'ResearchSubmitRequest',
+  'ResearchSubmission',
 ] as const
 /** What the bridge validates at runtime: every reply it reads, each command, and what it sends. */
 const VALIDATED = [
@@ -57,6 +61,8 @@ const VALIDATED = [
   'ResearchCapture',
   'ResearchDraftRequest',
   'ResearchDraft',
+  'ResearchSubmitRequest',
+  'ResearchSubmission',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

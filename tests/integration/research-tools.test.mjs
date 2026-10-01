@@ -39,7 +39,16 @@ test('a research attempt reads its task, writes a draft and pays for each model 
   w.llm.script(
     { toolCall: { name: 'research_read_context', arguments: {} } },
     { toolCall: { name: 'research_write_draft', arguments: { text: '# Draft\nNothing found yet.', expectedSha256: null } } },
-    { text: 'Drafted.' },
+    {
+      toolCall: {
+        name: 'research_submit_result',
+        arguments: {
+          draftSha256: 'b'.repeat(64), title: 'Sandboxed PDF hosts', summary: 'Which hosts render PDFs in a sandbox.',
+          resultSummary: 'None found yet.', limitations: ['No source read.'], citations: ['00000000-0000-4000-8000-000000000001'],
+        },
+      },
+    },
+    { text: 'Submitted.' },
   )
   w.send(create(w))
   await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the research turn')
@@ -49,15 +58,23 @@ test('a research attempt reads its task, writes a draft and pays for each model 
   const ops = w.service.research
   for (const { body } of ops) assert.deepEqual([body.attemptId, body.nativeSessionId], [w.attemptId, session], 'every operation names its own session')
   assert.deepEqual(
-    ops.filter((o) => o.op === 'context' || o.op === 'draft').map((o) => o.op),
-    ['context', 'draft'],
+    ops.filter((o) => ['context', 'draft', 'submit'].includes(o.op)).map((o) => o.op),
+    ['context', 'draft', 'submit'],
   )
   assert.equal(ops.find((o) => o.op === 'draft').body.text, '# Draft\nNothing found yet.')
+  const submitted = ops.find((o) => o.op === 'submit').body
+  assert.deepEqual([submitted.result.draftSha256, submitted.result.citations, 'blocker' in submitted], ['b'.repeat(64), ['00000000-0000-4000-8000-000000000001'], false])
 
-  // Three model calls, each reserved before it left and settled from its usage, in order.
+  // The research section is in the system prompt (the Responses API's developer message) of every request, the same
+  // each time: a stable cached prefix.
+  const system = (request) => request.body.input.find((item) => item.role === 'developer')?.content ?? ''
+  for (const request of w.llm.requests) assert.match(system(request), /# Research worker[\s\S]*## Markdown report/)
+  assert.equal(new Set(w.llm.requests.map(system)).size, 1)
+
+  // Four model calls, each reserved before it left and settled from its usage, in order.
   const meter = ops.filter((o) => (o.op === 'reserve' && o.body.kind === 'model') || o.op === 'settle')
-  assert.deepEqual(meter.map((o) => o.op), ['reserve', 'settle', 'reserve', 'settle', 'reserve', 'settle'])
-  assert.equal(w.llm.requests.length, 3)
+  assert.deepEqual(meter.map((o) => o.op), ['reserve', 'settle', 'reserve', 'settle', 'reserve', 'settle', 'reserve', 'settle'])
+  assert.equal(w.llm.requests.length, 4)
   for (const { body } of meter.filter((o) => o.op === 'reserve')) {
     assert.deepEqual([body.provider, body.purpose], [route.provider, 'call'])
     assert.ok(body.amountUsd >= (route.maxTokens * route.prices.output) / 1e6, 'the whole output ceiling is reserved')
@@ -80,3 +97,22 @@ test('a model call the allowance refuses never reaches the provider, and the ref
   assert.match(refused[0].data.reason, /research_limit_reached/)
   assert.equal(w.service.research.some((o) => o.op === 'settle'), false, 'nothing was reserved, so nothing settles')
 })
+
+test('when ordinary calls no longer fit, the call that writes the partial result draws on the headroom', async (t) => {
+  const w = await world(t)
+  await w.start()
+  w.service.onResearch('reserve', (body) =>
+    body.purpose === 'partial_result'
+      ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null }
+      : { status: 409, body: { code: 'research_limit_reached', message: 'Research allowance exhausted', requestId: '00000000-0000-4000-8000-000000000000', retry: 'never' } })
+  w.llm.script({ text: 'Here is what I have so far.' })
+  w.send(create(w))
+  await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the finalizing turn')
+  assert.equal(w.llm.requests.length, 1, 'the call went out on the headroom')
+  assert.deepEqual(
+    w.service.research.filter((o) => o.op === 'reserve').map((o) => o.body.purpose),
+    ['call', 'partial_result'],
+  )
+  assert.equal(w.service.research.find((o) => o.op === 'settle').body.reservationId, '00000000-0000-4000-8000-000000009999')
+})
+

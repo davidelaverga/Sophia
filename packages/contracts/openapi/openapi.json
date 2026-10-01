@@ -7098,6 +7098,118 @@
         "x-sophia-implementation": "contract_only",
         "x-sophia-release-goal": "SMC-M03"
       }
+    },
+    "/v1/runtime/research/submit": {
+      "post": {
+        "operationId": "runtimeResearchSubmit",
+        "summary": "End a research task: publish its current draft as the report's next stable version (checked: the draft's hash, every citation readable by the task, the current authority), or record a blocker with the remaining work. Idempotent by the call; fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published or blocked (or already)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, the task has ended, or the draft changed since it was read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or a citation or the draft is not the task's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
     }
   },
   "components": {
@@ -13867,6 +13979,171 @@
           {
             "$ref": "#/components/schemas/ResearchSourcePage"
           }
+        ]
+      },
+      "ResearchResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "draftSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "The draft being published: the one research_read_context last showed."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "description": "The report's description (its Knowledge card)."
+          },
+          "resultSummary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What the result resolves, for the guide and the work card."
+          },
+          "changeNote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What changed; required from the second version on."
+          },
+          "retainedNote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What was kept from the previous version."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "citations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "The sources the report cites: each one the task may read."
+          }
+        },
+        "required": [
+          "draftSha256",
+          "title",
+          "summary",
+          "resultSummary",
+          "limitations",
+          "citations"
+        ]
+      },
+      "ResearchBlocker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "remainingWork": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ResearchSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the submit's idempotency key."
+          },
+          "result": {
+            "$ref": "#/components/schemas/ResearchResult"
+          },
+          "blocker": {
+            "$ref": "#/components/schemas/ResearchBlocker"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId"
+        ],
+        "description": "Exactly one of result and blocker."
+      },
+      "ResearchSubmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "published",
+              "blocked"
+            ]
+          },
+          "artifactId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "resultSourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "taskId",
+          "outcome",
+          "resultSourceId"
         ]
       }
     }

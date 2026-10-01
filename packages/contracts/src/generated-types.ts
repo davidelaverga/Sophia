@@ -114,6 +114,10 @@ export type ResearchCapture = { "sourceId": string; "sha256": string; "byteLengt
 export type ResearchDraftRequest = { "attemptId": string; "nativeSessionId": string; "callId": string; "expectedSha256": null | string; "text": string; };
 export type ResearchDraft = { "sourceId": string; "sha256": string; "seq": number; };
 export type ResearchContextReply = ResearchTaskContext | ResearchSourcePage;
+export type ResearchResult = { "draftSha256": string; "title": string; "summary": string; "resultSummary": string; "changeNote"?: string; "retainedNote"?: string; "limitations": ReadonlyArray<string>; "citations": ReadonlyArray<string>; };
+export type ResearchBlocker = { "reason": string; "remainingWork"?: string; };
+export type ResearchSubmitRequest = { "attemptId": string; "nativeSessionId": string; "callId": string; "result"?: ResearchResult; "blocker"?: ResearchBlocker; };
+export type ResearchSubmission = { "taskId": string; "outcome": "published" | "blocked"; "artifactId"?: string; "versionId"?: string; "versionNumber"?: number; "sourceId"?: string; "sha256"?: string; "resultSourceId": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
@@ -195,4 +199,5 @@ export interface Operations {
   "runtimeResearchSettle": { method: "POST"; path: "/v1/runtime/research/settle"; request: ResearchSettleRequest; response: ResearchSettlement; };
   "runtimeResearchCapture": { method: "POST"; path: "/v1/runtime/research/capture"; request: ResearchCaptureRequest; response: ResearchCapture; };
   "runtimeResearchDraft": { method: "POST"; path: "/v1/runtime/research/draft"; request: ResearchDraftRequest; response: ResearchDraft; };
+  "runtimeResearchSubmit": { method: "POST"; path: "/v1/runtime/research/submit"; request: ResearchSubmitRequest; response: ResearchSubmission; };
 }

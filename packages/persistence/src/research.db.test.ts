@@ -20,6 +20,7 @@ import {
   claimRuntimeOutbox,
   createPool,
   dispatchRuntimeOutbox,
+  recordRuntimeObservations,
   recordRuntimeReady,
   recordRuntimeReceipts,
   runtimeHello,
@@ -29,6 +30,7 @@ import {
   runtimeResearchDraft,
   runtimeResearchReserve,
   runtimeResearchSettle,
+  runtimeResearchSubmit,
   runtimeTokenHash,
   submitContribution,
   withActor,
@@ -801,5 +803,312 @@ describe('runtime research operations', () => {
       })
     assert.deepEqual(await count(V), { tasks: 1, drafts: 1 })
     assert.deepEqual(await count(C), { tasks: 0, drafts: 0 })
+  })
+})
+
+/** A search the task made and captured: a source it may cite. */
+async function citable(w: World, at: { attemptId: string; nativeSessionId: string }, callId = 'search_1') {
+  const r = await service((c) =>
+    runtimeResearchReserve(c, w.who, {
+      ...at,
+      callId,
+      kind: 'search',
+      provider: 'tavily',
+      amountUsd: 0.01,
+      query: 'q',
+    }),
+  )
+  return service((c) =>
+    runtimeResearchCapture(c, w.who, {
+      ...at,
+      reservationId: r.reservationId,
+      kind: 'search_results',
+      provider: 'tavily',
+      providerHttpStatus: 200,
+      coverage: 'complete',
+      limitations: [],
+      results: [{ url: 'https://hosts.example.org/a' }],
+    }),
+  )
+}
+
+const resultOf = (draftSha256: string, citations: string[], extra: Record<string, unknown> = {}) => ({
+  draftSha256,
+  title: 'Sandboxes for PDF rendering',
+  summary: 'Which hosts render PDFs in a sandbox, with sources.',
+  resultSummary: 'Two hosts render in a sandbox; one does not say.',
+  limitations: ['One vendor page could not be read.'],
+  citations,
+  ...extra,
+})
+
+/** A turn end, as the runtime observes it, after the receipt of the command it ran under. */
+async function turnEnd(w: World, attemptId: string, seq: number, kind: string) {
+  await service((c) =>
+    recordRuntimeObservations(c, w.who, [
+      {
+        runtimeUnitId: w.rt.runtimeUnitId,
+        attemptId,
+        nativeSessionId: `sophia-${attemptId}`,
+        nativeSeq: seq,
+        type: 'turn/end',
+        durable: true,
+        data: { reason: { kind } },
+      },
+    ]),
+  )
+}
+
+describe('research submission (0026)', () => {
+  it('publishes the current draft as the first stable version of a new report, once', async () => {
+    const w = await world()
+    const { at, receipt } = await started(w)
+    const cited = await citable(w, at)
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: 'd1', expectedSha256: null, text: '# Report' }),
+    )
+    const submit = (callId: string) =>
+      service((c) => runtimeResearchSubmit(c, w.who, { ...at, callId, result: resultOf(d.sha256, [cited.sourceId]) }))
+    const done = await submit('submit_1')
+    assert.deepEqual(
+      [done.outcome, done.versionNumber, done.sha256, done.sourceId],
+      ['published', 1, d.sha256, d.sourceId],
+    )
+    assert.deepEqual(await submit('submit_1'), done, 'a replay returns the same version')
+    assert.equal(await codeOf(submit('submit_2')), 'invalid_state', 'another submit on an ended task')
+    assert.equal(await codeOf(service((c) => runtimeResearchContext(c, w.who, at))), 'invalid_state', 'the tools stop')
+    const row = await one<Record<string, unknown>>(
+      `SELECT a.format, a.summary, a.stable_version_id=v.id AS current, v.state, v.change_note, v.checks_passed,
+         v.validation_source_id IS NOT NULL AS validated, v.change_facts->>'cited' AS cited, v.trigger->>'kind' AS trigger,
+         j.state AS job, j.artifact_id=a.id AS linked, j.result_source_id IS NOT NULL AS summarized, g.status AS goal, wa.state AS attempt,
+         (SELECT count(*)::int FROM sophia.source_dependencies d WHERE d.project_id=v.project_id AND d.derived_source_id=v.source_id
+            AND d.source_id=$3) AS cites
+       FROM sophia.artifact_versions v JOIN sophia.artifacts a ON a.project_id=v.project_id AND a.id=v.artifact_id
+       JOIN sophia.jobs j ON j.project_id=v.project_id AND j.id=v.job_id
+       JOIN sophia.goals g ON g.project_id=v.project_id AND g.id=v.goal_id
+       JOIN sophia.work_attempts wa ON wa.project_id=j.project_id AND wa.id=j.attempt_id
+       WHERE v.project_id=$1 AND v.id=$2`,
+      [w.projectId, done.versionId, cited.sourceId],
+    )
+    assert.deepEqual(row, {
+      format: 'markdown',
+      summary: 'Which hosts render PDFs in a sandbox, with sources.',
+      current: true,
+      state: 'stable',
+      change_note: 'First version',
+      checks_passed: true,
+      validated: true,
+      cited: '1',
+      trigger: 'research',
+      job: 'succeeded',
+      linked: true,
+      summarized: true,
+      goal: 'completed',
+      attempt: 'accepted',
+      cites: 1,
+    })
+    assert.equal(done.taskId, receipt.taskId)
+  })
+
+  it('refuses a stale draft, no draft, a citation the task may not read, and a result with a blocker', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const cited = await citable(w, at)
+    const submit = (result: ReturnType<typeof resultOf>) =>
+      codeOf(service((c) => runtimeResearchSubmit(c, w.who, { ...at, callId: randomUUID(), result })))
+    assert.equal(await submit(resultOf('a'.repeat(64), [cited.sourceId])), 'not_found', 'no draft yet')
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: 'd1', expectedSha256: null, text: '# Report' }),
+    )
+    assert.equal(await submit(resultOf('b'.repeat(64), [cited.sourceId])), 'stale_revision')
+    assert.equal(await submit(resultOf(d.sha256, [randomUUID()])), 'not_found')
+    assert.equal(await submit(resultOf(d.sha256, [d.sourceId])), 'not_found', 'the report does not cite itself')
+    const other = await world()
+    const { at: theirs } = await started(other)
+    const foreign = await citable(other, theirs)
+    assert.equal(await submit(resultOf(d.sha256, [foreign.sourceId])), 'not_found', 'another project')
+    assert.equal(
+      await codeOf(
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, {
+            ...at,
+            callId: 'x',
+            result: resultOf(d.sha256, [cited.sourceId]),
+            blocker: { reason: 'r' },
+          }),
+        ),
+      ),
+      'invalid_request',
+    )
+  })
+
+  it('adds an amendment as the next version of the same report, which must say what changed', async () => {
+    const w = await world()
+    const first = await started(w)
+    const cited = await citable(w, first.at)
+    const d1 = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...first.at, callId: 'd1', expectedSha256: null, text: '# V1' }),
+    )
+    const v1 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...first.at, callId: 's1', result: resultOf(d1.sha256, [cited.sourceId]) }),
+    )
+    const amended = await started(w, { question: 'Add the costs.', amendsTaskId: first.receipt.taskId })
+    const more = await citable(w, amended.at, 'search_2')
+    const d2 = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text: '# V2' }),
+    )
+    assert.equal(
+      await codeOf(
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, {
+            ...amended.at,
+            callId: 's2',
+            result: resultOf(d2.sha256, [more.sourceId]),
+          }),
+        ),
+      ),
+      'invalid_request',
+      'what changed is required',
+    )
+    const v2 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, {
+        ...amended.at,
+        callId: 's3',
+        result: resultOf(d2.sha256, [cited.sourceId, more.sourceId], {
+          changeNote: 'Added the costs.',
+          retainedNote: 'The host list.',
+        }),
+      }),
+    )
+    assert.deepEqual([v2.artifactId, v2.versionNumber], [v1.artifactId, 2])
+    const versions = await owner(
+      async (c) =>
+        (
+          await c.query<{
+            n: number
+            state: string
+            parent: string | null
+            facts: { added: string[]; dropped: string[] }
+          }>(
+            `SELECT version_number AS n, state, parent_id AS parent, change_facts AS facts FROM sophia.artifact_versions
+           WHERE project_id=$1 AND artifact_id=$2 ORDER BY version_number`,
+            [w.projectId, v1.artifactId],
+          )
+        ).rows,
+    )
+    assert.deepEqual(
+      versions.map((v) => [v.n, v.state, v.parent]),
+      [
+        [1, 'superseded', null],
+        [2, 'stable', v1.versionId],
+      ],
+    )
+    assert.deepEqual(versions[1]?.facts.added, [more.sourceId])
+    assert.deepEqual(versions[1]?.facts.dropped, [])
+  })
+
+  it('records a blocker with the remaining work and keeps the draft; a replay returns it', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: 'd1', expectedSha256: null, text: '# Partial' }),
+    )
+    const block = {
+      reason: 'Every source is behind a login.',
+      remainingWork: 'Find an open mirror of the vendor docs.',
+    }
+    const out = await service((c) => runtimeResearchSubmit(c, w.who, { ...at, callId: 'b1', blocker: block }))
+    assert.equal(out.outcome, 'blocked')
+    assert.deepEqual(
+      await service((c) => runtimeResearchSubmit(c, w.who, { ...at, callId: 'b1', blocker: block })),
+      out,
+    )
+    const job = await one<{ state: string; reason: string; body: string; drafts: number }>(
+      `SELECT j.state, j.reason, t.body, (SELECT count(*)::int FROM sophia.research_drafts d WHERE d.project_id=j.project_id AND d.attempt_id=j.attempt_id) AS drafts
+       FROM sophia.jobs j JOIN sophia.source_texts t ON t.project_id=j.project_id AND t.source_id=j.result_source_id WHERE j.project_id=$1 AND j.id=$2`,
+      [w.projectId, out.taskId],
+    )
+    assert.deepEqual([job.state, job.reason, job.drafts], ['failed', 'blocked: Every source is behind a login.', 1])
+    assert.match(job.body, /Remaining work:\nFind an open mirror/)
+  })
+})
+
+describe('research turn-end rules (0026)', () => {
+  it('nudges a completed turn without a submit once, then fails the task with no_result_submitted', async () => {
+    const w = await world()
+    const { at, receipt } = await started(w)
+    await turnEnd(w, at.attemptId, 5, 'completed')
+    await turnEnd(w, at.attemptId, 5, 'completed')
+    const nudges = await one<{ n: number }>(
+      `SELECT count(*)::int AS n FROM sophia.commands WHERE project_id=$1 AND kind='input' AND idempotency_key=$2`,
+      [w.projectId, `research-nudge:${at.attemptId}`],
+    )
+    assert.equal(nudges.n, 1, 'once, also when the turn is judged again')
+    assert.deepEqual(
+      (await dispatchAll(w.projectId)).map((o) => o.result),
+      ['enqueued'],
+    )
+    const input = (await service((c) => runtimePoll(c, w.who, 1))).commands
+      .map((q) => q.command as RuntimeCommand)
+      .at(-1)
+    assert.ok(input)
+    assert.equal(input.kind, 'input')
+    assert.match(input.payload.text ?? '', /research_submit_result/)
+    await service((c) => recordRuntimeReceipts(c, w.who, [{ ...delivered(input), nativeSequence: 6 }]))
+    const pending = await one<{ state: string }>(`SELECT state FROM sophia.jobs WHERE project_id=$1 AND id=$2`, [
+      w.projectId,
+      receipt.taskId,
+    ])
+    assert.notEqual(pending.state, 'failed', 'the nudged turn has not ended yet')
+    await turnEnd(w, at.attemptId, 9, 'completed')
+    const failed = await one<{ state: string; reason: string }>(
+      `SELECT state, reason FROM sophia.jobs WHERE project_id=$1 AND id=$2`,
+      [w.projectId, receipt.taskId],
+    )
+    assert.deepEqual([failed.state, failed.reason], ['failed', 'no_result_submitted: the draft is kept'])
+  })
+
+  it('fails an errored turn and keeps its unsettled calls committed as uncertain', async () => {
+    const w = await world()
+    const { at, receipt } = await started(w)
+    await service((c) =>
+      runtimeResearchReserve(c, w.who, {
+        ...at,
+        callId: 'llm_1',
+        kind: 'model',
+        provider: 'openai-research',
+        amountUsd: 0.4,
+      }),
+    )
+    await turnEnd(w, at.attemptId, 4, 'error')
+    const row = await one<{ state: string; reserved: number; uncertain: number; r: string }>(
+      `SELECT j.state, a.reserved_usd::float AS reserved, a.uncertain_usd::float AS uncertain,
+         (SELECT state FROM sophia.research_reservations r WHERE r.project_id=a.project_id AND r.allowance_id=a.id) AS r
+       FROM sophia.jobs j JOIN sophia.research_tasks t ON t.project_id=j.project_id AND t.job_id=j.id
+       JOIN sophia.research_allowances a ON a.project_id=t.project_id AND a.id=t.allowance_id WHERE j.project_id=$1 AND j.id=$2`,
+      [w.projectId, receipt.taskId],
+    )
+    assert.deepEqual(row, { state: 'failed', reserved: 0, uncertain: 0.4, r: 'uncertain' })
+  })
+
+  it('leaves a submitted task alone, and a turn from before a Hold changes nothing', async () => {
+    const w = await world()
+    const { at, receipt } = await started(w)
+    await withActor(pool, E, 'write', (c) =>
+      admitGoalCommand(c, w.projectId, randomUUID(), {
+        kind: 'hold',
+        goalId: receipt.goalId,
+        expectedGoalRevision: 1,
+        expectedAuthorityEpoch: 1,
+        bodySourceId: null,
+      }),
+    )
+    await turnEnd(w, at.attemptId, 5, 'completed')
+    const held = await one<{ state: string; nudge: string | null }>(
+      `SELECT j.state, t.nudge_command_id AS nudge FROM sophia.jobs j JOIN sophia.research_tasks t ON t.project_id=j.project_id AND t.job_id=j.id
+       WHERE j.project_id=$1 AND j.id=$2`,
+      [w.projectId, receipt.taskId],
+    )
+    assert.deepEqual(held, { state: 'running', nudge: null }, 'no nudge while held')
   })
 })

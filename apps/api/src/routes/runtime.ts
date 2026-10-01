@@ -10,6 +10,7 @@ import type {
   ResearchDraftRequest,
   ResearchReserveRequest,
   ResearchSettleRequest,
+  ResearchSubmitRequest,
   RuntimeHello,
   RuntimeObservationBatch,
   RuntimeReady,
@@ -27,6 +28,7 @@ import {
   runtimeResearchDraft,
   runtimeResearchReserve,
   runtimeResearchSettle,
+  runtimeResearchSubmit,
   withService,
   type RuntimeCaller,
 } from '@sophia/persistence'
@@ -44,6 +46,7 @@ export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
   '/v1/runtime/research/settle',
   '/v1/runtime/research/capture',
   '/v1/runtime/research/draft',
+  '/v1/runtime/research/submit',
 ])
 
 /** The transport headers every runtime call carries (A04). */
@@ -196,5 +199,10 @@ export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
     '/v1/runtime/research/draft',
     research('ResearchDraftRequest', 'ResearchDraft'),
     async (req) => withService(pool, (c) => runtimeResearchDraft(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: ResearchSubmitRequest }>(
+    '/v1/runtime/research/submit',
+    research('ResearchSubmitRequest', 'ResearchSubmission'),
+    async (req) => withService(pool, (c) => runtimeResearchSubmit(c, callerOf(req), req.body)),
   )
 }

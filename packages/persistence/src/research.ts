@@ -15,6 +15,8 @@ import type {
   ResearchReserveRequest,
   ResearchSettleRequest,
   ResearchSettlement,
+  ResearchSubmission,
+  ResearchSubmitRequest,
 } from '@sophia/contracts'
 import { onlyRow } from './rows.ts'
 import type { RuntimeCaller } from './runtime.ts'
@@ -92,3 +94,7 @@ export const runtimeResearchCapture = (c: pg.PoolClient, who: RuntimeCaller, req
 
 export const runtimeResearchDraft = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchDraftRequest) =>
   operation<ResearchDraft>(c, 'runtime_research_draft', who, request)
+
+/** End the task: publish its current draft as the report's next version, or record a blocker (0026). */
+export const runtimeResearchSubmit = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchSubmitRequest) =>
+  operation<ResearchSubmission>(c, 'runtime_research_submit', who, request)

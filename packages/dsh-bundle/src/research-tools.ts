@@ -37,7 +37,7 @@ export interface ResearchSession {
 /** The service operations the tools use (the bridge's transport). */
 export type ResearchClient = Pick<
   ServiceTransport,
-  'researchContext' | 'researchReserve' | 'researchSettle' | 'researchCapture' | 'researchDraft'
+  'researchContext' | 'researchReserve' | 'researchSettle' | 'researchCapture' | 'researchDraft' | 'researchSubmit'
 >
 
 export interface ResearchSources {
@@ -93,6 +93,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   not_found: 'That source or ref is not one this research may read.',
   stale_revision: 'The draft changed since you last read it; read the context again for its current hash.',
   forbidden: 'This research may not do that.',
+  invalid_request: 'The service refused the request as given: check each field (an amended report needs changeNote).',
 }
 
 /** A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. */
@@ -428,8 +429,95 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
     },
   })
 
-  return [readContext, search, readSource, writeDraft]
+  const submit = defineTool({
+    name: 'research_submit_result',
+    description:
+      'Publish your current draft as the report: pass its draftSha256 (from research_read_context), a title, a one-line ' +
+      'summary (at most 240 characters, the report\'s description), a resultSummary of what it resolves, its ' +
+      'limitations, and the sourceIds it cites (each one you read or were given). An amendment also passes changeNote ' +
+      '(what changed) and may pass retainedNote (what was kept). This ends the task; only this call publishes.',
+    parameters: {
+      draftSha256: { type: 'string', required: true },
+      title: { type: 'string', required: true },
+      summary: { type: 'string', required: true },
+      resultSummary: { type: 'string', required: true },
+      limitations: { type: 'array', items: { type: 'string' } },
+      citations: { type: 'array', required: true, items: { type: 'string' } },
+      changeNote: { type: 'string' },
+      retainedNote: { type: 'string' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => json(value),
+    },
+    async execute(args, exec): Promise<Json> {
+      const session = sessionOf(exec)
+      try {
+        const done = await deps.client.researchSubmit({
+          ...ids(session),
+          callId: callKeyOf(exec.callId),
+          result: {
+            draftSha256: args.draftSha256,
+            title: args.title,
+            summary: args.summary,
+            resultSummary: args.resultSummary,
+            limitations: args.limitations ?? [],
+            citations: args.citations,
+            ...(args.changeNote ? { changeNote: args.changeNote } : {}),
+            ...(args.retainedNote ? { retainedNote: args.retainedNote } : {}),
+          },
+        })
+        caches.delete(session.attemptId)
+        return asJson({ ...done, note: 'Published. The task has ended; Sophia tells the team.' })
+      } catch (error) {
+        if (error instanceof TransportError) return serviceProblem(error)
+        if (error instanceof Error && /does not match the runtime contract/.test(error.message)) {
+          return { code: 'invalid_request', message: MESSAGES.invalid_request ?? 'Check each field.' }
+        }
+        throw error
+      }
+    },
+  })
+
+  const blocker = defineTool({
+    name: 'research_report_blocker',
+    description:
+      'End the task without a report when it cannot be finished: the reason (at most 500 characters) and the remaining ' +
+      'work. Your draft is kept for a later task. This ends the task.',
+    parameters: {
+      reason: { type: 'string', required: true },
+      remainingWork: { type: 'string' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => json(value),
+    },
+    async execute(args, exec): Promise<Json> {
+      const session = sessionOf(exec)
+      try {
+        const done = await deps.client.researchSubmit({
+          ...ids(session),
+          callId: callKeyOf(exec.callId),
+          blocker: { reason: args.reason, ...(args.remainingWork ? { remainingWork: args.remainingWork } : {}) },
+        })
+        caches.delete(session.attemptId)
+        return asJson({ ...done, note: 'Recorded. The task has ended.' })
+      } catch (error) {
+        if (error instanceof TransportError) return serviceProblem(error)
+        throw error
+      }
+    },
+  })
+
+  return [readContext, search, readSource, writeDraft, submit, blocker]
 }
 
 /** The names `researchTools` defines, in order. */
-export const RESEARCH_TOOL_NAMES = ['research_read_context', 'research_search', 'research_read_source', 'research_write_draft'] as const
+export const RESEARCH_TOOL_NAMES = [
+  'research_read_context',
+  'research_search',
+  'research_read_source',
+  'research_write_draft',
+  'research_submit_result',
+  'research_report_blocker',
+] as const

@@ -145,7 +145,7 @@ export const EVENT_TYPES = [
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence']),
   'project.member_joined',
   'contribution.recorded',
-  ...suffixed('native_task.', ['admitted', 'waiting', 'running', 'result_ready', 'failed', 'denied']),
+  ...suffixed('native_task.', ['admitted', 'waiting', 'running', 'result_ready', 'failed', 'denied', 'nudged']),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready']),
   ...suffixed('goal.', ['held', 'stopped']),
 ]
@@ -163,7 +163,19 @@ const EXCHANGE_CHANGES = [
   'empty',
 ]
 const LOBBY_CHANGES = ['knock', 'admit', 'deny', 'block', 'unblock']
-const TASK_SUMMARIES = ['draft_brief', 'research', 'waiting', 'running', 'result_ready', 'denied', 'rejected', 'failed']
+const TASK_SUMMARIES = [
+  'draft_brief',
+  'research',
+  'waiting',
+  'running',
+  'result_ready',
+  'denied',
+  'rejected',
+  'failed',
+  // A research turn that ended without a submit (SMC-M03 0026): the one nudge, then the failure.
+  'no_result_yet',
+  'no_result_submitted',
+]
 const TASK_ENDINGS = ['outcome_unknown', 'error', 'max-tokens', 'blocked']
 export const VOICE_STATES = ['connecting', 'ready', 'recovering', 'unavailable']
 

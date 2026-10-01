@@ -36,6 +36,9 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
     capture: (body) => ({ sourceId: uuid(2000 + ++researchSeq), sha256: 'a'.repeat(64), byteLength: 1, kind: body.kind, refs: [] }),
     draft: () => ({ sourceId: uuid(3000 + ++researchSeq), sha256: 'b'.repeat(64), seq: 1 }),
+    submit: (body) => body.result
+      ? { taskId: uuid(1), outcome: 'published', artifactId: uuid(4000), versionId: uuid(4001), versionNumber: 1, sourceId: uuid(4002), sha256: body.result.draftSha256, resultSourceId: uuid(4003) }
+      : { taskId: uuid(1), outcome: 'blocked', resultSourceId: uuid(4004) },
   }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
@@ -81,7 +84,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       notify()
       return reply(204)
     }
-    const op = req.method === 'POST' && /^\/v1\/runtime\/research\/(context|reserve|settle|capture|draft)$/.exec(url.pathname)?.[1]
+    const op = req.method === 'POST' && /^\/v1\/runtime\/research\/(context|reserve|settle|capture|draft|submit)$/.exec(url.pathname)?.[1]
     if (op) {
       research.push({ op, body: json })
       notify()
