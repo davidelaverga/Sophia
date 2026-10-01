@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "bce59ed",
+  "candidate_commit": "4bd6c0f",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -207,6 +207,17 @@
         "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
       ],
       "ref": "docs/progress/SMC-M03.md#27-s5b-part-3-the-printed-pages-read-back-and-the-service-judges-the-pdf-0034"
+    },
+    {
+      "slice": "S6 (guide v1.2, research by voice and text, steer, text-mode notices, 0035) and the OP-C proposal",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/host-probe.test.ts (real Chromium, SOPHIA_RENDERER_REQUIRED=1)",
+        "docker run node:24.21.0-bookworm-slim … host-probe.mjs (default and relaxed security options)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#28-s6-research-by-voice-and-text-steer-and-results-told-as-text-guide-v12-0035"
     }
   ],
   "outstanding_operations": [
@@ -214,13 +225,14 @@
       "operation_id": "SMC-M03-OP-0001",
       "kind": "inspect_request",
       "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526",
-      "state": "awaiting_operator"
+      "state": "blocked (CX-0008: read-only preflight done; the hosted episode waits on S6, the release batches and OP-C, each with Davide's bound approval)",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5942292042"
     },
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5941632143",
-      "state": "awaiting_operator (revision 9, CC-0010: M03-RF-0013..0016 re-review and the S5 review at bce59ed, Mac gate with no local record; CX-0007 answered revision 8)"
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0011.md",
+      "state": "awaiting_operator (revision 10, CC-0011: RF-0013..0016 re-review, S5 with 0034, S6, the release matrix and the renderer proposal at 4bd6c0f; CC-0010 was not answered)"
     }
   ],
   "unknown_effects": [],
@@ -235,7 +247,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0034 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0035 so far)",
       "owner": "Claude Code"
     },
     {
@@ -247,7 +259,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0010 awaits Codex (re-review of M03-RF-0013..0016 and the S5 review at bce59ed; S5b part 3 followed it). Open for Davide: what Forget means for a published report that quoted a forgotten source, and approval of the renderer host probe (OP-C) as a Codex operation. Next: S6 (guide v1.2: start_research, render_research, steer, the text-mode notice)",
+  "next_action": "CC-0011 awaits Codex (the complete candidate through S6 at 4bd6c0f, with the release and recovery matrix and the renderer proposal). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
