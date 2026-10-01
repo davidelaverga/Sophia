@@ -12,7 +12,8 @@ export interface ConversationActions {
   start: (text: string) => void
   decide: (suggestion: PersonalSuggestion, decision: 'keep' | 'dismiss') => void
   openNotes: () => void
-  keepNote: (text: string, turnId: string, suggestion: PersonalSuggestion | null) => void
+  /** Resolves to whether it was kept. */
+  keepNote: (text: string, turnId: string, suggestion: PersonalSuggestion | null) => Promise<boolean>
   retry: (turnId: string) => void
 }
 
@@ -21,11 +22,13 @@ const dayId = (key: string) => `c-${key}`
 function NoteForm(props: {
   turn: PersonalTurn
   suggestion: PersonalSuggestion | null
+  /** Words a refused keep had: the form opens with them instead of the prefill. */
+  words: string | null
   onKeep: (text: string) => void
   onClose: () => void
 }) {
-  const { turn, suggestion, onKeep, onClose } = props
-  const [text, setText] = useState(() => notePrefill(turn.text, suggestion))
+  const { turn, suggestion, words, onKeep, onClose } = props
+  const [text, setText] = useState(() => words ?? notePrefill(turn.text, suggestion))
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     input.current?.focus({ preventScroll: true })
@@ -234,13 +237,24 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
 
 function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<Row, { kind: 'turn' }> }) {
   const { row, turns, noteAt, setNoteAt, actions } = props
+  const [refused, setRefused] = useState<string | null>(null)
   const turn = row.turn
   if (!turn) return <Turn row={row} noting={false} onNote={() => undefined} />
   const noting = noteAt === turn.id
   // The form goes with its Keep, Cancel or Esc: the focus goes back to the turn's Note this, which comes back with it.
   const close = () => {
+    setRefused(null)
     setNoteAt(null)
     focusSoon(`[data-note-turn="${turn.id}"]`)
+  }
+  // A keep refused (notes full, a lost connection): the form opens again with its words.
+  const keep = (text: string) => {
+    close()
+    void actions.keepNote(text, turn.id, suggestionFor(turns, turn.id)).then((kept) => {
+      if (kept) return
+      setRefused(text)
+      setNoteAt(turn.id)
+    })
   }
   return (
     <>
@@ -249,11 +263,9 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
         <NoteForm
           turn={turn}
           suggestion={suggestionFor(turns, turn.id)}
+          words={refused}
           onClose={close}
-          onKeep={(text) => {
-            close()
-            actions.keepNote(text, turn.id, suggestionFor(turns, turn.id))
-          }}
+          onKeep={keep}
         />
       )}
     </>

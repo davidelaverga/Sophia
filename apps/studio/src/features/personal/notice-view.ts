@@ -3,7 +3,7 @@
 // there instead. Pure, so the words are tested.
 
 export const NOTICE = {
-  locked: 'Your personal space is locked. Opening it asks for your passkey.',
+  locked: 'Your personal space is locked. Opening it asks you to confirm it’s you.',
   kept: 'Kept',
   carried: (project: string) => `Carried to ${project}`,
   takenBack: 'Back in your notes',

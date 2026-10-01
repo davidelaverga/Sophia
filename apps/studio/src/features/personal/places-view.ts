@@ -68,22 +68,22 @@ export const PRIVACY_RULES = [
   },
   {
     lead: 'The padlock locks your personal space.',
-    rest: 'Opening it again asks for your passkey. It also locks by itself when you join a room, and stays locked until you open it.',
+    rest: 'Opening it again asks you to confirm it’s you. It also locks by itself when you join a room, and stays locked until you open it.',
   },
 ] as const
 
 /** The padlock on the line between the doors: what pressing it does, and its key. Only the person opens it. */
 export const LOCK_TIP = {
   open: { label: 'Lock your personal space', keys: 'L' },
-  you: { label: 'Unlock with your passkey', keys: 'L' },
-  room: { label: 'Locked when you joined a room. Unlock with your passkey', keys: 'L' },
+  you: { label: 'Unlock: confirm it’s you', keys: 'L' },
+  room: { label: 'Locked when you joined a room. Unlock: confirm it’s you', keys: 'L' },
 } as const
 
 /** The edge from Work to Personal: where it goes, or why it is shut. */
 export const EDGE_TIP = {
   open: 'Cross to Personal',
-  you: 'Your personal space is locked. Opening it asks for your passkey.',
-  room: 'Your personal space locked when you joined a room. Opening it asks for your passkey.',
+  you: 'Your personal space is locked. Opening it asks you to confirm it’s you.',
+  room: 'Your personal space locked when you joined a room. Opening it asks you to confirm it’s you.',
 } as const
 
 /** Confirming it's the same person before the personal space opens again. */

@@ -24,7 +24,7 @@ export function CodeField({ id, action, busy, focus = false, onCheck }: Props) {
       className="field"
       onSubmit={(e) => {
         e.preventDefault()
-        onCheck(code)
+        if (!busy) onCheck(code)
       }}
     >
       <label htmlFor={id} className="sr-only">
@@ -42,7 +42,13 @@ export function CodeField({ id, action, busy, focus = false, onCheck }: Props) {
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
       />
-      <button type="submit" className="pill primary" disabled={busy || code.length < 6}>
+      <button
+        type="submit"
+        className="pill primary"
+        // Checking keeps the focus on the button (aria-disabled); a code too short isn't a press yet (disabled).
+        disabled={!busy && code.length < 6}
+        aria-disabled={busy || undefined}
+      >
         {busy ? 'Checking…' : action}
       </button>
     </form>

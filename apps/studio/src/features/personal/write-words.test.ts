@@ -42,3 +42,17 @@ describe('a message that didn’t go', () => {
     assert.equal(unsent(new Error('x')), 'unsent')
   })
 })
+
+describe('a space that is full', () => {
+  it('says which limit, and what makes room', () => {
+    assert.equal(
+      personalFailure(refused('notes_full')),
+      'Your notes are full: 2000 is the most a space keeps. Forget one to keep another.',
+    )
+    assert.equal(
+      personalFailure(refused('carried_full')),
+      'You’ve carried 2000 notes, the most one person can. Take one back to carry another.',
+    )
+    assert.equal(movedOn(refused('notes_full')), false)
+  })
+})

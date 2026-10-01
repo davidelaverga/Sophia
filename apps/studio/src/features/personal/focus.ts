@@ -18,6 +18,17 @@ export function placeLanding(): HTMLElement | null {
   return [...landings].find((el) => onScreen(el)) ?? null
 }
 
+/**
+ * The places' bar's Personal switch: it stays in the bar wherever the person is, so a focus whose control went with
+ * the personal space (a lock from L, the chip or another tab) waits there until the arrival moves it to the door.
+ */
+export function focusPersonalSwitch(): void {
+  document.querySelector<HTMLElement>('.places-switch [data-place="personal"]')?.focus({ preventScroll: true })
+}
+
+/** The places' bar's account button: where a sheet opened from a project's account menu gives the focus back. */
+export const placesAccount = (): HTMLElement | null => document.querySelector<HTMLElement>('.places-bar .account-btn')
+
 /** Back to the Notes toggle once the notes close; to the heading when the toggle went with them (no notes left). */
 export function focusNotesToggle(): void {
   requestAnimationFrame(() => {

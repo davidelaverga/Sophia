@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { forgetDrafts } from '../features/personal/draft.ts'
 import { callEnded, NOTICE } from '../features/personal/notice-view.ts'
@@ -24,6 +24,9 @@ const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) =
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
+  // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
+  const signedInAs = state.status === 'signed_in' ? state.identity.name : null
+  useEffect(() => () => queryClient.clear(), [signedInAs])
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -154,6 +157,46 @@ function useJoinRequest(onScreen: string | null) {
   return { joining: stands, ask: setJoining, handled: () => setJoining(null) }
 }
 
+/**
+ * One call, and the project or place on screen with it: opening another project leaves the call (the toast says
+ * so). A project's bar has no room for another room's call, and nothing may keep sending out of sight.
+ */
+function useOneCallInSight(call: ProjectCall | null, project: string | null) {
+  useEffect(() => {
+    if (call && project && project !== call.projectId) void call.leave()
+  }, [call, project])
+}
+
+/** Nothing personal stays in memory while the padlock is shut, wherever the person is (Places may not be mounted). */
+function useForgetWhileLocked(locked: boolean, identity: string) {
+  const client = useQueryClient()
+  useEffect(() => {
+    if (locked) client.removeQueries({ queryKey: ['personal', identity] })
+  }, [locked, identity, client])
+}
+
+/**
+ * Back from the provider the padlock sent the person to: a check that passed opens the space, unless a call began
+ * meanwhile (it shut the padlock after the check left), and goes there only if no project is on screen.
+ */
+function useProviderReturn(input: {
+  call: ProjectCall | null
+  project: string | null
+  setLock: (lock: typeof OPEN) => void
+  goTo: (place: 'personal') => void
+  say: ShowToast
+}) {
+  const { call, project, setLock, goTo, say } = input
+  useUnlockOnReturn({
+    passed: () => {
+      if (call) return
+      setLock(OPEN)
+      if (!project) goTo('personal')
+    },
+    unchecked: () => say(NOTICE.unchecked),
+  })
+}
+
 /** From a project, your data and how privacy works open at home, where the personal space's sheets are. */
 function useSheetsAtHome(leave: () => void) {
   const [opening, setOpening] = useState<Opening | null>(null)
@@ -218,14 +261,10 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const [call, reportCall] = useCall(ended)
   const join = useJoinRequest(route.projectId)
   const [lock, setLock] = useLock(identity.name, call?.projectId ?? null)
-  useUnlockOnReturn({
-    passed: () => {
-      setLock(OPEN)
-      goTo('personal')
-    },
-    unchecked: () => toast.show(NOTICE.unchecked),
-  })
   const project = route.projectId
+  useProviderReturn({ call, project, setLock, goTo, say: toast.show })
+  useOneCallInSight(call, project)
+  useForgetWhileLocked(lock.locked, identity.name)
   useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
   const actions = { data: sheets.data, privacy: sheets.privacy, chooseDev: onChooseDev, signOut: onSignOut }

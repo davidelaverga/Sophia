@@ -84,8 +84,10 @@ export function PasskeySheet({ onClose }: { onClose: () => void }) {
       <button
         type="button"
         className="pill primary"
-        disabled={busy || load.status === 'loading'}
-        onClick={() => void run(addPasskey, 'Couldn’t save a passkey.')}
+        // Waiting for the device keeps the focus on the button (aria-disabled); before the list loads it isn't a press.
+        disabled={!busy && load.status === 'loading'}
+        aria-disabled={busy || undefined}
+        onClick={busy ? undefined : () => void run(addPasskey, 'Couldn’t save a passkey.')}
       >
         {busy ? 'Waiting for your device…' : 'Add a passkey'}
       </button>

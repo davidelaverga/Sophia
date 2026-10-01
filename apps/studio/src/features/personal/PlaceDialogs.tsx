@@ -15,7 +15,7 @@ import {
 } from '../../app/reauth.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { Checked } from '../../app/unlock-check.ts'
-import { placeLanding } from './focus.ts'
+import { placeLanding, placesAccount } from './focus.ts'
 import { codeButton, otherWaysNote, otherWaysShown, PRIVACY_RULES, UNLOCK, type OtherWaysShown } from './places-view.ts'
 
 /** Dev identities have nothing to check: a short pause, so the press still answers. */
@@ -26,7 +26,7 @@ const WAYS_MS = 20_000
 
 export function PrivacySheet({ onClose }: { onClose: () => void }) {
   return (
-    <Sheet id="c-privacy-h" title="How privacy works" onClose={onClose}>
+    <Sheet id="c-privacy-h" title="How privacy works" onClose={onClose} returnTo={placesAccount}>
       <ul className="privacy-rules">
         {PRIVACY_RULES.map((rule) => (
           <li key={rule.lead}>

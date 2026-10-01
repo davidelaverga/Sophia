@@ -4,17 +4,16 @@
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { initialOf } from '../../app/profile.ts'
 import type { Place } from '../../app/route.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen, useShortcuts } from '../../app/shortcuts.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
-import { focusConversation, focusNotesToggle } from './focus.ts'
+import { focusConversation, focusNotesToggle, focusPersonalSwitch, placesAccount } from './focus.ts'
 import { HomeDoors } from './HomeDoors.tsx'
 import { OPEN, lockedBy, shut, type Lock } from './lock.ts'
 import { NOTICE } from './notice-view.ts'
@@ -188,7 +187,10 @@ function usePlaceNavigation(props: PlacesProps, layers: Layers) {
   )
   const lockNow = () => {
     setLock(shut(lock, 'you'))
-    if (place === 'personal') onGo('home', true)
+    if (place === 'personal') {
+      onGo('home', true)
+      focusPersonalSwitch()
+    }
     toast(NOTICE.locked)
   }
   return {
@@ -240,7 +242,7 @@ function useHomeKeys(place: Place, active: boolean, identity: string, nav: Nav) 
   useEffect(() => {
     if (place !== 'home' || !active) return undefined
     const onKey = (e: KeyboardEvent) => {
-      const key = homeKey(e)
+      const key = modalOnScreen() ? null : homeKey(e) // a sheet on screen owns the keys
       if (key === 'enter') nav.enter(readFlag(identity, 'last') === 'work' ? 'work' : 'personal')
       if (key !== 'personal' && key !== 'work') return
       e.preventDefault()
@@ -448,6 +450,7 @@ function Sheets({ v }: { v: View }) {
           locked={props.lock.locked}
           toast={props.toast}
           onClose={() => layers.setData(false)}
+          returnTo={placesAccount}
           onUnlock={() => {
             layers.setData(false)
             layers.setUnlock({ after: () => layers.setData(true) })
@@ -461,20 +464,19 @@ function Sheets({ v }: { v: View }) {
 
 /**
  * What a shut space does, whoever shut it (the person's L, a call, another tab). It is never on screen: arriving at it
- * (a reload, Back, a room joined) lands at home instead, in its history entry's place, so Back goes on past it. Its
- * notes close, and what was read of it is dropped: nothing personal stays in memory while it is shut, and the first read
- * after unlocking is a load, so a screen reader is not read what was already there (useHeard).
+ * (a reload, Back, a room joined) lands at home instead, in its history entry's place, so Back goes on past it, and the
+ * focus waits on the bar's Personal switch, never on the page. Its notes close. (What was read of it is dropped above
+ * the places, wherever the person is: SignedIn.)
  */
-function useShutSpace({ place, lock, identity, onGo }: PlacesProps, setNotes: (open: boolean) => void) {
-  const client = useQueryClient()
+function useShutSpace({ place, lock, onGo }: PlacesProps, setNotes: (open: boolean) => void) {
   useEffect(() => {
-    if (place === 'personal' && lock.locked) onGo('home', true)
+    if (place !== 'personal' || !lock.locked) return
+    onGo('home', true)
+    focusPersonalSwitch()
   }, [place, lock.locked, onGo])
   useEffect(() => {
-    if (!lock.locked) return
-    setNotes(false)
-    client.removeQueries({ queryKey: ['personal', identity.name] })
-  }, [lock.locked, identity.name, setNotes, client])
+    if (lock.locked) setNotes(false)
+  }, [lock.locked, setNotes])
 }
 
 /**

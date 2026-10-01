@@ -67,7 +67,9 @@ export function AccountMenu({ identity, where, actions }: Props) {
   const [open, setOpen] = useState(false)
   const [passkeys, setPasskeys] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
+  // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
   const pick = (run: () => void) => () => {
+    menu.opener.current?.focus()
     setOpen(false)
     run()
   }

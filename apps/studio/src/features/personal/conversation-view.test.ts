@@ -8,6 +8,7 @@ import {
   heard,
   introText,
   notePrefill,
+  opensWithIntro,
   topicOf,
   type ConversationInput,
 } from './conversation-view.ts'
@@ -184,5 +185,13 @@ describe('what a screen reader hears', () => {
     assert.equal(heard([before, asked, later], [before, failed, later], true, true), 'Sophia couldn’t answer this one.')
     assert.equal(heard([before, failed], [before, asked], true, false), 'Sophia is writing…')
     assert.equal(heard([before, asked], [before, failed], false, true), 'Sophia couldn’t answer this one.')
+  })
+})
+
+describe('a conversation that starts again', () => {
+  it('opens with the introduction after an erasure too, whatever number its first turn has', () => {
+    const first = turn('person', 'Starting again', at(0, 20), { seq: 7 })
+    assert.equal(opensWithIntro([first], false, NOW), true)
+    assert.equal(opensWithIntro([first], true, NOW), false, 'not when earlier turns exist')
   })
 })

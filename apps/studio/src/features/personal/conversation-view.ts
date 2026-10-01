@@ -187,7 +187,7 @@ export function conversationRows({ turns, sending, welcoming, now, name, fromThe
 export function opensWithIntro(turns: readonly PersonalTurn[], earlier: boolean, now: Date): boolean {
   const first = turns[0]
   if (!first) return !earlier
-  return !earlier && first.seq === 1 && startOfDay(new Date(first.createdAt)) === startOfDay(now)
+  return !earlier && startOfDay(new Date(first.createdAt)) === startOfDay(now)
 }
 
 /** A welcome back is due: the last turn is more than an hour old and is not already one (the server decides too). */

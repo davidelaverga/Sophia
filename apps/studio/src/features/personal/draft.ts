@@ -38,3 +38,10 @@ export function forgetDrafts(store: Store = localStorage): void {
 /** Words that didn't go come back ahead of anything written meanwhile, so nothing typed is lost. */
 export const restoredDraft = (words: string, current: string): string =>
   current.trim() ? `${words}\n${current}` : words
+
+/**
+ * What the device keeps of the draft: what is typed, and while a message is on its way (`sending`) those words ahead
+ * of it, so closing the page then loses neither.
+ */
+export const draftToStore = (sending: string | null, typed: string): string =>
+  sending === null ? typed : restoredDraft(sending, typed)

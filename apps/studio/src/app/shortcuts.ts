@@ -85,6 +85,14 @@ export function onScreen(el: { getClientRects: () => ArrayLike<unknown>; checkVi
   return typeof el.checkVisibility === 'function' ? el.checkVisibility() : el.getClientRects().length > 0
 }
 
+/**
+ * A modal sheet is on screen: the page behind it takes no keys and no stray typing, wherever the focus is (it can fall
+ * to the page while a sheet is open). A sheet left open in a project kept out of sight is not on screen.
+ */
+export function modalOnScreen(): boolean {
+  return [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')].some((el) => onScreen(el))
+}
+
 type Field = Parameters<typeof onScreen>[0] & { closest: (selector: string) => unknown }
 
 /**
@@ -98,6 +106,7 @@ export function typingSink<T extends Field>(fields: Iterable<T>): T | null {
 
 /** Where stray typing goes: the chat's foot on screen (typingSink), when the key is stray (strayFrom). */
 function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
+  if (modalOnScreen()) return null
   const field = typingSink(document.querySelectorAll<HTMLElement>('[data-typing-sink]'))
   return field && strayFrom(focusAt(target, field), key) ? field : null
 }
@@ -114,7 +123,7 @@ function keyLike(e: KeyboardEvent): KeyLike {
     repeat: e.repeat,
     defaultPrevented: e.defaultPrevented,
     typing: !!el && (el.isContentEditable || FIELDS.has(el.tagName)),
-    inDialog: !!el?.closest('[role="dialog"]'),
+    inDialog: !!el?.closest('[role="dialog"]') || modalOnScreen(),
     stray: !!strayField(el, e.key),
   }
 }

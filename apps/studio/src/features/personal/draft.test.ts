@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { forgetDrafts, restoredDraft } from './draft.ts'
+import { draftToStore, forgetDrafts, restoredDraft } from './draft.ts'
 
 /** A store holding these keys, as a browser's localStorage lists them. */
 function store(keys: string[]) {
@@ -35,5 +35,13 @@ describe('words that didn’t go', () => {
     assert.equal(restoredDraft('First thought', ''), 'First thought')
     assert.equal(restoredDraft('First thought', '  '), 'First thought')
     assert.equal(restoredDraft('First thought', 'and a second'), 'First thought\nand a second')
+  })
+})
+
+describe('the draft while a message is on its way', () => {
+  it('keeps the words on their way ahead of anything typed meanwhile, so closing the page loses neither', () => {
+    assert.equal(draftToStore(null, 'Typing'), 'Typing')
+    assert.equal(draftToStore('On its way', ''), 'On its way')
+    assert.equal(draftToStore('On its way', 'More'), 'On its way\nMore')
   })
 })

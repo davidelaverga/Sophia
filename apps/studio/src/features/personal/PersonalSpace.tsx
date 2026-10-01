@@ -106,12 +106,19 @@ function useActions(
     decide: (suggestion: PersonalSuggestion, decision) => attempt(() => writes.decide(suggestion.id, decision)),
     openNotes: () => props.notes.set(true),
     retry: (turnId) => attempt(() => writes.retry(turnId)),
+    // Whether it was kept: a refused note's words go back into its form.
     keepNote: (text, turnId, suggestion) =>
-      attempt(async () => {
-        const kept = await writes.keep(text, turnId, suggestion?.id ?? null)
-        const noteId = kept.noteId
-        if (noteId) toast(NOTICE.kept, () => attempt(() => writes.forget(noteId)))
-      }),
+      writes.keep(text, turnId, suggestion?.id ?? null).then(
+        (kept) => {
+          const noteId = kept.noteId
+          if (noteId) toast(NOTICE.kept, () => attempt(() => writes.forget(noteId)))
+          return true
+        },
+        (err: unknown) => {
+          onFailed(err)
+          return false
+        },
+      ),
     carry: (note, project) =>
       attempt(async () => {
         const carried = await writes.carry(note.id, project.projectId)
@@ -190,14 +197,15 @@ function useRows(props: Props) {
   return { turns, rows }
 }
 
-function Head({ count, notes }: { count: number; notes: Props['notes'] }) {
+/** `count` is undefined until the space has loaded: the toggle shows no number before. */
+function Head({ count, notes }: { count: number | undefined; notes: Props['notes'] }) {
   return (
     <header className="c3-head">
       <h2 id="c-p-h" tabIndex={-1}>
         You and Sophia
       </h2>
       <div className="c3-head-acts">
-        {(count > 0 || notes.open) && (
+        {((count ?? 0) > 0 || notes.open) && (
           <button
             className="pill has-tip"
             type="button"
@@ -205,7 +213,7 @@ function Head({ count, notes }: { count: number; notes: Props['notes'] }) {
             aria-controls="c-notes"
             onClick={() => notes.set(!notes.open)}
           >
-            Notes <span className="c3-count">{count}</span>
+            Notes {count !== undefined && <span className="c3-count">{count}</span>}
             <Tip
               label="Your private notes. Carry one to a project only if you want to."
               keys="T"
@@ -231,6 +239,7 @@ function useHeard(space: Space | undefined, turns: readonly PersonalTurn[], writ
   useEffect(() => {
     if (!loaded) {
       last.current = { turns: null, writing: false }
+      setSaid({ text: '', count: 0 }) // nothing said stays in the page while the space is unloaded (a lock)
       return
     }
     const message = heard(last.current.turns, turns, writing, last.current.writing)
@@ -279,7 +288,7 @@ export function PersonalSpace(props: Props) {
     <PersonalComposer
       // An erasure forgets the draft too: the composer starts afresh.
       key={writes.erasures}
-      identity={identity}
+      {...{ identity, hidden: props.hidden }}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={setListening}
       onSend={sender(writes, onFailed)}
@@ -297,7 +306,7 @@ export function PersonalSpace(props: Props) {
       <p className="sr-only" role="status">
         {said}
       </p>
-      <Head count={space?.notes.length ?? 0} notes={notes} />
+      <Head count={space?.notes.length} notes={notes} />
       <div className="c3-body" ref={body}>
         <Conversation
           {...{ rows, turns, list, actions, composer, covered }}
@@ -307,7 +316,7 @@ export function PersonalSpace(props: Props) {
         />
         {notes.open && (
           <NotesPanel
-            notes={space?.notes ?? []}
+            notes={space?.notes}
             projects={projects}
             onClose={() => {
               notes.set(false)

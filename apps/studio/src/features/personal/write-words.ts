@@ -18,6 +18,10 @@ export function personalFailure(err: unknown): string {
   if (err.code === 'request_erased') return 'Your personal space was erased. This is how it is now.'
   if (movedOn(err)) return 'That changed a moment ago. This is how it is now.'
   switch (err.code) {
+    case 'notes_full':
+      return 'Your notes are full: 2000 is the most a space keeps. Forget one to keep another.'
+    case 'carried_full':
+      return 'You’ve carried 2000 notes, the most one person can. Take one back to carry another.'
     case 'outcome_unknown':
       return 'No answer came back. This is how it is now.'
     case 'unavailable':

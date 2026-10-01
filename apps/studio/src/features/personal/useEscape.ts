@@ -3,6 +3,7 @@
 // (useDialog), wherever the focus is; a menu or a popover closes itself first (usePopover); and a key someone already
 // handled (the composer lets go of its field first) is left alone.
 import { useEffect, useRef } from 'react'
+import { modalOnScreen } from '../../app/shortcuts.ts'
 
 interface Layer {
   close: () => void
@@ -12,7 +13,7 @@ const layers: Layer[] = []
 
 function onKey(e: KeyboardEvent): void {
   if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return
-  if (document.querySelector('[aria-modal="true"]')) return
+  if (modalOnScreen()) return
   if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return
   const top = layers.at(-1)
   if (!top) return

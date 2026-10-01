@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { providerCheckPassed, tokenSession, type ProviderCheck } from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
 import { authProject, listPasskeys, oauthProviders, passkeysOffered, supabase, type OAuthProvider } from './auth.ts'
+import { orLate } from './deadline.ts'
 import { checked, CHECK_WORDS, type CheckError, type Checked } from './unlock-check.ts'
 
 export interface UnlockWays {
@@ -142,7 +143,9 @@ async function signedInNow(): Promise<{ user: string | null; session: string | n
  */
 export async function unlockWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) return
-  const left = await signedInNow()
+  // Which sign-in leaves, within the checks' deadline; a failed or late read says so in the Studio's words.
+  const left = await orLate(signedInNow(), REQUEST_MS).catch(() => 'late' as const)
+  if (left === 'late') throw new Error(CHECK_WORDS.network)
   const pending: ProviderCheck = { user: left.user ?? '', session: left.session ?? '', at: Date.now() }
   try {
     sessionStorage.setItem(PENDING, JSON.stringify(pending))

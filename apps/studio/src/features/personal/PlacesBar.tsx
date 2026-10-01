@@ -2,6 +2,7 @@
 // account), so the two halves share one bar: the mark goes home; the switch shows the three places, all visible, with
 // Personal's padlock when it is shut; on the right, the room you're in (back to it, its switches, Leave), who can see
 // where you are (nothing at home, where the line with the lock says it), and your account.
+import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { Icon, Tip, useSlidingThumb } from '@sophia/ui'
 import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -113,9 +114,27 @@ function RoomPill({ call }: { call: InCall }) {
   )
 }
 
+/**
+ * The pill goes when the call ends, however it ends (Leave, another tab taking the call, a lost connection): a focus
+ * inside it goes to the bar's mark, which stays, never to the page (where the next letter would be a place's key).
+ */
+function useFocusAfterCall(pill: RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const el = pill.current
+    return () => {
+      if (!el?.contains(document.activeElement)) return
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>('.places-bar .mark')?.focus({ preventScroll: true }),
+      )
+    }
+  }, [pill])
+}
+
 function CallPill({ call }: { call: InCall }) {
+  const pill = useRef<HTMLDivElement>(null)
+  useFocusAfterCall(pill)
   return (
-    <div className="room-pill" role="group" aria-label="Your call">
+    <div ref={pill} className="room-pill" role="group" aria-label="Your call">
       <span className="live" aria-hidden />
       <button type="button" className="t has-tip" onClick={call.onReturn}>
         In {call.title}
@@ -147,6 +166,11 @@ interface ChipProps {
 /** Who can see where you are, as a button: a tap explains it on any screen, and in Personal offers to lock. */
 function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
   const pop = usePopover(chip.open, () => chip.set(false))
+  // How privacy works opens a sheet: the chip takes the focus first, so the sheet gives it back there.
+  const privacy = () => {
+    pop.opener.current?.focus()
+    onPrivacy()
+  }
   const who = place === 'work' ? WHO_SEES.work : WHO_SEES.personal
   return (
     <div ref={pop.wrap} className="chip-wrap" hidden={place === 'home'}>
@@ -172,7 +196,7 @@ function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
                 <Tip label={LOCK_TIP.open.label} side="bottom" />
               </button>
             )}
-            <button className="text-button" type="button" onClick={onPrivacy}>
+            <button className="text-button" type="button" onClick={privacy}>
               How privacy works
             </button>
           </div>

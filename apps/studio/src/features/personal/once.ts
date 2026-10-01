@@ -1,6 +1,6 @@
 // A personal write sent once, and once more under the SAME key when no answer came back (it may have committed), but
-// only while its first attempt is recent. Erasure keeps a write's key ten minutes (0021): a retry from a device that
-// slept for longer could find it gone and write again into a space the person erased.
+// only while its first attempt is recent: a write the person saw fail minutes ago must not land later. (A retry from
+// before an erasure writes nothing however late: erasure keeps every key, 0021.)
 import { ApiError } from '../../api/client.ts'
 import type { PersonalReceipt } from '@sophia/contracts'
 

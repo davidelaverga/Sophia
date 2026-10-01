@@ -2,8 +2,12 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contracts'
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
+import { NOTICE } from './notice-view.ts'
 import {
   codeButton,
+  EDGE_TIP,
+  LOCK_TIP,
+  PRIVACY_RULES,
   firstName,
   greeting,
   otherWaysNote,
@@ -238,5 +242,19 @@ describe('unlocking', () => {
     assert.equal(otherWaysNote({ providers: [], code: false }, true), UNLOCK.noOther)
     assert.equal(otherWaysNote({ providers: [], code: false }, false), UNLOCK.noOther)
     assert.equal(otherWaysNote({ providers: [], code: true }, true), null)
+  })
+})
+
+describe('the padlock’s words', () => {
+  it('promise only that opening it asks who you are, never a passkey that may not be offered', () => {
+    const words = [
+      LOCK_TIP.you.label,
+      LOCK_TIP.room.label,
+      EDGE_TIP.you,
+      EDGE_TIP.room,
+      NOTICE.locked,
+      ...PRIVACY_RULES.map((rule) => rule.rest),
+    ]
+    for (const said of words) assert.doesNotMatch(said, /passkey/i, said)
   })
 })

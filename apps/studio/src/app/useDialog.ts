@@ -2,7 +2,8 @@
 // that is gone or was the page itself, where `returnTo` says), Tab stays inside, Escape closes. The latest onClose is
 // always used, so a parent that re-renders (a voice in the call, a knock at the door) never pulls focus out of a field
 // someone is typing in.
-import { useEffect, useRef, type RefObject } from 'react'
+import { useContext, useEffect, useRef, type RefObject } from 'react'
+import { ShortcutScope } from './shortcuts.ts'
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -30,6 +31,8 @@ export function useDialog(
 ): void {
   const close = useRef(onClose)
   const back = useRef(returnTo)
+  // Its keys only while its part of the page takes keys: a sheet left open in a project kept out of sight takes none.
+  const scoped = useContext(ShortcutScope)
   useEffect(() => {
     close.current = onClose
     back.current = returnTo
@@ -37,15 +40,18 @@ export function useDialog(
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     panel.current?.focus()
+    return () => {
+      const nowhere = !opener?.isConnected || opener === document.body
+      ;((nowhere ? back.current?.() : null) ?? opener)?.focus()
+    }
+  }, [panel])
+  useEffect(() => {
+    if (!scoped) return undefined
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close.current()
       else if (e.key === 'Tab' && panel.current) keepFocusInside(e, panel.current)
     }
     window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      const nowhere = !opener?.isConnected || opener === document.body
-      ;((nowhere ? back.current?.() : null) ?? opener)?.focus()
-    }
-  }, [panel])
+    return () => window.removeEventListener('keydown', onKey)
+  }, [panel, scoped])
 }

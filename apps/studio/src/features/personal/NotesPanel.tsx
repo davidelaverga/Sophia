@@ -1,14 +1,15 @@
 // The notes slide out of the edge, next to the line they may cross (direction C), with a sheet's head (the title and
 // Close). Each note can be carried, one at a time, to one of the person's projects, exactly as written; the panel says
 // so before it happens.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { focusSoon } from './focus.ts'
 import { membersLabel } from './places-view.ts'
 
 interface Props {
-  notes: readonly PersonalNote[]
+  /** Undefined until the space has loaded: nothing is said of them before (never "No notes yet"). */
+  notes: readonly PersonalNote[] | undefined
   /** Undefined until the projects have loaded. */
   projects: readonly ProjectSummary[] | undefined
   onClose: () => void
@@ -64,29 +65,43 @@ function CarryTo(props: {
   )
 }
 
-export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }: Props) {
-  const panel = useRef<HTMLElement>(null)
+/**
+ * One carry at a time: a second pick while a note crosses would carry it twice. Once it crossed, the panel keeps the
+ * focus its buttons had (they leave with the note). The panel going away mid-slide (the notes closed, a lock) carries
+ * nothing.
+ */
+function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry']) {
   const [carrying, setCarrying] = useState<string | null>(null)
   const [crossing, setCrossing] = useState<string | null>(null)
   const busy = useRef(false)
-  // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
-  useEffect(() => panel.current?.focus({ preventScroll: true }), [])
-  /**
-   * One carry at a time: a second pick while a note crosses would carry it twice. Once it crossed, the panel keeps the
-   * focus its buttons had (they leave with the note).
-   */
+  const here = useRef(true)
+  useEffect(() => {
+    here.current = true
+    return () => {
+      here.current = false
+    }
+  }, [])
   const carry = (note: PersonalNote, project: ProjectSummary) => {
     if (busy.current) return
     busy.current = true
     setCrossing(note.id)
     setTimeout(() => {
       busy.current = false
+      if (!here.current) return
       setCrossing(null)
       setCarrying(null)
       onCarry(note, project)
       panel.current?.focus({ preventScroll: true })
     }, CROSSING_MS)
   }
+  return { carrying, setCarrying, crossing, carry }
+}
+
+export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }: Props) {
+  const panel = useRef<HTMLElement>(null)
+  const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
+  // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
+  useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
     <aside ref={panel} id="c-notes" className="c3-notes" aria-labelledby="c-notes-h" tabIndex={-1}>
       <header className="sheet-head">
@@ -96,8 +111,8 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
           <Tip label="Close" keys="Esc" side="bottom" align="end" />
         </button>
       </header>
-      {notes.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
-      {notes.map((note) => (
+      {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
+      {notes?.map((note) => (
         <div key={note.id} className={`c2-t${crossing === note.id ? ' crossing' : ''}`}>
           <p>
             {note.text}

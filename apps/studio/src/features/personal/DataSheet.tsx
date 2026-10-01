@@ -18,6 +18,8 @@ interface Props {
   locked: boolean
   toast: ShowToast
   onClose: () => void
+  /** Where the focus goes on closing when what opened the sheet is gone (a project's account menu). */
+  returnTo: () => HTMLElement | null
   onUnlock: () => void
   onErase: () => Promise<unknown>
 }
@@ -80,12 +82,19 @@ function Erase({ onErase }: { onErase: () => Promise<void> }) {
         className="field"
         onSubmit={(e) => {
           e.preventDefault()
+          if (busy) return
           setBusy(true)
           void onErase().finally(() => setBusy(false))
         }}
       >
         <input id="c-del" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />
-        <button className="pill danger" type="submit" disabled={!confirmsErasure(typed) || busy}>
+        <button
+          className="pill danger"
+          type="submit"
+          // Deleting keeps the focus on the button (aria-disabled); without the word it isn't a press yet (disabled).
+          disabled={!busy && !confirmsErasure(typed)}
+          aria-disabled={busy || undefined}
+        >
           {busy ? 'Deleting…' : 'Delete everything'}
         </button>
       </form>
@@ -140,7 +149,7 @@ function useSwapFocus(locked: boolean) {
 }
 
 export function DataSheet(props: Props) {
-  const { token, who, space, locked, toast, onClose, onUnlock, onErase } = props
+  const { token, who, space, locked, toast, onClose, returnTo, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
   useSwapFocus(locked)
   const copy = async () => {
@@ -162,7 +171,7 @@ export function DataSheet(props: Props) {
     }
   }
   return (
-    <Sheet id="c-data-h" title="Your data" onClose={onClose}>
+    <Sheet id="c-data-h" title="Your data" onClose={onClose} returnTo={returnTo}>
       {erased ? (
         <p className="sheet-lead">{DATA.erased}</p>
       ) : (

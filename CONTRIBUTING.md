@@ -136,7 +136,10 @@ writing a new one, and keep the rule when you change the code around it.
   mounted out of sight (`background`, taking no keys through `ShortcutScope`)
   and reports the call upward (`onCall`); the places' bar shows the room with
   the call's switches and Leave (`CallSwitches`). One call at a time: a call
-  starting in another project ends the one before (`useCall` in `App.tsx`).
+  starting in another project ends the one before (`useCall` in `App.tsx`),
+  and opening another project leaves it, the toast saying so
+  (`useOneCallInSight`): a project's bar has no room for another room's call,
+  and nothing may keep sending out of sight.
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, and everywhere else the dock's own toggles
@@ -402,15 +405,18 @@ their work. Keep these when you change them:
   writes from any number of tabs leave it shut once a call shut it. A call's
   end opens nothing: only the person opens it, after confirming it's them.
   Where storage can't be read it starts shut. Every lock closes the notes and
-  drops what was read of the space: nothing personal is fetched, shown or
-  kept in memory while it is shut. A place that can't be shown (a locked
+  drops what was read of the space, wherever the person is (`SignedIn`), and
+  any change of who is signed in clears the cache: nothing personal is
+  fetched, shown or kept in memory while it is shut. A place that can't be shown (a locked
   personal space) takes its history entry's place, so Back goes on past it.
-- **Unlocking checks the same person, off the app's session**
-  (`app/reauth.ts`; `unlock-check.ts`, with tests). A passkey or an email
-  code is checked on a client of its own that stores and refreshes nothing;
+- **Unlocking checks the same person** (`app/reauth.ts`; `unlock-check.ts`,
+  with tests). A passkey or an email code is checked on a client of its own,
+  off the app's session, that stores and refreshes nothing;
   the user it returns must be the one in the app's own token, and its
   session is ended at once. A provider's check crosses a page load, so it
-  must come back as a new sign-in of the same account. Anyone else is
+  must come back as a new sign-in of the same account (on the app's own
+  client: it crosses a page load), and one that answers after a call began
+  opens nothing. Anyone else is
   "another account"; a check that returns nobody never is. Only the network
   has a deadline, each request on its own (20 s), never the passkey prompt:
   a prompt the person closes leaves the sheet waiting. The passkey works
@@ -433,15 +439,18 @@ their work. Keep these when you change them:
   from Work asks to join on that opening only (`joinStands`, with tests):
   leaving before the room could join drops it.
 - **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,
-  `data-view.ts` and `notice-view.ts` own every sentence the places say (door
-  verbs, sessions, rooms, the introduction and when it shows, days, topics,
-  facts, the toasts), with tests. The side the person keeps to themselves is
+  `data-view.ts` and `notice-view.ts` own the sentences that depend on what
+  the places read (door verbs, sessions, rooms, the introduction and when it
+  shows, days, topics, facts, the toasts), with tests; a fixed line may live
+  in its component. They promise only what is offered: unlocking asks the
+  person to confirm it's them, never for a passkey that may not exist. The side the person keeps to themselves is
   their "personal space"; Personal is only the place's name.
 - **Nothing still loading looks empty** (`readState`, `ReadNotes`). A door
   whose read hasn't come back only opens (no "Start talking", no "Start a
   project"); the personal space offers no introduction, no ways to start and
-  no field until it has loaded; a slow read adds the Studio's wait line and a
-  failed one says so with Try again. In a private space, what looks empty
+  no field to type in until it has loaded (it waits, disabled), and its notes
+  say nothing and count nothing before; a slow read adds the Studio's wait
+  line and a failed one says so with Try again. In a private space, what looks empty
   reads as deleted.
 - **The places are built from the Studio.** The layout is the prototype's
   (direction C: the doors, the line with the padlock, the edges, the
@@ -478,8 +487,13 @@ their work. Keep these when you change them:
   Carry, the Notes toggle; in a sheet, its Close or the first control of
   what replaced it), a sheet whose opener is gone gives it to the place
   (`returnTo` in `useDialog`), and Undo hands it back where it was (`Toast`).
-  A press that is being answered keeps the focus as it waits ("Sending…",
-  "Loading…": `aria-disabled`, never `disabled`). A screen reader hears
+  A menu that opens a sheet hands the focus to its own button first; the
+  call's pill gives it to the bar's mark when it goes, however the call ends;
+  a lock from anywhere gives it to the bar's Personal switch. A press that
+  is being answered keeps the focus as it waits ("Sending…", "Checking…",
+  "Deleting…": `aria-disabled`, never `disabled`). A modal sheet on screen
+  takes every key and every stray letter (`modalOnScreen`); one left open in
+  a project out of sight takes none. A screen reader hears
   Sophia writing and then her reply (`heard`, with tests), never what was
   there when the space loaded.
 
