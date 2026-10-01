@@ -1,5 +1,5 @@
 import type { ChatInput } from '@sophia/contracts/room-chat'
-import type { ChatTurn } from '../conversation/chat-view.ts'
+import type { ChatNoticeItem, ChatTurn } from '../conversation/chat-view.ts'
 import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from './useTypedChat.ts'
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
@@ -18,6 +18,8 @@ export type { VideoFeed } from './livekit-room.ts'
 
 export interface ProjectRoom {
   chat: ChatTurn[]
+  /** Finished results told as text to this person, who reads Sophia (SMC-M03 S6). */
+  notices: ChatNoticeItem[]
   textMode: boolean
   /** Text mode as it is this moment, for code that awaited (a chat start, once its join settled): `textMode` is the render's. */
   textModeNow: () => boolean
@@ -179,6 +181,9 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
       onChat: (packet) => {
         if (calls.isCurrent(call)) typedChat.onChat(packet)
       },
+      onNotice: (packet) => {
+        if (calls.isCurrent(call)) typedChat.onNotice(packet)
+      },
       onStatus: (s) => {
         if (calls.isCurrent(call)) setStatus(s)
       },
@@ -299,6 +304,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...devices,
     setMicrophone,
     chat: typedChat.chat,
+    notices: typedChat.notices,
     textMode: typedChat.textMode,
     textModeNow: typedChat.textModeNow,
     setTextMode: typedChat.setTextMode,

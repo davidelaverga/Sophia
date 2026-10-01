@@ -3132,6 +3132,35 @@ div.empty {
   color: var(--text-3);
   font-size: 12px;
 }
+/* A finished result told as text (SMC-M03 S6): a small card in Sophia's column, with its three actions. */
+.chat-notice {
+  display: grid;
+  gap: 10px;
+  margin-right: 6%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.chat-notice-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.chat-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chat-notice-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-notice .chat-status[data-error] {
+  color: var(--rose);
+}
 .brief-sections {
   display: grid;
   gap: 20px;

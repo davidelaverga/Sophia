@@ -22,6 +22,7 @@ import {
   encodeChatPacket,
   parseChatPacket,
   type ChatInput,
+  type ChatNotice,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
@@ -74,6 +75,8 @@ export interface RoomConnection {
 
 export interface RoomCallbacks {
   onChat?: (packet: ChatReply) => void
+  /** A finished result, told as text because this person reads Sophia (SMC-M03 S6). */
+  onNotice?: (packet: ChatNotice) => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -186,6 +189,38 @@ const CHANGES = [
   RoomEvent.AudioPlaybackStatusChanged,
 ] as const
 
+/** Sophia's chat replies and result notices; anything else on the reply topic, or from anyone else, is ignored. */
+function listenToSophia(room: Room, cb: RoomCallbacks): void {
+  room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
+    if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
+    const packet = parseChatPacket(bytes)
+    if (packet?.kind === 'notice') cb.onNotice?.(packet)
+    else if (packet && packet.kind !== 'input' && packet.kind !== 'mode') cb.onChat?.(packet)
+  })
+}
+
+/**
+ * Tells Sophia whether this person reads or hears her (SMC-M03 S6): when it changes, and again whenever she joins or
+ * the connection comes back, because her bridge keeps it only while both are in the room. Best effort: a signal that
+ * is lost leaves this person a listener, who still finds the result on its work card.
+ */
+function modeSignal(room: Room, textOnly: () => boolean): () => void {
+  const send = () => {
+    room.localParticipant
+      .publishData(encodeChatPacket({ kind: 'mode', textMode: textOnly() }), {
+        reliable: true,
+        destinationIdentities: ['sophia'],
+        topic: CHAT_INPUT_TOPIC,
+      })
+      .catch(() => undefined)
+  }
+  room.on(RoomEvent.ParticipantConnected, (p) => {
+    if (isSophia(p)) send()
+  })
+  room.on(RoomEvent.Reconnected, send)
+  return send
+}
+
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room({
     adaptiveStream: true,
@@ -204,11 +239,8 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     audio.clear()
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
-  room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
-    if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
-    const packet = parseChatPacket(bytes)
-    if (packet && packet.kind !== 'input') cb.onChat?.(packet)
-  })
+  listenToSophia(room, cb)
+  const signalMode = modeSignal(room, () => textOnly)
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
@@ -227,6 +259,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     setTextMode: (on) => {
       textOnly = on
       for (const el of audio) if (el.dataset.sophiaRoomAudio === 'sophia') el.muted = on
+      signalMode()
     },
     textMode: () => textOnly,
     participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],

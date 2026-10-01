@@ -186,14 +186,20 @@ export async function toolSpeaker(
   return onlyRow(rows, 'media_tool_speaker').s
 }
 
-/** The bridge announced a finished result in this exchange; recorded once. Call inside withService. */
+/**
+ * The bridge announced a finished result in this exchange; recorded once, with how it was delivered (0035): heard
+ * by the room, and to how many members in text mode as a chat notice. An older bridge says neither: it recorded only
+ * what was heard. Call inside withService.
+ */
 export async function recordAnnounced(
   c: pg.PoolClient,
-  event: { exchangeId: string; taskId: string; resultRevision: number },
+  event: { exchangeId: string; taskId: string; resultRevision: number; heard?: boolean; textRecipients?: number },
 ): Promise<void> {
-  await c.query(`SELECT sophia.media_record_announced($1, $2, $3)`, [
+  await c.query(`SELECT sophia.media_record_announced($1, $2, $3, $4, $5)`, [
     event.exchangeId,
     event.taskId,
     event.resultRevision,
+    event.heard ?? true,
+    event.textRecipients ?? 0,
   ])
 }

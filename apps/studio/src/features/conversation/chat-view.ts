@@ -1,7 +1,7 @@
 // The typed chat's pure rules: how replies fold into turns, what the foot of the chat offers, and what its status
 // line says. React only renders them.
 import type { SophiaPresence } from '@sophia/contracts'
-import type { ChatReply } from '@sophia/contracts/room-chat'
+import type { ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
 
 export interface ChatTurn {
   id: string
@@ -26,6 +26,57 @@ export function receiveChat(turns: readonly ChatTurn[], packet: ChatReply): Chat
       reason: packet.kind === 'refused' ? packet.text : null,
     }
   })
+}
+
+/**
+ * A finished result, told in the chat to someone in text mode (SMC-M03 S6): the bridge's notice carries ids and the
+ * task's kind, and the words are Studio's own. It sits after the turn that was last when it arrived.
+ */
+export interface ChatNoticeItem {
+  key: string
+  taskId: string
+  taskKind: string
+  resultRevision: number
+  afterTurnId: string | null
+}
+
+const KEPT_NOTICES = 20
+
+/** A notice is kept once per result revision, however often it is delivered. */
+export function receiveNotice(
+  notices: readonly ChatNoticeItem[],
+  packet: ChatNotice,
+  afterTurnId: string | null,
+): ChatNoticeItem[] {
+  const key = `${packet.taskId}:${String(packet.resultRevision)}`
+  if (notices.some((n) => n.key === key)) return [...notices]
+  const { taskId, taskKind, resultRevision } = packet
+  return [...notices.slice(-(KEPT_NOTICES - 1)), { key, taskId, taskKind, resultRevision, afterTurnId }]
+}
+
+/** The notice's words, by the task's kind: never anything a report, a page or a model wrote. */
+export function noticeTitle(taskKind: string): string {
+  if (taskKind === 'research') return 'Research report ready'
+  if (taskKind === 'draft_brief') return 'Brief ready'
+  return 'Result ready'
+}
+
+export type ChatEntryItem = { type: 'turn'; turn: ChatTurn } | { type: 'notice'; notice: ChatNoticeItem }
+
+/**
+ * The chat in order: each turn, then the notices that arrived after it. A notice whose turn is no longer kept (or that
+ * came before any) comes first.
+ */
+export function chatTimeline(turns: readonly ChatTurn[], notices: readonly ChatNoticeItem[]): ChatEntryItem[] {
+  const ids = new Set(turns.map((t) => t.id))
+  const loose = notices.filter((n) => n.afterTurnId === null || !ids.has(n.afterTurnId))
+  return [
+    ...loose.map((notice) => ({ type: 'notice' as const, notice })),
+    ...turns.flatMap((turn) => [
+      { type: 'turn' as const, turn },
+      ...notices.filter((n) => n.afterTurnId === turn.id).map((notice) => ({ type: 'notice' as const, notice })),
+    ]),
+  ]
 }
 
 /** What the foot of the chat offers: its one way in, or the message bar. Never both. */

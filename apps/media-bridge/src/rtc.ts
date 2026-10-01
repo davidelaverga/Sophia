@@ -28,6 +28,7 @@ import {
   encodeChatPacket,
   parseChatPacket,
   type ChatInput,
+  type ChatNotice,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import { INPUT_RATE, OUTPUT_RATE } from './audio.ts'
@@ -48,6 +49,8 @@ export interface LookTarget {
 
 export interface RoomEvents {
   typed?: (identity: string, packet: ChatInput) => void
+  /** A member said whether they read Sophia (text mode) or hear her (SMC-M03 S6). */
+  textMode?: (identity: string, on: boolean) => void
   /** Anyone joined, left or changed standing: the full list of people (Sophia excluded). */
   people: (people: RoomPerson[]) => void
   audio: (identity: string, samples: Int16Array, sampleRate: number, channels: number) => void
@@ -57,7 +60,8 @@ export interface RoomEvents {
 
 /** What the room session needs from a room; tests supply a labelled fake. */
 export interface RoomLink {
-  sendChat?: (identity: string, packet: ChatReply) => Promise<void>
+  /** Sends to one member; false when that identity is no member in the room now, so nothing was sent. */
+  sendChat?: (identity: string, packet: ChatReply | ChatNotice) => Promise<boolean>
   people: () => RoomPerson[]
   /** Queue one 20 ms frame of Sophia's speech; resolves when the source accepts it (backpressure). */
   play: (samples: Int16Array) => Promise<void>
@@ -154,6 +158,7 @@ class LiveKitRoom implements RoomLink {
       if (topic !== CHAT_INPUT_TOPIC || !who || !isMember(standingOf(who.metadata))) return
       const packet = parseChatPacket(payload)
       if (packet?.kind === 'input') this.events.typed?.(who.identity, packet)
+      if (packet?.kind === 'mode') this.events.textMode?.(who.identity, packet.textMode)
     })
     const changed = () => {
       this.resubscribe()
@@ -229,14 +234,15 @@ class LiveKitRoom implements RoomLink {
     this.resubscribe()
   }
 
-  async sendChat(identity: string, packet: ChatReply): Promise<void> {
+  async sendChat(identity: string, packet: ChatReply | ChatNotice): Promise<boolean> {
     const who = [...this.room.remoteParticipants.values()].find((p) => p.identity === identity)
-    if (!who || !isMember(standingOf(who.metadata))) return
+    if (!who || !isMember(standingOf(who.metadata))) return false
     await this.room.localParticipant?.publishData(encodeChatPacket(packet), {
       reliable: true,
       destination_identities: [identity],
       topic: CHAT_REPLY_TOPIC,
     })
+    return true
   }
 
   async setState(attributes: Record<string, string>): Promise<void> {

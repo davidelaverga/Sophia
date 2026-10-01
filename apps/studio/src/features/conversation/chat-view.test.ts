@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
 import { it } from 'node:test'
 import type { SophiaPresence } from '@sophia/contracts'
+import type { ChatNotice } from '@sophia/contracts/room-chat'
 import {
   chatEntry,
   chatLine,
+  chatTimeline,
   footError,
+  noticeTitle,
   reachesSophia,
   receiveChat,
+  receiveNotice,
   waitsOnRoom,
   type ChatMoment,
   type ChatTurn,
@@ -121,4 +125,44 @@ it('typed words reach Sophia only with her exchange open and her voice ready', (
   assert.equal(reachesSophia(sophia({ exchange: 'paused', pauseReason: 'guest' })), false)
   assert.equal(reachesSophia(sophia({ voice: 'unavailable' })), false)
   assert.equal(reachesSophia(sophia({ voice: 'connecting' })), false)
+})
+
+const notice = (taskId: string, resultRevision = 1): ChatNotice => ({
+  kind: 'notice',
+  id: '33333333-3333-4333-8333-333333333333',
+  exchangeId: 'e',
+  taskId,
+  taskKind: 'research',
+  resultRevision,
+})
+
+it('keeps a result notice once per revision, after the turn that was last when it came (SMC-M03 S6)', () => {
+  const once = receiveNotice([], notice('t1'), 'a')
+  assert.deepEqual(receiveNotice(once, { ...notice('t1'), id: '44444444-4444-4444-8444-444444444444' }, 'b'), once)
+  const twice = receiveNotice(once, notice('t1', 2), 'b')
+  assert.deepEqual(
+    twice.map((n) => [n.key, n.afterTurnId]),
+    [
+      ['t1:1', 'a'],
+      ['t1:2', 'b'],
+    ],
+  )
+  const many = Array.from({ length: 25 }, (_, i) => `t${String(i)}`).reduce(
+    (list, id) => receiveNotice(list, notice(id), null),
+    [] as ReturnType<typeof receiveNotice>,
+  )
+  assert.equal(many.length, 20, 'bounded')
+})
+
+it('places notices in the chat: after their turn, or first when their turn is gone', () => {
+  const b: ChatTurn = { ...turn, id: 'b' }
+  const notices = [...receiveNotice([], notice('t1'), 'a'), ...receiveNotice([], notice('t2'), 'gone')]
+  const order = chatTimeline([turn, b], notices).map((e) => (e.type === 'turn' ? e.turn.id : e.notice.taskId))
+  assert.deepEqual(order, ['t2', 'a', 't1', 'b'])
+})
+
+it('words a notice by its kind only', () => {
+  assert.equal(noticeTitle('research'), 'Research report ready')
+  assert.equal(noticeTitle('draft_brief'), 'Brief ready')
+  assert.equal(noticeTitle('something_later'), 'Result ready')
 })

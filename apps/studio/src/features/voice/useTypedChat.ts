@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatInput, ChatReply } from '@sophia/contracts/room-chat'
-import { receiveChat, type ChatTurn } from '../conversation/chat-view.ts'
+import type { ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
+import { receiveChat, receiveNotice, type ChatNoticeItem, type ChatTurn } from '../conversation/chat-view.ts'
 import type { RoomConnection } from './livekit-room.ts'
 
 type Connection = { current: RoomConnection | null }
@@ -100,6 +100,10 @@ export async function enterCall(p: EnterPorts): Promise<void> {
  */
 export function useTypedChat(connection: Connection, silence: () => Promise<boolean>) {
   const [chat, setChat] = useState<ChatTurn[]>([])
+  const [notices, setNotices] = useState<ChatNoticeItem[]>([])
+  // The turn a notice follows: the last one on screen when it arrives.
+  const lastTurn = useRef<string | null>(null)
+  lastTurn.current = chat.at(-1)?.id ?? null
   const [textMode, setShown] = useState(false)
   // Text mode as it is this moment, for code that awaited: a join reads it as it gets in (the pill may have gone back
   // to voice meanwhile), and a chat start once its join has settled.
@@ -137,7 +141,19 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
     return () => clearTimeout(timer)
   }, [chat])
   const onChat = (packet: ChatReply) => setChat((turns) => receiveChat(turns, packet))
+  const onNotice = (packet: ChatNotice) => setNotices((list) => receiveNotice(list, packet, lastTurn.current))
   const interrupted = () => setChat((turns) => turns.map(unknown))
   const textModeNow = () => now.current
-  return { chat, textMode, textModeNow, rememberTextMode, setTextMode, sendChat, onChat, interrupted }
+  return {
+    chat,
+    notices,
+    textMode,
+    textModeNow,
+    rememberTextMode,
+    setTextMode,
+    sendChat,
+    onChat,
+    onNotice,
+    interrupted,
+  }
 }

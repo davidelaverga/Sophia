@@ -576,6 +576,37 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     }
   })
 
+  it('records how an announcement reached the room: heard, as text to readers, or both (0035)', async () => {
+    const w = await world()
+    const announce = (taskId: string, extra: object) =>
+      call('/v1/media/announced', { bearer: MEDIA_TOKEN, body: { exchangeId: w.exchangeId, taskId, ...extra } })
+    // Three separate requests (newRequest: true), so three tasks to announce.
+    const task = async (question: string) => String((await tool(w, { question, newRequest: true })).output.taskId)
+    const a = await task('Which sandboxes do PDF services use?')
+    const b = await task('Which fonts cover Italian and Spanish?')
+    const c = await task('Which hosts allow user namespaces?')
+    assert.equal(new Set([a, b, c]).size, 3)
+    assert.equal((await announce(a, { resultRevision: 1, heard: false, textRecipients: 2 })).status, 204)
+    assert.equal((await announce(a, { resultRevision: 1, heard: true, textRecipients: 0 })).status, 204, 'a repeat')
+    assert.equal((await announce(b, { resultRevision: 1 })).status, 204, 'an older bridge: heard')
+    const nobody = await announce(c, { resultRevision: 1, heard: false, textRecipients: 0 })
+    assert.deepEqual([nobody.status, nobody.json.code], [422, 'invalid_request'], 'told to nobody is no announcement')
+    assert.equal((await announce(c, { resultRevision: 1, textRecipients: 1001 })).status, 422, 'bounded')
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const { rows } = await owner.query<{ job: string; heard: boolean; text: number }>(
+        `SELECT job_id AS job, heard, text_recipients AS text FROM sophia.exchange_announcements
+          WHERE exchange_id=$1 ORDER BY announced_at, job_id`,
+        [w.exchangeId],
+      )
+      const byJob = new Map(rows.map((r) => [r.job, [r.heard, r.text]]))
+      assert.deepEqual([byJob.size, byJob.get(a), byJob.get(b)], [2, [false, 2], [true, 0]])
+    } finally {
+      await owner.end()
+    }
+  })
+
   it('refuses what the bridge’s guide does not declare, before reading or writing anything', async () => {
     const w = await world()
     const question = { question: 'Which sandboxes do PDF rendering services use?' }

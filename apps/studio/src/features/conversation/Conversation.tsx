@@ -5,8 +5,10 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import type { DiscussionEntry, Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
+import { chatTimeline, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
 import { authorLabel } from './conversation-view.ts'
+import { NoticeCard } from './NoticeCard.tsx'
 
 interface Props {
   projectId: string
@@ -43,40 +45,31 @@ export function Conversation(props: Props) {
   const following = useRef(true)
   useLayoutEffect(() => {
     if (history.current && following.current) history.current.scrollTop = history.current.scrollHeight
-  }, [room.chat, snapshot?.discussion])
+  }, [room.chat, room.notices, snapshot?.discussion])
   useFollowOnResize(history, following)
   const onScroll = () => {
     const el = history.current
     if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
   }
-  const empty = discussion.length === 0 && room.chat.length === 0
+  const empty = discussion.length === 0 && room.chat.length === 0 && room.notices.length === 0
   return (
     <div className="conversation">
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && <p className="chat-empty">Messages stay in this conversation. Notes live in the brief.</p>}
         <Discussion entries={discussion} me={me} names={names} />
-        {room.chat.length > 0 && (
+        {(room.chat.length > 0 || room.notices.length > 0) && (
           <ol className="chat-messages" aria-label="Conversation with Sophia">
-            {room.chat.map((turn) => (
-              <li key={turn.id}>
-                <div className="chat-message user">
-                  <strong>You</strong>
-                  <p>{turn.text}</p>
-                </div>
-                <div className="chat-message sophia">
-                  <strong>Sophia</strong>
-                  <p>
-                    {turn.reply ||
-                      (turn.state === 'sending' ? 'Sending…' : turn.state === 'responding' ? 'Thinking…' : '')}
-                  </p>
-                  {turn.reason && (
-                    <p className="chat-status" role="status">
-                      {turn.reason}
-                    </p>
-                  )}
-                </div>
-              </li>
-            ))}
+            {chatTimeline(room.chat, room.notices).map((entry) =>
+              entry.type === 'turn' ? (
+                <li key={entry.turn.id}>
+                  <Turn turn={entry.turn} />
+                </li>
+              ) : (
+                <li key={`notice:${entry.notice.key}`}>
+                  <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />
+                </li>
+              ),
+            )}
           </ol>
         )}
       </div>
@@ -90,6 +83,27 @@ export function Conversation(props: Props) {
         onShowRoom={onShowRoom}
       />
     </div>
+  )
+}
+
+/** One typed message and Sophia's reply to it. */
+function Turn({ turn }: { turn: ChatTurn }) {
+  return (
+    <>
+      <div className="chat-message user">
+        <strong>You</strong>
+        <p>{turn.text}</p>
+      </div>
+      <div className="chat-message sophia">
+        <strong>Sophia</strong>
+        <p>{turn.reply || (turn.state === 'sending' ? 'Sending…' : turn.state === 'responding' ? 'Thinking…' : '')}</p>
+        {turn.reason && (
+          <p className="chat-status" role="status">
+            {turn.reason}
+          </p>
+        )}
+      </div>
+    </>
   )
 }
 

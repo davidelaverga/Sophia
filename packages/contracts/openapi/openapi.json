@@ -12319,6 +12319,16 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991
+          },
+          "heard": {
+            "type": "boolean",
+            "description": "Whether the room heard Sophia say it (SMC-M03 S6). Omitted by older bridges, which only record what was heard: true."
+          },
+          "textRecipients": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "How many members in text mode received it as a chat notice (SMC-M03 S6). Omitted means none. A notice no one heard was delivered as text at least once."
           }
         },
         "required": [

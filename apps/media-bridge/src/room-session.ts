@@ -1,4 +1,5 @@
-import type { ChatInput, ChatReply } from '@sophia/contracts/room-chat'
+import { randomUUID } from 'node:crypto'
+import type { ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
 // One room exchange on the bridge (architecture 06 §2–§12, S1-05A §6): the LiveKit room, one Gemini Live
 // connection and the API's assignment, joined by the pure ExchangeState. This module acts; ExchangeState decides.
 //
@@ -22,6 +23,10 @@ import type { ChatInput, ChatReply } from '@sophia/contracts/room-chat'
 //    connection starts cold.
 //  - The room's state (what the bridge observes, never content) is reported to the API and set as the `sophia`
 //    participant's attributes, so the room's light shows what is actually happening.
+//  - A finished result is told once (SMC-M03 S6): Sophia says it to the room, and a member in text mode, who does
+//    not hear her, gets a chat notice (a fixed template of ids and the task's kind) at the same time. A room where
+//    everyone present reads gets the notices alone. The API records whether it was heard and how many got it as text.
+//  - Typed words reach Google marked as typed, and cannot pose as the bridge's own markers (escapeMarkers).
 import type { FunctionCall, FunctionResponse } from '@google/genai'
 import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import {
@@ -131,7 +136,20 @@ interface Announced {
   exchangeId: string
   taskId: string
   resultRevision: number
+  /** The room heard Sophia say it. */
+  heard?: boolean
+  /** Members in text mode who received it as a chat notice. */
+  textRecipients?: number
 }
+
+type Result = MediaAssignment['results'][number]
+const resultKey = (r: Pick<Result, 'taskId' | 'resultRevision'>) => `${r.taskId}:${String(r.resultRevision)}`
+
+/**
+ * Typed words reach Google after the bridge's own marker; inside them, an opening bracket before "Sophia" or
+ * "Project" becomes a parenthesis, so a member cannot type a line that reads as a system notice or a marker.
+ */
+export const escapeMarkers = (text: string): string => text.replace(/\[(?=\s*(?:sophia|project)\b)/giu, '(')
 
 /** A typed request owns every non-blocking tool continuation until its final provider boundary. */
 interface TypedTurn {
@@ -305,8 +323,16 @@ export class RoomSession {
   private readonly acked = new Set<string>()
   /** Results sent to Google as a notice: while one waits to be heard, and once it was heard. */
   private readonly announced = new Set<string>()
-  /** The notice sent and not yet heard: it is recorded as announced only once its audio reached the room. */
-  private notice: { key: string; event: Announced } | null = null
+  /**
+   * The notice sent and not yet heard: it is recorded as announced only once its audio reached the room, with the
+   * chat notices its text-mode members received meanwhile (`cards` resolves to how many).
+   */
+  private notice: { key: string; event: Announced; cards: Promise<number> } | null = null
+  /** Members who said they read Sophia (text mode); dropped when they leave. */
+  private readonly readers = new Set<string>()
+  /** Chat notices sent, by result and identity, and how many reached a member, by result. */
+  private readonly carded = new Set<string>()
+  private readonly cardsDelivered = new Map<string, number>()
   private readonly noticeAttempts = new Map<string, number>()
   /**
    * Heard notices the API has not yet recorded. Each is retried until it is: an unrecorded result stays listed, and
@@ -367,6 +393,7 @@ export class RoomSession {
       room = await this.deps.joinRoom(token, {
         people: (people) => this.onPeople(people),
         typed: (identity, packet) => this.onTyped(identity, packet),
+        textMode: (identity, on) => this.onTextMode(identity, on),
         audio: (identity, samples, rate, channels) => this.onAudio(identity, samples, rate, channels),
         frame: (identity, source, frame, at) => this.onFrame(identity, source, frame, at),
         // Leaving the room reports LiveKit's own disconnect: after close() that is the leave itself, not a loss to
@@ -490,6 +517,7 @@ export class RoomSession {
 
   private onPeople(people: RoomPerson[]): void {
     this.people = people
+    for (const identity of this.readers) if (!people.some((p) => p.identity === identity)) this.readers.delete(identity)
     const abandonTools = this.typedTurn?.usedTools && (this.roomDown || people.some(isGuestLike))
     if (people.some(isGuestLike)) this.finishTyped('Conversation paused: someone without project access joined.')
     const members = people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
@@ -550,6 +578,12 @@ export class RoomSession {
     )
   }
 
+  /** A member reads Sophia or hears her again. Only a member's signal counts (rtc.ts), and only while present. */
+  private onTextMode(identity: string, on: boolean): void {
+    if (on && this.people.some((p) => p.identity === identity && !isGuestLike(p))) this.readers.add(identity)
+    else this.readers.delete(identity)
+  }
+
   private onTyped(identity: string, packet: ChatInput): void {
     if (packet.exchangeId !== this.exchangeId) return
     if (!this.mayAcceptTyped(identity, packet)) {
@@ -589,7 +623,7 @@ export class RoomSession {
       toolIds: new Set(),
     }
     try {
-      this.live?.sendNotice(`[Project member typed message]\n${packet.text}`)
+      this.live?.sendNotice(`[Project member typed message]\n${escapeMarkers(packet.text)}`)
       this.typedReply(identity, packet, 'accepted')
       this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
     } catch {
@@ -1208,24 +1242,72 @@ export class RoomSession {
   /**
    * A finished task is announced once, when Sophia is idle and the room is member-only. It counts as announced
    * (and the API stops listing it) only once the notice's reply reached the room; one lost with the provider, or
-   * interrupted before a frame played, is sent again later.
+   * interrupted before a frame played, is sent again later. Members in text mode get a chat notice as it is sent;
+   * when every member present reads, the chat notices are the announcement.
    */
   private announce(now: number): void {
-    const live = this.live
     const input = this.state.input(now)
-    if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
     if (input === 'paused' || input === 'settling') return
-    const next = this.assignment.results.find(
-      (r) => RESULT_NOTICES.has(r.kind) && !this.announced.has(`${r.taskId}:${r.resultRevision}`),
-    )
+    const next = this.assignment.results.find((r) => RESULT_NOTICES.has(r.kind) && !this.announced.has(resultKey(r)))
     const noticeOf = next && RESULT_NOTICES.get(next.kind)
     if (!next || !noticeOf) return
-    const key = `${next.taskId}:${next.resultRevision}`
+    const members = this.people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
+    const readers = members.filter((identity) => this.readers.has(identity))
+    if (readers.length > 0 && readers.length === members.length) return this.announceAsText(next, readers)
+    const live = this.live
+    if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
+    const key = resultKey(next)
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
-    this.notice = { key, event }
+    this.notice = { key, event, cards: this.sendCards(next, readers) }
     this.state.systemTurn()
     live.sendNotice(noticeOf(next.taskId))
+  }
+
+  /** Everyone present reads: the chat notices alone announce it, and nobody heard it. */
+  private announceAsText(next: Result, readers: readonly string[]): void {
+    const key = resultKey(next)
+    this.announced.add(key)
+    void this.sendCards(next, readers).then((delivered) => {
+      if (delivered > 0) {
+        const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
+        return this.record(key, { ...event, heard: false, textRecipients: delivered })
+      }
+      const attempts = (this.noticeAttempts.get(key) ?? 0) + 1
+      this.noticeAttempts.set(key, attempts)
+      if (attempts < NOTICE_ATTEMPTS) this.announced.delete(key)
+      this.deps.log('announce.not_delivered', { exchangeId: this.exchangeId, taskId: next.taskId, attempts })
+      return undefined
+    })
+  }
+
+  /**
+   * The result's chat notice, to each reader who has not had it: a fixed template of ids and the task's kind. Resolves
+   * to how many members have received it so far, across attempts.
+   */
+  private async sendCards(next: Result, readers: readonly string[]): Promise<number> {
+    const key = resultKey(next)
+    const card: Omit<ChatNotice, 'id'> = {
+      kind: 'notice',
+      exchangeId: this.exchangeId,
+      taskId: next.taskId,
+      taskKind: next.kind,
+      resultRevision: next.resultRevision,
+    }
+    const send = async (identity: string): Promise<boolean> => {
+      const sent = `${key}:${identity}`
+      if (this.carded.has(sent)) return false
+      this.carded.add(sent)
+      const delivered = await this.room?.sendChat?.(identity, { ...card, id: randomUUID() }).catch(() => false)
+      if (!delivered) this.carded.delete(sent)
+      return delivered === true
+    }
+    const delivered = (await Promise.all(readers.map(send))).filter(Boolean).length
+    const total = (this.cardsDelivered.get(key) ?? 0) + delivered
+    this.cardsDelivered.set(key, total)
+    if (delivered > 0)
+      this.deps.log('announce.as_text', { exchangeId: this.exchangeId, taskId: next.taskId, delivered })
+    return total
   }
 
   /**
@@ -1247,12 +1329,22 @@ export class RoomSession {
     return this.playingUntil > now || this.pumping || this.framer.queued > 0
   }
 
-  /** A frame reached the room while a notice waited: the room heard it, so it is announced, durably. */
+  /**
+   * A frame reached the room while a notice waited: the room heard it, so it is announced, durably, with how many
+   * members got it as text (once their chat notices settled).
+   */
   private noticeHeard(): void {
     const notice = this.notice
     if (!notice) return
     this.notice = null
-    this.receipts.set(notice.key, { event: notice.event, retryAt: 0, sending: false })
+    void notice.cards.then((textRecipients) =>
+      this.record(notice.key, { ...notice.event, heard: true, textRecipients }),
+    )
+  }
+
+  /** Record an announcement with the API (sendReceipts retries until it is recorded). */
+  private record(key: string, event: Announced): void {
+    this.receipts.set(key, { event, retryAt: 0, sending: false })
     this.sendReceipts(this.deps.now())
   }
 
