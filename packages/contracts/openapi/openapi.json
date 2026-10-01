@@ -7627,7 +7627,7 @@
     "/api/v1/personal/erasure": {
       "post": {
         "operationId": "erasePersonalSpace",
-        "summary": "Delete the conversation, suggestions and notes for good. Carried notes stay in their projects, still the person’s to take back. Every personal write from before it, retried under its key however late, answers 409 request_erased and writes nothing. The space's revision and its turn order go on: a turn after it comes after every earlier one.",
+        "summary": "Delete the conversation, suggestions and notes for good. Carried notes stay in their projects, still the person’s to take back. Every personal write from before it, retried under its key however late, answers 409 request_erased and writes nothing. The space's revision and its turn order go on: a turn after it comes after every earlier one. It is acknowledged once nothing of the space is being asked of the companion, in any process: a call under way is told to stop and waited for (at most about a minute).",
         "tags": [
           "personal"
         ],

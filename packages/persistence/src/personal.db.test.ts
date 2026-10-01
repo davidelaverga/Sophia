@@ -9,11 +9,14 @@ import type { PersonalReceipt } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import {
+  beginCompanionCall,
   beginPersonalGreeting,
   carryPersonalNote,
   claimPersonalReply,
+  companionCallsRunning,
   createPool,
   decidePersonalSuggestion,
+  endCompanionCall,
   erasePersonalSpace,
   failPersonalReply,
   fencePersonalWrite,
@@ -54,6 +57,7 @@ const LONG = randomUUID() // someone with a conversation longer than one read li
 const ZONED = randomUUID() // someone who wrote on either side of midnight in UTC
 const LEASED = randomUUID() // someone whose reply's process paused after claiming, then asked the companion
 const GREETED = randomUUID() // someone whose welcome's process paused after claiming, then asked the companion
+const CALLING = randomUUID() // someone the companion is answering, in one process or another, as she erases
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -745,6 +749,38 @@ describe('personal space: a long conversation', () => {
     assert.equal((await read(ZONED, (c) => readPersonalSpace(c, 'UTC'))).days, 2)
     assert.equal((await read(ZONED, (c) => readPersonalSpace(c, 'America/New_York'))).days, 1)
     assert.equal(await codeOf(read(ZONED, (c) => readPersonalSpace(c, 'Mars/Olympus_Mons'))), 'invalid_request')
+  })
+})
+
+describe('personal space: calls to the companion in flight', () => {
+  it('counts the caller’s own, not one a process that went away left, and an erasure ends none', async () => {
+    const mine = randomUUID()
+    const theirs = randomUUID()
+    await write(CALLING, (c) => beginCompanionCall(c, mine))
+    await write(OTHER, (c) => beginCompanionCall(c, theirs))
+    const running = () => read(CALLING, (c) => companionCallsRunning(c))
+    assert.equal(await running(), 1, 'hers only')
+    await write(CALLING, (c) => erasePersonalSpace(c, key(), 'delete'))
+    assert.equal(await running(), 1, 'an erasure waits for it, and ends none')
+    await owner(
+      `UPDATE sophia.personal_companion_calls SET started_at = now() - interval '2 minutes' WHERE owner_id = $1`,
+      [CALLING],
+    )
+    assert.equal(await running(), 0, 'one older than two minutes is a process that went away')
+    const next = randomUUID()
+    await write(CALLING, (c) => beginCompanionCall(c, next))
+    const left = await owner<{ call_id: string }>(
+      'SELECT call_id FROM sophia.personal_companion_calls WHERE owner_id = $1',
+      [CALLING],
+    )
+    assert.deepEqual(
+      left.map((r) => r.call_id),
+      [next],
+      'and it is cleared once she is answered again',
+    )
+    await write(CALLING, (c) => endCompanionCall(c, next))
+    await write(OTHER, (c) => endCompanionCall(c, theirs))
+    assert.equal(await running(), 0, 'a call that ended is not waited for')
   })
 })
 
