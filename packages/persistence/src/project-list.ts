@@ -22,6 +22,12 @@ interface ProjectRow {
   time_zone: string | null
 }
 
+/**
+ * How much the Work list holds (A10's maxItems): the newest projects, and in each the newest carried notes, the
+ * reader's own first, so none they can take back is ever left out (one person carries at most 2000: 0021).
+ */
+export const PROJECT_LIST_BOUNDS = { projects: 500, releases: 2000 }
+
 // The next session is the first that has not ended: one in progress counts.
 const PROJECTS = `SELECT p.id, p.title, m.role,
     (SELECT count(*) FROM sophia.project_members pm WHERE pm.project_id = p.id AND pm.active) AS members,
@@ -33,7 +39,8 @@ const PROJECTS = `SELECT p.id, p.title, m.role,
     SELECT id, title, starts_at, ends_at, time_zone FROM sophia.room_sessions
      WHERE project_id = p.id AND canceled_at IS NULL AND ends_at > now() ORDER BY starts_at LIMIT 1
   ) s ON true
-  ORDER BY p.created_at DESC, p.id`
+  ORDER BY p.created_at DESC, p.id
+  LIMIT $1`
 
 function sessionOf(r: ProjectRow): RoomSession | null {
   if (!r.session_id || !r.session_title || !r.starts_at || !r.ends_at || !r.time_zone) return null
@@ -46,8 +53,12 @@ function sessionOf(r: ProjectRow): RoomSession | null {
   }
 }
 
-/** Notes carried to these projects, each marked `mine` when the caller carried it. */
-async function readProjectReleases(c: pg.PoolClient, projectIds: string[]): Promise<Map<string, ProjectRelease[]>> {
+/** Notes carried to these projects, each marked `mine` when the caller carried it: per project, `limit` of them. */
+async function readProjectReleases(
+  c: pg.PoolClient,
+  projectIds: string[],
+  limit: number,
+): Promise<Map<string, ProjectRelease[]>> {
   const { rows } = await c.query<{
     id: string
     project_id: string
@@ -56,9 +67,13 @@ async function readProjectReleases(c: pg.PoolClient, projectIds: string[]): Prom
     mine: boolean
     created_at: Date
   }>(
-    `SELECT id, project_id, body, owner_name, owner_id = sophia.actor_id() AS mine, created_at
-       FROM sophia.personal_releases WHERE project_id = ANY($1::uuid[]) ORDER BY created_at, id`,
-    [projectIds],
+    `SELECT id, project_id, body, owner_name, mine, created_at FROM (
+       SELECT id, project_id, body, owner_name, owner_id = sophia.actor_id() AS mine, created_at,
+              row_number() OVER (PARTITION BY project_id
+                ORDER BY owner_id = sophia.actor_id() DESC, created_at DESC, id DESC) AS place
+         FROM sophia.personal_releases WHERE project_id = ANY($1::uuid[])) ranked
+      WHERE place <= $2 ORDER BY created_at, id`,
+    [projectIds, limit],
   )
   const byProject = new Map<string, ProjectRelease[]>()
   for (const r of rows) {
@@ -69,12 +84,13 @@ async function readProjectReleases(c: pg.PoolClient, projectIds: string[]): Prom
   return byProject
 }
 
-/** The caller's projects, newest first. Call inside withActor(..., "read"). */
-export async function listProjects(c: pg.PoolClient): Promise<ProjectListing[]> {
-  const { rows } = await c.query<ProjectRow>(PROJECTS)
+/** The caller's projects, newest first, within `bounds`. Call inside withActor(..., "read"). */
+export async function listProjects(c: pg.PoolClient, bounds = PROJECT_LIST_BOUNDS): Promise<ProjectListing[]> {
+  const { rows } = await c.query<ProjectRow>(PROJECTS, [bounds.projects])
   const releases = await readProjectReleases(
     c,
     rows.map((r) => r.id),
+    bounds.releases,
   )
   return rows.map((r) => ({
     projectId: r.id,

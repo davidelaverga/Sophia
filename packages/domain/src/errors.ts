@@ -9,6 +9,8 @@ export type ErrorCode =
   | 'not_found'
   | 'stale_revision'
   | 'request_erased'
+  | 'notes_full'
+  | 'carried_full'
   | 'invalid_state'
   | 'idempotency_conflict'
   | 'source_ineligible'
@@ -33,6 +35,9 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   stale_revision: { status: 409, retry: 'never' },
   // A retry of a personal write the person has since erased (PS-01): it must never write again, under any key.
   request_erased: { status: 409, retry: 'never' },
+  // A personal space keeps at most 2000 notes, and one person carries at most 2000 (PS-01): forget or take back first.
+  notes_full: { status: 409, retry: 'never' },
+  carried_full: { status: 409, retry: 'never' },
   invalid_state: { status: 409, retry: 'never' },
   idempotency_conflict: { status: 409, retry: 'never' },
   // A projection this build cannot render yet: fail loudly rather than return a false empty list.

@@ -330,7 +330,14 @@ either:
   its first attempt gets the same receipt, never a conflict. No project role
   reaches a personal row, admins included, and nothing personal is joined into
   a project read. Test a new read path as another person and as a project
-  admin (`personal.db.test.ts`): zero rows.
+  admin (`personal.db.test.ts`): zero rows. Every writer is revoked from
+  PUBLIC before it is granted to the API role (no schema default does it):
+  a test checks that no `sophia` function is executable by PUBLIC.
+- **Nothing kept is out of reach.** A space keeps at most 2000 notes and a
+  person carries at most 2000 (`notes_full`, `carried_full`, each its own
+  code), the bounds A10 lists them by, so every note and every carried note
+  is listed; a list read is bounded too, newest first, and a project's
+  carried notes list the reader's own first.
 - **The one crossing is a carried note.** `carry_personal_note` copies one
   note, as written, into one project where its owner is an active member;
   members read it attributed to the name its owner shows, and the owner can
@@ -341,15 +348,18 @@ either:
   the person keeps it or lets it go, and one let go is deleted. "Note this"
   keeps a line in the person's own words. The export carries every turn with
   its suggestion still open. Erasing deletes the conversation, suggestions
-  and notes, deletes the requests older than ten minutes and keeps only the
-  key of the rest, dated at the erasure (a late retry still writes nothing),
-  and leaves carried notes where they were, still the owner's.
+  and notes, keeps only the key of every request, dated at the erasure (a
+  retry from before, however late, writes nothing), and leaves carried notes
+  where they were, still the owner's; the revision and the turn order go on.
+  A forgotten note's keep keeps no digest of its words either.
 - **The companion is behind one interface** (`apps/api/src/companion.ts`):
   `answer` for a pending turn, `greet` for the welcome back. The keyless
   rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
   development and tests only, and the space says so (`companion:
   'rehearsal'`). Without a companion, sending is refused and nothing is kept:
-  never store a message nobody will answer.
+  never store a message nobody will answer. A companion's failure is logged
+  by its name and code only (`companionFailure`): its message may carry a
+  person's words.
 
 ## The Studio's hosting headers
 

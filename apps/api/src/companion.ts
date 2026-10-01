@@ -7,6 +7,7 @@
 // none is configured, the API refuses to keep a message nobody would answer.
 import type pg from 'pg'
 import type { PersonalReceipt } from '@sophia/contracts'
+import { DomainError } from '@sophia/domain'
 import {
   failPersonalReply,
   readCompanionContext,
@@ -29,6 +30,19 @@ export interface Companion {
   /** Sophia's welcome back after a quiet spell, from the conversation so far; `name` is who she greets. */
   greet(context: Omit<CompanionContext, 'asked'>, name: string | null): Promise<string>
 }
+
+/**
+ * What may be logged of a companion's failure: its name and code. Its message and stack may carry a person's words
+ * (a provider echoing the prompt), so they never reach a log.
+ */
+export function companionFailure(err: unknown): { name: string; code: string | null } {
+  if (!(err instanceof Error)) return { name: typeof err, code: null }
+  const code: unknown = Reflect.get(err, 'code')
+  return { name: err.name, code: typeof code === 'string' || typeof code === 'number' ? String(code) : null }
+}
+
+/** A welcome that couldn't be written: said in the Studio's words, with nothing of the companion's error in it. */
+const NO_WELCOME = 'Sophia couldn’t answer just now.'
 
 /** How long one answer may take before the turn says it failed (the person can ask again). */
 export const ANSWER_LIMIT_MS = 60_000
@@ -78,7 +92,13 @@ export class CompanionRunner {
   async greet(actorId: string, name: string | null): Promise<PersonalReceipt | null> {
     const context = await withActor(this.pool, actorId, 'read', (c) => readWelcomeContext(c))
     if (!context) return null
-    const text = await withinLimit(this.companion.greet(context, name), this.limitMs)
+    let text: string
+    try {
+      text = await withinLimit(this.companion.greet(context, name), this.limitMs)
+    } catch (err: unknown) {
+      this.onError(err)
+      throw new DomainError('unavailable', NO_WELCOME) // no cause: the error handler logs nothing of the companion's
+    }
     return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, text))
   }
 

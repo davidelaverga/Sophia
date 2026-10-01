@@ -33,6 +33,10 @@ import {
 const ANA = randomUUID() // the person whose space this is; an editor of the shared project
 const ADMIN = randomUUID() // admin of the shared project
 const OTHER = randomUUID() // another person with a space of their own, in no project
+const FULL = randomUUID() // a space holding all the notes it can keep
+const CARRIER = randomUUID() // someone who carried all the notes one person can carry
+const MINE = randomUUID() // a member reading a project where others carried many notes
+const PEER = randomUUID() // the member who carried them
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -363,7 +367,9 @@ describe('personal space: erasure', () => {
   it('deletes the conversation and notes for good, keeps carried notes hers, and a late retry writes nothing', async () => {
     const k = key()
     await write(ANA, (c) => sendPersonalTurn(c, k, 'One more thing'))
-    const note = await write(ANA, (c) => keepPersonalNote(c, key(), { text: 'Take a real day off' }))
+    const noteKey = key()
+    const note = await write(ANA, (c) => keepPersonalNote(c, noteKey, { text: 'Take a real day off' }))
+    const lastSeq = (await read(ANA, (c) => readPersonalSpace(c))).turns.at(-1)?.seq ?? 0
     await write(ANA, (c) => carryPersonalNote(c, key(), note.noteId ?? '', projectId, 'Ana'))
     assert.equal(await codeOf(write(ANA, (c) => erasePersonalSpace(c, key(), 'yes'))), 'invalid_request')
     // Her earlier writes, from this test file's first minutes, are older than ten minutes by now.
@@ -371,6 +377,10 @@ describe('personal space: erasure', () => {
       `UPDATE sophia.personal_requests SET created_at = now() - interval '11 minutes'
         WHERE owner_id = $1 AND idempotency_key <> $2`,
       [ANA, k],
+    )
+    const requestsBefore = await owner<{ n: string }>(
+      'SELECT count(*) AS n FROM sophia.personal_requests WHERE owner_id = $1',
+      [ANA],
     )
     const erased = await write(ANA, (c) => erasePersonalSpace(c, key(), 'delete'))
     assert.ok((erased.erased?.turns ?? 0) > 0)
@@ -387,24 +397,28 @@ describe('personal space: erasure', () => {
       [ANA],
     )
     assert.equal(left[0]?.n, '0')
-    // No record of when or how she wrote outlives the erasure: the last ten minutes' requests keep only their key,
-    // dated at the erasure, and the erasure keeps its own receipt.
-    const requests = await owner<{ operation: string; key: string; redacted: boolean; at_erasure: boolean }>(
-      `SELECT r.operation, r.idempotency_key AS key, r.semantic_request ? 'redacted' AS redacted,
+    // No record of when or how she wrote outlives the erasure: every request keeps only its key, dated at the
+    // erasure, and the erasure keeps its own receipt; the space keeps no date either.
+    const requests = await owner<{ operation: string; redacted: boolean; at_erasure: boolean }>(
+      `SELECT r.operation, r.semantic_request ? 'redacted' AS redacted,
               r.created_at = (SELECT created_at FROM sophia.personal_requests
                                WHERE owner_id = $1 AND operation = 'erase') AS at_erasure
-         FROM sophia.personal_requests r WHERE r.owner_id = $1 ORDER BY r.operation`,
+         FROM sophia.personal_requests r WHERE r.owner_id = $1 AND r.operation <> 'erase'`,
       [ANA],
     )
-    assert.deepEqual(
-      requests.map((r) => [r.operation, r.key === k, r.redacted, r.at_erasure]),
-      [
-        ['erase', false, false, true],
-        ['redacted', true, true, true],
-      ],
+    assert.equal(requests.length, Number(requestsBefore[0]?.n), 'every request before it keeps its key')
+    assert.ok(requests.every((r) => r.operation === 'redacted' && r.redacted && r.at_erasure))
+    const dated = await owner(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'sophia' AND table_name = 'personal_spaces' AND data_type LIKE 'timestamp%'`,
     )
-    // A late retry from those ten minutes writes nothing.
+    assert.equal(dated.length, 0, 'the space keeps no date')
+    // A late retry writes nothing, from the last minutes or from long before.
     assert.equal(await codeOf(write(ANA, (c) => sendPersonalTurn(c, k, 'One more thing'))), 'request_erased')
+    assert.equal(
+      await codeOf(write(ANA, (c) => keepPersonalNote(c, noteKey, { text: 'Take a real day off' }))),
+      'request_erased',
+    )
     // Taking the carried note back after erasing brings it back as a note.
     await write(ANA, (c) => takeBackPersonalRelease(c, key(), space.releases[0]?.id ?? ''))
     const back = await read(ANA, (c) => readPersonalExport(c))
@@ -413,5 +427,129 @@ describe('personal space: erasure', () => {
       ['Take a real day off'],
     )
     assert.equal(back.turns.length, 0)
+    // The order of her turns goes on: a turn after the erasure comes after every turn before it, so a reader's
+    // cursor from before stays valid.
+    const next = await write(ANA, (c) => sendPersonalTurn(c, key(), 'Starting again'))
+    assert.ok((next.seq ?? 0) > lastSeq, `${String(next.seq)} after ${String(lastSeq)}`)
+  })
+})
+
+/** As the owner: a space for `who`, with `notes` notes and `carried` notes carried to `project` before an erasure. */
+async function filled(who: string, notes: number, carried: { project: string; count: number } | null = null) {
+  await owner('INSERT INTO sophia.personal_spaces(owner_id) VALUES ($1) ON CONFLICT DO NOTHING', [who])
+  await owner(
+    `INSERT INTO sophia.personal_notes(owner_id, body, kept_by)
+     SELECT $1, 'Note ' || g, 'person' FROM generate_series(1, $2::int) g`,
+    [who, notes],
+  )
+  if (!carried) return
+  await owner(
+    `INSERT INTO sophia.personal_releases(id, owner_id, owner_name, project_id, note_id, body)
+     SELECT gen_random_uuid(), $1, 'Carrier', $2, NULL, 'Carried ' || g FROM generate_series(1, $3::int) g`,
+    [who, carried.project, carried.count],
+  )
+}
+
+describe('personal space: who may write it, and how much it keeps', () => {
+  it('lets only the API role call a personal writer: no function of the schema is executable by everyone', async () => {
+    const open = await owner<{ name: string }>(
+      `SELECT p.proname AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'sophia' AND has_function_privilege('public', p.oid, 'EXECUTE') ORDER BY 1`,
+    )
+    assert.deepEqual(
+      open.map((r) => r.name),
+      [],
+    )
+    const worker = await owner<{ name: string }>(
+      `SELECT p.proname AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'sophia' AND p.proname LIKE '%personal%'
+          AND has_function_privilege('sophia_worker', p.oid, 'EXECUTE') ORDER BY 1`,
+    )
+    assert.deepEqual(
+      worker.map((r) => r.name),
+      [],
+    )
+  })
+
+  it('keeps at most 2000 notes: past them every way of making one is refused, but a retry is answered', async () => {
+    await filled(FULL, 1999)
+    const last = key()
+    const kept = await write(FULL, (c) => keepPersonalNote(c, last, { text: 'The two thousandth' }))
+    assert.ok(kept.noteId)
+    assert.deepEqual(await write(FULL, (c) => keepPersonalNote(c, last, { text: 'The two thousandth' })), kept)
+    assert.equal(await codeOf(write(FULL, (c) => keepPersonalNote(c, key(), { text: 'One more' }))), 'notes_full')
+    // Sophia's suggestion, kept.
+    const sent = await write(FULL, (c) => sendPersonalTurn(c, key(), 'So many notes'))
+    await write(FULL, (c) => recordPersonalReply(c, sent.turnId ?? '', 'Keep only what helps.', 'Keep what helps'))
+    const suggestion = (await read(FULL, (c) => readPersonalSpace(c))).turns.find((t) => t.suggestion)?.suggestion
+    assert.ok(suggestion)
+    assert.equal(
+      await codeOf(write(FULL, (c) => decidePersonalSuggestion(c, key(), suggestion.id, 'keep'))),
+      'notes_full',
+    )
+    // A carried note whose note was erased comes back as a new note: refused too, and it stays in its project.
+    await owner(
+      `INSERT INTO sophia.personal_releases(id, owner_id, owner_name, project_id, note_id, body)
+       VALUES (gen_random_uuid(), $1, 'Full', $2, NULL, 'Carried before an erasure')`,
+      [FULL, projectId],
+    )
+    const release = (await read(FULL, (c) => readPersonalSpace(c))).releases[0]
+    assert.ok(release)
+    assert.equal(await codeOf(write(FULL, (c) => takeBackPersonalRelease(c, key(), release.id))), 'notes_full')
+    assert.equal((await read(FULL, (c) => readPersonalSpace(c))).releases.length, 1)
+  })
+
+  it('lets one person carry at most 2000 notes, counting those whose note was erased', async () => {
+    const team = (await seedProject(db.ownerUrl, { title: 'Carried', admin: ADMIN, editors: [CARRIER] })).projectId
+    await filled(CARRIER, 0, { project: team, count: 2000 })
+    const note = await write(CARRIER, (c) => keepPersonalNote(c, key(), { text: 'One more to carry' }))
+    assert.equal(
+      await codeOf(write(CARRIER, (c) => carryPersonalNote(c, key(), note.noteId ?? '', team, 'Carrier'))),
+      'carried_full',
+    )
+  })
+
+  it("lists a project's newest carried notes within its bound, the reader's own first", async () => {
+    const team = (await seedProject(db.ownerUrl, { title: 'Busy', admin: ADMIN, editors: [MINE, PEER] })).projectId
+    await owner(
+      `INSERT INTO sophia.personal_releases(id, owner_id, owner_name, project_id, note_id, body, created_at)
+       VALUES (gen_random_uuid(), $1, 'Mine', $3, NULL, 'Mine, oldest', now() - interval '9 hours'),
+              (gen_random_uuid(), $1, 'Mine', $3, NULL, 'Mine, older', now() - interval '8 hours'),
+              (gen_random_uuid(), $2, 'Peer', $3, NULL, 'Peer, 3', now() - interval '3 hours'),
+              (gen_random_uuid(), $2, 'Peer', $3, NULL, 'Peer, 2', now() - interval '2 hours'),
+              (gen_random_uuid(), $2, 'Peer', $3, NULL, 'Peer, 1', now() - interval '1 hour')`,
+      [MINE, PEER, team],
+    )
+    const listed = await read(MINE, (c) => listProjects(c, { projects: 500, releases: 3 }))
+    assert.deepEqual(
+      listed.find((p) => p.projectId === team)?.releases.map((r) => r.text),
+      ['Mine, oldest', 'Mine, older', 'Peer, 1'],
+    )
+  })
+
+  it('refuses text that is only whitespace, or that the database cannot keep', async () => {
+    assert.equal(await codeOf(write(OTHER, (c) => sendPersonalTurn(c, key(), '\n\n'))), 'invalid_request')
+    assert.equal(await codeOf(write(OTHER, (c) => keepPersonalNote(c, key(), { text: '\t' }))), 'invalid_request')
+    assert.equal(await codeOf(write(OTHER, (c) => sendPersonalTurn(c, key(), 'a\u0000b'))), 'invalid_request')
+    const sent = await write(OTHER, (c) => sendPersonalTurn(c, key(), '\n hi \n'))
+    const page = await read(OTHER, (c) => readPersonalTurnsAfter(c, 0))
+    assert.equal(page.turns.find((t) => t.id === sent.turnId)?.text, 'hi')
+  })
+
+  it('keeps no digest of a note she forgot; its keep, retried, is told it changed', async () => {
+    const k = key()
+    const note = await write(OTHER, (c) => keepPersonalNote(c, k, { text: 'A line to forget' }))
+    await write(OTHER, (c) => forgetPersonalNote(c, key(), note.noteId ?? ''))
+    const rows = await owner<{ semantic: Record<string, unknown> }>(
+      `SELECT semantic_request AS semantic FROM sophia.personal_requests
+        WHERE owner_id = $1 AND idempotency_key = $2`,
+      [OTHER, k],
+    )
+    assert.equal(rows.length, 1)
+    assert.equal('text' in (rows[0]?.semantic ?? {}), false)
+    assert.equal(
+      await codeOf(write(OTHER, (c) => keepPersonalNote(c, k, { text: 'A line to forget' }))),
+      'stale_revision',
+    )
   })
 })

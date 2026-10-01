@@ -1,6 +1,6 @@
 # Plan: A personal space with Sophia, beside the work space
 
-> Date: 2026-09-30 · Status: **in progress** (slice 1 done, in review) · Goal: [docs/goals/personal-space.md](../goals/personal-space.md) · Design: Luis's prototype, direction C "Two doors" (artifact "Sophia Personal Space")
+> Date: 2026-09-30 · Status: **in progress** (slice 1 in review: the data and API in this PR, the Studio's places in #30, stacked on it) · Goal: [docs/goals/personal-space.md](../goals/personal-space.md) · Design: Luis's prototype, direction C "Two doors" (artifact "Sophia Personal Space")
 
 ## Approach
 
@@ -23,20 +23,19 @@ touching them.
 
 ## Steps
 
-### 1. The three places and owner-only storage · done (this PR)
+### 1. The three places and owner-only storage · in review
 
-- **Files:** `db/migrations/0021_personal_space.sql`;
+- **This PR (the data and API):** `db/migrations/0021_personal_space.sql`;
   `packages/contracts/amendments/A10-personal-space.json`;
   `packages/persistence/src/personal.ts`, `project-list.ts`;
   `apps/api/src/routes/personal.ts`, `routes/projects.ts`, `companion.ts`,
-  `companion-rehearsal.ts`; `apps/studio/src/features/personal/`,
-  `app/App.tsx`, `app/route.ts`, `app/reauth.ts`, `features/studio/ProjectShell.tsx`.
-- **Verification:** `personal.db.test.ts` in persistence (9) and the API (5);
-  the Studio's view modules (`conversation-view`, `places-view`, `data-view`,
-  `lock`, `route`) with unit tests; side-by-side captures against the prototype
-  at its stage size and on a phone; browser walks of the keys and flows (38
-  checks) and of a call across the places (13 checks); the room's existing
-  browser suites on this branch.
+  `companion-rehearsal.ts`. Verification: `personal.db.test.ts` in
+  persistence (18) and the API (9).
+- **#30 (the Studio's places, stacked on it):** `apps/studio/src/features/personal/`,
+  `app/App.tsx`, `app/route.ts`, `app/reauth.ts`, `features/studio/ProjectShell.tsx`;
+  the Studio's view modules with unit tests; side-by-side captures against the
+  prototype at its stage size and on a phone; browser walks of the keys and
+  flows and of a call across the places; the room's existing browser suites.
 - **Done when:** the gate is clean (`pnpm check`), every screen of direction C
   is reachable and matches the prototype, and another person or a project admin
   reads zero personal rows on every path.

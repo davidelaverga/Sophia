@@ -5,6 +5,9 @@ import { createProject, listProjects, withActor, type ProjectListing } from '@so
 import { roomParticipants, type LiveKitConfig } from '../livekit.ts'
 import { idempotencyHeader } from './schemas.ts'
 
+/** How many people a room lists (A10's maxItems). */
+const ROOM_PEOPLE = 100
+
 /** How long the Work list waits for the room server before it shows its rooms as unknown (`room: null`). */
 export const ROOM_LOOKUP_MS = 2500
 
@@ -19,7 +22,10 @@ async function roomNow(livekit: LiveKitConfig | undefined, roomId: string | null
   })
   const asked = roomParticipants(livekit, roomId)
     .then((people) => ({
-      people: people.filter((p) => p.standing !== 'sophia').map((p) => p.name || 'Someone'),
+      people: people
+        .filter((p) => p.standing !== 'sophia')
+        .slice(0, ROOM_PEOPLE)
+        .map((p) => p.name || 'Someone'),
       sophia: people.some((p) => p.standing === 'sophia'),
     }))
     .catch(() => null)

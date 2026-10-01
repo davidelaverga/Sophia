@@ -5,7 +5,7 @@ import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
-import { CompanionRunner, type Companion } from './companion.ts'
+import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
 import type { InviteConfig } from './invite-token.ts'
@@ -45,7 +45,8 @@ export interface AppDeps {
    * dead stream (apps/studio/src/api/stream.ts), so keep the two in step.
    */
   eventPollMs?: number
-  logger?: boolean
+  /** Fastify's logger: on, off, or options (a test gives it a stream to read what is logged). */
+  logger?: boolean | { stream: { write: (line: string) => void } }
   /** The LiveKit server for project rooms; without it, room tokens answer 503. */
   livekit?: LiveKitConfig
   /** Exact Studio origins allowed to call the API from a browser (a deployed Studio); none by default. */
@@ -138,7 +139,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   const companion = deps.companion
-    ? new CompanionRunner(deps.pool, deps.companion, (err) => app.log.error({ err }, 'companion answer failed'))
+    ? new CompanionRunner(deps.pool, deps.companion, (err) =>
+        app.log.error({ companion: companionFailure(err) }, 'companion answer failed'),
+      )
     : null
   personalRoutes(app, { pool: deps.pool, companion })
   return app
