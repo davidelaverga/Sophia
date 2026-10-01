@@ -1408,3 +1408,233 @@ describe('report facts (0027)', () => {
     assert.equal(await codeOf(read(C)), 'not_found')
   })
 })
+
+const byText = (a: string, b: string) => a.localeCompare(b)
+
+/** Withdraw a source the way forgetting a mission note does (0018 mission_erase_source, which revokes since 0028). */
+const withdraw = (w: World, sourceId: string) =>
+  owner((c) => c.query(`SELECT sophia.mission_erase_source($1, $2)`, [w.projectId, sourceId]))
+
+interface TaskRows {
+  job: string
+  state: string
+  reason: string | null
+  attempt: string
+  binding: string
+  rebuiltFrom: string | null
+  allowance: string
+  root: string
+  manifest: { inputs: unknown[]; withdrawnInputs?: number; lineage: Record<string, unknown> }
+}
+
+/** The project's research tasks, oldest first, with their attempt and binding states and their manifest. */
+const tasks = (w: World) =>
+  owner(
+    async (c) =>
+      (
+        await c.query<TaskRows>(
+          `SELECT j.id AS job, j.state, j.reason, wa.state AS attempt, b.state AS binding, t.rebuilt_from_job_id AS "rebuiltFrom",
+                  t.allowance_id AS allowance, t.root_job_id AS root, s.body::jsonb AS manifest
+             FROM sophia.jobs j JOIN sophia.research_tasks t ON t.project_id=j.project_id AND t.job_id=j.id
+             JOIN sophia.work_attempts wa ON wa.project_id=j.project_id AND wa.id=j.attempt_id
+             JOIN sophia.execution_bindings b ON b.project_id=j.project_id AND b.attempt_id=j.attempt_id
+             JOIN sophia.source_texts s ON s.project_id=j.project_id AND s.source_id=j.input_source_id
+            WHERE j.project_id=$1 ORDER BY t.created_at, j.id`,
+          [w.projectId],
+        )
+      ).rows,
+  )
+
+/** The project's outbox rows: destination, state, the command's kind, and the reason when denied. */
+const outbox = (w: World) =>
+  owner(
+    async (c) =>
+      (
+        await c.query<{
+          destination: string
+          state: string
+          kind: string
+          binding: string | null
+          reason: string | null
+        }>(
+          `SELECT o.destination, o.state, c.kind, o.binding_id AS binding, o.outcome_reason AS reason
+             FROM sophia.outbox o JOIN sophia.commands c ON c.project_id=o.project_id AND c.id=o.command_id
+            WHERE o.project_id=$1 ORDER BY o.created_at, o.id`,
+          [w.projectId],
+        )
+      ).rows,
+  )
+
+const goalOf = (w: World, goalId: string) =>
+  one<{ revision: string; authority_epoch: string; status: string }>(
+    `SELECT revision, authority_epoch, status FROM sophia.goals WHERE project_id=$1 AND id=$2`,
+    [w.projectId, goalId],
+  )
+
+const control = (w: World, kind: 'hold' | 'resume' | 'steer', goalId: string, bodySourceId: string | null = null) =>
+  goalOf(w, goalId).then((g) =>
+    withActor(pool, E, 'write', (c) =>
+      admitGoalCommand(c, w.projectId, randomUUID(), {
+        kind,
+        goalId,
+        expectedGoalRevision: Number(g.revision),
+        expectedAuthorityEpoch: Number(g.authority_epoch),
+        bodySourceId,
+      }),
+    ),
+  )
+
+/**
+ * Dispatch everything, then answer each command not answered before (`seen`) the way the runtime would. Returns the
+ * new commands.
+ */
+async function deliverAll(
+  w: World,
+  seen: Set<string>,
+  stage: (cmd: RuntimeCommand) => RuntimeReceipt['stage'] = () => 'delivered',
+) {
+  await dispatchAll(w.projectId)
+  const batch = await withService(pool, (c) => runtimePoll(c, w.who, 0))
+  const commands = batch.commands.map((q) => q.command as RuntimeCommand).filter((cmd) => !seen.has(cmd.commandId))
+  for (const cmd of commands) seen.add(cmd.commandId)
+  await service((c) =>
+    recordRuntimeReceipts(
+      c,
+      w.who,
+      commands.map((cmd) => ({ ...delivered(cmd), stage: stage(cmd) })),
+    ),
+  )
+  return commands
+}
+
+describe('research revocation (0028, T19)', () => {
+  it('revokes running research when an input it read is withdrawn, stops its session and rebuilds it without the input', async () => {
+    const w = await world()
+    const { at, receipt, create: first } = await started(w, { inputSourceIds: [w.inputSourceId] })
+    const seen = new Set([first.commandId])
+    await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: 'd1', expectedSha256: null, text: '# Quotes the input' }),
+    )
+    await withdraw(w, w.inputSourceId)
+
+    const [old, rebuilt] = await tasks(w)
+    assert.ok(old && rebuilt)
+    assert.deepEqual([old.job, old.state, old.attempt, old.binding], [receipt.taskId, 'failed', 'revoked', 'stopping'])
+    assert.match(old.reason ?? '', /^revoked: /)
+    assert.deepEqual(
+      [rebuilt.state, rebuilt.attempt, rebuilt.binding, rebuilt.rebuiltFrom, rebuilt.allowance, rebuilt.root],
+      ['pending', 'admitted', 'created', old.job, old.allowance, old.root],
+    )
+    assert.deepEqual([rebuilt.manifest.inputs, rebuilt.manifest.withdrawnInputs], [[], 1])
+    assert.equal(rebuilt.manifest.lineage.rebuiltFromTaskId, old.job)
+    assert.equal(
+      await codeOf(service((c) => runtimeResearchContext(c, w.who, at))),
+      'invalid_state',
+      'the revoked session is fenced',
+    )
+
+    // A steer admitted before the revoked session has stopped is refused for it.
+    const steer = await withActor(pool, E, 'write', (c) =>
+      submitContribution(c, w.projectId, randomUUID(), {
+        source: null,
+        text: 'Look at costs too.',
+        threadId: null,
+        artifactVersionId: null,
+        intent: 'discuss',
+      }),
+    )
+    await control(w, 'steer', receipt.goalId, steer.sourceId)
+
+    // A restart: the hello reports the revoked binding stopped, so it is never loaded.
+    const hello = await withService(pool, (c) =>
+      runtimeHello(c, w.who, { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles: [MD, PDF] }),
+    )
+    await withService(pool, (c) => recordRuntimeReady(c, w.who, { state: 'ready', reason: null, unrecovered: [] }))
+    assert.deepEqual(
+      hello.bindings.filter((b) => b.attemptId === at.attemptId).map((b) => b.state),
+      ['stopped'],
+    )
+
+    const commands = await deliverAll(w, seen, (cmd) => (cmd.kind === 'stop' ? 'checked' : 'delivered'))
+    assert.deepEqual(
+      commands
+        .map((cmd) => `${cmd.kind}:${cmd.binding.attemptId === at.attemptId ? 'old' : 'rebuilt'}`)
+        .toSorted(byText),
+      ['create:rebuilt', 'steer:rebuilt', 'stop:old'],
+      'the steer reaches the rebuilt task only',
+    )
+    const rows = await outbox(w)
+    const oldSteer = rows.find((r) => r.destination === 'native.steer' && r.state === 'denied')
+    assert.equal(oldSteer?.reason, 'a source its work read was withdrawn')
+    const [stopped, running] = await tasks(w)
+    assert.deepEqual(
+      [stopped?.attempt, stopped?.binding, running?.state, running?.attempt],
+      ['revoked', 'settled', 'running', 'running'],
+    )
+
+    // The rebuilt task reads its task without the input, under the same allowance, and cannot read the withdrawn text.
+    const create = commands.find((cmd) => cmd.kind === 'create')
+    assert.ok(create)
+    const next = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+    const context = await service((c) => runtimeResearchContext(c, w.who, next))
+    assert.ok('inputs' in context)
+    assert.deepEqual([context.inputs, context.draft], [[], null])
+    assert.equal(
+      await codeOf(service((c) => runtimeResearchContext(c, w.who, { ...next, sourceId: w.inputSourceId }))),
+      'not_found',
+    )
+  })
+
+  it('leaves a held task waiting until Resume, which queues the rebuilt task and never resumes the revoked one', async () => {
+    const w = await world()
+    const { receipt, create: first } = await started(w, { inputSourceIds: [w.inputSourceId] })
+    const seen = new Set([first.commandId])
+    await control(w, 'hold', receipt.goalId)
+    await deliverAll(w, seen, () => 'checked')
+    assert.equal((await goalOf(w, receipt.goalId)).status, 'held')
+
+    await withdraw(w, w.inputSourceId)
+    const [old, rebuilt] = await tasks(w)
+    assert.deepEqual([old?.attempt, rebuilt?.state, rebuilt?.binding], ['revoked', 'pending', 'created'])
+    assert.equal(
+      (await outbox(w)).some((r) => r.destination === 'native.create' && r.state === 'pending'),
+      false,
+      'nothing is queued while held',
+    )
+
+    await control(w, 'resume', receipt.goalId)
+    const queued = (await outbox(w)).filter((r) => r.state === 'pending')
+    assert.deepEqual(
+      queued.map((r) => `${r.destination}:${r.kind}`).toSorted(byText),
+      ['control.settle:resume', 'native.create:native_task', 'native.stop:stop'],
+      'the rebuilt task is queued under the Resume; no resume row names a revoked or unstarted session',
+    )
+    const commands = await deliverAll(w, seen, (cmd) => (cmd.kind === 'stop' ? 'checked' : 'delivered'))
+    assert.deepEqual(commands.map((cmd) => cmd.kind).toSorted(byText), ['create', 'stop'])
+    const resume = await one<{ state: string }>(
+      `SELECT state FROM sophia.commands WHERE project_id=$1 AND goal_id=$2 AND kind='resume'`,
+      [w.projectId, receipt.goalId],
+    )
+    assert.equal(resume.state, 'checked', 'the Resume is settled, never denied')
+    const [, running] = await tasks(w)
+    assert.deepEqual([running?.state, running?.attempt, running?.binding], ['running', 'running', 'running'])
+  })
+
+  it('revokes nothing for a source no running task consumed, nor for one still eligible', async () => {
+    const w = await world()
+    const { receipt } = await started(w)
+    const none = await owner(
+      async (c) =>
+        (
+          await c.query<{ r: string[] }>(`SELECT sophia.research_revoke_source($1, $2) AS r`, [
+            w.projectId,
+            w.inputSourceId,
+          ])
+        ).rows[0],
+    )
+    assert.deepEqual(none?.r, [])
+    await withdraw(w, w.inputSourceId)
+    const [only] = await tasks(w)
+    assert.deepEqual([only?.job, only?.state, only?.attempt], [receipt.taskId, 'running', 'running'])
+  })
+})

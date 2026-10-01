@@ -45,8 +45,18 @@ describe('a research card in words', () => {
       'Not produced: Every source is behind a login.',
     )
     assert.match(
-      researchState({ ...failed, reason: 'no_result_submitted' }, [], ['markdown']).note ?? '',
+      researchState({ ...failed, reason: 'no_result_submitted: the draft is kept' }, [], ['markdown']).note ?? '',
       /without submitting/,
+    )
+    const replaced = researchState(
+      { ...failed, reason: 'revoked: a source it read was withdrawn; the task continues without it' },
+      [],
+      ['markdown'],
+    )
+    assert.deepEqual(
+      [replaced.state, replaced.label],
+      ['replaced', 'Replaced'],
+      'a revoked task is replaced, not failed',
     )
     assert.equal(researchState({ ...failed, reason: null }, [], ['markdown']).note, 'No report was produced.')
   })

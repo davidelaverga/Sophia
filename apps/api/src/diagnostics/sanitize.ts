@@ -175,6 +175,9 @@ const TASK_SUMMARIES = [
   // A research turn that ended without a submit (SMC-M03 0026): the one nudge, then the failure.
   'no_result_yet',
   'no_result_submitted',
+  // A source the research read was withdrawn (0028): the task revoked, and the one rebuilt without it.
+  'revoked',
+  'rebuilt',
 ]
 const TASK_ENDINGS = ['outcome_unknown', 'error', 'max-tokens', 'blocked']
 export const VOICE_STATES = ['connecting', 'ready', 'recovering', 'unavailable']

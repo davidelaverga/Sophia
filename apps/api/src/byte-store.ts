@@ -2,7 +2,8 @@
 // a long Markdown, retained passages). Only the API holds its credential: the runtime host sends bytes through the
 // API, and a member reads them through a URL the API signs after authorizing that read (A11 getSourceContent).
 // Objects are written once under a source id and never overwritten, so a URL always reads the bytes whose hash the
-// API answered with.
+// API answered with. The credential is a Storage-only S3 access key (binding §8): it reaches no database.
+import { amzDates, authorization, encodeKey, presignedUrl, sha256Hex, uriEncode } from './s3-sign.ts'
 
 /** A stored source's object path: one object per source, named by its project and id. */
 export const objectPath = (projectId: string, sourceId: string) => `${projectId}/${sourceId}`
@@ -26,28 +27,54 @@ export class ByteStoreError extends Error {
   }
 }
 
-export interface SupabaseStorageConfig {
-  /** The project's API origin, e.g. https://<ref>.supabase.co. */
-  url: string
-  /** A server-only key with Storage access. Never sent to a browser, never used for the database. */
-  key: string
+export interface S3StorageConfig {
+  /** The S3 endpoint, path-style: for Supabase, https://<ref>.supabase.co/storage/v1/s3. */
+  endpoint: string
+  region: string
+  /** A Storage-only access key (Supabase S3 access keys reach Storage, never the database). */
+  accessKeyId: string
+  secretAccessKey: string
   /** A private bucket. */
   bucket: string
 }
 
 type Fetch = typeof fetch
 
-const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/')
+/** The quoted file name a download is saved as; the API's names are ASCII slugs (reportFilename), kept as they are. */
+const attachment = (name: string) => `attachment; filename="${name.replace(/["\\\r\n]/g, '_')}"`
 
 /**
- * Supabase Storage over its REST API: upload with `x-upsert: false` (a second write of a path fails), and sign a GET
- * URL with `download` when the reader asked to save the file. Not yet exercised against a live project: Codex's
- * qualification (plan §5) runs it before any hosted release.
+ * S3-compatible object storage, signed with Signature Version 4: a put that never replaces an object (a HEAD first,
+ * then `If-None-Match: *`; either refusal is 409), and a presigned GET that saves the file under its name when the
+ * reader asked to. Path-style addressing (`<endpoint>/<bucket>/<key>`), as Supabase's S3 endpoint uses. Not yet
+ * exercised against a live project: Codex's qualification (plan §5) runs it before any hosted release.
  */
-export function supabaseByteStore(config: SupabaseStorageConfig, fetchImpl: Fetch = fetch): ByteStore {
-  const base = `${config.url.replace(/\/+$/, '')}/storage/v1`
-  const auth = { authorization: `Bearer ${config.key}`, apikey: config.key }
-  const bucket = encodeURIComponent(config.bucket)
+export function s3ByteStore(
+  config: S3StorageConfig,
+  fetchImpl: Fetch = fetch,
+  clock: () => Date = () => new Date(),
+): ByteStore {
+  const endpoint = new URL(config.endpoint.replace(/\/+$/, ''))
+  const creds = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region }
+  const pathOf = (key: string) =>
+    `${endpoint.pathname.replace(/\/+$/, '')}/${uriEncode(config.bucket)}/${encodeKey(key)}`
+
+  async function send(method: string, key: string, body: Uint8Array | null, extra: Record<string, string>) {
+    const now = clock()
+    const payloadHash = sha256Hex(body ?? new Uint8Array())
+    const headers: Record<string, string> = {
+      ...extra,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDates(now).amzDate,
+    }
+    const path = pathOf(key)
+    const auth = authorization({ method, host: endpoint.host, path, query: [], headers, payloadHash }, creds, now)
+    return fetchImpl(`${endpoint.origin}${path}`, {
+      method,
+      headers: { ...headers, authorization: auth },
+      ...(body === null ? {} : { body }),
+    })
+  }
 
   async function failure(res: Response, what: string): Promise<ByteStoreError> {
     const text = await res.text().catch(() => '')
@@ -56,32 +83,27 @@ export function supabaseByteStore(config: SupabaseStorageConfig, fetchImpl: Fetc
 
   return {
     async put(path, bytes, mime) {
-      const res = await fetchImpl(`${base}/object/${bucket}/${encodePath(path)}`, {
-        method: 'POST',
-        headers: { ...auth, 'content-type': mime, 'x-upsert': 'false', 'cache-control': 'private, max-age=0' },
-        body: bytes,
+      const head = await send('HEAD', path, null, {})
+      if (head.ok) throw new ByteStoreError(409, `store put: ${path} exists`)
+      if (head.status !== 404) throw await failure(head, 'store head')
+      const res = await send('PUT', path, bytes, {
+        'content-type': mime,
+        'cache-control': 'private, max-age=0',
+        'if-none-match': '*',
       })
+      if (res.status === 412) throw new ByteStoreError(409, `store put: ${path} exists`)
       if (!res.ok) throw await failure(res, 'store put')
     },
-    async signedUrl(path, expiresInSeconds, downloadAs) {
-      const res = await fetchImpl(`${base}/object/sign/${bucket}/${encodePath(path)}`, {
-        method: 'POST',
-        headers: { ...auth, 'content-type': 'application/json' },
-        body: JSON.stringify({ expiresIn: expiresInSeconds }),
-      })
-      if (!res.ok) throw await failure(res, 'store sign')
-      const body: unknown = await res.json()
-      const signed =
-        typeof body === 'object' && body !== null && 'signedURL' in body && typeof body.signedURL === 'string'
-          ? body.signedURL
-          : null
-      if (!signed?.startsWith('/')) throw new ByteStoreError(502, 'store sign: no signed URL in the reply')
-      const url = new URL(`${base}${signed}`)
-      if (downloadAs !== null) url.searchParams.set('download', downloadAs)
-      return url.toString()
+    signedUrl(path, expiresInSeconds, downloadAs) {
+      const query: [string, string][] =
+        downloadAs === null ? [] : [['response-content-disposition', attachment(downloadAs)]]
+      const req = { method: 'GET', host: endpoint.host, path: pathOf(path), query }
+      return Promise.resolve(presignedUrl(endpoint.origin, req, creds, clock(), expiresInSeconds))
     },
   }
 }
+
+const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/')
 
 /** Bytes in memory, for tests and local development. Signed URLs point nowhere real; they carry the path. */
 export function memoryByteStore(origin = 'https://store.invalid'): ByteStore & { objects: Map<string, Uint8Array> } {

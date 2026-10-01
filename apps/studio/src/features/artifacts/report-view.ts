@@ -5,7 +5,8 @@
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ReportSource, ResearchProgress } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
 
-export type ResearchState = 'starting' | 'researching' | 'ready' | 'partial' | 'not_produced' | 'held' | 'stopped'
+export type ResearchState =
+  'starting' | 'researching' | 'ready' | 'partial' | 'not_produced' | 'replaced' | 'held' | 'stopped'
 
 export interface StateWords {
   state: ResearchState
@@ -26,7 +27,7 @@ function notProducedNote(reason: string | null): string {
   if (!reason) return 'No report was produced.'
   const blocked = /^blocked:\s*(.+)$/s.exec(reason)
   if (blocked?.[1]) return `Not produced: ${blocked[1]}`
-  if (reason === 'no_result_submitted') return 'Not produced: the research ended without submitting a report.'
+  if (reason.startsWith('no_result_submitted')) return 'Not produced: the research ended without submitting a report.'
   return `Not produced (${reason}).`
 }
 
@@ -44,8 +45,12 @@ function delivered(formats: ReadonlySet<string>, asked: readonly ('markdown' | '
     : { state: 'ready', label: 'Report ready', tone: 'teal', note: null }
 }
 
-/** A task with no report yet: held, stopped, ended without one, starting or at work. */
+/** A task with no report yet: replaced, held, stopped, ended without one, starting or at work. */
 function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>): StateWords {
+  if (task.reason?.startsWith('revoked:')) {
+    const note = 'A source it read was withdrawn, so it stopped; the task continues without it.'
+    return { state: 'replaced', label: 'Replaced', tone: 'muted', note }
+  }
   if (HELD.has(task.phase)) {
     const label = task.phase === 'holding' ? 'Holding' : 'Held'
     return { state: 'held', label, tone: 'amber', note: 'Resume it from its goal above.' }
