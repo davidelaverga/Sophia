@@ -87,9 +87,12 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
   const [back, setBack] = useState<{ epoch: number; turns: readonly PersonalTurn[]; more: boolean } | null>(null)
   const reading = useRef(false)
   const listed = useRef<readonly PersonalTurn[]>(NO_TURNS)
+  // The epoch of the space shown now, null while it is locked: a page that arrives for another is let go.
+  const shown = useRef<number | null>(null)
   useEffect(() => {
     const before = listed.current
     listed.current = space?.turns ?? NO_TURNS
+    shown.current = space?.epoch ?? null
     if (!space) {
       setBack(null) // locked (or not read yet): nothing read back is kept
       return
@@ -107,9 +110,11 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
     const from = older[0]?.seq ?? space?.turns[0]?.seq
     if (!space || from === undefined || !more || reading.current) return
     reading.current = true
+    const { epoch } = space
     try {
       const page = await getEarlierPersonalTurns(identity.token, from)
-      setBack({ epoch: space.epoch, turns: [...page.turns, ...older], more: page.earlier })
+      if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
+      setBack({ epoch, turns: [...page.turns, ...older], more: page.earlier })
     } finally {
       reading.current = false
     }

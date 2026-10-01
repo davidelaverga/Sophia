@@ -495,7 +495,8 @@ their work. Keep these when you change them:
   conversation, in this device's time zone (UTC where the server doesn't
   know it). While the padlock is shut the field is off the page and the
   page keeps none of the space's words: neither a message on its way nor
-  what was read back (the device keeps the draft). The conversation's days
+  what was read back, nor a page of it that arrives after (the device keeps
+  the draft). The conversation's days
   follow the clock: past midnight, Today becomes Yesterday. "Join the room"
   from Work asks to join on that opening only (`joinStands`, with tests):
   leaving before the room could join drops it.
