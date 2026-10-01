@@ -671,6 +671,21 @@ describe('personal space: a long conversation', () => {
     }
     assert.equal(seen.size, 620, 'every turn, once')
     assert.deepEqual((await read(LONG, (c) => readPersonalTurnsBefore(c, 1))).turns, [])
+    // Its export comes a page at a time, each bounded, every turn once and in order.
+    const exported: number[] = []
+    let next: number | null = 0
+    for (let pages = 0; next !== null; pages += 1) {
+      const from: number = next
+      const page = await read(LONG, (c) => readPersonalExport(c, from, 300))
+      assert.ok(page.turns.length <= 300 && pages < 3, 'bounded pages')
+      exported.push(...page.turns.map((t) => t.seq))
+      next = page.next
+    }
+    assert.deepEqual(
+      exported,
+      exported.toSorted((a, b) => a - b),
+    )
+    assert.equal(new Set(exported).size, 620)
   })
 
   it('counts days in the reader’s time zone, and refuses one the database doesn’t know', async () => {

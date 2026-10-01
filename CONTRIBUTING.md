@@ -362,7 +362,9 @@ either:
   rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
   development and tests only, and the space says so (`companion:
   'rehearsal'`). Without a companion, sending is refused and nothing is kept:
-  never store a message nobody will answer. A companion's failure is logged
+  never store a message nobody will answer. A retry still gets the receipt
+  its key keeps where no companion runs (a deploy rolling out): only new
+  work is refused there. A companion's failure is logged
   by its name and code only (`companionFailure`): its message may carry a
   person's words. The API claims a turn before it asks the companion
   (`claim_personal_reply`), and a welcome under its request's key
@@ -383,7 +385,8 @@ either:
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole
-  conversation, in the reader's time zone.
+  conversation, in the reader's time zone. The export comes a page of at
+  most 1000 turns at a time (`after`, `next`), so one read stays bounded.
 - **One read of the Work list stays small.** It holds at most 4000 carried
   notes in all (`PROJECT_LIST_BOUNDS`), the reader's own first, then the
   newest; each project's own bound still holds.

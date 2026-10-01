@@ -11,6 +11,7 @@ import type {
   PersonalErasureRequest,
   PersonalMessage,
   PersonalNoteRequest,
+  PersonalReceipt,
   PersonalResumeRequest,
   PersonalSuggestionDecision,
 } from '@sophia/contracts'
@@ -26,6 +27,9 @@ import {
   readPersonalSpace,
   readPersonalTurnsAfter,
   readPersonalTurnsBefore,
+  replayPersonalGreeting,
+  replayPersonalRetry,
+  replayPersonalTurn,
   retryPersonalTurn,
   sendPersonalTurn,
   takeBackPersonalRelease,
@@ -99,6 +103,20 @@ const writeSchema = (params: object | null, body: string | null, headers: object
 
 const NO_COMPANION = 'Sophia can’t answer here yet. Nothing was kept.'
 
+/**
+ * Where no companion runs (a deploy rolling out, one never configured), a retry still gets the receipt its key keeps;
+ * only new work is refused, before anything is kept.
+ */
+async function replayed(
+  pool: pg.Pool,
+  req: { actorId: string; headers: Fenced },
+  replay: (c: pg.PoolClient) => Promise<PersonalReceipt | null>,
+): Promise<PersonalReceipt> {
+  const kept = await fenced(pool, req.actorId, req.headers, replay)
+  if (!kept) throw new DomainError('unavailable', NO_COMPANION)
+  return kept
+}
+
 /** An IANA time zone's shape (Europe/Madrid, America/Argentina/Buenos_Aires, UTC); the database says if it knows it. */
 const TIME_ZONE_PATTERN = '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$'
 
@@ -123,10 +141,26 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
     },
   )
 
-  app.get('/api/v1/personal/export', { schema: { response: { 200: { $ref: 'PersonalExport#' } } } }, async (req) => {
-    const everything = await withActor(pool, req.actorId, 'read', (c) => readPersonalExport(c))
-    return { exportedAt: new Date().toISOString(), ...everything }
-  })
+  // A page of turns at a time (after `after`, a seq), so one read stays bounded however long the conversation.
+  app.get<{ Querystring: { after?: string } }>(
+    '/api/v1/personal/export',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { after: { type: 'string', pattern: '^(0|[1-9][0-9]{0,15})$' } },
+        },
+        response: { 200: { $ref: 'PersonalExport#' } },
+      },
+    },
+    async (req) => {
+      const after = Number(req.query.after ?? 0)
+      if (!Number.isSafeInteger(after)) throw new DomainError('invalid_request', 'after is beyond the largest turn')
+      const page = await withActor(pool, req.actorId, 'read', (c) => readPersonalExport(c, after))
+      return { exportedAt: new Date().toISOString(), ...page }
+    },
+  )
 }
 
 /** The conversation a page at a time: what came after a turn (polling), and what came before one (reading back). */
@@ -177,10 +211,10 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     '/api/v1/personal/turns',
     { schema: writeSchema(null, 'PersonalMessage') },
     async (req, reply) => {
-      if (!companion) throw new DomainError('unavailable', NO_COMPANION)
-      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
-        sendPersonalTurn(c, req.headers['idempotency-key'], req.body.text),
-      )
+      const key = req.headers['idempotency-key']
+      if (!companion)
+        return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalTurn(c, key, req.body.text)))
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) => sendPersonalTurn(c, key, req.body.text))
       if (receipt.turnId) void companion.answer(req.actorId, receipt.turnId)
       return reply.status(202).send(receipt)
     },
@@ -191,14 +225,14 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     '/api/v1/personal/resume',
     { schema: writeSchema(null, 'PersonalResumeRequest') },
     async (req, reply) => {
-      if (!companion) throw new DomainError('unavailable', NO_COMPANION)
       const { headers } = req
-      const receipt = await companion.greet(
-        req.actorId,
-        headers['idempotency-key'],
-        epochOf(headers),
-        req.body.name?.trim() || null,
-      )
+      const name = req.body.name?.trim() || null
+      if (!companion) {
+        return reply
+          .status(202)
+          .send(await replayed(pool, req, (c) => replayPersonalGreeting(c, headers['idempotency-key'], name)))
+      }
+      const receipt = await companion.greet(req.actorId, headers['idempotency-key'], epochOf(headers), name)
       return reply.status(202).send(receipt)
     },
   )
@@ -207,11 +241,12 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     '/api/v1/personal/turns/:turnId/retry',
     { schema: writeSchema(idParams('turnId'), null) },
     async (req, reply) => {
-      if (!companion) throw new DomainError('unavailable', NO_COMPANION)
-      const receipt = await fenced(pool, req.actorId, req.headers, (c) =>
-        retryPersonalTurn(c, req.headers['idempotency-key'], req.params.turnId),
-      )
-      void companion.answer(req.actorId, req.params.turnId)
+      const key = req.headers['idempotency-key']
+      const { turnId } = req.params
+      if (!companion)
+        return reply.status(202).send(await replayed(pool, req, (c) => replayPersonalRetry(c, key, turnId)))
+      const receipt = await fenced(pool, req.actorId, req.headers, (c) => retryPersonalTurn(c, key, turnId))
+      void companion.answer(req.actorId, turnId)
       return reply.status(202).send(receipt)
     },
   )
