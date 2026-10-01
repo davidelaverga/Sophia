@@ -124,7 +124,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
 }
 
 /** Build a well-formed runtime command for the fixture. */
-export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role, commandId = `cmd-${randomUUID()}`, expectedNativeSessionId = null } = {}) {
+export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role, route, commandId = `cmd-${randomUUID()}`, expectedNativeSessionId = null } = {}) {
   return {
     schema: 'sophia.runtime-command.v1',
     commandId,
@@ -132,6 +132,6 @@ export function command(kind, { attemptId, runtimeUnitId, epoch = 1, text, role,
     kind,
     expectedNativeSessionId,
     contextPacketId: null,
-    payload: { ...(text === undefined ? {} : { text }), ...(role === undefined ? {} : { role }) },
+    payload: { ...(text === undefined ? {} : { text }), ...(role === undefined ? {} : { role }), ...(route === undefined ? {} : { route }) },
   }
 }

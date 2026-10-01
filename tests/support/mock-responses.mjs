@@ -86,3 +86,19 @@ export function recordedRouteOverlay(bundlePatchText, baseURL) {
   const config = { ...route, providers: { ...route.providers, openai: { ...route.providers.openai, baseURL } } }
   return `# Test overlay: the recorded openai route, pointed at a local stub. Never part of a profile.\n${stringify([{ id: 'llm-pi-ai', config }])}`
 }
+
+/**
+ * A `--patch` overlay (tests only; never installed) that keeps the Sophia bundle's recorded `openai-research` route
+ * byte for byte except its `baseURL`, which points at the stub (SMC-M03). The default route is untouched.
+ * @param {string} bundlePatchText - the Sophia bundle's cordis.patch.yml.
+ * @param {string} baseURL - the stub's base URL.
+ */
+export function researchRouteOverlay(bundlePatchText, baseURL) {
+  const rows = parseCordisYaml(bundlePatchText)
+  const route = rows.find((row) => row.id === 'llm-pi-ai')?.config
+  const research = route?.providers?.['openai-research']
+  if (!research) throw new Error('the bundle patch declares no openai-research route')
+  if (research.baseURL !== 'https://api.openai.com/v1') throw new Error('the production research route must send to https://api.openai.com/v1')
+  const config = { ...route, providers: { ...route.providers, 'openai-research': { ...research, baseURL } } }
+  return `# Test overlay: the recorded research route, pointed at a local stub. Never part of a profile.\n${stringify([{ id: 'llm-pi-ai', config }])}`
+}

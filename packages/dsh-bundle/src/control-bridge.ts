@@ -31,7 +31,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { createUserMessage, expandAssistantStream } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, ReasoningEffortId, UserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, ReasoningEffortId, StreamChunk, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
 import type { ToolGuard } from '@deepseek-ai/dsh-tools'
@@ -46,6 +46,9 @@ import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, Stash
 import { ServiceTransport } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
 import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
+
+/** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
+export type RouteSpec = ExecutionIdentity['route']
 
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
@@ -62,6 +65,10 @@ export interface BridgeSettings {
   readonly pollWaitMs: number
   /** Upper bound for cancellation to settle before a Hold/Stop receipt reports `outcome_unknown`. */
   readonly settleTimeoutMs: number
+  /** The unit's route allowlist beyond `default`, by route id (SMC-M03). */
+  readonly routes: Readonly<Record<string, RouteSpec>>
+  /** Role id → route id; a role not named runs on `default`. */
+  readonly roleRoutes: Readonly<Record<string, string>>
   readonly log: (line: string) => void
 }
 
@@ -163,12 +170,29 @@ export class ControlBridge {
       return undefined
     }
     const offGuard = ctx.tools.guard(attemptGuard)
+    // Every model call made for a bound attempt runs on the route the attempt recorded (SMC-M03): its turns, its
+    // workflow children and its compaction. A program or tool that names another provider, model or effort is
+    // refused before any request leaves, so a role cannot reach a dearer route than the unit gave it.
+    const offStream = ctx.on('llm/stream', (options: GenerateOptions, next: () => AsyncIterable<StreamChunk>) => {
+      const attempt = this.attemptForSession(options.sessionId)
+      const route = attempt?.identity?.route
+      const problem = route ? offRoute(options, route) : null
+      if (attempt === undefined || problem === null) return next()
+      this.journal.append(attempt.sessionId, 'sophia/route-refused', {
+        attemptId: attempt.attemptId,
+        sessionId: String(options.sessionId),
+        requested: { provider: String(options.provider), model: String(options.model), reasoningEffort: options.reasoningEffort === undefined ? null : String(options.reasoningEffort) },
+        reason: problem,
+      })
+      return refuse(problem)
+    }, { global: true, prepend: true })
     const offEvent = ctx.on('session/event', (session: Session, event: SessionEvent) => this.observe(session, event))
     void this.connect()
     return async () => {
       this.stopping.abort()
       offPreStep()
       offGuard()
+      offStream()
       offEvent()
       await Promise.all([this.receiptQueue.flush(), this.observationQueue.flush()])
     }
@@ -245,6 +269,12 @@ export class ControlBridge {
       current = this.ctx.agents.list().find((candidate) => candidate.id !== child.id && this.ctx.agents.isOwnedBy(child.id, candidate))
     }
     return undefined
+  }
+
+  /** The bound attempt a model call's session belongs to, directly or through the Agent that owns it. */
+  private attemptForSession(sessionId: GenerateOptions['sessionId']): AttemptState | undefined {
+    if (sessionId === undefined) return undefined
+    return this.bySession.get(sessionId) ?? this.attemptFor(this.ctx.agents.get(sessionId))
   }
 
   /**
@@ -358,6 +388,21 @@ export class ControlBridge {
     return { provider, model, reasoningEffort: reasoningEffort ?? null }
   }
 
+  /**
+   * The route a role runs on in this unit: the bridge row's `roleRoutes`, else `default` (the composition's default
+   * model). A create that names a route must name exactly this one; there is no fallback to another route.
+   */
+  private routeFor(role: RolePreset, requested: string | undefined): ExecutionIdentity['route'] {
+    const id = this.settings.roleRoutes[role.id] ?? 'default'
+    if (requested !== undefined && requested !== id) {
+      throw new ProtocolError(`role ${role.id} runs on route ${id} in this runtime unit; the command names ${requested}`)
+    }
+    if (id === 'default') return this.defaultRoute()
+    const route = this.settings.routes[id]
+    if (!route) throw new ProtocolError(`route ${id} is not allowed in this runtime unit`)
+    return route
+  }
+
   private agentOptions(route: ExecutionIdentity['route']): AgentOptions {
     return route.reasoningEffort === null ? { provider: route.provider, model: route.model } : { provider: route.provider, model: route.model, reasoningEffort: brandString<ReasoningEffortId>(route.reasoningEffort) }
   }
@@ -382,13 +427,13 @@ export class ControlBridge {
 
   /**
    * The identity a new attempt records before its native create: this unit,
-   * the role's preset, and the default route. A redelivered create that a
+   * the role's preset, and the role's route. A redelivered create that a
    * restart cut short finds the identity it already recorded.
    */
-  private async createIdentity(attempt: AttemptState, role: RolePreset): Promise<ExecutionIdentity> {
+  private async createIdentity(attempt: AttemptState, role: RolePreset, requestedRoute: string | undefined): Promise<ExecutionIdentity> {
     const recorded = foldLog(this.journal.read(attempt.sessionId)).identity
     if (recorded) return { runtimeUnitId: recorded.runtimeUnitId, preset: recorded.preset, route: recorded.route }
-    const identity: ExecutionIdentity = { runtimeUnitId: this.settings.runtimeUnitId, preset: await this.presetIdentity(role), route: this.defaultRoute() }
+    const identity: ExecutionIdentity = { runtimeUnitId: this.settings.runtimeUnitId, preset: await this.presetIdentity(role), route: this.routeFor(role, requestedRoute) }
     this.journal.append(attempt.sessionId, 'sophia/identity', { ...identity, attemptId: attempt.attemptId, source: 'create', evidence: null })
     return identity
   }
@@ -403,7 +448,7 @@ export class ControlBridge {
    */
   private async resumeIdentity(attempt: AttemptState, role: RolePreset, recorded: ExecutionIdentity | null): Promise<ExecutionIdentity> {
     const preset = await this.presetIdentity(role)
-    if (!recorded) return { runtimeUnitId: this.settings.runtimeUnitId, preset, route: this.defaultRoute() }
+    if (!recorded) return { runtimeUnitId: this.settings.runtimeUnitId, preset, route: this.routeFor(role, undefined) }
     if (recorded.preset.id !== preset.id || recorded.preset.digest !== preset.digest) {
       throw new ProtocolError(`the attempt was created under native preset ${recorded.preset.id} (${recorded.preset.digest}) in runtime unit ${recorded.runtimeUnitId}; this unit defines ${preset.id} as ${preset.digest}. An attempt never resumes under a different composition: it stays held until it is reconstructed`)
     }
@@ -608,8 +653,11 @@ export class ControlBridge {
     }
     const role = roleOf(command.payload.role)
     if (!role) throw new ProtocolError(`create requires payload.role, one of this bundle's role presets; got ${JSON.stringify(command.payload.role)}`)
-    // A role whose native preset this unit cannot compose is refused before any attempt state exists.
-    if (!existing) await this.presetIdentity(role)
+    // A role whose native preset or route this unit cannot compose is refused before any attempt state exists.
+    if (!existing) {
+      await this.presetIdentity(role)
+      this.routeFor(role, command.payload.route)
+    }
     const attempt = existing ?? this.newAttempt(attemptId, authorityEpoch)
     attempt.role ??= role
     const live = existing ? null : this.ctx.agents.get(attempt.sessionId)
@@ -619,7 +667,7 @@ export class ControlBridge {
       this.adopt(attempt, live)
     } else {
       // Recorded before the native create (log-first): the identity is the attempt's from its first step.
-      const identity = await this.createIdentity(attempt, role)
+      const identity = await this.createIdentity(attempt, role, command.payload.route)
       attempt.identity = identity
       try {
         attempt.handle = await this.ctx.agents.create({ sessionId: attempt.sessionId, meta: { cwd: this.settings.workspace, agentPreset: role.id }, agentOptions: this.agentOptions(identity.route), setup: this.setupFor(role) })
@@ -942,6 +990,26 @@ export class ControlBridge {
     for (const o of batch) highest.set(o.nativeSessionId, Math.max(highest.get(o.nativeSessionId) ?? -1, o.nativeSeq))
     for (const [sessionId, nativeSeq] of highest) this.journal.append(sessionId, 'sophia/observed', { nativeSeq })
   }
+}
+
+/**
+ * Why a model call leaves the attempt's route, or null when it does not. A call that names no effort runs at the
+ * model's default (compaction does), which the route allows; one that names an effort must name the route's.
+ */
+export function offRoute(options: GenerateOptions, route: RouteSpec): string | null {
+  const provider = String(options.provider)
+  const model = String(options.model)
+  const effort = options.reasoningEffort === undefined ? null : String(options.reasoningEffort)
+  if (provider === route.provider && model === route.model && (effort === null || effort === route.reasoningEffort)) return null
+  return `this Sophia attempt runs on ${route.provider}/${route.model}/${route.reasoningEffort ?? 'default'}; a model call for ${provider}/${model}/${effort ?? 'default'} is refused`
+}
+
+/** A model call refused before it reaches the provider. */
+export class RouteRefused extends Error {}
+
+async function* refuse(reason: string): AsyncGenerator<StreamChunk> {
+  yield* []
+  throw new RouteRefused(reason)
 }
 
 /** Upper bound of a step's assistant text forwarded to the service (a drafted brief fits well within it). */

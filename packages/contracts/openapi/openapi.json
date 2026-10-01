@@ -9060,7 +9060,12 @@
               },
               "role": {
                 "type": "string",
-                "pattern": "^sophia-[a-z]+-v[0-9]+$"
+                "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+              },
+              "route": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
               }
             }
           }

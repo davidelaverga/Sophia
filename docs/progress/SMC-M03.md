@@ -4,11 +4,11 @@ The mission: [M03](../missions/2026-09-27-companion-research/missions/M03_RESEAR
 
 This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
 
-**Checkpoint, 2026-10-01, attempt 1: S0 (bind) and S1 (readers first, byte store, report content and Knowledge reads) are done. S2 (registry and execution policy) is next. Nothing is merged, released or deployed.**
+**Checkpoint, 2026-10-01, attempt 1: S0 (bind), S1 (readers first, byte store, report content and Knowledge reads) and S2 part 1 (the research route and its guard, unit `sophia-runtime-m03-dev`) are done. S2 part 2 (specialist registry, preset files, usage forwarding) is next. Nothing is merged, released or deployed.**
 
 | Readiness | State |
 |---|---|
-| Source-ready | No: S0 and S1 are in PR #32; S2 to S7 are planned (plan §4) |
+| Source-ready | No: S0, S1 and S2 part 1 are in PR #32; S2 part 2 to S7 are planned (plan §4) |
 | Merge-ready | No |
 | Release-ready | No: every hosted step is a Codex operation with Davide's bound approval (plan §5) |
 | Hosted-verified | No. This attempt touches no hosted state |
@@ -33,7 +33,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 | Goal | Slices (plan §4) | State |
 |---|---|---|
 | G1 Source access | S0, S1, S3 | S0 and S1 done (§6, §7); S3 after S2 |
-| G2 Durable Markdown | S2, S4 | planned |
+| G2 Durable Markdown | S2, S4 | S2 part 1 done (§8) |
 | G3 PDF | S5a (renderer host, Codex probe), S5b | planned; the host depends on CC-0001 and D6 |
 | G4 Voice and text | S6 | planned |
 | G5 Mission loop and release | S7 | planned |
@@ -88,3 +88,30 @@ Compatibility: every added property is omitted when it has no value, so an older
 | Report content | `GET /api/v1/sources/{id}/content?disposition=`: published report versions and their renditions only (never a candidate or a rejected version); inline text as text, stored bytes as a 120-second URL; `no-store`; not ready → 409; no store → 503 for stored bytes only | `sources.db.test.ts` 5/5 over HTTP, mutation-checked |
 | Knowledge | `GET /api/v1/knowledge/reports?project=<id>|all&format=&q=&cursor=` (cards, per-project counts, 30 per page) and `GET /api/v1/artifacts/{id}/versions` (published versions with notes) | `knowledge.db.test.ts` 5/5: <br>• isolation across projects (no card, count or name from another project); <br>• format and search; <br>• paging; <br>• no candidate version; <br>• guest refused |
 | Studio | Icons `download`, `expand`, `collapse` (L4); `api/artifacts.ts` for the three reads | typecheck |
+
+## 8. S2 part 1: execution policy (the research route)
+
+The runtime unit becomes `sophia-runtime-m03-dev` (previous: `sophia-runtime-m02-dev`, the rollback). Same dsh release and the same runtime tree (`sophia-tree-v2:sha256:4552d08f…`); only the Sophia bundle changes. No hosted effect: the unit is built and recorded on linux-x64 only.
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Route allowlist | The bridge row carries `routes` (`research-sol-medium-v1`: `openai-research` / `gpt-6.1-sol` / `medium`) and `roleRoutes` (both research roles). Config keys are strict; `default` cannot be redefined; a role route must name a role this unit defines | `tests/unit/routes.test.mjs` |
+| `routeFor` | A create resolves the role's route, records it in the attempt's identity, and refuses a command that names another route before any session or journal entry exists. An attempt without a recorded identity resumes on its role's route | `research-route.test.mjs` (rejected create, empty journal) |
+| Route guard | A global `llm/stream` hook (prepended) refuses any model call made for a bound attempt, by its Agent or by a child a `workflow` program spawns, that names another provider, model or effort. The refusal happens before a request leaves and is journaled as `sophia/route-refused` (audit only; replay ignores it). Compaction passes: it targets the session's latest route and names no effort | `route-guard.test.mjs`: the mock offers a second model; the child that names it never reaches the mock, the child on the route does, and one refusal is journaled on the parent attempt |
+| Sol route | `openai-research` provider row in the bundle patch (`openai-responses`, `OPENAI_RESEARCH_API_KEY` by reference), the `gpt-6.1-sol` entry declared by hand (D2): context 272000, `maxTokens` 16000 (the request default cap), `compat.supportsLongCacheRetention:false` so no retention field is ever sent. Cache retention stays unset (short), so `prompt_cache_key` is the native session id | `research-route.test.mjs` against a local Responses stub with a dummy key: model, `reasoning {effort: medium, summary: auto}`, encrypted reasoning, `prompt_cache_key = sophia-<attempt>`, no `prompt_cache_retention` or options, `max_output_tokens` 16000, `store:false`, `strict:false` tools, the role's tools only, a stable instructions and tools prefix across turns |
+| Compaction | `compaction-basic` policy for the Sol route: threshold 0.45, headroom 16000, summary cap 8000 | gate |
+| Roles and presets | `sophia-research-md-v1` and `sophia-research-pdf-v1` (identity presets for now; their research tools compose in S4); the role pattern widens to `^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$` and the command gains an optional `route` (A11, runtime wire regenerated) | `role-registry.test`, `contracts:check` |
+| Gate | `checkModelRoutes`: bridge routes and role routes equal the unit's; the provider row, key reference, base URL, model entry, effort, `maxTokens`, context window and compat equal the recorded route; `cacheRetention` is never `long`; research roles share one route. `checkCompaction`: the policy equals the unit's, names a recorded route, and never a separate summarization model | `gate-parse.test.mjs`; `profile-gate.test.mjs` adverse case (long retention, `maxTokens` 128000, a role remapped to `default`, a changed compaction threshold) |
+| Runtime host | Credentials are the default route's key plus each research route's key reference, by name only. The default is required; a missing research key is logged by name, and the research route then fails its first call with the adapter's `MISSING_CREDENTIAL` (never another route) | reviewed against `llm-pi-ai` at the pin; no automated test (the script runs only on a host). Codex rehearses it at cutover |
+| Test doubles | `mockRouteOverlay` points every route at the keyless mock; `researchRouteOverlay` points the real `openai-research` entry at the local stub | M02 request-shape parity unchanged |
+
+| Identity | Value |
+|---|---|
+| Unit | `sophia-runtime-m03-dev` |
+| Bundle archive (linux-x64) | `sha256:6344b0c5827fff52ee9fca8778255e03a90be81abc9c487b5330a7ea23c48f0e` |
+| Runtime tree | unchanged, `sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12` (both platforms) |
+| darwin-arm64 bundle archive and profile lock | pending: Codex records them on Apple silicon (`pnpm artifacts:record`). Until then the gate on a Mac reports the missing platform entry |
+
+Run on this host (Node 24.21.0, pnpm 11.7.0, PostgreSQL 16.13): `pnpm check` exit 0 (419 unit; 73 integration, 2 skipped as before), `pnpm test:sql` 21 migrations, `pnpm test:db` 214/214. Unchanged by this part: the schema, the API and Studio.
+
+Left for S2 part 2: the specialist registry (`config/specialists.json`), the preset patch files and `bundlePatchFiles()`, the research-base and output plugin skeletons, and usage and compaction forwarding with cache tokens. Moved to S4, with the research tools they guard: the reservation hook and the `skill-filesystem` closure ([binding §8](SMC-M03-contract-binding.md)).

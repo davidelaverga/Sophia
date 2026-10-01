@@ -1,9 +1,9 @@
 {
   "schema": "sophia.runtime-unit.v1",
-  "id": "sophia-runtime-m02-dev",
-  "previous_unit": "sophia-runtime-s1-03-dev",
+  "id": "sophia-runtime-m03-dev",
+  "previous_unit": "sophia-runtime-m02-dev",
   "status": "built_not_ready",
-  "status_note": "SMC-M02 candidate on dsh 0.2.0-rc.2: artifacts are built and identified; the target awaits the owner's decision D1. The bundle carries the same development model route (openai/gpt-6-luna, high) and the S1-03 control bridge, which reports ready only when bound to a Sophia service. The route is not live-verified and no runtime from this unit is deployed. Rollback unit: sophia-runtime-s1-03-dev (dsh 0.1.7-rc.1), preserved; its artifacts are rebuilt from its own commit, never from this unit's lock.",
+  "status_note": "SMC-M03 candidate on dsh 0.2.0-rc.2 (unchanged): adds the research route (openai-research / gpt-6.1-sol, medium; decisions D1 and D2), the two research roles and presets, early compaction on that route, and the bridge's route allowlist and model-call route guard. The default route and the M02 roles are unchanged. Not live-verified and not deployed; the cutover is a Codex operation after review, with zero non-final bindings on sophia-runtime-m02-dev. Rollback unit: sophia-runtime-m02-dev, rebuilt from its own commit.",
   "dsh": {
     "repository": "deepseek-ai/deepseek-harness",
     "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
@@ -97,18 +97,11 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "4c69b9c11ff39cc7664a7f6e7bda55659f2646864d190b945f85b96634914d60",
-    "archive_integrity": "sha512-UVs13Pol/XomTomUGrrg+sz0cYRRdZa+0rk1Smfl4gpGbP/beVHfxl84EBMCJnc8FDhuN/QbTu8g02d53Q5kNA==",
-    "artifact_digest": "sha256:4c69b9c11ff39cc7664a7f6e7bda55659f2646864d190b945f85b96634914d60",
+    "archive_sha256": "6344b0c5827fff52ee9fca8778255e03a90be81abc9c487b5330a7ea23c48f0e",
+    "archive_integrity": "sha512-TOA3OeKGHAbi/56EThroyq1r41M9hXZ1MMrej0v5hN9HiS96A2XRfT7G/vDG0rwmWFOchzo7as1U6P9maKbzDg==",
+    "artifact_digest": "sha256:6344b0c5827fff52ee9fca8778255e03a90be81abc9c487b5330a7ea23c48f0e",
     "bridge_protocol_version": 1,
-    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)",
-    "archives_by_platform": {
-      "darwin-arm64": {
-        "archive_sha256": "f5d8c66b707923ab3f97c881bdd08de78d2b67c5f986e9a1273274c654da9a49",
-        "archive_integrity": "sha512-OzGvNloeqZGIchk1MZsc39o/A+KS7PsHteQd4CIDJgWlgXFWUmzbbbllZSrfdO3VYafkI1sW0FFASHGwGaW+dQ==",
-        "artifact_digest": "sha256:f5d8c66b707923ab3f97c881bdd08de78d2b67c5f986e9a1273274c654da9a49"
-      }
-    }
+    "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
   "profile_install": {
     "manifest": "config/dsh/profile/package.json",
@@ -135,9 +128,11 @@
       "sophia-research-v1",
       "sophia-prototype-v1",
       "sophia-review-v1",
-      "sophia-brief-v1"
+      "sophia-brief-v1",
+      "sophia-research-md-v1",
+      "sophia-research-pdf-v1"
     ],
-    "definition": "identity only: each preset composes no plugin (plugins: []). The bridge mounts the role's preset on create and resume, applies the role's tool policy, and records the preset with a digest of its definition and that policy in the attempt's execution identity (SMC-M02 G3). The gate requires exactly this roster, unbroadened."
+    "definition": "identity only: each preset composes no plugin (plugins: []). The bridge mounts the role's preset on create and resume, applies the role's tool policy, and records the preset with a digest of its definition and that policy in the attempt's execution identity (SMC-M02 G3). The gate requires exactly this roster, unbroadened. The SMC-M03 research presets compose their research tools from S4."
   },
   "model_catalog": "models.json",
   "deployment_images": {},
@@ -173,6 +168,43 @@
   ],
   "platforms_recorded_by": {
     "linux-x64": "this repository's build and CI (runtime-unit job)",
-    "darwin-arm64": "Codex on an Apple silicon Mac (Node 24.21.0, pnpm 11.7.0), `pnpm artifacts:record` at f0bdaa8, SMC-M02-CX-0002 on #26; the profile lock was derived here from the linux lock by the archive integrity and matches the returned SHA-256 7983da32…0b6a byte for byte"
+    "darwin-arm64": "runtime artifact: unchanged from SMC-M02 (same dsh release and runtime tree; recorded by Codex on Apple silicon, CX-0002 on #26). Bundle archive and profile lock: pending, to be recorded by Codex on an Apple silicon Mac (`pnpm artifacts:record`) for this unit's bundle"
+  },
+  "model_routes": {
+    "research-sol-medium-v1": {
+      "status": "research_route",
+      "decided": "2026-09-30 by Davide (owner), D1: research on gpt-6.1-sol at medium through a dedicated OpenAI research key or project with a provider-side hard budget; $5 per task, $40 for qualification. D2: declared by hand on pi-ai 0.87.1",
+      "adapter": "@deepseek-ai/dsh-llm-pi-ai",
+      "provider": "openai-research",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "maxTokens": 16000,
+      "contextWindow": 272000,
+      "baseURL": "https://api.openai.com/v1",
+      "cacheRetention": null,
+      "compat": {
+        "supportsStrictMode": true,
+        "supportsLongCacheRetention": false
+      },
+      "credential_ref": "OPENAI_RESEARCH_API_KEY",
+      "model_entry_source": "declared in the Sophia bundle patch with values from the pi-ai 0.99.2 catalog entry (chat:gpt-6.1-sol); pi-ai 0.87.1 at this pin has no such entry. Prices for Sophia's own spend accounting: $2 input, $0.10 cached input, $2.50 cache write, $10 output per million tokens below 272,000 input tokens",
+      "live_verified": false,
+      "live_checklist": "Codex, under a recorded allowance: tools with strict:false accepted; cached_tokens > 0 on turn 2 or later; cache_write_tokens reported; a 400 on prompt_cache_retention as a negative control; the real context limit"
+    }
+  },
+  "role_routes": {
+    "sophia-research-md-v1": "research-sol-medium-v1",
+    "sophia-research-pdf-v1": "research-sol-medium-v1"
+  },
+  "compaction": {
+    "modelPolicies": [
+      {
+        "provider": "openai-research",
+        "model": "gpt-6.1-sol",
+        "thresholdRatio": 0.45,
+        "headroomTokens": 16000,
+        "maxTokens": 8000
+      }
+    ]
   }
 }

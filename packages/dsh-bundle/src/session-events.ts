@@ -92,6 +92,11 @@ export interface JournalRecordMap {
    * one resolved from recorded evidence, with `source: 'migrated'`.
    */
   'sophia/identity': ExecutionIdentity & { attemptId: string; source: 'create' | 'migrated'; evidence: string | null }
+  /**
+   * A model call made for this attempt, by its own Agent or a child it owns, named another route than the recorded
+   * one and was refused before any request (SMC-M03). Audit only: replay ignores it.
+   */
+  'sophia/route-refused': { attemptId: string; sessionId: string; requested: ExecutionIdentity['route']; reason: string }
 }
 
 /** One journal line. */

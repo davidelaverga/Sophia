@@ -108,6 +108,45 @@
       "model_configuration_write": false,
       "consumer_oauth": false,
       "scope": "one admitted draft_brief task: the inputs named by its context manifest (S1-05A)"
+    },
+    {
+      "id": "sophia-research-md-v1",
+      "model_route": "research-sol-medium-v1",
+      "effort": "medium",
+      "tool_allowlist": [
+        "research_read_context",
+        "research_search",
+        "research_read_source",
+        "research_write_draft",
+        "research_inspect_output",
+        "research_submit_result",
+        "research_report_blocker"
+      ],
+      "goal_continuation": false,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "one admitted research task: its context manifest and the sources its allowance pays for"
+    },
+    {
+      "id": "sophia-research-pdf-v1",
+      "model_route": "research-sol-medium-v1",
+      "effort": "medium",
+      "tool_allowlist": [
+        "research_read_context",
+        "research_search",
+        "research_read_source",
+        "research_write_draft",
+        "research_render_pdf",
+        "research_inspect_output",
+        "research_submit_result",
+        "research_report_blocker"
+      ],
+      "goal_continuation": false,
+      "raw_host_shell": false,
+      "model_configuration_write": false,
+      "consumer_oauth": false,
+      "scope": "one admitted research task: its context manifest and the sources its allowance pays for"
     }
   ],
   "note": "Names are Sophia domain tools to implement; native tool guards enforce the allowlist including PTC. Model policy alone is not confinement."

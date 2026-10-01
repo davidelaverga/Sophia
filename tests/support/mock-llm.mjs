@@ -7,7 +7,12 @@
  * It says nothing about a live provider's behavior.
  */
 
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
+import { stringify } from 'yaml'
+import { REPO_ROOT } from '../../scripts/lib/common.mjs'
+import { parseCordisYaml } from '../../scripts/lib/patch-lint.mjs'
 
 export async function startMockLlm() {
   const requests = []
@@ -68,8 +73,16 @@ export async function startMockLlm() {
   }
 }
 
-/** A `--patch` overlay routing the runtime's default model to the mock (tests only; never installed). */
+/**
+ * A `--patch` overlay routing every model route of the runtime to the mock (tests and rehearsals only; never
+ * installed): the default model, and each route the bridge row allows (SMC-M03), so a research role rehearses on the
+ * mock and never reaches its real provider. The bridge row is restated whole, with only its routes pointed at the mock.
+ */
 export function mockRouteOverlay(baseURL) {
+  const rows = parseCordisYaml(readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8'))
+  const bridge = rows.flatMap((row) => row.insert ?? []).find((row) => row.id === 'sophia-control-bridge')?.config
+  if (!bridge) throw new Error('the bundle patch inserts no sophia-control-bridge row')
+  const routes = Object.fromEntries(Object.keys(bridge.routes ?? {}).map((id) => [id, { provider: 'mock', model: 'mock-model', reasoningEffort: null }]))
   return `# Test overlay: route Agents to the keyless mock model. Never part of a profile.
 - id: llm-pi-ai
   config:
@@ -87,5 +100,5 @@ export function mockRouteOverlay(baseURL) {
   config:
     provider: mock
     model: mock-model
-`
+${stringify([{ id: 'sophia-control-bridge', config: { ...bridge, routes } }])}`
 }

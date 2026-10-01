@@ -15,7 +15,8 @@ import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { ControlBridge } from './control-bridge.js'
-import type { BridgeReadiness } from './control-bridge.js'
+import type { BridgeReadiness, RouteSpec } from './control-bridge.js'
+import { roleOf } from './role-registry.js'
 
 export { ControlBridge } from './control-bridge.js'
 export { foldLog } from './session-events.js'
@@ -45,16 +46,65 @@ export const BUNDLE: { readonly name: string; readonly version: string; readonly
   return { name: manifest.name, version: manifest.version, dsh: manifest.peerDependencies['@deepseek-ai/dsh'] ?? 'unknown' }
 })()
 
-/** Validated row config of `sophia-control-bridge`. Values name environment variables, never secrets. */
+/** Validated row config of `sophia-control-bridge`. Values name environment variables or routes, never secrets. */
 export interface ControlBridgeConfig {
   readonly protocolVersion: typeof PROTOCOL_VERSION
   readonly serviceUrlEnv: string
   readonly tokenEnv: string
   readonly runtimeUnitEnv: string
   readonly workspaceEnv: string
+  /**
+   * The unit's route allowlist beyond `default` (the `agent-default-model` selection), by immutable route id
+   * (SMC-M03). Changing one is a new runtime unit.
+   */
+  readonly routes: Readonly<Record<string, RouteSpec>>
+  /** Role id → route id. A role not named runs on `default`. */
+  readonly roleRoutes: Readonly<Record<string, string>>
 }
 
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/
+/** A route id: lowercase words joined by hyphens, never `default` (which names the composition's default model). */
+const ROUTE_ID = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$/
+const ROUTE_PART = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/
+const EFFORT = /^[a-z]{1,16}$/
+const CONFIG_KEYS = new Set(['protocolVersion', 'serviceUrlEnv', 'tokenEnv', 'runtimeUnitEnv', 'workspaceEnv', 'routes', 'roleRoutes'])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+function parseRoutes(value: unknown): Record<string, RouteSpec> {
+  if (value === undefined) return {}
+  if (!isRecord(value)) throw new TypeError(`${name}: routes must be a map of route id to route`)
+  const routes: Record<string, RouteSpec> = {}
+  for (const [id, route] of Object.entries(value)) {
+    if (!ROUTE_ID.test(id) || id === 'default') throw new TypeError(`${name}: route id ${JSON.stringify(id)} is not a route id`)
+    if (!isRecord(route)) throw new TypeError(`${name}: route ${id} must be an object`)
+    const extra = Object.keys(route).filter((key) => !['provider', 'model', 'reasoningEffort'].includes(key))
+    if (extra.length > 0) throw new TypeError(`${name}: route ${id} has unknown fields ${extra.join(', ')}`)
+    const { provider, model, reasoningEffort } = route
+    if (typeof provider !== 'string' || !ROUTE_PART.test(provider)) throw new TypeError(`${name}: route ${id} needs a provider`)
+    if (typeof model !== 'string' || !ROUTE_PART.test(model)) throw new TypeError(`${name}: route ${id} needs a model`)
+    if (reasoningEffort !== undefined && reasoningEffort !== null && (typeof reasoningEffort !== 'string' || !EFFORT.test(reasoningEffort))) {
+      throw new TypeError(`${name}: route ${id} reasoningEffort must be a level name or null`)
+    }
+    routes[id] = { provider, model, reasoningEffort: typeof reasoningEffort === 'string' ? reasoningEffort : null }
+  }
+  return routes
+}
+
+function parseRoleRoutes(value: unknown, routes: Readonly<Record<string, RouteSpec>>): Record<string, string> {
+  if (value === undefined) return {}
+  if (!isRecord(value)) throw new TypeError(`${name}: roleRoutes must be a map of role id to route id`)
+  const roleRoutes: Record<string, string> = {}
+  for (const [role, route] of Object.entries(value)) {
+    if (!roleOf(role)) throw new TypeError(`${name}: roleRoutes names ${JSON.stringify(role)}, which is not one of this bundle's roles`)
+    if (typeof route !== 'string' || (route !== 'default' && !Object.hasOwn(routes, route))) {
+      throw new TypeError(`${name}: roleRoutes maps ${role} to ${JSON.stringify(route)}, which is neither default nor an allowed route`)
+    }
+    roleRoutes[role] = route
+  }
+  return roleRoutes
+}
 
 /**
  * Validate the row config. Throwing makes dsh report this plugin as failed,
@@ -67,6 +117,8 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
     throw new TypeError(`${name}: row config must be an object, got ${config === null ? 'null' : typeof config}`)
   }
   const raw = config as Record<string, unknown>
+  const unknown = Object.keys(raw).filter((key) => !CONFIG_KEYS.has(key))
+  if (unknown.length > 0) throw new TypeError(`${name}: unknown config fields ${unknown.join(', ')}`)
   if (raw.protocolVersion !== PROTOCOL_VERSION) {
     throw new TypeError(`${name}: unsupported protocolVersion ${JSON.stringify(raw.protocolVersion)}; ${BUNDLE.name}@${BUNDLE.version} speaks ${PROTOCOL_VERSION}`)
   }
@@ -75,12 +127,15 @@ export function parseConfig(config: unknown): ControlBridgeConfig {
     if (typeof value !== 'string' || !ENV_NAME.test(value)) throw new TypeError(`${name}: ${key} must name an environment variable`)
     return value
   }
+  const routes = parseRoutes(raw.routes)
   return {
     protocolVersion: PROTOCOL_VERSION,
     serviceUrlEnv: envName('serviceUrlEnv', 'SOPHIA_BRIDGE_URL'),
     tokenEnv: envName('tokenEnv', 'SOPHIA_BRIDGE_TOKEN'),
     runtimeUnitEnv: envName('runtimeUnitEnv', 'SOPHIA_RUNTIME_UNIT'),
     workspaceEnv: envName('workspaceEnv', 'SOPHIA_WORKSPACE'),
+    routes,
+    roleRoutes: parseRoleRoutes(raw.roleRoutes, routes),
   }
 }
 
@@ -119,6 +174,8 @@ export function apply(ctx: Context, config: unknown): void {
     journalDir: join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'sophia-bridge'),
     pollWaitMs: 20_000,
     settleTimeoutMs: 30_000,
+    routes: settings.routes,
+    roleRoutes: settings.roleRoutes,
     log,
   })
   current = bridge

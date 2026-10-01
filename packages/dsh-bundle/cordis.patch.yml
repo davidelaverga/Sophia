@@ -91,6 +91,55 @@
             # that it touches.
             compat:
               supportsStrictMode: false
+      # Research route (SMC-M03, owner decisions D1 and D2): GPT-6.1 Sol at
+      # medium reasoning on a dedicated OpenAI project whose key carries a
+      # provider-side hard budget, so research spend never shares the
+      # development key. pi-ai 0.87.1 (this pin) ships no gpt-6.1-sol, so the
+      # entry is declared here with values from the pi-ai 0.99.2 catalog; the
+      # route is not a catalog provider, so it names its protocol and endpoint.
+      # - maxTokens caps every request's output at 16000 tokens, which bounds
+      #   the worst case a reservation must cover.
+      # - contextWindow 272000 keeps every request in the cheaper price tier.
+      # - cacheRetention stays unset ("short"): the prompt cache key is the
+      #   native session id and nothing else is sent. supportsLongCacheRetention
+      #   false makes a "long" setting send nothing instead of the
+      #   prompt_cache_retention field this model refuses.
+      # - supportsStrictMode true matches the catalog: every tool carries
+      #   `strict: false`.
+      openai-research:
+        displayName: OpenAI (research)
+        apiKeyEnv: OPENAI_RESEARCH_API_KEY
+        api: openai-responses
+        baseURL: https://api.openai.com/v1
+        defaultMaxTokens: 16000
+        models:
+          - id: gpt-6.1-sol
+            name: GPT-6.1 Sol
+            contextWindow: 272000
+            maxTokens: 16000
+            input: [text, image]
+            reasoningEfforts:
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+            compat:
+              supportsStrictMode: true
+              supportsLongCacheRetention: false
+
+# Compaction (SMC-M03, decision D9): the research route compacts at 45% of its
+# window instead of 80%, so a long research session stays cheap per request and
+# a summary call fits one reservation (8000 output tokens). Every other route
+# keeps dsh-base's defaults: the row had no config, and none is restated.
+- id: compaction-basic
+  config:
+    modelPolicies:
+      - provider: openai-research
+        model: gpt-6.1-sol
+        thresholdRatio: 0.45
+        headroomTokens: 16000
+        maxTokens: 8000
 
 # Every Agent the bridge creates starts on that route. This restates the row's
 # whole config, including the reasoning effort.
@@ -144,11 +193,30 @@
       config:
         id: sophia-brief-v1
         plugins: []
+    # SMC-M03 research specializations. Identity only until their research
+    # tools exist (S4); the PDF one later also composes the renderer's tools.
+    - id: preset-sophia-research-md-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-research-md-v1
+        plugins: []
+    - id: preset-sophia-research-pdf-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-research-pdf-v1
+        plugins: []
 
 # Sophia's control bridge (S1-03). The plugin itself declares its service
 # injections (agents, sessions, tools). The config names environment
 # variables the execution-host supervisor sets. It holds no URL or secret:
 # without a service binding the bridge stays `not_ready`.
+#
+# `routes` is the unit's route allowlist beyond `default` (the
+# agent-default-model selection above), by immutable route id; `roleRoutes`
+# gives a role its route (SMC-M03). A role not named runs on `default`. The
+# bridge records the route in each attempt's identity, refuses a create that
+# names another route, and refuses any model call of the attempt (its
+# children's and its compaction's too) on another route. There is no fallback.
 - insert:
     - id: sophia-control-bridge
       name: '@sophia/dsh-bundle'
@@ -158,3 +226,11 @@
         tokenEnv: SOPHIA_BRIDGE_TOKEN
         runtimeUnitEnv: SOPHIA_RUNTIME_UNIT
         workspaceEnv: SOPHIA_WORKSPACE
+        routes:
+          research-sol-medium-v1:
+            provider: openai-research
+            model: gpt-6.1-sol
+            reasoningEffort: medium
+        roleRoutes:
+          sophia-research-md-v1: research-sol-medium-v1
+          sophia-research-pdf-v1: research-sol-medium-v1
