@@ -21,6 +21,7 @@ import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
 import { roomRoutes } from './routes/rooms.ts'
+import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
 import { RUNTIME_ROUTES, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
@@ -35,6 +36,8 @@ declare module 'fastify' {
     actorAnonymous: boolean
     /** On a RUNTIME_ROUTES request only: the runtime capability's hash and transport headers (A04). */
     runtimeCaller: RuntimeCaller | null
+    /** On a RENDERER_ROUTES request only: the render runner capability's hash (A11, 0030). */
+    rendererToken: Buffer | null
   }
 }
 
@@ -88,7 +91,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.runtime_research_submit(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.edit_report_summary(uuid,text,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.research_revoke_source(uuid,uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.reconcile_research_overrun(uuid,uuid,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.reconcile_research_overrun(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.renderer_claim(bytea)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -130,6 +134,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   sourceRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  rendererRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
   knowledgeRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   return app
@@ -163,6 +168,13 @@ function runtimeCallerOf(req: FastifyRequest): RuntimeCaller {
  * exact list too: they take a runtime capability instead of a member token, and nothing else does.
  */
 /** The media bridge's capability, compared by hash in constant time (amendment A06); nothing to compare with refuses. */
+/** A render runner's capability, hashed; the database checks it (0030). */
+function rendererTokenOf(req: FastifyRequest): Buffer {
+  const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
+  if (!token) throw new DomainError('runtime_capability_required', 'Render runner capability required')
+  return runtimeTokenHash(token)
+}
+
 function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): void {
   const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
   if (!token || !expected || !timingSafeEqual(runtimeTokenHash(token), expected)) {
@@ -175,6 +187,7 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
   app.decorateRequest('actorName', null)
   app.decorateRequest('actorAnonymous', false)
   app.decorateRequest('runtimeCaller', null)
+  app.decorateRequest('rendererToken', null)
   app.addHook('onRequest', async (req) => {
     const route = req.routeOptions.url ?? ''
     if (PUBLIC_ROUTES.has(route)) return
@@ -184,6 +197,10 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
     }
     if (MEDIA_ROUTES.has(route)) {
       requireMediaCapability(req, mediaToken)
+      return
+    }
+    if (RENDERER_ROUTES.has(route)) {
+      req.rendererToken = rendererTokenOf(req)
       return
     }
     try {

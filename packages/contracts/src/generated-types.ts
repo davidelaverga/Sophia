@@ -124,6 +124,17 @@ export type ReportSource = { "sourceId": string; "kind": "search_results" | "web
 export type ReportSourceList = { "sources": ReadonlyArray<ReportSource>; };
 export type ReportSummaryEdit = { "summary": string; "expectedRevision": number; };
 export type ReportSummary = { "artifactId": string; "summary": string; "summaryAuthorId": string | null; "summaryRevision": number; "summaryUpdatedAt": string | null; };
+export type RenderJobFile = { "path": string; "role": "entry" | "asset"; "sha256": string; "byteLength": number; };
+export type RenderJob = { "jobId": string; "leaseToken": string; "leaseUntil": string; "format": "pdf"; "language": string; "sourceManifestHash": string; "timeoutMs": number; "files": ReadonlyArray<RenderJobFile>; };
+export type RenderClaim = { "job": RenderJob | null; };
+export type RenderLease = { "leaseToken": string; };
+export type RenderHeartbeat = { "state": "continue" | "cancel"; "leaseUntil"?: string; };
+export type RenderOutput = { "sourceId": string; "sha256": string; "byteLength": number; };
+export type RenderCheck = { "name": string; "outcome": "passed" | "failed" | "unknown"; "detail": string | null; };
+export type RenderFileRef = { "path": string; "sha256": string; };
+export type RenderReceipt = { "schema": "sophia.pdf-render-receipt.v1"; "jobId": string | null; "status": "succeeded" | "failed" | "cancelled"; "error": { "code": string; "message": string; } | null; "renderer": { "kernel": string; "rendererSha256": string; "donor": { "repository": string; "commit": string; "path": string; "blob": string; }; "playwrightCore": string; "browser": string | null; }; "source": { "manifestSha256": string; "entry": RenderFileRef; "assets": ReadonlyArray<RenderFileRef>; } | null; "language": string; "sandbox": { "active": boolean; "reasons": ReadonlyArray<string>; "browserUid": number | null; "renderers": number; "gpuSeccomp": number | null; } | null; "output": { "path": string; "sha256": string; "bytes": number; "header": string | null; "eof": boolean; "pageCount": number | null; "pdfImages": number; } | null; "measurements": { "overflow": { "measurement": "measured" | "unavailable"; "px": number | null; "elements": ReadonlyArray<{ "element": string; "rightPx": number; }>; }; "svgVisuals": number | null; "domImages": number | null; } | null; "undeclaredAssets": ReadonlyArray<string>; "blockedRequests": ReadonlyArray<string>; "checks": ReadonlyArray<RenderCheck>; "warnings": ReadonlyArray<string>; "elapsedMs": number; };
+export type RenderSettleRequest = { "leaseToken": string; "receipt": RenderReceipt; };
+export type RenderSettlement = { "state": "pending" | "succeeded" | "failed" | "cancelled"; "reason": string | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
@@ -208,4 +219,9 @@ export interface Operations {
   "runtimeResearchSubmit": { method: "POST"; path: "/v1/runtime/research/submit"; request: ResearchSubmitRequest; response: ResearchSubmission; };
   "listReportSources": { method: "GET"; path: "/api/v1/artifacts/{artifactId}/versions/{versionId}/sources"; request: undefined; response: ReportSourceList; };
   "editReportSummary": { method: "PATCH"; path: "/api/v1/artifacts/{artifactId}/summary"; request: ReportSummaryEdit; response: ReportSummary; };
+  "rendererClaim": { method: "POST"; path: "/v1/renderer/claim"; request: undefined; response: RenderClaim; };
+  "rendererHeartbeat": { method: "POST"; path: "/v1/renderer/jobs/{jobId}/heartbeat"; request: RenderLease; response: RenderHeartbeat; };
+  "rendererFile": { method: "GET"; path: "/v1/renderer/jobs/{jobId}/file"; request: undefined; response: AsyncIterable<Event | CursorAdvance>; };
+  "rendererOutput": { method: "PUT"; path: "/v1/renderer/jobs/{jobId}/output"; request: undefined; response: RenderOutput; };
+  "rendererSettle": { method: "POST"; path: "/v1/renderer/jobs/{jobId}/settle"; request: RenderSettleRequest; response: RenderSettlement; };
 }

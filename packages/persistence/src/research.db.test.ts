@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
+import type { RenderJob, RenderReceipt, RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   createTestDatabase,
@@ -21,12 +21,19 @@ import {
   createPool,
   dispatchRuntimeOutbox,
   editReportSummary,
+  enqueueRenderJob,
   listReportSources,
   readArtifactVersions,
   readNativeTask,
   recordRuntimeObservations,
   recordRuntimeReady,
   recordRuntimeReceipts,
+  rendererClaim,
+  rendererFile,
+  rendererHeartbeat,
+  rendererOutputSlot,
+  rendererRecordOutput,
+  rendererSettle,
   runtimeHello,
   runtimePoll,
   runtimeResearchCapture,
@@ -1471,7 +1478,12 @@ const goalOf = (w: World, goalId: string) =>
     [w.projectId, goalId],
   )
 
-const control = (w: World, kind: 'hold' | 'resume' | 'steer', goalId: string, bodySourceId: string | null = null) =>
+const control = (
+  w: World,
+  kind: 'hold' | 'resume' | 'steer' | 'stop',
+  goalId: string,
+  bodySourceId: string | null = null,
+) =>
   goalOf(w, goalId).then((g) =>
     withActor(pool, E, 'write', (c) =>
       admitGoalCommand(c, w.projectId, randomUUID(), {
@@ -1828,5 +1840,346 @@ describe('research spend bounds (0029)', () => {
       'a fifth finalize call',
     )
     assert.deepEqual(await finalizeOf(w), { finalizing: true, calls: 4 })
+  })
+})
+
+// --- 0030: render jobs and the render runner -------------------------------------------------------------------
+
+const RUNNER_TOKEN = 'render-runner-test-token-0123456789abcdef'
+const runnerHash = (token = RUNNER_TOKEN) => createHash('sha256').update(token).digest()
+const HTML = '<html lang="en"><body><h1>Report</h1><img src="img/b.png"><img src="img/a.png"></body></html>'
+
+/** The package identity as the kernel computes it (renderers/web/pdf/source-manifest.mjs). */
+const manifestOf = (entry: { path: string; sha256: string }, assets: { path: string; sha256: string }[]) =>
+  sha(
+    [
+      `entry\t${entry.path}\t${entry.sha256}\n`,
+      ...assets.toSorted((a, b) => (a.path < b.path ? -1 : 1)).map((a) => `asset\t${a.path}\t${a.sha256}\n`),
+    ].join(''),
+  )
+
+/** A started research task with an HTML entry and two byte-stored images, and a registered runner. */
+async function renderWorld() {
+  const w = await world()
+  const { receipt, at, create } = await started(w)
+  const taskJob = await one<{ job_id: string }>(
+    `SELECT t.job_id FROM sophia.research_tasks t JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id
+      WHERE t.project_id=$1 AND j.attempt_id=$2`,
+    [w.projectId, at.attemptId],
+  )
+  const entry = await one<{ id: string; sha256: string }>(
+    `SELECT id, sha256 FROM sophia.put_text_source($1, $2, 'text/html; charset=utf-8', $3)`,
+    [w.projectId, E, HTML],
+  )
+  const image = async (name: string) => {
+    const id = randomUUID()
+    const hash = sha(name)
+    await owner((c) =>
+      c.query(
+        `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+          VALUES($1,$2,$3,'project',$4,'image/png',$5,10,true,'ready')`,
+        [w.projectId, id, E, hash, `objects/${w.projectId}/${id}`],
+      ),
+    )
+    return { id, sha256: hash }
+  }
+  const a = await image('a')
+  const b = await image('b')
+  await owner((c) =>
+    c.query(`INSERT INTO sophia.render_runners(label,token_sha256) VALUES($1,$2) ON CONFLICT (label) DO NOTHING`, [
+      'test-runner',
+      runnerHash(),
+    ]),
+  )
+  const files = [
+    { path: 'report.html', role: 'entry' as const, sourceId: entry.id },
+    { path: 'img/b.png', role: 'asset' as const, sourceId: b.id },
+    { path: 'img/a.png', role: 'asset' as const, sourceId: a.id },
+  ]
+  const enqueue = (pkg = files) => owner((c) => enqueueRenderJob(c, w.projectId, taskJob.job_id, 'en', pkg))
+  const expected = manifestOf({ path: 'report.html', sha256: entry.sha256 }, [
+    { path: 'img/a.png', sha256: a.sha256 },
+    { path: 'img/b.png', sha256: b.sha256 },
+  ])
+  /** Settle a Hold the way the runtime would (the create was answered by `started`). */
+  const settleHold = () => deliverAll(w, new Set([create.commandId]), () => 'checked')
+  return { w, receipt, at, taskJobId: taskJob.job_id, entry, a, b, files, enqueue, expected, settleHold }
+}
+
+/** Drain every other test's pending renders, so a claim here takes this test's job. */
+async function claimMine(jobId: string): Promise<RenderJob> {
+  for (let i = 0; i < 50; i += 1) {
+    const job = await service((c) => rendererClaim(c, runnerHash()))
+    assert.ok(job, 'a render to claim')
+    if (job.jobId === jobId) return job
+  }
+  throw new Error('the render was never claimed')
+}
+
+const renderState = (w: World, jobId: string) =>
+  one<{ state: string; reason: string | null; claims: number; result_source_id: string | null }>(
+    `SELECT j.state, j.reason, r.claims, j.result_source_id FROM sophia.jobs j
+      JOIN sophia.render_jobs r ON r.project_id=j.project_id AND r.job_id=j.id WHERE j.project_id=$1 AND j.id=$2`,
+    [w.projectId, jobId],
+  )
+
+const receiptFor = (
+  manifestSha256: string,
+  outputSha: string | null,
+  status: RenderReceipt['status'] = 'succeeded',
+): RenderReceipt => ({
+  schema: 'sophia.pdf-render-receipt.v1',
+  jobId: null,
+  status,
+  error: status === 'succeeded' ? null : { code: 'render_error', message: 'x' },
+  renderer: {
+    kernel: 'renderers/web/pdf/render-html.mjs',
+    rendererSha256: 'f'.repeat(64),
+    donor: { repository: 'r', commit: 'd'.repeat(40), path: 'p', blob: 'b'.repeat(40) },
+    playwrightCore: '1.56.1',
+    browser: 'HeadlessChrome/141.0.7390.37',
+  },
+  source: { manifestSha256, entry: { path: 'report.html', sha256: 'e'.repeat(64) }, assets: [] },
+  language: 'en',
+  sandbox: null,
+  output: outputSha
+    ? { path: 'report.pdf', sha256: outputSha, bytes: 100, header: '%PDF-1.4', eof: true, pageCount: 1, pdfImages: 2 }
+    : null,
+  measurements: null,
+  undeclaredAssets: [],
+  blockedRequests: [],
+  checks: [],
+  warnings: [],
+  elapsedMs: 300,
+})
+
+describe('render jobs (0030)', () => {
+  it("queues a render of a task's package and leases it to a registered runner, files in package order", async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    assert.equal(queued.manifestSha256, r.expected, "the kernel's package identity")
+    assert.equal(await codeOf(service((c) => rendererClaim(c, runnerHash('unknown')))), 'runtime_capability_required')
+    const job = await claimMine(queued.jobId)
+    assert.deepEqual(
+      job.files.map((f) => [f.path, f.role]),
+      [
+        ['report.html', 'entry'],
+        ['img/a.png', 'asset'],
+        ['img/b.png', 'asset'],
+      ],
+    )
+    assert.deepEqual(
+      [job.format, job.language, job.sourceManifestHash, job.timeoutMs],
+      ['pdf', 'en', r.expected, 120000],
+    )
+    assert.equal(job.files[0]?.sha256, r.entry.sha256)
+    assert.deepEqual(await renderState(r.w, queued.jobId), {
+      state: 'running',
+      reason: null,
+      claims: 1,
+      result_source_id: null,
+    })
+  })
+
+  it('serves its files under the lease and records the output once, derived from the package', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const job = await claimMine(queued.jobId)
+    const lease = job.leaseToken
+    const entry = await service((c) => rendererFile(c, runnerHash(), job.jobId, lease, 'report.html'))
+    assert.deepEqual([entry.text, entry.sha256], [HTML, r.entry.sha256])
+    const asset = await service((c) => rendererFile(c, runnerHash(), job.jobId, lease, 'img/a.png'))
+    assert.deepEqual([asset.text, asset.storageKey], [null, `objects/${r.w.projectId}/${r.a.id}`])
+    assert.equal(
+      await codeOf(service((c) => rendererFile(c, runnerHash(), job.jobId, lease, 'img/c.png'))),
+      'not_found',
+    )
+    assert.equal(
+      await codeOf(service((c) => rendererFile(c, runnerHash(), job.jobId, randomUUID(), 'report.html'))),
+      'invalid_state',
+    )
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, lease))
+    assert.equal(slot.projectId, r.w.projectId)
+    const out = await service((c) =>
+      rendererRecordOutput(c, runnerHash(), job.jobId, lease, {
+        sourceId: slot.sourceId,
+        sha256: sha('pdf'),
+        byteLength: 3,
+      }),
+    )
+    assert.equal(out.sourceId, slot.sourceId)
+    const source = await one<{ mime: string; state: string; eligible: boolean; storage_key: string; deps: string }>(
+      `SELECT s.mime, s.state, s.eligible, s.storage_key,
+        (SELECT count(*) FROM sophia.source_dependencies d WHERE d.project_id=s.project_id AND d.derived_source_id=s.id) AS deps
+        FROM sophia.source_objects s WHERE s.project_id=$1 AND s.id=$2`,
+      [r.w.projectId, slot.sourceId],
+    )
+    assert.deepEqual(source, {
+      mime: 'application/pdf',
+      state: 'ready',
+      eligible: true,
+      storage_key: `objects/${r.w.projectId}/${slot.sourceId}`,
+      deps: '3',
+    })
+    assert.equal(
+      await codeOf(service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, lease))),
+      'invalid_state',
+      'once',
+    )
+  })
+
+  it('settles a succeeded render only for its package and its output; a replay returns the same', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const job = await claimMine(queued.jobId)
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+    await service((c) =>
+      rendererRecordOutput(c, runnerHash(), job.jobId, job.leaseToken, {
+        sourceId: slot.sourceId,
+        sha256: sha('pdf'),
+        byteLength: 3,
+      }),
+    )
+    const settle = (receipt: RenderReceipt) =>
+      service((c) => rendererSettle(c, runnerHash(), job.jobId, job.leaseToken, receipt))
+    assert.equal(await codeOf(settle(receiptFor(sha('other package'), sha('pdf')))), 'invalid_request')
+    assert.equal(await codeOf(settle(receiptFor(r.expected, sha('other bytes')))), 'invalid_request')
+    const good = receiptFor(r.expected, sha('pdf'))
+    assert.deepEqual(await settle(good), { state: 'succeeded', reason: null })
+    assert.deepEqual(await settle(good), { state: 'succeeded', reason: null }, 'a replay')
+    assert.equal(await codeOf(settle(receiptFor(r.expected, sha('pdf'), 'failed'))), 'invalid_state')
+    assert.equal((await renderState(r.w, queued.jobId)).result_source_id, slot.sourceId)
+  })
+
+  it('sends a render back to the queue at a Hold, claims it again after Resume, and cancels it at a Stop', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const first = await claimMine(queued.jobId)
+    const beat = (lease: string) => service((c) => rendererHeartbeat(c, runnerHash(), first.jobId, lease))
+    assert.equal((await beat(first.leaseToken)).state, 'continue')
+    await control(r.w, 'hold', r.receipt.goalId)
+    assert.deepEqual(await beat(first.leaseToken), { state: 'cancel' })
+    assert.deepEqual(await renderState(r.w, queued.jobId), {
+      state: 'pending',
+      reason: null,
+      claims: 0,
+      result_source_id: null,
+    })
+    assert.equal(await codeOf(beat(first.leaseToken)), 'invalid_state', 'the old lease is gone')
+    const held = await service((c) => rendererClaim(c, runnerHash()))
+    assert.notEqual(held?.jobId, queued.jobId, 'not claimed while held')
+    await r.settleHold()
+    await control(r.w, 'resume', r.receipt.goalId)
+    const second = await claimMine(queued.jobId)
+    assert.notEqual(second.leaseToken, first.leaseToken)
+    await control(r.w, 'stop', r.receipt.goalId)
+    assert.deepEqual(await service((c) => rendererHeartbeat(c, runnerHash(), second.jobId, second.leaseToken)), {
+      state: 'cancel',
+    })
+    assert.deepEqual(await renderState(r.w, queued.jobId), {
+      state: 'cancelled',
+      reason: 'stopped: the work was stopped',
+      claims: 1,
+      result_source_id: null,
+    })
+  })
+
+  it('never makes a render that ends after a Stop the result, and queues one that ends under a Hold again', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const job = await claimMine(queued.jobId)
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+    await service((c) =>
+      rendererRecordOutput(c, runnerHash(), job.jobId, job.leaseToken, {
+        sourceId: slot.sourceId,
+        sha256: sha('pdf'),
+        byteLength: 3,
+      }),
+    )
+    await control(r.w, 'hold', r.receipt.goalId)
+    const held = await service((c) =>
+      rendererSettle(c, runnerHash(), job.jobId, job.leaseToken, receiptFor(r.expected, sha('pdf'))),
+    )
+    assert.deepEqual(held, { state: 'pending', reason: 'held: queued again for after Resume' })
+    await r.settleHold()
+    await control(r.w, 'resume', r.receipt.goalId)
+    const again = await claimMine(queued.jobId)
+    const slot2 = await service((c) => rendererOutputSlot(c, runnerHash(), again.jobId, again.leaseToken))
+    await service((c) =>
+      rendererRecordOutput(c, runnerHash(), again.jobId, again.leaseToken, {
+        sourceId: slot2.sourceId,
+        sha256: sha('pdf2'),
+        byteLength: 4,
+      }),
+    )
+    await control(r.w, 'stop', r.receipt.goalId)
+    const stale = await service((c) =>
+      rendererSettle(c, runnerHash(), again.jobId, again.leaseToken, receiptFor(r.expected, sha('pdf2'))),
+    )
+    assert.deepEqual(stale, { state: 'cancelled', reason: 'stale: the work was stopped or ended while it rendered' })
+    assert.equal((await renderState(r.w, queued.jobId)).result_source_id, null)
+  })
+
+  it('claims a render whose lease ran out again, three times at most, then fails it as renderer_lost', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const expire = () =>
+      owner((c) =>
+        c.query(`UPDATE sophia.jobs SET lease_until=now()-interval '1 second' WHERE project_id=$1 AND id=$2`, [
+          r.w.projectId,
+          queued.jobId,
+        ]),
+      )
+    let job = await claimMine(queued.jobId)
+    for (const claims of [2, 3]) {
+      await expire()
+      const next = await claimMine(queued.jobId)
+      assert.notEqual(next.leaseToken, job.leaseToken)
+      assert.equal((await renderState(r.w, queued.jobId)).claims, claims)
+      job = next
+    }
+    await expire()
+    await service((c) => rendererClaim(c, runnerHash()))
+    assert.deepEqual(await renderState(r.w, queued.jobId), {
+      state: 'failed',
+      reason: 'renderer_lost: the render runner stopped answering',
+      claims: 3,
+      result_source_id: null,
+    })
+  })
+
+  it('refuses a revoked runner, a fourth render of one task and a malformed package; members read renders, outsiders nothing', async () => {
+    const r = await renderWorld()
+    for (const bad of [
+      [...r.files, { path: 'second.html', role: 'entry' as const, sourceId: r.entry.id }],
+      [{ ...r.files[0]!, path: '../report.html' }],
+      [{ ...r.files[0]!, path: '/report.html' }],
+      [r.files[0]!, { ...r.files[1]!, path: 'img/b.svg' }],
+      [r.files[0]!, { ...r.files[1]!, sourceId: randomUUID() }],
+      [r.files[0]!, { ...r.files[1]!, path: 'report.html' }],
+    ]) {
+      assert.match(await codeOf(r.enqueue(bad)), /^raw:error: A render package/, JSON.stringify(bad))
+    }
+    for (let i = 0; i < 3; i += 1) await r.enqueue()
+    assert.match(await codeOf(r.enqueue()), /Research render limit reached/)
+    const count = (actor: string) =>
+      withActor(pool, actor, 'read', async (c) =>
+        Number(
+          (
+            await c.query<{ n: string }>(`SELECT count(*) AS n FROM sophia.render_jobs WHERE project_id=$1`, [
+              r.w.projectId,
+            ])
+          ).rows[0]?.n,
+        ),
+      )
+    assert.deepEqual([await count(V), await count(C)], [3, 0])
+    await owner((c) => c.query(`SELECT sophia.revoke_render_runner('test-runner')`))
+    try {
+      assert.equal(await codeOf(service((c) => rendererClaim(c, runnerHash()))), 'runtime_capability_required')
+    } finally {
+      await owner((c) =>
+        c.query(`UPDATE sophia.render_runners SET state='active', revoked_at=NULL WHERE label='test-runner'`),
+      )
+    }
   })
 })

@@ -88,6 +88,18 @@ export {
   type ReportQuery,
   type ReportSource,
 } from './artifacts.ts'
+export {
+  enqueueRenderJob,
+  rendererClaim,
+  rendererFile,
+  rendererHeartbeat,
+  rendererOutputSlot,
+  rendererRecordOutput,
+  rendererSettle,
+  type RecordedOutput,
+  type RenderFileLocation,
+  type RenderPackageFile,
+} from './renderer.ts'
 export { claimRuntimeOutbox, dispatchRuntimeOutbox, reconcileRuntimeOutbox, type DispatchOutcome } from './dispatch.ts'
 export {
   ackQuiesce,

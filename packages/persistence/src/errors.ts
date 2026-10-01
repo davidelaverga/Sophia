@@ -12,6 +12,13 @@ interface Rule {
 /** SQLSTATEs raised by the sophia.* functions (db/migrations), most specific rule first. */
 const RULES: readonly Rule[] = [
   // Runtime capability checks (0012): the capability is unknown, or it is used against another unit or project.
+  // Render runner capability checks (0030): an unknown or revoked runner is refused like an unknown runtime.
+  {
+    sqlstate: '28000',
+    when: (m) => m.startsWith('Render runner'),
+    code: 'runtime_capability_required',
+    publicMessage: 'Render runner capability not recognized',
+  },
   { sqlstate: '28000', code: 'runtime_capability_required', publicMessage: 'Runtime capability not recognized' },
   {
     sqlstate: '42501',
@@ -40,7 +47,9 @@ const RULES: readonly Rule[] = [
       // 0029: an unreconciled overrun stops the allowance; a finalizing task takes no ordinary call, and only so many.
       m.startsWith('Research allowance overrun') ||
       m.startsWith('Research is finalizing') ||
-      m.startsWith('Research finalize step has used its calls'),
+      m.startsWith('Research finalize step has used its calls') ||
+      // 0030: at most three renders per research task.
+      m.startsWith('Research render limit reached'),
     code: 'research_limit_reached',
   },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.

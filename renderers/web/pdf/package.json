@@ -8,7 +8,8 @@
     ".": "./index.mjs"
   },
   "bin": {
-    "sophia-render-pdf": "./render-html.mjs"
+    "sophia-render-pdf": "./render-html.mjs",
+    "sophia-render-supervisor": "./supervisor.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p ."

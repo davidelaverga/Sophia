@@ -146,6 +146,16 @@
         "node --test renderers/web/pdf/test/render-html.test.ts (real Chromium)"
       ],
       "ref": "docs/progress/SMC-M03.md#21-s5a-part-1-the-pdf-kernel-confined-rendererswebpdf"
+    },
+    {
+      "slice": "S5a part 2 (render jobs, runner, supervisor)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#22-s5a-part-2-render-jobs-the-render-runner-and-the-supervisor-0030"
     }
   ],
   "outstanding_operations": [
@@ -174,7 +184,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0029 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0030 so far)",
       "owner": "Claude Code"
     },
     {
@@ -186,7 +196,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0009 awaits Codex. S5a part 2: render jobs, the render-runner capability and supervisor, research_render_pdf. Then S5b",
+  "next_action": "CC-0009 awaits Codex. Then a review request covering S5a (kernel, 0030, renderer API, supervisor). Next: S5b (PDF preset and report contract, research_render_pdf, repair loop, rendition publication, PdfView), with the renderer host probe (OP-C) as a Codex operation under Davide’s approval",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

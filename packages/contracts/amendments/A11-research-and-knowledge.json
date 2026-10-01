@@ -12,7 +12,8 @@
     "S4: the write side. A runtime advertises its specialist roles in hello; start_research admits research; the runtime research operations (context, reserve, settle, capture, draft) let the research tools read the task, spend from its allowance, keep what they retrieved with its provenance and write a draft, authenticated and fenced like observations.",
     "The guide's tool surface is versioned: GET /v1/media/tool-surface?guide=v1.2 names start_research, and without the parameter it answers v1.1's six operations exactly as before, so a bridge running the M01 guide still activates against this API.",
     "S4 part 3: a research task ends through runtimeResearchSubmit, never through its last message: the result publishes the current draft as the report's next stable version with its checks, notes and change facts, or a blocker records why it stopped and what remains.",
-    "S4 part 4: a version carries the facts the service computed at publication (sections added, revised, removed and kept; whether the conclusion changed; sources added and dropped), and its notes must agree with them. A research task's detail carries its progress (allowance and source policy). A version lists the sources it cites with their provenance. Members edit a report's description with attribution."
+    "S4 part 4: a version carries the facts the service computed at publication (sections added, revised, removed and kept; whether the conclusion changed; sources added and dropped), and its notes must agree with them. A research task's detail carries its progress (allowance and source policy). A version lists the sources it cites with their provenance. Members edit a report's description with attribution.",
+    "S5a part 2: a render job is a research task's child, carrying a source package (one HTML entry and its images, each a stored source by relative path and SHA-256). The supervisor on the renderer host holds only a render runner capability: it claims under a lease, fetches each file and uploads the PDF through the API (never a storage URL or key), and settles with the kernel's receipt. A Hold returns a render to the queue, a Stop cancels it, and a render that ends after either is never the job's result."
   ],
   "patch": [
     {
@@ -2843,6 +2844,1063 @@
             },
             "422": {
               "description": "Request fails the declared schema, or the report is not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/securitySchemes/renderRunnerCapability",
+      "value": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A render runner capability: an opaque secret held by the supervisor on the renderer host; the service stores only its SHA-256. It claims, reads, uploads and settles render jobs under their leases, and nothing else: no member, project or runtime authority."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderJobFile",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$",
+            "maxLength": 512
+          },
+          "role": {
+            "type": "string",
+            "enum": ["entry", "asset"]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16777216
+          }
+        },
+        "required": ["path", "role", "sha256", "byteLength"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderJob",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One claimed render: its lease and its source package, each file by relative path and SHA-256. Files are fetched through the API under the lease.",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "leaseUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["pdf"]
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+            "maxLength": 35
+          },
+          "sourceManifestHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 600000
+          },
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 65,
+            "items": {
+              "$ref": "#/components/schemas/RenderJobFile"
+            }
+          }
+        },
+        "required": [
+          "jobId",
+          "leaseToken",
+          "leaseUntil",
+          "format",
+          "language",
+          "sourceManifestHash",
+          "timeoutMs",
+          "files"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderClaim",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["job"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderLease",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": ["leaseToken"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderHeartbeat",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["continue", "cancel"]
+          },
+          "leaseUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderOutput",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 33554432
+          }
+        },
+        "required": ["sourceId", "sha256", "byteLength"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderCheck",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["passed", "failed", "unknown"]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["name", "outcome", "detail"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderFileRef",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["path", "sha256"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The PDF kernel's receipt (renderers/web/pdf, sophia.pdf-render-receipt.v1): what it rendered, how it was confined, and every check, passed, failed or unknown.",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": ["sophia.pdf-render-receipt.v1"]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["succeeded", "failed", "cancelled"]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z_]{0,63}$"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": ["code", "message"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renderer": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kernel": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "rendererSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "donor": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "repository": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "commit": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "blob": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  }
+                },
+                "required": ["repository", "commit", "path", "blob"]
+              },
+              "playwrightCore": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "browser": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["kernel", "rendererSha256", "donor", "playwrightCore", "browser"]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "manifestSha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "entry": {
+                    "$ref": "#/components/schemas/RenderFileRef"
+                  },
+                  "assets": {
+                    "type": "array",
+                    "maxItems": 64,
+                    "items": {
+                      "$ref": "#/components/schemas/RenderFileRef"
+                    }
+                  }
+                },
+                "required": ["manifestSha256", "entry", "assets"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 35
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "maxItems": 64,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "browserUid": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "renderers": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "gpuSeccomp": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["active", "reasons", "browserUid", "renderers", "gpuSeccomp"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "header": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 16
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "eof": {
+                    "type": "boolean"
+                  },
+                  "pageCount": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pdfImages": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["path", "sha256", "bytes", "header", "eof", "pageCount", "pdfImages"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "measurements": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "overflow": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "measurement": {
+                        "type": "string",
+                        "enum": ["measured", "unavailable"]
+                      },
+                      "px": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "elements": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "element": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "rightPx": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": ["element", "rightPx"]
+                        }
+                      }
+                    },
+                    "required": ["measurement", "px", "elements"]
+                  },
+                  "svgVisuals": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "domImages": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["overflow", "svgVisuals", "domImages"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undeclaredAssets": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "blockedRequests": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/RenderCheck"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "elapsedMs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "schema",
+          "jobId",
+          "status",
+          "error",
+          "renderer",
+          "source",
+          "language",
+          "sandbox",
+          "output",
+          "measurements",
+          "undeclaredAssets",
+          "blockedRequests",
+          "checks",
+          "warnings",
+          "elapsedMs"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderSettleRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/RenderReceipt"
+          }
+        },
+        "required": ["leaseToken", "receipt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RenderSettlement",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["pending", "succeeded", "failed", "cancelled"]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["state", "reason"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1renderer~1claim",
+      "value": {
+        "post": {
+          "operationId": "rendererClaim",
+          "summary": "Claim the oldest pending render whose goal is working, under a new lease; job is null when there is none.",
+          "tags": ["renderer"],
+          "security": [
+            {
+              "renderRunnerCapability": []
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Claimed, or nothing to claim",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RenderClaim"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown render runner capability"
+            },
+            "409": {
+              "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1renderer~1jobs~1{jobId}~1heartbeat",
+      "value": {
+        "post": {
+          "operationId": "rendererHeartbeat",
+          "summary": "Extend the lease, or learn to stop: a Stop or a task that ended cancels the render, a Hold returns it to the queue.",
+          "tags": ["renderer"],
+          "security": [
+            {
+              "renderRunnerCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "jobId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderLease"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Continue or cancel",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RenderHeartbeat"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown render runner capability"
+            },
+            "409": {
+              "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1renderer~1jobs~1{jobId}~1file",
+      "value": {
+        "get": {
+          "operationId": "rendererFile",
+          "summary": "One file of the job's source package, by its relative path, as bytes; its SHA-256 is the package's.",
+          "tags": ["renderer"],
+          "security": [
+            {
+              "renderRunnerCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "jobId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "x-sophia-render-lease",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "path",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$",
+                "maxLength": 512
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The bytes",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown render runner capability"
+            },
+            "409": {
+              "description": "The lease is lost",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Not a file of this package",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1renderer~1jobs~1{jobId}~1output",
+      "value": {
+        "put": {
+          "operationId": "rendererOutput",
+          "summary": "Upload the rendered PDF once: the API checks its signature and size, stores it and records it as the job's output, derived from every file of the package.",
+          "tags": ["renderer"],
+          "security": [
+            {
+              "renderRunnerCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "jobId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "x-sophia-render-lease",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Stored",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RenderOutput"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown render runner capability"
+            },
+            "409": {
+              "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1renderer~1jobs~1{jobId}~1settle",
+      "value": {
+        "post": {
+          "operationId": "rendererSettle",
+          "summary": "End the render with the kernel's receipt. A succeeded render names its package and its recorded output; one that ends after a Stop or the task's end is stale and never the job's result; under a Hold it is queued again.",
+          "tags": ["renderer"],
+          "security": [
+            {
+              "renderRunnerCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "jobId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderSettleRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Settled (or already settled)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RenderSettlement"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown render runner capability"
+            },
+            "409": {
+              "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a job or file this lease does not cover",
               "content": {
                 "application/json": {
                   "schema": {

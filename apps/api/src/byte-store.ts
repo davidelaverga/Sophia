@@ -16,6 +16,8 @@ export interface ByteStore {
   put(path: string, bytes: Uint8Array, mime: string): Promise<void>
   /** A URL that reads `path` until it expires; with a file name, opening it saves the file under that name. */
   signedUrl(path: string, expiresInSeconds: number, downloadAs: string | null): Promise<string>
+  /** The bytes at `path`, read by the API itself (a render package's image for the render runner). */
+  get(path: string): Promise<Uint8Array>
 }
 
 export class ByteStoreError extends Error {
@@ -100,6 +102,11 @@ export function s3ByteStore(
       const req = { method: 'GET', host: endpoint.host, path: pathOf(path), query }
       return Promise.resolve(presignedUrl(endpoint.origin, req, creds, clock(), expiresInSeconds))
     },
+    async get(path) {
+      const res = await send('GET', path, null, {})
+      if (!res.ok) throw await failure(res, 'store get')
+      return new Uint8Array(await res.arrayBuffer())
+    },
   }
 }
 
@@ -121,6 +128,10 @@ export function memoryByteStore(origin = 'https://store.invalid'): ByteStore & {
       url.searchParams.set('expires', String(expiresInSeconds))
       if (downloadAs !== null) url.searchParams.set('download', downloadAs)
       return Promise.resolve(url.toString())
+    },
+    get(path) {
+      const bytes = objects.get(path)
+      return bytes ? Promise.resolve(bytes) : Promise.reject(new ByteStoreError(404, `store get: ${path} is missing`))
     },
   }
 }

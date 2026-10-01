@@ -17,6 +17,8 @@ export const MAX_ASSETS = 64
 const MAX_ENTRY_BYTES = 4 * 1024 * 1024
 const MAX_ASSET_BYTES = 16 * 1024 * 1024
 const MAX_PATH = 512
+/** The path form the service records (sophia.is_render_path): ASCII segments, at most 8 deep. */
+const RELATIVE_PATH = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(\/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$/
 
 /** Why a source package is refused; `code` is stable, `detail` names the path. */
 export class ManifestError extends Error {
@@ -55,6 +57,7 @@ function relativePathOf(value) {
   if (value.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')) {
     throw new ManifestError('path_escape', value)
   }
+  if (!RELATIVE_PATH.test(value)) throw new ManifestError('invalid_path', value)
   return value
 }
 
@@ -104,13 +107,15 @@ function verifyFile(root, ref, rule) {
 }
 
 /**
- * The source package's identity: its entry and assets, sorted by path, as canonical JSON.
+ * The source package's identity, as the service computes it (sophia.render_manifest_sha256): one line per file,
+ * `role\tpath\tsha256\n`, the entry first, then the assets by path in byte order, hashed.
  * @param {FileRef} entry
  * @param {FileRef[]} assets
  */
 export function manifestHash(entry, assets) {
-  const sorted = assets.map((a) => ({ path: a.path, sha256: a.sha256 })).toSorted((a, b) => (a.path < b.path ? -1 : 1))
-  return sha256Hex(JSON.stringify({ entry: { path: entry.path, sha256: entry.sha256 }, assets: sorted }))
+  const sorted = assets.toSorted((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)))
+  const lines = [`entry\t${entry.path}\t${entry.sha256}\n`, ...sorted.map((a) => `asset\t${a.path}\t${a.sha256}\n`)]
+  return sha256Hex(lines.join(''))
 }
 
 /**

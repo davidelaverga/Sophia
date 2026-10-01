@@ -151,6 +151,20 @@ describe('report byte store (D5)', () => {
     assert.equal(save.toString().includes('storage-secret'), false)
   })
 
+  it("reads an object for the API itself with a signed GET (a render package's image), and says when it is missing", async () => {
+    const io = recording(new Response(new Uint8Array([7, 8, 9]), { status: 200 }), new Response('', { status: 404 }))
+    const store = s3ByteStore(config, io.fetch, clock)
+    assert.deepEqual([...(await store.get(objectPath(P, S)))], [7, 8, 9])
+    const [get] = io.sent
+    assert.deepEqual([get?.url, get?.init.method], [`https://ref.supabase.co/storage/v1/s3/reports/${P}/${S}`, 'GET'])
+    assert.match(
+      headerOf(get, 'authorization') ?? '',
+      /^AWS4-HMAC-SHA256 Credential=storage-key-id\/.*SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/,
+    )
+    await assert.rejects(store.get('a/missing'), /store get: 404/)
+    assert.equal(JSON.stringify(io.sent).includes('storage-secret'), false)
+  })
+
   it('keeps bytes in memory for tests, with the same write-once rule', async () => {
     const store = memoryByteStore()
     await store.put('a/b', new Uint8Array([1]), 'application/pdf')
@@ -160,6 +174,8 @@ describe('report byte store (D5)', () => {
       /^https:\/\/store\.invalid\/a\/b\?expires=60&download=x\.pdf$/,
     )
     await assert.rejects(store.signedUrl('a/c', 60, null), /missing/)
+    assert.deepEqual([...(await store.get('a/b'))], [1])
+    await assert.rejects(store.get('a/c'), /missing/)
   })
 
   it('names a saved report after its title, version and format', () => {

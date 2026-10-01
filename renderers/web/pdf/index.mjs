@@ -18,3 +18,4 @@ export {
   sourceUnchanged,
   verifySource,
 } from './source-manifest.mjs'
+export { ApiError, runOnce, supervise } from './supervisor.mjs'
