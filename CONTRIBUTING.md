@@ -487,7 +487,8 @@ their work. Keep these when you change them:
   also one whose answer was lost) takes the words written before it.
   A long conversation reads back from the Earlier days menu ("Show earlier
   days"); turns that leave the space's window as new ones come stay with
-  what was read. Your data's days are the server's count, over the whole
+  what was read; Your data's copy reads the export a page at a time, so it
+  carries every turn. Your data's days are the server's count, over the whole
   conversation, in this device's time zone (UTC where the server doesn't
   know it). While the padlock is shut the field is off the page and the
   page keeps none of the space's words: neither a message on its way nor

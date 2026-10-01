@@ -59,8 +59,25 @@ export const getEarlierPersonalTurns = (token: string, before: number): Promise<
 export const getPersonalTurns = (token: string, after: number): Promise<PersonalTurnPage> =>
   read(token, `/api/v1/personal/turns?after=${after}`, parsePersonalTurnPage)
 
-export const exportPersonalSpace = (token: string): Promise<PersonalExport> =>
-  read(token, '/api/v1/personal/export', parsePersonalExport)
+/** One page of the export: the turns after `after` (a seq), and `next` where the following page starts. */
+const exportPage = (token: string, after: number): Promise<PersonalExport> =>
+  read(token, `/api/v1/personal/export?after=${String(after)}`, parsePersonalExport)
+
+/**
+ * Everything the personal space keeps, read a page at a time (A10 bounds each): the first page's date, notes and carried
+ * notes, with every page's turns, in order.
+ */
+export async function exportPersonalSpace(token: string): Promise<PersonalExport> {
+  const first = await exportPage(token, 0)
+  const turns = [...first.turns]
+  let next = first.next
+  while (next !== null) {
+    const page = await exportPage(token, next)
+    turns.push(...page.turns)
+    next = page.next
+  }
+  return { ...first, turns, next: null }
+}
 
 export const listProjects = (token: string): Promise<ProjectList> => read(token, '/api/v1/projects', parseProjectList)
 

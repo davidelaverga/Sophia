@@ -165,6 +165,7 @@ describe('your data', () => {
   it('counts days with Sophia by the days the person wrote, and copies everything as text', () => {
     const everything: PersonalExport = {
       exportedAt: NOW.toISOString(),
+      next: null,
       turns: [
         turn('I have a pitch', 60 * 24),
         { ...turn('Still here', 5), id: 't2', seq: 2 },
