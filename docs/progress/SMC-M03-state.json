@@ -196,6 +196,17 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#26-cx-0007-m03-rf-0013-0016"
+    },
+    {
+      "slice": "S5b part 3 (page checks, render judgement, 0034)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test renderers/web/pdf/test/render-html.test.ts (real Chromium, SOPHIA_RENDERER_REQUIRED=1)",
+        "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#27-s5b-part-3-the-printed-pages-read-back-and-the-service-judges-the-pdf-0034"
     }
   ],
   "outstanding_operations": [
@@ -224,7 +235,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0032 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0034 so far)",
       "owner": "Claude Code"
     },
     {
@@ -236,7 +247,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0010 awaits Codex (re-review of M03-RF-0013..0016 and the S5 review at bce59ed). Open for Davide: what Forget means for a published report that quoted a forgotten source, and approval of the renderer host probe (OP-C) as a Codex operation. Next: text extraction for the blank and short page checks, then S6 (guide v1.2: start_research, render_research, steer, the text-mode notice)",
+  "next_action": "CC-0010 awaits Codex (re-review of M03-RF-0013..0016 and the S5 review at bce59ed; S5b part 3 followed it). Open for Davide: what Forget means for a published report that quoted a forgotten source, and approval of the renderer host probe (OP-C) as a Codex operation. Next: S6 (guide v1.2: start_research, render_research, steer, the text-mode notice)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

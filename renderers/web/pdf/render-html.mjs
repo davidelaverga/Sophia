@@ -11,7 +11,8 @@
 // - the document gets its language and CSS that wraps long URLs and code, and a CDP probe measures horizontal
 //   overflow at the printable width ("unavailable" when it cannot, never a zero);
 // - the result is a structured receipt (receipt.json) instead of a line of prose, and cancelling kills the
-//   namespace.
+//   namespace;
+// - the printed pages are read back (pdf-text.mjs) for the blank and short page checks, the footer stripped.
 // Usage: render-html.mjs --job <job.json>. The job names sourceRoot, entry, assets, language and outputDir; the
 // receipt and report.pdf land in outputDir. Exit 0 when the render succeeded, 1 when it failed or was cancelled.
 import fs from 'node:fs'
@@ -21,6 +22,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { launchConfined, playwrightVersion } from './confine.mjs'
 import { pdfFacts } from './pdf-facts.mjs'
+import { pageChecks, pageTexts } from './pdf-text.mjs'
 import { ASSET_EXTENSIONS, ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
 export const RECEIPT_SCHEMA = 'sophia.pdf-render-receipt.v1'
@@ -40,6 +42,8 @@ const FOOTER_TEMPLATE =
   '<span class="pageNumber"></span> / <span class="totalPages"></span></div>'
 const HEADER_TEMPLATE = '<div></div>'
 const MARGIN_MM = 16
+/** The page margin in PDF points: text inside it is the footer (or the empty header), not the page's body. */
+const MARGIN_PT = (MARGIN_MM / 25.4) * 72
 /** The printable width of an A4 page with these margins, in CSS pixels (96 per inch). */
 export const PRINT_WIDTH_PX = Math.floor(((210 - 2 * MARGIN_MM) / 25.4) * 96)
 const PRINT_HEIGHT_PX = Math.floor(((297 - 2 * MARGIN_MM) / 25.4) * 96)
@@ -247,12 +251,14 @@ function printPdf(page) {
 const check = (name, outcome, detail = null) => ({ name, outcome, detail })
 
 /**
- * The checks a produced PDF carries. An unknown check never passes; blank and short pages wait for S5b's text
- * extraction.
+ * The checks a produced PDF carries. An unknown check never passes. Whether a failed one is acceptable is the
+ * service's to decide (the kernel reports; the PDF exists).
  * @param {import('./pdf-facts.mjs').PdfFacts} facts
  * @param {Overflow} overflow
+ * @param {import('./pdf-text.mjs').PageText[] | null} pages
  */
-function outputChecks(facts, overflow) {
+function outputChecks(facts, overflow, pages) {
+  const { blank, short } = pageChecks(pages, facts.pageCount)
   return [
     check('pdf_signature', facts.header && facts.eof ? 'passed' : 'failed', facts.header),
     check(
@@ -265,8 +271,8 @@ function outputChecks(facts, overflow) {
       overflow.measurement === 'unavailable' ? 'unknown' : overflow.px === 0 ? 'passed' : 'failed',
       overflow.px === null ? 'measurement unavailable' : `${overflow.px}px past the printable width`,
     ),
-    check('blank_pages', 'unknown', 'needs text extraction (S5b)'),
-    check('short_pages', 'unknown', 'needs text extraction (S5b)'),
+    check('blank_pages', blank.outcome, blank.detail),
+    check('short_pages', short.outcome, short.detail),
   ]
 }
 
@@ -366,10 +372,11 @@ async function printAndKeep(page, job, receipt, opts) {
   receipt.measurements = { overflow, ...(await countVisuals(page)) }
   const pdf = await printPdf(page)
   const facts = pdfFacts(pdf)
+  const pages = await pageTexts(pdf, MARGIN_PT).catch(() => null)
   const file = path.join(job.outputDir, OUTPUT_NAME)
   fs.writeFileSync(file, pdf, { flag: 'wx', mode: 0o644 })
   receipt.output = { path: OUTPUT_NAME, sha256: sha256Hex(pdf), bytes: pdf.byteLength, ...facts }
-  receipt.checks.push(...outputChecks(facts, overflow))
+  receipt.checks.push(...outputChecks(facts, overflow, pages))
 }
 
 /**

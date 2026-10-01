@@ -10,6 +10,7 @@ import path from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { chromiumPath, judgeSandbox, launchConfined, renderHtmlToPdf, renderUserOf } from '../index.mjs'
+import { pageChecks, pageTexts, SHORT_PAGE_WORDS } from '../pdf-text.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
 // A 2×2 PNG.
@@ -120,6 +121,74 @@ const tree = (...rest: Facts[]) => [
   ...rest,
 ]
 
+const words = (n: number, word = 'parola') => Array.from({ length: n }, () => word).join(' ')
+const BREAK = '<div style="break-after: page"></div>'
+/** Four pages: a full one, an empty one (only its footer), a short one, and a full last one. */
+const PAGED = `<!doctype html><html><head><meta charset="utf-8"><title>Pagine</title></head><body>
+<p>${words(200)}</p>${BREAK}${BREAK}<p>${words(12, 'breve')}</p>${BREAK}<p>${words(200, 'fine')}</p></body></html>`
+
+/** One page's text facts, for the checks' rules. */
+const page = (count: number, images = 0) => ({ words: count, images })
+
+describe('the printed pages, read back (pdf-text.mjs)', () => {
+  it('names blank pages anywhere and short pages between the first and the last; an image keeps a page', () => {
+    const pages = [page(30), page(0), page(1), page(40), page(0, 1), page(200), page(5)]
+    assert.deepEqual(pageChecks(pages, 7), {
+      blank: { outcome: 'failed', detail: 'pages 2, 3' },
+      short: { outcome: 'failed', detail: 'page 4' },
+    })
+    assert.deepEqual(pageChecks([page(5), page(SHORT_PAGE_WORDS), page(3)], 3), {
+      blank: { outcome: 'passed', detail: null },
+      short: { outcome: 'passed', detail: null },
+    })
+    const many = Array.from({ length: 14 }, () => page(0))
+    assert.equal(pageChecks(many, 14).blank.detail, 'pages 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, …')
+  })
+
+  it('is unknown, never passed, when the text could not be read or the pages disagree with the count', () => {
+    const unknown = { outcome: 'unknown', detail: 'the PDF text could not be read' }
+    assert.deepEqual(pageChecks(null, 2), { blank: unknown, short: unknown })
+    assert.deepEqual(pageChecks([], null).blank.outcome, 'unknown')
+    assert.deepEqual(pageChecks([page(100)], 2).short, {
+      outcome: 'unknown',
+      detail: 'the pages read disagree with the page count',
+    })
+  })
+
+  it('refuses bytes that are not a PDF', async () => {
+    await assert.rejects(pageTexts(new TextEncoder().encode('<html>not a pdf</html>'), 45))
+  })
+
+  it(
+    'counts the body of each printed page, never its footer, and names a blank and a short page',
+    { skip },
+    async () => {
+      const job = sourcePackage({ 'report.html': PAGED })
+      const receipt = await renderHtmlToPdf(job, { env })
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      assert.equal(receipt.output?.pageCount, 4)
+      const pages = await pageTexts(fs.readFileSync(path.join(job.outputDir, 'report.pdf')), (16 / 25.4) * 72)
+      assert.deepEqual(
+        pages.map((pg) => pg.words),
+        [200, 0, 12, 200],
+        'the footer ("2 / 4") is not counted',
+      )
+      assert.deepEqual(
+        receipt.checks.filter((c) => c.name === 'blank_pages' || c.name === 'short_pages'),
+        [
+          { name: 'blank_pages', outcome: 'failed', detail: 'page 2' },
+          { name: 'short_pages', outcome: 'failed', detail: 'page 3' },
+        ],
+      )
+      assert.equal(
+        outcome(receipt, 'layout_overflow'),
+        'passed',
+        'a page check is the service’s to judge, not the kernel’s',
+      )
+    },
+  )
+})
+
 describe('the confined PDF kernel', () => {
   it('has a confined browser wherever the renderer is required', () => {
     if (process.env.SOPHIA_RENDERER_REQUIRED === '1') assert.equal(why, null, `the renderer is required here: ${why}`)
@@ -146,8 +215,7 @@ describe('the confined PDF kernel', () => {
       'layout_overflow',
       'source_unchanged',
     ]
-    for (const name of passed) assert.equal(outcome(receipt, name), 'passed', name)
-    assert.deepEqual([outcome(receipt, 'blank_pages'), outcome(receipt, 'short_pages')], ['unknown', 'unknown'])
+    for (const name of [...passed, 'blank_pages', 'short_pages']) assert.equal(outcome(receipt, name), 'passed', name)
     const sandbox = receipt.sandbox!
     assert.equal(sandbox.active, true, sandbox.reasons.join('; '))
     assert.ok(sandbox.renderers >= 1)

@@ -2478,8 +2478,12 @@ async function pdfWorld(as = { role: PDF.id, route: PDF.route }) {
   const d = await draft(reportOf(cited.sourceId))
   const render = (draftSha256: string, callId: string = randomUUID()) =>
     service((c) => runtimeResearchRender(c, w.who, { ...at, callId, draftSha256 }))
-  /** Claim the render and end it as the kernel would: a PDF and its receipt, or a failure. */
-  const settle = async (jobId: string, status: 'succeeded' | 'failed' = 'succeeded') => {
+  /** Claim the render and end it as the kernel would: a PDF and its receipt (with these checks), or a failure. */
+  const settle = async (
+    jobId: string,
+    status: 'succeeded' | 'failed' = 'succeeded',
+    checks: RenderReceipt['checks'] = [{ name: 'blank_pages', outcome: 'unknown', detail: null }],
+  ) => {
     const job = await claimMine(jobId)
     const outSha = status === 'succeeded' ? sha(`pdf ${jobId}`) : null
     if (outSha) {
@@ -2492,10 +2496,7 @@ async function pdfWorld(as = { role: PDF.id, route: PDF.route }) {
         }),
       )
     }
-    const receipt = {
-      ...receiptFor(job.sourceManifestHash, outSha, status),
-      checks: [{ name: 'blank_pages', outcome: 'unknown' as const, detail: null }],
-    }
+    const receipt = { ...receiptFor(job.sourceManifestHash, outSha, status), checks }
     return service((c) => rendererSettle(c, runnerHash(), job.jobId, job.leaseToken, receipt))
   }
   const submit = (draftSha256: string, callId: string = randomUUID()) =>
@@ -2522,6 +2523,9 @@ const entryOf = (jobId: string) =>
       JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=s.id WHERE f.job_id=$1 AND f.role='entry'`,
     [jobId],
   )
+
+/** A kernel check that passed. */
+const passed = (name: string) => ({ name, outcome: 'passed' as const, detail: null })
 
 describe('the research PDF (0031)', () => {
   it('prints the current draft with the report template and queues that HTML as the package, once per call', async () => {
@@ -2720,6 +2724,40 @@ describe('the research PDF (0031)', () => {
     assert.equal(plain.pdf, undefined, 'a Markdown task has no PDF to speak of')
   })
 
+  it('fails a PDF that fails a check, so the format repair follows; a nearly empty page is a limitation (0034)', async () => {
+    const p = await pdfWorld()
+    const first = await p.render(p.d.sha256)
+    const overflow = { name: 'layout_overflow', outcome: 'failed' as const, detail: '412px past the printable width' }
+    assert.deepEqual(await p.settle(first.renderJobId!, 'succeeded', [overflow, passed('blank_pages')]), {
+      state: 'failed',
+      reason: 'failed: layout_overflow',
+    })
+    assert.equal((await renderState(p.w, first.renderJobId!)).result_source_id, null, 'never a result')
+    const format = await p.render(p.d.sha256)
+    assert.deepEqual([format.repair, format.layout], ['format', 'compact'], 'the format repair follows')
+    const short = { name: 'short_pages', outcome: 'failed' as const, detail: 'page 3' }
+    assert.equal((await p.settle(format.renderJobId!, 'succeeded', [passed('blank_pages'), short])).state, 'succeeded')
+    const done = await p.submit(p.d.sha256)
+    assert.equal(done.pdf?.state, 'produced')
+    const rendition = await one<{ limitations: string[] }>(
+      `SELECT limitations FROM sophia.artifact_renditions WHERE artifact_version_id=$1 AND format='pdf'`,
+      [done.versionId],
+    )
+    assert.deepEqual(rendition.limitations, ['Some pages of the PDF are nearly empty (page 3)'])
+
+    const b = await pdfWorld()
+    const blank = { name: 'blank_pages', outcome: 'failed' as const, detail: 'page 2' }
+    const r = await b.render(b.d.sha256)
+    assert.deepEqual(await b.settle(r.renderJobId!, 'succeeded', [blank, short]), {
+      state: 'failed',
+      reason: 'failed: blank_pages',
+    })
+    assert.deepEqual((await b.submit(b.d.sha256)).pdf, {
+      state: 'not_produced',
+      reason: 'The PDF could not be produced (failed: blank_pages)',
+    })
+  })
+
   it("reads a render back: its state, then the kernel's checks and its render-result.v1 record", async () => {
     const p = await pdfWorld()
     const queued = await p.render(p.d.sha256)
@@ -2899,6 +2937,18 @@ describe('Try PDF again (0032)', () => {
     await withdraw(p.w, p.cited.sourceId)
     assert.equal(await codeOf(p.again('try-1')), 'source_ineligible')
     assert.deepEqual(await p.renders(), [])
+    assert.equal(await p.goal(), 'completed')
+  })
+
+  it('fails a rendition whose PDF fails a check, and says why (0034)', async () => {
+    const p = await partialWorld()
+    const blank = { name: 'blank_pages', outcome: 'failed' as const, detail: 'page 2' }
+    await p.settle((await p.again('try-1')).renderJobId!, 'succeeded', [blank])
+    assert.deepEqual(await p.task(), {
+      pdf_state: 'not_produced',
+      pdf_reason: 'The PDF could not be produced again (failed: blank_pages)',
+    })
+    assert.equal((await versionsOf(p.done.artifactId!)).length, 1, 'nothing published')
     assert.equal(await p.goal(), 'completed')
   })
 

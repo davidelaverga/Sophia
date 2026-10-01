@@ -69,7 +69,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "28731ddf8d9cb38ec6b388764fcde81116ad184b44395294e67ad3ecf0f3a0ac",
+  "workspace_lock_sha256": "e185f1d8b2cd81297e6c96c66622cc2dea001741b1ea8b6566d61eaf10cdd061",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",

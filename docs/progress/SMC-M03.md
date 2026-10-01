@@ -507,3 +507,18 @@ Not changed: a published version stays readable as the record of what was publis
 
 The review request is [CC-0010](../coordination/SMC-M03/SMC-M03-CC-0010.md) ([#31](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5941632143)), at `bce59ed`. It also asks for the first review of S5.
 
+## 27. S5b part 3: the printed pages read back, and the service judges the PDF (0034)
+
+The kernel's blank and short page checks were `unknown` until now. The kernel now reads the printed pages back, and the service no longer publishes a PDF that fails a check.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `pdf-text.mjs` (kernel) | pdf.js 6.3.289 (legacy build, the version Studio pins), in-process, with system fonts, font faces, WebAssembly and XFA off, stopping at the first error. For each printed page it counts the body words (text inside the 16 mm margins, so the page-number footer is never counted) and the raster images painted. The donor's rules (`render_markdown_to_pdf.py`): a page with at most one word and no image fails `blank_pages`; a page between the first (the title and contents) and the last with fewer than 80 words and no image fails `short_pages`. The detail names the pages. A PDF that cannot be read, or whose pages disagree with the page count, leaves both `unknown` | `render-html.test.ts`: the rules on page facts, unknown on unreadable bytes, and a real four-page render (a full page, an empty one with only its footer, a short one and a full one) reading 200, 0, 12 and 200 words and naming page 2 and page 3. Mutation-checked: without the margin strip, the footer makes the empty page count as text and the test fails. The template-printed report through the supervisor now passes every check |
+| 0034 (service) | The kernel reports, and a PDF that exists is `succeeded`. At settle, the service fails a succeeded receipt that fails any check except the advisory `short_pages` (overflow, a blank page, a broken signature or page count), with reason `failed: <checks>`. It never becomes a version's PDF, and the next render is the format repair. A short page is named on the rendition as a limitation ("Some pages of the PDF are nearly empty (page 3)"), as an unknown check is. A rendition that fails a check records the reason on the task | `research.db.test.ts`: an overflow fails the render and the format repair follows; a short page is a limitation; a blank page fails the render and the report is published without a PDF, saying why; a Try PDF again with a blank page records the reason. Mutation-checked: the gate, the advisory exception and the short-page limitation each fail a test when removed |
+
+Before this, a PDF whose overflow check failed was published as ready. The plan's "1 semantic + 1 format repair, then a truthful failure" now holds for every check the kernel can fail.
+
+Run (linux-x64): `pnpm check` exit 0 (564 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 33 migrations, `pnpm test:db` 308/308. The renderer suites ran as root with the render user uid 1000 and `SOPHIA_RENDERER_REQUIRED=1`: the kernel's 14 tests and the 6 supervisor crossings. `pdfjs-dist@6.3.289` is added to the renderer, so the workspace lock identity is re-recorded; the bundle and the runtime tree are unchanged.
+
+Not here: the renderer image's licensed EN, IT and ES fonts with glyph fixtures (with the renderer host, OP-C).
+

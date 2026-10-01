@@ -279,6 +279,9 @@ importers:
 
   renderers/web/pdf:
     dependencies:
+      pdfjs-dist:
+        specifier: 6.3.289
+        version: 6.3.289
       playwright-core:
         specifier: 1.56.1
         version: 1.56.1

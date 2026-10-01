@@ -29,7 +29,9 @@ The output is `report.pdf`, written once and never over an existing file, plus `
 - every undeclared asset or blocked request;
 - checks that are `passed`, `failed` or `unknown`; an unknown check never passes.
 
-Blank and short pages stay `unknown` until S5b's text extraction. S5a part 2's supervisor turns this receipt into `sophia.render-result.v1`.
+The printed pages are read back with pdf.js (`pdf-text.mjs`, the version Studio pins, in-process, with fonts, WebAssembly and XFA off). Each page's body words are counted with the footer margin stripped, along with its raster images. A page with at most one word and no image fails `blank_pages`. A page between the first and the last with fewer than 80 words and no image fails `short_pages`; these are the donor's rules. A PDF that cannot be read leaves both `unknown`.
+
+The kernel reports; the service judges. A PDF that exists is `succeeded` whatever its checks say. When the receipt is settled, the service (0034) treats any failed check except the advisory `short_pages` as a failed render, and names a short page on the rendition. The supervisor turns this receipt into `sophia.render-result.v1`.
 
 ## What is refused
 
