@@ -541,9 +541,11 @@ their work. Keep these when you change them:
   for them is up), said so; an open field takes them back when that time
   comes. Words going out take only their own draft with them: another
   tab's newer one stays. An erasure on another device reaches an open
-  tab within the Work list's next read (every 20 s), which reads the space
-  again until it reaches that epoch, less and less often while reads fail
-  (`erasedElsewhere`); and waiting for a reply never stops reading:
+  tab within the Work list's next read (every 20 s) (`erasedElsewhere`);
+  after any erasure, from this page or another, what was read goes at once
+  and the space is read afresh (`readAfresh`): a read that fails then says
+  so, with Try again, and shows none of it. Waiting for a reply never stops
+  reading:
   after failed reads, less and less often (`pollEvery`). The device never
   keeps words in an older epoch than it already holds (`keptEpoch`), and a
   tab whose space is behind the draft it shows reads the space again before

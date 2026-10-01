@@ -1,7 +1,7 @@
 // The personal space and the Work list as server state (react-query), and the writes the three places make. Every
 // write has its own Idempotency-Key and is retried once with the SAME key when no reply came, while its first attempt
 // is recent (once.ts); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { PersonalReceipt, PersonalSpace, PersonalTurn, ProjectList } from '@sophia/contracts'
 import {
@@ -128,9 +128,15 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
 export type ReadBack = ReturnType<typeof useReadBack>
 
 /**
+ * After an erasure, what was read of the space goes at once and the space is read afresh: a read that fails then says
+ * so, with Try again, and shows none of what was erased.
+ */
+const readAfresh = (client: QueryClient, name: string) =>
+  client.resetQueries({ queryKey: ['personal', name], exact: true })
+
+/**
  * An erasure on another device, once this page hears of it from the Work list (erasedElsewhere): the space is read
- * again, and again less and less often while a read fails, until it reaches that epoch, so neither its conversation
- * nor its draft stays in sight.
+ * afresh (readAfresh), so neither its conversation nor its draft stays in sight, also while reads fail.
  */
 export function useReadAgainOnErasure(
   identity: Identity,
@@ -140,22 +146,7 @@ export function useReadAgainOnErasure(
   const client = useQueryClient()
   const seen = erasedElsewhere(space, work)
   useEffect(() => {
-    if (!seen) return undefined
-    let tries = 0
-    let wake: ReturnType<typeof setTimeout> | undefined
-    let done = false
-    const read = () => {
-      void client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true }).finally(() => {
-        if (done) return
-        tries += 1
-        wake = setTimeout(read, pollEvery(tries))
-      })
-    }
-    read()
-    return () => {
-      done = true
-      clearTimeout(wake)
-    }
+    if (seen) void readAfresh(client, identity.name)
   }, [seen, client, identity.name])
 }
 
@@ -178,8 +169,9 @@ export class OnItsWay extends Error {}
  */
 function useRun(identity: Identity) {
   const client = useQueryClient()
-  const refresh = async (projects = false) => {
-    await client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
+  const refresh = async (projects = false, erased = false) => {
+    if (erased) await readAfresh(client, identity.name)
+    else await client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
     if (projects) await client.invalidateQueries({ queryKey: ['projects', identity.name] })
   }
   return async (write: (key: string, epoch: number) => Promise<PersonalReceipt>, projects = false, key?: string) => {
@@ -189,7 +181,7 @@ function useRun(identity: Identity) {
     )
     try {
       const receipt = await once((k) => write(k, at), Date.now, key)
-      await refresh(projects)
+      await refresh(projects, receipt.operation === 'erase')
       return receipt
     } catch (err: unknown) {
       if (readsAgain(err)) await refresh(projects)
