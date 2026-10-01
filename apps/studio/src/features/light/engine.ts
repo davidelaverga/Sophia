@@ -1,7 +1,7 @@
 // The light's loop, outside React: springs follow what the room says (mode, where she sits, whom she
 // attends to, whether work runs), and each frame is drawn by the WebGL renderer and the 2D trace.
 // It never decides anything about the room; it only shows it.
-import { handoffFrame, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
+import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
 import { drawHandoff, drawWorkLine, perimeter } from './trace.ts'
 
@@ -20,7 +20,7 @@ export interface LightInput {
   target: LightTarget | null
   /** The person she attends to; null when nobody holds her attention. */
   attention: Point | null
-  /** Work is running in the background: a line travels the edge of the box. */
+  /** Work is running in the background: the edge of the box is faintly lit. */
   working: boolean
 }
 
@@ -65,6 +65,13 @@ function createSprings(reduced: boolean): Springs {
     workLine: spring(0, 1.6),
   }
 }
+
+/**
+ * After its box changes size (a side panel, a rotated phone, a dragged window) the light holds to its place for this
+ * long instead of gliding to it: the room around it moved at once, and the room's own targets (Sophia's tile) are
+ * measured a frame or two later.
+ */
+const RELAYOUT_S = 0.25
 
 /** Where the light sits when the room gives no target: centered, in the upper part of the box. */
 export function defaultTarget(width: number, height: number): LightTarget {
@@ -145,6 +152,7 @@ export class LightEngine {
   private slowFor = 0
   private flow = 0
   private snapped = false
+  private relayoutUntil = 0
 
   constructor(box: HTMLElement, glCanvas: HTMLCanvasElement, traceCanvas: HTMLCanvasElement) {
     this.gl = createLightRenderer(glCanvas, this.reduced)
@@ -183,6 +191,11 @@ export class LightEngine {
     const narrow = width < 760
     // The corners match the panels' radii (--r-3 on phones, --r-4 elsewhere).
     this.edge = perimeter(width, height, narrow ? 8 : 12, narrow ? 8 : 12)
+    if (!this.snapped) return
+    // The room moved at once, so the light moves with it; and a resized canvas is blank until drawn, so draw now.
+    const t = performance.now() / 1000
+    this.relayoutUntil = t + RELAYOUT_S
+    this.draw(t, this.step(t, 0))
   }
 
   private readonly tick = (): void => {
@@ -199,13 +212,19 @@ export class LightEngine {
   /** The first frame with a size places the light where it belongs instead of flying in from a corner. */
   private snap(): void {
     setTargets(this.springs, this.input, this.size.width, this.size.height)
-    for (const k of ['x', 'y', 'radius'] as const) this.springs[k].value = this.springs[k].target
+    this.place()
     this.snapped = true
+  }
+
+  /** The light is where it belongs, at rest: no flight from where it was. */
+  private place(): void {
+    for (const k of ['x', 'y', 'radius'] as const) settle(this.springs[k])
   }
 
   private step(t: number, dt: number): HandoffStep | null {
     const s = this.springs
     setTargets(s, this.input, this.size.width, this.size.height)
+    if (t < this.relayoutUntil) this.place()
     const h = this.handoffState
     const flight = h
       ? { frame: handoffFrame(h.from, { x: s.x.value, y: s.y.value }, h.to, t - h.started), from: h.from, to: h.to }
@@ -223,7 +242,7 @@ export class LightEngine {
     this.gl?.draw(toFrame(this.springs, t, this.flow))
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
-    drawWorkLine(this.trace, this.edge, t, this.springs.workLine.value, this.reduced)
+    drawWorkLine(this.trace, this.edge, this.springs.workLine.value)
     if (flight && !this.reduced) drawHandoff(this.trace, flight.from, flight.to, flight.frame)
   }
 

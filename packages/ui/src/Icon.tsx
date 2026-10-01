@@ -3,7 +3,20 @@
 import type { ReactNode } from 'react'
 
 export type IconName =
-  'mic' | 'micOff' | 'camera' | 'cameraOff' | 'screen' | 'leave' | 'link' | 'invite' | 'chevron' | 'close' | 'calendar'
+  | 'mic'
+  | 'micOff'
+  | 'camera'
+  | 'cameraOff'
+  | 'screen'
+  | 'leave'
+  | 'link'
+  | 'invite'
+  | 'chevron'
+  | 'close'
+  | 'calendar'
+  | 'chat'
+  | 'brief'
+  | 'send'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -58,6 +71,14 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M3.5 10h17M8 3v4M16 3v4" />
     </>
   ),
+  chat: <path d="M5.5 5h13a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H11l-4.5 3.5V17h-1a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />,
+  brief: (
+    <>
+      <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+      <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4" />
+    </>
+  ),
+  send: <path d="M12 19V5M6 11l6-6 6 6" />,
 }
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {

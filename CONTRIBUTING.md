@@ -155,6 +155,165 @@ writing a new one, and keep the rule when you change the code around it.
   quick edits Vite can serve a stale module: touch the file and confirm the
   served code before trusting a check.
 
+## The room's side panel
+
+The room's chat and brief live beside the stage, as meeting apps have them
+(`SidePanel.tsx`; its rules are in `side-panel.ts`, with tests). Keep these
+when you change the room:
+
+- **The stage's centre** holds Sophia's light, the people, the room's line
+  and the dock. Nothing else sits under the light: the Converse lens puts its
+  conversation in the panel, not in `stage-body`.
+- **One panel, two tabs** (Chat, Brief), opened from the stage's corner
+  (`RoomStage`'s `corner` slot, `PanelToggles`) or with C and B. Both tabs
+  stay mounted while hidden, so an unsent message or a brief edit survives
+  closing and switching. Esc or Close shuts the panel, Esc with the focus
+  inside it or on no control at all (`useEscFromNowhere`); on a phone it
+  covers the room below the bar and its toggles sit under the lenses.
+- **New is a dot.** A violet dot on a toggle says something changed behind a
+  closed panel (`useUnread`, `useBriefUpdates`, the pure `isNew`); the
+  toggle's accessible name says so too ("Chat, something new"). The panel's
+  state lives in the project's body (`useRoomPanel`), so what arrives while
+  the person reads Goals still marks Chat when they come back.
+- **Focus follows the panel** (`usePanelFocus`): in on open (the message bar
+  where a fine pointer suggests a keyboard, the tab on a phone so no keyboard
+  jumps up), back on close to the corner toggle that opened the panel or last
+  swapped it, whatever tab was chosen inside (`focusStep`, with tests). A
+  control that goes away when pressed (Text mode, a head's camera or screen
+  switch, Voice mode) hands the focus to its neighbour, never to the page.
+- **The chat's foot offers one thing at a time** (`chatEntry` in
+  `chat-view.ts`, with tests): Chat with Sophia until this person is in the
+  room and Sophia's exchange exists, then the message bar with Send inside
+  (Enter sends, Shift+Enter breaks a line). Never both: a bar that cannot
+  send, beside a button that starts, reads as two ways to do one thing.
+  The control comes last and never moves; what comes and goes sits above it:
+  the consent question (with the bar, and only while one is due), one status
+  line (`chatLine`: why Send waits, one reason at a time, or that typing
+  reaches Sophia, with Voice mode), an error. The room's own line names the
+  state, "Chatting with Sophia", and only once typing reaches her. A start
+  that fails says why here too (the room's own note: `room.error`), and asks
+  Sophia into nothing: on a phone this panel covers the dock, and a button
+  that falls back to "Chat with Sophia" without a word reads as broken. The
+  room's note comes before the chat's own errors (`footError`, with tests): a
+  send that failed earlier must not hide that the call ended. A failed send
+  belongs to its call (`room.call`), and a failed start to the way in, so
+  neither comes back in the next call or over the bar. The room's note is
+  announced by the dock; the foot shows it for the eye. A line that waits on
+  the dock (taking the floor, Resume: `waitsOnRoom`) offers "Show the room"
+  where the panel covers it. One join runs at a time (`useJoin`): Chat with
+  Sophia waits while the dock joins, since a second connection for the same
+  person makes LiveKit drop the first. A call that ends lets go of its join,
+  which may still be settling (its microphone arriving): the next join starts
+  at once, and a join answers whether the person is in the call once it
+  settled (`holds` in `call-fence.ts`, with tests).
+  Voice mode is offered in the call only, so a start whose join doesn't get
+  in puts text mode back as it was, unless the pill went back to voice
+  meanwhile (`startChat` in `chat-start.ts`, with tests): out of the call
+  nobody could turn it off, and the dock's Try again would join in it, with
+  the microphone off and Sophia muted.
+- **Stray typing is text.** While the chat's foot is on screen (it marks
+  itself `data-typing-sink`), a key typed with the focus on no control goes
+  into the message bar and is never a shortcut (`shortcuts.ts`: `stray`,
+  `strayFrom`, `typesText`, with tests). So does a key typed on a control of
+  the panel (`data-typing-scope`: its tabs, Close, Send), except Space, which
+  presses it: opening Chat focuses its tab, and the message typed next must
+  not close the panel with its first C. Someone who starts a message without
+  clicking the bar must not turn on a camera with its first letter. Before the
+  chat starts, the foot is "Chat with Sophia", which takes the key as nothing:
+  typing "vamos" there once turned on the camera (V), the microphone (M) and
+  a screen share (S). Esc closes the panel. A new field that invites typing
+  marks itself the same way.
+- **Capture takes the command key** (`room-keys.ts`; ⌘ on a Mac, Ctrl
+  elsewhere, as in Meet): D the microphone, E the camera, Shift+E a screen
+  share, J to join. No single letter turns on a microphone, a camera or a
+  share, or joins a call, wherever the focus is; a command combination types
+  nothing, so it acts from a field too (`shortcutKey`, `keyLabel`, with
+  tests). The tips show the combination as the platform writes it. Keys that
+  only change the view (C, B, 1 to 3, I) stay single letters.
+- **Text mode is said wherever it holds.** Typing to Sophia is text mode:
+  she is not heard and the microphone is off. The dock, the mini dock and the
+  panel's head say so (`TextMode` in `RoomDock`) and one press returns to
+  voice; so does turning the microphone on, once it did come on, also when
+  text mode began while the browser was asking (`switchMicrophone` reads it
+  then, with tests: a refused press keeps text mode and Sophia muted). Any end
+  of the call ends it but a lost connection (`keepsTextMode`, with tests):
+  then the pill stays beside Try again and Join's tip says the next join is
+  typed. The microphone a join turns on that comes on after text mode began
+  (the browser still asking, past LiveKit's own 10 s wait) goes off again;
+  when it can't, text mode goes back to voice, the note says the microphone
+  couldn't be turned off, and a chat start stops before Sophia is asked in
+  (`arriveWithMicrophone`, `enterCall`, `startChat`, with tests). A join
+  applies text mode as it is when it gets in, not as it began: its pill can
+  go back to voice meanwhile (`textModeNow`); a join asked for in a call
+  changes nothing of it. Text mode never rewrites the microphone choice the
+  person made (`silence` in `useProjectRoom`), so the next join is as they
+  left it. A device change counts by the device, not by LiveKit's answer: an
+  off whose pending publication failed left it off (`deviceChange`, with
+  tests); a change whose call went changes nothing in the next one. A device
+  that stays on says so, never that it couldn't start (`mediaMessage` in
+  `room-view.ts`, with tests).
+- **The call's switches follow the panel.** Where the panel covers the room
+  (up to 760 px wide), a row under its head shows the microphone, and the camera and the
+  shared screen while they are on (`CallSwitches` in `StudioShell`, the
+  dock's own `Toggle`). Someone reading the chat on a phone must not have to
+  close it to see that they are heard, or to mute. Beside the room the dock
+  already shows them, so the head does not repeat it. The row also shows
+  text mode, and what Sophia is looking at, and it wraps: the head keeps its
+  tabs and Close on a 390 px phone with everything on. Under the head the panel says what
+  the covered dock would: what stopped a device, or, while Brief is in view,
+  why the call ended (`panelNote`, with tests). These copies are for the eye
+  (`aria-hidden`): the dock, still in the accessibility tree under the panel,
+  is the one announced, so a screen reader hears each note once.
+- **A call that ends says why** (`call-end.ts`, with tests; the reason is
+  LiveKit's, read in `livekit-room.ts`). Only a lost connection is a failure
+  and offers "Try again". The same person joining from another tab or device
+  moves the call there: this tab says so and offers the plain "Join the
+  room", or two tabs take the call from each other with the same "You were
+  disconnected" and nobody knows why. Taken out of the call and a closed room
+  have their own sentence. The note shows in the dock, the mini dock and the
+  chat's foot.
+- **Nothing offers to join before it can.** Until the project has loaded
+  there is no room to join (`room.ready`): the room's line says "Opening the
+  project…", and Join, J, the mini dock's Join and Chat with Sophia wait. A
+  stage that said "The room is ready" over a button that did nothing was a
+  guess and a dead control, for as long as a slow server took.
+- **Nothing circles the room.** While work runs the stage's edge is faintly
+  lit and still (`drawWorkLine` in `trace.ts`, with a test). A light that
+  travels the edge pulls the eye from the people; the room's line already
+  says work is running. Motion in the room is for events (a floor handoff),
+  not for states.
+- **The panel lines up with the room.** Measure these when you touch either
+  side; they are what makes the two read as one screen:
+  - the bottom: the dock, the corner toggles and the message bar rest on one
+    floor (`--floor`) and share one height, 48 px. The bar is built like the
+    dock, 5 px around 36 px controls, and grows upward from that floor;
+  - the top: the panel's tabs sit in the lens bar's band (16 px down, 36 px
+    tall), so "Chat" and "Converse" share a line;
+  - the sides: one gutter inside the panel (`--panel-pad`) for the tabs, the
+    messages, the message bar and the brief. Close's mark ends on it.
+- **The corner never touches the dock.** The stage narrows when the panel
+  opens, so the stage's own width decides (container queries on
+  `.room-stage`), never the window's: from 800 px the corner is level with
+  the dock, which keeps `--corner-room` free on each side; from 561 to 799 px
+  it goes up to the lenses' line; up to 560 px it sits under the lenses, or on
+  their empty line when video fills the stage, so it never covers a tile. The
+  dock wraps rather than run past the stage or under the corner. Check it in
+  a call (the dock is widest there) at 1024 px wide with the panel open, and
+  with a camera on at a phone's width. On a phone the lobby card (someone at
+  the door) goes under the corner, never over it. With the panel open, the
+  lobby card sits beside it on a wide screen (its tabs and Close stay in
+  reach), and over it on a phone, where someone at the door would otherwise
+  wait until the chat was closed: under the panel's top (`--panel-top`,
+  measured in `SidePanel`), never over its tabs, Close or switches.
+- **On screen is `onScreen`** (`shortcuts.ts`, with tests), not
+  `checkVisibility` alone: Safari before 17.4 doesn't have it, the build
+  targets Safari 16.4, and calling it threw on every key.
+- **`hidden` always hides** (`[hidden]` in `theme.css`). Without that rule a
+  class that sets `display` wins over the browser's own, and a hidden tab
+  stays on screen.
+- **Names stay for the visit** (`mergeNames`): someone who spoke and left
+  keeps their name on their lines instead of "A member".
+
 ## The Studio's hosting headers
 
 `apps/studio/public/vercel.json` sets them for the hosted Studio.

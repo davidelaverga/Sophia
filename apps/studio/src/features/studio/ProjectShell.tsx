@@ -20,7 +20,7 @@ import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
-import { StudioShell } from './StudioShell.tsx'
+import { StudioShell, useRoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 
@@ -236,6 +236,9 @@ interface BodyProps {
  */
 function ProjectBody(props: BodyProps) {
   const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite } = props
+  // The side panel's state lives here, past a visit to another view (useRoomPanel).
+  const panel = useRoomPanel(snapshot, room, view === 'studio')
+  const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   const lobby = (
     <LobbyPanel
       projectId={projectId}
@@ -248,7 +251,14 @@ function ProjectBody(props: BodyProps) {
     return (
       <>
         {lobby}
-        <StudioShell projectId={projectId} identity={identity} room={room} snapshot={snapshot} />
+        <StudioShell
+          projectId={projectId}
+          identity={identity}
+          room={room}
+          snapshot={snapshot}
+          panel={panel}
+          looking={looking}
+        />
       </>
     )
   }
@@ -272,11 +282,7 @@ function ProjectBody(props: BodyProps) {
         )}
         {work && pulse}
       </main>
-      <MiniDock
-        room={room}
-        looking={lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))}
-        onOpen={() => onShow('studio')}
-      />
+      <MiniDock room={room} looking={looking} onOpen={() => onShow('studio')} />
     </>
   )
 }

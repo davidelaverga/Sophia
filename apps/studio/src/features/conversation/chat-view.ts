@@ -1,3 +1,6 @@
+// The typed chat's pure rules: how replies fold into turns, what the foot of the chat offers, and what its status
+// line says. React only renders them.
+import type { SophiaPresence } from '@sophia/contracts'
 import type { ChatReply } from '@sophia/contracts/room-chat'
 
 export interface ChatTurn {
@@ -23,4 +26,77 @@ export function receiveChat(turns: readonly ChatTurn[], packet: ChatReply): Chat
       reason: packet.kind === 'refused' ? packet.text : null,
     }
   })
+}
+
+/** What the foot of the chat offers: its one way in, or the message bar. Never both. */
+export type ChatEntry = 'start' | 'bar'
+
+/**
+ * The message bar is there only while there is a conversation to type into: this person is in the room and Sophia's
+ * exchange exists (open, or paused). Until then the chat offers one way in, Chat with Sophia, which joins in text
+ * mode and opens the exchange. A bar that cannot send, beside a button that starts, read as two ways to do one thing.
+ */
+export function chatEntry(inRoom: boolean, presence: SophiaPresence | undefined): ChatEntry {
+  return inRoom && !!presence && presence.exchange !== 'none' ? 'bar' : 'start'
+}
+
+/**
+ * The one error the chat's foot says. Why the call ended or failed comes first: it is the room's state now, and a
+ * send or a start that failed before it is old news. The chat's own errors belong to a call this person is in, so
+ * they go with it. `live`: the foot announces it to screen readers; the room's note is announced by the dock, which
+ * stays in the accessibility tree even where the panel covers it, so here it is said for the eye only.
+ */
+export function footError(
+  room: string | null,
+  inRoom: boolean,
+  send: string | null,
+  start: string | null,
+): { text: string; live: boolean } | null {
+  if (room) return { text: room, live: false }
+  const own = inRoom ? (send ?? start) : null
+  return own ? { text: own, live: true } : null
+}
+
+/** Typed words reach Sophia: her exchange is open and she is ready to take them. */
+export function reachesSophia(presence: SophiaPresence | undefined): boolean {
+  return presence?.exchange === 'open' && presence.voice === 'ready'
+}
+
+export interface ChatMoment {
+  /** Chat with Sophia is under way. */
+  starting: boolean
+  /** The room connection is live, not reconnecting. */
+  live: boolean
+  /** This person holds the floor, so their words are the ones Sophia takes. */
+  mine: boolean
+  /** Sophia's replies are read, not heard. */
+  textMode: boolean
+}
+
+/**
+ * The line above the message bar: why Send waits, close to the room's own words for the same states, or that typing
+ * reaches Sophia. Null when the bar speaks for itself. Whenever this returns a reason, Send is disabled (Composer).
+ */
+export function chatLine(presence: SophiaPresence, at: ChatMoment): string | null {
+  if (at.starting) return 'Connecting to Sophia…'
+  if (presence.exchange === 'paused')
+    return presence.pauseReason === 'guest'
+      ? 'Sophia is paused while a guest is here.'
+      : 'Sophia is paused. Resume in the room.'
+  if (!at.live) return 'Reconnecting to the room…'
+  if (presence.voice === 'unavailable') return 'Sophia is unavailable right now.'
+  if (presence.voice === 'recovering') return 'Reconnecting to Sophia…'
+  if (presence.voice !== 'ready') return 'Sophia is joining…'
+  if (!at.mine) return 'Take the floor to message Sophia.'
+  return at.textMode ? 'Typing to Sophia' : null
+}
+
+/**
+ * The line waits on a control in the room's dock: taking the floor, or Resume. Where the panel covers the dock the
+ * chat offers to show the room, so the line never points at something out of reach.
+ */
+export function waitsOnRoom(presence: SophiaPresence, at: ChatMoment): boolean {
+  if (at.starting) return false
+  if (presence.exchange === 'paused') return presence.pauseReason !== 'guest'
+  return at.live && presence.voice === 'ready' && !at.mine
 }
