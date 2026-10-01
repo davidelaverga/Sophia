@@ -6389,7 +6389,7 @@
             "name": "guide",
             "in": "query",
             "required": false,
-            "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research. The bridge rolls back before the API.",
+            "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research and render_research, and steer on control_work. The bridge rolls back before the API.",
             "schema": {
               "type": "string",
               "enum": [
@@ -12254,7 +12254,8 @@
               "propose_mission_change",
               "decide_mission_change",
               "control_work",
-              "start_research"
+              "start_research",
+              "render_research"
             ]
           },
           "args": {
@@ -12282,6 +12283,14 @@
               "text"
             ],
             "description": "Bridge-derived admitted input mode; never taken from model arguments. Omitted by older bridges means voice."
+          },
+          "guide": {
+            "type": "string",
+            "enum": [
+              "v1.1",
+              "v1.2"
+            ],
+            "description": "The guide version the bridge runs (SMC-M03 S6). Omitted by older bridges means v1.1. project_status lists the operations of this version only."
           }
         },
         "required": [
@@ -13060,6 +13069,14 @@
                       "type": "null"
                     }
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft_brief",
+                    "research"
+                  ],
+                  "description": "The task's kind (SMC-M03 S6), so the guide knows which work is research. Omitted when the goal has no task."
                 }
               },
               "required": [

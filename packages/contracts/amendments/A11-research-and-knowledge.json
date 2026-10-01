@@ -10,10 +10,11 @@
     "Knowledge (part 2): listReports lists report cards, newest first, from one project or from every project the reader is a member of (L6). It has a format filter and a search over the title, the description and the version notes, never the report bodies. Counts and project names come only from projects the reader can read. listArtifactVersions answers every version of one report with its notes, newest first. The deterministic change facts and the trigger join both reads when publication writes them (S4).",
     "Execution policy (S2): a runtime command's role may name a specialization (sophia-research-md-v1), and a create may name the route admission chose for it. The bridge runs the route its own unit maps to the role and refuses a create whose route differs, so the route is never taken from the wire alone. The runtime wire changes with the research runtime unit (sophia-runtime-m03-dev); an older bridge refuses a role it does not define, as before.",
     "S4: the write side. A runtime advertises its specialist roles in hello; start_research admits research; the runtime research operations (context, reserve, settle, capture, draft) let the research tools read the task, spend from its allowance, keep what they retrieved with its provenance and write a draft, authenticated and fenced like observations.",
-    "The guide's tool surface is versioned: GET /v1/media/tool-surface?guide=v1.2 names start_research, and without the parameter it answers v1.1's six operations exactly as before, so a bridge running the M01 guide still activates against this API.",
+    "The guide's tool surface is versioned: GET /v1/media/tool-surface?guide=v1.2 names start_research and render_research, and without the parameter it answers v1.1's six operations exactly as before, so a bridge running the M01 guide still activates against this API.",
     "S4 part 3: a research task ends through runtimeResearchSubmit, never through its last message: the result publishes the current draft as the report's next stable version with its checks, notes and change facts, or a blocker records why it stopped and what remains.",
     "S4 part 4: a version carries the facts the service computed at publication (sections added, revised, removed and kept; whether the conclusion changed; sources added and dropped), and its notes must agree with them. A research task's detail carries its progress (allowance and source policy). A version lists the sources it cites with their provenance. Members edit a report's description with attribution.",
-    "S5a part 2: a render job is a research task's child, carrying a source package (one HTML entry and its images, each a stored source by relative path and SHA-256). The supervisor on the renderer host holds only a render runner capability: it claims under a lease, fetches each file and uploads the PDF through the API (never a storage URL or key), and settles with the kernel's receipt. A Hold returns a render to the queue, a Stop cancels it, and a render that ends after either is never the job's result."
+    "S5a part 2: a render job is a research task's child, carrying a source package (one HTML entry and its images, each a stored source by relative path and SHA-256). The supervisor on the renderer host holds only a render runner capability: it claims under a lease, fetches each file and uploads the PDF through the API (never a storage URL or key), and settles with the kernel's receipt. A Hold returns a render to the queue, a Stop cancels it, and a render that ends after either is never the job's result.",
+    "S6: guide v1.2 by voice and text. A tool call names the guide version its bridge runs (guide; absent is v1.1), and the API executes only what that version declares: a v1.1 call to start_research or render_research, or a v1.1 steer, is refused as not_started:not_declared before anything is read or written. control_work's steer (v1.2) carries the speaker's brief, recorded first as their own voice contribution and used as the steer's body in the same transaction. render_research is Try PDF again by voice (0032): a queued receipt with the render job's id, never 'printed'. project_status lists the research operations, and each work item's kind, to a v1.2 guide only."
   ],
   "patch": [
     {
@@ -1412,6 +1413,20 @@
     },
     {
       "op": "add",
+      "path": "/components/schemas/MediaToolCall/properties/name/enum/-",
+      "value": "render_research"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaToolCall/properties/guide",
+      "value": {
+        "type": "string",
+        "enum": ["v1.1", "v1.2"],
+        "description": "The guide version the bridge runs (SMC-M03 S6). Omitted by older bridges means v1.1. project_status lists the operations of this version only."
+      }
+    },
+    {
+      "op": "add",
       "path": "/paths/~1v1~1runtime~1research~1context",
       "value": {
         "post": {
@@ -1978,7 +1993,7 @@
           "name": "guide",
           "in": "query",
           "required": false,
-          "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research. The bridge rolls back before the API.",
+          "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research and render_research, and steer on control_work. The bridge rolls back before the API.",
           "schema": {
             "type": "string",
             "enum": ["v1.1", "v1.2"]
@@ -4830,6 +4845,15 @@
           "x-sophia-implementation": "contract_only",
           "x-sophia-release-goal": "SMC-M03"
         }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionContext/properties/work/items/properties/kind",
+      "value": {
+        "type": "string",
+        "enum": ["draft_brief", "research"],
+        "description": "The task's kind (SMC-M03 S6), so the guide knows which work is research. Omitted when the goal has no task."
       }
     }
   ]

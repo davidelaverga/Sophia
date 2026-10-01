@@ -2,11 +2,19 @@
 // formats and what the person said about sources and depth; everything else is the server's: who asked (the bound
 // speaker), the specialist and its route (the registry), the allowance (the project's grant) and eligibility. A receipt
 // says admitted, never started; a refusal is typed `not_started:<code>`, and a call whose outcome is unknown is
-// `unconfirmed:<code>`. Neither is retried here.
+// `unconfirmed:<code>`. Neither is retried here. render_research (S6) is "Try PDF again" by voice: the published
+// version of a report that has no PDF, printed again as a binding-less rendition (0032), for the bound speaker.
+import { createHash } from 'node:crypto'
 import type { MediaToolResult } from '@sophia/contracts'
 import { SPECIALISTS } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { admitResearchTask, pdfRendererReady, withActor, type ResearchAdmissionRequest } from '@sophia/persistence'
+import {
+  admitResearchTask,
+  pdfRendererReady,
+  requestResearchRendition,
+  withActor,
+  type ResearchAdmissionRequest,
+} from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -139,5 +147,66 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
     }
   } catch (err: unknown) {
     return refusal(err)
+  }
+}
+
+/** Why render_research printed nothing, in the speaker's words; the database's own message where it is specific. */
+const RENDITION_REFUSALS: Partial<Record<string, string>> = {
+  forbidden: 'Only editors and admins can ask for the PDF.',
+  native_capability_unavailable: 'No PDF renderer is running right now, so nothing was started.',
+  research_limit_reached: 'The PDF was already tried three times for this version of the report.',
+  source_ineligible: 'This report draws on a source that was withdrawn, so it is not printed again.',
+  stale_revision: 'A newer version of this report exists.',
+  not_found: 'I can’t find that research task in this project.',
+}
+
+/** The rendition's idempotency key: the call's own, hashed to the rendition's key shape (at most 64 characters). */
+const renditionKey = (key: string) => `voice-${createHash('sha256').update(key).digest('hex').slice(0, 40)}`
+
+function renditionRefusal(err: unknown): MediaToolResult {
+  if (!(err instanceof DomainError) || err.code === 'outcome_unknown' || err.code === 'unavailable') {
+    return {
+      status: 'unknown',
+      output: { code: 'unconfirmed:error', reason: 'I could not confirm whether the PDF was asked for.' },
+    }
+  }
+  return {
+    status: 'refused',
+    output: { code: `not_started:${err.code}`, reason: RENDITION_REFUSALS[err.code] ?? err.message },
+  }
+}
+
+/**
+ * render_research: print the published version of a report that has no PDF again, as its next version. Queued, never
+ * "printed": the work card shows the PDF when it arrives. A version that fails the report checks is refused with them.
+ */
+export async function renderResearch(ctx: ToolContext): Promise<MediaToolResult> {
+  const taskId = ctx.args.taskId
+  if (!isUuid(taskId)) return clarify('Which research report should I print as a PDF?')
+  try {
+    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
+      requestResearchRendition(c, ctx.projectId, taskId, renditionKey(ctx.key)),
+    )
+    if (r.state === 'rejected') {
+      const failed = (r.reportChecks ?? []).filter((x) => x.outcome === 'failed').map((x) => x.detail ?? x.name)
+      return {
+        status: 'refused',
+        output: {
+          code: 'not_started:report_checks',
+          reason: `The report can’t be printed as a PDF: ${failed.join('; ') || 'it failed its checks'}.`,
+        },
+      }
+    }
+    return {
+      status: 'admitted',
+      output: {
+        taskId,
+        renderJobId: r.renderJobId,
+        stage: r.state === 'queued' ? 'queued' : r.state,
+        note: 'Queued, not printed yet: the PDF arrives as the report’s next version, and the work card shows it.',
+      },
+    }
+  } catch (err: unknown) {
+    return renditionRefusal(err)
   }
 }

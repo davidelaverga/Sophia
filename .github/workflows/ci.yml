@@ -61,7 +61,7 @@ jobs:
           fi
       # The headless shell playwright-core 1.56.1 pins (its browsers.json), with its system libraries.
       - run: node renderers/web/pdf/node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell
-      - run: node --test --test-timeout=120000 renderers/web/pdf/test/render-html.test.ts
+      - run: node --test --test-timeout=120000 renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/host-probe.test.ts
       # The supervisor against the real API and PostgreSQL: claim, fetch through the API, render confined, upload, settle.
       - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/render-supervisor.test.mjs
 

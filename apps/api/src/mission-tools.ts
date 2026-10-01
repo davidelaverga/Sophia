@@ -117,7 +117,13 @@ export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> 
       target: await readConfirmationTarget(c, ctx.call.exchangeId),
     }))
     if (!read.context) return { status: 'refused', output: { readState: 'unavailable', reason: 'Not permitted' } }
-    const output = voiceStatus({ ...read, context: read.context, speakerId: ctx.actorId, now: Date.now() })
+    const output = voiceStatus({
+      ...read,
+      context: read.context,
+      speakerId: ctx.actorId,
+      now: Date.now(),
+      guide: ctx.call.guide,
+    })
     return { status: 'ok', output }
   } catch {
     return {

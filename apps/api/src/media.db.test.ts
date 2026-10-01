@@ -25,6 +25,7 @@ import {
   httpMediaService,
   loadMissionGuide,
   MediaBridge,
+  TOOL_SETS,
   type LiveEvents,
   type LiveLink,
   type RoomEvents,
@@ -241,6 +242,11 @@ describe('media routes: the bridge capability and nothing else (amendment A06)',
     ])
     assert.equal((await call('/v1/media/tool-surface', { bearer: await token(A) })).status, 401)
     assert.equal((await call('/v1/media/tool-surface')).status, 401)
+    // The bridge's own client, for each guide version it can run: the API serves exactly that version's declarations.
+    for (const version of ['v1.1', 'v1.2'] as const) {
+      const names = (await httpMediaService(base, MEDIA_TOKEN).toolSurface(version)).names
+      assert.deepEqual(names, TOOL_SETS[version].names, version)
+    }
   })
 
   it('an exchange does not open when the room’s trusted presence cannot be read, or the room service is not set up', async () => {

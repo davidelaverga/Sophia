@@ -1,8 +1,10 @@
-// The M01 v1.1 mission guide (M01_PROMPT_LOADING, SMC-M01 binding §5): the exact system prompt and the complete
+// The mission guide (M01_PROMPT_LOADING, SMC-M01 binding §5): the exact system prompt and the complete
 // mission-lifecycle skill, read from this package's content folder, checked against their release manifest and
 // assembled as prompt + one LF + skill. The result must equal the checked snapshot byte for byte. A missing,
 // re-encoded or altered file, or a manifest whose operations differ from the declared tools, stops the bridge before it
 // serves an exchange: there is no fallback prompt. Project data never enters this text; it arrives through tools.
+// Each guide version has its own manifest: v1.1 is M01's, v1.2 (SMC-M03 S6) is v1.1's skill with a prompt that adds
+// the research operations. The bridge runs one version, chosen at start; rolling back is starting with v1.1.
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,7 +12,15 @@ import { fileURLToPath } from 'node:url'
 
 /** Where the deployed bridge finds its assets: inside the package, never the docs folder or the network. */
 export const GUIDE_DIR = fileURLToPath(new URL('./content/mission-guide/', import.meta.url))
-export const GUIDE_MANIFEST = 'M01_ASSETS.v1.1.json'
+export type GuideVersion = 'v1.1' | 'v1.2'
+export const GUIDE_MANIFESTS: Readonly<Record<GuideVersion, string>> = {
+  'v1.1': 'M01_ASSETS.v1.1.json',
+  'v1.2': 'M01_ASSETS.v1.2.json',
+}
+/** M01's manifest. */
+export const GUIDE_MANIFEST = GUIDE_MANIFESTS['v1.1']
+/** The version a bridge runs when SOPHIA_GUIDE_VERSION names none. */
+export const DEFAULT_GUIDE_VERSION: GuideVersion = 'v1.2'
 
 export interface AssetIdentity {
   id: string
@@ -19,6 +29,7 @@ export interface AssetIdentity {
 }
 
 export interface MissionGuide {
+  version: GuideVersion
   /** The exact provider-facing system instruction. */
   instruction: string
   prompt: AssetIdentity
@@ -34,6 +45,13 @@ export class GuideAssetError extends Error {
     super(`mission guide not activated: ${message}`)
     this.name = 'GuideAssetError'
   }
+}
+
+/** SOPHIA_GUIDE_VERSION: unset is the default; anything but a known version stops the bridge. */
+export function guideVersionOf(raw: string | undefined): GuideVersion {
+  if (raw === undefined || raw === '') return DEFAULT_GUIDE_VERSION
+  if (raw === 'v1.1' || raw === 'v1.2') return raw
+  throw new GuideAssetError('SOPHIA_GUIDE_VERSION names no known guide version')
 }
 
 interface Component {
@@ -68,7 +86,7 @@ function assembled(v: unknown): Manifest['assembled'] {
   return { path: v.path, sha256: v.sha256, bytes: v.bytes }
 }
 
-/** The manifest's order and assembly rule must be exactly the v1.1 contract: prompt, LF, skill, nothing else. */
+/** The manifest's order and assembly rule must be exactly M01's contract: prompt, LF, skill, nothing else. */
 function assemblyRule(v: unknown): void {
   if (!isRecord(v)) throw new GuideAssetError('manifest has no assembly rule')
   const order = Array.isArray(v.source_order) ? v.source_order.join(',') : ''
@@ -79,9 +97,9 @@ function assemblyRule(v: unknown): void {
   if (!verbatim || !untouched) throw new GuideAssetError('manifest assembly rule is not the v1.1 rule')
 }
 
-function parseManifest(raw: unknown): Manifest {
-  if (!isRecord(raw) || raw.schema !== 'sophia.m01-prompt-assets.v1' || raw.version !== '1.1')
-    throw new GuideAssetError(`${GUIDE_MANIFEST} is not the v1.1 asset manifest`)
+function parseManifest(raw: unknown, version: GuideVersion): Manifest {
+  if (!isRecord(raw) || raw.schema !== 'sophia.m01-prompt-assets.v1' || raw.version !== version.slice(1))
+    throw new GuideAssetError(`${GUIDE_MANIFESTS[version]} is not the ${version} asset manifest`)
   assemblyRule(raw.assembly)
   const components = Array.isArray(raw.components) ? raw.components.map(component) : []
   const prompt = components.find((c) => c.kind === 'system_prompt')
@@ -121,17 +139,23 @@ function checkedText(bytes: Buffer, expected: { path: string; sha256: string; by
 }
 
 /**
- * Load, check and assemble the guide. `declared` is the bridge's own function declarations, in order: they must be
- * exactly the operations the manifest fixes, or the guide would name tools the connection does not have.
+ * Load, check and assemble one version of the guide (M01's v1.1 unless named). `declared` is the bridge's own function
+ * declarations for that version, in order: they must be exactly the operations the manifest fixes, or the guide would
+ * name tools the connection does not have.
  */
-export function loadMissionGuide(declared: readonly string[], dir = GUIDE_DIR): MissionGuide {
+export function loadMissionGuide(
+  declared: readonly string[],
+  dir = GUIDE_DIR,
+  version: GuideVersion = 'v1.1',
+): MissionGuide {
+  const file = GUIDE_MANIFESTS[version]
   let raw: unknown
   try {
-    raw = JSON.parse(readAsset(dir, GUIDE_MANIFEST).toString('utf8'))
+    raw = JSON.parse(readAsset(dir, file).toString('utf8'))
   } catch (err: unknown) {
-    throw err instanceof GuideAssetError ? err : new GuideAssetError(`${GUIDE_MANIFEST} is not JSON`)
+    throw err instanceof GuideAssetError ? err : new GuideAssetError(`${file} is not JSON`)
   }
-  const manifest = parseManifest(raw)
+  const manifest = parseManifest(raw, version)
   const promptBytes = readAsset(dir, manifest.prompt.path)
   const skillBytes = readAsset(dir, manifest.skill.path)
   const prompt = checkedText(promptBytes, manifest.prompt)
@@ -144,6 +168,7 @@ export function loadMissionGuide(declared: readonly string[], dir = GUIDE_DIR): 
   if (declared.join(',') !== manifest.operationNames.join(','))
     throw new GuideAssetError('the declared tools are not the operations the guide names')
   return {
+    version,
     instruction,
     prompt: { id: manifest.prompt.id, sha256: manifest.prompt.sha256, bytes: manifest.prompt.bytes },
     skill: { id: manifest.skill.id, sha256: manifest.skill.sha256, bytes: manifest.skill.bytes },
@@ -154,5 +179,5 @@ export function loadMissionGuide(declared: readonly string[], dir = GUIDE_DIR): 
 
 /** Content-safe identity for logs and release evidence: ids, hashes and lengths, never text. */
 export function guideIdentity(guide: MissionGuide) {
-  return { prompt: guide.prompt, skill: guide.skill, combined: guide.combined }
+  return { version: guide.version, prompt: guide.prompt, skill: guide.skill, combined: guide.combined }
 }

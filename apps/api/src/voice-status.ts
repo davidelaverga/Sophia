@@ -16,6 +16,8 @@ export interface VoiceStatusInput {
   discussion: readonly DiscussionEntry[]
   target: ConfirmationTarget | null
   now: number
+  /** The guide version the bridge runs: v1.2 adds the research operations (SMC-M03 S6). Absent means v1.1. */
+  guide?: 'v1.1' | 'v1.2' | undefined
 }
 
 /** `speaker` for the current speaker, else `member-N` in order of first appearance. */
@@ -90,11 +92,14 @@ function missionView(ctx: MissionContext, who: Alias) {
   }
 }
 
-/** Per model-facing operation, whether it is available to this speaker now, and why not. */
-function operations(ctx: MissionContext) {
+/**
+ * Per model-facing operation of the bridge's guide, whether it is available to this speaker now, and why not. The
+ * research operations are an editor's, like control_work; whether research is switched on is answered by the call.
+ */
+function operations(ctx: MissionContext, guide: VoiceStatusInput['guide']) {
   const c = ctx.capabilities
   const always = { available: true, reason: null }
-  return {
+  const m01 = {
     project_status: always,
     read_selected_source: always,
     record_mission_note: c.recordNote,
@@ -102,6 +107,7 @@ function operations(ctx: MissionContext) {
     decide_mission_change: c.decide,
     control_work: c.controlWork,
   }
+  return guide === 'v1.2' ? { ...m01, start_research: c.controlWork, render_research: c.controlWork } : m01
 }
 
 function targetView(target: ConfirmationTarget | null, speakerId: string, now: number) {
@@ -115,7 +121,7 @@ function targetView(target: ConfirmationTarget | null, speakerId: string, now: n
 }
 
 /** The project_status output for one speaker. */
-export function voiceStatus({ context: ctx, speakerId, discussion, target, now }: VoiceStatusInput) {
+export function voiceStatus({ context: ctx, speakerId, discussion, target, now, guide }: VoiceStatusInput) {
   const who = aliases(speakerId)
   const notes = ctx.entries.slice(-NOTES)
   const policy = ctx.notePolicy
@@ -145,7 +151,7 @@ export function voiceStatus({ context: ctx, speakerId, discussion, target, now }
       explicitProposals: policy.explicitProposals,
       exactTextRetention: policy.exactTextRetention,
     },
-    operations: operations(ctx),
+    operations: operations(ctx, guide),
     confirmationTarget: targetView(target, speakerId, now),
     missing: ctx.missing,
   }

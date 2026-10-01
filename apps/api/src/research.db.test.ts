@@ -116,16 +116,23 @@ async function world(roles = ROLES) {
 }
 
 let n = 0
-async function tool(w: { exchangeId: string }, args: object, actorId = E) {
+interface ToolOptions {
+  name?: string
+  callId?: string
+  guide?: 'v1.1' | 'v1.2' | undefined
+}
+async function tool(w: { exchangeId: string }, args: object, actorId = E, opts: ToolOptions = {}) {
   n += 1
   const body = {
     exchangeId: w.exchangeId,
     connectionGeneration: 1,
-    callId: `r-${String(n)}`,
-    name: 'start_research',
+    callId: opts.callId ?? `r-${String(n)}`,
+    name: opts.name ?? 'start_research',
     args,
     inputEpoch: 1,
     actorId,
+    // The research tools are v1.2's: a call says so unless the test names another guide (or none, for v1.1).
+    ...('guide' in opts ? (opts.guide ? { guide: opts.guide } : {}) : { guide: 'v1.2' }),
   }
   const res = await call('/v1/media/tool-calls', { bearer: MEDIA_TOKEN, body })
   assert.equal(res.status, 200, JSON.stringify(res.json))
@@ -133,7 +140,7 @@ async function tool(w: { exchangeId: string }, args: object, actorId = E) {
 }
 
 describe('the guide’s tool surface is versioned (A11)', () => {
-  it('answers v1.1’s six operations by default, adds start_research for v1.2, and refuses an unknown guide', async () => {
+  it('answers v1.1’s six operations by default, adds the research tools for v1.2, and refuses an unknown guide', async () => {
     const six = [
       'project_status',
       'read_selected_source',
@@ -147,6 +154,7 @@ describe('the guide’s tool surface is versioned (A11)', () => {
     assert.deepEqual((await call('/v1/media/tool-surface?guide=v1.2', { bearer: MEDIA_TOKEN })).json.names, [
       ...six,
       'start_research',
+      'render_research',
     ])
     assert.equal((await call('/v1/media/tool-surface?guide=v9', { bearer: MEDIA_TOKEN })).status, 422)
   })
@@ -397,57 +405,63 @@ describe("the research PDF's runtime routes (A11, 0031)", () => {
   })
 })
 
+/** A PDF task published without its PDF (no render), through the runtime routes as the runtime would. */
+async function publishedWithoutPdf() {
+  const w = await world([...ROLES, PDF_ROLE])
+  await withActor(pool, E, 'write', (c) =>
+    admitResearchTask(c, w.projectId, {
+      key: randomUUID(),
+      exchangeId: null,
+      request: { question: 'Which hosts render PDFs in a sandbox?', outputs: ['markdown', 'pdf'] },
+      specialist: { role: PDF_ROLE.id, route: PDF_ROLE.route },
+    }),
+  )
+  await dispatchOnce(worker, { workerId: 'test-worker' })
+  const batch = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
+  const create = (batch.json.commands as Array<{ command: RuntimeCommand }>).at(-1)?.command
+  assert.ok(create)
+  const at = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+  const reserve = await w.runtime('/v1/runtime/research/reserve', {
+    ...at,
+    callId: 'call_1',
+    kind: 'search',
+    provider: 'tavily',
+    amountUsd: 0.01,
+    query: 'pdf rendering sandbox',
+  })
+  const capture = await w.runtime('/v1/runtime/research/capture', {
+    ...at,
+    reservationId: reserve.json.reservationId,
+    kind: 'search_results',
+    provider: 'tavily',
+    providerHttpStatus: 200,
+    coverage: 'complete',
+    limitations: [],
+    results: [{ url: 'https://hosts.example.org/a', title: 'Hosts' }],
+  })
+  const filler = Array.from({ length: 60 }, (_, i) => `w${String(i)}`).join(' ')
+  const text = `# Hosts\n\n## Summary\n\n${filler} [${String(capture.json.sourceId)}]\n\n## Findings\n\n${filler}\n\n## Conclusion\n\n${filler}\n`
+  const draft = await w.runtime('/v1/runtime/research/draft', { ...at, callId: 'd1', expectedSha256: null, text })
+  const done = await w.runtime('/v1/runtime/research/submit', {
+    ...at,
+    callId: 's1',
+    result: {
+      draftSha256: draft.json.sha256,
+      title: 'Hosts',
+      summary: 'Which hosts render PDFs in a sandbox.',
+      resultSummary: 'One host found.',
+      limitations: [],
+      citations: [capture.json.sourceId],
+    },
+  })
+  assert.deepEqual([done.status, done.json.pdf?.state], [200, 'not_produced'], JSON.stringify(done.json))
+  return { w, taskId: String(done.json.taskId), at }
+}
+
 describe('Try PDF again over HTTP (A11, 0032)', () => {
   it('queues a rendition of a report published without its PDF, for editors, once per key', async () => {
-    const w = await world([...ROLES, PDF_ROLE])
-    await withActor(pool, E, 'write', (c) =>
-      admitResearchTask(c, w.projectId, {
-        key: randomUUID(),
-        exchangeId: null,
-        request: { question: 'Which hosts render PDFs in a sandbox?', outputs: ['markdown', 'pdf'] },
-        specialist: { role: PDF_ROLE.id, route: PDF_ROLE.route },
-      }),
-    )
-    await dispatchOnce(worker, { workerId: 'test-worker' })
-    const batch = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
-    const create = (batch.json.commands as Array<{ command: RuntimeCommand }>).at(-1)?.command
-    assert.ok(create)
-    const at = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
-    const reserve = await w.runtime('/v1/runtime/research/reserve', {
-      ...at,
-      callId: 'call_1',
-      kind: 'search',
-      provider: 'tavily',
-      amountUsd: 0.01,
-      query: 'pdf rendering sandbox',
-    })
-    const capture = await w.runtime('/v1/runtime/research/capture', {
-      ...at,
-      reservationId: reserve.json.reservationId,
-      kind: 'search_results',
-      provider: 'tavily',
-      providerHttpStatus: 200,
-      coverage: 'complete',
-      limitations: [],
-      results: [{ url: 'https://hosts.example.org/a', title: 'Hosts' }],
-    })
-    const filler = Array.from({ length: 60 }, (_, i) => `w${String(i)}`).join(' ')
-    const text = `# Hosts\n\n## Summary\n\n${filler} [${String(capture.json.sourceId)}]\n\n## Findings\n\n${filler}\n\n## Conclusion\n\n${filler}\n`
-    const draft = await w.runtime('/v1/runtime/research/draft', { ...at, callId: 'd1', expectedSha256: null, text })
-    const done = await w.runtime('/v1/runtime/research/submit', {
-      ...at,
-      callId: 's1',
-      result: {
-        draftSha256: draft.json.sha256,
-        title: 'Hosts',
-        summary: 'Which hosts render PDFs in a sandbox.',
-        resultSummary: 'One host found.',
-        limitations: [],
-        citations: [capture.json.sourceId],
-      },
-    })
-    assert.deepEqual([done.status, done.json.pdf?.state], [200, 'not_produced'], JSON.stringify(done.json))
-    const path = `/api/v1/projects/${w.projectId}/native-tasks/${String(done.json.taskId)}/rendition`
+    const { w, taskId } = await publishedWithoutPdf()
+    const path = `/api/v1/projects/${w.projectId}/native-tasks/${taskId}/rendition`
     const again = async (actor: string, key: string | null) =>
       call(path, {
         bearer: await token(actor),
@@ -481,9 +495,104 @@ describe('Try PDF again over HTTP (A11, 0032)', () => {
     assert.deepEqual(await again(E, 'try-1'), queued, 'a replay answers the same')
     const twice = await again(E, 'try-2')
     assert.deepEqual([twice.status, twice.json.code], [409, 'invalid_state'], 'one rendition at a time')
-    const detail = await call(`/api/v1/projects/${w.projectId}/native-tasks/${String(done.json.taskId)}`, {
+    const detail = await call(`/api/v1/projects/${w.projectId}/native-tasks/${taskId}`, {
       bearer: await token(E),
     })
     assert.deepEqual([detail.status, detail.json.research.pdfRendering], [200, true])
+  })
+})
+
+describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)', () => {
+  const renderer = async (seen: 'now' | 'stale') => {
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(
+        `INSERT INTO sophia.render_runners(label,token_sha256,seen_at) VALUES('s6-runner',$1,now())
+          ON CONFLICT (label) DO UPDATE SET state='active', revoked_at=NULL, seen_at=EXCLUDED.seen_at`,
+        [createHash('sha256').update('s6-runner-token').digest()],
+      )
+      // Stale: no runner of this database asked for work in the last ten minutes.
+      if (seen === 'stale') await owner.query(`UPDATE sophia.render_runners SET seen_at=now()-interval '11 minutes'`)
+    } finally {
+      await owner.end()
+    }
+  }
+
+  it('render_research: Try PDF again by voice, for the bound speaker, once per call, with typed refusals', async () => {
+    const { w, taskId } = await publishedWithoutPdf()
+    const render = (opts: ToolOptions = {}, args: object = { taskId }) =>
+      tool(w, args, E, { name: 'render_research', guide: 'v1.2', ...opts })
+    await renderer('stale')
+    const none = await render()
+    assert.deepEqual([none.status, none.output.code], ['refused', 'not_started:native_capability_unavailable'])
+    await renderer('now')
+    const queued = await render({ callId: 'pdf-1' })
+    assert.deepEqual([queued.status, queued.output.taskId, queued.output.stage], ['admitted', taskId, 'queued'])
+    assert.match(String(queued.output.renderJobId), /^[0-9a-f-]{36}$/)
+    assert.deepEqual(await render({ callId: 'pdf-1' }), queued, 'a provider retry is the same call')
+    const twice = await render()
+    assert.deepEqual([twice.status, twice.output.code], ['refused', 'not_started:invalid_state'], 'one at a time')
+    assert.equal((await render({}, { taskId: 'not-a-task' })).status, 'clarify')
+    // A viewer's refusal is the database suite's (forbidden): here the floor is the editor's.
+  })
+
+  it('control_work steers research with the speaker’s brief, kept as their own contribution', async () => {
+    const w = await world()
+    const admitted = await tool(w, { question: 'Which sandboxes do PDF rendering services use?' })
+    const taskId = String(admitted.output.taskId)
+    const steer = (args: object) => tool(w, { taskId, ...args }, E, { name: 'control_work', guide: 'v1.2' })
+    assert.equal((await steer({ action: 'steer' })).status, 'clarify', 'a steer says what to change')
+    const done = await steer({ action: 'steer', brief: 'Focus on accessibility and the rollout.' })
+    assert.equal(done.status, 'ok', JSON.stringify(done))
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const { rows } = await owner.query<{ kind: string; origin: string; actor: string; body: string }>(
+        `SELECT c.kind, d.origin, d.actor_id AS actor, t.body FROM sophia.commands c
+           JOIN sophia.contributions d ON d.project_id=c.project_id AND d.source_id=c.body_source_id
+           JOIN sophia.source_texts t ON t.project_id=c.project_id AND t.source_id=c.body_source_id
+          WHERE c.project_id=$1 AND c.id=$2`,
+        [w.projectId, done.output.commandId],
+      )
+      assert.deepEqual(rows, [
+        { kind: 'steer', origin: 'voice', actor: E, body: 'Focus on accessibility and the rollout.' },
+      ])
+    } finally {
+      await owner.end()
+    }
+  })
+
+  it('project_status lists the research operations and the work’s kind to a v1.2 guide only', async () => {
+    const w = await world()
+    await tool(w, { question: 'Which sandboxes do PDF rendering services use?' })
+    const status = (guide?: 'v1.1' | 'v1.2') => tool(w, {}, E, { name: 'project_status', guide })
+    const v12 = await status('v1.2')
+    assert.deepEqual(Object.keys(v12.output.operations).slice(-2), ['start_research', 'render_research'])
+    assert.equal(v12.output.operations.start_research.available, true)
+    assert.equal(v12.output.work[v12.output.work.length - 1]?.kind, 'research')
+    for (const older of [await status('v1.1'), await status()]) {
+      assert.equal('start_research' in older.output.operations, false, 'a v1.1 guide never hears of them')
+    }
+  })
+
+  it('refuses what the bridge’s guide does not declare, before reading or writing anything', async () => {
+    const w = await world()
+    const question = { question: 'Which sandboxes do PDF rendering services use?' }
+    for (const guide of ['v1.1', undefined] as const) {
+      const research = await tool(w, question, E, { guide })
+      assert.deepEqual([research.status, research.output.code], ['refused', 'not_started:not_declared'])
+      const render = await tool(w, { taskId: randomUUID() }, E, { name: 'render_research', guide })
+      assert.deepEqual([render.status, render.output.code], ['refused', 'not_started:not_declared'])
+    }
+    const taskId = String((await tool(w, question)).output.taskId)
+    const steer = await tool(w, { taskId, action: 'steer', brief: 'Only Linux.' }, E, {
+      name: 'control_work',
+      guide: 'v1.1',
+    })
+    assert.deepEqual([steer.status, steer.output.code], ['refused', 'not_started:not_declared'], 'steer is v1.2’s')
+    const hold = await tool(w, { taskId, action: 'hold' }, E, { name: 'control_work', guide: 'v1.1' })
+    // An admitted goal is not active yet, so the work refuses the Hold: the call passed the guide and reached it.
+    assert.deepEqual([hold.status, hold.output.code], ['refused', 'invalid_state'], 'v1.1’s controls reach the work')
   })
 })

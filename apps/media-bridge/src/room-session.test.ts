@@ -9,7 +9,7 @@ import { beforeEach, describe, it } from 'node:test'
 import { inspect } from 'node:util'
 import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
-import { loadMissionGuide } from './guide.ts'
+import { GUIDE_DIR, loadMissionGuide, type GuideVersion, type MissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
 import {
   HOLDER_ARRIVAL_MS,
@@ -21,7 +21,7 @@ import {
 } from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
-import { DECLARED_NAMES } from './tools.ts'
+import { DECLARED_NAMES, TOOL_SETS } from './tools.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
 const DAVIDE = '22222222-2222-4222-8222-222222222222'
@@ -54,6 +54,10 @@ const assignment = (over: Partial<MediaAssignment> = {}): MediaAssignment => ({
 
 /** The checked M01 guide, loaded from the package's own assets as the bridge does at start. */
 const GUIDE = loadMissionGuide(DECLARED_NAMES)
+/** Guide v1.2 (SMC-M03 S6): the research operations. */
+const GUIDE_V12 = loadMissionGuide(TOOL_SETS['v1.2'].names, GUIDE_DIR, 'v1.2')
+/** The guide the next session runs: M01's unless a test says otherwise. */
+let guide: MissionGuide = GUIDE
 
 const member = (identity: string): RoomPerson => ({ identity, standing: 'editor' })
 
@@ -193,9 +197,11 @@ class FakeService implements MediaService {
   /** The operations the fake API executes: the declared ones unless a test says otherwise. */
   surface: string[] | null = [...DECLARED_NAMES]
   surfaceChecks = 0
-  toolSurface = async () => {
+  surfaceVersions: string[] = []
+  toolSurface = async (version: GuideVersion) => {
     await Promise.resolve()
     this.surfaceChecks += 1
+    this.surfaceVersions.push(version)
     if (!this.surface) throw new Error('API unreachable')
     return { names: this.surface }
   }
@@ -263,7 +269,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[]) {
     },
     apiKey: 'fake-key',
     model: 'fake-model',
-    guide: GUIDE,
+    guide,
     bridgeInstanceId: 'bridge-test',
     toolRetryMs: [0, 0],
     now: () => clock,
@@ -290,6 +296,7 @@ async function ready(over: Partial<MediaAssignment> = {}, people?: RoomPerson[])
 beforeEach(() => {
   clock = 1_000_000
   service = new FakeService()
+  guide = GUIDE
   rooms = []
   lives = []
   order = []
@@ -1461,6 +1468,81 @@ describe('room session: what the room is told', () => {
     assert.equal(room.closed, true)
     assert.equal(live.closed, true)
     assert.equal(service.calls.length, 0)
+  })
+})
+
+describe('room session: guide v1.2, the research operations (SMC-M03 S6)', () => {
+  const RESEARCH_TASK = '7d3c4f0e-2b1a-4c5d-9e8f-0a1b2c3d4e5f'
+  const RENDER_JOB = '0a9b8c7d-6e5f-4a3b-8c1d-2e3f4a5b6c7d'
+  const useV12 = () => {
+    guide = GUIDE_V12
+    service.surface = [...TOOL_SETS['v1.2'].names]
+  }
+
+  it('asks the API for its version’s surface, and offers Google that version’s instruction and declarations', async () => {
+    useV12()
+    const { live } = await ready()
+    assert.deepEqual(service.surfaceVersions, ['v1.2'])
+    assert.equal(live.options.systemInstruction, GUIDE_V12.instruction)
+    assert.deepEqual(
+      live.options.tools.map((d) => d.name),
+      TOOL_SETS['v1.2'].names,
+    )
+    const setup = logs.find(([event]) => event === 'provider.setup')?.[1]
+    assert.deepEqual([setup?.guide, setup?.tools], ['v1.2', 8])
+  })
+
+  it('an API that serves only v1.1’s six leaves a v1.2 guide unavailable: roll the bridge back first', async () => {
+    guide = GUIDE_V12
+    const session = newSession({}, [member(LUIS)])
+    await session.start()
+    await flush()
+    assert.equal(lives.length, 0)
+    assert.equal(session.observed().voice, 'unavailable')
+  })
+
+  it('sends research calls with the guide version, logs their ids, and never calls a lost one "not started"', async () => {
+    useV12()
+    service.result = { status: 'admitted', output: { taskId: RESEARCH_TASK, stage: 'admitted' } }
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-r1', name: 'start_research', args: { question: 'Which sandboxes?' } }])
+    await until('the research call', () => live.responses.length === 1)
+    const sent = service.calls[0]
+    assert.deepEqual([sent?.name, sent?.guide, sent?.actorId], ['start_research', 'v1.2', LUIS])
+    assert.equal(statusOf(live.responses[0]), 'admitted')
+    assert.equal(logs.find(([event]) => event === 'tool.answered')?.[1].taskId, RESEARCH_TASK)
+    service.result = { status: 'admitted', output: { taskId: RESEARCH_TASK, renderJobId: RENDER_JOB, stage: 'queued' } }
+    live.events.toolCalls([{ id: 'call-r2', name: 'render_research', args: { taskId: RESEARCH_TASK } }])
+    await until('the PDF call', () => live.responses.length === 2)
+    assert.equal(logs.findLast(([event]) => event === 'tool.answered')?.[1].renderJobId, RENDER_JOB)
+    const fake = service
+    fake.toolCall = async (c) => {
+      await Promise.resolve()
+      fake.calls.push(c)
+      throw new Error('socket hang up')
+    }
+    live.events.toolCalls([{ id: 'call-r3', name: 'start_research', args: { question: 'Which sandboxes?' } }])
+    await until('the lost call', () => live.responses.length === 3)
+    const output = live.responses[2]?.response?.output as { status: string; next: string }
+    assert.equal(output.status, 'unknown', 'it may have been admitted')
+    assert.match(output.next, /Read project_status/)
+  })
+
+  it('a v1.1 session refuses the research tools without reaching the API, and names v1.1 on what it sends', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([
+      { id: 'call-v1', name: 'start_research', args: { question: 'Which sandboxes?' } },
+      { id: 'call-v2', name: 'render_research', args: { taskId: RESEARCH_TASK } },
+    ])
+    await flush()
+    assert.equal(service.calls.length, 0)
+    assert.deepEqual(live.responses.map(statusOf), ['error', 'error'])
+    live.events.toolCalls([{ id: 'call-v3', name: 'project_status', args: {} }])
+    await until('the read', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.guide, 'v1.1')
+    assert.deepEqual(service.surfaceVersions, ['v1.1'])
   })
 })
 

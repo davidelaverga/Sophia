@@ -41,7 +41,7 @@ import type { MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
-import { DECLARED_NAMES, isToolName, refusedResponse, toolResponse, WRITE_TOOLS } from './tools.ts'
+import { isToolName, refusedResponse, TOOL_SETS, toolResponse, WRITE_TOOLS, type ToolSet } from './tools.ts'
 import { FrameSampler, type RgbaFrame, toJpeg } from './vision.ts'
 
 export type Log = (event: string, detail?: Record<string, unknown>) => void
@@ -193,6 +193,9 @@ function idsOf(response: FunctionResponse): Record<string, string> {
   if (typeof output !== 'object' || output === null) return {}
   const ids: Array<[string, string | undefined]> = [
     ['workId', 'workId' in output ? shortString(output.workId) : undefined],
+    ['taskId', 'taskId' in output ? shortString(output.taskId) : undefined],
+    ['existingTaskId', 'existingTaskId' in output ? shortString(output.existingTaskId) : undefined],
+    ['renderJobId', 'renderJobId' in output ? shortString(output.renderJobId) : undefined],
     ['commandId', 'commandId' in output ? shortString(output.commandId) : undefined],
     ['entryId', 'entryId' in output ? shortString(output.entryId) : undefined],
     ['proposalId', 'proposalId' in output ? shortString(output.proposalId) : undefined],
@@ -236,6 +239,8 @@ const sameHolder = (ref: HolderRef | null, actorId: string, inputEpoch: number) 
 export class RoomSession {
   readonly exchangeId: string
   private readonly deps: SessionDeps
+  /** The declarations of the guide's version: what the provider is offered and the calls the session accepts. */
+  private readonly tools: ToolSet
   private readonly state: ExchangeState
   private assignment: MediaAssignment
   private room: RoomLink | null = null
@@ -327,6 +332,7 @@ export class RoomSession {
     this.exchangeId = assignment.exchangeId
     this.assignment = assignment
     this.deps = deps
+    this.tools = TOOL_SETS[deps.guide.version]
     this.state = new ExchangeState(toAssignment(assignment))
     this.guideContext = new GuideContext(assignment)
     // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
@@ -773,18 +779,19 @@ export class RoomSession {
   }
 
   /**
-   * The guide names six operations; the API must execute exactly those before the guide speaks (binding §5). An API
-   * that cannot say, or says otherwise, leaves Sophia unavailable with the reason, and the check runs again later.
+   * The guide names its version's operations; the API must execute exactly those before the guide speaks (binding
+   * §5). An API that cannot say, or says otherwise, leaves Sophia unavailable with the reason, and the check runs
+   * again later.
    */
   private async checkGuideBound(): Promise<boolean> {
     if (this.guideBound) return true
     let names: readonly string[] | null
     try {
-      names = (await this.deps.service.toolSurface()).names
+      names = (await this.deps.service.toolSurface(this.deps.guide.version)).names
     } catch {
       names = null
     }
-    if (names !== null && sameNames(names, DECLARED_NAMES)) {
+    if (names !== null && sameNames(names, this.tools.names)) {
       this.guideBound = true
       return true
     }
@@ -811,7 +818,8 @@ export class RoomSession {
       resumed,
       instruction: guide.combined.sha256,
       instructionBytes: guide.combined.bytes,
-      tools: DECLARED_NAMES.length,
+      guide: guide.version,
+      tools: this.tools.names.length,
     })
     try {
       const link = await this.deps.connectLive(
@@ -819,6 +827,7 @@ export class RoomSession {
           apiKey: this.deps.apiKey,
           model: this.deps.model,
           systemInstruction: guide.instruction,
+          tools: this.tools.declarations,
           resumptionHandle: this.handle,
         },
         this.events(connection),
@@ -1086,7 +1095,7 @@ export class RoomSession {
 
   private async toolOutcome(id: string, name: string, args: Record<string, unknown>): Promise<FunctionResponse> {
     const call = { id, name }
-    if (!CALL_ID.test(id) || !isToolName(name))
+    if (!CALL_ID.test(id) || !isToolName(name, this.tools.names))
       return toolResponse(call, { status: 'error', output: { reason: 'Unknown tool' } })
     if (this.state.input(this.deps.now()) === 'paused') {
       return refusedResponse(call, 'The conversation is paused; ask again when it resumes.')
@@ -1104,6 +1113,7 @@ export class RoomSession {
       actorId: who.actorId,
       utterance: this.guideContext.utterance,
       inputMode: this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
+      guide: this.deps.guide.version,
     }
     const write = WRITE_TOOLS.has(name)
     if (write) this.guideContext.writeStarted()
