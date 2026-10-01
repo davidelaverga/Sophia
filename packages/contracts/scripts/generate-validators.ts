@@ -41,6 +41,7 @@ const EXPORTS = [
   'MissionWithdrawalPreview',
   'PersonalSpace',
   'PersonalTurnPage',
+  'PersonalEarlierTurns',
   'PersonalExport',
   'PersonalReceipt',
   'ProjectList',
