@@ -103,6 +103,9 @@ const writeSchema = (params: object | null, body: string | null, headers: object
 
 const NO_COMPANION = 'Sophia can’t answer here yet. Nothing was kept.'
 
+/** An erasure that committed, but whose wait for the companion to stop could not finish: asked again, it ends. */
+const UNFINISHED_ERASURE = 'Everything was deleted, but it is not finished yet. Ask again.'
+
 /**
  * Where no companion runs (a deploy rolling out, one never configured), a retry still gets the receipt its key keeps;
  * only new work is refused, before anything is kept.
@@ -320,8 +323,11 @@ function crossingRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
         erasePersonalSpace(c, req.headers['idempotency-key'], req.body.confirm),
       )
-      // Acknowledged once nothing of the space is being answered, in any process.
-      await stoppedEverywhere(pool, req.actorId, companion)
+      // Acknowledged once nothing of the space is being answered, in any process. The erasure has committed: should
+      // that wait fail, the same request asks again under its key (it gets its receipt, and waits again).
+      await stoppedEverywhere(pool, req.actorId, companion).catch((err: unknown) => {
+        throw new DomainError('outcome_unknown', UNFINISHED_ERASURE, { cause: err })
+      })
       return reply.status(202).send(receipt)
     },
   )

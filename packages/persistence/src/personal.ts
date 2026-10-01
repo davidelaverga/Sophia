@@ -435,10 +435,15 @@ export async function endCompanionCall(c: pg.PoolClient, callId: string): Promis
   await c.query('SELECT sophia.end_companion_call($1)', [callId])
 }
 
-/** How many of the caller's calls to the companion are in flight, whichever process makes them. */
-export async function companionCallsRunning(c: pg.PoolClient): Promise<number> {
-  const { rows } = await c.query<{ running: number }>('SELECT sophia.companion_calls_running() AS running')
-  return onlyRow(rows, 'companion_calls_running').running
+/** How many of the caller's calls to the companion begun before the latest erasure are in flight, in any process. */
+export async function erasedCompanionCalls(c: pg.PoolClient): Promise<number> {
+  const { rows } = await c.query<{ running: number }>('SELECT sophia.erased_companion_calls() AS running')
+  return onlyRow(rows, 'erased_companion_calls').running
+}
+
+/** Every call to the companion begun before the latest erasure is let go: the erasure waited for them. */
+export async function forgetErasedCompanionCalls(c: pg.PoolClient): Promise<void> {
+  await c.query('SELECT sophia.forget_erased_companion_calls()')
 }
 
 /** The companion couldn't write the welcome: its claim goes, so the same request may ask again at once. */

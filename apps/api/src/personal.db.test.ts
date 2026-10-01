@@ -16,12 +16,19 @@ import {
   parseProjectList,
 } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
-import { createPool, erasePersonalSpace, sendPersonalTurn, withActor } from '@sophia/persistence'
+import {
+  beginCompanionCall,
+  createPool,
+  erasedCompanionCalls,
+  erasePersonalSpace,
+  sendPersonalTurn,
+  withActor,
+} from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { rehearsalCompanion } from './companion-rehearsal.ts'
-import { ANSWER_LIMIT_MS, CompanionRunner, WATCH_MS } from './companion.ts'
+import { ANSWER_LIMIT_MS, CompanionRunner, stoppedEverywhere, WATCH_MS } from './companion.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -385,6 +392,24 @@ describe('a welcome the companion could not write', () => {
   })
 })
 
+/** The pool, but its `nth` connection fails: the database went away for a moment. */
+function failingAt(nth: number): pg.Pool {
+  let connections = 0
+  return new Proxy(pool, {
+    get(target, prop) {
+      if (prop !== 'connect') {
+        const own: unknown = Reflect.get(target, prop, target)
+        return own
+      }
+      return async () => {
+        connections += 1
+        if (connections === nth) throw new Error('The database went away')
+        return target.connect()
+      }
+    },
+  })
+}
+
 /** A companion that answers only once told to stop, and stops 200 ms later. */
 function holding() {
   const seen = { asked: Promise.withResolvers<void>(), stopped: 0, settled: 0 }
@@ -462,6 +487,43 @@ describe('an erasure while the companion answers', () => {
     )
     assert.ok(Date.now() - asked < WATCH_MS, 'told on its next look at its claim, not at its time limit')
     await answering
+  })
+
+  it('answers outcome_unknown when it committed but could not see the companion stop, and its retry gets its receipt', async () => {
+    const GONE = randomUUID()
+    await withActor(pool, GONE, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Something to erase'))
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    // The erasure commits on the first connection; the second, looking for calls still in flight, fails.
+    const shaky = buildApp({ pool: failingAt(2), verifyActor, companion: holding().companion })
+    await shaky.listen({ port: 0, host: '127.0.0.1' })
+    const at = `http://127.0.0.1:${String((shaky.server.address() as AddressInfo).port)}`
+    const k = randomUUID()
+    try {
+      const unfinished = await call('/api/v1/personal/erasure', { as: GONE, body: { confirm: 'delete' }, key: k, at })
+      const error = unfinished.json as { code?: string; retry?: string } | null
+      assert.deepEqual([unfinished.status, error?.code, error?.retry], [503, 'outcome_unknown', 'same_admission_key'])
+    } finally {
+      await shaky.close()
+    }
+    const again = await call('/api/v1/personal/erasure', { as: GONE, body: { confirm: 'delete' }, key: k })
+    assert.equal(again.status, 202)
+    assert.deepEqual(
+      parsePersonalReceipt(again.json).erased,
+      { turns: 1, notes: 0, suggestions: 0 },
+      'the receipt its key kept',
+    )
+  })
+
+  it('waits for a call a process that went away left only so long, then forgets it', async () => {
+    const LEFT = randomUUID()
+    await withActor(pool, LEFT, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Asked just before it went away'))
+    await withActor(pool, LEFT, 'write', (c) => beginCompanionCall(c, randomUUID())) // never ended
+    await withActor(pool, LEFT, 'write', (c) => erasePersonalSpace(c, randomUUID(), 'delete'))
+    const started = Date.now()
+    await stoppedEverywhere(pool, LEFT, null, 300)
+    assert.ok(Date.now() - started >= 300, 'it waited for it, so long')
+    const left = await withActor(pool, LEFT, 'read', (c) => erasedCompanionCalls(c))
+    assert.equal(left, 0, 'then forgot it: nothing from before the erasure is kept')
   })
 
   it('tells a welcome being written elsewhere to stop, too', async () => {
@@ -570,21 +632,8 @@ describe('a welcome whose read fails after its claim', () => {
     const sent = await withActor(pool, BACK, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
     await steady.answer(BACK, sent.turnId ?? '')
     await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [BACK])
-    // The second connection (the welcome's read, after the claim) fails: the database went away for a moment.
-    let connections = 0
-    const flaky = new Proxy(pool, {
-      get(target, prop) {
-        if (prop !== 'connect') {
-          const own: unknown = Reflect.get(target, prop, target)
-          return own
-        }
-        return async () => {
-          connections += 1
-          if (connections === 2) throw new Error('The database went away')
-          return target.connect()
-        }
-      },
-    })
+    // The second connection (the welcome's read, after the claim) fails.
+    const flaky = failingAt(2)
     const k = randomUUID()
     const failure: unknown = await new CompanionRunner(flaky, greeter, () => undefined).greet(BACK, k, 0, null).then(
       () => null,

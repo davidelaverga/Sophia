@@ -99,7 +99,7 @@ CREATE TABLE sophia.personal_releases (
  UNIQUE(owner_id,note_id),
  FOREIGN KEY(owner_id,note_id) REFERENCES sophia.personal_notes(owner_id,id) ON DELETE SET NULL (note_id)
 );
-CREATE INDEX personal_releases_by_project ON sophia.personal_releases(project_id,created_at);
+CREATE INDEX personal_releases_by_project ON sophia.personal_releases(project_id,created_at,id);
 
 -- The request getting a person's welcome back, while it asks the companion for one: one at a time, whichever API
 -- process a request reaches. Each attempt holds a claim of its own; only that attempt writes the welcome or lets the
@@ -113,12 +113,14 @@ CREATE TABLE sophia.personal_greeting_claims (
  claimed_at timestamptz NOT NULL DEFAULT now()
 );
 
--- The calls to the companion in flight for a person, whichever API process makes them, so an erasure is acknowledged
--- only once none is left (each call watches its claim and stops once an erasure takes it). A call has 60 s; a row
--- older than two minutes is a process that went away mid-call. No words: an id and a time.
+-- The calls to the companion in flight for a person, whichever API process makes them, each with the epoch of the space
+-- it began in, so an erasure is acknowledged only once none begun before it is left (each call watches its claim and
+-- stops once an erasure takes it), and then forgets them. A call has 60 s; a row older than two minutes is a process
+-- that went away mid-call. No words: an id, an epoch and a time.
 CREATE TABLE sophia.personal_companion_calls (
  owner_id uuid NOT NULL,
  call_id uuid NOT NULL,
+ epoch bigint NOT NULL,
  started_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(owner_id,call_id)
 );
@@ -439,22 +441,32 @@ BEGIN
  RETURN FOUND;
 END $$;
 
--- A call to the companion begins (clearing the caller's calls a process that went away left behind) and ends;
--- companion_calls_running says how many of the caller's are in flight, in any process, for an erasure to wait on.
+-- A call to the companion begins, in the space's epoch (clearing the caller's calls a process that went away left
+-- behind), and ends. erased_companion_calls says how many begun before the space's latest erasure are still in flight,
+-- in any process, for the erasure to wait on; once none is, forget_erased_companion_calls lets every one of them go.
 CREATE FUNCTION sophia.begin_companion_call(p_call uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
 SET search_path=pg_catalog,sophia AS $$
  DELETE FROM sophia.personal_companion_calls
   WHERE owner_id=sophia.personal_owner() AND started_at<=now()-interval '2 minutes';
- INSERT INTO sophia.personal_companion_calls(owner_id,call_id) VALUES(sophia.personal_owner(),p_call) $$;
+ INSERT INTO sophia.personal_companion_calls(owner_id,call_id,epoch)
+  VALUES(sophia.personal_owner(),p_call,
+   coalesce((SELECT epoch FROM sophia.personal_spaces WHERE owner_id=sophia.personal_owner()),0)) $$;
 
 CREATE FUNCTION sophia.end_companion_call(p_call uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
 SET search_path=pg_catalog,sophia AS $$
  DELETE FROM sophia.personal_companion_calls WHERE owner_id=sophia.personal_owner() AND call_id=p_call $$;
 
-CREATE FUNCTION sophia.companion_calls_running() RETURNS integer LANGUAGE sql STABLE SECURITY DEFINER
+CREATE FUNCTION sophia.erased_companion_calls() RETURNS integer LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path=pg_catalog,sophia AS $$
- SELECT count(*)::integer FROM sophia.personal_companion_calls
-  WHERE owner_id=sophia.personal_owner() AND started_at>now()-interval '2 minutes' $$;
+ SELECT count(*)::integer FROM sophia.personal_companion_calls c
+  WHERE c.owner_id=sophia.personal_owner() AND c.started_at>now()-interval '2 minutes'
+   AND c.epoch<coalesce((SELECT epoch FROM sophia.personal_spaces s WHERE s.owner_id=c.owner_id),0) $$;
+
+CREATE FUNCTION sophia.forget_erased_companion_calls() RETURNS void LANGUAGE sql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ DELETE FROM sophia.personal_companion_calls c
+  WHERE c.owner_id=sophia.personal_owner()
+   AND c.epoch<coalesce((SELECT epoch FROM sophia.personal_spaces s WHERE s.owner_id=c.owner_id),0) $$;
 
 -- The API process about to ask the companion claims the pending turn first: its claim, which the reply or the failure
 -- must carry, or NULL when another process is answering it (a retry reached another process, a restart). A claim
@@ -667,6 +679,8 @@ BEGIN
  UPDATE sophia.personal_spaces SET epoch=epoch+1 WHERE owner_id=a;
  UPDATE sophia.personal_releases SET note_id=NULL WHERE owner_id=a;
  DELETE FROM sophia.personal_greeting_claims WHERE owner_id=a;
+ -- Calls in flight stay for the erasure to wait on (it forgets them after); one a process that went away left goes.
+ DELETE FROM sophia.personal_companion_calls WHERE owner_id=a AND started_at<=now()-interval '2 minutes';
  DELETE FROM sophia.personal_notes WHERE owner_id=a;
  GET DIAGNOSTICS notes=ROW_COUNT;
  DELETE FROM sophia.personal_suggestions WHERE owner_id=a;
@@ -680,7 +694,8 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
- sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.companion_calls_running(),
+ sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.erased_companion_calls(),
+ sophia.forget_erased_companion_calls(),
  sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
@@ -689,7 +704,8 @@ REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_repl
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
- sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.companion_calls_running(),
+ sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.erased_companion_calls(),
+ sophia.forget_erased_companion_calls(),
  sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),

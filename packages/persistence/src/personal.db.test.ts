@@ -13,13 +13,14 @@ import {
   beginPersonalGreeting,
   carryPersonalNote,
   claimPersonalReply,
-  companionCallsRunning,
   createPool,
   decidePersonalSuggestion,
   endCompanionCall,
+  erasedCompanionCalls,
   erasePersonalSpace,
   failPersonalReply,
   fencePersonalWrite,
+  forgetErasedCompanionCalls,
   forgetPersonalNote,
   keepPersonalNote,
   listProjects,
@@ -58,6 +59,7 @@ const ZONED = randomUUID() // someone who wrote on either side of midnight in UT
 const LEASED = randomUUID() // someone whose reply's process paused after claiming, then asked the companion
 const GREETED = randomUUID() // someone whose welcome's process paused after claiming, then asked the companion
 const CALLING = randomUUID() // someone the companion is answering, in one process or another, as she erases
+const READER = randomUUID() // a member of a project where someone else carried many notes
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -74,6 +76,15 @@ after(async () => {
   await pool.end()
   await db.drop()
 })
+
+/** How many carried notes this transaction has read so far, by any scan of their table. */
+async function releasesRead(c: pg.PoolClient): Promise<number> {
+  const { rows } = await c.query<{ n: string }>(
+    `SELECT coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0) AS n FROM pg_stat_xact_user_tables
+      WHERE relid = 'sophia.personal_releases'::regclass`,
+  )
+  return Number(rows[0]?.n ?? 0)
+}
 
 async function codeOf(p: Promise<unknown>): Promise<string> {
   try {
@@ -753,34 +764,46 @@ describe('personal space: a long conversation', () => {
 })
 
 describe('personal space: calls to the companion in flight', () => {
-  it('counts the caller’s own, not one a process that went away left, and an erasure ends none', async () => {
-    const mine = randomUUID()
-    const theirs = randomUUID()
-    await write(CALLING, (c) => beginCompanionCall(c, mine))
+  it('waits on the calls begun before an erasure, not after, and forgets every one of them once drained', async () => {
+    const [abandoned, inFlight, stranded, later, theirs] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ]
+    const calls = async (who: string) =>
+      (
+        await owner<{ call_id: string }>(
+          'SELECT call_id FROM sophia.personal_companion_calls WHERE owner_id = $1 ORDER BY started_at',
+          [who],
+        )
+      ).map((r) => r.call_id)
+    const aged = (call: string) =>
+      owner(`UPDATE sophia.personal_companion_calls SET started_at = now() - interval '2 minutes' WHERE call_id = $1`, [
+        call,
+      ])
+    const erased = () => read(CALLING, (c) => erasedCompanionCalls(c))
+    await write(CALLING, (c) => beginCompanionCall(c, abandoned))
+    await aged(abandoned) // the process making it went away
+    await write(CALLING, (c) => beginCompanionCall(c, inFlight))
+    assert.deepEqual(await calls(CALLING), [inFlight], 'one a process that went away left goes as the next begins')
+    await write(CALLING, (c) => beginCompanionCall(c, stranded))
+    await aged(stranded)
     await write(OTHER, (c) => beginCompanionCall(c, theirs))
-    const running = () => read(CALLING, (c) => companionCallsRunning(c))
-    assert.equal(await running(), 1, 'hers only')
+    assert.equal(await erased(), 0, 'nothing is waited on before an erasure')
     await write(CALLING, (c) => erasePersonalSpace(c, key(), 'delete'))
-    assert.equal(await running(), 1, 'an erasure waits for it, and ends none')
-    await owner(
-      `UPDATE sophia.personal_companion_calls SET started_at = now() - interval '2 minutes' WHERE owner_id = $1`,
-      [CALLING],
-    )
-    assert.equal(await running(), 0, 'one older than two minutes is a process that went away')
-    const next = randomUUID()
-    await write(CALLING, (c) => beginCompanionCall(c, next))
-    const left = await owner<{ call_id: string }>(
-      'SELECT call_id FROM sophia.personal_companion_calls WHERE owner_id = $1',
-      [CALLING],
-    )
-    assert.deepEqual(
-      left.map((r) => r.call_id),
-      [next],
-      'and it is cleared once she is answered again',
-    )
-    await write(CALLING, (c) => endCompanionCall(c, next))
+    assert.deepEqual(await calls(CALLING), [inFlight], 'the erasure lets go one a process that went away left')
+    assert.equal(await erased(), 1, 'and waits on the one in flight')
+    await write(CALLING, (c) => beginCompanionCall(c, later))
+    assert.equal(await erased(), 1, 'not on one begun after it')
+    await write(CALLING, (c) => forgetErasedCompanionCalls(c))
+    assert.deepEqual(await calls(CALLING), [later], 'drained, every call begun before it is forgotten')
+    assert.equal(await erased(), 0)
+    assert.deepEqual(await calls(OTHER), [theirs], 'and nobody else’s')
+    await write(CALLING, (c) => endCompanionCall(c, later))
     await write(OTHER, (c) => endCompanionCall(c, theirs))
-    assert.equal(await running(), 0, 'a call that ended is not waited for')
+    assert.deepEqual(await calls(CALLING), [], 'a call that ended is not kept')
   })
 })
 
@@ -899,6 +922,33 @@ describe('personal space: who may write it, and how much it keeps', () => {
     const texts = (id: string) => bounded.find((p) => p.projectId === id)?.releases.map((r) => r.text)
     assert.deepEqual(texts(team), ['Mine, oldest', 'Mine, older'])
     assert.deepEqual(texts(other), ['Mine, elsewhere', 'Peer, elsewhere 1'])
+  })
+
+  it('reads at most its bound of the others’ carried notes per project, however many they carried', async () => {
+    const crowded = (await seedProject(db.ownerUrl, { title: 'Crowded', admin: ADMIN, editors: [READER, PEER] }))
+      .projectId
+    await owner(
+      `INSERT INTO sophia.personal_releases(id, owner_id, owner_name, project_id, note_id, body, created_at)
+       SELECT gen_random_uuid(), $1::uuid, 'Peer', $3::uuid, NULL::uuid, 'Peer, ' || n, now() - interval '1 minute' * n
+         FROM generate_series(1, 60) n
+       UNION ALL
+       SELECT gen_random_uuid(), $2::uuid, 'Reader', $3::uuid, NULL, 'Reader', now() - interval '2 hours'`,
+      [PEER, READER, crowded],
+    )
+    const { listed, fetched } = await read(READER, async (c) => {
+      // The plan the indexes allow, however small the table here.
+      await c.query('SET LOCAL enable_seqscan = off')
+      await c.query('SET LOCAL enable_bitmapscan = off')
+      const already = await releasesRead(c)
+      const all = await listProjects(c, { projects: 500, releases: 3, allReleases: 4000 })
+      return { listed: all, fetched: (await releasesRead(c)) - already }
+    })
+    assert.deepEqual(
+      listed.find((p) => p.projectId === crowded)?.releases.map((r) => r.text),
+      ['Reader', 'Peer, 2', 'Peer, 1'],
+    )
+    // Her own (once as hers, once passed over among the others'), and three of the others': never all sixty.
+    assert.ok(fetched <= 5, `${String(fetched)} carried notes read`)
   })
 
   it('refuses text that is only whitespace, or that the database cannot keep', async () => {
