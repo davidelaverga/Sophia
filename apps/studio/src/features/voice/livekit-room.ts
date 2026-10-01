@@ -25,6 +25,7 @@ import {
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
+import { deviceChange } from './device-change.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -215,6 +216,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     cb.onChange()
   }
   const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
+  const me = room.localParticipant
   return {
     sendChat: (packet) =>
       room.localParticipant.publishData(encodeChatPacket(packet), {
@@ -232,11 +234,17 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     audioBlocked: () => !room.canPlaybackAudio,
     startAudio: () => after(room.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
-    setMicrophone: (on) => after(room.localParticipant.setMicrophoneEnabled(on)),
-    setCamera: (on) => after(room.localParticipant.setCameraEnabled(on)),
+    // Each device as LiveKit leaves it, not as its answer says (deviceChange).
+    setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
+    setCamera: (on) => after(deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on)),
     // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.
     setScreenShare: (on) =>
-      after(room.localParticipant.setScreenShareEnabled(on, { audio: true, selfBrowserSurface: 'exclude' })),
+      after(
+        deviceChange(
+          me.setScreenShareEnabled(on, { audio: true, selfBrowserSurface: 'exclude' }),
+          () => me.isScreenShareEnabled === on,
+        ),
+      ),
     leave: () => room.disconnect(),
   }
 }

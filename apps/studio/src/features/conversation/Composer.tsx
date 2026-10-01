@@ -47,7 +47,8 @@ function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | '
     setStarting(true)
     setError(null)
     try {
-      const ports = { textMode: room.textMode, setTextMode: room.setTextMode, join: room.join, askSophia }
+      const { textMode, setTextMode, textModeNow, join } = room
+      const ports = { textMode, setTextMode, textModeNow, join, askSophia }
       if (!(await startChat(ports))) return false
       await queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
       return true

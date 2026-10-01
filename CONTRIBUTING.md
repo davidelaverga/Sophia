@@ -202,11 +202,15 @@ when you change the room:
   the dock (taking the floor, Resume: `waitsOnRoom`) offers "Show the room"
   where the panel covers it. One join runs at a time (`useJoin`): Chat with
   Sophia waits while the dock joins, since a second connection for the same
-  person makes LiveKit drop the first.
+  person makes LiveKit drop the first. A call that ends lets go of its join,
+  which may still be settling (its microphone arriving): the next join starts
+  at once, and a join answers whether the person is in the call once it
+  settled (`holds` in `call-fence.ts`, with tests).
   Voice mode is offered in the call only, so a start whose join doesn't get
-  in puts text mode back as it was (`startChat` in `chat-start.ts`, with
-  tests): out of the call nobody could turn it off, and the dock's Try again
-  would join in it, with the microphone off and Sophia muted.
+  in puts text mode back as it was, unless the pill went back to voice
+  meanwhile (`startChat` in `chat-start.ts`, with tests): out of the call
+  nobody could turn it off, and the dock's Try again would join in it, with
+  the microphone off and Sophia muted.
 - **Stray typing is text.** While the chat's foot is on screen (it marks
   itself `data-typing-sink`), a key typed with the focus on no control goes
   into the message bar and is never a shortcut (`shortcuts.ts`: `stray`,
@@ -229,14 +233,25 @@ when you change the room:
 - **Text mode is said wherever it holds.** Typing to Sophia is text mode:
   she is not heard and the microphone is off. The dock, the mini dock and the
   panel's head say so (`TextMode` in `RoomDock`) and one press returns to
-  voice; so does turning the microphone on, once it did come on
-  (`switchMicrophone`, with tests: a refused press keeps text mode and Sophia
-  muted). Any end of the call ends it but a lost connection
-  (`keepsTextMode`, with tests): then the pill stays beside Try again and
-  Join's tip says the next join is typed. A microphone that comes on after
-  text mode began (the browser still asking) goes off again. It never
-  rewrites the microphone choice the person made (`silence` in
-  `useProjectRoom`), so the next join is as they left it.
+  voice; so does turning the microphone on, once it did come on, also when
+  text mode began while the browser was asking (`switchMicrophone` reads it
+  then, with tests: a refused press keeps text mode and Sophia muted). Any end
+  of the call ends it but a lost connection (`keepsTextMode`, with tests):
+  then the pill stays beside Try again and Join's tip says the next join is
+  typed. The microphone a join turns on that comes on after text mode began
+  (the browser still asking, past LiveKit's own 10 s wait) goes off again;
+  when it can't, text mode goes back to voice, the note says the microphone
+  couldn't be turned off, and a chat start stops before Sophia is asked in
+  (`arriveWithMicrophone`, `enterCall`, `startChat`, with tests). A join
+  applies text mode as it is when it gets in, not as it began: its pill can
+  go back to voice meanwhile (`textModeNow`); a join asked for in a call
+  changes nothing of it. Text mode never rewrites the microphone choice the
+  person made (`silence` in `useProjectRoom`), so the next join is as they
+  left it. A device change counts by the device, not by LiveKit's answer: an
+  off whose pending publication failed left it off (`deviceChange`, with
+  tests); a change whose call went changes nothing in the next one. A device
+  that stays on says so, never that it couldn't start (`mediaMessage` in
+  `room-view.ts`, with tests).
 - **The call's switches follow the panel.** Where the panel covers the room
   (up to 760 px wide), a row under its head shows the microphone, and the camera and the
   shared screen while they are on (`CallSwitches` in `StudioShell`, the
