@@ -137,4 +137,4 @@ export {
   takeBackPersonalRelease,
   type CompanionContext,
 } from './personal.ts'
-export { listProjects, type ProjectListing } from './project-list.ts'
+export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'

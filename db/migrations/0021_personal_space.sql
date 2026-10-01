@@ -12,18 +12,24 @@
 --   any text it wrote, never the text, and its receipt keeps ids only.
 -- * Sophia's side is written by the companion the API runs: the reply to a pending turn of the same owner, or her
 --   welcome back after a quiet spell of more than an hour. A suggestion she makes is kept as a note or deleted.
--- * Erasing the space deletes the conversation, suggestions and notes for good, deletes the requests older than ten
---   minutes and keeps only the key of the rest, so a late retry is told its write was forgotten rather than writing
---   again. Releases stay in their projects, as the person was told before erasing, and stay theirs to take back.
+-- * Erasing the space deletes the conversation, suggestions and notes for good, and every request keeps only its key
+--   (the key as the client chose it; the Studio's are random), so a retry from before the erasure, however late, is
+--   told its write was erased rather than writing again. What survives is a count and a version: the space's revision
+--   and its turn order (the next turn comes after every earlier one). Releases stay in their projects, as the person
+--   was told before erasing, and stay theirs to take back.
+-- * A space keeps at most 2000 notes (kept or carried) and a person carries at most 2000 notes (also those whose note
+--   was erased): every one is listed, so nothing they keep or carry is ever out of their reach.
+-- * Only the API role may call a writer: each is revoked from PUBLIC (the worker and every other role) before it is
+--   granted to sophia_api.
 -- 0001–0020 are not edited.
 BEGIN;
 
--- One row per person who ever wrote here: the order of their turns and a revision that moves with every write.
+-- One row per person who ever wrote here: the order of their turns and a revision that moves with every write. It
+-- keeps no date: nothing says when the person first wrote.
 CREATE TABLE sophia.personal_spaces (
  owner_id uuid PRIMARY KEY,
  turn_seq bigint NOT NULL DEFAULT 0 CHECK(turn_seq>=0),
- revision bigint NOT NULL DEFAULT 1 CHECK(revision>0),
- created_at timestamptz NOT NULL DEFAULT now()
+ revision bigint NOT NULL DEFAULT 1 CHECK(revision>0)
 );
 
 -- The conversation: the person's turns and Sophia's replies, in one order. A person's turn waits for its reply
@@ -134,8 +140,9 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.personal_hold() FROM PUBLIC;
 
--- The stored receipt of an earlier identical request, or NULL; a changed request under the same key is refused, and a
--- request whose writes were erased is told so, whatever it says now. Called with the space held (personal_hold).
+-- The stored receipt of an earlier identical request, or NULL; a changed request under the same key is refused, a
+-- request whose writes were erased is told so, whatever it says now, and so is the keep of a note since forgotten (it
+-- keeps no digest to compare with, as 0018's forgotten requests). Called with the space held (personal_hold).
 CREATE FUNCTION sophia.personal_prior(p_key text, p_operation text, p_semantic jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE prior sophia.personal_requests;
@@ -145,6 +152,8 @@ BEGIN
  IF NOT FOUND THEN RETURN NULL; END IF;
  IF prior.semantic_request ? 'redacted' THEN
   RAISE EXCEPTION 'Stale request: what it wrote has since been erased' USING ERRCODE='40001'; END IF;
+ IF prior.semantic_request ? 'forgotten' THEN
+  RAISE EXCEPTION 'Stale request: the note it kept has since been forgotten' USING ERRCODE='40001'; END IF;
  IF prior.operation<>p_operation OR prior.semantic_request<>p_semantic THEN
   RAISE EXCEPTION 'Idempotency key reused with different request' USING ERRCODE='23505'; END IF;
  RETURN prior.receipt;
@@ -179,15 +188,30 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.personal_touch() FROM PUBLIC;
 
--- Bounded, trimmed text; refused when empty or too long.
+-- Text without the whitespace around it, of every kind (newlines and tabs too, not only spaces).
+CREATE FUNCTION sophia.personal_trim(p_value text) RETURNS text LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
+ SELECT regexp_replace(p_value, '^[[:space:]]+|[[:space:]]+$', '', 'g') $$;
+REVOKE ALL ON FUNCTION sophia.personal_trim(text) FROM PUBLIC;
+
+-- Bounded, trimmed text; refused when empty (whitespace only) or too long.
 CREATE FUNCTION sophia.personal_text(p_value text, p_max integer) RETURNS text LANGUAGE plpgsql IMMUTABLE
-SET search_path=pg_catalog AS $$
+SET search_path=pg_catalog,sophia AS $$
+DECLARE trimmed text:=sophia.personal_trim(p_value);
 BEGIN
- IF p_value IS NULL OR length(btrim(p_value)) NOT BETWEEN 1 AND p_max THEN
+ IF trimmed IS NULL OR length(trimmed) NOT BETWEEN 1 AND p_max THEN
   RAISE EXCEPTION 'Text must be 1 to % characters', p_max USING ERRCODE='22023'; END IF;
- RETURN btrim(p_value);
+ RETURN trimmed;
 END $$;
 REVOKE ALL ON FUNCTION sophia.personal_text(text,integer) FROM PUBLIC;
+
+-- Room for one more note: a space keeps at most 2000 (kept or carried), so every one of them is listed.
+CREATE FUNCTION sophia.personal_note_room() RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ IF (SELECT count(*) FROM sophia.personal_notes WHERE owner_id=sophia.personal_owner())>=2000 THEN
+  RAISE EXCEPTION 'Notes are full: a personal space keeps at most 2000 notes' USING ERRCODE='54000'; END IF;
+END $$;
+REVOKE ALL ON FUNCTION sophia.personal_note_room() FROM PUBLIC;
 
 CREATE FUNCTION sophia.personal_digest(p_text text) RETURNS text LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
  SELECT encode(sha256(convert_to(p_text,'UTF8')),'hex') $$;
@@ -238,7 +262,7 @@ END $$;
 CREATE FUNCTION sophia.record_personal_reply(p_turn uuid, p_text text, p_suggestion text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); asked sophia.personal_turns; s sophia.personal_spaces; t sophia.personal_turns;
- suggestion text:=nullif(btrim(coalesce(p_suggestion,'')),''); suggestion_id uuid;
+ suggestion text:=nullif(sophia.personal_trim(coalesce(p_suggestion,'')),''); suggestion_id uuid;
 BEGIN
  PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=a FOR UPDATE;
  SELECT * INTO asked FROM sophia.personal_turns WHERE owner_id=a AND id=p_turn;
@@ -325,6 +349,7 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Stale suggestion: it is gone' USING ERRCODE='40001'; END IF;
  IF sg.state<>'open' THEN RAISE EXCEPTION 'Stale suggestion: it is already %', sg.state USING ERRCODE='40001'; END IF;
  IF p_decision='keep' THEN
+  PERFORM sophia.personal_note_room();
   UPDATE sophia.personal_suggestions SET state='kept', decided_at=now() WHERE owner_id=a AND id=p_suggestion;
   SELECT reply_to INTO asked FROM sophia.personal_turns WHERE owner_id=a AND id=sg.turn_id;
   INSERT INTO sophia.personal_notes(owner_id,body,kept_by,from_turn,suggestion_id) VALUES(a,sg.body,'sophia',asked,sg.id)
@@ -350,6 +375,7 @@ BEGIN
  s:=sophia.personal_touch();
  IF p_from_turn IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id=a AND id=p_from_turn AND author='person') THEN
   RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
+ PERFORM sophia.personal_note_room();
  IF p_suggestion IS NOT NULL THEN
   SELECT * INTO sg FROM sophia.personal_suggestions WHERE owner_id=a AND id=p_suggestion FOR UPDATE;
   IF FOUND AND sg.state='open' AND sg.body=body THEN
@@ -363,7 +389,8 @@ BEGIN
   jsonb_build_object('noteId',note_id,'suggestionId',CASE WHEN kept_by='sophia' THEN p_suggestion END)));
 END $$;
 
--- forgetPersonalNote: a kept note is deleted (the undo of keeping it). A suggestion it kept is open again.
+-- forgetPersonalNote: a kept note is deleted (the undo of keeping it). A suggestion it kept is open again, and the keep
+-- that wrote it keeps no digest of its words: a retry of that keep is told the note was forgotten.
 CREATE FUNCTION sophia.forget_personal_note(p_key text, p_note uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('noteId',p_note); prior jsonb;
@@ -380,6 +407,8 @@ BEGIN
  IF n.suggestion_id IS NOT NULL THEN
   UPDATE sophia.personal_suggestions SET state='open', decided_at=NULL WHERE owner_id=a AND id=n.suggestion_id;
  END IF;
+ UPDATE sophia.personal_requests SET semantic_request='{"forgotten":true}', receipt='{}'
+  WHERE owner_id=a AND operation='keep_note' AND receipt->>'noteId'=p_note::text;
  RETURN sophia.personal_remember(p_key,'forget_note',semantic,
   sophia.personal_receipt('forget_note',s.revision,jsonb_build_object('noteId',p_note)));
 END $$;
@@ -387,18 +416,21 @@ END $$;
 -- ---------------------------------------------------------------------------------------------------
 -- The crossing.
 
--- carryPersonalNote: one kept note, exactly as written, to one project where its owner is an active member.
+-- carryPersonalNote: one kept note, exactly as written, to one project where its owner is an active member. A person
+-- carries at most 2000 notes (those whose note was erased count too), so their carried notes are listed whole.
 CREATE FUNCTION sophia.carry_personal_note(p_key text, p_note uuid, p_project uuid, p_name text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('noteId',p_note,'projectId',p_project); prior jsonb;
  s sophia.personal_spaces; n sophia.personal_notes; release_id uuid:=gen_random_uuid();
- shown text:=left(coalesce(nullif(btrim(coalesce(p_name,'')),''),'A member'),320);
+ shown text:=left(coalesce(nullif(sophia.personal_trim(coalesce(p_name,'')),''),'A member'),320);
 BEGIN
  PERFORM sophia.personal_hold();
  prior:=sophia.personal_prior(p_key,'carry_note',semantic);
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  IF NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ IF (SELECT count(*) FROM sophia.personal_releases WHERE owner_id=a)>=2000 THEN
+  RAISE EXCEPTION 'Carried notes are full: one person carries at most 2000 notes' USING ERRCODE='54000'; END IF;
  s:=sophia.personal_touch();
  SELECT * INTO n FROM sophia.personal_notes WHERE owner_id=a AND id=p_note FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Note not found' USING ERRCODE='22023'; END IF;
@@ -411,7 +443,7 @@ BEGIN
 END $$;
 
 -- takeBackPersonalRelease: the owner takes a carried note back. The project's copy is deleted; the note returns to
--- the owner's notes (as a new note when the space was erased since).
+-- the owner's notes (as a new note when the space was erased since, which needs room for one: personal_note_room).
 CREATE FUNCTION sophia.take_back_personal_release(p_key text, p_release uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('releaseId',p_release); prior jsonb;
@@ -423,6 +455,7 @@ BEGIN
  SELECT * INTO r FROM sophia.personal_releases WHERE id=p_release AND owner_id=a;
  IF NOT FOUND THEN RAISE EXCEPTION 'Release not found' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=r.project_id FOR UPDATE;
+ IF r.note_id IS NULL THEN PERFORM sophia.personal_note_room(); END IF;
  s:=sophia.personal_touch();
  DELETE FROM sophia.personal_releases WHERE id=p_release AND owner_id=a;
  IF r.note_id IS NOT NULL THEN
@@ -440,11 +473,11 @@ END $$;
 -- Erasure.
 
 -- erasePersonalSpace: the conversation, suggestions and notes are deleted for good; releases stay where they were
--- carried. A request older than ten minutes is deleted: a client may retry a request with no answer only within two
--- minutes of its first attempt. One from the last ten minutes keeps only its key, so a late retry of it can't write
--- again: its operation reads 'redacted', and it is dated at the erasure. No record of when or how the
--- person wrote outlives the erasure; what stays is the space's revision (a version that never goes back), and this
--- erasure's own request and receipt (how many turns, notes and suggestions it deleted), for its own retries.
+-- carried. Every request keeps only its key, so a retry of any write from before, however late, can't write again: its
+-- operation reads 'redacted', and it is dated at the erasure. No record of when or how the person wrote outlives the
+-- erasure; what stays is a count and a version: the space's revision (it never goes back) and its turn order (the next
+-- turn comes after every earlier one, so a reader's cursor stays valid), and this erasure's own request and receipt
+-- (how many turns, notes and suggestions it deleted), for its own retries.
 CREATE FUNCTION sophia.erase_personal_space(p_key text, p_confirm text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('confirm',p_confirm); prior jsonb;
@@ -462,14 +495,17 @@ BEGIN
  GET DIAGNOSTICS suggestions=ROW_COUNT;
  DELETE FROM sophia.personal_turns WHERE owner_id=a;
  GET DIAGNOSTICS turns=ROW_COUNT;
- UPDATE sophia.personal_spaces SET turn_seq=0 WHERE owner_id=a;
- DELETE FROM sophia.personal_requests WHERE owner_id=a AND created_at<now()-interval '10 minutes';
  UPDATE sophia.personal_requests SET operation='redacted', semantic_request='{"redacted":true}', receipt='{}',
   created_at=now() WHERE owner_id=a;
  RETURN sophia.personal_remember(p_key,'erase',semantic,sophia.personal_receipt('erase',s.revision,
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;
 
+REVOKE ALL ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,text,text),
+ sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text),
+ sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
+ sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
+ sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,text,text),
  sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text),
  sophia.personal_reply_state(text,timestamptz),

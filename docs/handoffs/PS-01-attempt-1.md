@@ -17,8 +17,10 @@ What works, on the local dev stack with the rehearsal companion:
   - a suggestion let go is deleted;
   - a reply lost with the process answering it reads as failed after two minutes, and can be asked for again (`personal_reply_state`);
   - Sophia's welcome back after an hour of quiet.
-- **Erasure:** the conversation, suggestions and notes are deleted; requests older than ten minutes are deleted, and the rest keep only their key, dated at the erasure, so a late retry writes nothing; carried notes stay in their projects, still the person's.
-- **API:** the personal routes, the project list with who is in each room, readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept.
+- **Erasure:** the conversation, suggestions and notes are deleted; every request keeps only its key, dated at the erasure, so a retry from before writes nothing however late it comes; carried notes stay in their projects, still the person's. The space's revision and its turn order go on.
+- **Limits:** a space keeps at most 2000 notes and a person carries at most 2000 (each refused by its own code), so every one is listed; the lists are bounded as the contract says, and a project's carried notes list the reader's own first.
+- **Who may write:** only the API role can call the personal writers.
+- **API:** the personal routes, the project list with who is in each room, readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only.
 
 Missing or unverified:
 - **No live companion.** Sophia's answers in development are scripted. D1, the Companion agent on our runtime, is not built.
@@ -27,16 +29,17 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck and contracts check; unit tests: 435 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); database tests: 217 (`pnpm test:db`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck and contracts check; unit tests: 435 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); database tests: 225 (`pnpm test:db`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Reviews:**
   - Codex on #30's `8bf2acf`: one P1 and four P2, all fixed.
   - An independent review of #30's whole diff: its data findings are fixed here (a retry racing its first attempt, a suggestion let go, erasure's records).
   - A review of the fixes' design before they were written: erasure keeps only keys, dated at the erasure.
+  - An independent code review of this branch: one P1 (who may call the writers), four P2 (lists past the contract's bounds, erasure's keys, a date kept, the plan's claims) and six P3, all fixed, each with a test that failed before its fix; the API's were also undone once to see their tests fail. The fixes' design was reviewed before they were written.
 - Every logic fix has a database test that fails without it (a mutation check on each).
 
 ## Decisions and changes
 
-- **Kept data:** a suggestion the person lets go is deleted, not kept as declined. Erasure keeps the key of the last ten minutes' requests (a late retry needs it), the space's revision, and its own receipt.
+- **Kept data:** a suggestion the person lets go is deleted, not kept as declined. Erasure keeps the key of every request (a retry needs it, however late), the space's revision and turn order, and its own receipt; a forgotten note's keep keeps no digest of it.
 - **Open for Davide** (goal §6, PR #21):
   - D5;
   - the Companion on the runtime;

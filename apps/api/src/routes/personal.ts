@@ -47,10 +47,26 @@ const idParams = (name: string) =>
     required: [name],
   }) as const
 
+/**
+ * The ids a body names are canonical lowercase UUIDs, as the path's are: the contract's `format: uuid` also takes
+ * `urn:uuid:` and uppercase forms, which the database can't read (a 503 instead of the 422 they are).
+ */
+const BODY_IDS: Readonly<Record<string, readonly string[]>> = {
+  PersonalNoteRequest: ['fromTurnId', 'suggestionId'],
+  PersonalCarryRequest: ['projectId'],
+}
+
+const bodySchema = (body: string) => {
+  const ids = BODY_IDS[body]
+  if (!ids) return { $ref: `${body}#` }
+  const pattern = { type: 'string', pattern: UUID_PATTERN }
+  return { allOf: [{ $ref: `${body}#` }, { properties: Object.fromEntries(ids.map((id) => [id, pattern])) }] }
+}
+
 const writeSchema = (params: object | null, body: string | null) => ({
   ...(params ? { params } : {}),
   headers: idempotencyHeader,
-  ...(body ? { body: { $ref: `${body}#` } } : {}),
+  ...(body ? { body: bodySchema(body) } : {}),
   response: { 202: { $ref: 'PersonalReceipt#' } },
 })
 
@@ -91,7 +107,11 @@ function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
         response: { 200: { $ref: 'PersonalTurnPage#' } },
       },
     },
-    async (req) => withActor(pool, req.actorId, 'read', (c) => readPersonalTurnsAfter(c, Number(req.query.after))),
+    async (req) => {
+      const after = Number(req.query.after)
+      if (!Number.isSafeInteger(after)) throw new DomainError('invalid_request', 'after is beyond the largest turn')
+      return withActor(pool, req.actorId, 'read', (c) => readPersonalTurnsAfter(c, after))
+    },
   )
 
   app.get('/api/v1/personal/export', { schema: { response: { 200: { $ref: 'PersonalExport#' } } } }, async (req) => {

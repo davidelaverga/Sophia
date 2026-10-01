@@ -203,6 +203,67 @@ describe('personal routes', () => {
     // The database reads a wait as lost after two minutes (0021): longer than any answer may take.
     assert.ok(ANSWER_LIMIT_MS < 120_000)
   })
+
+  it('answer a malformed id or cursor with 422, never 503', async () => {
+    const urn = `urn:uuid:${randomUUID()}`
+    const note = await write('/api/v1/personal/notes', ANA, { text: 'Checked ids' })
+    const carry = await call(`/api/v1/personal/notes/${note.noteId ?? ''}/carry`, {
+      as: ANA,
+      body: { projectId: urn },
+      key: randomUUID(),
+    })
+    assert.equal(carry.status, 422, JSON.stringify(carry.json))
+    const keep = await call('/api/v1/personal/notes', {
+      as: ANA,
+      body: { text: 'From a turn', fromTurnId: urn },
+      key: randomUUID(),
+    })
+    assert.equal(keep.status, 422, JSON.stringify(keep.json))
+    assert.equal((await call('/api/v1/personal/turns?after=9999999999999999', { as: ANA })).status, 422)
+    assert.equal((await call('/api/v1/personal/turns?after=9007199254740991', { as: ANA })).status, 200)
+  })
+})
+
+describe('a companion that fails', () => {
+  it('is logged by its name and code, never by the words it carries', async () => {
+    const LOG = randomUUID()
+    const lines: string[] = []
+    const words = 'the person said something private'
+    const failing = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.reject(Object.assign(new Error(words), { code: 'E_MODEL' })),
+      greet: () => Promise.reject(new Error(words)),
+    }
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const loud = buildApp({
+      pool,
+      verifyActor,
+      companion: failing,
+      logger: { stream: { write: (line: string) => lines.push(line) } },
+    })
+    await loud.listen({ port: 0, host: '127.0.0.1' })
+    const at = `http://127.0.0.1:${String((loud.server.address() as AddressInfo).port)}`
+    try {
+      const sent = await call('/api/v1/personal/turns', { as: LOG, body: { text: 'Hello' }, key: randomUUID(), at })
+      assert.equal(sent.status, 202)
+      for (let i = 0; i < 50 && !lines.some((l) => l.includes('companion')); i++) {
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      }
+      await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [LOG])
+      const greeted = await call('/api/v1/personal/resume', { as: LOG, body: {}, key: randomUUID(), at })
+      assert.equal(greeted.status, 503)
+      assert.ok(
+        lines.some((l) => l.includes('E_MODEL')),
+        'the failure is logged, by its code',
+      )
+      assert.ok(
+        lines.every((l) => !l.includes(words)),
+        lines.join('\n'),
+      )
+    } finally {
+      await loud.close()
+    }
+  })
 })
 
 // Last: it takes part of the personal space out of the database.

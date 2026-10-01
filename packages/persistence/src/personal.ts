@@ -63,6 +63,13 @@ async function readRevision(c: pg.PoolClient): Promise<number> {
   return rows[0] ? Number(rows[0].revision) : 1
 }
 
+/**
+ * How many notes and carried notes a read lists (A10's maxItems). The writes keep a space within them (0021: 2000 notes,
+ * 2000 carried per person), so these only stand guard: the newest are listed, in their order.
+ */
+export const PERSONAL_NOTE_LIMIT = 2000
+export const PERSONAL_RELEASE_LIMIT = 2000
+
 async function readNotes(c: pg.PoolClient): Promise<PersonalNote[]> {
   const { rows } = await c.query<{
     id: string
@@ -71,8 +78,10 @@ async function readNotes(c: pg.PoolClient): Promise<PersonalNote[]> {
     from_turn: string | null
     created_at: Date
   }>(
-    `SELECT id, body, kept_by, from_turn, created_at FROM sophia.personal_notes
-      WHERE owner_id = sophia.actor_id() AND state = 'kept' ORDER BY created_at, id`,
+    `SELECT * FROM (SELECT id, body, kept_by, from_turn, created_at FROM sophia.personal_notes
+      WHERE owner_id = sophia.actor_id() AND state = 'kept' ORDER BY created_at DESC, id DESC LIMIT $1) newest
+      ORDER BY created_at, id`,
+    [PERSONAL_NOTE_LIMIT],
   )
   return rows.map((r) => ({
     id: r.id,
@@ -93,9 +102,11 @@ async function readReleases(c: pg.PoolClient): Promise<PersonalRelease[]> {
     body: string
     created_at: Date
   }>(
-    `SELECT r.id, r.note_id, r.project_id, p.title, r.body, r.created_at
+    `SELECT * FROM (SELECT r.id, r.note_id, r.project_id, p.title, r.body, r.created_at
        FROM sophia.personal_releases r LEFT JOIN sophia.projects p ON p.id = r.project_id
-      WHERE r.owner_id = sophia.actor_id() ORDER BY r.created_at, r.id`,
+      WHERE r.owner_id = sophia.actor_id() ORDER BY r.created_at DESC, r.id DESC LIMIT $1) newest
+      ORDER BY created_at, id`,
+    [PERSONAL_RELEASE_LIMIT],
   )
   return rows.map((r) => ({
     id: r.id,
