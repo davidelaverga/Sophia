@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `test/room-token-lifetime` from main `860a01a`, 2026-10-01; first commit `80bc5b6`.
-- **End:** the PR's head when merged (#36); this file arrives in its last commit. Changed: `apps/api/src/rooms.db.test.ts` and this file.
+- **End:** the PR's head when merged (#36); this file arrives in its last commit. Changed: `apps/api/src/rooms.db.test.ts`, `docs/SOURCE_MAP.md` and this file.
 - **Writable scope:** this repository. **No hosted service was changed.**
 
 ## Outcome
@@ -27,6 +27,7 @@ Missing or unverified:
 
 - A tolerance of one second, not a mocked clock: the token is issued through the API over HTTP, and the two clock reads are inside the SDK.
 - No other test measures a token's lifetime (searched for `nbf` and `ROOM_TOKEN_TTL_SECONDS` in every test).
+- The SDK file the tolerance rests on is recorded in `docs/SOURCE_MAP.md` (§2a, `livekit-server-sdk`: `dist/AccessToken.js` with its SHA-256), so the reason can be checked again when the SDK changes (Codex's review).
 
 ## Remaining obligations
 
