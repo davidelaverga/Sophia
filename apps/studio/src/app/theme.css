@@ -3016,12 +3016,21 @@ div.empty {
 .side-panel-head > .round:hover {
   background: rgba(236, 235, 241, 0.06);
 }
-/* The call's switches in the head, only where the panel covers the room (see the phone block below): a live
-   microphone, camera or shared screen stays in sight with its off switch. Beside the room the dock shows them. */
+/* The panel's top: its head, then (where the panel covers the room) the call's switches and the note. Someone at the
+   door is shown under it there (--panel-top), never over the tabs or Close. */
+.side-panel-top {
+  flex: none;
+}
+/* The call's switches, a row of their own under the head, only where the panel covers the room (see the phone block
+   below): a live microphone, camera or shared screen stays in sight with its off switch, and the row wraps rather
+   than push Close off a phone's screen. Beside the room the dock shows them. */
 .side-panel-call {
   display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  margin-left: auto;
+  padding: 8px calc(var(--panel-pad) - 4px) 0 var(--panel-pad);
 }
 /* What stopped a device, or why the call ended, said under the head too where the panel covers the dock that says it
    (for the eye: the dock's own note is the one announced). */
@@ -3239,9 +3248,13 @@ div.empty {
   .chat-show-room {
     display: inline-block;
   }
-  /* Someone at the door is let in from over the panel, not after closing it. */
+  /* Someone at the door is let in from over the panel, not after closing it: under the panel's top, so the tabs,
+     Close and the call's switches stay in reach. */
   .shell:has(.side-panel:not([hidden])) .lobby {
+    top: calc(var(--panel-top, var(--topbar)) + 8px);
+    left: var(--gutter);
     right: var(--gutter);
+    width: auto;
     z-index: 31;
   }
 }

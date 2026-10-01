@@ -73,11 +73,35 @@ function useEscFromNowhere(open: Panel | null, onOpen: (panel: Panel | null) => 
   }, [open, onOpen])
 }
 
+/**
+ * Where the panel's top (its head, the call's switches, the note) ends on screen, as --panel-top on the shell: where
+ * the panel covers the room, someone at the door is shown under it, never over the tabs or Close.
+ */
+function usePanelTop(open: Panel | null, top: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = top.current
+    const shell = el?.closest<HTMLElement>('.shell')
+    if (!open || !el || !shell) return undefined
+    const set = () =>
+      shell.style.setProperty('--panel-top', `${String(Math.ceil(el.getBoundingClientRect().bottom))}px`)
+    const observer = new ResizeObserver(set)
+    observer.observe(el)
+    window.addEventListener('resize', set)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', set)
+      shell.style.removeProperty('--panel-top')
+    }
+  }, [open, top])
+}
+
 export function SidePanel({ open, opener, onOpen, chat, brief, call, note }: PanelProps) {
   const body: Record<Panel, ReactNode> = { chat, brief }
   const panel = useRef<HTMLElement>(null)
+  const top = useRef<HTMLDivElement>(null)
   usePanelFocus(open, opener, panel)
   useEscFromNowhere(open, onOpen)
+  usePanelTop(open, top)
   return (
     <aside
       ref={panel}
@@ -92,13 +116,17 @@ export function SidePanel({ open, opener, onOpen, chat, brief, call, note }: Pan
         onOpen(null)
       }}
     >
-      <PanelHead open={open} onOpen={onOpen} call={call} />
-      {/* For the eye only: the dock's own note, still in the accessibility tree under the panel, is the one announced. */}
-      {note && (
-        <p className="side-panel-note" aria-hidden>
-          {note}
-        </p>
-      )}
+      <div ref={top} className="side-panel-top">
+        <PanelHead open={open} onOpen={onOpen} />
+        {/* Its own row, which wraps: the head keeps its tabs and Close whatever is on (a phone's 390 px). */}
+        <div className="side-panel-call">{call}</div>
+        {/* For the eye only: the dock's own note, still in the accessibility tree under the panel, is announced. */}
+        {note && (
+          <p className="side-panel-note" aria-hidden>
+            {note}
+          </p>
+        )}
+      </div>
       {PANELS.map((p) => (
         <div
           key={p}
@@ -116,7 +144,7 @@ export function SidePanel({ open, opener, onOpen, chat, brief, call, note }: Pan
 }
 
 /** The panel's tabs (arrow keys move between them) and its Close. */
-function PanelHead({ open, onOpen, call }: Pick<PanelProps, 'open' | 'onOpen' | 'call'>) {
+function PanelHead({ open, onOpen }: Pick<PanelProps, 'open' | 'onOpen'>) {
   const tabs = useRef(new Map<Panel, HTMLButtonElement>())
   const onTabKey = (e: React.KeyboardEvent) => {
     const next = open ? nextInRow(PANELS, open, e.key) : null
@@ -146,7 +174,6 @@ function PanelHead({ open, onOpen, call }: Pick<PanelProps, 'open' | 'onOpen' | 
           </button>
         ))}
       </div>
-      <div className="side-panel-call">{call}</div>
       <button type="button" className="round has-tip" aria-label="Close" onClick={() => onOpen(null)}>
         <Icon name="close" />
         <Tip label="Close" keys="Esc" side="bottom" align="end" />

@@ -238,12 +238,13 @@ when you change the room:
   rewrites the microphone choice the person made (`silence` in
   `useProjectRoom`), so the next join is as they left it.
 - **The call's switches follow the panel.** Where the panel covers the room
-  (up to 760 px wide), its head shows the microphone, and the camera and the
+  (up to 760 px wide), a row under its head shows the microphone, and the camera and the
   shared screen while they are on (`CallSwitches` in `StudioShell`, the
   dock's own `Toggle`). Someone reading the chat on a phone must not have to
   close it to see that they are heard, or to mute. Beside the room the dock
-  already shows them, so the head does not repeat it. The head also shows
-  text mode, and what Sophia is looking at. Under the head the panel says what
+  already shows them, so the head does not repeat it. The row also shows
+  text mode, and what Sophia is looking at, and it wraps: the head keeps its
+  tabs and Close on a 390 px phone with everything on. Under the head the panel says what
   the covered dock would: what stopped a device, or, while Brief is in view,
   why the call ended (`panelNote`, with tests). These copies are for the eye
   (`aria-hidden`): the dock, still in the accessibility tree under the panel,
@@ -286,8 +287,9 @@ when you change the room:
   with a camera on at a phone's width. On a phone the lobby card (someone at
   the door) goes under the corner, never over it. With the panel open, the
   lobby card sits beside it on a wide screen (its tabs and Close stay in
-  reach) and over it on a phone, where someone at the door would otherwise
-  wait until the chat was closed.
+  reach), and over it on a phone, where someone at the door would otherwise
+  wait until the chat was closed: under the panel's top (`--panel-top`,
+  measured in `SidePanel`), never over its tabs, Close or switches.
 - **On screen is `onScreen`** (`shortcuts.ts`, with tests), not
   `checkVisibility` alone: Safari before 17.4 doesn't have it, the build
   targets Safari 16.4, and calling it threw on every key.
