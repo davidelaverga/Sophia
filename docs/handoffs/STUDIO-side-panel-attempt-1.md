@@ -27,8 +27,8 @@ Missing or unverified:
 ## Evidence
 
 - **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (176 pass) and the Studio build. CI was green on every pushed head.
-- **Room suites** (local dev stack, synthetic identities): chat entry (16), modes, panel alignment (44), corner (35, in a call, at 17 widths), video corner (6), keys, waits, room endings, sending, screen, safety and guest. They passed on `studio/combined-23-24-28`. The latest fixes were rechecked on 2026-10-01 with keys, sending, chat entry and modes, with this branch's files served on the stack.
-- **Reviews:** Codex, in four rounds, and Davide's CX-0017. Every finding was fixed with a regression test that fails without its fix (a mutation check). Davide reproduced the focus finding and verified its fix independently.
+- **Room suites** (local dev stack, synthetic identities): chat entry (16), modes, panel alignment (44), corner (35, in a call, at 17 widths), video corner (6), keys, waits, room endings, sending, screen, safety and guest. They passed on `studio/combined-23-24-28`. The latest fixes were rechecked on 2026-09-30 with keys, sending, chat entry and modes, with this branch's files served on the stack.
+- **Reviews:** Codex, in four rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The last one, the panel's device note, is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
 - **Browser checks of the last rounds:**
   - the Chat tab takes the focus, and Space starts nothing;
   - a project loaded with three entries and Chat closed reads "Chat", not "Chat, something new";
