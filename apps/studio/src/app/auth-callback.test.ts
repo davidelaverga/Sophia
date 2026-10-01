@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { LINK_FAILED, linkDecision, readAuthCallback, tokenSubject, withoutAuthParams } from './auth-callback.ts'
+import {
+  accountOf,
+  LINK_FAILED,
+  linkDecision,
+  otherAccountBack,
+  providerCheckPassed,
+  readAuthCallback,
+  tokenSession,
+  tokenSubject,
+  withoutAuthParams,
+} from './auth-callback.ts'
 
 const STUDIO = 'https://sophia-studio.vercel.app'
 
@@ -54,6 +64,14 @@ describe('a link that carries a session', () => {
     }
   })
 
+  it('keys what the device keeps for someone by their account, which an email change keeps', () => {
+    const before = { name: 'ana@sophia.test', token: token({ sub: 'a1b2', email: 'ana@sophia.test' }) }
+    const after = { name: 'ana.new@sophia.test', token: token({ sub: 'a1b2', email: 'ana.new@sophia.test' }) }
+    assert.equal(accountOf(before), 'a1b2')
+    assert.equal(accountOf(after), accountOf(before))
+    assert.equal(accountOf({ name: 'Luis', token: 'not-a-token' }), 'Luis')
+  })
+
   it('never replaces another account signed in here, and never one it cannot read', () => {
     assert.equal(linkDecision('ana', 'ben'), 'refuse')
     assert.equal(linkDecision('ana', null), 'refuse')
@@ -63,5 +81,39 @@ describe('a link that carries a session', () => {
   it('asks first where nobody is signed in (or only a guest’s anonymous session)', () => {
     assert.equal(linkDecision(null, 'ben'), 'ask')
     assert.equal(linkDecision(null, null), 'ask')
+  })
+})
+
+describe('the padlock’s check with a provider, across the redirect', () => {
+  const AT = Date.parse('2026-09-30T20:00:00Z')
+  const left = { user: 'ana', session: 's1', at: AT }
+
+  it('reads which sign-in a token belongs to', () => {
+    assert.equal(tokenSession(token({ sub: 'ana', session_id: 's1' })), 's1')
+    assert.equal(tokenSession(token({ sub: 'ana' })), null)
+  })
+
+  it('passes when the same account comes back from a new sign-in, in time', () => {
+    assert.equal(providerCheckPassed(left, { user: 'ana', session: 's2' }, AT + 60_000), true)
+  })
+
+  it('fails on coming back with Back or Cancel: the sign-in it left with proves nothing', () => {
+    assert.equal(providerCheckPassed(left, { user: 'ana', session: 's1' }, AT + 60_000), false)
+    assert.equal(providerCheckPassed(left, { user: 'ana', session: null }, AT + 60_000), false)
+  })
+
+  it('knows another account back from the one that left, and nothing else as one', () => {
+    assert.equal(otherAccountBack(left, 'ben'), true)
+    assert.equal(otherAccountBack(left, 'ana'), false)
+    assert.equal(otherAccountBack(left, null), false)
+    for (const none of [null, 'x', { ...left, user: '' }]) assert.equal(otherAccountBack(none, 'ben'), false)
+  })
+
+  it('fails for another account, late, or a check that is not one', () => {
+    assert.equal(providerCheckPassed(left, { user: 'ben', session: 's2' }, AT + 60_000), false)
+    assert.equal(providerCheckPassed(left, { user: 'ana', session: 's2' }, AT + 11 * 60_000), false)
+    for (const bad of [null, 'x', { user: 'ana', at: AT }, { ...left, session: '' }, { ...left, user: '' }]) {
+      assert.equal(providerCheckPassed(bad, { user: 'ana', session: 's2' }, AT + 60_000), false)
+    }
   })
 })

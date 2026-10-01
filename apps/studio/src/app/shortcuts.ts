@@ -11,7 +11,7 @@
 // next must not close the panel with its first C. Space stays the control's, to press it. Before the chat starts, the
 // foot is the "Chat with Sophia" button: it takes the key as nothing, and still no camera, microphone or shared screen
 // starts.
-import { useEffect, useRef } from 'react'
+import { createContext, useContext, useEffect, useRef } from 'react'
 
 export interface KeyLike {
   key: string
@@ -85,10 +85,30 @@ export function onScreen(el: { getClientRects: () => ArrayLike<unknown>; checkVi
   return typeof el.checkVisibility === 'function' ? el.checkVisibility() : el.getClientRects().length > 0
 }
 
-/** Where stray typing goes: the chat's foot, when it is on screen and the key is stray (strayFrom). */
+/**
+ * A modal sheet is on screen: the page behind it takes no keys and no stray typing, wherever the focus is (it can fall
+ * to the page while a sheet is open). A sheet left open in a project kept out of sight is not on screen.
+ */
+export function modalOnScreen(): boolean {
+  return [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')].some((el) => onScreen(el))
+}
+
+type Field = Parameters<typeof onScreen>[0] & { closest: (selector: string) => unknown }
+
+/**
+ * The field that takes stray typing: the first on screen, never one out of sight (a project kept running for its call
+ * has its own) or behind something the page made inert (the notes covering the conversation on a narrow screen).
+ */
+export function typingSink<T extends Field>(fields: Iterable<T>): T | null {
+  for (const field of fields) if (onScreen(field) && !field.closest('[inert]')) return field
+  return null
+}
+
+/** Where stray typing goes: the chat's foot on screen (typingSink), when the key is stray (strayFrom). */
 function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
-  const field = document.querySelector<HTMLElement>('[data-typing-sink]')
-  return field && onScreen(field) && strayFrom(focusAt(target, field), key) ? field : null
+  if (modalOnScreen()) return null
+  const field = typingSink(document.querySelectorAll<HTMLElement>('[data-typing-sink]'))
+  return field && strayFrom(focusAt(target, field), key) ? field : null
 }
 
 function keyLike(e: KeyboardEvent): KeyLike {
@@ -103,19 +123,27 @@ function keyLike(e: KeyboardEvent): KeyLike {
     repeat: e.repeat,
     defaultPrevented: e.defaultPrevented,
     typing: !!el && (el.isContentEditable || FIELDS.has(el.tagName)),
-    inDialog: !!el?.closest('[role="dialog"]'),
+    inDialog: !!el?.closest('[role="dialog"]') || modalOnScreen(),
     stray: !!strayField(el, e.key),
   }
 }
 
+/**
+ * Shortcuts inside this scope act only while it is true. A project kept running out of sight (its call goes on while
+ * the person is at home) must not take their keys: nothing changes where nobody can see it.
+ */
+export const ShortcutScope = createContext(true)
+
 /** Bind keys to actions while `enabled`; the latest actions are always used without re-subscribing. */
 export function useShortcuts(bindings: Readonly<Record<string, (() => void) | undefined>>, enabled = true): void {
+  const scoped = useContext(ShortcutScope)
+  const on = enabled && scoped
   const current = useRef(bindings)
   useEffect(() => {
     current.current = bindings
   })
   useEffect(() => {
-    if (!enabled) return undefined
+    if (!on) return undefined
     const onKey = (e: KeyboardEvent) => {
       // Stray typing: the character lands in the field, because the focus moves there before it is typed. A button
       // in the field's place takes no character, and is not focused (a space would press it).
@@ -129,5 +157,5 @@ export function useShortcuts(bindings: Readonly<Record<string, (() => void) | un
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [enabled])
+  }, [on])
 }

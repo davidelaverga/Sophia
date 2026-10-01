@@ -9,8 +9,7 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
-import { TextMode, Toggle } from '../voice/RoomDock.tsx'
-import { roomKey } from '../voice/room-keys.ts'
+import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -79,57 +78,29 @@ function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
   return merged
 }
 
-/** After a switch that goes away when pressed, the focus stays in the head, on its microphone. */
-const focusHeadMicrophone = () =>
-  requestAnimationFrame(() =>
-    document.querySelector<HTMLElement>('.side-panel-call [aria-label="Microphone"]')?.focus({ preventScroll: true }),
-  )
-
 /**
- * The call's switches for the panel's head: the microphone while in the call, the camera and the screen while they
- * are on, text mode while it is on, and what Sophia is looking at. Each switch is the dock's own, so it says the same
- * and does the same. The head shows them only where the panel covers the dock (760 px and below), so the icon and its
- * pressed state carry the meaning, as in the dock on a phone. The looking line is for the eye: the dock's own is the
- * one announced.
+ * The call's switches for the panel's head, while in the call: what Sophia is looking at, then the dock's own switches
+ * (CallSwitches: the microphone, text mode while it holds, the camera and the screen while they are on; no Leave,
+ * which the dock keeps). The head shows them only where the panel covers the dock (760 px and below), so the icon and
+ * its pressed state carry the meaning, as in the dock on a phone. The looking line is for the eye: the dock's own is
+ * the one announced.
  */
-function CallSwitches({ room, looking }: { room: ProjectRoom; looking: string | null }) {
+function PanelCallSwitches({ room, looking }: { room: ProjectRoom; looking: string | null }) {
   const me = room.participants.find((p) => p.local)
   if (!me) return null
   return (
     <>
       <LookingIndicator text={looking} quiet />
-      <Toggle
-        on={me.micOn}
-        label="Microphone"
-        keys={roomKey('microphone')}
-        icons={['mic', 'micOff']}
-        onToggle={() => void room.setMicrophone(!me.micOn)}
+      <CallSwitches
+        sending={sendingOf(me)}
+        controls={{
+          setMicrophone: (on) => void room.setMicrophone(on),
+          setCamera: (on) => void room.setCamera(on),
+          setScreenShare: (on) => void room.setScreenShare(on),
+        }}
+        textMode={{ on: room.textMode, onVoice: () => void room.setTextMode(false) }}
+        keys
       />
-      <TextMode room={room} />
-      {me.cameraOn && (
-        <Toggle
-          on
-          label="Camera"
-          keys={roomKey('camera')}
-          icons={['camera', 'cameraOff']}
-          onToggle={() => {
-            void room.setCamera(false)
-            focusHeadMicrophone()
-          }}
-        />
-      )}
-      {me.screenOn && (
-        <Toggle
-          on
-          label="Stop sharing"
-          keys={roomKey('screen')}
-          icons={['screen', 'screen']}
-          onToggle={() => {
-            void room.setScreenShare(false)
-            focusHeadMicrophone()
-          }}
-        />
-      )}
     </>
   )
 }
@@ -183,7 +154,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
           />
         }
         brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
-        call={<CallSwitches room={room} looking={looking} />}
+        call={<PanelCallSwitches room={room} looking={looking} />}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
     </div>

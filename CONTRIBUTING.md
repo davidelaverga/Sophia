@@ -60,7 +60,9 @@ writing a new one, and keep the rule when you change the code around it.
   `<Tip label keys side align />` from `@sophia/ui`. Tips are `aria-hidden`,
   so when visible text moves into a tip, keep it for assistive technology:
   `aria-describedby` on the group (`LensSwitcher`), or the full sentence as
-  the `aria-label` of a short button (the notes consent's "Agree"). The key
+  the `aria-label` of a short button (the notes consent's "Agree"). A control
+  whose press changes with its state is named for what it does now (the
+  padlock: lock, or unlock), never pressed or not. The key
   lives in the tip, never as a hidden element inside the control: a child
   that cannot be seen still takes its room and pushes the label off center.
 - **A disabled primary waits as an outline** (`.pill.primary:disabled` in
@@ -82,7 +84,7 @@ writing a new one, and keep the rule when you change the code around it.
   by the same numbers. Keep the two in step.
 - **Alignment is measured.** A label sits at the center of its control.
   Things that belong together share a line: the room's blocks one center
-  axis, the Work view's two heads one rule and one baseline. Check them as
+  axis, the Tasks view's two heads one rule and one baseline. Check them as
   numbers (label center minus control center, the y of each rule) at desktop
   and phone widths, and look first for children that cannot be seen and
   still take room.
@@ -110,15 +112,43 @@ writing a new one, and keep the rule when you change the code around it.
   seconds adds one line (`useSlow`, `SLOW_NOTE`): under Creating…, on
   "Opening the room…" (`SlowNote`), and over a project that is slow to open
   (`.wait-note`, where the lobby floats; on a phone over the lenses, which
-  have nothing to change yet). A hosted API that sat idle can take close to
-  a minute to answer; without the line, that minute looks broken.
-- **Going home from a call says so first.** Home ends the call (the room
-  lives in the project's page). While in the call its name and tip read
-  "Home: you leave the room".
+  have nothing to change yet), and over a place whose read is slow
+  (`ReadNotes`). A hosted API that sat idle can take close to a minute to
+  answer; without the line, that minute looks broken.
+- **One bar.** The places' bar and a project's are the same `.topbar` (48 px,
+  `--gutter`): the mark goes home (H) and never moves between the two, and the
+  account is one control at the end of both (`AccountMenu`: who is signed in,
+  your data, how privacy works, passkeys, Sign out). In a project, Work
+  between the mark and the name goes back to the projects (W).
+- **A task that takes the whole attention is a sheet** (`app/Sheet.tsx`: the
+  Studio's side panel, modal through `useDialog`, closed with Esc, Close or
+  the veil). There are no centered dialogs. One sheet at a time: a sheet that
+  needs another (your data asking to unlock) closes and comes back after.
+- **A menu or a popover closes itself** (`usePopover`): a press anywhere
+  outside it, or Esc inside it, which gives the focus back to its control.
+  It listens for `pointerdown`, so the click that opened it from elsewhere
+  can't close it.
+- **A result out of sight is a toast** (`app/Toast.tsx`, one for the whole
+  app, above the floor). Say a result where it happened when that place stays
+  on screen (the lobby's "Declined … · Let in instead"); when it doesn't (a
+  note carried away, the padlock shut, a call that ended out of sight), the
+  toast says it, one at a time, with Undo when it can be undone. Its words
+  come from a view module (`notice-view.ts`).
+- **Going home keeps the call.** The project whose room holds the call stays
+  mounted out of sight (`background`, taking no keys through `ShortcutScope`)
+  and reports the call upward (`onCall`); the places' bar shows the room with
+  the call's switches and Leave (`CallSwitches`). One call at a time: a call
+  starting in another project ends the one before (`useCall` in `App.tsx`),
+  and opening another project leaves it, the toast saying so
+  (`useOneCallInSight`): a project's bar has no room for another room's call,
+  and nothing may keep sending out of sight. The call's project stays on
+  screen, with its controls, until the call has left (`projectOnScreen`);
+  the other opens, and joins if asked, only then.
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
-  dock in the room, the mini dock from every other view (`Sending` in
-  `MiniDock`). Nothing keeps sending out of sight because the view changed.
+  dock in the room, and everywhere else the dock's own toggles
+  (`CallSwitches`: the chat panel's head, the mini dock, the places' bar).
+  Nothing keeps sending out of sight because the view changed.
 - **A guest is always marked as one** (`presenceRole`, `screenCaption` in
   `room-view.ts`, with tests). A visitor chooses their own name, so the word
   "guest" is what tells them from a member of the same name: it stays while
@@ -231,8 +261,9 @@ when you change the room:
   tests). The tips show the combination as the platform writes it. Keys that
   only change the view (C, B, 1 to 3, I) stay single letters.
 - **Text mode is said wherever it holds.** Typing to Sophia is text mode:
-  she is not heard and the microphone is off. The dock, the mini dock and the
-  panel's head say so (`TextMode` in `RoomDock`) and one press returns to
+  she is not heard and the microphone is off. The dock, the mini dock, the
+  panel's head and the places' bar say so (`TextMode` in `RoomDock`, beside
+  the microphone in `CallSwitches`) and one press returns to
   voice; so does turning the microphone on, once it did come on, also when
   text mode began while the browser was asking (`switchMicrophone` reads it
   then, with tests: a refused press keeps text mode and Sophia muted). Any end
@@ -254,8 +285,8 @@ when you change the room:
   `room-view.ts`, with tests).
 - **The call's switches follow the panel.** Where the panel covers the room
   (up to 760 px wide), a row under its head shows the microphone, and the camera and the
-  shared screen while they are on (`CallSwitches` in `StudioShell`, the
-  dock's own `Toggle`). Someone reading the chat on a phone must not have to
+  shared screen while they are on (`CallSwitches`, the dock's own
+  `Toggle`). Someone reading the chat on a phone must not have to
   close it to see that they are heard, or to mute. Beside the room the dock
   already shows them, so the head does not repeat it. The row also shows
   text mode, and what Sophia is looking at, and it wraps: the head keeps its
@@ -271,7 +302,8 @@ when you change the room:
   room", or two tabs take the call from each other with the same "You were
   disconnected" and nobody knows why. Taken out of the call and a closed room
   have their own sentence. The note shows in the dock, the mini dock and the
-  chat's foot.
+  chat's foot; where the room is out of sight (at home, in another place) the
+  toast says it (`callEnded` in `notice-view.ts`, with tests).
 - **Nothing offers to join before it can.** Until the project has loaded
   there is no room to join (`room.ready`): the room's line says "Opening the
   project…", and Join, J, the mini dock's Join and Chat with Sophia wait. A
@@ -425,6 +457,237 @@ either:
   them, a few at a time and within the list's time (`lookupAll`). Never by a
   room's count of participants: the server refreshes it every few seconds,
   and someone who just joined would read as nobody.
+
+## The three places
+
+Outside a project a person is in one of three places (`features/personal`,
+direction C of Luis's prototype, "Two doors"): home with its two doors, their
+personal space with Sophia (its data side is "The personal space" above), and
+their work. Keep these when you change them:
+
+- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`,
+  with tests), the same in every tab: one stored value per account (open,
+  shut by the person, shut by a call), read again whenever a tab comes back.
+  It is kept, as the draft is, by the account (`accountOf`), never by the
+  address, which can change.
+  The person shuts it (L, the padlock, the bar's chip), and so does every
+  call that begins, also one that moves to another project without a pause
+  (`onCallStart`); nothing else writes it but the person's own unlock, so
+  writes from any number of tabs leave it shut once a call shut it. A call's
+  end opens nothing: only the person opens it, after confirming it's them.
+  Where storage can't be read it starts shut. Every lock closes the notes and
+  drops what was read of the space, wherever the person is (`SignedIn`), and
+  any change of who is signed in clears the cache: nothing personal is
+  fetched, shown or kept in memory while it is shut. A place that can't be shown (a locked
+  personal space) takes its history entry's place, so Back goes on past it.
+  A copy of the space reads the padlock as stored when its export arrives,
+  and copies nothing once it shut or its sheet went; an export still paging
+  then stops at once (the page on its way too), asks for no page more and
+  lets what came go (`exportPersonalSpace`'s signal). Its pages are read
+  against the epoch the copy began in (one asked for after an erasure is
+  refused), and erasing from the sheet, or an epoch that moves, calls it off
+  too: nothing of an erased space reaches the clipboard. One copy goes at a
+  time (Copy waits, "Copying…"), so an erasure waits for the only clipboard
+  write there can be. Dictation stops when the
+  space goes out of sight, and a start still waiting for the device's
+  language is called off (`useDictation`): the microphone never turns on out
+  of sight. What it heard lands only while its composer is there: never
+  after signing out, an erasure or the padlock, so no words come back to
+  the device after its draft went. The focus goes with them to the field
+  once the field is back on screen (it gives way to the listening line).
+- **Unlocking checks the same person** (`app/reauth.ts`; `unlock-check.ts`,
+  with tests). A passkey or an email code is checked on a client of its own,
+  off the app's session, that stores and refreshes nothing;
+  the user it returns must be the one in the app's own token, and its
+  session is ended at once. A provider's check crosses a page load, so it
+  must come back as a new sign-in of the same account (on the app's own
+  client: it crosses a page load), and one that answers after a call began
+  opens nothing. It leaves for the provider only while its sheet is there
+  (`leaveFor`, with tests): closed meanwhile, the page stays; and only once
+  this tab has noted which sign-in left (a browser that keeps nothing for
+  the page is told to try another way). Back as
+  another account than the one that left, that sign-in ends here and
+  nobody is signed in (`refuseOtherAccount`, with tests): unlocking never
+  opens another account, not even for a moment. Its check stays until that
+  session is really gone, so a reload refuses it again; a sign-in or a
+  sign-out of the person's own forgets it (`forgetPendingUnlock`, with
+  tests), so it never refuses them later. Anyone else is
+  "another account"; a check that returns nobody never is. Only the network
+  has a deadline, each request on its own (20 s), never the passkey prompt:
+  a prompt the person closes leaves the sheet waiting. The passkey works
+  while the other ways load, and ways that failed or came late say so at
+  once, with Try again (`orLate`, with tests). In a call no provider is
+  offered, since signing in again leaves the page: the sheet says to leave
+  the call first. Another tab's unlock closes this tab's sheet and nothing
+  else: only the tab whose check passed goes where it was asked.
+- **A write that is refused reads the space again.** "That changed a moment
+  ago. This is how it is now" (`movedOn`, with tests) must be true: the space
+  is read again, so a second press or another tab's change shows. A write
+  that went through settles once what it changed can show: the space is
+  read again until a read works, less and less often while reads fail
+  (`readUntilRead`), and the Work list too when the write changed it (a
+  note carried or taken back); a message stays on its way until then. A write
+  with no answer is retried under its key only within two minutes of its
+  first attempt (`once`, with tests); later it is said as not confirmed, and
+  the space is read again. A message's words stay on this device until they
+  were sent, and come back to the field, ahead of anything typed meanwhile,
+  when the send failed ("Not sent") or got no answer ("Not confirmed: check
+  the conversation"), never when the space was erased (`request_erased`) or
+  the field went with a sign-out (`restoredDraft`, `unsent`, with tests).
+  The device keeps only the draft of the account signed in (`draftsOnlyOf`,
+  with tests): once the app knows who that is, anyone else's goes, and all
+  go once it knows nobody is (signed out here or in another tab, a session
+  that ended, also while the page was closed, a provider's return
+  refused). Signing out forgets them at once and again once it has
+  settled, also when it failed (`signOutForgetting`, with tests), so
+  nothing written meanwhile stays; erasing forgets the draft as soon as it is confirmed, before the space is
+  read afresh (`draft.ts`). One message is on its way at a time, from the
+  field or a way to start (`OnItsWay`), and from any tab of the device: a
+  send holds the browser's lock across tabs until it settles
+  (`oneAtATime`, with tests), and a tab's words on their way stay on the
+  device (`waitsFor`, with tests) and stay that tab's while it still sends
+  them, however long: another tab takes them back only once the browser
+  has let go of that tab's lock (`sendingNow`, with tests); nothing
+  rewrites them meanwhile. They go once sent, also when the field went
+  meanwhile. A way to start goes the same way, under its own
+  key, the field left as it is. The field waits meanwhile, so no tab's
+  words on their way are lost and they arrive in order. Every write but
+  erasure names the epoch of the space as this page last read it (`epochNow`: the space's when it is
+  shown, else the Work list's), and its retry names the same one, so
+  nothing sent before an erasure lands after it, nor anything a space shown
+  from before one writes, though the Work list may already name the newer
+  epoch. The field follows the one draft the device keeps:
+  another tab's change at once, and an erasure anywhere (it moves the epoch;
+  also one whose answer was lost) takes the words written before it. The
+  draft keeps the epoch it was written in (`draftIn`), so words from before
+  an erasure never come back, also when it happened on another device while
+  this one was locked; the field reads the draft only once the space's epoch
+  is known. Each version of the draft keeps the admission key it is sent
+  under (`Draft`), so the same draft sent from two tabs, or again from one
+  that hadn't heard it went, is one message; a message that settles leaves
+  the device's draft as it is then, without its words (`afterSent`), so
+  words another tab wrote meanwhile stay. Words on their way are kept apart
+  from the draft (`Kept`): no other tab shows them in its field or sends
+  them again, and what is typed after them is a message of its own; they
+  come back to the field only if the tab that sent them went away (its time
+  for them is up), said so; an open field takes them back when that time
+  comes. Words going out take only their own draft with them: another
+  tab's newer one stays. An erasure on another device reaches an open
+  tab within the Work list's next read (every 20 s) (`erasedElsewhere`).
+  After any erasure (from this page, confirmed or with its answer lost;
+  from another device; from another tab of this one, whose words are kept
+  in a newer epoch; or a write refused as erased, `refusedAsErased`)
+  everything read of the space goes at once, the turns waited for
+  included, and the space is read afresh (`readAfresh`): a read that fails
+  then says so, with Try again, and shows none of it. A read that fails says
+  so with Try again wherever what it reads is used (`ReadNotes`): each place,
+  the notes' carry menu (the projects) and Your data (the space's counts,
+  never bare dashes). A message on its way
+  shows only over the space of the epoch it was sent in. Until the space is read the
+  field goes by the epoch the Work list names, so a draft from before the
+  erasure leaves the field and the device at once (one written after it
+  stays). Waiting for a reply never stops
+  reading:
+  after failed reads, less and less often (`pollEvery`). The device never
+  keeps words in an older epoch than it already holds (`keptEpoch`), and a
+  tab whose space is behind the draft it shows reads the space afresh before
+  sending it. Every personal read takes its query's signal: the padlock
+  shutting stops the reads on their way (the space, the wait for a reply, a
+  page read back); the account leaving stops the Work list's and a page
+  read back, which a project opened over the places stops too. A long conversation reads back from the Earlier days menu
+  ("Show earlier days"); turns that leave the space's window as new ones
+  come stay with what was read, also while a page is on its way (it joins
+  what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
+  carries every turn, and an erasure waits for a copy's clipboard write to
+  settle, so nothing erased lands there after; while an erasure is under
+  way no copy starts (Copy waits, aria-disabled). Your data's days are the server's count, over the whole
+  conversation, in this device's time zone (UTC where the server doesn't
+  know it). While the padlock is shut the field is off the page and the
+  page keeps none of the space's words: neither a message on its way nor
+  what was read back, nor a page of it that arrives after (the device keeps
+  the draft). The conversation's days
+  follow the clock: past midnight, Today becomes Yesterday. "Join the room"
+  from Work asks to join on that opening only (`joinStands`, with tests):
+  leaving before the room could join drops it. Of several sessions about to
+  start, the soonest comes first, and is the one the Home door joins
+  (`workOrder`, with tests).
+- **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,
+  `data-view.ts` and `notice-view.ts` own the sentences that depend on what
+  the places read (door verbs, sessions, rooms, the introduction and when it
+  shows, days, topics, facts, the toasts), with tests; a fixed line may live
+  in its component. They promise only what is offered: unlocking asks the
+  person to confirm it's them, never for a passkey that may not exist. The side the person keeps to themselves is
+  their "personal space"; Personal is only the place's name.
+- **Nothing still loading looks empty** (`readState`, `ReadNotes`). A door
+  whose read hasn't come back only opens (no "Start talking", no "Start a
+  project"); the personal space offers no introduction, no ways to start and
+  no field to type in until it has loaded (it waits, disabled), no ways to
+  start where Sophia can't answer (the field says why), and its notes
+  say nothing and count nothing before; a slow read adds the Studio's wait
+  line and a failed one says so with Try again. In a private space, what looks empty
+  reads as deleted.
+- **The places are built from the Studio.** The layout is the prototype's
+  (direction C: the doors, the line with the padlock, the edges, the
+  conversation); the bar, buttons (`.pill`, `.ghost`, `.round`,
+  `.text-button`), fields (`.field`), the message bar, tips, sheets, the
+  toast and the account are the Studio's own, unchanged. `personal.css`
+  holds only the places' layout, scoped to `.places` with `ps-` keyframes; it
+  adds two tokens and redefines none. Compare a change side by side with the
+  artifact at the stage's size (1238 x 708) and on a phone before calling it
+  done.
+- **The call in the places' bar.** The bar shows the call kept out of sight
+  (`ProjectCall`): the room's own switches (`CallSwitches`), text mode, what
+  Sophia is looking at and what stopped a device. These are the copies a
+  screen reader hears (status and alert); the room's own are in the hidden
+  project. A call that ends out of sight says so in the toast (`callEnded`),
+  never that the space opened.
+- **Keys.** H, P and W go to the three places, D opens your data, L the
+  padlock, T the notes; Enter at home goes to the side used last and the
+  arrows pick a door; in a project, H and W work too. Every key is in a tip,
+  never drawn inside a control. Esc closes what opened last (`useEscape`),
+  then goes home; a sheet or a popover takes its own Esc first; in the
+  composer the first Esc only lets go of the field; the notes take Esc only
+  where they are on screen.
+- **Typing goes to the message bar.** The conversation column is the typing
+  scope (`data-typing-scope`): a letter typed with the focus nowhere, on the
+  conversation or on one of its controls goes into the message bar, the
+  first sink on screen and not inert (`typingSink`, with tests), so a
+  message's first L never locks the space. Where the notes cover the column
+  (860 px and narrower, the CSS's own width) it is inert. Arriving in
+  Personal puts the cursor in the field on a desktop, and the focus on the
+  conversation on touch, so no keyboard pops up uninvited.
+- **The focus is never dropped.** A control that goes away when pressed
+  hands the focus on (`focus.ts`: the conversation, Note this, the note's
+  Carry, the Notes toggle; in a sheet, its Close or the first control of
+  what replaced it), a sheet whose opener is gone gives it to the place
+  (`returnTo` in `useDialog`), and Undo hands it back where it was (`Toast`).
+  The days' menu gives it to the day chosen, and keeps it when the last page
+  read back takes its "Show earlier days" away.
+  A menu that opens a sheet hands the focus to its own button first; the
+  call's pill gives it to the bar's mark when it goes, however the call ends;
+  a lock from anywhere gives it to the bar's Personal switch. A press that
+  is being answered keeps the focus as it waits ("Sending…", "Checking…",
+  "Deleting…": `aria-disabled`, never `disabled`), and starts no second
+  write for the same thing (`presses.ts`: Keep and No thanks on a
+  suggestion, Ask again, Take back; Copy has its own wait): a second would
+  be refused as stale, and its notice would replace the first's, Undo and
+  all. A modal sheet on screen
+  takes every key and every stray letter (`modalOnScreen`); one left open in
+  a project out of sight takes none, and takes the focus again when the
+  project is back on screen. A screen reader hears Sophia writing and then
+  her reply (`heard`, with tests), never what was there when the space
+  loaded, nor earlier days read back.
+- **An answer never moves the person.** What comes back after a wait (an
+  answer, a slide, the voice heard) moves the focus only if the person left
+  it where the act did, or it was dropped (`focusLater`, with tests: Take
+  back, a note's carry, dictation); a control that appears in place of the
+  focused one takes it only from nobody (`focusIfDropped`: a refused note's
+  form). The conversation keeps its latest turn in sight as it grows while
+  the person reads at its end (also when they come back from another
+  place), and always as they send: whoever reads further up stays there. A
+  project made opens only while its form is in sight, and a provider's
+  check that passes late goes to Personal only while the person is still
+  where the return put them.
 
 ## The Studio's hosting headers
 

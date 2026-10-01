@@ -60,22 +60,74 @@ export function withoutAuthParams(href: string): string {
   return `${url.pathname}${url.search}`
 }
 
-/**
- * The account a token was issued to: the `sub` of its payload, read without verifying it. Enough to tell whether a
- * link would sign in as someone else; Supabase verifies the token itself when the session is set.
- */
-export function tokenSubject(accessToken: string): string | null {
+/** A text claim of a token's payload, read without verifying it; null when the token or the claim isn't one. */
+function tokenClaim(accessToken: string, name: string): string | null {
   const payload = accessToken.split('.')[1]
   if (!payload) return null
   try {
     const bytes = Uint8Array.from(atob(payload.replaceAll('-', '+').replaceAll('_', '/')), (c) => c.charCodeAt(0))
     const claims: unknown = JSON.parse(new TextDecoder().decode(bytes))
-    return typeof claims === 'object' && claims !== null && 'sub' in claims && typeof claims.sub === 'string'
-      ? claims.sub
-      : null
+    const value: unknown = typeof claims === 'object' && claims !== null ? Reflect.get(claims, name) : null
+    return typeof value === 'string' ? value : null
   } catch {
     return null
   }
+}
+
+/**
+ * The account a token was issued to: the `sub` of its payload. Enough to tell whether a link would sign in as someone
+ * else; Supabase verifies the token itself when the session is set.
+ */
+export const tokenSubject = (accessToken: string) => tokenClaim(accessToken, 'sub')
+
+/**
+ * Whose things on this device are (the padlock, the draft): the account signed in, its token's subject, which an email
+ * change keeps; its name only where the token carries none.
+ */
+export const accountOf = (identity: { name: string; token: string }) => tokenSubject(identity.token) ?? identity.name
+
+/** The sign-in a token belongs to (its `session_id`): every sign-in starts a new one, and a refresh keeps it. */
+export const tokenSession = (accessToken: string) => tokenClaim(accessToken, 'session_id')
+
+/** A check with a provider under way (the padlock, reauth.ts): the account and sign-in that left for it, and when. */
+export interface ProviderCheck {
+  user: string
+  session: string
+  at: number
+}
+
+/** How long a provider check may take before its return opens nothing. */
+const CHECK_FOR_MS = 10 * 60_000
+
+const isProviderCheck = (v: unknown): v is ProviderCheck =>
+  typeof v === 'object' &&
+  v !== null &&
+  'user' in v &&
+  typeof v.user === 'string' &&
+  'session' in v &&
+  typeof v.session === 'string' &&
+  'at' in v &&
+  typeof v.at === 'number'
+
+/**
+ * Whether the account a provider sent back is another than the one that left from this tab to unlock (`check`): its
+ * session is never adopted. With no check pending, or nobody back, nothing is refused.
+ */
+export function otherAccountBack(check: unknown, user: string | null): boolean {
+  return isProviderCheck(check) && check.user !== '' && user !== null && user !== check.user
+}
+
+/**
+ * Whether a check with a provider passed: the account that left for it came back from a new sign-in there, in time.
+ * Coming back with Back or Cancel keeps the sign-in it left with, and another account opens nothing.
+ */
+export function providerCheckPassed(
+  check: unknown,
+  back: { user: string | null; session: string | null },
+  now: number,
+): boolean {
+  if (!isProviderCheck(check) || check.user === '' || check.session === '') return false
+  return now - check.at <= CHECK_FOR_MS && back.user === check.user && !!back.session && back.session !== check.session
 }
 
 /**
@@ -95,6 +147,9 @@ export function linkDecision(here: string | null, incoming: string | null): Link
 
 export const OTHER_ACCOUNT_NOTICE =
   'That sign-in link is for a different account, so you are still signed in as before. To use the other account, sign out first, then open the link again.'
+
+export const UNLOCK_OTHER_ACCOUNT_NOTICE =
+  'That sign-in was a different account than the one whose personal space was locked, so nobody is signed in here now. Sign in again.'
 
 export const OTHER_BROWSER_NOTICE =
   'That sign-in link was opened in a different browser than the one that asked for it. Type the code from the email in that browser, or ask for a new link here.'

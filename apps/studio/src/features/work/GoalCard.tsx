@@ -8,7 +8,7 @@ interface Props {
   goal: Goal
   projectId: string
   identity: Identity
-  /** The Work view carries the controls, for editors and admins; the Goals view reads outcomes only. */
+  /** The Tasks view carries the controls, for editors and admins; the Goals view reads outcomes only. */
   controls?: boolean
 }
 
