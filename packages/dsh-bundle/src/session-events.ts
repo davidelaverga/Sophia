@@ -99,6 +99,10 @@ export interface JournalRecordMap {
   'sophia/route-refused': { attemptId: string; sessionId: string; requested: ExecutionIdentity['route']; reason: string }
   /** A model call refused because its allowance could not reserve it (SMC-M03 S4); audit only, like a route refusal. */
   'sophia/spend-refused': { attemptId: string; sessionId: string; reason: string }
+  /** A model call that cost more than it reserved, settled at its cost (M03-RF-0010); audit only. */
+  'sophia/spend-overrun': { attemptId: string; sessionId: string; reservationId: string; reservedUsd: number; costUsd: number }
+  /** The research attempt entered its finalize step (M03-RF-0011); audit only: a restart enters it again. */
+  'sophia/finalize': { attemptId: string; sessionId: string }
 }
 
 /** One journal line. */

@@ -15,18 +15,23 @@ const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 test('an archive packed with another OS byte is rewritten to the Unix one, and only that byte changes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sophia-gzip-'))
   try {
-    const unix = gzipSync(Buffer.from('package/dist/index.js'), { level: 9 })
-    assert.equal(unix[9], 3, 'Linux writes 3')
-    const mac = Buffer.from(unix)
-    mac[9] = 0x13
+    // The local zlib writes its own OS byte (3 on Linux, 19 on macOS, M03-RF-0008), so the canonical Unix archive is
+    // built explicitly: the same deflate stream with byte 9 set to 3.
+    const local = gzipSync(Buffer.from('package/dist/index.js'), { level: 9 })
+    const unix = Buffer.from(local)
+    unix[9] = 3
     const file = join(dir, 'bundle.tgz')
-    writeFileSync(file, mac)
-    normalizeGzipOs(file)
-    const after = readFileSync(file)
-    assert.equal(sha256(after), sha256(unix), 'the Mac-packed archive becomes the Linux one')
-    assert.deepEqual(gunzipSync(after), Buffer.from('package/dist/index.js'))
-    normalizeGzipOs(file)
-    assert.equal(sha256(readFileSync(file)), sha256(unix), 'idempotent')
+    for (const os of [0x13, 0x03, 0x00, 0x0b, local[9]]) {
+      const packed = Buffer.from(unix)
+      packed[9] = os
+      writeFileSync(file, packed)
+      normalizeGzipOs(file)
+      const after = readFileSync(file)
+      assert.equal(sha256(after), sha256(unix), `an archive packed with OS byte ${os} becomes the Unix one`)
+      assert.deepEqual(gunzipSync(after), Buffer.from('package/dist/index.js'))
+      normalizeGzipOs(file)
+      assert.equal(sha256(readFileSync(file)), sha256(unix), 'idempotent')
+    }
     writeFileSync(file, Buffer.from('not a gzip archive at all'))
     assert.throws(() => normalizeGzipOs(file), /not a deflate gzip archive/)
     const named = Buffer.from(unix)

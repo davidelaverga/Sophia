@@ -1638,3 +1638,195 @@ describe('research revocation (0028, T19)', () => {
     assert.deepEqual([only?.job, only?.state, only?.attempt], [receipt.taskId, 'running', 'running'])
   })
 })
+
+// --- 0029: spend bounds (M03-RF-0010, M03-RF-0011) ------------------------------------------------------------
+
+type At = Awaited<ReturnType<typeof started>>['at']
+const PROVIDER = { model: 'openai-research', search: 'tavily', read: 'jina' } as const
+
+interface Call {
+  callId: string
+  kind: 'model' | 'search' | 'read'
+  amountUsd: number
+  purpose?: 'call' | 'partial_result'
+  query?: string
+  targetRef?: string
+}
+
+const reserveAt = (w: World, at: At, call: Call) =>
+  service((c) =>
+    runtimeResearchReserve(c, w.who, {
+      ...at,
+      provider: PROVIDER[call.kind],
+      ...(call.kind === 'search' && !call.query ? { query: 'sandboxed renderers' } : {}),
+      ...call,
+    }),
+  )
+
+const settleAt = (
+  w: World,
+  at: At,
+  reservationId: string,
+  outcome: 'settled' | 'released' | 'uncertain',
+  costUsd?: number,
+) =>
+  service((c) =>
+    runtimeResearchSettle(c, w.who, { ...at, reservationId, outcome, ...(costUsd === undefined ? {} : { costUsd }) }),
+  )
+
+const allowanceOf = (w: World) =>
+  one<{ id: string; spent: number; reserved: number; overrun: number; reconciled: number; ref: string | null }>(
+    `SELECT id, spent_usd::float8 AS spent, reserved_usd::float8 AS reserved, overrun_usd::float8 AS overrun,
+      reconciled_overrun_usd::float8 AS reconciled, reconciliation_ref AS ref FROM sophia.research_allowances WHERE project_id=$1`,
+    [w.projectId],
+  )
+
+/** The finalize step of the world's one research task. */
+const finalizeOf = (w: World) =>
+  one<{ finalizing: boolean; calls: number }>(
+    `SELECT finalizing_at IS NOT NULL AS finalizing, finalize_calls AS calls FROM sophia.research_tasks WHERE project_id=$1`,
+    [w.projectId],
+  )
+
+describe('research spend bounds (0029)', () => {
+  it("keeps a settlement above its reservation as billed, records the overrun once and stops the allowance (Codex's reproduction)", async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const call = await reserveAt(w, at, { callId: 'm1', kind: 'model', amountUsd: 0.01 })
+    const settled = await settleAt(w, at, call.reservationId, 'settled', 6)
+    assert.deepEqual([settled.state, settled.settledUsd], ['settled', 6], 'the billed cost is kept, not clipped')
+    const row = await one<{ settled: number; overrun: number }>(
+      `SELECT settled_usd::float8 AS settled, overrun_usd::float8 AS overrun FROM sophia.research_reservations WHERE project_id=$1 AND id=$2`,
+      [w.projectId, call.reservationId],
+    )
+    assert.deepEqual(row, { settled: 6, overrun: 5.99 })
+    const replay = await settleAt(w, at, call.reservationId, 'settled', 6)
+    assert.equal(replay.settledUsd, 6)
+    const a = await allowanceOf(w)
+    assert.deepEqual([a.spent, a.overrun, a.reconciled], [6, 5.99, 0], 'counted once')
+    assert.equal(await codeOf(settleAt(w, at, call.reservationId, 'settled', 0.01)), 'invalid_state', 'never rewritten')
+    for (const [id, kind, extra] of [
+      ['m2', 'model', {}],
+      ['p1', 'model', { purpose: 'partial_result' }],
+      ['s1', 'search', {}],
+    ] as const) {
+      assert.equal(
+        await codeOf(reserveAt(w, at, { callId: id, kind, amountUsd: 0.01, ...extra })),
+        'research_limit_reached',
+        `${id} refused`,
+      )
+    }
+  })
+
+  it('records an oversized search, read and uncertain-then-settled call the same way', async () => {
+    const cases = [
+      { kind: 'search' as const, reserved: 0.01, billed: 0.016 },
+      { kind: 'read' as const, reserved: 0.02, billed: 0.05 },
+      { kind: 'model' as const, reserved: 0.2, billed: 0.35, uncertainFirst: true },
+    ]
+    for (const k of cases) {
+      const w = await world()
+      const { at } = await started(w, { urls: ['https://example.org/given'] })
+      const context = await service((c) => runtimeResearchContext(c, w.who, at))
+      assert.ok('urls' in context)
+      const call = await reserveAt(w, at, {
+        callId: 'c1',
+        kind: k.kind,
+        amountUsd: k.reserved,
+        ...(k.kind === 'read' ? { targetRef: context.urls[0]!.ref } : {}),
+      })
+      if (k.uncertainFirst) await settleAt(w, at, call.reservationId, 'uncertain')
+      await settleAt(w, at, call.reservationId, 'settled', k.billed)
+      const a = await allowanceOf(w)
+      assert.deepEqual(
+        [a.spent, Number(a.overrun.toFixed(6)), a.reserved],
+        [k.billed, Number((k.billed - k.reserved).toFixed(6)), 0],
+        k.kind,
+      )
+      assert.equal(
+        await codeOf(reserveAt(w, at, { callId: 'c2', kind: 'model', amountUsd: 0.01 })),
+        'research_limit_reached',
+        `${k.kind}: stopped`,
+      )
+    }
+  })
+
+  it('leaves a settlement within its reservation alone, and resumes an overrun allowance only on the owner’s reconciliation', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const within = await reserveAt(w, at, { callId: 'm1', kind: 'model', amountUsd: 0.3 })
+    await settleAt(w, at, within.reservationId, 'settled', 0.3)
+    assert.equal((await allowanceOf(w)).overrun, 0)
+    const over = await reserveAt(w, at, { callId: 'm2', kind: 'model', amountUsd: 0.1 })
+    await settleAt(w, at, over.reservationId, 'settled', 0.12)
+    assert.equal(
+      await codeOf(reserveAt(w, at, { callId: 'm3', kind: 'model', amountUsd: 0.1 })),
+      'research_limit_reached',
+    )
+    const { id } = await allowanceOf(w)
+    // Not the API's to run: reconciliation is the owner's.
+    assert.equal(
+      await codeOf(service((c) => c.query(`SELECT sophia.reconcile_research_overrun($1,$2,'r')`, [w.projectId, id]))),
+      'forbidden',
+    )
+    await assert.rejects(owner((c) => c.query(`SELECT sophia.reconcile_research_overrun($1,$2,'')`, [w.projectId, id])))
+    await owner((c) => c.query(`SELECT sophia.reconcile_research_overrun($1,$2,'OP-test')`, [w.projectId, id]))
+    await owner((c) => c.query(`SELECT sophia.reconcile_research_overrun($1,$2,'OP-again')`, [w.projectId, id]))
+    const a = await allowanceOf(w)
+    assert.deepEqual(
+      [a.spent, a.overrun, a.reconciled, a.ref],
+      [0.42, 0.02, 0.02, 'OP-test'],
+      'billed costs stay spent',
+    )
+    const next = await reserveAt(w, at, { callId: 'm3', kind: 'model', amountUsd: 0.1 })
+    assert.equal(next.state, 'reserved', 'reserving resumes within the cap')
+  })
+
+  it('refuses a partial-result call while an ordinary call of that size still fits', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    assert.equal(
+      await codeOf(reserveAt(w, at, { callId: 'p1', kind: 'model', amountUsd: 0.5, purpose: 'partial_result' })),
+      'invalid_request',
+    )
+    assert.deepEqual(await finalizeOf(w), { finalizing: false, calls: 0 })
+  })
+
+  it('enters the finalize step once the allowance is spent: no ordinary call after it, and four partial calls in all', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const big = await reserveAt(w, at, { callId: 'm1', kind: 'model', amountUsd: 4.5 })
+    assert.equal(
+      await codeOf(reserveAt(w, at, { callId: 'm2', kind: 'model', amountUsd: 0.1 })),
+      'research_limit_reached',
+    )
+    const p1 = await reserveAt(w, at, { callId: 'p1', kind: 'model', amountUsd: 0.1, purpose: 'partial_result' })
+    assert.deepEqual(await finalizeOf(w), { finalizing: true, calls: 1 })
+    const again = await reserveAt(w, at, { callId: 'p1', kind: 'model', amountUsd: 0.1, purpose: 'partial_result' })
+    assert.equal(again.reservationId, p1.reservationId, 'a replay is the same call')
+    assert.equal((await finalizeOf(w)).calls, 1, 'and is not counted again')
+    await settleAt(w, at, p1.reservationId, 'settled', 0.05)
+    // Money frees up (the big call never left), but the task is finalizing: no ordinary call, search or read.
+    await settleAt(w, at, big.reservationId, 'released')
+    for (const [id, kind] of [
+      ['m3', 'model'],
+      ['s1', 'search'],
+    ] as const) {
+      assert.equal(
+        await codeOf(reserveAt(w, at, { callId: id, kind, amountUsd: 0.01 })),
+        'research_limit_reached',
+        `${id} refused`,
+      )
+    }
+    for (const id of ['p2', 'p3', 'p4']) {
+      const p = await reserveAt(w, at, { callId: id, kind: 'model', amountUsd: 0.01, purpose: 'partial_result' })
+      await settleAt(w, at, p.reservationId, 'settled', 0.01)
+    }
+    assert.equal(
+      await codeOf(reserveAt(w, at, { callId: 'p5', kind: 'model', amountUsd: 0.01, purpose: 'partial_result' })),
+      'research_limit_reached',
+      'a fifth finalize call',
+    )
+    assert.deepEqual(await finalizeOf(w), { finalizing: true, calls: 4 })
+  })
+})

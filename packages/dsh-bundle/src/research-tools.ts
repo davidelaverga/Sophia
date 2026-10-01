@@ -19,7 +19,7 @@
 import { createHash } from 'node:crypto'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
-import { createQueryGuard, envelope, type EnvelopeInput, type RosterMember } from './source-containment.js'
+import { createQueryGuard, envelope, type EnvelopeInput, type GuardResult, type RosterMember } from './source-containment.js'
 import { checkReadTarget, type Resolver } from './source-eligibility.js'
 import { SourceError, type SourceErrorCode } from './source-errors.js'
 import type { JinaReader } from './source-jina.js'
@@ -66,15 +66,31 @@ export const JINA_USD_PER_MTOKEN = 0.05
 export const READ_BYTE_LIMIT = 262_144
 /** The most links one read keeps as `link:` refs. */
 export const READ_LINK_LIMIT = 200
-/** How much admitted input text the disclosure guard indexes per attempt. */
-const GUARD_TEXT_LIMIT = 1_048_576
+/** The most inputs admission accepts, and the most text one stored source holds (`source_texts`, in bytes). */
+export const MAX_INPUTS = 8
+export const SOURCE_TEXT_BYTES = 262_144
+/**
+ * How much private text the disclosure guard indexes per attempt: every admitted input and the version an amendment
+ * builds on, each in full. Admission bounds the inputs (eight, each at most 256 KiB of stored text) and a stored text
+ * never has more UTF-16 units than bytes, so this budget is never reached by what admission lets in (M03-RF-0009).
+ */
+export const GUARD_TEXT_LIMIT = (MAX_INPUTS + 1) * SOURCE_TEXT_BYTES
 
-/** What the bridge keeps per attempt: the roster, the inputs and their text, and what each stored source is. */
+type QueryGuard = (query: string) => GuardResult
+
+/** What the model is told when the private context could not all be checked: nothing is searched for this task. */
+const UNCHECKED =
+  'The private inputs could not all be checked, so no web search runs for this task. Work from the inputs, the ' +
+  'pages you already read and the URLs the person gave, and say so in the limitations.'
+
+/** What the bridge keeps per attempt: the roster, the inputs, the guard once built, and what each stored source is. */
 interface AttemptCache {
   roster: RosterMember[]
   inputs: Set<string>
-  texts: Map<string, string>
-  guardReady: boolean
+  /** The disclosure guard over the whole private context; null until it was built from every page of it. */
+  guard: QueryGuard | null
+  /** Why the guard could not index all of it; while set, no query leaves the host. */
+  unchecked: string | null
   kinds: Map<string, EnvelopeInput['kind']>
 }
 
@@ -164,7 +180,7 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
   const cacheOf = (session: ResearchSession): AttemptCache => {
     let cache = caches.get(session.attemptId)
     if (!cache) {
-      cache = { roster: [], inputs: new Set(), texts: new Map(), guardReady: false, kinds: new Map() }
+      cache = { roster: [], inputs: new Set(), guard: null, unchecked: null, kinds: new Map() }
       caches.set(session.attemptId, cache)
     }
     return cache
@@ -189,28 +205,48 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
     return reply
   }
 
-  /** The disclosure guard for this attempt: every admitted input's text (read once), and the roster. */
-  async function guardFor(session: ResearchSession, signal: AbortSignal) {
-    const cache = cacheOf(session)
-    if (!cache.guardReady) {
-      await overview(session, signal)
-      let budget = GUARD_TEXT_LIMIT
-      for (const sourceId of cache.inputs) {
-        let offset: number | null = 0
-        let body = ''
-        while (offset !== null && budget > 0) {
-          const page = await deps.client.researchContext({ ...ids(session), sourceId, offset }, signal)
-          if (!('text' in page)) break
-          body += page.text
-          budget -= page.text.length
-          offset = page.nextOffset
-        }
-        cache.texts.set(sourceId, body)
-      }
-      if (budget <= 0) deps.log(`research ${session.attemptId}: the disclosure guard indexed the first ${GUARD_TEXT_LIMIT} characters of its inputs`)
-      cache.guardReady = true
+  /**
+   * One stored source's whole text, page by page, or why it could not be read whole within `budget`: a reply that is
+   * not a page, a page that does not continue where the last one stopped, or more text than the budget.
+   */
+  async function wholeText(session: ResearchSession, sourceId: string, budget: number, signal: AbortSignal): Promise<string | { unchecked: string }> {
+    let body = ''
+    let offset: number | null = 0
+    while (offset !== null) {
+      const page = await deps.client.researchContext({ ...ids(session), sourceId, offset }, signal)
+      if (!('text' in page) || page.offset !== offset) return { unchecked: `source ${sourceId} did not page from ${offset}` }
+      if (page.nextOffset !== null && page.nextOffset <= offset) return { unchecked: `source ${sourceId} did not advance past ${offset}` }
+      body += page.text
+      if (body.length > budget) return { unchecked: `the private context is longer than the guard's ${GUARD_TEXT_LIMIT} characters` }
+      offset = page.nextOffset
     }
-    return createQueryGuard({ privateTexts: [...cache.texts.values()], roster: cache.roster })
+    return body
+  }
+
+  /**
+   * The disclosure guard for this attempt, built once from the whole private context (every admitted input and the
+   * version an amendment builds on, each read to its end) and the roster. When any of it could not be indexed, there
+   * is no guard and no query leaves the host: an unread private text cannot be checked, so it is never exported.
+   */
+  async function guardFor(session: ResearchSession, signal: AbortSignal): Promise<QueryGuard | null> {
+    const cache = cacheOf(session)
+    if (cache.guard || cache.unchecked) return cache.guard
+    const task = await overview(session, signal)
+    const privateIds = [...task.inputs.map((i) => i.sourceId), ...(task.base ? [task.base.sourceId] : [])]
+    const texts: string[] = []
+    let budget = GUARD_TEXT_LIMIT
+    for (const sourceId of privateIds) {
+      const text = await wholeText(session, sourceId, budget, signal)
+      if (typeof text !== 'string') {
+        cache.unchecked = text.unchecked
+        deps.log(`research ${session.attemptId}: no web search: the disclosure guard could not index ${text.unchecked}`)
+        return null
+      }
+      budget -= text.length
+      texts.push(text)
+    }
+    cache.guard = createQueryGuard({ privateTexts: texts, roster: cache.roster })
+    return cache.guard
   }
 
   /** A stored page in its envelope, with where the next one starts. */
@@ -224,6 +260,14 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
       ...meta,
       text: page.text,
     })
+  }
+
+  /**
+   * A call that cost more than it reserved is settled at what it cost (the service keeps the billed amount and stops
+   * the allowance until the overrun is reconciled, M03-RF-0010); the host says so in its log too.
+   */
+  function noteOverrun(session: ResearchSession, what: string, costUsd: number, reservedUsd: number) {
+    if (costUsd > reservedUsd) deps.log(`research ${session.attemptId}: the ${what} cost ${costUsd} USD, above the ${reservedUsd} USD it reserved`)
   }
 
   async function settle(session: ResearchSession, reservationId: string, outcome: 'settled' | 'released' | 'uncertain', costUsd?: number, usage?: Record<string, unknown>, providerRequestId?: string | null) {
@@ -263,8 +307,6 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
         if (args.sourceId === undefined) return asJson(taskView(await overview(session, exec.signal)))
         const page = await deps.client.researchContext({ ...ids(session), sourceId: args.sourceId, offset: args.offset ?? 0 }, exec.signal)
         if (!('text' in page)) throw new Error('The Sophia service answered a page request with the task.')
-        const cache = cacheOf(session)
-        if (cache.inputs.has(page.sourceId) && page.offset === 0 && !cache.guardReady) cache.texts.set(page.sourceId, page.text)
         return pageView(session, page)
       } catch (error) {
         if (error instanceof TransportError) return serviceProblem(error)
@@ -290,7 +332,9 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
       if (query.length === 0 || query.length > 400) return { code: 'bad_request', message: 'A query is 1 to 400 characters.' }
       let reservationId: string
       try {
-        const verdict = (await guardFor(session, exec.signal))(query)
+        const guard = await guardFor(session, exec.signal)
+        if (!guard) return { code: 'disclosure_unchecked', message: UNCHECKED }
+        const verdict = guard(query)
         if (!verdict.ok) return { code: verdict.code, reason: verdict.reason, message: 'Rephrase the query without private material.' }
         reservationId = (await deps.client.researchReserve({ ...ids(session), callId: callKeyOf(exec.callId), kind: 'search', provider: 'tavily', amountUsd: SEARCH_RESERVE_USD, query })).reservationId
       } catch (error) {
@@ -304,7 +348,9 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
         await settle(session, reservationId, outcomeOf(error))
         return { code: error instanceof SourceError ? error.code : 'search_failed', message: 'The search did not complete; nothing was retrieved.' }
       }
-      await settle(session, reservationId, 'settled', (receipt.credits ?? 1) * TAVILY_CREDIT_USD, { credits: receipt.credits, responseTimeSeconds: receipt.responseTimeSeconds }, receipt.requestId)
+      const searchUsd = (receipt.credits ?? 1) * TAVILY_CREDIT_USD
+      noteOverrun(session, 'search', searchUsd, SEARCH_RESERVE_USD)
+      await settle(session, reservationId, 'settled', searchUsd, { credits: receipt.credits, responseTimeSeconds: receipt.responseTimeSeconds }, receipt.requestId)
       try {
         const captured = await deps.client.researchCapture({
           ...ids(session),
@@ -376,7 +422,9 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
         return { code: 'unsupported', limitations: [...result.limitations], message: 'Not read in the pilot; cite it only as unread.' }
       }
       const tokens = result.tokens
-      await settle(session, reservationId, 'settled', tokens === null ? READ_RESERVE_USD : (tokens * JINA_USD_PER_MTOKEN) / 1_000_000, { tokens })
+      const readUsd = tokens === null ? READ_RESERVE_USD : (tokens * JINA_USD_PER_MTOKEN) / 1_000_000
+      noteOverrun(session, 'read', readUsd, READ_RESERVE_USD)
+      await settle(session, reservationId, 'settled', readUsd, { tokens })
       const kept = clampBytes(result.content, READ_BYTE_LIMIT)
       const limitations = [...result.limitations, ...(kept.cut ? ['truncated: the page was cut at 256 KiB'] : [])].slice(0, 20)
       try {
@@ -522,6 +570,24 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
 
   return [readContext, search, readSource, writeDraft, submit, blocker]
 }
+
+/**
+ * The finalize step's tools (M03-RF-0011): once the allowance is spent, a research attempt may only read its task
+ * and stored sources (at no cost), write its draft and end the task. No search, no read, nothing else.
+ */
+export const FINALIZE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'research_read_context',
+  'research_write_draft',
+  'research_submit_result',
+  'research_report_blocker',
+])
+
+/** What the model is told when its attempt enters the finalize step (a steer, so it reaches the next request). */
+export const FINALIZE_NOTICE =
+  'Sophia: this research has spent its allowance. Write up what you have now as a partial result: research_write_draft ' +
+  'with the report so far, then research_submit_result naming what is missing in its limitations, or ' +
+  'research_report_blocker if nothing useful can be published. Searching and reading are closed, and only a few ' +
+  'model calls remain.'
 
 /** The names `researchTools` defines, in order. */
 export const RESEARCH_TOOL_NAMES = [

@@ -129,6 +129,15 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#19-s4-part-5-revocation-t19-and-the-s3-key-byte-store-0028"
+    },
+    {
+      "slice": "CX-0006 (M03-RF-0008..0012)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#20-cx-0006-m03-rf-00080012"
     }
   ],
   "outstanding_operations": [
@@ -157,7 +166,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0028 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0029 so far)",
       "owner": "Claude Code"
     },
     {
@@ -169,12 +178,12 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S5: the PDF (renderer host probe as a Codex operation, the PDF preset, research_render_pdf, PdfView). CC-0008 awaits Codex",
+  "next_action": "CC-0009 awaits Codex (re-review of M03-RF-0008..0012, the Mac gate). Then S5: the PDF (renderer host probe as a Codex operation, the PDF preset, research_render_pdf, PdfView)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256": "289c0f7c96a9b8668c9d800bad749ae9dd3cba7c4b7750c3f6c1101cda1b5a90",
+    "bundle_archive_sha256": "b70b259226bb8fb3c63dfeebbf57e398193e99e87787d07f77954ef7f7499faf",
     "bundle_archive_platforms": "one normalized archive and one profile lock for every platform (SMC-M03.md §14); runtime trees recorded per platform (linux-x64, darwin-arm64 e24cb887)",
     "deployed": false
   }

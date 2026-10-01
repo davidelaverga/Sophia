@@ -1,7 +1,8 @@
 // Downloads that are the version on screen (plan §2.8.5). The viewer saves the bytes it already loaded, after
 // SubtleCrypto checks their sha256 against the version record: download = preview, and a mismatch is a visible
-// error, never a silent download. The card asks the API for an attachment read and goes to its short-lived URL; a
-// text kept inline comes back as text and is checked the same way. No URL is ever kept.
+// error, never a silent download. The card asks the API for an attachment read and fetches its bytes (a text kept
+// inline arrives as text), checks them against the selected version's hash the same way, and saves them as a Blob
+// (M03-RF-0012): it never hands the browser a storage URL whose bytes nothing checked. No URL is ever kept.
 import { getSourceContent } from '../../api/artifacts.ts'
 
 export class HashMismatch extends Error {
@@ -39,21 +40,42 @@ export function saveBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 30_000)
 }
 
-/** The card's download: an attachment read, then its bytes. Resolves with the filename and size it saved. */
+/** The bytes behind a short-lived URL, read once and never kept. */
+async function fetchBytes(url: string): Promise<Uint8Array<ArrayBuffer>> {
+  const res = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' })
+  if (!res.ok) throw new Error('The report could not be read. Try again.')
+  return new Uint8Array(await res.arrayBuffer())
+}
+
+/** What a download reads and saves through; tests pass doubles. */
+export interface DownloadDeps {
+  getContent: typeof getSourceContent
+  fetchBytes: (url: string) => Promise<Uint8Array<ArrayBuffer>>
+  save: (blob: Blob, filename: string) => void
+}
+
+const browserDeps: DownloadDeps = { getContent: getSourceContent, fetchBytes, save: saveBlob }
+
+/**
+ * The card's download of one version's file: an attachment read, its bytes (inline text, or fetched from the
+ * short-lived URL), checked against `expectedSha256` (the selected version's record), then saved as a Blob. A
+ * mismatch, a record for other bytes or a failed read is an error the card shows; nothing is saved unchecked.
+ * Resolves with the filename and size it saved.
+ */
 export async function downloadSource(
   token: string,
   sourceId: string,
+  expectedSha256: string,
+  deps: DownloadDeps = browserDeps,
 ): Promise<{ filename: string; byteLength: number }> {
-  const content = await getSourceContent(token, sourceId, 'attachment')
-  if (content.text !== undefined) {
-    saveBlob(await checkedBlob(utf8(content.text), content.sha256, content.mime), content.filename)
-  } else if (content.downloadUrl) {
-    // An attachment does not unload the page: the same tab goes to it and stays.
-    window.location.assign(content.downloadUrl)
-  } else {
-    throw new Error('This file is not available to download yet.')
-  }
-  return { filename: content.filename, byteLength: content.byteLength }
+  const content = await deps.getContent(token, sourceId, 'attachment')
+  if (content.sha256.toLowerCase() !== expectedSha256.toLowerCase()) throw new HashMismatch()
+  let bytes: Uint8Array<ArrayBuffer>
+  if (content.text !== undefined) bytes = utf8(content.text)
+  else if (content.downloadUrl) bytes = await deps.fetchBytes(content.downloadUrl)
+  else throw new Error('This file is not available to download yet.')
+  deps.save(await checkedBlob(bytes, expectedSha256, content.mime), content.filename)
+  return { filename: content.filename, byteLength: bytes.byteLength }
 }
 
 export interface LoadedText {
@@ -61,13 +83,6 @@ export interface LoadedText {
   filename: string
   mime: string
   byteLength: number
-}
-
-/** The bytes behind a short-lived URL, read once and never kept. */
-async function fetchBytes(url: string): Promise<Uint8Array<ArrayBuffer>> {
-  const res = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' })
-  if (!res.ok) throw new Error('The report could not be read. Try again.')
-  return new Uint8Array(await res.arrayBuffer())
 }
 
 /**

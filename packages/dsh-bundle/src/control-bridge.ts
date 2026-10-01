@@ -40,7 +40,7 @@ import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
 import { RESEARCH_PROMPT } from './research-prompt.js'
-import { researchTools, type ResearchSources } from './research-tools.js'
+import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
@@ -112,7 +112,18 @@ interface AttemptState {
   unrecovered: string | null
   /** The service binds this attempt to a different native session: nothing may resume it here. */
   identityMismatch: boolean
+  /**
+   * In the research finalize step (M03-RF-0011): entered once the service refused an ordinary model call for a spent
+   * allowance. Its model calls are then partial-result calls and its tools the finalize set. In memory only: after a
+   * restart the service refuses the first ordinary call again ("finalizing"), which enters the step again.
+   */
+  finalizing: boolean
 }
+
+/** What a tool outside the finalize set is told while its attempt finalizes. */
+const FINALIZE_REFUSAL =
+  `This research has spent its allowance: only ${[...FINALIZE_TOOL_NAMES].join(', ')} may run now. ` +
+  'Write up the partial result.'
 
 const ATTEMPT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 /** The contract's id shape (A04): a command id the service could not have sent is not answered. */
@@ -195,6 +206,7 @@ export class ControlBridge {
       if (!attempt) return undefined
       if (attempt.fence !== 'active') return `Sophia work is ${attempt.fence}; no tool may run until an explicit Resume.`
       if (!attempt.role) return 'This Sophia attempt has no role; no native tool may run.'
+      if (attempt.finalizing && !FINALIZE_TOOL_NAMES.has(execution.name)) return FINALIZE_REFUSAL
       if (!attempt.role.nativeTools.has(execution.name)) return `Tool "${execution.name}" is not permitted for role ${attempt.role.id}.`
       return undefined
     }
@@ -352,17 +364,36 @@ export class ControlBridge {
   }
 
   /**
+   * The trusted transition into the research finalize step (M03-RF-0011), taken once: the service refused an ordinary
+   * model call because the allowance is spent. From then on the attempt's model calls are partial-result calls (the
+   * service enters the step at the first, checks that the allowance really is spent, and allows four in all), its
+   * tools are the finalize set, and the model is told, at its next step, to write up now.
+   */
+  private enterFinalize(attempt: AttemptState, sessionId: GenerateOptions['sessionId']): void {
+    if (attempt.finalizing) return
+    attempt.finalizing = true
+    this.journal.append(attempt.sessionId, 'sophia/finalize', { attemptId: attempt.attemptId, sessionId: String(sessionId) })
+    const agent = sessionId === undefined ? undefined : this.ctx.agents.get(sessionId)
+    agent?.steer(createUserMessage({ content: [{ type: 'text', text: FINALIZE_NOTICE }], source: { kind: 'user' } }))
+  }
+
+  /**
    * One model call metered against its attempt's allowance: reserved before it leaves (refused, and journaled, when
-   * the allowance cannot cover it), then settled from the usage it reported, or uncertain when it reported none.
+   * the allowance cannot cover it), then settled from the usage it reported, or uncertain when it reported none. A
+   * call that cost more than it reserved is settled at its cost and journaled as an overrun (M03-RF-0010).
    */
   private metered(attempt: AttemptState, options: GenerateOptions, route: RouteConfig, prices: RoutePrices, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
     const transport = this.transport!
     const ids = { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId }
     const log = this.settings.log
+    const who = { attemptId: attempt.attemptId, sessionId: String(options.sessionId) }
     const refused = (reason: string) => {
-      this.journal.append(attempt.sessionId, 'sophia/spend-refused', { attemptId: attempt.attemptId, sessionId: String(options.sessionId), reason })
+      this.journal.append(attempt.sessionId, 'sophia/spend-refused', { ...who, reason })
       return refuse(reason)
     }
+    const overrun = (reservationId: string, reservedUsd: number, costUsd: number) =>
+      this.journal.append(attempt.sessionId, 'sophia/spend-overrun', { ...who, reservationId, reservedUsd, costUsd })
+    const finalize = () => this.enterFinalize(attempt, options.sessionId)
     return (async function* () {
       let reservationId: string
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
@@ -370,13 +401,16 @@ export class ControlBridge {
       const reserve = (purpose: 'call' | 'partial_result') =>
         transport.researchReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
       try {
-        try {
-          reservationId = (await reserve('call')).reservationId
-        } catch (error) {
-          // The finalize step: once ordinary calls no longer fit, the model call that writes up the partial result
-          // may draw on the headroom (the service allows one such call in flight, and no search or read).
-          if (!(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
-          reservationId = (await reserve('partial_result')).reservationId
+        if (attempt.finalizing) reservationId = (await reserve('partial_result')).reservationId
+        else {
+          try {
+            reservationId = (await reserve('call')).reservationId
+          } catch (error) {
+            // Only the service's refusal of an ordinary call enters the finalize step; it checks the step again.
+            if (!(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
+            finalize()
+            reservationId = (await reserve('partial_result')).reservationId
+          }
         }
       } catch (error) {
         const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
@@ -390,12 +424,14 @@ export class ControlBridge {
           yield chunk
         }
       } finally {
+        const costUsd = usage ? costOfUsage(usage, prices) : null
+        if (costUsd !== null && costUsd > amountUsd) overrun(reservationId, amountUsd, costUsd)
         try {
           await transport.researchSettle({
             ...ids,
             reservationId,
             outcome: usage ? 'settled' : 'uncertain',
-            ...(usage ? { costUsd: costOfUsage(usage, prices), usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
+            ...(usage && costUsd !== null ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
           })
         } catch (error) {
           log(`settling model call ${reservationId} failed: ${(error as Error).message}; the service reconciles it`)
@@ -636,6 +672,7 @@ export class ControlBridge {
       unsettled: new Map(),
       unrecovered: null,
       identityMismatch: false,
+      finalizing: false,
     }
     this.attempts.set(attemptId, state)
     this.bySession.set(state.sessionId, state)
@@ -1173,13 +1210,24 @@ async function* refuse(reason: string): AsyncGenerator<StreamChunk> {
 }
 
 /**
- * The most one model call can cost on a priced route: its request's input at the uncached price (estimated at three
- * characters a token, above what the tokenizer counts) and its whole output ceiling.
+ * Input tokens a request can count: three ASCII characters a token, above what the tokenizer counts for prose and
+ * code, and every other UTF-16 unit a token of its own, so accented letters, other scripts and emoji, which the
+ * tokenizer packs less densely, are not underestimated (M03-RF-0010).
+ */
+export function estimateInputTokens(text: string): number {
+  const other = text.replace(/[\u0000-\u007f]/g, '').length
+  return Math.ceil((text.length - other) / 3) + other
+}
+
+/**
+ * The most one model call can cost on a priced route: its request's input at the dearest input-side price (uncached,
+ * cache read or cache write, so a cache write never costs more than was reserved) and its whole output ceiling.
  */
 export function estimateCallUsd(options: GenerateOptions, prices: RoutePrices, ceiling: number): number {
-  const chars = JSON.stringify([options.system ?? '', options.messages, options.tools ?? []]).length
+  const tokens = estimateInputTokens(JSON.stringify([options.system ?? '', options.messages, options.tools ?? []]))
   const output = typeof options.maxTokens === 'number' ? Math.min(options.maxTokens, ceiling) : ceiling
-  const usd = (Math.ceil(chars / 3) * prices.input + output * prices.output) / 1_000_000
+  const inputPrice = Math.max(prices.input, prices.cacheRead, prices.cacheWrite)
+  const usd = (tokens * inputPrice + output * prices.output) / 1_000_000
   return Math.min(Math.max(Number(usd.toFixed(6)), 0.000001), 1000)
 }
 

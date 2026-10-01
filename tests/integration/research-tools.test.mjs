@@ -105,14 +105,59 @@ test('when ordinary calls no longer fit, the call that writes the partial result
     body.purpose === 'partial_result'
       ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null }
       : { status: 409, body: { code: 'research_limit_reached', message: 'Research allowance exhausted', requestId: '00000000-0000-4000-8000-000000000000', retry: 'never' } })
-  w.llm.script({ text: 'Here is what I have so far.' })
+  w.llm.script({ text: 'Here is what I have so far.' }, { text: 'That is all I can write up.' })
   w.send(create(w))
   await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the finalizing turn')
-  assert.equal(w.llm.requests.length, 1, 'the call went out on the headroom')
+  // The call went out on the headroom; the finalize notice (a steer) then runs one more step, also on the headroom.
+  assert.equal(w.llm.requests.length, 2)
   assert.deepEqual(
     w.service.research.filter((o) => o.op === 'reserve').map((o) => o.body.purpose),
-    ['call', 'partial_result'],
+    ['call', 'partial_result', 'partial_result'],
   )
-  assert.equal(w.service.research.find((o) => o.op === 'settle').body.reservationId, '00000000-0000-4000-8000-000000009999')
+  for (const settle of w.service.research.filter((o) => o.op === 'settle')) {
+    assert.equal(settle.body.reservationId, '00000000-0000-4000-8000-000000009999')
+  }
 })
 
+
+test('a spent allowance enters the finalize step: ordinary research is refused and the model is told to write up (M03-RF-0011)', async (t) => {
+  const w = await world(t)
+  await w.start()
+  w.service.onResearch('reserve', (body) =>
+    body.purpose === 'partial_result'
+      ? { reservationId: '00000000-0000-4000-8000-000000009999', state: 'reserved', kind: 'model', purpose: 'partial_result', amountUsd: body.amountUsd, target: null }
+      : { status: 409, body: { code: 'research_limit_reached', message: 'Research allowance exhausted', requestId: '00000000-0000-4000-8000-000000000000', retry: 'never' } })
+  // Codex's probe: the first call on the headroom asks for more research; the step must not carry on as before.
+  w.llm.script(
+    { toolCall: { name: 'research_search', arguments: { query: 'sandboxed PDF rendering hosts' } } },
+    { toolCall: { name: 'research_write_draft', arguments: { text: '# Partial\nTwo hosts so far.', expectedSha256: null } } },
+    {
+      toolCall: {
+        name: 'research_submit_result',
+        arguments: {
+          draftSha256: 'b'.repeat(64), title: 'Sandboxed PDF hosts', summary: 'A partial answer.', resultSummary: 'Two hosts so far.',
+          limitations: ['The allowance ran out before a full survey.'], citations: ['00000000-0000-4000-8000-000000000001'],
+        },
+      },
+    },
+    { text: 'Submitted the partial result.' },
+  )
+  w.send(create(w))
+  await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the finalizing turn')
+  const reserves = w.service.research.filter((o) => o.op === 'reserve')
+  assert.deepEqual(
+    reserves.map((o) => [o.body.kind, o.body.purpose]),
+    [['model', 'call'], ['model', 'partial_result'], ['model', 'partial_result'], ['model', 'partial_result'], ['model', 'partial_result']],
+    'one ordinary call refused, then only partial-result calls: no ordinary retry, no search reserved',
+  )
+  assert.equal(w.journal().filter((e) => e.type === 'sophia/finalize').length, 1, 'the step is entered once')
+  const [, second] = w.llm.requests
+  const sent = JSON.stringify(second.body.input)
+  assert.match(sent, /spent its allowance: only research_read_context, research_write_draft, research_submit_result, research_report_blocker may run now/, 'the search was refused by the guard')
+  assert.match(sent, /this research has spent its allowance\. Write up what you have now/, 'the model was told to write up')
+  assert.deepEqual(
+    w.service.research.filter((o) => ['draft', 'submit'].includes(o.op)).map((o) => o.op),
+    ['draft', 'submit'],
+    'the finalize tools still run',
+  )
+})

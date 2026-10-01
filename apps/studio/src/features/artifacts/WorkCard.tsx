@@ -190,7 +190,7 @@ function OutputRow({ output, version, token, onOpen }: RowProps) {
   const name = nameOf(output, version)
   const download = async () => {
     try {
-      const saved = await downloadSource(token, output.sourceId)
+      const saved = await downloadSource(token, output.sourceId, output.sha256)
       status.show(`Downloading ${saved.filename} · ${formatBytes(saved.byteLength)}`)
     } catch (err: unknown) {
       status.show(err instanceof Error ? err.message : 'The download didn’t start. Try again.', true)

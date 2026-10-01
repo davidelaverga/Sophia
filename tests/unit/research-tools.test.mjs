@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { researchTools, callKeyOf, clampBytes, linksOf, SEARCH_RESERVE_USD, TAVILY_CREDIT_USD } from '../../packages/dsh-bundle/dist/research-tools.js'
-import { costOfUsage, estimateCallUsd } from '../../packages/dsh-bundle/dist/control-bridge.js'
+import { costOfUsage, estimateCallUsd, estimateInputTokens } from '../../packages/dsh-bundle/dist/control-bridge.js'
 import { SourceError, cutText } from '../../packages/dsh-bundle/dist/source-errors.js'
 import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
 
@@ -241,6 +241,27 @@ test('a model call is reserved at its worst case and settled at its reported usa
   assert.equal(estimateCallUsd({ ...options, maxTokens: 8000 }, prices, 16000) < estimate, true, 'a smaller cap reserves less')
   assert.equal(costOfUsage({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 10000, cacheWriteTokens: 2000 }, prices), (1000 * 2 + 10000 * 0.1 + 2000 * 2.5 + 500 * 10) / 1e6)
   assert.equal(costOfUsage({ inputTokens: 1000, outputTokens: 500 }, prices), (1000 * 2 + 500 * 10) / 1e6, 'absent cache counters are zero')
+  // M03-RF-0010: whatever share of the input is written to the cache, the call stays within what it reserved.
+  const sent = Math.ceil(JSON.stringify([options.system, options.messages, options.tools]).length / 3)
+  assert.ok(estimate >= costOfUsage({ inputTokens: 0, outputTokens: 16000, cacheWriteTokens: sent }, prices), 'all of it written to the cache')
+  // Text the tokenizer packs less densely than English prose is counted a token a character, not one per three.
+  assert.equal(estimateInputTokens('abcdef'), 2)
+  assert.equal(estimateInputTokens('città è perché'), Math.ceil(11 / 3) + 3)
+  assert.equal(estimateInputTokens('東京の研究報告'), 7)
+  assert.equal(estimateInputTokens('🙂'), 2, 'an astral character is two units, both counted')
+  const cjk = { ...options, system: '研'.repeat(3000) }
+  assert.ok(estimateCallUsd(cjk, prices, 16000) >= (3000 * 2.5 + 16000 * 10) / 1e6, 'a token a character, at the dearest input price')
+})
+
+test('a search billed above its reservation is settled at what it cost, never clipped, and the host logs it (M03-RF-0010)', async () => {
+  const service = fakeService()
+  const sources = fakeSources({ search: (request) => ({ provider: 'tavily', query: request.query, requestId: 'req_2', credits: 2, responseTimeSeconds: 0.4, providerHttpStatus: 200, results: [] }) })
+  const { byName, lines } = tools(service, sources)
+  await byName.research_search.execute({ query: 'pdf rendering sandbox' }, exec())
+  const settle = service.calls.find(([k]) => k === 'settle')[1]
+  assert.deepEqual([settle.outcome, settle.costUsd], ['settled', 2 * TAVILY_CREDIT_USD])
+  assert.ok(settle.costUsd > SEARCH_RESERVE_USD)
+  assert.equal(lines.filter((l) => /above the 0\.01 USD it reserved/.test(l)).length, 1)
 })
 
 test('research_submit_result: the current draft with its citations, once; research_report_blocker: the reason', async () => {
@@ -284,4 +305,90 @@ test('provider text is cut well formed: the service refuses an unpaired surrogat
   assert.equal(cutText('a\uD800b', 10), 'a\uFFFDb', 'a lone surrogate the provider sent')
   assert.equal(cutText('abc', 10), 'abc')
   assert.equal(JSON.stringify(cutText('x\u{1F600}', 2)).includes('\\ud'), false)
+})
+
+// --- M03-RF-0009: the disclosure guard indexes the whole private context, or nothing leaves the host -------------
+
+const KIB = 1024
+/** `bytes` of ASCII words that never repeat a six-word run, so no span of one text is found in another. */
+const filler = (tag, bytes) => {
+  let out = ''
+  for (let i = 0; out.length < bytes; i += 1) out += `${tag}w${i} `
+  return out.slice(0, bytes)
+}
+const sid = (n) => `55555555-5555-4555-8555-${String(n).padStart(12, '0')}`
+
+/** A service whose task has these inputs (sourceId -> text) and, for an amendment, a base version. */
+const pageOf = (text, offset) => {
+  const chunk = text.slice(offset, offset + 6000)
+  return { chunk, next: offset + chunk.length < text.length ? offset + chunk.length : null }
+}
+function serviceWith(inputs, base = null, page = pageOf) {
+  const texts = new Map([...inputs, ...(base ? [[base.sourceId, base.text]] : [])])
+  return fakeService({
+    context(body) {
+      if (body.sourceId === undefined) {
+        return {
+          taskId: 't', rootTaskId: 't', question: 'Which sandboxes do PDF renderers use?', outputs: ['markdown'], preferences: {}, assumptions: [],
+          inputs: [...inputs].map(([sourceId, text]) => ({ ref: `input:${sourceId}`, sourceId, sha256: 'a'.repeat(64), mime: 'text/plain', byteLength: Buffer.byteLength(text) })),
+          urls: [], base: base ? { artifactId: 'a', versionId: 'v', sourceId: base.sourceId } : null,
+          allowance: { capUsd: 5, headroomUsd: 0.5, committedUsd: 0, searchesLeft: 5, readsLeft: 8 }, draft: null, roster: [],
+        }
+      }
+      const text = texts.get(body.sourceId) ?? ''
+      const offset = body.offset ?? 0
+      const { chunk, next } = page(text, offset)
+      return { sourceId: body.sourceId, offset, nextOffset: next, totalChars: text.length, truncated: next !== null, text: chunk }
+    },
+  })
+}
+
+test('research_search: an input after a megabyte of others is still guarded (Codex\'s reproduction, M03-RF-0009)', async () => {
+  const fifth = 'Zephyr ledger flagged Osaka refunds early.'
+  const inputs = new Map([
+    ...[1, 2, 3, 4].map((n) => [sid(n), filler(`i${n}`, 256 * KIB)]),
+    [sid(5), fifth],
+  ])
+  const service = serviceWith(inputs)
+  const sources = fakeSources()
+  const { byName } = tools(service, sources)
+  const leaked = await byName.research_search.execute({ query: 'news: zephyr ledger flagged osaka refunds early' }, exec())
+  assert.deepEqual([leaked.code, leaked.reason], ['disclosure_denied', 'private_span'])
+  assert.equal(service.kinds().includes('reserve'), false, 'nothing reserved')
+  assert.equal(sources.used.searches, 0, 'nothing searched')
+  const fine = await byName.research_search.execute({ query: 'sandboxed PDF rendering services' }, exec('call_2'))
+  assert.equal(fine.startsWith('<sophia-source'), true, 'a public query still runs')
+})
+
+test('research_search: the largest context admission lets in, eight 256 KiB inputs and the amended version, is indexed to its end', async () => {
+  const inputs = new Map([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [sid(n), filler(`i${n}`, 256 * KIB)]))
+  const base = { sourceId: sid(9), text: filler('base', 256 * KIB) }
+  const service = serviceWith(inputs, base)
+  const sources = fakeSources()
+  const { byName } = tools(service, sources)
+  const lastWords = (text) => text.trim().split(' ').slice(-7, -1).join(' ')
+  for (const [n, text] of [[1, lastWords(inputs.get(sid(8)))], [2, lastWords(base.text)]]) {
+    const verdict = await byName.research_search.execute({ query: text }, exec(`call_${n}`))
+    assert.deepEqual([verdict.code, verdict.reason], ['disclosure_denied', 'private_span'], `the end of source ${n} is indexed`)
+  }
+  assert.equal(sources.used.searches, 0)
+})
+
+test('research_search: a private context the guard cannot index whole stops every search, before any reservation', async () => {
+  // Longer than any admission allows (the service would never send it), and a source whose pages do not advance.
+  for (const service of [
+    serviceWith(new Map([[sid(1), filler('big', 2_400_000)]])),
+    serviceWith(new Map([[sid(1), filler('stuck', 20 * KIB)]]), null, (text, offset) => ({ chunk: text.slice(0, 6000), next: offset })),
+  ]) {
+    const sources = fakeSources()
+    const { byName, lines } = tools(service, sources)
+    for (const callId of ['call_1', 'call_2']) {
+      const refused = await byName.research_search.execute({ query: 'sandboxed PDF rendering services' }, exec(callId))
+      assert.equal(refused.code, 'disclosure_unchecked')
+      assert.match(refused.message, /no web search runs/)
+    }
+    assert.equal(service.kinds().includes('reserve'), false, 'nothing reserved')
+    assert.equal(sources.used.searches, 0, 'nothing searched')
+    assert.equal(lines.filter((l) => /could not index/.test(l)).length, 1, 'told once, then remembered')
+  }
 })

@@ -36,7 +36,11 @@ const RULES: readonly Rule[] = [
       m.startsWith('Research allowance exhausted') ||
       m.startsWith('Research grant exhausted') ||
       m.startsWith('Research source policy limit reached') ||
-      m.startsWith('A partial-result call is already in flight'),
+      m.startsWith('A partial-result call is already in flight') ||
+      // 0029: an unreconciled overrun stops the allowance; a finalizing task takes no ordinary call, and only so many.
+      m.startsWith('Research allowance overrun') ||
+      m.startsWith('Research is finalizing') ||
+      m.startsWith('Research finalize step has used its calls'),
     code: 'research_limit_reached',
   },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
