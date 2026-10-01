@@ -87,7 +87,7 @@
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
       "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5930776701",
-      "state": "awaiting_operator (revision 3: M03-RF-0002 re-review, S2 review, darwin-arm64 record)"
+      "state": "answered by CX-0004 (revision 3); M03-RF-0003 fixed; re-review and S3 review requested in CC-0005 (revision 4)"
     }
   ],
   "unknown_effects": [],
@@ -119,8 +119,8 @@
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256_linux_x64": "4d7b261bbfc61b324db981d9b1134d1885330b62045e108b553852d8a4c9f227",
-    "darwin_arm64": "pending Codex artifacts:record",
+    "bundle_archive_sha256_linux_x64": "88e9dc2ada0d8ba8d78d659015b5267aa3619ed9c1f68b19c4f73c13e63bac4e",
+    "darwin_arm64": "bundle archive and profile lock recorded at the release candidate; CX-0004's values at 3c37f48 kept as evidence (SMC-M03.md §13); runtime tree e24cb887 recorded",
     "deployed": false
   }
 }

@@ -231,6 +231,7 @@
             provider: openai-research
             model: gpt-6.1-sol
             reasoningEffort: medium
+            maxTokens: 16000
         roleRoutes:
           sophia-research-md-v1: research-sol-medium-v1
           sophia-research-pdf-v1: research-sol-medium-v1

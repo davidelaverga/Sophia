@@ -49,6 +49,8 @@ import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
 
 /** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
 export type RouteSpec = ExecutionIdentity['route']
+/** A named route as the bridge row allows it: the route and its output ceiling (M03-RF-0003). */
+export type RouteConfig = RouteSpec & { readonly maxTokens: number }
 
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
@@ -66,7 +68,7 @@ export interface BridgeSettings {
   /** Upper bound for cancellation to settle before a Hold/Stop receipt reports `outcome_unknown`. */
   readonly settleTimeoutMs: number
   /** The unit's route allowlist beyond `default`, by route id (SMC-M03). */
-  readonly routes: Readonly<Record<string, RouteSpec>>
+  readonly routes: Readonly<Record<string, RouteConfig>>
   /** Role id → route id; a role not named runs on `default`. */
   readonly roleRoutes: Readonly<Record<string, string>>
   readonly log: (line: string) => void
@@ -171,20 +173,17 @@ export class ControlBridge {
     }
     const offGuard = ctx.tools.guard(attemptGuard)
     // Every model call made for a bound attempt runs on the route the attempt recorded (SMC-M03): its turns, its
-    // workflow children and its compaction. A program or tool that names another provider, model or effort is
-    // refused before any request leaves, so a role cannot reach a dearer route than the unit gave it.
+    // workflow children and its compaction. A program or tool that names another provider, model or effort, or asks
+    // for more output than the route's ceiling (M03-RF-0003), is refused before any request leaves, so a role cannot
+    // reach a dearer route than the unit gave it. Every adapter call passes this waterfall with options dsh has
+    // frozen, so what is checked here is what the adapter sends; a listener can only raise the cap by making a new
+    // call, which passes here again.
     const offStream = ctx.on('llm/stream', (options: GenerateOptions, next: () => AsyncIterable<StreamChunk>) => {
       const attempt = this.attemptForSession(options.sessionId)
       const route = attempt?.identity?.route
-      const problem = route ? offRoute(options, route) : null
+      const problem = route ? offRoute(options, route, this.ceilingFor(route)) : null
       if (attempt === undefined || problem === null) return next()
-      this.journal.append(attempt.sessionId, 'sophia/route-refused', {
-        attemptId: attempt.attemptId,
-        sessionId: String(options.sessionId),
-        requested: { provider: String(options.provider), model: String(options.model), reasoningEffort: options.reasoningEffort === undefined ? null : String(options.reasoningEffort) },
-        reason: problem,
-      })
-      return refuse(problem)
+      return this.refuseCall(attempt, options, problem)
     }, { global: true, prepend: true })
     const offEvent = ctx.on('session/event', (session: Session, event: SessionEvent) => this.observe(session, event))
     void this.connect()
@@ -269,6 +268,23 @@ export class ControlBridge {
       current = this.ctx.agents.list().find((candidate) => candidate.id !== child.id && this.ctx.agents.isOwnedBy(child.id, candidate))
     }
     return undefined
+  }
+
+  /** Journal a refused model call on its attempt and answer it with the refusal. */
+  private refuseCall(attempt: AttemptState, options: GenerateOptions, reason: string): AsyncIterable<StreamChunk> {
+    this.journal.append(attempt.sessionId, 'sophia/route-refused', {
+      attemptId: attempt.attemptId,
+      sessionId: String(options.sessionId),
+      requested: { provider: String(options.provider), model: String(options.model), reasoningEffort: options.reasoningEffort === undefined ? null : String(options.reasoningEffort) },
+      reason,
+    })
+    return refuse(reason)
+  }
+
+  /** A named route's output ceiling, or null for the default route (its cap is the default model's). */
+  private ceilingFor(route: RouteSpec): number | null {
+    const named = Object.values(this.settings.routes).find((r) => r.provider === route.provider && r.model === route.model && r.reasoningEffort === route.reasoningEffort)
+    return named?.maxTokens ?? null
   }
 
   /** The bound attempt a model call's session belongs to, directly or through the Agent that owns it. */
@@ -400,7 +416,8 @@ export class ControlBridge {
     if (id === 'default') return this.defaultRoute()
     const route = this.settings.routes[id]
     if (!route) throw new ProtocolError(`route ${id} is not allowed in this runtime unit`)
-    return route
+    // The identity records the route only; its ceiling stays the unit's, enforced on every call.
+    return { provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort }
   }
 
   private agentOptions(route: ExecutionIdentity['route']): AgentOptions {
@@ -994,14 +1011,22 @@ export class ControlBridge {
 
 /**
  * Why a model call leaves the attempt's route, or null when it does not. A call that names no effort runs at the
- * model's default (compaction does), which the route allows; one that names an effort must name the route's.
+ * model's default (compaction does), which the route allows; one that names an effort must name the route's. With a
+ * ceiling, a call that asks for more output tokens is refused; one that names none runs at the model entry's
+ * default, which the gate keeps equal to the ceiling.
  */
-export function offRoute(options: GenerateOptions, route: RouteSpec): string | null {
+export function offRoute(options: GenerateOptions, route: RouteSpec, ceiling: number | null = null): string | null {
   const provider = String(options.provider)
   const model = String(options.model)
   const effort = options.reasoningEffort === undefined ? null : String(options.reasoningEffort)
-  if (provider === route.provider && model === route.model && (effort === null || effort === route.reasoningEffort)) return null
-  return `this Sophia attempt runs on ${route.provider}/${route.model}/${route.reasoningEffort ?? 'default'}; a model call for ${provider}/${model}/${effort ?? 'default'} is refused`
+  if (provider !== route.provider || model !== route.model || (effort !== null && effort !== route.reasoningEffort)) {
+    return `this Sophia attempt runs on ${route.provider}/${route.model}/${route.reasoningEffort ?? 'default'}; a model call for ${provider}/${model}/${effort ?? 'default'} is refused`
+  }
+  const asked = options.maxTokens
+  if (ceiling !== null && asked !== undefined && !(Number.isSafeInteger(asked) && asked >= 1 && asked <= ceiling)) {
+    return `this Sophia attempt's route allows at most ${ceiling} output tokens; a model call asking for ${String(asked)} is refused`
+  }
+  return null
 }
 
 /** A model call refused before it reaches the provider. */

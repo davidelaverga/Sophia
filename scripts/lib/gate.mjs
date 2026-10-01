@@ -238,7 +238,8 @@ export function checkPresetRoster(rows, presets) {
 }
 
 /** A route as the bridge row allows it: provider, model and effort. */
-const allowed = (route) => ({ provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort ?? null })
+/** A route as the bridge row must allow it: provider, model, effort and the output ceiling the bridge enforces (M03-RF-0003). */
+const allowed = (route) => ({ provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort ?? null, maxTokens: route.maxTokens ?? null })
 
 /**
  * Every route the unit allows beyond the default (SMC-M03), and which role runs on which. The bridge row must allow

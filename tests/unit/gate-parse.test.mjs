@@ -139,13 +139,14 @@ test('the research routes, role routes and compaction must be exactly the record
   const entry = { id: 'gpt-6.1-sol', contextWindow: 272000, maxTokens: 16000, reasoningEfforts: { low: 'low', medium: 'medium' }, compat: { supportsStrictMode: true, supportsLongCacheRetention: false } }
   const rows = (o = {}) => [
     { id: 'llm-pi-ai', origin: '@deepseek-ai/dsh-base', patchedBy: ['@sophia/dsh-bundle'], config: { providers: { 'openai-research': { apiKeyEnv: 'OPENAI_RESEARCH_API_KEY', baseURL: 'https://api.openai.com/v1', models: [{ ...entry, ...o.entry }], ...o.profile } } } },
-    { id: 'sophia-control-bridge', origin: '@sophia/dsh-bundle', patchedBy: [], config: { protocolVersion: 1, routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium' } }, roleRoutes: unit.role_routes, ...o.bridge } },
+    { id: 'sophia-control-bridge', origin: '@sophia/dsh-bundle', patchedBy: [], config: { protocolVersion: 1, routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000 } }, roleRoutes: unit.role_routes, ...o.bridge } },
     { id: 'compaction-basic', origin: '@deepseek-ai/dsh-base', patchedBy: ['@sophia/dsh-bundle'], config: o.compaction ?? unit.compaction },
   ]
   assert.deepEqual(checkModelRoutes(rows(), unit), [])
   assert.deepEqual(checkCompaction(rows(), unit), [])
   const messages = (r, u = unit) => checkModelRoutes(r, u).map((f) => f.message).join(' | ')
-  assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai', model: 'gpt-6.1-sol', reasoningEffort: 'medium' } } } })), /allows routes/)
+  assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000 } } } })), /allows routes/)
+  assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 128000 } } } })), /allows routes/, 'a raised bridge ceiling (M03-RF-0003)')
   assert.match(messages(rows({ bridge: { roleRoutes: { 'sophia-research-md-v1': 'research-sol-medium-v1' } } })), /maps roles/)
   assert.match(messages(rows({ profile: { apiKeyEnv: 'OPENAI_API_KEY' } })), /OPENAI_RESEARCH_API_KEY through apiKeyEnv/)
   assert.match(messages(rows({ profile: { cacheRetention: 'long' } })), /must not set cacheRetention "long"/)

@@ -15,7 +15,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { ControlBridge } from './control-bridge.js'
-import type { BridgeReadiness, RouteSpec } from './control-bridge.js'
+import type { BridgeReadiness, RouteConfig } from './control-bridge.js'
 import { roleOf } from './role-registry.js'
 
 export { ControlBridge } from './control-bridge.js'
@@ -57,7 +57,7 @@ export interface ControlBridgeConfig {
    * The unit's route allowlist beyond `default` (the `agent-default-model` selection), by immutable route id
    * (SMC-M03). Changing one is a new runtime unit.
    */
-  readonly routes: Readonly<Record<string, RouteSpec>>
+  readonly routes: Readonly<Record<string, RouteConfig>>
   /** Role id → route id. A role not named runs on `default`. */
   readonly roleRoutes: Readonly<Record<string, string>>
 }
@@ -72,14 +72,14 @@ const CONFIG_KEYS = new Set(['protocolVersion', 'serviceUrlEnv', 'tokenEnv', 'ru
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-function parseRoutes(value: unknown): Record<string, RouteSpec> {
+function parseRoutes(value: unknown): Record<string, RouteConfig> {
   if (value === undefined) return {}
   if (!isRecord(value)) throw new TypeError(`${name}: routes must be a map of route id to route`)
-  const routes: Record<string, RouteSpec> = {}
+  const routes: Record<string, RouteConfig> = {}
   for (const [id, route] of Object.entries(value)) {
     if (!ROUTE_ID.test(id) || id === 'default') throw new TypeError(`${name}: route id ${JSON.stringify(id)} is not a route id`)
     if (!isRecord(route)) throw new TypeError(`${name}: route ${id} must be an object`)
-    const extra = Object.keys(route).filter((key) => !['provider', 'model', 'reasoningEffort'].includes(key))
+    const extra = Object.keys(route).filter((key) => !['provider', 'model', 'reasoningEffort', 'maxTokens'].includes(key))
     if (extra.length > 0) throw new TypeError(`${name}: route ${id} has unknown fields ${extra.join(', ')}`)
     const { provider, model, reasoningEffort } = route
     if (typeof provider !== 'string' || !ROUTE_PART.test(provider)) throw new TypeError(`${name}: route ${id} needs a provider`)
@@ -87,12 +87,17 @@ function parseRoutes(value: unknown): Record<string, RouteSpec> {
     if (reasoningEffort !== undefined && reasoningEffort !== null && (typeof reasoningEffort !== 'string' || !EFFORT.test(reasoningEffort))) {
       throw new TypeError(`${name}: route ${id} reasoningEffort must be a level name or null`)
     }
-    routes[id] = { provider, model, reasoningEffort: typeof reasoningEffort === 'string' ? reasoningEffort : null }
+    // The route's output ceiling (M03-RF-0003): the adapter's model entry only supplies a default.
+    const { maxTokens } = route
+    if (typeof maxTokens !== 'number' || !Number.isSafeInteger(maxTokens) || maxTokens < 1 || maxTokens > 1_000_000) {
+      throw new TypeError(`${name}: route ${id} needs maxTokens, its output ceiling`)
+    }
+    routes[id] = { provider, model, reasoningEffort: typeof reasoningEffort === 'string' ? reasoningEffort : null, maxTokens }
   }
   return routes
 }
 
-function parseRoleRoutes(value: unknown, routes: Readonly<Record<string, RouteSpec>>): Record<string, string> {
+function parseRoleRoutes(value: unknown, routes: Readonly<Record<string, RouteConfig>>): Record<string, string> {
   if (value === undefined) return {}
   if (!isRecord(value)) throw new TypeError(`${name}: roleRoutes must be a map of role id to route id`)
   const roleRoutes: Record<string, string> = {}

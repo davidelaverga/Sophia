@@ -97,9 +97,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "4d7b261bbfc61b324db981d9b1134d1885330b62045e108b553852d8a4c9f227",
-    "archive_integrity": "sha512-FXFs2aEoE0OWrpcx8KBZph3Bm5nNOLhJK0Dj1f8agckYu3CZ+0zJIbjGo9uM/4durD/CvJXjRFpIIbTReeF/wA==",
-    "artifact_digest": "sha256:4d7b261bbfc61b324db981d9b1134d1885330b62045e108b553852d8a4c9f227",
+    "archive_sha256": "88e9dc2ada0d8ba8d78d659015b5267aa3619ed9c1f68b19c4f73c13e63bac4e",
+    "archive_integrity": "sha512-gaE27EVqO5o07xk4y+kVT0gMwaYTsmjB9CV+OarrPWa5X0P5xk8KM09Aq226fgGsMwGqsh+EbVn+4UiKpd+Whw==",
+    "artifact_digest": "sha256:88e9dc2ada0d8ba8d78d659015b5267aa3619ed9c1f68b19c4f73c13e63bac4e",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
@@ -168,7 +168,7 @@
   ],
   "platforms_recorded_by": {
     "linux-x64": "this repository's build and CI (runtime-unit job)",
-    "darwin-arm64": "runtime artifact: unchanged from SMC-M02 (same dsh release and runtime tree; recorded by Codex on Apple silicon, CX-0002 on #26). Bundle archive and profile lock: pending, to be recorded by Codex on an Apple silicon Mac (`pnpm artifacts:record`) for this unit's bundle"
+    "darwin-arm64": "runtime artifact: unchanged from SMC-M02 (same dsh release and runtime tree), confirmed again by Codex on Apple silicon in SMC-M03-CX-0004. Bundle archive and profile lock: recorded by Codex on an Apple silicon Mac (`pnpm artifacts:record`) at this unit's release candidate; CX-0004 reproduced the Mac build at 3c37f48 (docs/progress/SMC-M03.md §13)"
   },
   "model_routes": {
     "research-sol-medium-v1": {

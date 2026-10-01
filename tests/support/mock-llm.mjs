@@ -85,7 +85,7 @@ export function mockRouteOverlay(baseURL) {
   const rows = parseCordisYaml(readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8'))
   const bridge = rows.flatMap((row) => row.insert ?? []).find((row) => row.id === 'sophia-control-bridge')?.config
   if (!bridge) throw new Error('the bundle patch inserts no sophia-control-bridge row')
-  const routes = Object.fromEntries(Object.keys(bridge.routes ?? {}).map((id) => [id, { provider: 'mock', model: 'mock-model', reasoningEffort: null }]))
+  const routes = Object.fromEntries(Object.keys(bridge.routes ?? {}).map((id) => [id, { provider: 'mock', model: 'mock-model', reasoningEffort: null, maxTokens: 4096 }]))
   return `# Test overlay: route Agents to the keyless mock model. Never part of a profile.
 - id: llm-pi-ai
   config:
