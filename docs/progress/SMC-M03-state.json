@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "ce34062",
+  "candidate_commit": "bce59ed",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -187,6 +187,15 @@
         "browser check on the dev stack (14 checks, unprivileged user, sandbox on)"
       ],
       "ref": "docs/progress/SMC-M03.md#25-s5b-part-2b-try-pdf-again-0032"
+    },
+    {
+      "slice": "CX-0007 fixes (M03-RF-0013..0016, 0033)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#26-cx-0007-m03-rf-0013-0016"
     }
   ],
   "outstanding_operations": [
@@ -199,8 +208,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5938063875",
-      "state": "awaiting_operator (revision 8, CC-0009: M03-RF-0008..0012 re-review and S4 part 5 review at ce34062, Mac gate with no local record)"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5941632143",
+      "state": "awaiting_operator (revision 9, CC-0010: M03-RF-0013..0016 re-review and the S5 review at bce59ed, Mac gate with no local record; CX-0007 answered revision 8)"
     }
   ],
   "unknown_effects": [],
@@ -227,7 +236,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0009 awaits Codex. Then a review request covering S5a and S5b (kernel, 0030, renderer API, supervisor; the report template, 0031, the render tools; PdfView; 0032 Try PDF again). Next: the renderer host probe (OP-C) as a Codex operation under Davide’s approval, text extraction for the blank and short page checks, then S6 (guide v1.2: start_research, render_research, steer, the text-mode notice)",
+  "next_action": "CC-0010 awaits Codex (re-review of M03-RF-0013..0016 and the S5 review at bce59ed). Open for Davide: what Forget means for a published report that quoted a forgotten source, and approval of the renderer host probe (OP-C) as a Codex operation. Next: text extraction for the blank and short page checks, then S6 (guide v1.2: start_research, render_research, steer, the text-mode notice)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

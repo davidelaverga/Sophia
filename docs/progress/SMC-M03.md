@@ -505,3 +505,5 @@ Run (linux-x64): `pnpm check` exit 0 (560 unit; 95 integration, 93 passed and 2 
 
 Not changed: a published version stays readable as the record of what was published, even when it quoted a source that was later forgotten. What Forget means for published reports is a product decision for Davide, raised in CC-0010.
 
+The review request is [CC-0010](../coordination/SMC-M03/SMC-M03-CC-0010.md) ([#31](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5941632143)), at `bce59ed`. It also asks for the first review of S5.
+
