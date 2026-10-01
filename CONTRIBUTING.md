@@ -405,7 +405,9 @@ either:
   an attempt that failed. Each companion call is given a signal that aborts
   when its time is up, and is waited for: a turn fails, or a welcome lets
   its claim go, only once the call has stopped. The welcome's write is
-  fenced to the request's epoch too: an erasure meanwhile refuses it.
+  fenced to the request's epoch too: an erasure meanwhile refuses it. What
+  the companion answers or welcomes from is read only under the claim that
+  holds it, so a stalled attempt asks nothing.
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole

@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** first commit `c3f8968` on `studio/personal-space` (#30), 2026-09-30. On 2026-10-01 Luis asked to split it: the data and API on `personal/data` (from main `860a01a`), and the Studio's places on top of it (#30).
-- **End:** the data side's code at `a70f1e8` (#35's head); the Studio's at the merge that brings it in, named once its checks ran.
+- **End:** the data side's code at `27002a8` (#35's head); the Studio's at the merge that brings it in, named once its checks ran.
 - **Writable scope:** this repository. **No hosted service was changed.** Migration 0021 is on no hosted database.
 
 ## Outcome
@@ -66,6 +66,7 @@ Missing or unverified:
   - Codex on #30's `9a72043`, on the Studio side: the P1's other half (every write but erasure names the epoch as last read, and its retry the same one) and one P2 (a way to start and the field shared no guard, so two messages could be on their way at once), fixed; each undone once fails its scenario, but for the guard's backstop inside the writes, which the field's wait already covers.
   - Codex on #35's `baf9c83` and `cf1fef8`: three P2 (a welcome's claim kept when its read failed; a stalled attempt given the context after its claim lapsed; the Work list's carried notes bounded per project only), all fixed, each undone once to see its test fail.
   - Codex on #35's `f600665`: three P2 (a welcome's key not tied to whom it greets; a companion call past its time left running; a welcome's write not fenced to its epoch), and on #30's `3d8bc84`, its data half (a conversation past 500 turns could not be read back, and its days were counted from the newest 500 only), all fixed, each undone once to see its test fail.
+  - Codex on #35's `4fd79b5`: one P2 (a welcome's attempt that stalled past its claim still read what to welcome from), fixed; undone once, its test fails.
   - Codex on #30's `3d8bc84`: two P2 (another tab kept the erased draft; a conversation past 500 turns lost its earlier days and undercounted them), fixed on both sides; each Studio fix undone once fails its scenario.
   - Codex on #30's `67f9974`: two P2 (the field, and a message on its way, kept on the page while the padlock is shut; the days not following the clock), fixed with what was read back, which a lock lets go too; each undone once fails its scenario.
 

@@ -403,6 +403,12 @@ BEGIN
  UPDATE sophia.personal_greeting_claims SET claim=NULL WHERE owner_id=sophia.personal_owner() AND claim=p_claim;
 END $$;
 
+-- Whether `p_claim` is the calling owner's welcome claim now: an attempt reads what to welcome from only while it
+-- holds the claim, so only one attempt asks the companion.
+CREATE FUNCTION sophia.personal_greeting_held(p_claim uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT EXISTS(SELECT 1 FROM sophia.personal_greeting_claims WHERE owner_id=sophia.personal_owner() AND claim=p_claim) $$;
+
 -- The API process about to ask the companion claims the pending turn first: its claim, which the reply or the failure
 -- must carry, or NULL when another process is answering it (a retry reached another process, a restart). A claim
 -- lapses after two minutes, as the wait does (personal_reply_state); asking again clears it.
@@ -625,14 +631,14 @@ BEGIN
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
+REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid),
  sophia.record_personal_greeting(text,uuid,text,text),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
+GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.personal_greeting_held(uuid), sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid),
  sophia.record_personal_greeting(text,uuid,text,text),
