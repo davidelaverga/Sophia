@@ -273,9 +273,28 @@ export async function recordPersonalReply(
   await c.query('SELECT sophia.record_personal_reply($1, $2, $3)', [turnId, text, suggestion])
 }
 
-/** Sophia's welcome back; the function writes it only if one is still due (turnId null when not). */
-export const recordPersonalGreeting = (c: pg.PoolClient, text: string) =>
-  receipt(c, 'record_personal_greeting', 'SELECT sophia.record_personal_greeting($1) AS receipt', [text])
+/** Whether this process may answer the pending turn: false while another process is answering it (0021). */
+export async function claimPersonalReply(c: pg.PoolClient, turnId: string): Promise<boolean> {
+  const { rows } = await c.query<{ claimed: boolean }>('SELECT sophia.claim_personal_reply($1) AS claimed', [turnId])
+  return onlyRow(rows, 'claim_personal_reply').claimed
+}
+
+/**
+ * A welcome back asked for under `key`: its receipt when the key has one, or nothing is due, or another request is
+ * getting it; 'claimed' when this request may ask the companion (then recordPersonalGreeting under the same key).
+ */
+export async function beginPersonalGreeting(c: pg.PoolClient, key: string): Promise<PersonalReceipt | 'claimed'> {
+  const { rows } = await c.query<{ receipt: PersonalReceipt | { claimed: true } }>(
+    'SELECT sophia.begin_personal_greeting($1) AS receipt',
+    [key],
+  )
+  const answer = onlyRow(rows, 'begin_personal_greeting').receipt
+  return 'claimed' in answer ? 'claimed' : answer
+}
+
+/** Sophia's welcome back under `key`; written only by the request holding the claim, while one is still due. */
+export const recordPersonalGreeting = (c: pg.PoolClient, key: string, text: string) =>
+  receipt(c, 'record_personal_greeting', 'SELECT sophia.record_personal_greeting($1, $2) AS receipt', [key, text])
 
 /** The companion could not answer: the turn says so, and the person may ask again. */
 export async function failPersonalReply(c: pg.PoolClient, turnId: string): Promise<void> {

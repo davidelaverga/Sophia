@@ -139,6 +139,16 @@ export async function roomParticipants(
 }
 
 /**
+ * The rooms among `roomIds` that someone is in, by one question to the room server (it counts each room's
+ * participants), so only those are asked who is in them. An unreachable server throws: callers fail closed.
+ */
+export async function occupiedRooms(cfg: LiveKitConfig, roomIds: readonly string[]): Promise<Set<string>> {
+  if (roomIds.length === 0) return new Set()
+  const rooms = await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).listRooms([...roomIds])
+  return new Set(rooms.filter((r) => r.numParticipants > 0).map((r) => r.name))
+}
+
+/**
  * Take someone out of the call (a guest declined or blocked after being let in; amendment A07). The answer is
  * evidence or it is a failure: `removed` when the server removed them, `absent` only when the server itself lists
  * them gone, and otherwise `failed`, which keeps the removal pending (migration 0014) until the worker retries it.

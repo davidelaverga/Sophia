@@ -127,6 +127,8 @@ export {
   PERSONAL_TURN_LIMIT,
   readCompanionContext,
   readPersonalExport,
+  beginPersonalGreeting,
+  claimPersonalReply,
   readPersonalSpace,
   readPersonalTurnsAfter,
   readWelcomeContext,

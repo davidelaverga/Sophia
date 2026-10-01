@@ -20,7 +20,7 @@ What works, on the local dev stack with the rehearsal companion:
 - **Erasure:** the conversation, suggestions and notes are deleted; every request keeps only its key, dated at the erasure, so a retry from before writes nothing however late it comes; carried notes stay in their projects, still the person's. The space's revision and its turn order go on.
 - **Limits:** a space keeps at most 2000 notes and a person carries at most 2000 (each refused by its own code), so every one is listed; the lists are bounded as the contract says, and a project's carried notes list the reader's own first.
 - **Who may write:** only the API role can call the personal writers.
-- **API:** the personal routes, the project list with who is in each room, readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only.
+- **API:** the personal routes, the project list with who is in each room (one question finds the occupied rooms; only those are asked, a few at a time), readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only. The API claims a turn, and a welcome under its key, before it asks the companion, so one process asks.
 
 Missing or unverified:
 - **No live companion.** Sophia's answers in development are scripted. D1, the Companion agent on our runtime, is not built.
@@ -35,6 +35,7 @@ Missing or unverified:
   - An independent review of #30's whole diff: its data findings are fixed here (a retry racing its first attempt, a suggestion let go, erasure's records).
   - A review of the fixes' design before they were written: erasure keeps only keys, dated at the erasure.
   - An independent code review of this branch: one P1 (who may call the writers), four P2 (lists past the contract's bounds, erasure's keys, a date kept, the plan's claims) and six P3, all fixed, each with a test that failed before its fix; the API's were also undone once to see their tests fail. The fixes' design was reviewed before they were written.
+  - Codex on `d3c98de`: four P2 (one process per answer, the welcome's key, the room server asked about every room, a suggestion of another turn), all fixed, each undone once to see its test fail.
 - Every logic fix has a database test that fails without it (a mutation check on each).
 
 ## Decisions and changes

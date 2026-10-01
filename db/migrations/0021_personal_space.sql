@@ -11,7 +11,9 @@
 --   before it reads the key, so a retry racing its first attempt gets the same receipt. A request keeps a SHA-256 of
 --   any text it wrote, never the text, and its receipt keeps ids only.
 -- * Sophia's side is written by the companion the API runs: the reply to a pending turn of the same owner, or her
---   welcome back after a quiet spell of more than an hour. A suggestion she makes is kept as a note or deleted.
+--   welcome back after a quiet spell of more than an hour. A suggestion she makes is kept as a note or deleted. The
+--   API claims a turn before it asks the companion, and a welcome under the request's key, so only one process asks,
+--   whichever process a retry reaches (a claim lapses after two minutes, as a wait does).
 -- * Erasing the space deletes the conversation, suggestions and notes for good, and every request keeps only its key
 --   (the key as the client chose it; the Studio's are random), so a retry from before the erasure, however late, is
 --   told its write was erased rather than writing again. What survives is a count and a version: the space's revision
@@ -44,6 +46,7 @@ CREATE TABLE sophia.personal_turns (
  reply_to uuid,
  reply text CHECK(reply IN ('pending','answered','failed')),
  asked_at timestamptz,
+ answering_since timestamptz,
  created_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(owner_id,id), UNIQUE(owner_id,seq),
  FOREIGN KEY(owner_id,reply_to) REFERENCES sophia.personal_turns(owner_id,id),
@@ -93,6 +96,14 @@ CREATE TABLE sophia.personal_releases (
 );
 CREATE INDEX personal_releases_by_project ON sophia.personal_releases(project_id,created_at);
 
+-- The request getting a person's welcome back, while it asks the companion for one: one at a time, whichever API
+-- process a request reaches. A claim lapses after two minutes; written and read only by the functions below.
+CREATE TABLE sophia.personal_greeting_claims (
+ owner_id uuid PRIMARY KEY,
+ request_key text NOT NULL,
+ claimed_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Idempotency for every personal write: per owner and key, the operation, a digest of the request and its receipt.
 CREATE TABLE sophia.personal_requests (
  owner_id uuid NOT NULL, idempotency_key text NOT NULL CHECK(length(idempotency_key) BETWEEN 1 AND 160),
@@ -112,6 +123,7 @@ ALTER TABLE sophia.personal_releases ENABLE ROW LEVEL SECURITY;
 CREATE POLICY owner_or_member_read ON sophia.personal_releases FOR SELECT TO sophia_api
  USING(owner_id=sophia.actor_id() OR sophia.is_member(project_id));
 ALTER TABLE sophia.personal_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sophia.personal_greeting_claims ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON sophia.personal_spaces, sophia.personal_turns, sophia.personal_suggestions, sophia.personal_notes,
  sophia.personal_releases TO sophia_api;
 -- No write grant on any of these tables, and none to the worker: the functions below are the only writers.
@@ -284,20 +296,68 @@ BEGIN
  RETURN sophia.personal_receipt('reply',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq,'suggestionId',suggestion_id));
 END $$;
 
--- Sophia's welcome back after a quiet spell: a turn of hers that answers no message. Written only when the last turn
--- is more than an hour old and is not already such a welcome; otherwise nothing, and the call says so (turnId null).
-CREATE FUNCTION sophia.record_personal_greeting(p_text text) RETURNS jsonb LANGUAGE plpgsql
+-- A welcome back is due: the last turn is more than an hour old and is not already such a welcome.
+CREATE FUNCTION sophia.personal_welcome_due() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT coalesce((SELECT t.created_at<now()-interval '1 hour' AND NOT (t.author='sophia' AND t.reply_to IS NULL)
+   FROM sophia.personal_turns t WHERE t.owner_id=sophia.personal_owner() ORDER BY t.seq DESC LIMIT 1), false) $$;
+REVOKE ALL ON FUNCTION sophia.personal_welcome_due() FROM PUBLIC;
+
+-- resumePersonalSpace, first step, under the request's key: the key's receipt, once kept, answers every retry of it.
+-- Otherwise, when a welcome is due and no other request is getting one, this one claims it ('{"claimed":true}': the
+-- API then asks the companion and records it); when none is due, or another request has it, the receipt saying
+-- nothing was written is kept under the key.
+CREATE FUNCTION sophia.begin_personal_greeting(p_key text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE a uuid:=sophia.personal_owner(); last sophia.personal_turns; s sophia.personal_spaces; t sophia.personal_turns;
+DECLARE a uuid:=sophia.personal_owner(); prior jsonb; held_by sophia.personal_greeting_claims;
 BEGIN
- PERFORM 1 FROM sophia.personal_spaces WHERE owner_id=a FOR UPDATE;
- SELECT * INTO last FROM sophia.personal_turns WHERE owner_id=a ORDER BY seq DESC LIMIT 1;
- IF NOT FOUND OR last.created_at>now()-interval '1 hour' OR (last.author='sophia' AND last.reply_to IS NULL) THEN
-  RETURN sophia.personal_receipt('resume',coalesce((SELECT revision FROM sophia.personal_spaces WHERE owner_id=a),1),'{}');
+ PERFORM sophia.personal_hold();
+ prior:=sophia.personal_prior(p_key,'resume','{}');
+ IF prior IS NOT NULL THEN RETURN prior; END IF;
+ IF sophia.personal_welcome_due() THEN
+  SELECT * INTO held_by FROM sophia.personal_greeting_claims WHERE owner_id=a;
+  IF NOT FOUND OR held_by.claimed_at<now()-interval '2 minutes' THEN
+   INSERT INTO sophia.personal_greeting_claims(owner_id,request_key) VALUES(a,p_key)
+   ON CONFLICT (owner_id) DO UPDATE SET request_key=EXCLUDED.request_key, claimed_at=now();
+   RETURN '{"claimed":true}';
+  END IF;
  END IF;
- s:=sophia.personal_touch();
- t:=sophia.personal_append('sophia',sophia.personal_text(p_text,4000),NULL);
- RETURN sophia.personal_receipt('resume',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq));
+ RETURN sophia.personal_remember(p_key,'resume','{}',
+  sophia.personal_receipt('resume',(SELECT revision FROM sophia.personal_spaces WHERE owner_id=a),'{}'));
+END $$;
+
+-- Sophia's welcome back after a quiet spell, second step: a turn of hers that answers no message, written only by the
+-- request still holding the claim and only while one is still due; otherwise nothing (turnId null). Either way the
+-- receipt is kept under the key, so a retry, however late, gets the same answer and never a second welcome.
+CREATE FUNCTION sophia.record_personal_greeting(p_key text, p_text text) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.personal_owner(); prior jsonb; s sophia.personal_spaces; t sophia.personal_turns; result jsonb;
+BEGIN
+ PERFORM sophia.personal_hold();
+ prior:=sophia.personal_prior(p_key,'resume','{}');
+ IF prior IS NOT NULL THEN RETURN prior; END IF;
+ IF EXISTS(SELECT 1 FROM sophia.personal_greeting_claims WHERE owner_id=a AND request_key=p_key)
+  AND sophia.personal_welcome_due() THEN
+  s:=sophia.personal_touch();
+  t:=sophia.personal_append('sophia',sophia.personal_text(p_text,4000),NULL);
+  result:=sophia.personal_receipt('resume',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq));
+ ELSE
+  result:=sophia.personal_receipt('resume',(SELECT revision FROM sophia.personal_spaces WHERE owner_id=a),'{}');
+ END IF;
+ DELETE FROM sophia.personal_greeting_claims WHERE owner_id=a AND request_key=p_key;
+ RETURN sophia.personal_remember(p_key,'resume','{}',result);
+END $$;
+
+-- The API process about to ask the companion claims the pending turn first: true when it may answer, false when another
+-- process is answering it (a retry reached another process, a restart). A claim lapses after two minutes, as the wait
+-- does (personal_reply_state); asking again clears it.
+CREATE FUNCTION sophia.claim_personal_reply(p_turn uuid) RETURNS boolean LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ UPDATE sophia.personal_turns SET answering_since=now()
+  WHERE owner_id=sophia.personal_owner() AND id=p_turn AND author='person' AND reply='pending'
+   AND (answering_since IS NULL OR answering_since<now()-interval '2 minutes');
+ RETURN FOUND;
 END $$;
 
 -- The companion could not answer: the turn says so, and the person may ask again.
@@ -323,7 +383,7 @@ BEGIN
  IF NOT FOUND OR t.author<>'person' THEN RAISE EXCEPTION 'Turn not found' USING ERRCODE='22023'; END IF;
  stands:=sophia.personal_reply_state(t.reply,t.asked_at);
  IF stands<>'failed' THEN RAISE EXCEPTION 'Stale turn: it is %', stands USING ERRCODE='40001'; END IF;
- UPDATE sophia.personal_turns SET reply='pending', asked_at=now() WHERE owner_id=a AND id=p_turn;
+ UPDATE sophia.personal_turns SET reply='pending', asked_at=now(), answering_since=NULL WHERE owner_id=a AND id=p_turn;
  s:=sophia.personal_touch();
  RETURN sophia.personal_remember(p_key,'retry_turn',semantic,
   sophia.personal_receipt('retry_turn',s.revision,jsonb_build_object('turnId',t.id,'seq',t.seq)));
@@ -362,7 +422,8 @@ BEGIN
 END $$;
 
 -- keepPersonalNote: a line the person keeps from one of their own turns, in their words. Keeping exactly what Sophia
--- suggested for that turn keeps her suggestion; a suggestion let go meanwhile leaves the note theirs.
+-- suggested for that turn keeps her suggestion (a suggestion of another turn doesn't count); a suggestion let go
+-- meanwhile leaves the note theirs.
 CREATE FUNCTION sophia.keep_personal_note(p_key text, p_text text, p_from_turn uuid, p_suggestion uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); body text:=sophia.personal_text(p_text,90); semantic jsonb; prior jsonb;
@@ -378,7 +439,8 @@ BEGIN
  PERFORM sophia.personal_note_room();
  IF p_suggestion IS NOT NULL THEN
   SELECT * INTO sg FROM sophia.personal_suggestions WHERE owner_id=a AND id=p_suggestion FOR UPDATE;
-  IF FOUND AND sg.state='open' AND sg.body=body THEN
+  IF FOUND AND sg.state='open' AND sg.body=body
+   AND EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id=a AND id=sg.turn_id AND reply_to=p_from_turn) THEN
    UPDATE sophia.personal_suggestions SET state='kept', decided_at=now() WHERE owner_id=a AND id=sg.id;
    kept_by:='sophia';
   END IF;
@@ -489,6 +551,7 @@ BEGIN
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  s:=sophia.personal_touch();
  UPDATE sophia.personal_releases SET note_id=NULL WHERE owner_id=a;
+ DELETE FROM sophia.personal_greeting_claims WHERE owner_id=a;
  DELETE FROM sophia.personal_notes WHERE owner_id=a;
  GET DIAGNOSTICS notes=ROW_COUNT;
  DELETE FROM sophia.personal_suggestions WHERE owner_id=a;
@@ -502,12 +565,14 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,text,text),
- sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text),
+ sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text),
+ sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text,text),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.send_personal_turn(text,text), sophia.record_personal_reply(uuid,text,text),
- sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text),
+ sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text),
+ sophia.fail_personal_reply(uuid), sophia.retry_personal_turn(text,uuid), sophia.record_personal_greeting(text,text),
  sophia.personal_reply_state(text,timestamptz),
  sophia.decide_personal_suggestion(text,uuid,text), sophia.keep_personal_note(text,text,uuid,uuid),
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),

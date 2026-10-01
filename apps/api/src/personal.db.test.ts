@@ -19,7 +19,7 @@ import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { rehearsalCompanion } from './companion-rehearsal.ts'
-import { ANSWER_LIMIT_MS } from './companion.ts'
+import { ANSWER_LIMIT_MS, CompanionRunner } from './companion.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -263,6 +263,42 @@ describe('a companion that fails', () => {
     } finally {
       await loud.close()
     }
+  })
+})
+
+/** A companion that takes a moment to answer, so two processes ask at the same time. */
+const pause = () => new Promise((resolve) => setTimeout(resolve, 100))
+
+describe('a companion on two API processes', () => {
+  it('answers a turn once, and welcomes back once, whichever process is asked', async () => {
+    const PERSON = randomUUID()
+    let answered = 0
+    let greeted = 0
+    const counting = {
+      mode: 'rehearsal' as const,
+      answer: async () => {
+        answered += 1
+        await pause()
+        return { text: 'Once.', suggestion: null }
+      },
+      greet: async () => {
+        greeted += 1
+        await pause()
+        return 'Welcome back.'
+      },
+    }
+    const one = new CompanionRunner(pool, counting, () => undefined)
+    const two = new CompanionRunner(pool, counting, () => undefined)
+    const sent = await withActor(pool, PERSON, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Hello from two'))
+    const turn = sent.turnId ?? ''
+    await Promise.all([one.answer(PERSON, turn), two.answer(PERSON, turn)])
+    assert.equal(answered, 1, 'one process answered it')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [
+      PERSON,
+    ])
+    const [a, b] = await Promise.all([one.greet(PERSON, randomUUID(), null), two.greet(PERSON, randomUUID(), null)])
+    assert.equal(greeted, 1, 'one process asked for the welcome')
+    assert.equal([a, b].filter((r) => r.turnId).length, 1, 'and one welcome was written')
   })
 })
 
