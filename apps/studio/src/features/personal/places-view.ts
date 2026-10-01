@@ -231,9 +231,16 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 
-/** Projects with a session about to start come first, then the rest as listed. */
+/** Projects with a session about to start come first, the soonest first; then the rest as listed. */
 export function workOrder(projects: readonly ProjectSummary[], now: Date): ProjectSummary[] {
-  return projects.toSorted((a, b) => Number(soon(b, now)) - Number(soon(a, now)))
+  const starts = (p: ProjectSummary) =>
+    soon(p, now) && p.nextSession ? Date.parse(p.nextSession.startsAt) : Number.POSITIVE_INFINITY
+  return projects.toSorted((a, b) => {
+    const x = starts(a)
+    const y = starts(b)
+    if (x === y) return 0
+    return x < y ? -1 : 1
+  })
 }
 
 export interface WorkDoor {

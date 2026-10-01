@@ -525,11 +525,14 @@ their work. Keep these when you change them:
   the field went with a sign-out (`restoredDraft`, `unsent`, with tests).
   Signing out forgets the drafts at once and again once it has settled
   (`signOutForgetting`, with tests), so nothing written meanwhile stays;
-  erasing forgets the draft (`draft.ts`). One message is on its way at a time, from the
-  field or a way to start (`OnItsWay`), and from any tab of the device
-  (`waitsFor`, with tests): the field waits meanwhile, so no tab's words on
-  their way are lost and they arrive in order. Every write but erasure names the epoch of the
-  space as this page last read it (`epochNow`: the space's when it is
+  erasing forgets the draft as soon as it is confirmed, before the space is
+  read afresh (`draft.ts`). One message is on its way at a time, from the
+  field or a way to start (`OnItsWay`), and from any tab of the device: a
+  send holds the browser's lock across tabs until it settles
+  (`oneAtATime`, with tests), and a tab's words on their way stay on the
+  device (`waitsFor`, with tests). The field waits meanwhile, so no tab's
+  words on their way are lost and they arrive in order. Every write but
+  erasure names the epoch of the space as this page last read it (`epochNow`: the space's when it is
   shown, else the Work list's), and its retry names the same one, so
   nothing sent before an erasure lands after it, nor anything a space shown
   from before one writes, though the Work list may already name the newer
@@ -575,7 +578,9 @@ their work. Keep these when you change them:
   the draft). The conversation's days
   follow the clock: past midnight, Today becomes Yesterday. "Join the room"
   from Work asks to join on that opening only (`joinStands`, with tests):
-  leaving before the room could join drops it.
+  leaving before the room could join drops it. Of several sessions about to
+  start, the soonest comes first, and is the one the Home door joins
+  (`workOrder`, with tests).
 - **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,
   `data-view.ts` and `notice-view.ts` own the sentences that depend on what
   the places read (door verbs, sessions, rooms, the introduction and when it

@@ -269,12 +269,14 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     carry: (noteId: string, projectId: string) =>
       run((k, at) => carryPersonalNote(token, k, at, noteId, projectId), true),
     takeBack: (releaseId: string) => run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true),
-    erase: async () => {
-      const receipt = await run((k) => erasePersonalSpace(token, k))
-      forgetDraft(accountOf(identity))
-      setErasures((n) => n + 1)
-      return receipt
-    },
+    erase: (): Promise<PersonalReceipt> =>
+      run(async (k) => {
+        const receipt = await erasePersonalSpace(token, k)
+        // Confirmed: the draft goes from the device and the field at once, before the space is read afresh.
+        forgetDraft(accountOf(identity))
+        setErasures((n) => n + 1)
+        return receipt
+      }),
   }
 }
 

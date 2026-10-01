@@ -130,6 +130,13 @@ describe('home words', () => {
     assert.equal(workDoor([mine], NOW, null).count, '1 project · 1 from you')
   })
 
+  it('offers the session that starts first when several are about to', () => {
+    const later = project({ title: 'Pitch deck, Q4', nextSession: session(8) })
+    const sooner = project({ title: 'Launch plan', nextSession: session(2) })
+    const door = workDoor([later, sooner], NOW, null)
+    assert.deepEqual([door.joins?.title, door.meta], ['Launch plan', 'Launch plan · starts in 2 min'])
+  })
+
   it('names who is in the busiest room, Sophia last', () => {
     const live = project({ room: { people: ['davide@sophia.test', 'luis@sophia.test'], sophia: true } })
     const door = workDoor([project({ title: 'Other' }), live], NOW, null)

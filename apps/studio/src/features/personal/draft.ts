@@ -124,6 +124,17 @@ export const goingOut = (kept: Kept, words: Draft, until: number): Kept => ({
 export const waitsFor = (kept: Kept, words: Draft, now: number): boolean =>
   kept.sending !== null && kept.sending.key !== words.key && kept.sending.until > now
 
+/**
+ * One message on its way per device and account: the browser's lock (Web Locks, across tabs) is asked for before the
+ * words go and held until they have settled, so two presses in two tabs never both go; `taken` says another tab holds
+ * it. The stored lease (waitsFor) still keeps the words of a tab that went away. Without Web Locks, the lease alone.
+ */
+export function oneAtATime<T>(account: string, run: (taken: boolean) => Promise<T>): Promise<T> {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
+  if (!locks) return run(false)
+  return locks.request(`sophia.personal.send.${account}`, { ifAvailable: true }, (lock) => run(lock === null))
+}
+
 /** Sent: the words on their way are let go, and only they (another tab's stay); the draft stays as it is then. */
 export const afterSent = (kept: Kept, sent: Draft): Kept => ({
   draft: kept.draft,

@@ -10,6 +10,7 @@ import {
   keptIn,
   NOTHING_KEPT,
   onOpening,
+  oneAtATime,
   restoredDraft,
   waitsFor,
 } from './draft.ts'
@@ -121,6 +122,29 @@ describe('one message on its way per device', () => {
     assert.equal(waitsFor({ draft: null, sending: theirs }, theirs, 4_000), false)
     assert.equal(waitsFor({ draft: mine, sending: theirs }, mine, 5_000), false)
     assert.equal(waitsFor({ draft: mine, sending: null }, mine, 4_000), false)
+  })
+})
+
+describe('one send at a time on the device', () => {
+  it('a send while another holds the device’s lock is told it is taken', async () => {
+    const held = Promise.withResolvers<void>()
+    const first = oneAtATime('ana', async (taken) => {
+      await held.promise
+      return taken ? 'waited' : 'went'
+    })
+    const second = await oneAtATime('ana', (taken) => Promise.resolve(taken ? 'waits' : 'went'))
+    held.resolve()
+    assert.equal(second, 'waits')
+    assert.equal(await first, 'went')
+  })
+
+  it('another account’s send, or one after the first has settled, goes', async () => {
+    const held = Promise.withResolvers<void>()
+    const first = oneAtATime('ana', () => held.promise)
+    assert.equal(await oneAtATime('ben', (taken) => Promise.resolve(taken ? 'waits' : 'went')), 'went')
+    held.resolve()
+    await first
+    assert.equal(await oneAtATime('ana', (taken) => Promise.resolve(taken ? 'waits' : 'went')), 'went')
   })
 })
 

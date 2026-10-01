@@ -12,6 +12,7 @@ import {
   draftKey,
   draftOf,
   goingOut,
+  oneAtATime,
   onOpening,
   readKept,
   restoredDraft,
@@ -53,9 +54,12 @@ function opened(account: string, epoch: number): { draft: Draft | null; back: bo
   return { ...open, at }
 }
 
-/** Whether `words` wait for another tab's on their way (waitsFor); if so, the line above the field says so. */
-function waiting(account: string, epoch: number | undefined, words: Draft, say: (why: string) => void): boolean {
-  const wait = epoch !== undefined && waitsFor(readKept(account, epoch), words, Date.now())
+/**
+ * Whether `words` wait: another tab holds the device's send (`taken`), or its words are on their way (waitsFor); if so,
+ * the line above the field says so.
+ */
+function waiting(account: string, epoch: number | undefined, words: Draft, say: (why: string) => void, taken: boolean) {
+  const wait = taken || (epoch !== undefined && waitsFor(readKept(account, epoch), words, Date.now()))
   if (wait) say(WAITS)
   return wait
 }
@@ -186,7 +190,7 @@ function useDraft(account: string, epoch: number | undefined) {
     /** The words in the field, with the key they go under. */
     current: () => latest.current,
     /** Another tab's message is on its way: these words wait in the field, said so (waiting). */
-    waits: (words: Draft) => waiting(account, epoch, words, setNote),
+    waits: (words: Draft, taken: boolean) => waiting(account, epoch, words, setNote, taken),
     /** The words go, under their key: the field empties at once, and the device keeps them apart until they're sent. */
     go: (words: Draft) => {
       sending.current = words
@@ -302,19 +306,27 @@ interface Props {
  * message is on its way at a time, as the device keeps one: while one is (`busy`, also a way to start's), the next
  * waits, and what is typed meanwhile stays.
  */
-function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, busy: boolean, onSend: Props['onSend']) {
+function useSend(
+  account: string,
+  draft: ReturnType<typeof useDraft>,
+  ready: boolean,
+  busy: boolean,
+  onSend: Props['onSend'],
+) {
   const mounted = useMounted()
   return async () => {
     const current = draft.current()
     const text = current?.text.trim() ?? ''
     if (!current || !text || !ready || busy) return
     const words = { text, key: current.key }
-    if (draft.waits(words)) return
-    draft.go(words)
-    const outcome = await onSend(text, words.key)
-    if (!mounted.current) return
-    if (outcome === 'sent' || outcome === 'erased') draft.sent()
-    else draft.back(words, BACK[outcome])
+    await oneAtATime(account, async (taken) => {
+      if (draft.waits(words, taken)) return
+      draft.go(words)
+      const outcome = await onSend(text, words.key)
+      if (!mounted.current) return
+      if (outcome === 'sent' || outcome === 'erased') draft.sent()
+      else draft.back(words, BACK[outcome])
+    })
   }
 }
 
@@ -342,7 +354,7 @@ export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, 
   }, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready' && !behind
-  const send = useSend(draft, ready, busy, onSend)
+  const send = useSend(account, draft, ready, busy, onSend)
   return (
     <form
       className="ps-composer"
