@@ -129,16 +129,39 @@ function useSwapFocus(locked: boolean) {
   }, [locked])
 }
 
+/**
+ * A signal for each copy's export, aborted (CopyCalledOff) once the padlock shuts or the sheet goes: the export then
+ * stops at once, asks for no page more and lets what came go. No export starts while the padlock is shut, so any change
+ * of it calls off every export on its way.
+ */
+function useCalledOff(locked: boolean): () => AbortSignal {
+  const exports = useRef(new Set<AbortController>())
+  useEffect(() => {
+    const running = exports.current
+    return () => {
+      for (const one of running) one.abort(new CopyCalledOff('The padlock shut, or the sheet went, during the export'))
+      running.clear()
+    }
+  }, [locked])
+  return () => {
+    const one = new AbortController()
+    exports.current.add(one)
+    return one.signal
+  }
+}
+
 export function DataSheet(props: Props) {
   const { token, who, space, locked, lockedNow, toast, onClose, returnTo, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
   const open = useMounted()
+  const calledOff = useCalledOff(locked)
   useSwapFocus(locked)
   // A copy whose export arrives once the padlock is shut (as stored then, wherever it was shut) or the sheet has gone
-  // (closed, signing out) copies nothing.
+  // (closed, signing out) copies nothing; one still on its way then stops at once.
   const copy = async () => {
     try {
-      const load = async () => exportText(await exportPersonalSpace(token), who, new Date())
+      const signal = calledOff()
+      const load = async () => exportText(await exportPersonalSpace(token, signal), who, new Date())
       await copyFetched(load, browserClip(), () => open.current && !lockedNow())
       toast(NOTICE.copied)
     } catch (err: unknown) {

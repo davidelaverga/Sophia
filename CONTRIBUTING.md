@@ -455,7 +455,9 @@ their work. Keep these when you change them:
   fetched, shown or kept in memory while it is shut. A place that can't be shown (a locked
   personal space) takes its history entry's place, so Back goes on past it.
   A copy of the space reads the padlock as stored when its export arrives,
-  and copies nothing once it shut or its sheet went. Dictation stops when the
+  and copies nothing once it shut or its sheet went; an export still paging
+  then stops at once (the page on its way too), asks for no page more and
+  lets what came go (`exportPersonalSpace`'s signal). Dictation stops when the
   space goes out of sight, and a start still waiting for the device's
   language is called off (`useDictation`): the microphone never turns on out
   of sight.
