@@ -15,6 +15,8 @@ import { SourceError, codeForStatus, isRecord, jsonBody, requestWithDeadline } f
 export const TAVILY_ENDPOINT = 'https://api.tavily.com/search'
 /** The most results one search may ask for (plan §2.6). */
 export const TAVILY_MAX_RESULTS = 5
+/** The local deadline for one search (WEB_SOURCE_POLICY §6: search 20 s). */
+export const TAVILY_TIMEOUT_MS = 20_000
 const QUERY_LIMIT = 400
 const SNIPPET_LIMIT = 1000
 
@@ -104,7 +106,7 @@ function hits(results: unknown): SearchHit[] {
 
 export function createTavilySearch(options: TavilyOptions): TavilySearch {
   const doFetch = options.fetch ?? fetch
-  const timeoutMs = options.timeoutMs ?? 30_000
+  const timeoutMs = options.timeoutMs ?? TAVILY_TIMEOUT_MS
   const endpoint = options.endpoint ?? TAVILY_ENDPOINT
   const key = (): string | null => {
     const value = options.apiKey()

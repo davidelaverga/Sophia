@@ -17,7 +17,7 @@ This document binds the plan's target semantics to the code that exists. A later
 
 | Item | Reserved | Why |
 |---|---|---|
-| Migrations | **0022** onward. Planned: 0022 readers and formats, 0023 research writers, 0024 allowance and reservations; more if needed, recorded here first | `main` ends at `0020_typed_mission_turns.sql`. Luis's #30 ships `0021_personal_space.sql` |
+| Migrations | **0022** onward: 0022 readers and formats (S1), 0023 usage cache counters and compaction calls (S2), 0024 grants, allowances, reservations and provenance (S3); next, 0025 research writers (S4). More if needed, recorded here first | `main` ends at `0020_typed_mission_turns.sql`. Luis's #30 ships `0021_personal_space.sql` |
 | Contract amendment | **A11** (`packages/contracts/amendments/A11-research-and-knowledge.json`) | `main` ends at A09. #30 ships `A10-personal-space.json` |
 | Runtime unit | `sophia-runtime-m03-dev`, `previous_unit: sophia-runtime-m02-dev` | The research route and presets change the bundle (§5) |
 | Lock | `pnpm-lock.yaml`: written only by the main implementation session, in the commit that changes dependencies | Single writer |
@@ -138,3 +138,6 @@ All routes are authenticated like observations (runtime lease and binding), idem
 | 2026-10-01 (S2) | The registry generates a bundle module instead of being copied in | `specialists.generated.ts` keeps the bundle self-contained and byte-reproducible, like the runtime wire module, and `contracts:check` fails when it is stale |
 | 2026-10-01 (S3) | The source adapters are built in S3 and registered in S4 | Registering Tavily on `ctx.web` restates the base `web` row and adds a top-level bundle row. That changes the composition the gate checks, and the provider would sit unused until S4's research tools call `searchWithReceipt()` (the native tools stay hidden). S3 ships the adapters, eligibility and containment with their conformance suite; S4 wires them with the tools |
 | 2026-10-01 (S3) | Jina is called with `POST` and the URL in a JSON body | The reader accepts both forms. A body keeps the target URL out of the request line, so no encoding of the target can change what the extractor parses |
+| 2026-10-01 (S3) | The allowance functions are owner-only; S4 adds the authenticated wrappers | The runtime routes authenticate the lease and the binding, then reserve. Keeping the core functions ungranted means no login can reserve or settle except through those checks, and a grant changes only as a Codex operation |
+| 2026-10-01 (S3) | A closed gate also stops new reservations, not only admission | The gate is the operator's stop for spend. In-flight calls still end (settle, release or uncertain), so nothing is left unaccounted |
+| 2026-10-01 (S3) | Policy slots count every reservation that was not released | A search or read whose outcome is unknown may have been served and charged, so it keeps its slot until reconciliation releases it |

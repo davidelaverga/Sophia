@@ -65,6 +65,15 @@
         "pnpm check"
       ],
       "ref": "docs/progress/SMC-M03.md#11-s3-part-1-source-adapters-and-guards"
+    },
+    {
+      "slice": "S3 part 2",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#12-s3-part-2-grants-allowances-reservations-and-provenance-0024"
     }
   ],
   "outstanding_operations": [
@@ -93,7 +102,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later",
+      "path": "db/migrations/0022_*.sql and later (0022, 0023, 0024 so far)",
       "owner": "Claude Code"
     },
     {
@@ -105,12 +114,12 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S3 part 2: provenance table, allowance grants and reservations (0024); CC-0004 awaiting Codex",
+  "next_action": "S4 (durable Markdown): runtime operations, admission, research tools and presets' plugins, reservation hook, S3-key byte store, publish, delivery and Knowledge UI; CC-0004 awaiting Codex",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256_linux_x64": "0e413faa42e30eb950425e1fd8dd9400eea59e79d5169edf6d9a9602fb34a5a0",
+    "bundle_archive_sha256_linux_x64": "4d7b261bbfc61b324db981d9b1134d1885330b62045e108b553852d8a4c9f227",
     "darwin_arm64": "pending Codex artifacts:record",
     "deployed": false
   }

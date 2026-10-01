@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createTavilySearch, TAVILY_ENDPOINT } from '../../packages/dsh-bundle/dist/source-tavily.js'
+import { createTavilySearch, TAVILY_ENDPOINT, TAVILY_TIMEOUT_MS } from '../../packages/dsh-bundle/dist/source-tavily.js'
 import { createJinaReader, JINA_HEADERS, LIMITATION_REBINDING, LIMITATION_REDIRECTS, binaryKindOf } from '../../packages/dsh-bundle/dist/source-jina.js'
 import { checkReadTarget, isPublicAddress } from '../../packages/dsh-bundle/dist/source-eligibility.js'
 import { createQueryGuard, envelope, page, PASSAGE_CHARS } from '../../packages/dsh-bundle/dist/source-containment.js'
@@ -67,6 +67,7 @@ test('Tavily: every request pins the cost-bearing options and caps results at fi
   assert.equal(req.init.method, 'POST')
   assert.equal(req.headers.authorization, 'Bearer tvly-test')
   assert.equal('x-tavily-access-mode' in req.headers, false, 'never keyless mode')
+  assert.equal(TAVILY_TIMEOUT_MS, 20_000, 'the source policy\'s search deadline')
   assert.deepEqual(req.body, {
     query: 'sandboxed pdf rendering',
     search_depth: 'basic',

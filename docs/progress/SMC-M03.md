@@ -32,7 +32,7 @@ This record keeps source, tests, hosted evidence and human acceptance apart. A s
 
 | Goal | Slices (plan §4) | State |
 |---|---|---|
-| G1 Source access | S0, S1, S3 | S0 and S1 done (§6, §7); S3 after S2 |
+| G1 Source access | S0, S1, S3 | S0, S1 and S3 done (§6, §7, §11, §12) |
 | G2 Durable Markdown | S2, S4 | S2 done (§8–§10); S4 next after S3 |
 | G3 PDF | S5a (renderer host, Codex probe), S5b | planned; the host depends on CC-0001 and D6 |
 | G4 Voice and text | S6 | planned |
@@ -162,3 +162,19 @@ The modules S4's research tools call, built and tested on their own. Nothing reg
 The bundle archive is re-recorded on linux-x64: `sha256:0e413faa42e30eb950425e1fd8dd9400eea59e79d5169edf6d9a9602fb34a5a0` (replacing §10's `b085f3f9…`). `pnpm check` exit 0 (478 unit; 79 integration, 77 passed, 2 skipped as before; runtime-service inside).
 
 Left for S4, with the tools that use them: the provenance-bound refs (a tool names a search result, an extracted link or an admitted input, never a free URL; cross-project refs never resolve), the registration on `ctx.web` with `searchProvider: tavily`, read caching (a stored re-read costs no paid call), and the injection fixtures that need a model (a page telling the model to search for private text, to read an attacker URL, to claim completion; a summary telling the guide to call a tool). The query guard and eligibility above are what those fixtures will find in place. S3 part 2 is the schema: provenance, allowance grants and reservations.
+
+## 12. S3 part 2: grants, allowances, reservations and provenance (0024)
+
+The spend authority and the source record, in SQL, before any caller exists. S4's authenticated runtime routes call these functions; none is granted to the API or worker logins, and the owner sets a grant only as a Codex operation under Davide's approval.
+
+| Surface | What it does | Evidence (`research-allowance.db.test.ts`, 10 tests) |
+|---|---|---|
+| `research_grants` + `set_research_grant` | One per project: the gate (`enabled`/`disabled`), the task cap and the total cap (D1: $5 and $40), the source policy, the approval reference, a revision | no grant or a closed gate: no allowance opens and no reservation is made; closing the gate stops new spend at once |
+| `research_allowances` + `open_research_allowance` | One per research lineage (by its root job): the grant's task cap, headroom kept for a partial result, and the pilot's limits (5 searches, 8 reads) copied once. Never reset | idempotent by job; a later grant change does not move an open allowance; headroom below the cap |
+| `research_reservations` + `reserve_research` | Before each paid call (model, search, read, render): idempotent by key (native session and call id), serialized by row locks (the grant's, then the allowance's), refused at the cap less headroom (only the partial-result call may use it), at the grant's total across allowances, or at the source policy's limit | two concurrent reservations that fit alone: one passes; two that reach the limit exactly: both pass (mutation: without the locks both over-cap ones pass); a reused key refused; a released call frees its policy slot |
+| `end_research_reservation` | `settled` at the reported cost, `released` when the call never left, `uncertain` when the outcome is unknown: its amount stays committed (an abort is not a refund) until reconciliation settles or releases it. A settled or released reservation never changes | the committed amounts after each outcome; reconciliation from uncertain; every reopening refused |
+| `source_provenance` | Per retrieved source: the paid call that produced it, the target it was bound to (`search:<results>#<rank>`, `link:…`, `input:…`), the provider's status and request id, the origin status and final URL only when known, extraction, coverage, limitations. Readable exactly when the source is | a member sees provenance of eligible sources, the owner of a private capture sees its own, an outsider nothing; a read with no target, or a paid read without its call, is refused by CHECK (mutation-checked) |
+
+The API login reads the four tables (members only) and can neither call the functions nor write. The amounts are US dollars; S4 prices each call from the route's recorded prices and the provider's credits.
+
+Also in this part: Tavily's local deadline is the source policy's 20 s (was 30 s). The bundle archive is re-recorded on linux-x64: `sha256:4d7b261bbfc61b324db981d9b1134d1885330b62045e108b553852d8a4c9f227` (replacing §11's `0e413faa…`). Run: `pnpm check` exit 0 (478 unit; 79 integration, 77 passed, 2 skipped as before), `pnpm test:sql` 23 migrations, `pnpm test:db` 226/226.
