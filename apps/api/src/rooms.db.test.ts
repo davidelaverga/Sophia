@@ -103,7 +103,10 @@ describe('room tokens', () => {
       canPublishData: true,
       canUpdateOwnMetadata: false,
     })
-    assert.equal((grant.exp ?? 0) - (grant.nbf ?? 0), 600)
+    // Ten minutes. livekit-server-sdk sets `exp` and then `nbf` from two reads of the clock (AccessToken.toJwt), so a
+    // second can turn between them: the lifetime reads 600 s, or 599 s when it did. Never less, never more.
+    const lifetime = (grant.exp ?? 0) - (grant.nbf ?? 0)
+    assert.ok(lifetime === 600 || lifetime === 599, `a room token lives ${String(lifetime)} s`)
   })
 
   // Changed by amendment A06 (S1-05A, for Luis's review): viewers speak in the human room too.
