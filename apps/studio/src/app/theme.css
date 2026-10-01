@@ -3183,9 +3183,6 @@ div.empty {
   .room-stage {
     --corner-room: 112px;
   }
-  .segmented button {
-    min-height: 36px;
-  }
   @container (max-width: 799.98px) {
     .stage-corner {
       top: 12px;
