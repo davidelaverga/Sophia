@@ -13,8 +13,8 @@
 -- * Sophia's side is written by the companion the API runs: the reply to a pending turn of the same owner, or her
 --   welcome back after a quiet spell of more than an hour. A suggestion she makes is kept as a note or deleted.
 -- * Erasing the space deletes the conversation, suggestions and notes for good, deletes the requests older than ten
---   minutes and redacts the rest, so a late retry is told its write was forgotten rather than writing again. Releases
---   stay in their projects, as the person was told before erasing, and stay theirs to take back.
+--   minutes and keeps only the key of the rest, so a late retry is told its write was forgotten rather than writing
+--   again. Releases stay in their projects, as the person was told before erasing, and stay theirs to take back.
 -- 0001–0020 are not edited.
 BEGIN;
 
@@ -440,9 +440,11 @@ END $$;
 -- Erasure.
 
 -- erasePersonalSpace: the conversation, suggestions and notes are deleted for good; releases stay where they were
--- carried. A request from the last ten minutes is redacted, so a late retry of one can't write again (a retry follows
--- its first attempt at once, and the API gives up on any request after 90 s); an older one is deleted, so no record of
--- when or how the person wrote outlives the erasure.
+-- carried. A request older than ten minutes is deleted: a client may retry a request with no answer only within two
+-- minutes of its first attempt. One from the last ten minutes keeps only its key, so a late retry of it can't write
+-- again: its operation reads 'redacted', and it is dated at the erasure. No record of when or how the
+-- person wrote outlives the erasure; what stays is the space's revision (a version that never goes back), and this
+-- erasure's own request and receipt (how many turns, notes and suggestions it deleted), for its own retries.
 CREATE FUNCTION sophia.erase_personal_space(p_key text, p_confirm text) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.personal_owner(); semantic jsonb:=jsonb_build_object('confirm',p_confirm); prior jsonb;
@@ -462,7 +464,8 @@ BEGIN
  GET DIAGNOSTICS turns=ROW_COUNT;
  UPDATE sophia.personal_spaces SET turn_seq=0 WHERE owner_id=a;
  DELETE FROM sophia.personal_requests WHERE owner_id=a AND created_at<now()-interval '10 minutes';
- UPDATE sophia.personal_requests SET semantic_request='{"redacted":true}', receipt='{}' WHERE owner_id=a;
+ UPDATE sophia.personal_requests SET operation='redacted', semantic_request='{"redacted":true}', receipt='{}',
+  created_at=now() WHERE owner_id=a;
  RETURN sophia.personal_remember(p_key,'erase',semantic,sophia.personal_receipt('erase',s.revision,
   jsonb_build_object('erased',jsonb_build_object('turns',turns,'notes',notes,'suggestions',suggestions))));
 END $$;

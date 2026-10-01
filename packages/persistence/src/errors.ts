@@ -39,6 +39,12 @@ const RULES: readonly Rule[] = [
     code: 'forbidden',
   },
   { sqlstate: '42501', code: 'forbidden', publicMessage: 'Not permitted' },
+  // Before the other "Stale" refusals: a retry of a personal write the person has since erased (0021, personal_prior).
+  {
+    sqlstate: '40001',
+    when: (m) => m.startsWith('Stale request: what it wrote has since been erased'),
+    code: 'request_erased',
+  },
   // Compare-and-set losers: a newer revision, epoch or stable head won.
   { sqlstate: '40001', when: (m) => m.startsWith('Stale') || m === 'Stable head changed', code: 'stale_revision' },
   { sqlstate: '40001', when: (m) => m.startsWith('Confirmation required'), code: 'confirmation_required' },
