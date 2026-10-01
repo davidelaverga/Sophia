@@ -23,7 +23,6 @@ import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, type ConversationActions } from './Conversation.tsx'
 import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
-import { oneAtATime, onItsWayNow, readKept } from './draft.ts'
 import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
@@ -100,30 +99,17 @@ function useNotesCover(open: boolean): boolean {
   return open && narrow
 }
 
-/**
- * A way to start goes as a message from the field does: one at a time on the device, across tabs (oneAtATime, and
- * another tab's words on their way); while another is on its way, it says so and nothing goes.
- */
-function startOne(props: Props, text: string): Promise<unknown> {
-  const { account, epoch, writes, toast } = props
-  return oneAtATime(account, async (taken) => {
-    const theirs = epoch !== undefined && onItsWayNow(readKept(account, epoch), Date.now())
-    if (taken || theirs) {
-      toast(NOTICE.waits)
-      return null
-    }
-    return writes.send(text)
-  })
-}
-
 /** Writes that say what happened, and offer Undo where it can be undone. */
 function useActions(
   props: Props,
   onFailed: (err: unknown) => void,
 ): ConversationActions & {
   carry: (note: PersonalNote, project: ProjectSummary) => void
+  /** Where the composer puts its send for a way to start. */
+  starter: RefObject<((words: string) => void) | null>
 } {
   const { writes, toast, onCarried } = props
+  const starter = useRef<((words: string) => void) | null>(null)
   const attempt = useCallback(
     (work: () => Promise<unknown>) => {
       void work().catch(onFailed)
@@ -131,7 +117,9 @@ function useActions(
     [onFailed],
   )
   return {
-    start: (text) => attempt(() => startOne(props, text)),
+    starter,
+    // A way to start goes as the field's words do, through the composer (one at a time, its own key, kept on its way).
+    start: (text) => starter.current?.(text),
     decide: (suggestion: PersonalSuggestion, decision) => attempt(() => writes.decide(suggestion.id, decision)),
     openNotes: () => props.notes.set(true),
     retry: (turnId) => attempt(() => writes.retry(turnId)),
@@ -301,8 +289,27 @@ const sender =
     }
   }
 
+/** The field: an erasure forgets the draft too, so the composer starts afresh. */
+function Composer(p: {
+  props: Props
+  starter: RefObject<((words: string) => void) | null>
+  onFailed: (err: unknown) => void
+  onListening: (listening: boolean) => void
+}) {
+  const { account, epoch, hidden, space, writes } = p.props
+  return (
+    <PersonalComposer
+      key={writes.erasures}
+      {...{ account, epoch, hidden, busy: writes.busy, onBehind: writes.readAgain, starter: p.starter }}
+      state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
+      onListening={p.onListening}
+      onSend={sender(writes, p.onFailed)}
+    />
+  )
+}
+
 export function PersonalSpace(props: Props) {
-  const { account, space, projects, writes, notes, earlier, toast } = props
+  const { space, projects, writes, notes, earlier, toast } = props
   const body = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [listening, setListening] = useState(false)
@@ -316,14 +323,7 @@ export function PersonalSpace(props: Props) {
   const said = useHeard(space, turns, waiting)
   useLatestInSight(list, turns.at(-1)?.seq ?? 0, writes.sending, waiting)
   const composer = props.locked ? null : (
-    <PersonalComposer
-      // An erasure forgets the draft too: the composer starts afresh.
-      key={writes.erasures}
-      {...{ account, epoch: props.epoch, hidden: props.hidden, busy: writes.busy, onBehind: writes.readAgain }}
-      state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
-      onListening={setListening}
-      onSend={sender(writes, onFailed)}
-    />
+    <Composer props={props} starter={actions.starter} onFailed={onFailed} onListening={setListening} />
   )
   return (
     <section

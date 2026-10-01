@@ -536,9 +536,11 @@ their work. Keep these when you change them:
   field or a way to start (`OnItsWay`), and from any tab of the device: a
   send holds the browser's lock across tabs until it settles
   (`oneAtATime`, with tests), and a tab's words on their way stay on the
-  device (`waitsFor`, with tests). The field waits meanwhile, and a way to
-  start says so and doesn't go, so no tab's words on their way are lost and
-  they arrive in order. Every write but
+  device (`waitsFor`, with tests), their time kept ahead while their tab
+  still sends them (`renewed`, with tests), and go once sent, also when the
+  field went meanwhile. A way to start goes the same way, under its own
+  key, the field left as it is. The field waits meanwhile, so no tab's
+  words on their way are lost and they arrive in order. Every write but
   erasure names the epoch of the space as this page last read it (`epochNow`: the space's when it is
   shown, else the Work list's), and its retry names the same one, so
   nothing sent before an erasure lands after it, nor anything a space shown

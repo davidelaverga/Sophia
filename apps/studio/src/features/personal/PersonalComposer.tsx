@@ -16,6 +16,8 @@ import {
   oneAtATime,
   onOpening,
   readKept,
+  RENEW_MS,
+  renewed,
   restoredDraft,
   waitsFor,
   writeKept,
@@ -141,6 +143,30 @@ function useLeftBehind(
   }, [account, epoch, until])
 }
 
+/**
+ * The field follows the draft the device keeps (useDraftFollows), and takes back words another tab left on their way
+ * once their time is up (useLeftBehind). `sending`: this tab's own words on their way, never another tab's.
+ */
+function useFollowsDevice(
+  account: string,
+  epoch: number | undefined,
+  sending: RefObject<Draft | null>,
+  show: (draft: Draft | null, why: string) => void,
+  setAt: (at: number) => void,
+) {
+  const [theirs, setTheirs] = useState<number | null>(null)
+  useDraftFollows(account, epoch, (draft, why, kept, until) => {
+    show(draft, why)
+    setAt(kept)
+    setTheirs(sending.current ? null : until)
+  })
+  useLeftBehind(account, epoch, theirs, (draft, kept) => {
+    show(draft, BACK.unconfirmed)
+    setAt(kept)
+    setTheirs(null)
+  })
+}
+
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
 function useDraft(account: string, epoch: number | undefined) {
   const [first] = useState(() => (epoch === undefined ? null : opened(account, epoch)))
@@ -158,18 +184,7 @@ function useDraft(account: string, epoch: number | undefined) {
     setText(draft?.text ?? '')
     setNote(why)
   }
-  // Words another tab has on their way (never this tab's own): their time, for useLeftBehind.
-  const [theirs, setTheirs] = useState<number | null>(null)
-  useDraftFollows(account, epoch, (draft, why, kept, until) => {
-    show(draft, why)
-    setAt(kept)
-    setTheirs(sending.current ? null : until)
-  })
-  useLeftBehind(account, epoch, theirs, (draft, kept) => {
-    show(draft, BACK.unconfirmed)
-    setAt(kept)
-    setTheirs(null)
-  })
+  useFollowsDevice(account, epoch, sending, show, setAt)
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
     if (epoch === undefined) return null
@@ -191,12 +206,17 @@ function useDraft(account: string, epoch: number | undefined) {
     current: () => latest.current,
     /** Another tab's message is on its way: these words wait in the field, said so (waiting). */
     waits: (words: Draft, taken: boolean) => waiting(account, epoch, words, setNote, taken),
-    /** The words go, under their key: the field empties at once, and the device keeps them apart until they're sent. */
-    go: (words: Draft) => {
+    /**
+     * The words go, under their key: the field empties at once (when they were its words), and the device keeps them
+     * apart until they're sent.
+     */
+    go: (words: Draft, field: boolean) => {
       sending.current = words
-      show(null, '')
+      if (field) show(null, '')
       keep((kept) => goingOut(kept, words, Date.now() + WRITE_TIMEOUT_MS))
     },
+    /** While this tab sends them, their time is kept ahead (renewed). */
+    renew: (words: Draft) => keep((kept) => renewed(kept, words, Date.now() + WRITE_TIMEOUT_MS)),
     /** Sent (or erased with the space): the device lets those words go and keeps its draft as it is then. */
     sent: () => {
       const words = sending.current
@@ -298,6 +318,8 @@ interface Props {
   onListening: (listening: boolean) => void
   /** The field holds words kept after an erasure this page hasn't read: the space is read again before they go. */
   onBehind: () => void
+  /** A way to start pressed in the conversation goes through this composer's send (set here). */
+  starter: RefObject<((words: string) => void) | null>
 }
 
 /**
@@ -314,18 +336,21 @@ function useSend(
   onSend: Props['onSend'],
 ) {
   const mounted = useMounted()
-  return async () => {
-    const current = draft.current()
+  /** `given`: a way to start's words, which go as the field's do and leave the field as it is; else the field's. */
+  return async (given?: Draft) => {
+    const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     if (!current || !text || !ready || busy) return
     const words = { text, key: current.key }
     await oneAtATime(account, async (taken) => {
       if (draft.waits(words, taken)) return
-      draft.go(words)
-      const outcome = await onSend(text, words.key)
-      if (!mounted.current) return
+      draft.go(words, !given)
+      // While this tab sends them their time is kept ahead: another tab takes them back only if this one went away.
+      const renew = setInterval(() => draft.renew(words), RENEW_MS)
+      const outcome = await onSend(text, words.key).finally(() => clearInterval(renew))
+      // Sent (or erased): the device lets them go, also when the field went meanwhile (the padlock shut).
       if (outcome === 'sent' || outcome === 'erased') draft.sent()
-      else draft.back(words, BACK[outcome])
+      else if (mounted.current) draft.back(words, BACK[outcome])
     })
   }
 }
@@ -343,7 +368,8 @@ function useBehind(at: number | undefined, epoch: number | undefined, onBehind: 
   return behind
 }
 
-export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, onListening, onBehind }: Props) {
+export function PersonalComposer(props: Props) {
+  const { account, epoch, hidden, state, busy, onSend, onListening, onBehind, starter } = props
   const draft = useDraft(account, epoch)
   const behind = useBehind(draft.at, epoch, onBehind)
   const { text, note, change } = draft
@@ -355,6 +381,10 @@ export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, 
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready' && !behind
   const send = useSend(account, draft, ready, busy, onSend)
+  // A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is.
+  useEffect(() => {
+    starter.current = (words: string) => void send(draftOf(words))
+  })
   return (
     <form
       className="ps-composer"

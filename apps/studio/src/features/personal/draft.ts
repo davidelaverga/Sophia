@@ -138,6 +138,13 @@ export function oneAtATime<T>(account: string, run: (taken: boolean) => Promise<
   return locks.request(`sophia.personal.send.${account}`, { ifAvailable: true }, (lock) => run(lock === null))
 }
 
+/** How often a tab that sends words keeps their time ahead: well inside a write's own time. */
+export const RENEW_MS = 30_000
+
+/** Their time kept ahead (`until`) while their tab still sends them; another tab's words on their way stay as they are. */
+export const renewed = (kept: Kept, words: Draft, until: number): Kept =>
+  kept.sending?.key === words.key ? { ...kept, sending: { ...kept.sending, until } } : kept
+
 /** Sent: the words on their way are let go, and only they (another tab's stay); the draft stays as it is then. */
 export const afterSent = (kept: Kept, sent: Draft): Kept => ({
   draft: kept.draft,
