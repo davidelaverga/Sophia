@@ -30,11 +30,11 @@ If #30 lands after M03's schema, 0021/A10 stay #30's. If #30 is abandoned, nothi
 |---|---|---|
 | Work admission | `sophia.admit_native_task` (0016:158), `goals` / `work_attempts` / `execution_bindings` / `commands` / `jobs` / `outbox` | A new `sophia.admit_research_task` uses the same tables and lock order. `admit_native_task` stays brief-only and is retired over HTTP (410) |
 | Native dispatch | `sophia.dispatch_runtime_outbox` (0012:711) builds `{role:'sophia-brief-v1', text}` | Replaced (CREATE OR REPLACE) to take the role and `route` from the job for `kind='research'`. Every other command stays **byte-identical**, proved by a SQL test |
-| Receipts | `sophia.apply_runtime_receipt` (0012:464) selects the job by `attempt_id` with no kind filter | Replaced with a kind filter on task jobs. Render and repair jobs are children with `parent_job_id` and no attempt or command |
+| Receipts | `sophia.apply_runtime_receipt` (0012:464) selects the job by `attempt_id` with no kind filter | **Unchanged** (changed at S1, see §8): 0022 makes a child job carry no attempt or command (`jobs_child_has_no_attempt`) and allows one task job per attempt (`one_task_job_per_attempt`), so every single-row read by attempt or command still finds the task job |
 | Observations | `sophia.runtime_record_observations` (0012:583): usage from `assistant/message`; `turn/end` → `capture_native_result` | Replaced: usage also from `compaction/summary`, with cache columns; `turn/end` dispatches by job kind (research turn-end rules, plan §2.5) |
 | Brief capture | `sophia.capture_native_result` (0016:29), `kind='draft_brief'` only | **Unchanged.** Research never publishes the last assistant message |
-| Task view | `sophia.native_task_view` (0012:803), `WHERE j.kind='draft_brief'` | Replaced with a kind **allowlist** (`draft_brief`, `research`). New columns are appended at the end only (a view replace cannot reorder) |
-| Voice results | `sophia.media_assignments()` (0018:734), results kind `draft_brief` | Replaced with the same allowlist and a result summary pointer |
+| Task view | `sophia.native_task_view` (0012:803), `WHERE j.kind='draft_brief'` | Replaced in 0022 with the allowlist `sophia.is_task_kind` (`draft_brief`, `research`) and no child job; `artifact_id` appended last (a view replace cannot reorder) |
+| Voice results | `sophia.media_assignments()` (0018:734), results kind `draft_brief` | Replaced in 0022 with the same allowlist and the job's real kind. The summary pointer moved to S6 (§8) |
 | Snapshot | `readSnapshot` returns `artifacts: []` and `refuseUnprojectedRecords` throws on any artifact version (`packages/persistence/src/snapshot.ts:63,83,169`) | `readArtifacts` projects reports; the refusal is removed **before** any writer exists |
 | Task readers | `toTask` hard-codes `kind:'draft_brief'`; `readNativeTasks` returns the latest 50 (`native-tasks.ts:108,123`) | `toTask` reads the real kind. `control_work` resolves by id through `readNativeTask` |
 | Tool surface | `TOOL_HANDLERS` (`apps/api/src/media-tools.ts:72`) keyed by the contract's name union; the bridge requires equality with the guide manifest | `start_research` and `render_research` handlers. `GET /v1/media/tool-surface?guide=<id>` serves the surface for the requesting bridge's guide version, with v1.1 as the default |
@@ -52,13 +52,15 @@ If #30 lands after M03's schema, 0021/A10 stay #30's. If #30 is abandoned, nothi
 
 The S1 part covers the read side. These must ship before any writer:
 - `ArtifactVersion.format` gains `markdown`.
-- Kinds widen: `NativeTask.kind`, `NativeTaskRequest.kind` and `NativeTaskReceipt.kind` become an enum including `research`.
-- `MediaAssignment.results[].kind` becomes an enum, and results gain a `summary` pointer.
-- `NativeTaskDetail.result` gains `outputs[]`: `artifactVersionId`, `format`, `sha256`, `byteLength`, `limitations`.
-- `RuntimeCommand.payload.role` pattern becomes `^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$`, and an optional `route` is added.
-- Knowledge read schemas: report card, versions, compare. `SourceContent` gains `disposition`.
+- Kinds widen: `NativeTask.kind` and `NativeTaskReceipt.kind` become the enum `draft_brief | research`. `NativeTask` gains an optional `artifactId`.
+- `MediaAssignment.results[].kind` becomes any bounded kind name, and a bridge announces only the kinds it knows.
+- `NativeTaskDetail.result` gains `outputs[]` (`artifactVersionId`, `format`, `sourceId`, `sha256`, `byteLength`, `limitations`) and `cacheReadTokens`/`cacheWriteTokens`.
+- `ArtifactVersion.format` gains `markdown`, plus optional `title`, `versionNumber`, `createdAt` and `renditions[]` (`ArtifactRendition`).
+- Every added property is omitted when it has no value, so older readers read every pre-M03 record unchanged.
+- Part 2 (with the byte store): Knowledge read schemas (report card, versions, compare); `SourceContent` gains `disposition`.
 
 The later parts cover the write side:
+- `RuntimeCommand.payload.role` pattern becomes `^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$`, and an optional `route` is added (S2, §8).
 - `MediaToolCall.name` gains `start_research` and `render_research`.
 - Research admission request and receipt, with `amendsTaskId` and `newRequest`.
 - The runtime research operations: `context`, `reserve`, `settle`, `capture`, `draft`, `submit`, `render`.
@@ -109,3 +111,15 @@ All routes are authenticated like observations (runtime lease and binding), idem
 - **#24**: merged into this branch at `19a41e0`. The delivery UI builds on its `SidePanel`.
 - **#30**: merged once it is updated on `main`. It conflicts with #23's review fixes in `App.tsx`, `route.ts`, `route.test.ts`, `CONTRIBUTING.md`, and `ProjectHome.tsx` (deleted vs changed); those are Luis's decisions.
 - **The cross-project Knowledge library (L6)** lives in #30's Work place and lands after that merge.
+
+## 8. Changes since G1
+
+| Date | Change | Reason |
+|---|---|---|
+| 2026-10-01 (S1) | `RuntimeCommand` role pattern and `route` move from A11's read side to S2 | `generate-runtime-wire.ts` compiles them into the dsh bundle, so changing them changes the runtime unit's identity. They change with `sophia-runtime-m03-dev` |
+| 2026-10-01 (S1) | `NativeTaskRequest.kind` stays `draft_brief` | HTTP brief admission is retired (410). Research is admitted through its own tool request (write side) |
+| 2026-10-01 (S1) | The assignment result's summary pointer moves to S6 | The notice only needs the `taskId`: the guide reads the result with `read_selected_source`. A model-written title in a notice is an injection surface that S6's notice-spoof test covers |
+| 2026-10-01 (S1) | `MediaAssignment.results[].kind` is a bounded pattern, not an enum | A generated validator fails the whole batch on an unknown enum value. A pattern lets each bridge skip only the entry it does not know |
+| 2026-10-01 (S1) | `apply_runtime_receipt` is not replaced | 0022's child-job CHECK and one-task-job-per-attempt index keep the existing single-row reads exact (§2) |
+| 2026-10-01 (S1) | 0021 and 0022 are disjoint | #30's `0021_personal_space.sql` only creates `personal_*` tables and their policies; 0022 changes none of them. The runner applies a missing version whatever its number, so either may land first |
+

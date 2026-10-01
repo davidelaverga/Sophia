@@ -108,6 +108,25 @@ const WRITE_UNCONFIRMED: MediaToolResult = {
 }
 const sameNames = (a: readonly string[], b: readonly string[]) => a.toSorted().join(',') === b.toSorted().join(',')
 
+const READ_IF_ASKED =
+  'Tell the room in one short sentence. Read it only if someone asks (read_selected_source with that taskId).'
+/**
+ * What Sophia is told when a task's result is ready, by the task's kind (A11). A result of a kind this bridge does
+ * not know is left unannounced, so a later task kind never holds back the ones it knows.
+ */
+const RESULT_NOTICES: ReadonlyMap<string, (taskId: string) => string> = new Map([
+  [
+    'draft_brief',
+    (taskId: string) =>
+      `[Sophia system notice] The brief you drafted is ready in the project (taskId ${taskId}). ${READ_IF_ASKED}`,
+  ],
+  [
+    'research',
+    (taskId: string) =>
+      `[Sophia system notice] The research report is ready in the project (taskId ${taskId}). ${READ_IF_ASKED}`,
+  ],
+])
+
 interface Announced {
   exchangeId: string
   taskId: string
@@ -1177,7 +1196,7 @@ export class RoomSession {
   }
 
   /**
-   * A finished brief is announced once, when Sophia is idle and the room is member-only. It counts as announced
+   * A finished task is announced once, when Sophia is idle and the room is member-only. It counts as announced
    * (and the API stops listing it) only once the notice's reply reached the room; one lost with the provider, or
    * interrupted before a frame played, is sent again later.
    */
@@ -1186,17 +1205,17 @@ export class RoomSession {
     const input = this.state.input(now)
     if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
     if (input === 'paused' || input === 'settling') return
-    const next = this.assignment.results.find((r) => !this.announced.has(`${r.taskId}:${r.resultRevision}`))
-    if (!next) return
+    const next = this.assignment.results.find(
+      (r) => RESULT_NOTICES.has(r.kind) && !this.announced.has(`${r.taskId}:${r.resultRevision}`),
+    )
+    const noticeOf = next && RESULT_NOTICES.get(next.kind)
+    if (!next || !noticeOf) return
     const key = `${next.taskId}:${next.resultRevision}`
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
     this.notice = { key, event }
     this.state.systemTurn()
-    live.sendNotice(
-      `[Sophia system notice] The brief you drafted is ready in the project (taskId ${next.taskId}). ` +
-        'Tell the room in one short sentence. Read it only if someone asks (read_selected_source with that taskId).',
-    )
+    live.sendNotice(noticeOf(next.taskId))
   }
 
   /**

@@ -1,12 +1,13 @@
 // A native task (A05) as the team sees it: its observed phase, and once captured, the drafted brief with the model
-// that produced it. The brief is a candidate for review; Hold and Stop live on its goal (WorkControls).
+// that produced it. The brief is a candidate for review; Hold and Stop live on its goal (WorkControls). A research
+// task (A11) shows its phase here; its report opens from the report card (S4).
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { visibleBriefBlocks, TASK_PHASE } from './conversation-view.ts'
+import { visibleBriefBlocks, taskPhase, TASK_KIND } from './conversation-view.ts'
 
 interface Props {
   task: NativeTask
@@ -16,15 +17,15 @@ interface Props {
 
 export function TaskCard({ task, projectId, identity }: Props) {
   const [open, setOpen] = useState(false)
-  const phase = TASK_PHASE[task.phase]
+  const phase = taskPhase(task)
   return (
     <li className="task" data-phase={task.phase}>
       <div className="goal-meta">
         <Tag tone={phase.tone}>{phase.label}</Tag>
-        <span className="muted">Implementation brief</span>
+        <span className="muted">{TASK_KIND[task.kind]}</span>
       </div>
       <p className="goal-outcome">{task.reason ?? phase.note}</p>
-      {task.resultSourceId && (
+      {task.kind === 'draft_brief' && task.resultSourceId && (
         <button type="button" className="text-button" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? 'Hide the brief' : 'Read the brief'}
         </button>

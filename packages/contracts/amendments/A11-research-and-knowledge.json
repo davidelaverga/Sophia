@@ -1,0 +1,146 @@
+{
+  "id": "A11",
+  "goal": "SMC-M03",
+  "title": "Research work and its reports: readers first",
+  "why": [
+    "M03 adds a second native task kind, research, whose result is a report: one artifact authored in Markdown with versions v1..vN and other formats (a PDF) as renditions of a version (migration 0022). This part is the read side only. Every reader that would refuse a research task, a Markdown report or a rendition learns them before any writer exists (plan §5, readers first).",
+    "Old records read exactly as before: a property this amendment adds is omitted when it has no value, never sent as null, so an older Studio or bridge reads every record that existed before M03 unchanged. Records only a later M03 release can write (a research task, a Markdown report, a rendition) need these readers, so that release follows the one carrying them.",
+    "A bridge result's kind is any bounded kind name, not a closed list: a bridge acts on the kinds it knows and leaves any other result unannounced, so a later task kind never fails a whole assignment batch.",
+    "The runtime command's role pattern and route stay as they are here: they are compiled into the runtime unit, so they change with the research runtime unit (S2), not with these readers."
+  ],
+  "patch": [
+    {
+      "op": "replace",
+      "path": "/components/schemas/ArtifactVersion/properties/format/enum",
+      "value": ["html", "pdf", "pptx", "ui", "markdown"]
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactVersion/properties/title",
+      "value": {
+        "type": "string",
+        "description": "The artifact's title (at most 180 characters, held by the database)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactVersion/properties/versionNumber",
+      "value": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991,
+        "description": "1 for the first version of the artifact, then 2, 3… Omitted for a version written before numbering."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactVersion/properties/createdAt",
+      "value": { "type": "string", "format": "date-time" }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactVersion/properties/renditions",
+      "value": {
+        "type": "array",
+        "maxItems": 8,
+        "description": "Other formats of this version, e.g. the PDF of a report's Markdown. Omitted when there is none.",
+        "items": { "$ref": "#/components/schemas/ArtifactRendition" }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactRendition",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One stored format of an artifact version. Its bytes are the source's; the hash is what a download is checked against.",
+        "properties": {
+          "format": { "type": "string", "enum": ["pdf"] },
+          "sourceId": { "type": "string", "format": "uuid" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "byteLength": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "mime": { "type": "string" },
+          "pageCount": {
+            "anyOf": [{ "type": "integer", "minimum": 1, "maximum": 100000 }, { "type": "null" }]
+          }
+        },
+        "required": ["format", "sourceId", "sha256", "byteLength", "mime", "pageCount"]
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/NativeTask/properties/kind",
+      "value": { "type": "string", "enum": ["draft_brief", "research"] }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTask/properties/artifactId",
+      "value": {
+        "type": "string",
+        "format": "uuid",
+        "description": "The report this task writes into. Omitted until it has one, and always for a brief."
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/NativeTaskReceipt/properties/kind",
+      "value": { "type": "string", "enum": ["draft_brief", "research"] }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskDetail/properties/result/anyOf/0/properties/cacheReadTokens",
+      "value": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991,
+        "description": "Input tokens the provider read from its prompt cache. Omitted when the provider did not report it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskDetail/properties/result/anyOf/0/properties/cacheWriteTokens",
+      "value": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991,
+        "description": "Input tokens the provider wrote to its prompt cache. Omitted when the provider did not report it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskDetail/properties/result/anyOf/0/properties/outputs",
+      "value": {
+        "type": "array",
+        "maxItems": 8,
+        "description": "What the task published: each stored format of the report version it produced. Omitted for a brief.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "artifactVersionId": { "type": "string", "format": "uuid" },
+            "format": { "type": "string", "enum": ["markdown", "pdf"] },
+            "sourceId": { "type": "string", "format": "uuid" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "byteLength": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+            "limitations": {
+              "type": "array",
+              "maxItems": 8,
+              "description": "What the output says it could not do, in short sentences.",
+              "items": { "type": "string" }
+            }
+          },
+          "required": ["artifactVersionId", "format", "sourceId", "sha256", "byteLength", "limitations"]
+        }
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/MediaAssignment/properties/results/items/properties/kind",
+      "value": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,39}$",
+        "description": "The task's kind (draft_brief, research, …). A bridge announces the kinds it knows and leaves any other result unannounced."
+      }
+    }
+  ]
+}

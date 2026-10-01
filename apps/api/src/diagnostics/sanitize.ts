@@ -163,7 +163,7 @@ const EXCHANGE_CHANGES = [
   'empty',
 ]
 const LOBBY_CHANGES = ['knock', 'admit', 'deny', 'block', 'unblock']
-const TASK_SUMMARIES = ['draft_brief', 'waiting', 'running', 'result_ready', 'denied', 'rejected', 'failed']
+const TASK_SUMMARIES = ['draft_brief', 'research', 'waiting', 'running', 'result_ready', 'denied', 'rejected', 'failed']
 const TASK_ENDINGS = ['outcome_unknown', 'error', 'max-tokens', 'blocked']
 export const VOICE_STATES = ['connecting', 'ready', 'recovering', 'unavailable']
 

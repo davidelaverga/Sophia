@@ -86,6 +86,7 @@ export async function readDiscussion(c: pg.PoolClient, projectId: string): Promi
 
 interface TaskRow {
   id: string
+  kind: NativeTask['kind']
   goal_id: string
   attempt_id: string
   command_id: string
@@ -98,14 +99,17 @@ interface TaskRow {
   result_source_id: string | null
   reason: string | null
   instruction_source_id: string
+  /** The report the task writes into (0022); null until it has one, and always for a brief. */
+  artifact_id: string | null
 }
 
-const TASK_COLUMNS = `id, goal_id, attempt_id, command_id, actor_id, state, phase, created_at, input_source_id,
-  input_source_ids, result_source_id, reason, instruction_source_id`
+const TASK_COLUMNS = `id, kind, goal_id, attempt_id, command_id, actor_id, state, phase, created_at, input_source_id,
+  input_source_ids, result_source_id, reason, instruction_source_id, artifact_id`
 
+/** The view lists only the kinds a reader can describe (0022 sophia.is_task_kind). Absent values are omitted (A11). */
 const toTask = (r: TaskRow): NativeTask => ({
   id: r.id,
-  kind: 'draft_brief',
+  kind: r.kind,
   goalId: r.goal_id,
   attemptId: r.attempt_id,
   commandId: r.command_id,
@@ -117,6 +121,7 @@ const toTask = (r: TaskRow): NativeTask => ({
   inputSourceIds: r.input_source_ids,
   resultSourceId: r.result_source_id,
   reason: r.reason,
+  ...(r.artifact_id === null ? {} : { artifactId: r.artifact_id }),
 })
 
 /** The latest native tasks, oldest first (at most 50). Call inside withActor(..., "read"). */
@@ -138,23 +143,70 @@ interface ResultRow {
   model: string | null
   input_tokens: string | null
   output_tokens: string | null
+  cache_read_tokens: string | null
+  cache_write_tokens: string | null
 }
 
 const tokens = (value: string | null) => (value === null ? null : Number(value))
+
+type Result = NonNullable<NativeTaskDetail['result']>
+type Output = NonNullable<Result['outputs']>[number]
+
+interface OutputRow {
+  artifact_version_id: string
+  format: Output['format']
+  source_id: string
+  sha256: string
+  byte_length: string
+  limitations: string[]
+}
+
+/**
+ * What a task published: every stored format of the newest report version written by the task or one of its child
+ * jobs (a rendition). The Markdown first, then the renditions by format. Empty for a brief.
+ */
+async function readOutputs(c: pg.PoolClient, projectId: string, taskId: string): Promise<Output[]> {
+  const { rows } = await c.query<OutputRow>(
+    `WITH latest AS (
+       SELECT v.id, v.source_id, v.limitations FROM sophia.artifact_versions v
+        WHERE v.project_id = $1 AND v.job_id IN (
+          SELECT j.id FROM sophia.jobs j WHERE j.project_id = $1 AND (j.id = $2 OR j.parent_job_id = $2))
+        ORDER BY v.version_number DESC NULLS LAST, v.created_at DESC, v.id DESC LIMIT 1)
+     SELECT l.id AS artifact_version_id, 'markdown' AS format, s.id AS source_id, s.sha256, s.byte_length, l.limitations, '' AS k
+       FROM latest l JOIN sophia.source_objects s ON s.project_id = $1 AND s.id = l.source_id
+     UNION ALL
+     SELECT l.id, r.format, s.id, s.sha256, s.byte_length, r.limitations, r.format
+       FROM latest l JOIN sophia.artifact_renditions r ON r.project_id = $1 AND r.artifact_version_id = l.id
+       JOIN sophia.source_objects s ON s.project_id = r.project_id AND s.id = r.source_id
+     ORDER BY k`,
+    [projectId, taskId],
+  )
+  return rows.map((r) => ({
+    artifactVersionId: r.artifact_version_id,
+    format: r.format,
+    sourceId: r.source_id,
+    sha256: r.sha256,
+    byteLength: Number(r.byte_length),
+    limitations: r.limitations,
+  }))
+}
 
 /** The result's source and the model identity and usage of the step that produced it. */
 async function readResult(c: pg.PoolClient, projectId: string, task: TaskRow): Promise<NativeTaskDetail['result']> {
   if (!task.result_source_id) return null
   const { rows } = await c.query<ResultRow>(
-    `SELECT s.id AS source_id, s.sha256, t.body, s.created_at, u.provider, u.model, u.input_tokens, u.output_tokens
+    `SELECT s.id AS source_id, s.sha256, t.body, s.created_at, u.provider, u.model, u.input_tokens, u.output_tokens,
+            u.cache_read_tokens, u.cache_write_tokens
        FROM sophia.source_objects s JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
-       LEFT JOIN LATERAL (SELECT provider, model, input_tokens, output_tokens FROM sophia.usage_records
+       LEFT JOIN LATERAL (SELECT provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+          FROM sophia.usage_records
           WHERE project_id = s.project_id AND attempt_id = $3 ORDER BY recorded_at DESC, id DESC LIMIT 1) u ON true
       WHERE s.project_id = $1 AND s.id = $2`,
     [projectId, task.result_source_id, task.attempt_id],
   )
   const r = rows[0]
   if (!r) return null
+  const outputs = task.kind === 'draft_brief' ? [] : await readOutputs(c, projectId, task.id)
   return {
     sourceId: r.source_id,
     sha256: r.sha256,
@@ -164,6 +216,9 @@ async function readResult(c: pg.PoolClient, projectId: string, task: TaskRow): P
     inputTokens: tokens(r.input_tokens),
     outputTokens: tokens(r.output_tokens),
     capturedAt: iso(r.created_at),
+    ...(r.cache_read_tokens === null ? {} : { cacheReadTokens: Number(r.cache_read_tokens) }),
+    ...(r.cache_write_tokens === null ? {} : { cacheWriteTokens: Number(r.cache_write_tokens) }),
+    ...(outputs.length === 0 ? {} : { outputs }),
   }
 }
 

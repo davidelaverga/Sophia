@@ -6,7 +6,7 @@
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
   "candidate_commit": null,
-  "implementation_pr": null,
+  "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
     "source": "in_progress",
@@ -22,7 +22,17 @@
     "ui_review": "Luis_when_relevant"
   },
   "completed_goals": [],
-  "test_evidence": [],
+  "test_evidence": [
+    {
+      "slice": "S1 part 1",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#6-s1-part-1-readers-first"
+    }
+  ],
   "outstanding_operations": [
     {
       "operation_id": "SMC-M03-OP-0001",
@@ -37,11 +47,24 @@
   "approval_refs": [],
   "remaining_allowance_ref": null,
   "file_ownership": [
-    { "path": "pnpm-lock.yaml", "owner": "Claude Code", "rule": "single writer, in the commit that changes dependencies" },
-    { "path": "db/migrations/0022_*.sql and later", "owner": "Claude Code" },
-    { "path": "packages/contracts/amendments/A11-research-and-knowledge.json", "owner": "Claude Code" },
-    { "path": "db/migrations/0021_personal_space.sql, packages/contracts/amendments/A10-personal-space.json", "owner": "Luis (#30)" }
+    {
+      "path": "pnpm-lock.yaml",
+      "owner": "Claude Code",
+      "rule": "single writer, in the commit that changes dependencies"
+    },
+    {
+      "path": "db/migrations/0022_*.sql and later",
+      "owner": "Claude Code"
+    },
+    {
+      "path": "packages/contracts/amendments/A11-research-and-knowledge.json",
+      "owner": "Claude Code"
+    },
+    {
+      "path": "db/migrations/0021_personal_space.sql, packages/contracts/amendments/A10-personal-space.json",
+      "owner": "Luis (#30)"
+    }
   ],
-  "next_action": "S1 readers first: migration 0022, A11 read side, persistence readers, kind-tolerant bridge and Studio parsers",
+  "next_action": "S1 part 2: byte store tables and signed-URL content route, Knowledge read API (versions, report cards), WorkCard shell and icons",
   "checkpoint_ref": "docs/progress/SMC-M03.md"
 }

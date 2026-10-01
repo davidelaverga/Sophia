@@ -7061,7 +7061,8 @@
               "html",
               "pdf",
               "pptx",
-              "ui"
+              "ui",
+              "markdown"
             ]
           },
           "exportEditability": {
@@ -7071,6 +7072,28 @@
               "raster_pptx_with_source",
               "original_only"
             ]
+          },
+          "title": {
+            "type": "string",
+            "description": "The artifact's title (at most 180 characters, held by the database)."
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "1 for the first version of the artifact, then 2, 3… Omitted for a version written before numbering."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "renditions": {
+            "type": "array",
+            "maxItems": 8,
+            "description": "Other formats of this version, e.g. the PDF of a report's Markdown. Omitted when there is none.",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRendition"
+            }
           }
         },
         "required": [
@@ -9400,7 +9423,11 @@
             "format": "uuid"
           },
           "kind": {
-            "const": "draft_brief"
+            "type": "string",
+            "enum": [
+              "draft_brief",
+              "research"
+            ]
           },
           "stage": {
             "const": "admitted"
@@ -9447,7 +9474,11 @@
             "format": "uuid"
           },
           "kind": {
-            "const": "draft_brief"
+            "type": "string",
+            "enum": [
+              "draft_brief",
+              "research"
+            ]
           },
           "goalId": {
             "type": "string",
@@ -9528,6 +9559,11 @@
                 "type": "null"
               }
             ]
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The report this task writes into. Omitted until it has one, and always for a brief."
           }
         },
         "required": [
@@ -9620,6 +9656,69 @@
                   "capturedAt": {
                     "type": "string",
                     "format": "date-time"
+                  },
+                  "cacheReadTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Input tokens the provider read from its prompt cache. Omitted when the provider did not report it."
+                  },
+                  "cacheWriteTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Input tokens the provider wrote to its prompt cache. Omitted when the provider did not report it."
+                  },
+                  "outputs": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "description": "What the task published: each stored format of the report version it produced. Omitted for a brief.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "artifactVersionId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "markdown",
+                            "pdf"
+                          ]
+                        },
+                        "sourceId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "byteLength": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "limitations": {
+                          "type": "array",
+                          "maxItems": 8,
+                          "description": "What the output says it could not do, in short sentences.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "artifactVersionId",
+                        "format",
+                        "sourceId",
+                        "sha256",
+                        "byteLength",
+                        "limitations"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -10046,7 +10145,9 @@
                   "maximum": 9007199254740991
                 },
                 "kind": {
-                  "const": "draft_brief"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                  "description": "The task's kind (draft_brief, research, …). A bridge announces the kinds it knows and leaves any other result unannounced."
                 }
               },
               "required": [
@@ -11915,6 +12016,55 @@
         },
         "required": [
           "names"
+        ]
+      },
+      "ArtifactRendition": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One stored format of an artifact version. Its bytes are the source's; the hash is what a download is checked against.",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf"
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "mime": {
+            "type": "string"
+          },
+          "pageCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "format",
+          "sourceId",
+          "sha256",
+          "byteLength",
+          "mime",
+          "pageCount"
         ]
       }
     }

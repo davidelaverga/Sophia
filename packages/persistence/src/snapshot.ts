@@ -1,5 +1,5 @@
 import type pg from 'pg'
-import type { Goal, Resource, Snapshot } from '@sophia/contracts'
+import type { ArtifactRendition, ArtifactVersion, Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
@@ -69,6 +69,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const sessions = await readUpcomingSessions(c, projectId)
   const discussion = await readDiscussion(c, projectId)
   const work = await readNativeTasks(c, projectId)
+  const artifacts = await readArtifacts(c, projectId)
   const sophia = await readSophia(c, room.id)
   return {
     projectId: project.id,
@@ -80,7 +81,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
     goals,
     resources,
     humanActions: [],
-    artifacts: [],
+    artifacts,
     sharedFocus: sharedFocusOf(room),
     room: {
       id: room.id,
@@ -167,17 +168,118 @@ async function readResources(c: pg.PoolClient, projectId: string): Promise<Resou
 
 /** Projections that later goals implement: refuse rather than return a false empty list. */
 async function refuseUnprojectedRecords(c: pg.PoolClient, projectId: string): Promise<void> {
-  const { rows } = await c.query<{ human_actions: boolean; artifacts: boolean }>(
-    `SELECT EXISTS (SELECT 1 FROM sophia.human_actions WHERE project_id = $1) AS human_actions,
-            EXISTS (SELECT 1 FROM sophia.artifact_versions WHERE project_id = $1) AS artifacts`,
+  const { rows } = await c.query<{ human_actions: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM sophia.human_actions WHERE project_id = $1) AS human_actions`,
     [projectId],
   )
   if (rows[0]?.human_actions) {
     throw new DomainError('projection_unavailable', 'HumanAction projection arrives with S1-09')
   }
-  if (rows[0]?.artifacts) {
-    throw new DomainError('projection_unavailable', 'Artifact projection arrives with S1-07/S1-13')
+}
+
+interface ArtifactRow {
+  id: string
+  artifact_id: string
+  parent_id: string | null
+  source_id: string
+  source_hash: string
+  state: ArtifactVersion['state']
+  format: ArtifactVersion['format']
+  title: string
+  version_number: number | null
+  created_at: Date
+  preview_id: string | null
+}
+
+interface RenditionRow {
+  artifact_version_id: string
+  format: ArtifactRendition['format']
+  source_id: string
+  sha256: string
+  byte_length: string
+  mime: string
+  page_count: number | null
+}
+
+/** At most this many artifacts in a snapshot, the most recently published; Knowledge lists them all. */
+const SNAPSHOT_ARTIFACTS = 100
+
+/** Formats whose authored source is what a member edits; the others are kept as delivered. */
+const editability = (format: ArtifactVersion['format']): ArtifactVersion['exportEditability'] =>
+  format === 'pdf' || format === 'pptx' ? 'original_only' : 'source_editable'
+
+/**
+ * Each artifact's current version (the stable one) with its renditions, oldest first (0022). A version that is not
+ * stable yet is not shown: publication moves it to stable in the same transaction that makes it visible.
+ */
+async function readArtifacts(c: pg.PoolClient, projectId: string): Promise<ArtifactVersion[]> {
+  const { rows } = await c.query<ArtifactRow>(
+    `SELECT * FROM (
+       SELECT v.id, v.artifact_id, v.parent_id, v.source_id, v.source_hash, v.state, a.format, a.title, v.version_number,
+              v.created_at,
+              (SELECT p.id FROM sophia.previews p WHERE p.project_id = v.project_id AND p.artifact_version_id = v.id
+                  AND p.state = 'ready' ORDER BY p.id LIMIT 1) AS preview_id
+         FROM sophia.artifacts a
+         JOIN sophia.artifact_versions v ON v.project_id = a.project_id AND v.id = a.stable_version_id
+        WHERE a.project_id = $1
+        ORDER BY v.created_at DESC, v.id DESC LIMIT ${SNAPSHOT_ARTIFACTS}) latest
+      ORDER BY created_at, id`,
+    [projectId],
+  )
+  if (rows.length === 0) return []
+  const renditions = await readRenditions(
+    c,
+    projectId,
+    rows.map((r) => r.id),
+  )
+  return rows.map((r) => {
+    const own = renditions.get(r.id) ?? []
+    return {
+      id: r.id,
+      artifactId: r.artifact_id,
+      projectId,
+      parentId: r.parent_id,
+      sourceId: r.source_id,
+      sourceHash: r.source_hash,
+      state: r.state,
+      previewId: r.preview_id,
+      format: r.format,
+      exportEditability: editability(r.format),
+      title: r.title,
+      ...(r.version_number === null ? {} : { versionNumber: r.version_number }),
+      createdAt: r.created_at.toISOString(),
+      ...(own.length === 0 ? {} : { renditions: own }),
+    }
+  })
+}
+
+async function readRenditions(
+  c: pg.PoolClient,
+  projectId: string,
+  versionIds: string[],
+): Promise<Map<string, ArtifactRendition[]>> {
+  const { rows } = await c.query<RenditionRow>(
+    `SELECT r.artifact_version_id, r.format, s.id AS source_id, s.sha256, s.byte_length, s.mime, r.page_count
+       FROM sophia.artifact_renditions r
+       JOIN sophia.source_objects s ON s.project_id = r.project_id AND s.id = r.source_id
+      WHERE r.project_id = $1 AND r.artifact_version_id = ANY($2::uuid[])
+      ORDER BY r.artifact_version_id, r.format`,
+    [projectId, versionIds],
+  )
+  const byVersion = new Map<string, ArtifactRendition[]>()
+  for (const r of rows) {
+    const list = byVersion.get(r.artifact_version_id) ?? []
+    list.push({
+      format: r.format,
+      sourceId: r.source_id,
+      sha256: r.sha256,
+      byteLength: Number(r.byte_length),
+      mime: r.mime,
+      pageCount: r.page_count,
+    })
+    byVersion.set(r.artifact_version_id, list)
   }
+  return byVersion
 }
 
 /** Every project has one room (migration 0009); a missing row is a broken invariant, not an empty room. */

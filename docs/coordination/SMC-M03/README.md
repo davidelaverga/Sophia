@@ -7,7 +7,7 @@ Messages travel on **one coordination issue, [#31](https://github.com/davidelave
 | Mission | SMC-M03 |
 | Coordination issue | [#31](https://github.com/davidelaverga/Sophia/issues/31) |
 | Implementation branch | `claude/smc-m03-research` |
-| Implementation PR | recorded in [SMC-M03.md](../../progress/SMC-M03.md) once opened (draft, base `main`) |
+| Implementation PR | [#32](https://github.com/davidelaverga/Sophia/pull/32) (draft, base `main`) |
 | Implementer | Claude Code, session `https://claude.ai/code/session_018hCUhiK4hgMf5V5QPbkC9S` |
 | Operator | Codex, Davide's local session; its session is recorded from its first message |
 

@@ -1400,6 +1400,36 @@ describe('room session: finished work (case A06)', () => {
     assert.deepEqual(service.announcedEvents, [])
   })
 
+  it('announces a finished research report in its own words', async () => {
+    const results = [{ taskId: TASK, resultRevision: 1, kind: 'research' }]
+    const { session, live } = await ready({ results })
+    session.tick()
+    assert.equal(live.notices.length, 1)
+    assert.match(live.notices[0] ?? '', /The research report is ready in the project/)
+    assert.match(live.notices[0] ?? '', new RegExp(`taskId ${TASK}`))
+  })
+
+  it('leaves a result of a kind it does not know unannounced, and announces the known one behind it (A11)', async () => {
+    const later = '33333333-3333-4333-8333-333333333333'
+    const results = [
+      { taskId: later, resultRevision: 1, kind: 'slide_deck' },
+      { taskId: TASK, resultRevision: 1, kind: 'draft_brief' },
+    ]
+    const { session, live } = await ready({ results })
+    session.tick()
+    assert.equal(live.notices.length, 1)
+    assert.match(live.notices[0] ?? '', new RegExp(TASK))
+    assert.doesNotMatch(live.notices[0] ?? '', new RegExp(later))
+    live.events.audio(speech(), OUT)
+    await flush()
+    await flush()
+    live.events.turnComplete()
+    clock += 1000
+    session.tick()
+    assert.equal(live.notices.length, 1, 'the unknown kind is never announced')
+    assert.deepEqual(service.announcedEvents, [{ exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1 }])
+  })
+
   it('does not announce while paused for a guest', async () => {
     const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
     const { session, room, live } = await ready({ results })
