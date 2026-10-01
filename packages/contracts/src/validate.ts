@@ -24,7 +24,12 @@ import {
   validateMissionWithdrawalPreview,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
+  validatePersonalExport,
+  validatePersonalReceipt,
+  validatePersonalSpace,
+  validatePersonalTurnPage,
   validateProjectCreated,
+  validateProjectList,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -80,6 +85,11 @@ export const parseMissionContext = parser('MissionContext', validateMissionConte
 export const parseMissionReceipt = parser('MissionReceipt', validateMissionReceipt)
 export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissionNotePolicy)
 export const parseMissionWithdrawalPreview = parser('MissionWithdrawalPreview', validateMissionWithdrawalPreview)
+export const parsePersonalSpace = parser('PersonalSpace', validatePersonalSpace)
+export const parsePersonalTurnPage = parser('PersonalTurnPage', validatePersonalTurnPage)
+export const parsePersonalExport = parser('PersonalExport', validatePersonalExport)
+export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalReceipt)
+export const parseProjectList = parser('ProjectList', validateProjectList)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

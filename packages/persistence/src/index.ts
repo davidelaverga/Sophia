@@ -116,3 +116,25 @@ export {
   type MissionReader,
   type MissionSource,
 } from './mission-context.ts'
+export {
+  carryPersonalNote,
+  decidePersonalSuggestion,
+  erasePersonalSpace,
+  failPersonalReply,
+  forgetPersonalNote,
+  keepPersonalNote,
+  PERSONAL_PAGE_LIMIT,
+  PERSONAL_TURN_LIMIT,
+  readCompanionContext,
+  readPersonalExport,
+  readPersonalSpace,
+  readPersonalTurnsAfter,
+  readWelcomeContext,
+  recordPersonalGreeting,
+  recordPersonalReply,
+  retryPersonalTurn,
+  sendPersonalTurn,
+  takeBackPersonalRelease,
+  type CompanionContext,
+} from './personal.ts'
+export { listProjects, type ProjectListing } from './project-list.ts'

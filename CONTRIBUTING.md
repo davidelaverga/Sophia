@@ -314,6 +314,43 @@ when you change the room:
 - **Names stay for the visit** (`mergeNames`): someone who spoke and left
   keeps their name on their lines instead of "A member".
 
+## The personal space
+
+A person's private space with Sophia: one conversation, the notes they keep
+from it, and the notes they carry to one of their projects. Its data side is
+migration 0021 and contract amendment A10, served by the API's personal
+routes; the Studio's places are a separate change. Keep these when you change
+either:
+
+- **Private means owner-only, in the database.** Every personal table reads
+  `owner_id = actor` (RLS) and has no write grant; the `sophia.*` functions
+  are the only writers, each idempotent per owner and key, keeping a digest of
+  what they wrote, never the words, and receipts of ids. Each holds the
+  owner's space before it reads its key (`personal_hold`), so a retry racing
+  its first attempt gets the same receipt, never a conflict. No project role
+  reaches a personal row, admins included, and nothing personal is joined into
+  a project read. Test a new read path as another person and as a project
+  admin (`personal.db.test.ts`): zero rows.
+- **The one crossing is a carried note.** `carry_personal_note` copies one
+  note, as written, into one project where its owner is an active member;
+  members read it attributed to the name its owner shows, and the owner can
+  take it back, which deletes the copy. Anything else that would move
+  personal words into a project (a summary, a model reading the space) is a
+  new decision for the owners, not a feature (goal D5).
+- **Sophia never keeps a note on her own.** She suggests one after a reply;
+  the person keeps it or lets it go, and one let go is deleted. "Note this"
+  keeps a line in the person's own words. The export carries every turn with
+  its suggestion still open. Erasing deletes the conversation, suggestions
+  and notes, deletes the requests older than ten minutes and redacts the rest
+  (a late retry still writes nothing), and leaves carried notes where they
+  were, still the owner's.
+- **The companion is behind one interface** (`apps/api/src/companion.ts`):
+  `answer` for a pending turn, `greet` for the welcome back. The keyless
+  rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for
+  development and tests only, and the space says so (`companion:
+  'rehearsal'`). Without a companion, sending is refused and nothing is kept:
+  never store a message nobody will answer.
+
 ## The Studio's hosting headers
 
 `apps/studio/public/vercel.json` sets them for the hosted Studio.
