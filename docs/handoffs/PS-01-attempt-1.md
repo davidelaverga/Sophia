@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** first commit `c3f8968` on `studio/personal-space` (#30), 2026-09-30. On 2026-10-01 Luis asked to split it: the data and API on `personal/data` (from main `860a01a`), and the Studio's places on top of it (#30).
-- **End:** each PR's head when merged, the data side first.
+- **End:** the data side's code at `18b00d1` (#35's head); the Studio's at `7b46ed9` (tree `97ff41943e75`), the head the checks below ran on. The commit after it changes only this file.
 - **Writable scope:** this repository. **No hosted service was changed.** Migration 0021 is on no hosted database.
 
 ## Outcome
@@ -44,8 +44,9 @@ Missing or unverified:
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
-  - unlocking against local Supabase (`unlock-supabase`): the code checked on its own client (the app's session untouched, nothing stored, the check's session ended), a wrong code, a lost connection, a check and ways with no answer (20 s), another account;
-  - the earlier suites on this Studio: the previous rounds (31 checks), the places’ keys and flows (37), a call across the places (13), the call and interface checks (6, 33 and 8), and the room’s suites from #24 (43).
+  - unlocking against local Supabase (`unlock-supabase`): the code checked on its own client (the app's session untouched, nothing stored, the check's session ended), a wrong code, a lost connection, a check and ways with no answer (20 s), another account; an email change, after which the padlock is still shut;
+  - Codex's third review of #30 (`personal-codex30b`): a dictation start waiting for the device's language, called off by a lock, by crossing to Work and by signing out, and a second press; a copy whose export arrives after a lock stored without an event, or after its sheet closed;
+  - the earlier suites on this Studio: the previous rounds (31 checks), the places’ keys and flows (37), a call across the places (12 of 13: a teammate's Work showed who had just joined only once the room server's count caught up, up to five seconds later; the data side's next commit asks the rooms themselves), the call and interface checks (6, 33 and 8), and the room’s suites from #24 (43).
 - **Mutation checks:** every logic fix has a unit or database test that fails without it; every fix the tests can't reach was undone in the browser to see its scenario fail (this round, 4 Studio rules, 7 database rules and 4 API rules each failed their test before the fix, and of 10 browser fixes undone 9 were caught by their scenario, the tenth being backed by a second mechanism the scenario also exercises; the second round, 14 rules and 22 browser fixes, all caught).
 - **Reviews:**
   - Codex on `8bf2acf`: one P1 and four P2, all fixed;
@@ -53,6 +54,7 @@ Missing or unverified:
   - the second round's design, reviewed three times before any code;
   - independent code reviews of both halves (data: one P1, four P2, six P3; Studio: one P1, four P2, eleven P3), all fixed after a review of the fixes' design.
   - Codex on #35's `d3c98de`: four P2 (one process per answer, the welcome's key, the room server asked about every room, a suggestion of another turn), and on #30's `462c60e`: three P2 (a copy after a lock, overlapping sends, signing out where storage is blocked), all fixed, each undone once to see its test fail.
+  - Codex on #30's `3389759`: one P1 (a dictation start waiting for the device's language went on out of sight) and two P2 (the padlock kept by the address; a copy that read the padlock as last drawn), fixed with their sibling paths (signing out while a start waits, the draft kept by the address, a copy after its sheet closed); each fix was undone once and its scenario failed, but for a guard against a second press, which proved redundant and was removed.
 
 ## Decisions and changes
 
