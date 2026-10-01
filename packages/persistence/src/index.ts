@@ -78,7 +78,9 @@ export {
   type ContributionOrigin,
 } from './native-tasks.ts'
 export {
+  editReportSummary,
   listReports,
+  listReportSources,
   readArtifactVersions,
   readReportSource,
   REPORT_PAGE,

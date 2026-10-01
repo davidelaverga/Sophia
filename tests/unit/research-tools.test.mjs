@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { researchTools, callKeyOf, clampBytes, linksOf, SEARCH_RESERVE_USD, TAVILY_CREDIT_USD } from '../../packages/dsh-bundle/dist/research-tools.js'
 import { costOfUsage, estimateCallUsd } from '../../packages/dsh-bundle/dist/control-bridge.js'
-import { SourceError } from '../../packages/dsh-bundle/dist/source-errors.js'
+import { SourceError, cutText } from '../../packages/dsh-bundle/dist/source-errors.js'
 import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
 
 const SESSION = { attemptId: '11111111-1111-4111-8111-111111111111', nativeSessionId: 'sophia-11111111-1111-4111-8111-111111111111' }
@@ -192,8 +192,8 @@ test('research_read_source: read, settle from tokens, capture with its links, th
   const settle = service.calls.find(([k]) => k === 'settle')[1]
   assert.deepEqual([settle.outcome, settle.costUsd], ['settled', 0.00006])
   const capture = service.calls.find(([k]) => k === 'capture')[1]
-  assert.deepEqual([capture.kind, capture.coverage, capture.links, capture.providerHttpStatus, capture.originHttpStatus], [
-    'web_read', 'complete', ['https://hosts.example.org/sandbox'], 200, null,
+  assert.deepEqual([capture.kind, capture.coverage, capture.links, capture.providerHttpStatus, capture.originHttpStatus, capture.title], [
+    'web_read', 'complete', ['https://hosts.example.org/sandbox'], 200, null, 'Hosts',
   ])
   assert.match(out, /kind="web_page" trust="untrusted" coverage="complete" offset="0" next_offset="none"/)
   assert.match(out, /url: https:\/\/hosts\.example\.org\/a/)
@@ -264,3 +264,24 @@ test('research_submit_result: the current draft with its citations, once; resear
   assert.equal(refused.code, 'stale_revision')
 })
 
+test('research_submit_result: notes the service refused tell the model what disagreed, and the task goes on', async () => {
+  const sections = { added: ['Pricing'], revised: [], removed: ['Conclusion'], unchanged: ['Hosts'], conclusionChanged: true }
+  const problems = ['The note calls the conclusion unchanged, but it changed.']
+  const service = fakeService({ submit: () => ({ taskId: 't', outcome: 'notes_rejected', problems, sections }) })
+  const { byName } = tools(service, fakeSources())
+  const out = await byName.research_submit_result.execute(
+    { draftSha256: 'c'.repeat(64), title: 'T', summary: 'S', resultSummary: 'R', citations: ['33333333-3333-4333-8333-333333333333'], changeNote: 'Same conclusion.' },
+    exec('call_s'),
+  )
+  assert.deepEqual([out.outcome, out.problems, out.sections], ['notes_rejected', problems, sections])
+  assert.match(out.note, /^Not published: .*Submit again/)
+  await byName.research_read_context.execute({}, exec('call_c'))
+  assert.equal(service.kinds().at(-1), 'context', 'the tools still run: the task has not ended')
+})
+
+test('provider text is cut well formed: the service refuses an unpaired surrogate', () => {
+  assert.equal(cutText('ab\u{1F600}cd', 3), 'ab\uFFFD', 'a cut through a pair')
+  assert.equal(cutText('a\uD800b', 10), 'a\uFFFDb', 'a lone surrogate the provider sent')
+  assert.equal(cutText('abc', 10), 'abc')
+  assert.equal(JSON.stringify(cutText('x\u{1F600}', 2)).includes('\\ud'), false)
+})

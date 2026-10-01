@@ -10,7 +10,7 @@
  * @module @sophia/dsh-bundle/source-tavily
  */
 
-import { SourceError, codeForStatus, isRecord, jsonBody, requestWithDeadline } from './source-errors.js'
+import { SourceError, codeForStatus, cutText, isRecord, jsonBody, requestWithDeadline } from './source-errors.js'
 
 export const TAVILY_ENDPOINT = 'https://api.tavily.com/search'
 /** The most results one search may ask for (plan §2.6). */
@@ -79,7 +79,7 @@ const isHttpUrl = (value: unknown): value is string => {
 }
 
 const text = (value: unknown, limit: number): string | undefined =>
-  typeof value === 'string' && value.length > 0 ? value.slice(0, limit) : undefined
+  typeof value === 'string' && value.length > 0 ? cutText(value, limit) : undefined
 
 const finite = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 

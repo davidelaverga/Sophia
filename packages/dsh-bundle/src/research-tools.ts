@@ -96,6 +96,15 @@ const MESSAGES: Readonly<Record<string, string>> = {
   invalid_request: 'The service refused the request as given: check each field (an amended report needs changeNote).',
 }
 
+/**
+ * What a submit refused for its notes tells the model: nothing was published, `problems` says where the notes and the
+ * facts disagree and `sections` what the service found. One correction is allowed; notes that still contradict the facts
+ * are replaced with notes written from them.
+ */
+const NOTES_REJECTED =
+  'Not published: your changeNote or retainedNote disagrees with what changed (see problems and sections). Submit ' +
+  'again with notes that match; if they still disagree, the report is published with notes written from the facts.'
+
 /** A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. */
 function serviceProblem(error: unknown): { code: string; message: string } {
   if (error instanceof TransportError && error.code) {
@@ -380,6 +389,7 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
           originHttpStatus: result.originHttpStatus,
           reportedFinalUrl: result.reportedFinalUrl,
           extraction: 'jina-reader/markdown',
+          ...(result.title ? { title: result.title } : {}),
           coverage: kept.cut && result.coverage === 'complete' ? 'partial' : result.coverage,
           limitations,
           text: kept.text,
@@ -467,6 +477,7 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
             ...(args.retainedNote ? { retainedNote: args.retainedNote } : {}),
           },
         })
+        if (done.outcome === 'notes_rejected') return asJson({ ...done, note: NOTES_REJECTED })
         caches.delete(session.attemptId)
         return asJson({ ...done, note: 'Published. The task has ended; Sophia tells the team.' })
       } catch (error) {

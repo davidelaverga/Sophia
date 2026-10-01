@@ -11,7 +11,8 @@
     "Execution policy (S2): a runtime command's role may name a specialization (sophia-research-md-v1), and a create may name the route admission chose for it. The bridge runs the route its own unit maps to the role and refuses a create whose route differs, so the route is never taken from the wire alone. The runtime wire changes with the research runtime unit (sophia-runtime-m03-dev); an older bridge refuses a role it does not define, as before.",
     "S4: the write side. A runtime advertises its specialist roles in hello; start_research admits research; the runtime research operations (context, reserve, settle, capture, draft) let the research tools read the task, spend from its allowance, keep what they retrieved with its provenance and write a draft, authenticated and fenced like observations.",
     "The guide's tool surface is versioned: GET /v1/media/tool-surface?guide=v1.2 names start_research, and without the parameter it answers v1.1's six operations exactly as before, so a bridge running the M01 guide still activates against this API.",
-    "S4 part 3: a research task ends through runtimeResearchSubmit, never through its last message: the result publishes the current draft as the report's next stable version with its checks, notes and change facts, or a blocker records why it stopped and what remains."
+    "S4 part 3: a research task ends through runtimeResearchSubmit, never through its last message: the result publishes the current draft as the report's next stable version with its checks, notes and change facts, or a blocker records why it stopped and what remains.",
+    "S4 part 4: a version carries the facts the service computed at publication (sections added, revised, removed and kept; whether the conclusion changed; sources added and dropped), and its notes must agree with them. A research task's detail carries its progress (allowance and source policy). A version lists the sources it cites with their provenance. Members edit a report's description with attribution."
   ],
   "patch": [
     {
@@ -1256,6 +1257,12 @@
               "minLength": 1,
               "maxLength": 2048
             }
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "The page title the extractor reported (a read)."
           }
         },
         "required": [
@@ -2108,7 +2115,7 @@
           },
           "outcome": {
             "type": "string",
-            "enum": ["published", "blocked"]
+            "enum": ["published", "blocked", "notes_rejected"]
           },
           "artifactId": {
             "type": "string",
@@ -2134,9 +2141,25 @@
           "resultSourceId": {
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "problems": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": "notes_rejected: where the notes contradict the facts. Correct them and submit again; a second contradiction publishes with notes written from the facts."
+          },
+          "sections": {
+            "$ref": "#/components/schemas/ReportSections"
+          },
+          "notesFromFacts": {
+            "type": "boolean",
+            "description": "published: the notes were written from the facts after the model's still contradicted them."
           }
         },
-        "required": ["taskId", "outcome", "resultSourceId"]
+        "required": ["taskId", "outcome"]
       }
     },
     {
@@ -2227,6 +2250,599 @@
             },
             "422": {
               "description": "Request fails the declared schema, or a citation or the draft is not the task's",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ResearchProgress",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "specialist": {
+            "type": "string",
+            "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+          },
+          "outputs": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": ["markdown", "pdf"]
+            }
+          },
+          "rootTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amendsTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "committedUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "spentUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "searches": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "used": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": ["used", "max"]
+          },
+          "reads": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "used": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": ["used", "max"]
+          }
+        },
+        "required": [
+          "question",
+          "specialist",
+          "outputs",
+          "rootTaskId",
+          "capUsd",
+          "committedUsd",
+          "spentUsd",
+          "searches",
+          "reads"
+        ],
+        "description": "A research task's request and progress: its allowance (committed counts what is reserved, spent or uncertain) and its source policy's use. Omitted for a brief."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskDetail/properties/research",
+      "value": {
+        "$ref": "#/components/schemas/ResearchProgress"
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReportSections",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revised": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unchanged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conclusionChanged": {
+            "type": "boolean"
+          }
+        },
+        "required": ["added", "revised", "removed", "unchanged", "conclusionChanged"],
+        "description": "Sections by heading, from the stored Markdown of this version and the previous one. A first version's are all added."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactVersion/properties/changeFacts",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cited": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "dropped": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previousBytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sections": {
+            "$ref": "#/components/schemas/ReportSections"
+          },
+          "notesFromFacts": {
+            "type": "boolean"
+          }
+        },
+        "required": ["cited", "added", "dropped"],
+        "description": "What the service computed about this version at publication (the chips come from these, never from the notes). Omitted for a version published before M03 S4."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ArtifactVersion/properties/trigger",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["research"]
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amendsTaskId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["kind", "taskId"],
+        "description": "What produced this version. Omitted when unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReportSource",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["search_results", "web_read", "input"],
+            "description": "A search's result list (snippets only), a page read in full or in part by the extractor, or an input the project admitted."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["tavily", "jina"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["complete", "partial", "unsupported"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "originHttpStatus": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when unknown: the extractor reports only its own status."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string"
+            }
+          },
+          "mime": {
+            "type": "string"
+          },
+          "retrievedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sourceId",
+          "kind",
+          "provider",
+          "title",
+          "url",
+          "coverage",
+          "originHttpStatus",
+          "limitations",
+          "mime",
+          "retrievedAt"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReportSourceList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sources": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ReportSource"
+            }
+          }
+        },
+        "required": ["sources"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReportSummaryEdit",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["summary", "expectedRevision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReportSummary",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "summaryAuthorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "summaryUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["artifactId", "summary", "summaryAuthorId", "summaryRevision", "summaryUpdatedAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1artifacts~1{artifactId}~1versions~1{versionId}~1sources",
+      "value": {
+        "get": {
+          "operationId": "listReportSources",
+          "summary": "The sources a report version cites, with their provenance: what was read in full and what only as a snippet, by which route, and the origin status only when known. Each one the reader may read.",
+          "tags": ["artifacts"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "artifactId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "versionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ReportSourceList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Not found or not readable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "SMC-M03"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1artifacts~1{artifactId}~1summary",
+      "value": {
+        "patch": {
+          "operationId": "editReportSummary",
+          "summary": "A member's edit of a report's description: attributed, against the revision they saw. Editors and admins only.",
+          "tags": ["artifacts"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "artifactId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSummaryEdit"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Edited",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ReportSummary"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The description changed since it was read",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the report is not found",
               "content": {
                 "application/json": {
                   "schema": {

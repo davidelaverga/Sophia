@@ -42,6 +42,8 @@ const EXPORTS = [
   'SourceContent',
   'ArtifactVersionList',
   'ReportList',
+  'ReportSourceList',
+  'ReportSummary',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

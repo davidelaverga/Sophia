@@ -17,7 +17,7 @@
  * @module @sophia/dsh-bundle/source-jina
  */
 
-import { SourceError, codeForStatus, isRecord, jsonBody, requestWithDeadline } from './source-errors.js'
+import { SourceError, codeForStatus, cutText, isRecord, jsonBody, requestWithDeadline } from './source-errors.js'
 
 export const JINA_ENDPOINT = 'https://r.jina.ai/'
 /** The local deadline for one read, and the provider's own (always shorter, so it answers before the local abort). */
@@ -153,11 +153,11 @@ export function createJinaReader(options: JinaOptions): JinaReader {
     if (data === null || typeof data.content !== 'string') {
       throw new SourceError('malformed_response', 'the extractor answered without page content', response.status)
     }
-    const warning = typeof data.warning === 'string' && data.warning.length > 0 ? data.warning.slice(0, 500) : null
+    const warning = typeof data.warning === 'string' && data.warning.length > 0 ? cutText(data.warning, 500) : null
     const originHttpStatus = originStatusOf(warning)
     const pages = typeof data.numPages === 'number' && Number.isFinite(data.numPages) ? data.numPages : null
     const tokens = isRecord(data.usage) && typeof data.usage.tokens === 'number' ? data.usage.tokens : null
-    const content = data.content.slice(0, READ_CHAR_LIMIT)
+    const content = cutText(data.content, READ_CHAR_LIMIT)
     const truncated = data.content.length > READ_CHAR_LIMIT
     const limitations = [LIMITATION_REDIRECTS, LIMITATION_REBINDING]
     if (truncated) limitations.push(`truncated: kept the first ${READ_CHAR_LIMIT} characters of ${data.content.length}`)
@@ -174,8 +174,8 @@ export function createJinaReader(options: JinaOptions): JinaReader {
       providerHttpStatus: response.status,
       originHttpStatus,
       reportedFinalUrl: null,
-      title: typeof data.title === 'string' && data.title.length > 0 ? data.title.slice(0, 300) : null,
-      publishedAt: typeof data.publishedTime === 'string' ? data.publishedTime.slice(0, 64) : null,
+      title: typeof data.title === 'string' && data.title.length > 0 ? cutText(data.title, 300) : null,
+      publishedAt: typeof data.publishedTime === 'string' ? cutText(data.publishedTime, 64) : null,
       content,
       coverage: partial ? 'partial' : 'complete',
       truncated,

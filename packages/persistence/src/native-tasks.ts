@@ -10,6 +10,7 @@ import type {
   NativeTaskDetail,
   NativeTaskReceipt,
   NativeTaskRequest,
+  ResearchProgress,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { onlyRow } from './rows.ts'
@@ -224,6 +225,64 @@ async function readResult(c: pg.PoolClient, projectId: string, task: TaskRow): P
   }
 }
 
+interface ProgressRow {
+  question: string
+  role: string
+  outputs: ResearchProgress['outputs'] | null
+  root_job_id: string
+  amends_job_id: string | null
+  cap_usd: string
+  committed_usd: string
+  spent_usd: string
+  searches: string
+  max_searches: number
+  reads: string
+  max_reads: number
+}
+
+/**
+ * A research task's question, specialist and outputs, and how far its allowance has gone (M03 S4): money committed
+ * (reserved, spent or uncertain) and spent, and the searches and reads used, a released call not counted. The allowance
+ * is the lineage's, so an amendment shows what the whole report has used.
+ */
+async function readResearchProgress(
+  c: pg.PoolClient,
+  projectId: string,
+  taskId: string,
+): Promise<ResearchProgress | null> {
+  const { rows } = await c.query<ProgressRow>(
+    `SELECT q.body AS question, t.role, (m.body::jsonb)->'outputs' AS outputs, t.root_job_id, t.amends_job_id,
+            al.cap_usd, al.reserved_usd + al.spent_usd + al.uncertain_usd AS committed_usd, al.spent_usd,
+            (SELECT count(*) FROM sophia.research_reservations r WHERE r.project_id = al.project_id
+                AND r.allowance_id = al.id AND r.kind = 'search' AND r.state <> 'released') AS searches,
+            al.max_searches,
+            (SELECT count(*) FROM sophia.research_reservations r WHERE r.project_id = al.project_id
+                AND r.allowance_id = al.id AND r.kind = 'read' AND r.state <> 'released') AS reads,
+            al.max_reads
+       FROM sophia.research_tasks t
+       JOIN sophia.jobs j ON j.project_id = t.project_id AND j.id = t.job_id
+       JOIN sophia.research_allowances al ON al.project_id = t.project_id AND al.id = t.allowance_id
+       JOIN sophia.source_texts q ON q.project_id = t.project_id AND q.source_id = t.question_source_id
+       LEFT JOIN sophia.source_texts m ON m.project_id = t.project_id AND m.source_id = j.input_source_id
+      WHERE t.project_id = $1 AND t.job_id = $2`,
+    [projectId, taskId],
+  )
+  const r = rows[0]
+  if (!r) return null
+  return {
+    question: r.question,
+    specialist: r.role,
+    outputs: r.outputs ?? ['markdown'],
+    rootTaskId: r.root_job_id,
+    ...(r.amends_job_id === null ? {} : { amendsTaskId: r.amends_job_id }),
+    capUsd: Number(r.cap_usd),
+    committedUsd: Number(r.committed_usd),
+    spentUsd: Number(r.spent_usd),
+    searches: { used: Number(r.searches), max: r.max_searches },
+    reads: { used: Number(r.reads), max: r.max_reads },
+  }
+}
+
 /** One task with its instruction and result. Call inside withActor(..., "read"); not visible → not_found. */
 export async function readNativeTask(c: pg.PoolClient, projectId: string, taskId: string): Promise<NativeTaskDetail> {
   const { rows } = await c.query<TaskRow>(
@@ -236,9 +295,11 @@ export async function readNativeTask(c: pg.PoolClient, projectId: string, taskId
     `SELECT body FROM sophia.source_texts WHERE project_id = $1 AND source_id = $2`,
     [projectId, task.instruction_source_id],
   )
+  const research = task.kind === 'research' ? await readResearchProgress(c, projectId, task.id) : null
   return {
     task: toTask(task),
     instruction: instruction.rows[0]?.body ?? '',
     result: await readResult(c, projectId, task),
+    ...(research === null ? {} : { research }),
   }
 }

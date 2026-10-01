@@ -4,8 +4,11 @@
 import type { FastifyInstance } from 'fastify'
 
 const ALLOWED_HEADERS = 'authorization, content-type, idempotency-key'
-/** Every method the Studio sends: PUT sets the mission's note capture and a member's consent (A08). */
-const ALLOWED_METHODS = 'GET, POST, PUT, DELETE'
+/**
+ * Every method the Studio sends: PUT sets the mission's note capture and a member's consent (A08), PATCH a report's
+ * description (A11).
+ */
+const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE'
 const PREFLIGHT_MAX_AGE_SECONDS = 600
 
 export function registerCors(app: FastifyInstance, origins: readonly string[]): void {

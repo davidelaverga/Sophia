@@ -1,7 +1,8 @@
 // SMC-M03 Knowledge reads through real HTTP (level: sql-run, amendment A11): report cards from one project or every
 // project the reader is in, with format and search filters and pages; a report's published versions with their
-// notes. A reader never sees a card, a count or a project name from a project they are not in. Report rows are made
-// as the table owner, as a later release's publication writes them.
+// notes and the sources a version cites; a member's edit of a report's description. A reader never sees a card, a
+// count or a project name from a project they are not in. Report rows are made as the table owner, as publication
+// writes them.
 import { randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
@@ -9,7 +10,12 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { parseArtifactVersionList, parseReportList } from '@sophia/contracts/validate'
+import {
+  parseArtifactVersionList,
+  parseReportList,
+  parseReportSourceList,
+  parseReportSummary,
+} from '@sophia/contracts/validate'
 import { createPool } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
@@ -42,6 +48,16 @@ async function token(sub: string, anonymous = false): Promise<string> {
 
 async function get(path: string, actor: string, anonymous = false) {
   const res = await fetch(`${base}${path}`, { headers: { authorization: `Bearer ${await token(actor, anonymous)}` } })
+  const text = await res.text()
+  return { status: res.status, json: text ? (JSON.parse(text) as unknown) : null }
+}
+
+async function patch(path: string, actor: string, body: unknown) {
+  const res = await fetch(`${base}${path}`, {
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${await token(actor)}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
   const text = await res.text()
   return { status: res.status, json: text ? (JSON.parse(text) as unknown) : null }
 }
@@ -280,5 +296,79 @@ describe('Knowledge reads (A11)', () => {
     assert.ok(secret)
     assert.equal((await get(`/api/v1/artifacts/${secret.artifactId}/versions`, E)).status, 422)
     assert.equal((await get(`/api/v1/knowledge/reports?project=all`, E, true)).status, 403, 'never a guest')
+  })
+
+  it('lists the sources a version cites with their provenance, only to its members', async () => {
+    const r = R['Sandboxed PDF rendering']
+    assert.ok(r)
+    const version = await one<{ project_id: string; source_id: string }>(
+      `SELECT project_id, source_id FROM sophia.artifact_versions WHERE id=$1`,
+      [r.versions[0]],
+    )
+    const cite = async (body: string) => {
+      const s = await one<{ id: string }>(`SELECT (sophia.put_text_source($1,$2,'text/plain',$3)).id`, [
+        version.project_id,
+        A,
+        body,
+      ])
+      await owner.query(
+        `INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) VALUES($1,$2,$3)`,
+        [version.project_id, s.id, version.source_id],
+      )
+      return s.id
+    }
+    const given = await cite('A page the member attached.')
+    await owner.query(
+      `INSERT INTO sophia.source_provenance(project_id,source_id,kind,coverage,requested_url,title,retrieved_at)
+       VALUES($1,$2,'admitted_input','complete','https://hosts.example.org/given','The given page','2026-09-02T09:00:00Z')`,
+      [version.project_id, given],
+    )
+    const plain = await cite('A note in the project.')
+    const res = await get(`/api/v1/artifacts/${r.artifactId}/versions/${r.versions[0]}/sources`, E)
+    assert.equal(res.status, 200, JSON.stringify(res.json))
+    const { sources } = parseReportSourceList(res.json)
+    assert.deepEqual(
+      sources.map((x) => [x.sourceId, x.kind, x.title, x.url, x.coverage, x.retrievedAt]),
+      [
+        [given, 'input', 'The given page', 'https://hosts.example.org/given', 'complete', '2026-09-02T09:00:00.000Z'],
+        [plain, 'input', null, null, null, null],
+      ],
+    )
+    const older = await get(`/api/v1/artifacts/${r.artifactId}/versions/${r.versions[1]}/sources`, E)
+    assert.deepEqual(parseReportSourceList(older.json).sources, [], 'the earlier version cites nothing')
+    assert.equal((await get(`/api/v1/artifacts/${r.artifactId}/versions/${r.versions[0]}/sources`, C)).status, 422)
+    const secret = R['Pricing tiers']
+    assert.ok(secret)
+    assert.equal(
+      (await get(`/api/v1/artifacts/${secret.artifactId}/versions/${secret.versions[0]}/sources`, E)).status,
+      422,
+      'a project the reader is not in',
+    )
+  })
+
+  it('takes a member’s description edit against the revision they saw, attributed to them', async () => {
+    const r = R['Voice latency budget']
+    assert.ok(r)
+    const card = (await list(E, `project=${P.one.projectId}`)).reports.find((x) => x.artifactId === r.artifactId)
+    assert.ok(card)
+    const path = `/api/v1/artifacts/${r.artifactId}/summary`
+    const edited = await patch(path, E, {
+      summary: 'Where the three seconds go, by stage.',
+      expectedRevision: card.summaryRevision,
+    })
+    assert.equal(edited.status, 200, JSON.stringify(edited.json))
+    const summary = parseReportSummary(edited.json)
+    assert.deepEqual(
+      [summary.summary, summary.summaryAuthorId, summary.summaryRevision],
+      ['Where the three seconds go, by stage.', E, card.summaryRevision + 1],
+    )
+    const stale = await patch(path, A, { summary: 'Another.', expectedRevision: card.summaryRevision })
+    assert.deepEqual([stale.status, (stale.json as { code: string }).code], [409, 'stale_revision'])
+    assert.equal((await patch(path, E, { summary: '', expectedRevision: 2 })).status, 422, 'empty')
+    assert.equal((await patch(path, E, { summary: 'x'.repeat(241), expectedRevision: 2 })).status, 422, 'too long')
+    assert.equal((await patch(path, E, { summary: 'x', expectedRevision: 2, extra: 1 })).status, 422)
+    assert.equal((await patch(path, C, { summary: 'Mine.', expectedRevision: 2 })).status, 422, 'an outsider')
+    const now = (await list(E, `project=${P.one.projectId}`)).reports.find((x) => x.artifactId === r.artifactId)
+    assert.deepEqual([now?.summary, now?.summaryAuthorId], ['Where the three seconds go, by stage.', E])
   })
 })

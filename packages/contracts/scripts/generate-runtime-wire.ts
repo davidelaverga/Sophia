@@ -39,6 +39,7 @@ const SCHEMAS = [
   'ResearchDraft',
   'ResearchResult',
   'ResearchBlocker',
+  'ReportSections',
   'ResearchSubmitRequest',
   'ResearchSubmission',
 ] as const

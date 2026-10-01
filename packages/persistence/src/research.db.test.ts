@@ -20,6 +20,10 @@ import {
   claimRuntimeOutbox,
   createPool,
   dispatchRuntimeOutbox,
+  editReportSummary,
+  listReportSources,
+  readArtifactVersions,
+  readNativeTask,
   recordRuntimeObservations,
   recordRuntimeReady,
   recordRuntimeReceipts,
@@ -1110,5 +1114,297 @@ describe('research turn-end rules (0026)', () => {
       [w.projectId, receipt.taskId],
     )
     assert.deepEqual(held, { state: 'running', nudge: null }, 'no nudge while held')
+  })
+})
+
+/** A page the task read through a search result, captured with the title the extractor reported. */
+async function readPage(
+  w: World,
+  at: { attemptId: string; nativeSessionId: string },
+  results: { refs: readonly string[]; sourceId: string },
+) {
+  const r = await service((c) =>
+    runtimeResearchReserve(c, w.who, {
+      ...at,
+      callId: 'read_1',
+      kind: 'read',
+      provider: 'jina',
+      amountUsd: 0.02,
+      targetRef: results.refs[0]!,
+    }),
+  )
+  return service((c) =>
+    runtimeResearchCapture(c, w.who, {
+      ...at,
+      reservationId: r.reservationId,
+      kind: 'web_read',
+      provider: 'jina',
+      providerHttpStatus: 200,
+      originHttpStatus: null,
+      reportedFinalUrl: null,
+      extraction: 'jina-reader/markdown',
+      coverage: 'partial',
+      limitations: ['truncated: the page was cut at 256 KiB'],
+      text: '# Hosts\nThe sandbox is a microVM.',
+      title: 'Hosts and their sandboxes',
+    }),
+  )
+}
+
+const bytes = (t: string) => Buffer.byteLength(t)
+const V1 = '# Hosts\nA and B.\n\n## Costs\nUnknown.\n\n## Conclusion\nUse A.\n\n```\n# not a heading\n```\n'
+const V2 = '# Hosts\nA and B.\n\n## Costs\nA is $1 a page.\n\n## Pricing tiers\nThree tiers.\n'
+
+/** A first version (V1) and an admitted amendment with its V2 draft: what the truth-gate tests submit. */
+async function amending(w: World) {
+  const first = await started(w)
+  const cited = await citable(w, first.at)
+  const d1 = await service((c) =>
+    runtimeResearchDraft(c, w.who, { ...first.at, callId: 'd1', expectedSha256: null, text: V1 }),
+  )
+  const v1 = await service((c) =>
+    runtimeResearchSubmit(c, w.who, {
+      ...first.at,
+      callId: 's1',
+      result: resultOf(d1.sha256, [cited.sourceId], { retainedNote: 'Everything.' }),
+    }),
+  )
+  const amended = await started(w, { question: 'Add the costs.', amendsTaskId: first.receipt.taskId })
+  const d2 = await service((c) =>
+    runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text: V2 }),
+  )
+  const submit = (callId: string, notes: { changeNote: string; retainedNote?: string }) =>
+    service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...amended.at, callId, result: resultOf(d2.sha256, [cited.sourceId], notes) }),
+    )
+  return { first, cited, v1, amended, submit }
+}
+
+describe('report facts (0027)', () => {
+  it('splits Markdown into sections by heading, skipping fenced code, and compares two versions', async () => {
+    const sections = await one<{ s: { heading: string | null; anchor: string }[] }>(
+      `SELECT jsonb_agg(jsonb_build_object('heading',heading,'anchor',anchor) ORDER BY ord) AS s
+         FROM sophia.markdown_sections($1)`,
+      ['Intro line.\n' + V1],
+    )
+    assert.deepEqual(sections.s, [
+      { heading: null, anchor: '' },
+      { heading: 'Hosts', anchor: 'hosts' },
+      { heading: 'Costs', anchor: 'costs' },
+      { heading: 'Conclusion', anchor: 'conclusion' },
+    ])
+    const facts = await one<{ f: unknown; first: unknown }>(
+      `SELECT sophia.section_facts($1, $2) AS f, sophia.section_facts(NULL, $1) AS first`,
+      [V1, V2],
+    )
+    assert.deepEqual(facts.f, {
+      added: ['Pricing tiers'],
+      revised: ['Costs'],
+      removed: ['Conclusion'],
+      unchanged: ['Hosts'],
+      conclusionChanged: true,
+    })
+    assert.deepEqual(facts.first, {
+      added: ['Hosts', 'Costs', 'Conclusion'],
+      revised: [],
+      removed: [],
+      unchanged: [],
+      conclusionChanged: false,
+    })
+  })
+
+  it('refuses notes that contradict the facts once (a retry of that call alike), then publishes notes from the facts', async () => {
+    const w = await world()
+    const { first, cited, v1, amended, submit } = await amending(w)
+    const bad = { changeNote: 'No changes.', retainedNote: 'The conclusion stays the same.' }
+    const sections = {
+      added: ['Pricing tiers'],
+      revised: ['Costs'],
+      removed: ['Conclusion'],
+      unchanged: ['Hosts'],
+      conclusionChanged: true,
+    }
+    const refused = await submit('s2', bad)
+    assert.deepEqual(refused, {
+      taskId: amended.receipt.taskId,
+      outcome: 'notes_rejected',
+      problems: [
+        'The note says nothing changed, but 3 sections changed.',
+        'The note calls the conclusion unchanged, but it changed.',
+        'The kept note names "Conclusion", which was removed.',
+      ],
+      sections,
+    })
+    assert.deepEqual(await submit('s2', bad), refused, 'a retry of the refused call is refused the same way')
+    const stable = await one<{ id: string }>(`SELECT stable_version_id AS id FROM sophia.artifacts WHERE id=$1`, [
+      v1.artifactId,
+    ])
+    assert.equal(stable.id, v1.versionId, 'nothing was published')
+
+    const done = await submit('s3', bad)
+    assert.deepEqual([done.outcome, done.versionNumber, done.notesFromFacts], ['published', 2, true])
+    const [latest, previous] = (await withActor(pool, V, 'read', (c) => readArtifactVersions(c, v1.artifactId!))).map(
+      (v) => ({ note: v.changeNote, kept: v.retainedNote, facts: v.changeFacts, trigger: v.trigger }),
+    )
+    assert.deepEqual(latest, {
+      note: '1 revised: Costs; 1 added: Pricing tiers; 1 removed: Conclusion.',
+      kept: '1 unchanged: Hosts.',
+      facts: {
+        cited: 1,
+        added: [],
+        dropped: [],
+        bytes: bytes(V2),
+        previousBytes: bytes(V1),
+        sections,
+        notesFromFacts: true,
+      },
+      trigger: { kind: 'research', taskId: done.taskId, amendsTaskId: first.receipt.taskId },
+    })
+    assert.deepEqual(
+      previous,
+      {
+        note: 'First version',
+        kept: undefined,
+        facts: {
+          cited: 1,
+          added: [cited.sourceId],
+          dropped: [],
+          bytes: bytes(V1),
+          previousBytes: null,
+          sections: {
+            added: ['Hosts', 'Costs', 'Conclusion'],
+            revised: [],
+            removed: [],
+            unchanged: [],
+            conclusionChanged: false,
+          },
+          notesFromFacts: false,
+        },
+        trigger: { kind: 'research', taskId: first.receipt.taskId },
+      },
+      'a first version keeps nothing',
+    )
+  })
+
+  it('publishes notes that agree with the facts as written', async () => {
+    const w = await world()
+    const { submit } = await amending(w)
+    const done = await submit('s2', {
+      changeNote: 'Priced the hosts and dropped the conclusion.',
+      retainedNote: 'The host list.',
+    })
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', false])
+    const row = await one<{ change_note: string; retained_note: string }>(
+      `SELECT change_note, retained_note FROM sophia.artifact_versions WHERE id=$1`,
+      [done.versionId],
+    )
+    assert.deepEqual(row, {
+      change_note: 'Priced the hosts and dropped the conclusion.',
+      retained_note: 'The host list.',
+    })
+  })
+
+  it('lists the sources a version cites with their provenance, to members only', async () => {
+    const w = await world()
+    const { at } = await started(w, { inputSourceIds: [w.inputSourceId] })
+    const results = await citable(w, at)
+    const page = await readPage(w, at, results)
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: 'd1', expectedSha256: null, text: '# Report' }),
+    )
+    const done = await service((c) =>
+      runtimeResearchSubmit(c, w.who, {
+        ...at,
+        callId: 's1',
+        result: resultOf(d.sha256, [results.sourceId, page.sourceId, w.inputSourceId]),
+      }),
+    )
+    const list = (actor: string, versionId = done.versionId!) =>
+      withActor(pool, actor, 'read', (c) => listReportSources(c, done.artifactId!, versionId))
+    const { sources } = await list(V)
+    assert.deepEqual(
+      sources.map((s) => [
+        s.sourceId,
+        s.kind,
+        s.provider,
+        s.title,
+        s.url,
+        s.coverage,
+        s.originHttpStatus,
+        s.limitations,
+      ]),
+      [
+        [results.sourceId, 'search_results', 'tavily', 'Search: q', null, 'complete', null, []],
+        [
+          page.sourceId,
+          'web_read',
+          'jina',
+          'Hosts and their sandboxes',
+          'https://hosts.example.org/a',
+          'partial',
+          null,
+          ['truncated: the page was cut at 256 KiB'],
+        ],
+        [w.inputSourceId, 'input', null, null, null, null, null, []],
+      ],
+    )
+    for (const s of sources.slice(0, 2)) assert.ok(s.retrievedAt)
+    assert.equal(sources[2]?.retrievedAt, null)
+    assert.equal(await codeOf(list(C)), 'not_found', 'an outsider')
+    assert.equal(await codeOf(list(V, randomUUID())), 'not_found', 'another version')
+  })
+
+  it("lets an editor change a report's description, attributed and against the revision they saw", async () => {
+    const w = await world()
+    const { v1, submit } = await amending(w)
+    const seen = await withActor(pool, V, 'read', (c) =>
+      c.query<{ summary_revision: string }>(`SELECT summary_revision FROM sophia.artifacts WHERE id=$1`, [
+        v1.artifactId,
+      ]),
+    )
+    const revision = Number(seen.rows[0]?.summary_revision)
+    const edit = (actor: string, expectedRevision: number, summary = 'Sandboxed PDF hosts, priced.') =>
+      withActor(pool, actor, 'write', (c) => editReportSummary(c, v1.artifactId!, { summary, expectedRevision }))
+    assert.equal(await codeOf(edit(V, revision)), 'forbidden', 'a viewer')
+    assert.equal(await codeOf(edit(C, revision)), 'not_found', 'an outsider')
+    assert.equal(await codeOf(edit(E, revision, '   ')), 'invalid_request')
+    const edited = await edit(E, revision)
+    assert.deepEqual(
+      [edited.summary, edited.summaryAuthorId, edited.summaryRevision],
+      ['Sandboxed PDF hosts, priced.', E, revision + 1],
+    )
+    assert.ok(edited.summaryUpdatedAt)
+    assert.equal(await codeOf(edit(A, revision, 'Another.')), 'stale_revision', 'the revision they saw is gone')
+    await submit('s2', { changeNote: 'Priced the hosts and dropped the conclusion.' })
+    const kept = await one<{ summary: string; summary_author_id: string }>(
+      `SELECT summary, summary_author_id FROM sophia.artifacts WHERE id=$1`,
+      [v1.artifactId],
+    )
+    assert.deepEqual(
+      kept,
+      { summary: 'Sandboxed PDF hosts, priced.', summary_author_id: E },
+      "a member's description stays",
+    )
+  })
+
+  it('reads a research task with its question, specialist and how far its allowance has gone', async () => {
+    const w = await world()
+    const { at, receipt } = await started(w, { question: 'Which hosts sandbox PDFs?', outputs: ['markdown', 'pdf'] })
+    await citable(w, at)
+    const read = (actor: string) =>
+      withActor(pool, actor, 'read', (c) => readNativeTask(c, w.projectId, receipt.taskId))
+    const detail = await read(V)
+    const research = detail.research
+    assert.ok(research)
+    assert.deepEqual(
+      [research.question, research.specialist, research.outputs, research.rootTaskId, 'amendsTaskId' in research],
+      ['Which hosts sandbox PDFs?', MD.id, ['markdown', 'pdf'], receipt.taskId, false],
+    )
+    assert.equal(research.capUsd, 5)
+    assert.equal(research.searches.used, 1)
+    assert.ok(research.searches.max >= 1 && research.reads.max >= 1)
+    assert.equal(research.reads.used, 0)
+    assert.ok(research.committedUsd >= 0.01 && research.spentUsd === 0, 'the search is reserved, not yet settled')
+    assert.equal(await codeOf(read(C)), 'not_found')
   })
 })

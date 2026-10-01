@@ -2,7 +2,16 @@
 // the member's RLS: an artifact or source in a project the reader is not in is simply not found, and no count or
 // project name from such a project is ever read.
 import type pg from 'pg'
-import type { ArtifactRendition, ArtifactVersion, ReportCard, ReportList } from '@sophia/contracts'
+import type {
+  ArtifactRendition,
+  ArtifactVersion,
+  ReportCard,
+  ReportList,
+  ReportSections,
+  ReportSourceList,
+  ReportSummary,
+  ReportSummaryEdit,
+} from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 
 interface VersionRow {
@@ -21,16 +30,42 @@ interface VersionRow {
   change_note: string | null
   retained_note: string | null
   limitations: string[]
+  change_facts: StoredFacts | null
+  trigger: NonNullable<ArtifactVersion['trigger']> | null
+}
+
+/** The change facts as publication stores them (0026, 0027): the contract's fields and a few kept for audit. */
+interface StoredFacts {
+  cited: number
+  added: string[]
+  dropped: string[]
+  bytes?: number | null
+  previousBytes?: number | null
+  sections?: ReportSections
+  notesFromFacts?: boolean
 }
 
 const VERSION_COLUMNS = `v.id, v.artifact_id, v.project_id, v.parent_id, v.source_id, v.source_hash, v.state, a.format,
-  a.title, v.version_number, v.created_at, v.change_note, v.retained_note, v.limitations,
+  a.title, v.version_number, v.created_at, v.change_note, v.retained_note, v.limitations, v.change_facts, v.trigger,
   (SELECT p.id FROM sophia.previews p WHERE p.project_id = v.project_id AND p.artifact_version_id = v.id
       AND p.state = 'ready' ORDER BY p.id LIMIT 1) AS preview_id`
 
 /** Formats whose authored source is what a member edits; the others are kept as delivered. */
 const editability = (format: ArtifactVersion['format']): ArtifactVersion['exportEditability'] =>
   format === 'pdf' || format === 'pptx' ? 'original_only' : 'source_editable'
+
+/** The contract's change facts out of the stored record; a field publication did not write is omitted. */
+function factsOf(f: StoredFacts): NonNullable<ArtifactVersion['changeFacts']> {
+  return {
+    cited: f.cited,
+    added: f.added,
+    dropped: f.dropped,
+    ...(f.bytes === undefined ? {} : { bytes: f.bytes }),
+    ...(f.previousBytes === undefined ? {} : { previousBytes: f.previousBytes }),
+    ...(f.sections === undefined ? {} : { sections: f.sections }),
+    ...(f.notesFromFacts === undefined ? {} : { notesFromFacts: f.notesFromFacts }),
+  }
+}
 
 /** A version as the contract reads it. A property with no value is omitted (A11). */
 function toVersion(r: VersionRow, renditions: ArtifactRendition[], notes: boolean): ArtifactVersion {
@@ -49,9 +84,18 @@ function toVersion(r: VersionRow, renditions: ArtifactRendition[], notes: boolea
     ...(r.version_number === null ? {} : { versionNumber: r.version_number }),
     createdAt: r.created_at.toISOString(),
     ...(renditions.length === 0 ? {} : { renditions }),
-    ...(notes && r.change_note !== null ? { changeNote: r.change_note } : {}),
-    ...(notes && r.retained_note !== null ? { retainedNote: r.retained_note } : {}),
-    ...(notes && r.limitations.length > 0 ? { limitations: r.limitations } : {}),
+    ...(notes ? notesOf(r) : {}),
+  }
+}
+
+/** What a version says about itself (its history reads them; a snapshot does not). */
+function notesOf(r: VersionRow): Partial<ArtifactVersion> {
+  return {
+    ...(r.change_note === null ? {} : { changeNote: r.change_note }),
+    ...(r.retained_note === null ? {} : { retainedNote: r.retained_note }),
+    ...(r.limitations.length === 0 ? {} : { limitations: r.limitations }),
+    ...(r.change_facts === null ? {} : { changeFacts: factsOf(r.change_facts) }),
+    ...(r.trigger === null ? {} : { trigger: r.trigger }),
   }
 }
 
@@ -340,4 +384,78 @@ export async function readReportSource(c: pg.PoolClient, sourceId: string): Prom
     versionNumber: r.version_number,
     format: r.format,
   }
+}
+
+interface CitedRow {
+  source_id: string
+  kind: 'search_results' | 'web_read' | 'admitted_input' | null
+  provider: 'tavily' | 'jina' | null
+  title: string | null
+  url: string | null
+  coverage: 'complete' | 'partial' | 'unsupported' | null
+  origin_http_status: number | null
+  limitations: string[] | null
+  mime: string
+  retrieved_at: Date | null
+}
+
+/**
+ * listReportSources (A11): the sources a published version cites, with their provenance, oldest retrieval first. Each
+ * one is a source the reader may read (RLS); a source the reader may not see is left out, never named. The URL is what
+ * the extractor reported reaching, else what was asked for. Not visible → not_found. Call inside withActor.
+ */
+export async function listReportSources(
+  c: pg.PoolClient,
+  artifactId: string,
+  versionId: string,
+): Promise<ReportSourceList> {
+  const version = await c.query<{ source_id: string; project_id: string }>(
+    `SELECT v.source_id, v.project_id FROM sophia.artifact_versions v
+      WHERE v.id = $2 AND v.artifact_id = $1 AND ${PUBLISHED}`,
+    [artifactId, versionId],
+  )
+  const v = version.rows[0]
+  if (!v) throw new DomainError('not_found', 'Version not found')
+  const { rows } = await c.query<CitedRow>(
+    `SELECT s.id AS source_id, p.kind, p.provider, p.title, coalesce(p.reported_final_url, p.requested_url) AS url,
+            p.coverage, p.origin_http_status, p.limitations, s.mime, p.retrieved_at
+       FROM sophia.source_dependencies d
+       JOIN sophia.source_objects s ON s.project_id = d.project_id AND s.id = d.source_id
+       LEFT JOIN sophia.source_provenance p ON p.project_id = s.project_id AND p.source_id = s.id
+      WHERE d.project_id = $1 AND d.derived_source_id = $2
+      ORDER BY p.retrieved_at NULLS LAST, s.created_at, s.id LIMIT 500`,
+    [v.project_id, v.source_id],
+  )
+  return {
+    sources: rows.map((r) => ({
+      sourceId: r.source_id,
+      kind: r.kind === null || r.kind === 'admitted_input' ? 'input' : r.kind,
+      provider: r.provider,
+      title: r.title,
+      url: r.url,
+      coverage: r.coverage,
+      originHttpStatus: r.origin_http_status,
+      limitations: r.limitations ?? [],
+      mime: r.mime,
+      retrievedAt: r.retrieved_at?.toISOString() ?? null,
+    })),
+  }
+}
+
+/**
+ * editReportSummary (A11): a member's edit of a report's description, attributed to them and checked against the
+ * revision they saw (stale → stale_revision). Editors and admins only. Call inside withActor(..., "write").
+ */
+export async function editReportSummary(
+  c: pg.PoolClient,
+  artifactId: string,
+  edit: ReportSummaryEdit,
+): Promise<ReportSummary> {
+  const { rows } = await c.query<{ summary: ReportSummary }>(
+    `SELECT sophia.edit_report_summary($1, $2, $3) AS summary`,
+    [artifactId, edit.summary, edit.expectedRevision],
+  )
+  const row = rows[0]
+  if (!row) throw new DomainError('not_found', 'Report not found')
+  return row.summary
 }

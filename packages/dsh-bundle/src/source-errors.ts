@@ -88,5 +88,13 @@ export async function jsonBody(response: Response): Promise<unknown> {
   }
 }
 
+/**
+ * At most `limit` UTF-16 units of a provider's text, well formed: a cut through a surrogate pair, or a lone surrogate the
+ * provider sent, becomes U+FFFD, because the service's JSON input refuses an unpaired surrogate.
+ */
+export function cutText(value: string, limit: number): string {
+  return (value.length > limit ? value.slice(0, limit) : value).toWellFormed()
+}
+
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
