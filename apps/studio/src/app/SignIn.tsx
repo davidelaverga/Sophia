@@ -2,6 +2,7 @@
 // with Sophia's light at rest above the words.
 import { useCallback, useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
+import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
@@ -49,8 +50,8 @@ export function SlowNote() {
 
 interface OfferProps {
   account: string
-  /** Why the last Continue didn't sign in yet (it took too long): the offer stands. */
-  notice?: string | undefined
+  /** Continue was pressed, and signing in outlasted the wait: it goes on, and the person can start over. */
+  slow?: boolean | undefined
   onAccept: () => Promise<void>
   onDecline: () => void
 }
@@ -58,9 +59,12 @@ interface OfferProps {
 /**
  * A link carried a session and nobody is signed in: the account is named, as the Auth service reads it, and nothing
  * is signed in until the person says it is theirs. Someone else's link would otherwise sign them into that account.
+ * Once they pressed Continue, nothing declines it while it is under way (link-accept.ts): a slow sign-in says so after
+ * a while (SlowNote), and past the wait offers to start over, which leaves the page and the attempt with it.
  */
-export function LinkOffer({ account, notice, onAccept, onDecline }: OfferProps) {
+export function LinkOffer({ account, slow, onAccept, onDecline }: OfferProps) {
   const [signing, setSigning] = useState(false)
+  const busy = signing || !!slow
   const accept = async () => {
     setSigning(true)
     await onAccept()
@@ -71,17 +75,23 @@ export function LinkOffer({ account, notice, onAccept, onDecline }: OfferProps) 
       <p>
         This link signs you in to Sophia as <strong>{account}</strong>. Continue only if that address is yours.
       </p>
-      {notice && !signing && (
-        <p className="form-error" role="alert">
-          {notice}
-        </p>
-      )}
-      <button type="button" className="pill primary" disabled={signing} onClick={() => void accept()}>
-        {signing ? 'Signing in…' : 'Continue'}
+      <button type="button" className="pill primary" disabled={busy} onClick={() => void accept()}>
+        {busy ? 'Signing in…' : 'Continue'}
       </button>
-      <button type="button" className="text-button" disabled={signing} onClick={onDecline}>
+      <button type="button" className="text-button" disabled={busy} onClick={onDecline}>
         That’s not me
       </button>
+      {signing && !slow && <SlowNote />}
+      {slow && (
+        <>
+          <p className="form-error" role="alert">
+            {LINK_SLOW}
+          </p>
+          <button type="button" className="pill" onClick={() => window.location.assign('/')}>
+            Start over
+          </button>
+        </>
+      )}
     </Centered>
   )
 }

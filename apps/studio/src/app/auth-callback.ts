@@ -22,8 +22,17 @@ export const LINK_FAILED = 'That sign-in link didn’t work. Ask for a new one b
 export const LINK_UNCHECKED =
   'That sign-in link couldn’t be checked in time. Open it again, or ask for a new one below.'
 
-/** The Auth service didn't set a link's session in time after Continue: the offer stands, to retry or decline. */
-export const LINK_SLOW = 'Signing in didn’t finish in time. Press Continue to try again.'
+/** The Auth service didn't set a link's session in time after Continue: it may still, and the person can start over. */
+export const LINK_SLOW =
+  'Signing in is taking longer than it should. To start over, open the link from your email again.'
+
+/**
+ * While a link's offer waits for the person, a guest's session (an anonymous knock left on this device) or none changes
+ * nothing: nobody is signed in either way, and the offer must not vanish when the tab is refocused. An account that
+ * signs in ends it.
+ */
+export const offerStands = (pending: boolean, session: { user: { is_anonymous?: boolean } } | null): boolean =>
+  pending && (!session || session.user.is_anonymous === true)
 
 const DID_NOT_FINISH = 'Signing in with that account didn’t finish. Try again.'
 

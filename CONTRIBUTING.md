@@ -137,9 +137,12 @@ writing a new one, and keep the rule when you change the code around it.
   and with nobody signed in it asks first (`LinkOffer`), naming the account
   as the Auth service reads it from the token (`getUser`), never as the
   token's own payload says. The session waits in memory until then.
-  Continue has an end too (`link-accept.ts`, with tests): an Auth service
-  that doesn't answer gives the offer back, and a sign-in that lands after
-  "That's not me" is signed out on this device, unseen.
+  Continue is the person's word that the account is theirs, so nothing
+  declines it while it is under way: a decline that raced a late sign-in
+  could not keep that session off the device (other tabs, a reload). A slow
+  one says so (`SlowNote`), and past the read limit offers Start over, which
+  leaves the page and the attempt with it (`link-accept.ts`, with tests). A
+  guest's session or none never replaces the offer (`offerStands`).
 - **Admissions** (`useAdmission`). No answer offers Try again with the same
   key (`AdmissionNote`, `retry()`), never a fresh key, so a retry can't
   create a second record. Say what happened in words ("Scheduled: Today ·

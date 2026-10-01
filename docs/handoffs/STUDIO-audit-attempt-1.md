@@ -38,7 +38,11 @@ What #23 changed in the Studio:
   - `c0e0a36`: an admission whose outcome is unknown can't make a second invitation or session, and a sign-in link check has an end.
 
 Fixed in this follow-up (Codex's review of `c0e0a36`):
-- **The link offer's Continue could wait for good on "Signing in…".** The wait now has an end, and the offer comes back with Continue and "That's not me". A sign-in that lands after "That's not me" is signed out on this device and never shows (`link-accept.ts`).
+- **The link offer's Continue could wait for good on "Signing in…".**
+  - A slow sign-in now says so (`SlowNote`), and past the read limit offers Start over. Start over leaves the page and the attempt with it.
+  - Until then the attempt goes on and signs in if it lands (`link-accept.ts`).
+  - Continue is final while it runs: an earlier version let "That's not me" race a late sign-in, and no cleanup could keep that session off the device (other tabs, a reload).
+  - A guest's session or none no longer replaces the offer (`offerStands`).
 - **After scheduling, an overlap of the next slot hid the receipt.** The note now says both (`scheduleLines`).
 
 Missing or unverified:
@@ -49,18 +53,22 @@ Missing or unverified:
 - **CI:** green on every pushed head of `studio/audit` (38 runs).
 - **Gates for this follow-up:**
   - format, lint and typecheck;
-  - Studio tests (156);
+  - Studio tests (155);
   - unit tests: 383 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests);
   - the build.
 - **Browser checks** (dev stack and local Supabase, synthetic identities):
   - the invite sheet (20), its scroll (7), the calendar's and invitations' quality of life (16), and the batch checks (9 and 12);
   - words in the room (102 to 54);
   - the security round's walks: account switching by a link, reproduced against local Supabase and then fixed;
-  - this follow-up: the calendar's receipt beside an overlap, and a held sign-in that gives the offer back; a sign-in landing after "That's not me" never shows and is signed out.
+  - this follow-up: the calendar's receipt beside an overlap; a held sign-in that says so, offers Start over and signs in once the check answers; Start over that leaves no session, even when the held check answers afterwards.
 - **Reviews:**
-  - Codex in three rounds: `dfcaf97`, `702ed9c` and `c0e0a36`;
+  - Codex in three rounds on #23 (`dfcaf97`, `702ed9c` and `c0e0a36`), and one on this follow-up (`9e7a8ef`: a refused session that couldn't be signed out);
+  - an independent review of the whole follow-up before the next push, which showed that the decline race couldn't be made safe; Continue became final;
   - Davide's CX-0016 raised the first round's three findings, and his CX-0017 on #24 found those fixes in place.
-- **Mutation checks:** every fix has a test that fails without it. The follow-up's fixes also fail their browser checks when undone.
+- **Mutation checks:**
+  - every logic fix has a test that fails without it;
+  - the link offer's limit and the calendar's lines also fail their browser checks when undone;
+  - `offerStands` is tested as a function, but its use in the auth listener isn't exercised in a browser.
 
 ## Decisions and changes
 
@@ -72,7 +80,7 @@ Missing or unverified:
 
 ## Remaining obligations
 
-- Deploying is Davide's; production still served the build from before #23.
+- Deploying is Davide's. Since 2026-10-01 01:13 UTC production serves #24 at `19a41e0` (his comparison deployment, CX-0019 on #24), which includes #23; this follow-up is not deployed.
 - API-side findings from the security round wait for Davide; they are not described here.
 
 ## Next bounded action
