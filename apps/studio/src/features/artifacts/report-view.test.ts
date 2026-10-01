@@ -79,6 +79,11 @@ describe('a research card in words', () => {
     )
     assert.equal(refusal('research_limit_reached'), 'The PDF was already tried three times for this version.')
     assert.equal(refusal('forbidden', 403), 'Your role can’t ask for the PDF.')
+    assert.equal(
+      refusal('source_ineligible', 403),
+      'This report draws on a source that was withdrawn, so it isn’t printed again.',
+      'a withdrawn source, though it is a 403',
+    )
     assert.equal(refusal('invalid_state'), 'The research is held', 'otherwise the API’s own reason')
   })
 

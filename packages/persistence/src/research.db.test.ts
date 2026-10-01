@@ -1655,6 +1655,268 @@ describe('research revocation (0028, T19)', () => {
   })
 })
 
+// --- 0033: what research drew on is the whole closure (M03-RF-0013..0015) ------------------------------------
+
+/**
+ * A report (v1) published by a task admitted with the world's input. Its text quotes the input; `cites` also lists the
+ * input among its citations (otherwise only the capture is cited, and the quote is reached through the task).
+ */
+async function publishedWithInput(w: World, cites = true) {
+  const t1 = await started(w, { inputSourceIds: [w.inputSourceId] })
+  const cap = await citable(w, t1.at)
+  const text = `# Hosts\n\nAs the input put it, our pilot hosts render PDFs in a sandbox [${cap.sourceId}]${cites ? ` [${w.inputSourceId}]` : ''}.\n`
+  const d = await service((c) => runtimeResearchDraft(c, w.who, { ...t1.at, callId: 'd1', expectedSha256: null, text }))
+  const citations = cites ? [cap.sourceId, w.inputSourceId] : [cap.sourceId]
+  const v1 = await service((c) =>
+    runtimeResearchSubmit(c, w.who, { ...t1.at, callId: 's1', result: resultOf(d.sha256, citations) }),
+  )
+  assert.equal(v1.outcome, 'published')
+  return { t1, cap, v1 }
+}
+
+/** The artifact a research task writes into. */
+const artifactOf = async (taskId: string) =>
+  (await one<{ artifact_id: string | null }>(`SELECT artifact_id FROM sophia.jobs WHERE id=$1`, [taskId])).artifact_id
+
+const amendNotes = { changeNote: 'Added the costs.', retainedNote: 'The host list.' }
+
+describe('withdrawal reaches what research drew on (0033, M03-RF-0013..0015)', () => {
+  it('revokes an amendment reading a report that quoted a withdrawn input, cited or not, and rebuilds it without that base', async () => {
+    for (const cites of [true, false]) {
+      const w = await world()
+      const { t1, v1 } = await publishedWithInput(w, cites)
+      const t2 = await started(w, { question: 'Add the costs.', amendsTaskId: t1.receipt.taskId })
+      const seen = new Set([t1.create.commandId, t2.create.commandId])
+      const base = await service((c) => runtimeResearchContext(c, w.who, { ...t2.at, sourceId: v1.sourceId! }))
+      assert.ok('text' in base, 'the amendment reads its base while it is clean')
+
+      await withdraw(w, w.inputSourceId)
+      const [first, old, rebuilt, ...more] = await tasks(w)
+      assert.ok(first && old && rebuilt && more.length === 0, `cites=${cites}`)
+      assert.deepEqual(
+        [first.state, old.job, old.attempt],
+        ['succeeded', t2.receipt.taskId, 'revoked'],
+        `cites=${cites}`,
+      )
+      assert.equal(rebuilt.rebuiltFrom, old.job)
+      const manifest = rebuilt.manifest as TaskRows['manifest'] & { base?: unknown; withdrawnBase?: boolean }
+      assert.deepEqual([manifest.base, manifest.withdrawnBase], [undefined, true], 'the base is dropped')
+      assert.equal(
+        await artifactOf(rebuilt.job),
+        await artifactOf(t1.receipt.taskId),
+        'it still writes into the report',
+      )
+
+      const commands = await deliverAll(w, seen, (cmd) => (cmd.kind === 'stop' ? 'checked' : 'delivered'))
+      const create = commands.find((cmd) => cmd.kind === 'create')
+      assert.ok(create, 'the rebuilt task starts')
+      const next = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+      const context = await service((c) => runtimeResearchContext(c, w.who, next))
+      assert.ok('base' in context)
+      assert.equal(context.base, null)
+      assert.equal(
+        await codeOf(service((c) => runtimeResearchContext(c, w.who, { ...next, sourceId: v1.sourceId! }))),
+        'not_found',
+        'the report that quoted it is not read',
+      )
+    }
+  })
+
+  it('after publication, refuses an amendment of that report, an input drawn from it, and a create held back since', async () => {
+    const w = await world()
+    const { t1, v1 } = await publishedWithInput(w)
+    const queued = await ask(w, { question: 'Add the costs.', amendsTaskId: t1.receipt.taskId }, { exchange: null })
+    assert.ok('admitted' in queued, 'clean when admitted')
+    // Eligibility can also end without an erase (no revocation runs): the create is refused at dispatch.
+    await owner((c) =>
+      c.query(`UPDATE sophia.source_objects SET eligible=false WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        w.inputSourceId,
+      ]),
+    )
+    await dispatchAll(w.projectId)
+    const denied = (await outbox(w)).find((r) => r.destination === 'native.create' && r.state === 'denied')
+    assert.equal(denied?.reason, 'a source its work would read was withdrawn')
+    await owner((c) =>
+      c.query(`UPDATE sophia.source_objects SET eligible=true WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        w.inputSourceId,
+      ]),
+    )
+
+    const v = await world()
+    const p = await publishedWithInput(v)
+    await withdraw(v, v.inputSourceId)
+    assert.equal(
+      await codeOf(ask(v, { question: 'Add the costs.', amendsTaskId: p.t1.receipt.taskId })),
+      'source_ineligible',
+      'the report it would amend draws on a withdrawn source',
+    )
+    assert.equal(
+      await codeOf(ask(v, { question: 'Compare.', inputSourceIds: [p.v1.sourceId!], newRequest: true })),
+      'source_ineligible',
+      'an input drawn from it',
+    )
+    assert.equal(v1.outcome, 'published')
+  })
+
+  it('a held amendment: revoked and rebuilt without its base, started at Resume; a restart never loads the old one', async () => {
+    const w = await world()
+    const { t1 } = await publishedWithInput(w)
+    const t2 = await started(w, { question: 'Add the costs.', amendsTaskId: t1.receipt.taskId })
+    const seen = new Set([t1.create.commandId, t2.create.commandId])
+    await control(w, 'hold', t2.receipt.goalId)
+    await deliverAll(w, seen, () => 'checked')
+    await withdraw(w, w.inputSourceId)
+    const [, old, rebuilt] = await tasks(w)
+    assert.ok(old && rebuilt)
+    assert.deepEqual([old.attempt, rebuilt.state, rebuilt.binding], ['revoked', 'pending', 'created'])
+    assert.equal((rebuilt.manifest as { withdrawnBase?: boolean }).withdrawnBase, true)
+    const hello = await withService(pool, (c) =>
+      runtimeHello(c, w.who, { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles: [MD, PDF] }),
+    )
+    await withService(pool, (c) => recordRuntimeReady(c, w.who, { state: 'ready', reason: null, unrecovered: [] }))
+    assert.deepEqual(
+      hello.bindings.filter((b) => b.attemptId === t2.at.attemptId).map((b) => b.state),
+      ['stopped'],
+    )
+    await control(w, 'resume', t2.receipt.goalId)
+    const commands = await deliverAll(w, seen, (cmd) => (cmd.kind === 'stop' ? 'checked' : 'delivered'))
+    assert.deepEqual(commands.map((cmd) => cmd.kind).toSorted(byText), ['create', 'stop'])
+    assert.equal(commands.find((cmd) => cmd.kind === 'create')?.binding.attemptId === t2.at.attemptId, false)
+  })
+
+  it('rebuilds without a withdrawn base, never reads or cites it, and publishes into the same report', async () => {
+    const w = await world()
+    const { t1, v1 } = await publishedWithInput(w)
+    const t2 = await started(w, { question: 'Add the costs.', amendsTaskId: t1.receipt.taskId })
+    const seen = new Set([t1.create.commandId, t2.create.commandId])
+    await withdraw(w, v1.sourceId!)
+    const [, old, rebuilt] = await tasks(w)
+    assert.ok(old && rebuilt)
+    assert.deepEqual([old.attempt, (rebuilt.manifest as { base?: unknown }).base], ['revoked', undefined])
+    assert.equal(rebuilt.allowance, old.allowance)
+    const create = (await deliverAll(w, seen, (cmd) => (cmd.kind === 'stop' ? 'checked' : 'delivered'))).find(
+      (cmd) => cmd.kind === 'create',
+    )
+    assert.ok(create)
+    const next = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+    const cap = await citable(w, next, 'search_2')
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...next,
+        callId: 'd2',
+        expectedSha256: null,
+        text: `# Costs\n\nNew [${cap.sourceId}].`,
+      }),
+    )
+    assert.equal(
+      await codeOf(
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, {
+            ...next,
+            callId: 's1',
+            result: resultOf(d.sha256, [cap.sourceId, v1.sourceId!], amendNotes),
+          }),
+        ),
+      ),
+      'not_found',
+      'the withdrawn base is not a citation',
+    )
+    const v2 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, {
+        ...next,
+        callId: 's2',
+        result: resultOf(d.sha256, [cap.sourceId], amendNotes),
+      }),
+    )
+    assert.deepEqual([v2.outcome, v2.artifactId], ['published', v1.artifactId])
+  })
+
+  it('rebuilds a task without an input that drew on a withdrawn source', async () => {
+    const w = await world()
+    const { v1 } = await publishedWithInput(w)
+    const { receipt } = await started(w, { question: 'Compare.', inputSourceIds: [v1.sourceId!], newRequest: true })
+    await withdraw(w, w.inputSourceId)
+    const rows = await tasks(w)
+    const old = rows.find((r) => r.job === receipt.taskId)
+    const rebuilt = rows.find((r) => r.rebuiltFrom === receipt.taskId)
+    assert.deepEqual(
+      [old?.attempt, rebuilt?.manifest.inputs, rebuilt?.manifest.withdrawnInputs],
+      ['revoked', [], 1],
+      'the report it was given quoted the withdrawn input',
+    )
+  })
+
+  it('never reads or cites a capture once it is withdrawn', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const cap = await citable(w, at)
+    const keep = await citable(w, at, 'search_2')
+    await withdraw(w, cap.sourceId)
+    assert.equal(
+      await codeOf(service((c) => runtimeResearchContext(c, w.who, { ...at, sourceId: cap.sourceId }))),
+      'not_found',
+    )
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...at,
+        callId: 'd1',
+        expectedSha256: null,
+        text: `# Hosts\n\n[${keep.sourceId}]`,
+      }),
+    )
+    assert.equal(
+      await codeOf(
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, {
+            ...at,
+            callId: 's1',
+            result: resultOf(d.sha256, [keep.sourceId, cap.sourceId]),
+          }),
+        ),
+      ),
+      'not_found',
+    )
+  })
+
+  it('orders rebuilds in one transaction by their successor, not their clock, and keeps one allowance', async () => {
+    const w = await world()
+    const second = await withActor(pool, E, 'write', (c) =>
+      submitContribution(c, w.projectId, randomUUID(), {
+        source: null,
+        text: 'Host B renders with seccomp.',
+        threadId: null,
+        artifactVersionId: null,
+        intent: 'discuss',
+      }),
+    )
+    const { receipt } = await started(w, { inputSourceIds: [w.inputSourceId, second.sourceId] })
+    // A Forget of several notes erases them in one transaction: two rebuilds share its timestamp.
+    await owner(async (c) => {
+      await c.query('BEGIN')
+      await c.query(`SELECT sophia.mission_erase_source($1, $2)`, [w.projectId, w.inputSourceId])
+      await c.query(`SELECT sophia.mission_erase_source($1, $2)`, [w.projectId, second.sourceId])
+      await c.query('COMMIT')
+    })
+    // Their rows share a timestamp: follow the explicit links, not the order.
+    const rows = await tasks(w)
+    const t = rows.find((r) => r.job === receipt.taskId)
+    const r1 = rows.find((r) => r.rebuiltFrom === t?.job)
+    const r2 = rows.find((r) => r.rebuiltFrom === r1?.job)
+    assert.ok(t && r1 && r2 && rows.length === 3)
+    assert.deepEqual(
+      [t.job, t.attempt, r1.attempt, r1.rebuiltFrom, r2.state, r2.rebuiltFrom],
+      [receipt.taskId, 'revoked', 'revoked', t.job, 'pending', r1.job],
+    )
+    assert.deepEqual([r1.manifest.withdrawnInputs, r2.manifest.withdrawnInputs, r2.manifest.inputs], [1, 2, []])
+    assert.deepEqual([r1.allowance, r2.allowance], [t.allowance, t.allowance], 'one allowance throughout')
+    assert.equal(await codeOf(ask(w, { amendsTaskId: r1.job })), 'stale_revision', 'the intermediate was replaced')
+    assert.equal(await codeOf(ask(w, { amendsTaskId: t.job })), 'stale_revision', 'the first was replaced')
+    assert.equal(await codeOf(ask(w, { amendsTaskId: r2.job })), 'invalid_state', 'the replacement is under way')
+  })
+})
+
 // --- 0029: spend bounds (M03-RF-0010, M03-RF-0011) ------------------------------------------------------------
 
 type At = Awaited<ReturnType<typeof started>>['at']
@@ -2630,6 +2892,14 @@ describe('Try PDF again (0032)', () => {
     assert.equal(event.entity_id, p.done.artifactId)
     assert.equal((await p.again('try-1')).state, 'succeeded', 'a replay reads the rendition it queued')
     assert.equal(await codeOf(p.again('try-2')), 'invalid_request', 'the report has its PDF now')
+  })
+
+  it('refuses a version that draws on a withdrawn source (M03-RF-0013)', async () => {
+    const p = await partialWorld()
+    await withdraw(p.w, p.cited.sourceId)
+    assert.equal(await codeOf(p.again('try-1')), 'source_ineligible')
+    assert.deepEqual(await p.renders(), [])
+    assert.equal(await p.goal(), 'completed')
   })
 
   it('records why a rendition failed, completes the goal, and allows three per version', async () => {

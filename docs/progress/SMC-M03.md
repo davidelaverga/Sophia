@@ -319,7 +319,7 @@ Run at `938102d`: `pnpm check` exit 0 (522 unit; 86 integration, 84 passed and 2
 
 The review request is [CC-0008](../coordination/SMC-M03/SMC-M03-CC-0008.md), which supersedes CC-0007 before Codex answered it, so that one review covers all of S4.
 
-Not live-verified: the S3 adapter has not run against Supabase. Codex's qualification checks it before any hosted release, in particular whether Supabase's S3 endpoint honours `If-None-Match` on PUT. If it rejects the header, the HEAD check is kept and the header goes.
+Not live-verified: the S3 adapter has not run against Supabase. Codex's qualification checks it before any hosted release, in particular whether Supabase's S3 endpoint honours `If-None-Match` on PUT. If it does not, the byte store is not qualified, and the header is never dropped. A HEAD alone cannot make a PUT write-once, because two writers can both see 404 and the second replaces the first. An immutable alternative would have to be designed and qualified first (M03-RF-0016, §26).
 
 
 ## 20. CX-0006: M03-RF-0008..0012
@@ -482,4 +482,26 @@ The first run found one fault, fixed before the commit:
 Run (linux-x64): `pnpm check` exit 0 (560 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 31 migrations, `pnpm test:db` 298/298. The bundle is unchanged.
 
 Not here: the voice tool `render_research` (S6, guide v1.2, the same operation); a rendition crossed with the real supervisor and Chromium (it is the same package and claim path as a task render, which the supervisor test crosses); text extraction for the kernel's blank and short page checks.
+
+## 26. CX-0007: M03-RF-0013..0016
+
+Codex's [CX-0007](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5939394308), at `ce34062`, passed the rechecks of M03-RF-0008..0012 and the committed Mac gate. It raised three P2 findings in revocation and one in the release plan. Each code finding now has a fix (migration 0033) and regressions that fail without it.
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| **M03-RF-0013 (P2)**: revocation missed indirect consumers. An amendment of a report that quoted an erased input kept running, read the unchanged base and reserved again | What a piece of work drew on is a closure (`source_closure`), not a list. It follows: <ul><li>a source's dependencies;</li><li>a research manifest's base;</li><li>for a draft, the manifest of the task that wrote it, whose inputs, question and base it may quote;</li></ul>each one transitively. A source is withdrawn from research (`source_withdrawn`) when anything in its closure is no longer an eligible, ready project source. Revocation and the refusals of Resume, steer and input use the closure, and so does a create's dispatch ("a source its work would read was withdrawn"). After publication, an amendment of a report that draws on a withdrawn source is refused at admission (`source_ineligible`), as is an input drawn from it and a "Try PDF again" of it. A fresh request is the way on | `research.db.test.ts` "withdrawal reaches what research drew on (0033)". Codex's reproduction, with the input cited and with it only quoted: the amendment is revoked and rebuilt without the base, and its new session cannot read the report. Withdrawal after publication refuses the amendment and an input drawn from the report. A create held back since eligibility ended is denied at dispatch. A held amendment is rebuilt, started at Resume, and never loaded by a restart |
+| **M03-RF-0014 (P2)**: a rebuild kept a withdrawn base, and publication accepted it as a citation | A rebuild drops an input or a base that is withdrawn (`withdrawnBase: true` in its manifest). It still writes into the same report, so the artifact lineage is kept and the withdrawn text is not. `research_readable` now requires everything a task reads or cites to be withdrawn from nothing, captures included, so a citation is checked for current eligibility at submit | Codex's direct-base reproduction: the rebuilt session cannot cite the erased base (`not_found`), and publishes without it as the next version of the same report. An erased capture can no longer be read or cited. A task given a report as an input is rebuilt without it once that report's input is withdrawn |
+| **M03-RF-0015 (P2)**: the latest-lineage check compared timestamps, and rebuilds in one transaction share one | A research task has an explicit successor: an amendment of it, or the task rebuilt from it. A guard on every new research task refuses an amendment of a task that has one (`stale_revision`), whatever the clocks say. The same guard refuses a base or an input that is withdrawn | Codex's reproduction, two inputs erased in one transaction: the intermediate and the first task are both stale to amend, the replacement is under way, and all three share one allowance |
+| **M03-RF-0016 (P2, release plan)**: §19 said a HEAD check could replace `If-None-Match` if Supabase rejected the header | The fallback is removed from the plan (§19). An unsupported atomic conditional PUT blocks the byte store's qualification until an immutable alternative is designed and qualified. The adapter is unchanged: it sends the header and treats both refusals as 409 | docs only; `byte-store.test.ts` unchanged |
+
+Mutation-checked: each of 12 rules fails a test when removed. The rules are the closure's three edges, the readable check, the rebuild's base and input drops, the guard's successor, base and input checks, the create clause, and the rendition check. With 0033 removed, every new test fails. The first run of the successor test passed by luck: it took the two same-timestamp rebuilds in row order. It now follows the explicit links.
+
+Other changes:
+- The diagnostics sanitizer knows the two withdrawal denials (`source_withdrawn`).
+- The voice refusal for `source_ineligible` says a source it would build on is not released (it may have been forgotten).
+- Studio says the same for "Try PDF again".
+
+Run (linux-x64): `pnpm check` exit 0 (560 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 32 migrations, `pnpm test:db` 306/306. The bundle is unchanged.
+
+Not changed: a published version stays readable as the record of what was published, even when it quoted a source that was later forgotten. What Forget means for published reports is a product decision for Davide, raised in CC-0010.
 

@@ -53,6 +53,8 @@ const KNOWN_TEXT: ReadonlyArray<[prefix: string, code: string]> = [
   ['no active runtime for its executor resource and runtime unit', 'no_active_runtime'],
   ['its instruction source is no longer eligible', 'instruction_ineligible'],
   ['an input it was admitted with is no longer eligible', 'input_ineligible'],
+  ['a source its work would read was withdrawn', 'source_withdrawn'],
+  ['a source its work read was withdrawn', 'source_withdrawn'],
   ['the dispatch lease expired', 'dispatch_lease_expired'],
   ['Sophia could not join the room: ', 'room_join_failed'],
   ['The room service is not configured for Sophia', 'room_not_configured'],

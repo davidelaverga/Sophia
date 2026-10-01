@@ -44,6 +44,7 @@ describe('diagnostic sanitizer', () => {
     const joined = 'Sophia could not join the room: 401 invalid token eyJhbGciOi.secret'
     assert.equal(text(joined), 'room_join_failed', 'the phrase passes, never the provider message after it')
     assert.equal(text(42), 'invalid')
+    assert.equal(text('a source its work would read was withdrawn'), 'source_withdrawn', 'a denial since 0033')
   })
 
   it('passes enumerations only as their own values', () => {

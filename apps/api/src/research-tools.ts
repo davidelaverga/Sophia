@@ -27,7 +27,8 @@ const REFUSALS: Partial<Record<string, string>> = {
   research_gate_closed: 'Research is not switched on for this project.',
   native_capability_unavailable: 'No research runtime is ready right now, so nothing was started.',
   research_limit_reached: 'This research has used its allowance, so nothing more was started.',
-  source_ineligible: 'One of the chosen sources is not released for project work.',
+  source_ineligible:
+    'A source it would build on is not released for project work (it may have been forgotten), so nothing was started.',
   invalid_state: 'That research is still under way; it can be steered, not amended.',
   stale_revision: 'A later task already continues that research.',
   not_found: 'I can’t find that research task in this project.',

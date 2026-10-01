@@ -117,6 +117,8 @@ export function renditionWords(r: ResearchRendition): string {
 export function renditionRefusal(error: { status: number; code: string; message: string }): string {
   if (error.code === 'native_capability_unavailable') return 'No PDF renderer is running right now. Try again later.'
   if (error.code === 'research_limit_reached') return 'The PDF was already tried three times for this version.'
+  if (error.code === 'source_ineligible')
+    return 'This report draws on a source that was withdrawn, so it isn’t printed again.'
   if (error.status === 403) return 'Your role can’t ask for the PDF.'
   return error.message
 }
