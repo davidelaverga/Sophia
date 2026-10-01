@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
+import { startChat } from './chat-start.ts'
 import { chatEntry, chatLine, type ChatEntry } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { getSnapshot } from '../../api/client.ts'
@@ -27,22 +28,25 @@ function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | '
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** Joins in text mode and opens Sophia's exchange if none is open. Resolves to whether it went through. */
+  const askSophia = async () => {
+    const fresh = await getSnapshot(identity.token, projectId)
+    if (fresh.room.sophia.exchange !== 'none') return
+    await startExchange(identity.token, fresh.room.id, crypto.randomUUID(), {
+      expectedRoomRevision: fresh.room.revision,
+      allowVision: false,
+    })
+  }
+  /**
+   * Joins in text mode and opens Sophia's exchange if none is open (chat-start.ts). Resolves to whether it went
+   * through. Not in the call: the room says why (its note shows above this button too), and Sophia is not asked in.
+   */
   const start = async (): Promise<boolean> => {
     if (starting) return false
     setStarting(true)
     setError(null)
     try {
-      await room.setTextMode(true)
-      // Not in the call: the room says why (its note shows above this button too), and Sophia is not asked in.
-      if (!(await room.join({ textOnly: true }))) return false
-      const fresh = await getSnapshot(identity.token, projectId)
-      if (fresh.room.sophia.exchange === 'none') {
-        await startExchange(identity.token, fresh.room.id, crypto.randomUUID(), {
-          expectedRoomRevision: fresh.room.revision,
-          allowVision: false,
-        })
-      }
+      const ports = { textMode: room.textMode, setTextMode: room.setTextMode, join: room.join, askSophia }
+      if (!(await startChat(ports))) return false
       await queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
       return true
     } catch (e: unknown) {

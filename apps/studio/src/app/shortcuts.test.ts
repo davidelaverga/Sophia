@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keyLabel, shortcutKey, typesText, type KeyLike } from './shortcuts.ts'
+import { keyLabel, shortcutKey, strayFrom, typesText, type KeyLike } from './shortcuts.ts'
 
 const press = (key: string, over: Partial<KeyLike> = {}): KeyLike => ({
   key,
@@ -44,6 +44,15 @@ describe('single-key shortcuts', () => {
   it('never acts on stray typing: with a chat bar on screen and the focus nowhere, a letter is text', () => {
     // "v" would turn the camera on, "m" the microphone, "s" would open the screen picker
     for (const key of ['v', 'm', 's', 'j', 'c', '1']) assert.equal(shortcutKey(press(key, { stray: true })), null, key)
+  })
+
+  it('takes a key typed on the panel’s tab or buttons as stray too, but leaves Space to press them', () => {
+    // Opening Chat focuses its tab: the message typed next must not close the panel (C), swap it (B) or a lens (1).
+    for (const key of ['c', 'b', '1', 'h']) assert.equal(strayFrom('scope', key), true, key)
+    assert.equal(strayFrom('scope', ' '), false)
+    assert.equal(strayFrom('nowhere', ' '), true)
+    // A control elsewhere (the dock, the lens bar) keeps its shortcuts: C there opens the chat.
+    assert.equal(strayFrom('elsewhere', 'c'), false)
   })
 
   it('reads a command combination (⌘ on a Mac, Ctrl elsewhere), even from a field: it types nothing', () => {

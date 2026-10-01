@@ -189,13 +189,19 @@ when you change the room:
   that fails says why here too (the room's own note: `room.error`), and asks
   Sophia into nothing: on a phone this panel covers the dock, and a button
   that falls back to "Chat with Sophia" without a word reads as broken.
-  Voice mode is offered in the call only.
+  Voice mode is offered in the call only, so a start whose join doesn't get
+  in puts text mode back as it was (`startChat` in `chat-start.ts`, with
+  tests): out of the call nobody could turn it off, and the dock's Try again
+  would join in it, with the microphone off and Sophia muted.
 - **Stray typing is text.** While the chat's foot is on screen (it marks
   itself `data-typing-sink`), a key typed with the focus on no control goes
   into the message bar and is never a shortcut (`shortcuts.ts`: `stray`,
-  `typesText`, with tests). Someone who starts a message without clicking the
-  bar must not turn on a camera with its first letter. Before the chat
-  starts, the foot is "Chat with Sophia", which takes the key as nothing:
+  `strayFrom`, `typesText`, with tests). So does a key typed on a control of
+  the panel (`data-typing-scope`: its tabs, Close, Send), except Space, which
+  presses it: opening Chat focuses its tab, and the message typed next must
+  not close the panel with its first C. Someone who starts a message without
+  clicking the bar must not turn on a camera with its first letter. Before the
+  chat starts, the foot is "Chat with Sophia", which takes the key as nothing:
   typing "vamos" there once turned on the camera (V), the microphone (M) and
   a screen share (S). Esc closes the panel. A new field that invites typing
   marks itself the same way.

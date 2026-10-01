@@ -12,8 +12,8 @@
 What works:
 - The stage keeps Sophia's light, the people, the room's line and the dock. A side panel holds the chat and the brief as two tabs. Both tabs stay mounted, and the panel opens from the stage's corner or with C and B and closes with Esc or Close.
 - A violet dot marks something new behind a closed panel, told by identity: a new message, a reply's progress, an outcome. It never lights for what was already there at load.
-- The chat's foot offers one thing at a time: Chat with Sophia first, which joins in text mode and opens the exchange; then the message bar with Send inside, with one status line above it.
-- Stray typing goes into the message bar, never to a shortcut. Opening the panel focuses the bar, or the Chat tab before the chat starts: Chat with Sophia is never focused, so a stray Space can't press it.
+- The chat's foot offers one thing at a time: Chat with Sophia first, which joins in text mode and opens the exchange; then the message bar with Send inside, with one status line above it. A start whose join fails puts text mode back as it was, so the dock's Try again joins by voice.
+- Stray typing goes into the message bar, never to a shortcut, also when typed on the panel's tabs or buttons (Space still presses them). Opening the panel focuses the bar, or the Chat tab before the chat starts: Chat with Sophia is never focused, so a stray Space can't press it.
 - Text mode is said in the dock and ends with voice. It needs the microphone off: when the microphone can't be turned off, text mode rolls back with a note.
 - Capture takes the command key, as in Meet: Ctrl or ⌘ with D, E, Shift+E and J.
 - A call that ends says why: another tab, removed, the room closed, or a lost connection.
@@ -26,13 +26,15 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (176 pass) and the Studio build. CI was green on every pushed head.
-- **Room suites** (local dev stack, synthetic identities): chat entry (16), modes, panel alignment (44), corner (35, in a call, at 17 widths), video corner (6), keys, waits, room endings, sending, screen, safety and guest. They passed on `studio/combined-23-24-28`. The latest fixes were rechecked on 2026-09-30 with keys, sending, chat entry and modes, with this branch's files served on the stack.
-- **Reviews:** Codex, in four rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The last one, the panel's device note, is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
+- **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (181 pass) and the Studio build. CI was green on every pushed head.
+- **Room suites** (local dev stack, synthetic identities): chat entry (16), modes, panel alignment (44), corner (35, in a call, at 17 widths), video corner (6), keys, waits, room endings, sending, screen, safety and guest. They passed on `studio/combined-23-24-28`. The latest fixes were rechecked on 2026-09-30 with keys, sending, chat entry and modes, on this branch's own tree served against the stack.
+- **Reviews:** Codex, in five rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The panel's device note is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
 - **Browser checks of the last rounds:**
   - the Chat tab takes the focus, and Space starts nothing;
   - a project loaded with three entries and Chat closed reads "Chat", not "Chat, something new";
-  - with the microphone blocked, at 700 px, the panel's head says why.
+  - with the microphone blocked, at 700 px, the panel's head says why;
+  - C, B and 2 typed on the focused Chat tab are taken as nothing, and Space still presses Close;
+  - after a chat start whose join failed, the dock's Try again joins by voice, with no Text mode.
 
 ## Decisions and changes
 

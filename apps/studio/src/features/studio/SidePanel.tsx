@@ -74,6 +74,8 @@ export function SidePanel({ open, onOpen, chat, brief, call, note }: PanelProps)
     <aside
       ref={panel}
       className="side-panel"
+      // A letter typed on the panel's tabs or buttons is text for the chat's foot, not a shortcut (shortcuts.ts).
+      data-typing-scope
       hidden={!open}
       aria-label={open ? PANEL_TITLE[open] : undefined}
       onKeyDown={(e) => {
