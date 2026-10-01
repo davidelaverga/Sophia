@@ -427,7 +427,10 @@ either:
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole
   conversation, in the reader's time zone. The export comes a page of at
-  most 1000 turns at a time (`after`, `next`), so one read stays bounded.
+  most 1000 turns at a time (`after`, `next`), so one read stays bounded,
+  each read against the epoch the copy began in: a page asked for after an
+  erasure is refused (`request_erased`), so a copy never mixes an erased
+  space with what came after it.
 - **One read of the Work list stays small.** It holds at most 4000 carried
   notes in all (`PROJECT_LIST_BOUNDS`), the reader's own first, then the
   newest; each project's own bound still holds. The database reads no more
