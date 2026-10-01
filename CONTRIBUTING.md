@@ -460,7 +460,12 @@ their work. Keep these when you change them:
   when the send failed ("Not sent") or got no answer ("Not confirmed: check
   the conversation"), never when the space was erased (`request_erased`) or
   the field went with a sign-out (`restoredDraft`, `unsent`, with tests).
-  Signing out or erasing forgets the draft (`draft.ts`). "Join the room"
+  Signing out or erasing forgets the draft (`draft.ts`). One message is on
+  its way at a time, from the field or a way to start (`OnItsWay`): the
+  field waits meanwhile. Every write but erasure names the epoch of the
+  space as this page last read it (`epochNow`: the space or the Work list,
+  the newer), and its retry names the same one, so nothing sent before an
+  erasure lands after it. "Join the room"
   from Work asks to join on that opening only (`joinStands`, with tests):
   leaving before the room could join drops it.
 - **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,

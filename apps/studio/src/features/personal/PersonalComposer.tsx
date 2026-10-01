@@ -140,6 +140,8 @@ interface Props {
   /** The space is out of sight (a lock, another place): dictation stops, and a start still waiting is called off. */
   hidden: boolean
   state: ComposerState
+  /** A message is on its way, from the field or a way to start: the next waits in the field. */
+  busy: boolean
   /** Resolves to how the send went; words that didn't go come back into the field, unless erased with the space. */
   onSend: (text: string) => Promise<SendOutcome>
   onListening: (listening: boolean) => void
@@ -148,26 +150,23 @@ interface Props {
 /**
  * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
  * A composer that went meanwhile (signing out, an erasure) takes nothing back: those words went with the rest. One
- * message is on its way at a time, as the device keeps one: the next waits, and what is typed meanwhile stays.
+ * message is on its way at a time, as the device keeps one: while one is (`busy`, also a way to start's), the next
+ * waits, and what is typed meanwhile stays.
  */
-function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, onSend: Props['onSend']) {
+function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, busy: boolean, onSend: Props['onSend']) {
   const mounted = useMounted()
-  const [sending, setSending] = useState(false)
-  const send = async () => {
+  return async () => {
     const words = draft.text.trim()
-    if (!words || !ready || sending) return
-    setSending(true)
+    if (!words || !ready || busy) return
     draft.go(words)
     const outcome = await onSend(words)
     if (!mounted.current) return
-    setSending(false)
     if (outcome === 'sent' || outcome === 'erased') draft.sent()
     else draft.back(words, BACK[outcome])
   }
-  return { sending, send }
 }
 
-export function PersonalComposer({ account, hidden, state, onSend, onListening }: Props) {
+export function PersonalComposer({ account, hidden, state, busy, onSend, onListening }: Props) {
   const draft = useDraft(account)
   const { text, note, change } = draft
   const field = useRef<HTMLTextAreaElement>(null)
@@ -177,7 +176,7 @@ export function PersonalComposer({ account, hidden, state, onSend, onListening }
   }, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready'
-  const { sending, send } = useSend(draft, ready, onSend)
+  const send = useSend(draft, ready, busy, onSend)
   return (
     <form
       className="ps-composer"
@@ -208,7 +207,7 @@ export function PersonalComposer({ account, hidden, state, onSend, onListening }
           className="send has-tip"
           aria-label="Send"
           disabled={!ready || !text.trim()}
-          aria-disabled={sending || undefined}
+          aria-disabled={busy || undefined}
         >
           <Icon name="send" />
           <Tip label="Send" keys="Enter" side="top" align="end" />

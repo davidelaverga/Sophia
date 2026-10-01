@@ -1,6 +1,8 @@
 // The personal space (contract amendment A10): the person's own conversation with Sophia, their notes and the notes
 // they carried, and the projects of their Work side. Reads are owner-only on the server; every write is idempotent
-// per person and key: after no reply, retry with the SAME key. Receipts carry ids; read the space again for words.
+// per person and key: after no reply, retry with the SAME key. Every write but erasure names the epoch of the space it
+// is made against: one from before an erasure is refused (request_erased). Receipts carry ids; read the space again
+// for words.
 import type {
   PersonalExport,
   PersonalNoteRequest,
@@ -21,8 +23,23 @@ import { callApi } from './client.ts'
 const read = <T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T) =>
   callApi(path, { token, method: 'GET' }, parse)
 
-const write = (token: string, path: `/api/${string}`, key: string, body?: unknown): Promise<PersonalReceipt> =>
-  callApi(path, { token, key, ...(body === undefined ? {} : { body }) }, parsePersonalReceipt)
+const write = (
+  token: string,
+  path: `/api/${string}`,
+  key: string,
+  epoch: number | null,
+  body?: unknown,
+): Promise<PersonalReceipt> =>
+  callApi(
+    path,
+    {
+      token,
+      key,
+      ...(epoch === null ? {} : { headers: { 'x-sophia-personal-epoch': String(epoch) } }),
+      ...(body === undefined ? {} : { body }),
+    },
+    parsePersonalReceipt,
+  )
 
 export const getPersonalSpace = (token: string): Promise<PersonalSpace> =>
   read(token, '/api/v1/personal', parsePersonalSpace)
@@ -36,34 +53,36 @@ export const exportPersonalSpace = (token: string): Promise<PersonalExport> =>
 
 export const listProjects = (token: string): Promise<ProjectList> => read(token, '/api/v1/projects', parseProjectList)
 
-export const sendPersonalTurn = (token: string, key: string, text: string) =>
-  write(token, '/api/v1/personal/turns', key, { text })
+export const sendPersonalTurn = (token: string, key: string, epoch: number, text: string) =>
+  write(token, '/api/v1/personal/turns', key, epoch, { text })
 
 /** Back after a quiet spell: Sophia welcomes the person by `name`, if a welcome is due (turnId null if not). */
-export const resumePersonalSpace = (token: string, key: string, name: string | null) =>
-  write(token, '/api/v1/personal/resume', key, name ? { name } : {})
+export const resumePersonalSpace = (token: string, key: string, epoch: number, name: string | null) =>
+  write(token, '/api/v1/personal/resume', key, epoch, name ? { name } : {})
 
-export const retryPersonalTurn = (token: string, key: string, turnId: string) =>
-  write(token, `/api/v1/personal/turns/${turnId}/retry`, key)
+export const retryPersonalTurn = (token: string, key: string, epoch: number, turnId: string) =>
+  write(token, `/api/v1/personal/turns/${turnId}/retry`, key, epoch)
 
 export const decidePersonalSuggestion = (
   token: string,
   key: string,
+  epoch: number,
   suggestionId: string,
   decision: 'keep' | 'dismiss',
-) => write(token, `/api/v1/personal/suggestions/${suggestionId}/decision`, key, { decision })
+) => write(token, `/api/v1/personal/suggestions/${suggestionId}/decision`, key, epoch, { decision })
 
-export const keepPersonalNote = (token: string, key: string, note: PersonalNoteRequest) =>
-  write(token, '/api/v1/personal/notes', key, note)
+export const keepPersonalNote = (token: string, key: string, epoch: number, note: PersonalNoteRequest) =>
+  write(token, '/api/v1/personal/notes', key, epoch, note)
 
-export const forgetPersonalNote = (token: string, key: string, noteId: string) =>
-  write(token, `/api/v1/personal/notes/${noteId}/forget`, key)
+export const forgetPersonalNote = (token: string, key: string, epoch: number, noteId: string) =>
+  write(token, `/api/v1/personal/notes/${noteId}/forget`, key, epoch)
 
-export const carryPersonalNote = (token: string, key: string, noteId: string, projectId: string) =>
-  write(token, `/api/v1/personal/notes/${noteId}/carry`, key, { projectId })
+export const carryPersonalNote = (token: string, key: string, epoch: number, noteId: string, projectId: string) =>
+  write(token, `/api/v1/personal/notes/${noteId}/carry`, key, epoch, { projectId })
 
-export const takeBackPersonalRelease = (token: string, key: string, releaseId: string) =>
-  write(token, `/api/v1/personal/releases/${releaseId}/take-back`, key)
+export const takeBackPersonalRelease = (token: string, key: string, epoch: number, releaseId: string) =>
+  write(token, `/api/v1/personal/releases/${releaseId}/take-back`, key, epoch)
 
+/** Never fenced: erasing writes nothing back, and its retry gets its receipt after the epoch moved. */
 export const erasePersonalSpace = (token: string, key: string) =>
-  write(token, '/api/v1/personal/erasure', key, { confirm: 'delete' })
+  write(token, '/api/v1/personal/erasure', key, null, { confirm: 'delete' })

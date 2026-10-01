@@ -130,6 +130,8 @@ interface CallInit {
   body?: unknown
   /** An Idempotency-Key: the call is an admission, retried with the same key after no reply. */
   key?: string
+  /** Headers the route asks for besides the key (the epoch a personal write is made against). */
+  headers?: Readonly<Record<string, string>>
 }
 
 /**
@@ -150,6 +152,7 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
           ...(init.token ? auth(init.token) : {}),
           ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
           ...(init.key ? { 'idempotency-key': init.key } : {}),
+          ...init.headers,
         },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
         signal,

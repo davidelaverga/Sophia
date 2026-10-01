@@ -289,7 +289,7 @@ export function PersonalSpace(props: Props) {
     <PersonalComposer
       // An erasure forgets the draft too: the composer starts afresh.
       key={writes.erasures}
-      {...{ account, hidden: props.hidden }}
+      {...{ account, hidden: props.hidden, busy: writes.sending !== null }}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={setListening}
       onSend={sender(writes, onFailed)}

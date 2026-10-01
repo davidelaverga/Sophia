@@ -27,7 +27,8 @@ What works, on the local dev stack with the rehearsal companion:
   - Your data: copy everything (with the suggestions not decided yet), delete everything;
   - a call that goes on across the places, with its switches, text mode, what Sophia is looking at and what stopped a device in the places' bar; opening another project leaves it, and says so; "Join the room" from Work joins on that opening only;
   - for the keyboard and screen readers: Sophia's replies are said once; a letter typed with the focus nowhere in Personal goes into the message bar (never the padlock), and never into a field the notes cover; a modal sheet takes every key; the focus is handed on wherever a control goes away;
-  - a message's words stay on the device until they were sent, also while they are on their way, and come back when a send fails or gets no answer; not when the space was erased.
+  - a message's words stay on the device until they were sent, also while they are on their way, and come back when a send fails or gets no answer; not when the space was erased;
+  - one message on its way at a time, from the field or a way to start; every write but erasure names the space's epoch as last read, so nothing sent before an erasure lands after it.
 
 Missing or unverified:
 - **No live companion.** Sophia's answers in development are scripted. D1, the Companion agent on our runtime, is not built.
@@ -40,12 +41,13 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 271; database tests: 234 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 492 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 272; database tests: 234 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
   - unlocking against local Supabase (`unlock-supabase`): the code checked on its own client (the app's session untouched, nothing stored, the check's session ended), a wrong code, a lost connection, a check and ways with no answer (20 s), another account; an email change, after which the padlock is still shut;
   - Codex's third review of #30 (`personal-codex30b`): a dictation start waiting for the device's language, called off by a lock, by crossing to Work and by signing out, and a second press; a copy whose export arrives after a lock stored without an event, or after its sheet closed;
+  - Codex's fourth review of #30 (`personal-codex30c`): a way to start on its way (the field waits, quietly), a message on its way when the space is erased (refused, nothing comes back, and the next goes), a note taken back from Work while the space is locked;
   - the earlier suites on this Studio: the previous rounds (31 checks), the places’ keys and flows (37), a call across the places (12 of 13: a teammate's Work showed who had just joined only once the room server's count caught up, up to five seconds later; the data side's next commit asks the rooms themselves), the call and interface checks (6, 33 and 8), and the room’s suites from #24 (43).
 - **Mutation checks:** every logic fix has a unit or database test that fails without it; every fix the tests can't reach was undone in the browser to see its scenario fail (this round, 4 Studio rules, 7 database rules and 4 API rules each failed their test before the fix, and of 10 browser fixes undone 9 were caught by their scenario, the tenth being backed by a second mechanism the scenario also exercises; the second round, 14 rules and 22 browser fixes, all caught).
 - **Reviews:**
@@ -57,6 +59,7 @@ Missing or unverified:
   - Codex on #30's `3389759`: one P1 (a dictation start waiting for the device's language went on out of sight) and two P2 (the padlock kept by the address; a copy that read the padlock as last drawn), fixed with their sibling paths (signing out while a start waits, the draft kept by the address, a copy after its sheet closed); each fix was undone once and its scenario failed, but for a guard against a second press, which proved redundant and was removed.
   - Codex on #35's `18b00d1`: three P2 (the same welcome request asked again while its first attempt wrote it settled its key with nothing; a reply or a failure written by an attempt whose claim had lapsed; a failed welcome not retried under its key), all fixed with a claim each attempt carries, each undone once to see its test fail. Checking #30 against `18b00d1` found the Work list read the room server's count of participants, which lags a join by up to five seconds: it now asks every room that exists (a test against a real LiveKit server, `pnpm test:livekit`).
   - Codex on #30's `9a72043`, one P1 on the data side: a write issued before an erasure whose first attempt reached the database after it wrote again. Erasure now moves the space's epoch, and every other write names the epoch it was made against and is fenced to it (`personal_fence`); each part undone once fails its test.
+  - Codex on #30's `9a72043`, on the Studio side: the P1's other half (every write but erasure names the epoch as last read, and its retry the same one) and one P2 (a way to start and the field shared no guard, so two messages could be on their way at once), fixed; each undone once fails its scenario, but for the guard's backstop inside the writes, which the field's wait already covers.
 
 ## Decisions and changes
 
