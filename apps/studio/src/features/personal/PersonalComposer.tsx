@@ -44,11 +44,11 @@ const PLACEHOLDER: Record<ComposerState, string> = {
  * The draft a field opens with in `epoch` (onOpening): words on their way a tab left behind come back ahead of it, and
  * the device keeps them so, apart from nothing.
  */
-function opened(account: string, epoch: number): { draft: Draft | null; back: boolean } {
+function opened(account: string, epoch: number): { draft: Draft | null; back: boolean; at: number } {
   const kept = readKept(account, epoch)
   const open = onOpening(kept, Date.now())
-  if (open.back) writeKept(account, { draft: open.draft, sending: null }, epoch)
-  return open
+  const at = open.back ? writeKept(account, { draft: open.draft, sending: null }, epoch) : (kept.at ?? epoch)
+  return { ...open, at }
 }
 
 /** The line above the field for the draft it opens with. */
@@ -65,7 +65,7 @@ const openingNote = (open: { draft: Draft | null; back: boolean }) =>
 function useDraftFollows(
   account: string,
   epoch: number | undefined,
-  adopt: (draft: Draft | null, why: string) => void,
+  adopt: (draft: Draft | null, why: string, at: number) => void,
 ) {
   const follow = useRef(adopt)
   useEffect(() => {
@@ -76,13 +76,20 @@ function useDraftFollows(
   useEffect(() => {
     if (epoch === undefined) return undefined
     if (read.current !== epoch) {
-      const open = read.current === undefined ? opened(account, epoch) : { draft: readKept(account, epoch).draft }
-      follow.current(open.draft, 'back' in open ? openingNote(open) : '')
+      if (read.current === undefined) {
+        const open = opened(account, epoch)
+        follow.current(open.draft, openingNote(open), open.at)
+      } else {
+        const kept = readKept(account, epoch)
+        follow.current(kept.draft, '', kept.at ?? epoch)
+      }
       read.current = epoch
     }
     const key = draftKey(account)
     const onStorage = (e: StorageEvent) => {
-      if (e.key === key || e.key === null) follow.current(readKept(account, epoch).draft, '')
+      if (e.key !== key && e.key !== null) return
+      const kept = readKept(account, epoch)
+      follow.current(kept.draft, '', kept.at ?? epoch)
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -94,6 +101,9 @@ function useDraft(account: string, epoch: number | undefined) {
   const [first] = useState(() => (epoch === undefined ? null : opened(account, epoch)))
   const [text, setText] = useState(first?.draft?.text ?? '')
   const [note, setNote] = useState(first ? openingNote(first) : '')
+  // The epoch the field's words are kept in: newer than the space's, they were written after an erasure this page
+  // hasn't read yet (another tab's).
+  const [at, setAt] = useState(first?.at)
   // What the field holds now, with its key, for words that come back after a send that waited (restoredDraft).
   const latest = useRef<Draft | null>(first?.draft ?? null)
   // Words on their way, with their key: the device keeps them apart from the draft until they are sent.
@@ -103,12 +113,15 @@ function useDraft(account: string, epoch: number | undefined) {
     setText(draft?.text ?? '')
     setNote(why)
   }
-  useDraftFollows(account, epoch, show)
+  useDraftFollows(account, epoch, (draft, why, kept) => {
+    show(draft, why)
+    setAt(kept)
+  })
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
     if (epoch === undefined) return null
     const now = change(readKept(account, epoch))
-    writeKept(account, now, epoch)
+    setAt(writeKept(account, now, epoch))
     return now
   }
   /** Words in the field: the device keeps them as its draft, with what is on its way (any tab's) as it is. */
@@ -119,6 +132,7 @@ function useDraft(account: string, epoch: number | undefined) {
   return {
     text,
     note,
+    at,
     change: (value: string, why = value ? KEPT : '') => set(value ? draftOf(value) : null, why),
     /** The words in the field, with the key they go under. */
     current: () => latest.current,
@@ -221,10 +235,14 @@ interface Props {
   state: ComposerState
   /** A message is on its way, from the field or a way to start: the next waits in the field. */
   busy: boolean
-  /** Resolves to how the send went; words that didn't go come back into the field, unless erased with the space. */
-  /** Sends the words under `key`, the draft's: every tab sends the same draft under the same key. */
+  /**
+   * Sends the words under `key`, the draft's (every tab sends the same draft under the same key), and resolves to how
+   * the send went; words that didn't go come back into the field, unless erased with the space.
+   */
   onSend: (text: string, key: string) => Promise<SendOutcome>
   onListening: (listening: boolean) => void
+  /** The field holds words kept after an erasure this page hasn't read: the space is read again before they go. */
+  onBehind: () => void
 }
 
 /**
@@ -248,8 +266,22 @@ function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, busy: boole
   }
 }
 
-export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, onListening }: Props) {
+/** Words kept in an epoch this page's space hasn't reached: it reads the space again, and they wait until it has. */
+function useBehind(at: number | undefined, epoch: number | undefined, onBehind: () => void): boolean {
+  const behind = at !== undefined && epoch !== undefined && at > epoch
+  const read = useRef(onBehind)
+  useEffect(() => {
+    read.current = onBehind
+  })
+  useEffect(() => {
+    if (behind) read.current()
+  }, [behind])
+  return behind
+}
+
+export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, onListening, onBehind }: Props) {
   const draft = useDraft(account, epoch)
+  const behind = useBehind(draft.at, epoch, onBehind)
   const { text, note, change } = draft
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
@@ -257,7 +289,7 @@ export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, 
     field.current?.focus()
   }, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
-  const ready = state === 'ready'
+  const ready = state === 'ready' && !behind
   const send = useSend(draft, ready, busy, onSend)
   return (
     <form

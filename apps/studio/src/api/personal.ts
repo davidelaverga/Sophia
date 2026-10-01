@@ -22,8 +22,9 @@ import {
 } from '@sophia/contracts/validate'
 import { callApi } from './client.ts'
 
-const read = <T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T) =>
-  callApi(path, { token, method: 'GET' }, parse)
+/** A read; `signal` (the caller's) stops it: the padlock shut, nothing personal is fetched any more. */
+const read = <T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T, signal?: AbortSignal) =>
+  callApi(path, { token, method: 'GET', ...(signal ? { signal } : {}) }, parse)
 
 const write = (
   token: string,
@@ -44,20 +45,29 @@ const write = (
   )
 
 /** The space, its `days` counted in `timeZone` (an IANA name; UTC without one). */
-export const getPersonalSpace = (token: string, timeZone: string | null): Promise<PersonalSpace> =>
+export const getPersonalSpace = (
+  token: string,
+  timeZone: string | null,
+  signal?: AbortSignal,
+): Promise<PersonalSpace> =>
   read(
     token,
     timeZone ? `/api/v1/personal?timeZone=${encodeURIComponent(timeZone)}` : '/api/v1/personal',
     parsePersonalSpace,
+    signal,
   )
 
 /** A long conversation read back: the page of turns before `before` (a seq), and whether earlier ones exist. */
-export const getEarlierPersonalTurns = (token: string, before: number): Promise<PersonalEarlierTurns> =>
-  read(token, `/api/v1/personal/turns/earlier?before=${String(before)}`, parsePersonalEarlierTurns)
+export const getEarlierPersonalTurns = (
+  token: string,
+  before: number,
+  signal?: AbortSignal,
+): Promise<PersonalEarlierTurns> =>
+  read(token, `/api/v1/personal/turns/earlier?before=${String(before)}`, parsePersonalEarlierTurns, signal)
 
 /** What a client waiting for Sophia polls: turns after `after`, and whether a reply is still pending. */
-export const getPersonalTurns = (token: string, after: number): Promise<PersonalTurnPage> =>
-  read(token, `/api/v1/personal/turns?after=${after}`, parsePersonalTurnPage)
+export const getPersonalTurns = (token: string, after: number, signal?: AbortSignal): Promise<PersonalTurnPage> =>
+  read(token, `/api/v1/personal/turns?after=${after}`, parsePersonalTurnPage, signal)
 
 /**
  * One page of the export: the turns after `after` (a seq), and `next` where the following page starts, read against

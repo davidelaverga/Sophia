@@ -173,6 +173,7 @@ function useOneCallInSight(call: ProjectCall | null, project: string | null) {
 function useForgetWhileLocked(locked: boolean, identity: string) {
   const client = useQueryClient()
   useEffect(() => {
+    // What was read goes, and the reads on their way stop with their queries (each read takes its query's signal).
     if (locked) client.removeQueries({ queryKey: ['personal', identity] })
   }, [locked, identity, client])
 }

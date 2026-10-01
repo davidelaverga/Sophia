@@ -20,10 +20,14 @@ export interface OnItsWay extends Draft {
   until: number
 }
 
-/** What the device keeps: the draft in the field, and apart from it the words on their way. */
+/**
+ * What the device keeps: the draft in the field, and apart from it the words on their way; `at`, the epoch they were
+ * kept in, as read.
+ */
 export interface Kept {
   draft: Draft | null
   sending: OnItsWay | null
+  at?: number
 }
 
 export const NOTHING_KEPT: Kept = { draft: null, sending: null }
@@ -57,7 +61,7 @@ export function keptIn(kept: string | null, epoch: number): Kept {
     if (typeof value !== 'object' || value === null) return NOTHING_KEPT
     const at = field(value, 'epoch')
     if (typeof at !== 'number' || at < epoch) return NOTHING_KEPT
-    return { draft: draftFrom(value), sending: onItsWayFrom(field(value, 'sending')) }
+    return { draft: draftFrom(value), sending: onItsWayFrom(field(value, 'sending')), at }
   } catch {
     return NOTHING_KEPT
   }
@@ -82,13 +86,25 @@ export function readKept(account: string, epoch: number): Kept {
   }
 }
 
-export function writeKept(account: string, kept: Kept, epoch: number): void {
+/**
+ * The epoch to keep words in: never one older than the device already keeps (another tab read the space since), so a
+ * tab behind it never makes newer words look erased.
+ */
+export function keptEpoch(stored: string | null, epoch: number): number {
+  const at = keptIn(stored, 0).at
+  return Math.max(epoch, at ?? epoch)
+}
+
+/** Keeps `kept` on the device, in `epoch` or the newer one it keeps; the epoch kept in. */
+export function writeKept(account: string, kept: Kept, epoch: number): number {
   try {
-    const stored = keptAs(kept, epoch)
+    const at = keptEpoch(localStorage.getItem(draftKey(account)), epoch)
+    const stored = keptAs(kept, at)
     if (stored) localStorage.setItem(draftKey(account), stored)
     else localStorage.removeItem(draftKey(account))
+    return at
   } catch {
-    // storage unavailable: the draft lasts for this page only
+    return epoch // storage unavailable: the draft lasts for this page only
   }
 }
 

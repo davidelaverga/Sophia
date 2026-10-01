@@ -536,7 +536,12 @@ their work. Keep these when you change them:
   for them is up), said so. An erasure on another device reaches an open
   tab within the Work list's next read (every 20 s), which reads the space
   again (`erasedElsewhere`); and waiting for a reply never stops reading:
-  after failed reads, less and less often (`pollEvery`). A long conversation reads back from the Earlier days menu
+  after failed reads, less and less often (`pollEvery`). The device never
+  keeps words in an older epoch than it already holds (`keptEpoch`), and a
+  tab whose space is behind the draft it shows reads the space again before
+  sending it. Every personal read takes its query's signal: the padlock
+  shutting stops the reads on their way (the space, the wait for a reply, a
+  page read back). A long conversation reads back from the Earlier days menu
   ("Show earlier days"); turns that leave the space's window as new ones
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it

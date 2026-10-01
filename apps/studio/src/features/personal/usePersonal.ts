@@ -43,12 +43,12 @@ function zoneHere(): string | null {
 }
 
 /** The space, its days counted in this device's time zone; a zone the server doesn't know counts them in UTC. */
-async function readSpace(token: string) {
+async function readSpace(token: string, signal: AbortSignal) {
   const zone = zoneHere()
   try {
-    return await getPersonalSpace(token, zone)
+    return await getPersonalSpace(token, zone, signal)
   } catch (err: unknown) {
-    if (zone && err instanceof ApiError && err.code === 'invalid_request') return getPersonalSpace(token, null)
+    if (zone && err instanceof ApiError && err.code === 'invalid_request') return getPersonalSpace(token, null, signal)
     throw err
   }
 }
@@ -61,14 +61,15 @@ async function readSpace(token: string) {
 export function usePersonalSpace(identity: Identity, open: boolean) {
   const client = useQueryClient()
   const queryKey = ['personal', identity.name]
-  const space = useQuery({ queryKey, queryFn: () => readSpace(identity.token), enabled: open })
+  // Each read stops when its query is called off (the padlock shut: useForgetWhileLocked).
+  const space = useQuery({ queryKey, queryFn: ({ signal }) => readSpace(identity.token, signal), enabled: open })
   const turns = space.data?.turns ?? []
   const waiting = turns.some((t) => t.reply === 'pending')
   const last = turns.at(-1)?.seq ?? 0
   useQuery({
     queryKey: [...queryKey, 'waiting', last],
-    queryFn: async () => {
-      const page = await getPersonalTurns(identity.token, last)
+    queryFn: async ({ signal }) => {
+      const page = await getPersonalTurns(identity.token, last, signal)
       if (!page.pending || page.turns.length > 0) await client.invalidateQueries({ queryKey, exact: true })
       return page
     },
@@ -86,7 +87,8 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
  */
 export function useReadBack(identity: Identity, space: PersonalSpace | undefined) {
   const [back, setBack] = useState<ReadBackState | null>(null)
-  const reading = useRef(false)
+  // The page on its way, stopped when the padlock shuts.
+  const reading = useRef<AbortController | null>(null)
   const listed = useRef<readonly PersonalTurn[]>(NO_TURNS)
   // The epoch of the space shown now, null while it is locked: a page that arrives for another is let go.
   const shown = useRef<number | null>(null)
@@ -95,7 +97,8 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
     listed.current = space?.turns ?? NO_TURNS
     shown.current = space?.epoch ?? null
     if (!space) {
-      setBack(null) // locked (or not read yet): nothing read back is kept
+      reading.current?.abort() // locked (or not read yet): nothing is read back, and nothing read back is kept
+      setBack(null)
       return
     }
     setBack((now) => backOnSpaceRead(now, before, space))
@@ -106,14 +109,17 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
   const readMore = async () => {
     const from = older[0]?.seq ?? space?.turns[0]?.seq
     if (!space || from === undefined || !more || reading.current) return
-    reading.current = true
+    const stop = new AbortController()
+    reading.current = stop
     const { epoch } = space
     try {
-      const page = await getEarlierPersonalTurns(identity.token, from)
+      const page = await getEarlierPersonalTurns(identity.token, from, stop.signal)
       if (shown.current !== epoch) return // shut (or erased) while it was on its way: none of it is kept
       setBack((now) => withEarlierPage(now, epoch, page))
+    } catch (err: unknown) {
+      if (!stop.signal.aborted) throw err // stopped by the padlock: nothing to say
     } finally {
-      reading.current = false
+      reading.current = null
     }
   }
   return { older, more, readMore }
@@ -182,6 +188,7 @@ function useRun(identity: Identity) {
  * While the padlock is shut (`locked`) the page keeps none of its words: the message on its way goes on unseen.
  */
 export function usePersonalWrites(identity: Identity, locked: boolean) {
+  const client = useQueryClient()
   const run = useRun(identity)
   const [sending, setSending] = useState<Sending | null>(null)
   const [busy, setBusy] = useState(false)
@@ -200,6 +207,8 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     welcoming,
     /** Moves with each erasure: the composer starts afresh, its draft forgotten with everything else. */
     erasures,
+    /** The space read again: another tab knows of an erasure this page hasn't read. */
+    readAgain: () => void client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true }),
     resume: async (name: string | null) => {
       setWelcoming(true)
       try {

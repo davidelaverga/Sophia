@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, it } from 'node:test'
-import { exportPersonalSpace } from './personal.ts'
+import { exportPersonalSpace, getPersonalSpace } from './personal.ts'
 
 const realFetch = globalThis.fetch
 const AT = '2026-10-01T10:00:00.000Z'
@@ -90,5 +90,26 @@ describe('the export, read a page at a time', () => {
     })
     await assert.rejects(exportPersonalSpace('token', 0, stop.signal), (err) => err === gone)
     assert.deepEqual(asked, [0])
+  })
+})
+
+describe('reading the space', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  it('stops when its caller calls it off: the padlock shut, nothing personal is fetched any more', async () => {
+    let asking: AbortSignal | null | undefined
+    globalThis.fetch = (_url, init) => {
+      asking = init?.signal
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      })
+    }
+    const stop = new AbortController()
+    const read = getPersonalSpace('token', null, stop.signal)
+    stop.abort()
+    assert.equal(asking?.aborted, true, 'stopped at once')
+    await assert.rejects(read)
   })
 })

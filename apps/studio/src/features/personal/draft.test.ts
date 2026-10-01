@@ -6,6 +6,7 @@ import {
   forgetDrafts,
   goingOut,
   keptAs,
+  keptEpoch,
   keptIn,
   NOTHING_KEPT,
   onOpening,
@@ -62,6 +63,16 @@ describe('a draft and the erasures since it was written', () => {
 
   it('gives each version of the words a key of its own', () => {
     assert.notEqual(draftOf('Hello').key, draftOf('Hello').key)
+  })
+})
+
+describe('the epoch the device keeps words in', () => {
+  it('is never older than the one it keeps: a tab behind it never makes newer words look erased', () => {
+    const kept = keptAs({ draft: draftOf('After the erasure'), sending: null }, 4)
+    assert.equal(keptEpoch(kept, 3), 4, 'a tab whose space is behind keeps them in the newer epoch')
+    assert.equal(keptEpoch(kept, 5), 5)
+    assert.equal(keptEpoch(null, 2), 2)
+    assert.equal(keptIn(kept, 3).at, 4, 'and says which it is')
   })
 })
 

@@ -30,7 +30,7 @@ What works, on the local dev stack with the rehearsal companion:
   - a message's words stay on the device until they were sent, also while they are on their way, and come back when a send fails or gets no answer; not when the space was erased;
   - one message on its way at a time, from the field or a way to start; every write but erasure names the space's epoch as last read, so nothing sent before an erasure lands after it;
   - the field follows the device's one draft across tabs, and an erasure anywhere takes the words written before it, also one on another device while this one was locked (the draft keeps its epoch), and one on another device while this tab stays open (within the Work list's next read); words on their way stay out of other tabs' fields, and waiting for a reply never stops reading; a long conversation reads back a page at a time, Your data counts all its days, and its copy reads the export a page at a time, stopping at once when the padlock shuts or its sheet closes;
-  - while the padlock is shut the field is off the page and the page keeps none of the space's words; the days follow the clock.
+  - while the padlock is shut the field is off the page and the page keeps none of the space's words; the days follow the clock; the reads on their way stop when it shuts.
 
 Missing or unverified:
 - **No live companion.** Sophia's answers in development are scripted. D1, the Companion agent on our runtime, is not built.
@@ -43,7 +43,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 522 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 290; database tests: 261 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 524 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 292; database tests: 261 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
@@ -56,6 +56,7 @@ Missing or unverified:
   - Codex's eighth review of #30 (`personal-codex30g`): a draft typed before an erasure on another device while this one was locked (and, as control, with no erasure); another project opened during a call (the call never out of sight beside it); a page read back while new turns come (every turn there);
   - Codex's ninth review of #30 (`personal-codex30h`): "Delete everything" while a copy pages, in the sheet (stopped as the erasure begins) and on another device (nothing copied, and the sheet says why; stopped at once once this page hears of it); the same draft sent from two tabs (one message); a slow send that settles while another tab writes (its words stay);
   - Codex's tenth review of #30 (`personal-codex30i`): an erasure on another device reaching an open tab (its conversation and draft go within the Work list's next read); a reply read in after the reads failed for a while; words on their way kept out of another tab's field, with what is typed after them going on its own; words a tab left on their way coming back to the field, said so;
+  - Codex's eleventh review of #30 (`personal-codex30j`): a tab behind an erasure another tab made, adopting that tab's new draft (it reads the space again, and the message goes once) and typing into it (the other tab keeps the words); the padlock stopping a read of the space, a wait for a reply and a page read back on their way;
   - the earlier suites on this Studio: the previous rounds (31 checks), the places’ keys and flows (37), a call across the places (12 of 13: a teammate's Work showed who had just joined only once the room server's count caught up, up to five seconds later; the data side's next commit asks the rooms themselves), the call and interface checks (6, 33 and 8), and the room’s suites from #24 (43).
 - **Mutation checks:** every logic fix has a unit or database test that fails without it; every fix the tests can't reach was undone in the browser to see its scenario fail (this round, 4 Studio rules, 7 database rules and 4 API rules each failed their test before the fix, and of 10 browser fixes undone 9 were caught by their scenario, the tenth being backed by a second mechanism the scenario also exercises; the second round, 14 rules and 22 browser fixes, all caught).
 - **Reviews:**
@@ -86,6 +87,7 @@ Missing or unverified:
   - Codex on #30's `19f8f90`: two P1 (a draft from before an erasure on another device came back after a lock; another project shown while the call's project, its microphone on, was out of sight) and two P2 (what was read back of an erased space kept in memory; a page read back dropped the turns that left the window while it was on its way), fixed; each scenario failed before the fix, and each part undone once fails its test or scenario.
   - Codex on #30's `153e2aa`: three P2 (a copy still paging when the space was erased, from the sheet or elsewhere, could reach the clipboard; a slow send that settled took the words another tab wrote meanwhile; the same draft sent from two tabs was kept twice), fixed (the export's data half on #35); each part undone once fails its test or scenario.
   - Codex on #30's `ffed40b`: one P1 (an open tab never learned of an erasure on another device) and two P2 (waiting for a reply stopped reading after failed reads; words on their way went into another tab's draft, joined to what was typed after them), fixed; each part undone once fails its test or scenario.
+  - Codex on #30's `3b7a221`: one P1 (a tab behind an erasure could send, or keep, another tab's new draft under its old epoch, and lose it) and one P2 (personal reads went on after the padlock shut), fixed; each part undone once fails its test or scenario.
 
 ## Decisions and changes
 
