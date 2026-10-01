@@ -11,6 +11,7 @@ import { createPool } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type SeededProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import { ROOM_TOKEN_TTL_SECONDS } from './livekit.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -103,8 +104,9 @@ describe('room tokens', () => {
       canPublishData: true,
       canUpdateOwnMetadata: false,
     })
-    // Ten minutes. livekit-server-sdk sets `exp` and then `nbf` from two reads of the clock (AccessToken.toJwt), so a
-    // second can turn between them: the lifetime reads 600 s, or 599 s when it did. Never less, never more.
+    // Ten minutes: what the API asks of the SDK is exactly that. The SDK sets `exp` and then `nbf` from two reads of
+    // the clock (AccessToken.toJwt), so a second can turn between them: the token reads 600 s, or 599 s when it did.
+    assert.equal(ROOM_TOKEN_TTL_SECONDS, 600)
     const lifetime = (grant.exp ?? 0) - (grant.nbf ?? 0)
     assert.ok(lifetime === 600 || lifetime === 599, `a room token lives ${String(lifetime)} s`)
   })

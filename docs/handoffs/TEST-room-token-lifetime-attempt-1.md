@@ -10,7 +10,7 @@
 ## Outcome
 
 - The test asserted `exp - nbf === 600`. livekit-server-sdk 2.19.1 sets `exp` (`setExpirationTime('600s')`) and then `nbf` (`setNotBefore(new Date())`) from two reads of the clock in `AccessToken.toJwt()`, so when a second turns between them the lifetime reads 599 s. It failed once in CI on #35's push run (`actual: 599, expected: 600`) while the pull_request run of the same commit passed.
-- The test now accepts 600 or 599 s, with a comment saying why, and still fails for any other lifetime. What else it checks (this room, this actor, the publish grants) is unchanged.
+- The test now accepts 600 or 599 s from the token, with a comment saying why, and pins what the API asks of the SDK to exactly 600 s (`ROOM_TOKEN_TTL_SECONDS`), so a 599 s setting fails too (Codex's review). What else it checks (this room, this actor, the publish grants) is unchanged.
 - Only the test changes; the token the API issues is the same.
 
 Missing or unverified:
@@ -20,7 +20,7 @@ Missing or unverified:
 
 - `SOPHIA_DISPOSABLE_DATABASE_URL=… node scripts/with-postgres.ts node --test apps/api/src/rooms.db.test.ts`: 5 pass.
 - `pnpm lint`, `pnpm format:check` and the API's typecheck: clean.
-- A positive control: with `ROOM_TOKEN_TTL_SECONDS` set to 660 in `apps/api/src/livekit.ts`, the test fails with "a room token lives 660 s" (the file was restored after).
+- Positive controls: with `ROOM_TOKEN_TTL_SECONDS` set to 660 in `apps/api/src/livekit.ts` the test fails ("a room token lives 660 s"), and set to 599 it fails on the pinned 600 s (the file was restored after each).
 - The CI failure it answers: #35, run `36845108450`, job "SQL, persistence and API on PostgreSQL 16" (re-run, then passed).
 
 ## Decisions and changes
