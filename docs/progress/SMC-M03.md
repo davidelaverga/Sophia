@@ -47,7 +47,7 @@ All recorded in plan §8. D1–D10 decided on 2026-09-30, with D1 raised to **$5
 | Operation | Kind | Request | State |
 |---|---|---|---|
 | SMC-M03-OP-0001 | read only | [CC-0001](../coordination/SMC-M03/SMC-M03-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0001 on #31 and act within its scope.` |
-| SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0002 on #31 and act within its scope.` |
+| SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | a cloud `@codex` task answered [CX-0001 `blocked`](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922580395): the candidate was absent from its checkout, and it had no Node 24.21.0 and no PostgreSQL. Still awaiting the operator Codex. Wake line: `SMC-M03: read SMC-M03-CC-0002 on #31 and act within its scope.` |
 
 Cloud Codex review of #32 at `29bb825` (Davide's request, [comment](https://github.com/davidelaverga/Sophia/pull/32#issuecomment-5922653573)): verified by Claude.
 - The PR is not end to end yet. That is true, and by plan: it stays a draft until S7.
