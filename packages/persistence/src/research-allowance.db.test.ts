@@ -458,18 +458,23 @@ describe('research allowance (0024)', () => {
     const privatePage = await text('private', false, '# Private capture')
     const search = await reserve(seed.projectId, a.id, { key: 'prov:s', kind: 'search', amount: 0.01 })
     const read = await reserve(seed.projectId, a.id, { key: 'prov:r', kind: 'read', amount: 0.01 })
+    // One capture per paid call (0025): the private page has a read of its own.
+    const privateRead = await reserve(seed.projectId, a.id, { key: 'prov:r2', kind: 'read', amount: 0.01 })
     await owner.query(
       `INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,requested_url,provider_http_status,
          provider_request_id,coverage) VALUES($1,$2,'search_results','tavily',$3,NULL,200,'req_1','complete')`,
       [seed.projectId, results.id, search.id],
     )
-    for (const source of [page, privatePage]) {
+    for (const [source, call] of [
+      [page, read],
+      [privatePage, privateRead],
+    ] as const) {
       await owner.query(
         `INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,target_ref,parent_source_id,
            requested_url,provider_http_status,origin_http_status,reported_final_url,extraction,coverage,limitations)
          VALUES($1,$2,'web_read','jina',$3,$4,$5,'https://example.org/hosts',200,NULL,NULL,'jina-reader/markdown','complete',
            ARRAY['redirects: unverifiable'])`,
-        [seed.projectId, source.id, read.id, `search:${results.id}#1`, results.id],
+        [seed.projectId, source.id, call.id, `search:${results.id}#1`, results.id],
       )
     }
     const visible = (actor: string) =>

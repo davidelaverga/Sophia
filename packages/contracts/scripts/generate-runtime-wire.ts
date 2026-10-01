@@ -19,11 +19,24 @@ const SCHEMAS = [
   'RuntimeCommand',
   'RuntimeReceipt',
   'RuntimeObservation',
+  'RuntimeRole',
   'RuntimeHello',
   'RuntimeServiceBinding',
   'RuntimeHelloReply',
   'RuntimeCommandBatch',
   'RuntimeReady',
+  'ResearchContextRequest',
+  'ResearchTaskContext',
+  'ResearchSourcePage',
+  'ResearchContextReply',
+  'ResearchReserveRequest',
+  'ResearchReservation',
+  'ResearchSettleRequest',
+  'ResearchSettlement',
+  'ResearchCaptureRequest',
+  'ResearchCapture',
+  'ResearchDraftRequest',
+  'ResearchDraft',
 ] as const
 /** What the bridge validates at runtime: every reply it reads, each command, and what it sends. */
 const VALIDATED = [
@@ -34,6 +47,16 @@ const VALIDATED = [
   'RuntimeObservation',
   'RuntimeHello',
   'RuntimeReady',
+  'ResearchContextRequest',
+  'ResearchContextReply',
+  'ResearchReserveRequest',
+  'ResearchReservation',
+  'ResearchSettleRequest',
+  'ResearchSettlement',
+  'ResearchCaptureRequest',
+  'ResearchCapture',
+  'ResearchDraftRequest',
+  'ResearchDraft',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

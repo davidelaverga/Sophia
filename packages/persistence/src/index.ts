@@ -57,6 +57,18 @@ export {
   type RuntimeCaller,
 } from './runtime.ts'
 export {
+  admitResearchTask,
+  runtimeResearchCapture,
+  runtimeResearchContext,
+  runtimeResearchDraft,
+  runtimeResearchReserve,
+  runtimeResearchSettle,
+  type ResearchAdmission,
+  type ResearchAdmissionCall,
+  type ResearchAdmissionRequest,
+  type ResearchSpecialist,
+} from './research.ts'
+export {
   admitNativeTask,
   readDiscussion,
   readNativeTask,

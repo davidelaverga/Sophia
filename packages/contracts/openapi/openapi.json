@@ -6384,7 +6384,21 @@
             "mediaBridgeCapability": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "guide",
+            "in": "query",
+            "required": false,
+            "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research. The bridge rolls back before the API.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "v1.1",
+                "v1.2"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -6523,6 +6537,566 @@
             }
           }
         }
+      }
+    },
+    "/v1/runtime/research/context": {
+      "post": {
+        "operationId": "runtimeResearchContext",
+        "summary": "The research task an attempt runs (request, inputs, allowance, draft), or a page of a stored source it may read. Fenced: the goal is active under the session's authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchContextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchContextReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/reserve": {
+      "post": {
+        "operationId": "runtimeResearchReserve",
+        "summary": "Reserve allowance before one paid call (model, search, read, render). A read names a target (search result, link or admitted URL), resolved here within the task's lineage. Idempotent by native session and call id. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchReservation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/settle": {
+      "post": {
+        "operationId": "runtimeResearchSettle",
+        "summary": "End a reservation from the call's reported usage: settled, released (never left) or uncertain. Never fenced, so a call already paid for is always accounted.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchSettleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSettlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/capture": {
+      "post": {
+        "operationId": "runtimeResearchCapture",
+        "summary": "Keep what one paid search or read returned, with its provenance. One capture per call; a replay returns it. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchCapture"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/draft": {
+      "post": {
+        "operationId": "runtimeResearchDraft",
+        "summary": "Replace the attempt's draft; the write names the hash it replaces. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
       }
     }
   },
@@ -9215,6 +9789,14 @@
           "dshVersion": {
             "type": "string",
             "maxLength": 100
+          },
+          "roles": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/RuntimeRole"
+            },
+            "description": "The specialist roles this runtime's unit carries, each with its route and preset digest. Research is admitted only onto a ready runtime that advertises the specialist and its route; absent means none."
           }
         },
         "required": [
@@ -10529,7 +11111,8 @@
               "record_mission_note",
               "propose_mission_change",
               "decide_mission_change",
-              "control_work"
+              "control_work",
+              "start_research"
             ]
           },
           "args": {
@@ -12423,6 +13006,862 @@
           "reports",
           "projects",
           "nextCursor"
+        ]
+      },
+      "RuntimeRole": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+          },
+          "route": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+          },
+          "presetDigest": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9:+/=_-]{1,120}$"
+          }
+        },
+        "required": [
+          "id",
+          "route",
+          "presetDigest"
+        ]
+      },
+      "ResearchContextRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6000
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId"
+        ]
+      },
+      "ResearchTaskContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "rootTaskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "outputs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "pdf"
+              ]
+            }
+          },
+          "preferences": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "depth": {
+                "type": "string",
+                "enum": [
+                  "brief",
+                  "standard",
+                  "deep"
+                ]
+              },
+              "sourceConstraints": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": []
+          },
+          "assumptions": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^input:[0-9a-f-]{36}$"
+                },
+                "sourceId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "mime": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "byteLength": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "ref",
+                "sourceId",
+                "sha256",
+                "mime",
+                "byteLength"
+              ]
+            }
+          },
+          "urls": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                }
+              },
+              "required": [
+                "ref",
+                "url"
+              ]
+            }
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifactId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "versionId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "sourceId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "artifactId",
+                  "versionId",
+                  "sourceId"
+                ]
+              }
+            ]
+          },
+          "allowance": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "capUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "headroomUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "committedUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "searchesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "readsLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "required": [
+              "capUsd",
+              "headroomUsd",
+              "committedUsd",
+              "searchesLeft",
+              "readsLeft"
+            ]
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  }
+                },
+                "required": [
+                  "sourceId",
+                  "sha256",
+                  "seq"
+                ]
+              }
+            ]
+          },
+          "roster": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                "email": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 320
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "email"
+              ]
+            },
+            "description": "The disclosure guard's roster as far as the database holds it (member invitation addresses, lobby names). The bridge keeps it from the model."
+          }
+        },
+        "required": [
+          "taskId",
+          "rootTaskId",
+          "question",
+          "outputs",
+          "preferences",
+          "assumptions",
+          "inputs",
+          "urls",
+          "base",
+          "allowance",
+          "draft",
+          "roster"
+        ]
+      },
+      "ResearchSourcePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "nextOffset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalChars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 6000
+          }
+        },
+        "required": [
+          "sourceId",
+          "offset",
+          "nextOffset",
+          "totalChars",
+          "truncated",
+          "text"
+        ]
+      },
+      "ResearchReserveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id (or, for a model call, the bridge's provider call id); with the native session it is the operation's idempotency key."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "model",
+              "search",
+              "read",
+              "render"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}$"
+          },
+          "amountUsd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "call",
+              "partial_result"
+            ],
+            "description": "partial_result only for the model call that writes the partial result; the bridge sets it from the attempt's finalize step, never from a tool argument."
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "targetRef": {
+            "type": "string",
+            "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "kind",
+          "provider",
+          "amountUsd"
+        ]
+      },
+      "ResearchReservation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "model",
+              "search",
+              "read",
+              "render"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "call",
+              "partial_result"
+            ]
+          },
+          "amountUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "ref",
+                  "url"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "reservationId",
+          "state",
+          "kind",
+          "purpose",
+          "amountUsd",
+          "target"
+        ]
+      },
+      "ResearchSettleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "costUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "providerRequestId": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "reservationId",
+          "outcome"
+        ]
+      },
+      "ResearchSettlement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "settledUsd": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reservationId",
+          "state",
+          "settledUsd"
+        ]
+      },
+      "ResearchCaptureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "search_results",
+              "web_read"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "tavily",
+              "jina"
+            ]
+          },
+          "providerHttpStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "originHttpStatus": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportedFinalUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerRequestId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extraction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unsupported"
+            ]
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "snippet": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "publishedAt": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "score": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "links": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "reservationId",
+          "kind",
+          "provider",
+          "providerHttpStatus",
+          "coverage",
+          "limitations"
+        ]
+      },
+      "ResearchCapture": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "search_results",
+              "web_read"
+            ]
+          },
+          "refs": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+            }
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "byteLength",
+          "kind",
+          "refs"
+        ]
+      },
+      "ResearchDraftRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id (or, for a model call, the bridge's provider call id); with the native session it is the operation's idempotency key."
+          },
+          "expectedSha256": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 262144
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "expectedSha256",
+          "text"
+        ]
+      },
+      "ResearchDraft": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "seq"
+        ]
+      },
+      "ResearchContextReply": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ResearchTaskContext"
+          },
+          {
+            "$ref": "#/components/schemas/ResearchSourcePage"
+          }
         ]
       }
     }

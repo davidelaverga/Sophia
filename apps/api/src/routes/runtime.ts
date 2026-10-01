@@ -4,7 +4,17 @@
 // capability, runtime unit and lease itself; this file only shapes HTTP around them.
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
-import type { RuntimeHello, RuntimeObservationBatch, RuntimeReady, RuntimeReceiptBatch } from '@sophia/contracts'
+import type {
+  ResearchCaptureRequest,
+  ResearchContextRequest,
+  ResearchDraftRequest,
+  ResearchReserveRequest,
+  ResearchSettleRequest,
+  RuntimeHello,
+  RuntimeObservationBatch,
+  RuntimeReady,
+  RuntimeReceiptBatch,
+} from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   recordRuntimeObservations,
@@ -12,6 +22,11 @@ import {
   recordRuntimeReceipts,
   runtimeHello,
   runtimePoll,
+  runtimeResearchCapture,
+  runtimeResearchContext,
+  runtimeResearchDraft,
+  runtimeResearchReserve,
+  runtimeResearchSettle,
   withService,
   type RuntimeCaller,
 } from '@sophia/persistence'
@@ -24,6 +39,11 @@ export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
   '/v1/runtime/receipts',
   '/v1/runtime/observations',
   '/v1/runtime/ready',
+  '/v1/runtime/research/context',
+  '/v1/runtime/research/reserve',
+  '/v1/runtime/research/settle',
+  '/v1/runtime/research/capture',
+  '/v1/runtime/research/draft',
 ])
 
 /** The transport headers every runtime call carries (A04). */
@@ -57,6 +77,8 @@ function pollBounds(query: { after: string; waitMs: string }): { after: number; 
 
 /** Observation batches carry assistant text; receipts carry inspect summaries. Both stay bounded per item. */
 const BATCH_BODY_LIMIT = 8 * 1024 * 1024
+/** A research capture or draft carries up to 256 KiB of text, which JSON escaping can grow. */
+const RESEARCH_BODY_LIMIT = 2 * 1024 * 1024
 
 interface Deps {
   pool: pg.Pool
@@ -141,5 +163,38 @@ export function runtimeRoutes(app: FastifyInstance, { pool, hub }: Deps): void {
       await withService(pool, (c) => recordRuntimeReady(c, callerOf(req), req.body))
       return reply.status(204).send()
     },
+  )
+}
+
+/** The research tools' operations (SMC-M03 S4, A11): authenticated like observations, then fenced in SQL. */
+export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
+  const research = (body: string, response: string) => ({
+    bodyLimit: RESEARCH_BODY_LIMIT,
+    schema: { headers: runtimeHeaders, body: { $ref: `${body}#` }, response: { 200: { $ref: `${response}#` } } },
+  })
+  app.post<{ Body: ResearchContextRequest }>(
+    '/v1/runtime/research/context',
+    research('ResearchContextRequest', 'ResearchContextReply'),
+    async (req) => withService(pool, (c) => runtimeResearchContext(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: ResearchReserveRequest }>(
+    '/v1/runtime/research/reserve',
+    research('ResearchReserveRequest', 'ResearchReservation'),
+    async (req) => withService(pool, (c) => runtimeResearchReserve(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: ResearchSettleRequest }>(
+    '/v1/runtime/research/settle',
+    research('ResearchSettleRequest', 'ResearchSettlement'),
+    async (req) => withService(pool, (c) => runtimeResearchSettle(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: ResearchCaptureRequest }>(
+    '/v1/runtime/research/capture',
+    research('ResearchCaptureRequest', 'ResearchCapture'),
+    async (req) => withService(pool, (c) => runtimeResearchCapture(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: ResearchDraftRequest }>(
+    '/v1/runtime/research/draft',
+    research('ResearchDraftRequest', 'ResearchDraft'),
+    async (req) => withService(pool, (c) => runtimeResearchDraft(c, callerOf(req), req.body)),
   )
 }

@@ -551,7 +551,8 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
   it('an operation the contract does not name is refused at the door (T22)', async () => {
     const { projectId } = await project()
     const exchangeId = await openedBy(E, projectId)
-    for (const name of ['start_brief', 'start_research', 'assign_technical_lead']) {
+    // start_research is the contract's since SMC-M03 (A11, guide v1.2); render_research is not yet.
+    for (const name of ['start_brief', 'render_research', 'assign_technical_lead']) {
       const body = { exchangeId, connectionGeneration: 1, callId: name, name, args: {}, inputEpoch: 1, actorId: E }
       assert.equal((await call('/v1/media/tool-calls', { as: MEDIA_TOKEN, body })).status, 422, name)
     }

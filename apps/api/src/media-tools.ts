@@ -3,8 +3,8 @@
 // under that speaker's own role: a viewer can ask about the project but cannot change the mission or control work.
 // Idempotency keys derive from (exchange, connection generation, call id), so a provider retry or reconnect never
 // writes twice. TOOL_HANDLERS is the one list of the guide's operations: the contract's name union keys it, so a
-// missing handler fails typecheck, and /v1/media/tool-surface serves its names to the bridge. No brief, research,
-// lead or builder tool answers here.
+// missing handler fails typecheck. /v1/media/tool-surface serves the names of the guide version the bridge runs
+// (TOOL_SURFACES): v1.1 is M01's six, v1.2 adds start_research (SMC-M03). No brief, lead or builder tool answers here.
 import type pg from 'pg'
 import type { MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
@@ -17,6 +17,7 @@ import {
   recordMissionNote,
   type ToolContext,
 } from './mission-tools.ts'
+import { startResearch } from './research-tools.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
@@ -68,7 +69,7 @@ async function controlWork(ctx: ToolContext): Promise<MediaToolResult> {
   }
 }
 
-/** The guide's six model-facing operations (M01 v1.1), in the asset manifest's order. */
+/** The guide's model-facing operations: M01 v1.1's six in the asset manifest's order, then start_research (v1.2). */
 export const TOOL_HANDLERS = {
   project_status: projectStatus,
   read_selected_source: readSelectedSource,
@@ -76,10 +77,25 @@ export const TOOL_HANDLERS = {
   propose_mission_change: proposeChange,
   decide_mission_change: decideChange,
   control_work: controlWork,
+  start_research: startResearch,
 } satisfies Record<MediaToolCall['name'], (ctx: ToolContext) => Promise<MediaToolResult>>
 
-/** What /v1/media/tool-surface serves: the names this API executes, in the handlers' order. */
-export const TOOL_NAMES: readonly string[] = Object.keys(TOOL_HANDLERS)
+const M01_TOOLS = [
+  'project_status',
+  'read_selected_source',
+  'record_mission_note',
+  'propose_mission_change',
+  'decide_mission_change',
+  'control_work',
+] as const satisfies ReadonlyArray<keyof typeof TOOL_HANDLERS>
+
+/** What /v1/media/tool-surface serves for each guide version; v1.1 when the bridge names none. */
+export const TOOL_SURFACES = {
+  'v1.1': M01_TOOLS,
+  'v1.2': [...M01_TOOLS, 'start_research'],
+} as const satisfies Record<string, ReadonlyArray<keyof typeof TOOL_HANDLERS>>
+
+export type GuideVersion = keyof typeof TOOL_SURFACES
 
 /** Execute one call for its bound speaker. Unbound attribution is a question back, never an action. */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall): Promise<MediaToolResult> {

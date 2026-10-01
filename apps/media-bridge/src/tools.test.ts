@@ -27,9 +27,10 @@ describe('the Live tool surface', () => {
     for (const tool of TOOL_DECLARATIONS) assert.equal(tool.behavior, Behavior.NON_BLOCKING, tool.name)
   })
 
-  it('names exactly what the contract lets a tool call name', () => {
+  it('names what the contract lets a tool call name, except what only a later guide declares', () => {
     const call = openapi.components.schemas.MediaToolCall as { properties: { name: { enum: string[] } } }
-    assert.deepEqual(call.properties.name.enum, SIX)
+    // start_research is guide v1.2's (SMC-M03, A11); this bridge runs v1.1 and declares the six.
+    assert.deepEqual(call.properties.name.enum, [...SIX, 'start_research'])
   })
 
   it('declares no retired or future operation: no brief, research, document, lead, builder, scheduler or monitor', () => {

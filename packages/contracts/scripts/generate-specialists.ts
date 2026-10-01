@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Generate the dsh bundle's specialist module from config/specialists.json (SMC-M03 plan §2.2), after validating the
-// registry against config/schemas/specialists.schema.json. The bundle derives its specialist role presets from the
-// module, so the registry is the one source: a specialist's id, route and native tool policy are never restated.
-//   node scripts/generate-specialists.ts          write packages/dsh-bundle/src/specialists.generated.ts
+// Generate the specialist module from config/specialists.json (SMC-M03 plan §2.2), after validating the registry
+// against config/schemas/specialists.schema.json. The same module is written twice: into the dsh bundle, which derives
+// its specialist role presets from it (the bundle archive is self-contained), and into this package, where the API
+// resolves research admission against it. The registry is the one source: an id, route or tool policy is never restated.
+//   node scripts/generate-specialists.ts          write both specialists.generated.ts files
 //   node scripts/generate-specialists.ts --check  fail if the registry is invalid or the module is out of date
 //   node scripts/generate-specialists.ts --registry <file>  only validate another registry file (tests)
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -23,7 +24,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const alternate = process.argv.indexOf('--registry')
 const registryPath = alternate === -1 ? join(root, 'config', 'specialists.json') : (process.argv[alternate + 1] ?? '')
 const schemaPath = join(root, 'config', 'schemas', 'specialists.schema.json')
-const target = join(root, 'packages', 'dsh-bundle', 'src', 'specialists.generated.ts')
+const targets = [
+  join(root, 'packages', 'dsh-bundle', 'src', 'specialists.generated.ts'),
+  join(root, 'packages', 'contracts', 'src', 'specialists.generated.ts'),
+]
 
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8')) as unknown
 const quote = (value: string) => `'${value}'`
@@ -90,14 +94,14 @@ if (alternate !== -1) {
 }
 
 const expected = generated(load())
-const stale = !existsSync(target) || readFileSync(target, 'utf8') !== expected
+const stale = targets.filter((target) => !existsSync(target) || readFileSync(target, 'utf8') !== expected)
 
 if (!process.argv.includes('--check')) {
-  if (stale) writeFileSync(target, expected)
-  console.log(stale ? `wrote ${target}` : 'specialist module up to date')
-} else if (stale) {
-  console.error('The dsh bundle specialist module is stale; run `pnpm --filter @sophia/contracts generate`')
+  for (const target of stale) writeFileSync(target, expected)
+  console.log(stale.length > 0 ? `wrote ${stale.join(', ')}` : 'specialist modules up to date')
+} else if (stale.length > 0) {
+  console.error(`Stale specialist module: ${stale.join(', ')}; run \`pnpm --filter @sophia/contracts generate\``)
   process.exit(1)
 } else {
-  console.log('Specialist module matches config/specialists.json')
+  console.log('Specialist modules match config/specialists.json')
 }

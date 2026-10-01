@@ -21,7 +21,7 @@ import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
 import { roomRoutes } from './routes/rooms.ts'
-import { RUNTIME_ROUTES, runtimeRoutes } from './routes/runtime.ts'
+import { RUNTIME_ROUTES, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -82,7 +82,9 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text)') IS NOT NULL
   AND to_regprocedure('sophia.is_task_kind(text)') IS NOT NULL
   AND to_regclass('sophia.artifact_renditions') IS NOT NULL
-  AND to_regprocedure('sophia.usage_count(jsonb)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.usage_count(jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.admit_research_task(uuid,text,text,jsonb,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_research_reserve(bytea,text,text,jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -118,6 +120,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   conversationRoutes(app, { pool: deps.pool })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
+  researchRoutes(app, deps.pool)
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
