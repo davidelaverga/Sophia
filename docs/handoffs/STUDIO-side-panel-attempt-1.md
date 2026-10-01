@@ -14,7 +14,7 @@ What works:
 - A violet dot marks something new behind a closed panel, told by identity: a new message, a reply's progress, an outcome. It never lights for what was already there at load.
 - The chat's foot offers one thing at a time: Chat with Sophia first, which joins in text mode and opens the exchange; then the message bar with Send inside, with one status line above it. A start whose join fails puts text mode back as it was, so the dock's Try again joins by voice.
 - Stray typing goes into the message bar, never to a shortcut, also when typed on the panel's tabs or buttons (Space still presses them). Opening the panel focuses the bar, or the Chat tab before the chat starts: Chat with Sophia is never focused, so a stray Space can't press it.
-- Text mode is said in the dock and ends with voice. It needs the microphone off: when the microphone can't be turned off, text mode rolls back with a note.
+- Text mode is said in the dock and ends with voice. It needs the microphone off: when the microphone can't be turned off, text mode rolls back with a note. Turning the microphone on leaves it only once the microphone came on.
 - Capture takes the command key, as in Meet: Ctrl or ⌘ with D, E, Shift+E and J.
 - A call that ends says why: another tab, removed, the room closed, or a lost connection.
 - Where the panel covers the room (760 px and below), its head keeps the call's switches and says what stopped a device, or, over the Brief tab, why the call ended. In the chat's foot, the call's ending comes before an older chat error.
@@ -27,9 +27,9 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (184 pass) and the Studio build. CI was green on every pushed head.
+- **Gates on the branch:** `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, the Studio unit tests (187 pass) and the Studio build. CI was green on every pushed head.
 - **Room suites** (local dev stack, synthetic identities): chat entry (16), modes, panel alignment (44), corner (35, in a call, at 17 widths), video corner (6), keys, waits, room endings, sending, screen, safety and guest. They passed on `studio/combined-23-24-28`. The latest fixes were rechecked on 2026-09-30 with keys, sending, chat entry and modes, on this branch's own tree served against the stack.
-- **Reviews:** Codex, in six rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The panel's device note is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
+- **Reviews:** Codex, in seven rounds, and Davide's CX-0017. Every logic finding was fixed with a regression test that fails without its fix (a mutation check). The panel's device note is markup, and it was checked in the browser. Davide reproduced the focus finding and verified its fix independently.
 - **Browser checks of the last rounds:**
   - the Chat tab takes the focus, and Space starts nothing;
   - a project loaded with three entries and Chat closed reads "Chat", not "Chat, something new";
@@ -37,7 +37,8 @@ Missing or unverified:
   - C, B and 2 typed on the focused Chat tab are taken as nothing, and Space still presses Close;
   - after a chat start whose join failed, the dock's Try again joins by voice, with no Text mode;
   - Chat opened from its toggle, Brief chosen, Esc: the focus is back on the Chat toggle;
-  - at 700 px, a call taken by another tab says so under the head over Brief, and in the chat's foot over an older start error.
+  - at 700 px, a call taken by another tab says so under the head over Brief, and in the chat's foot over an older start error;
+  - in text mode, a microphone press the browser refuses keeps the Text mode pill, and the note says why.
 
 ## Decisions and changes
 

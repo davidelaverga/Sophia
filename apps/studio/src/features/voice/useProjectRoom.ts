@@ -1,6 +1,6 @@
 import type { ChatInput } from '@sophia/contracts/room-chat'
 import type { ChatTurn } from '../conversation/chat-view.ts'
-import { useTypedChat } from './useTypedChat.ts'
+import { switchMicrophone, useTypedChat } from './useTypedChat.ts'
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
 // page leaves the room; nothing here touches goals or work.
@@ -127,9 +127,10 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     },
     /** Text mode's own switch: it needs to know the microphone really went off (useTypedChat). */
     silence: media('microphone', (c) => c.setMicrophone(false)),
-    setMicrophone: async (on: boolean) => {
+    /** The person's own choice, remembered for their next join; true when it took (or there is no call). */
+    setMicrophone: (on: boolean): Promise<boolean> => {
       rememberMic(on)
-      await media('microphone', (c) => c.setMicrophone(on))()
+      return media('microphone', (c) => c.setMicrophone(on))()
     },
     setCamera: async (on: boolean) => {
       await media('camera', (c) => c.setCamera(on))()
@@ -238,11 +239,13 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     outOfCall(null)
   }
 
-  // Speaking is voice: turning the microphone on leaves text mode, so Sophia is heard again.
-  const setMicrophone = async (on: boolean) => {
-    if (on && typedChat.textMode) await typedChat.setTextMode(false)
-    await devices.setMicrophone(on)
-  }
+  // Speaking is voice: a microphone that came on leaves text mode, so Sophia is heard again (switchMicrophone).
+  const setMicrophone = (on: boolean) =>
+    switchMicrophone(on, {
+      textMode: typedChat.textMode,
+      setDevice: devices.setMicrophone,
+      leaveTextMode: () => typedChat.setTextMode(false),
+    })
 
   const startAudio = async () => {
     await calls.current?.startAudio()

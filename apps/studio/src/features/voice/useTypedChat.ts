@@ -31,6 +31,22 @@ export async function switchTextMode(on: boolean, { remember, connection, silenc
   throw new Error(MIC_STILL_ON)
 }
 
+interface MicrophonePorts {
+  textMode: boolean
+  /** Turns the microphone on or off; true when it took (or there is no call), false when it failed and says so. */
+  setDevice: (on: boolean) => Promise<boolean>
+  leaveTextMode: () => Promise<void>
+}
+
+/**
+ * Speaking is voice: a microphone that came on leaves text mode, so Sophia is heard again. Only once it came on: a
+ * press the browser or LiveKit refused keeps text mode, and Sophia muted, with the microphone still off.
+ */
+export async function switchMicrophone(on: boolean, { textMode, setDevice, leaveTextMode }: MicrophonePorts) {
+  const took = await setDevice(on)
+  if (on && took && textMode) await leaveTextMode()
+}
+
 /**
  * Ephemeral typed messages are bounded and never written to storage or logs. Text mode turns the microphone off
  * through `silence`, which the room provides: it is done for the person, so it is not remembered as their choice.
