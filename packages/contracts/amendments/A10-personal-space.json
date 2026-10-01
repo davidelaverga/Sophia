@@ -1452,7 +1452,7 @@
       "value": {
         "post": {
           "operationId": "resumePersonalSpace",
-          "summary": "The person is back after a quiet spell: Sophia welcomes them with a turn of hers, written only when the last turn is more than an hour old and is not already a welcome (turnId null otherwise). `name` is the name she greets them by. Idempotent by state: never two welcomes in a row.",
+          "summary": "The person is back after a quiet spell: Sophia welcomes them with a turn of hers, written only when the last turn is more than an hour old and is not already a welcome (turnId null otherwise). `name` is the name she greets them by. Never two welcomes in a row, and idempotent by its key: a retry, however late, gets the first receipt, and while one request is getting a welcome another gets nothing written.",
           "tags": ["personal"],
           "security": [
             {

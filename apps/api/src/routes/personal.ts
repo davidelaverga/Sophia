@@ -10,7 +10,6 @@ import type {
   PersonalErasureRequest,
   PersonalMessage,
   PersonalNoteRequest,
-  PersonalReceipt,
   PersonalResumeRequest,
   PersonalSuggestionDecision,
 } from '@sophia/contracts'
@@ -72,22 +71,6 @@ const writeSchema = (params: object | null, body: string | null) => ({
 
 const NO_COMPANION = 'Sophia can’t answer here yet. Nothing was kept.'
 
-/** The receipt of a welcome that wasn't due: nothing written, the space as it is. */
-async function nothingDue(c: pg.PoolClient): Promise<PersonalReceipt> {
-  const { revision } = await readPersonalTurnsAfter(c, Number.MAX_SAFE_INTEGER)
-  return {
-    operation: 'resume',
-    revision,
-    turnId: null,
-    seq: null,
-    suggestionId: null,
-    noteId: null,
-    releaseId: null,
-    projectId: null,
-    erased: null,
-  }
-}
-
 function readRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
   app.get('/api/v1/personal', { schema: { response: { 200: { $ref: 'PersonalSpace#' } } } }, async (req) => {
     const space = await withActor(pool, req.actorId, 'read', (c) => readPersonalSpace(c))
@@ -140,8 +123,7 @@ function conversationRoutes(app: FastifyInstance, { pool, companion }: Deps): vo
     { schema: writeSchema(null, 'PersonalResumeRequest') },
     async (req, reply) => {
       if (!companion) throw new DomainError('unavailable', NO_COMPANION)
-      const greeted = await companion.greet(req.actorId, req.body.name?.trim() || null)
-      const receipt = greeted ?? (await withActor(pool, req.actorId, 'read', (c) => nothingDue(c)))
+      const receipt = await companion.greet(req.actorId, req.headers['idempotency-key'], req.body.name?.trim() || null)
       return reply.status(202).send(receipt)
     },
   )

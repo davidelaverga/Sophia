@@ -9,6 +9,8 @@ import type pg from 'pg'
 import type { PersonalReceipt } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
+  beginPersonalGreeting,
+  claimPersonalReply,
   failPersonalReply,
   readCompanionContext,
   readWelcomeContext,
@@ -86,12 +88,16 @@ export class CompanionRunner {
   }
 
   /**
-   * Welcome the person back if a welcome is due (the database decides, and decides again when writing it). The
-   * companion is asked only then; a failure writes nothing, and the conversation simply goes on without one.
+   * Welcome the person back under the request's key, if a welcome is due and this request holds its claim (the
+   * database decides, and decides again when writing it): the companion is asked only then, by one process. A failure
+   * writes nothing, and the conversation simply goes on without one.
    */
-  async greet(actorId: string, name: string | null): Promise<PersonalReceipt | null> {
+  async greet(actorId: string, key: string, name: string | null): Promise<PersonalReceipt> {
+    const begun = await withActor(this.pool, actorId, 'write', (c) => beginPersonalGreeting(c, key))
+    if (begun !== 'claimed') return begun
     const context = await withActor(this.pool, actorId, 'read', (c) => readWelcomeContext(c))
-    if (!context) return null
+    // No longer due (a turn came meanwhile): nothing is written, and the key keeps that answer.
+    if (!context) return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, key, ''))
     let text: string
     try {
       text = await withinLimit(this.companion.greet(context, name), this.limitMs)
@@ -99,11 +105,14 @@ export class CompanionRunner {
       this.onError(err)
       throw new DomainError('unavailable', NO_WELCOME) // no cause: the error handler logs nothing of the companion's
     }
-    return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, text))
+    return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, key, text))
   }
 
   private async run(actorId: string, turnId: string): Promise<void> {
     try {
+      // One process asks the companion for a turn: another one answering it (a retry that reached it) leaves it.
+      const claimed = await withActor(this.pool, actorId, 'write', (c) => claimPersonalReply(c, turnId))
+      if (!claimed) return
       const context = await withActor(this.pool, actorId, 'read', (c) => readCompanionContext(c, turnId))
       if (!context) return
       const reply = await withinLimit(this.companion.answer(context), this.limitMs)

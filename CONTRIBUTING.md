@@ -387,7 +387,13 @@ either:
   'rehearsal'`). Without a companion, sending is refused and nothing is kept:
   never store a message nobody will answer. A companion's failure is logged
   by its name and code only (`companionFailure`): its message may carry a
-  person's words.
+  person's words. The API claims a turn before it asks the companion
+  (`claim_personal_reply`), and a welcome under its request's key
+  (`begin_personal_greeting`), so only one process asks, whichever process a
+  retry reaches; a claim lapses after two minutes, as a wait does.
+- **One read of the Work list asks the room server little.** One question
+  finds the rooms someone is in (`occupiedRooms`); only those are asked who
+  is in them, a few at a time and within the list's time (`lookupAll`).
 
 ## The three places
 

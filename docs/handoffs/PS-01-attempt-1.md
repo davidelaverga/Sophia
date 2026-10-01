@@ -20,7 +20,7 @@ What works, on the local dev stack with the rehearsal companion:
 - **Erasure:** the conversation, suggestions and notes are deleted; every request keeps only its key, dated at the erasure, so a retry from before writes nothing however late it comes; carried notes stay in their projects, still the person's. The space's revision and its turn order go on.
 - **Limits:** a space keeps at most 2000 notes and a person carries at most 2000 (each refused by its own code), so every one is listed; the lists are bounded as the contract says, and a project's carried notes list the reader's own first.
 - **Who may write:** only the API role can call the personal writers.
-- **API:** the personal routes, the project list with who is in each room, readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only.
+- **API:** the personal routes, the project list with who is in each room (one question finds the occupied rooms; only those are asked, a few at a time), readiness that requires every personal function, and the companion behind one interface: the keyless rehearsal in development (`SOPHIA_COMPANION=rehearse`); none in production, where a message is refused before anything is kept. A companion's failure is logged by its name and code only. The API claims a turn, and a welcome under its key, before it asks the companion, so one process asks.
 - **Studio** (#30, on top of the data side):
   - the three places (home, Personal, Work) under one bar, built from the Studio's own controls;
   - the padlock: one value per device; the person shuts it and so does every call; a call's end opens nothing; only the person opens it, by confirming it's them (a passkey or an emailed code on a client of its own, so the app's session is never touched; or the provider they signed in with, as a new sign-in);
@@ -52,6 +52,7 @@ Missing or unverified:
   - an independent review of #30's whole diff: one P1 and eleven P2, all fixed;
   - the second round's design, reviewed three times before any code;
   - independent code reviews of both halves (data: one P1, four P2, six P3; Studio: one P1, four P2, eleven P3), all fixed after a review of the fixes' design.
+  - Codex on #35's `d3c98de`: four P2 (one process per answer, the welcome's key, the room server asked about every room, a suggestion of another turn), and on #30's `462c60e`: three P2 (a copy after a lock, overlapping sends, signing out where storage is blocked), all fixed, each undone once to see its test fail.
 
 ## Decisions and changes
 
