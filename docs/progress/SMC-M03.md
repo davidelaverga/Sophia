@@ -253,3 +253,53 @@ Still to come in S4:
 - the S3-key byte store, which Markdown reports do not need: they stay inline up to 256 KiB;
 - the delivery UI;
 - the Knowledge UI.
+
+## 18. S4 part 4: report facts, the delivery UI and Knowledge (0027)
+
+A finished report can now be read, checked and kept. The team opens it beside the page or full screen, sees which sources it cites and how each was retrieved, downloads exactly the version on screen, and finds it again in Knowledge with what each version changed.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0027 section facts | At publication the service splits the new and the previous version's Markdown into sections by heading (fenced code is not a heading; text before the first heading is the introduction). It records which sections were added, revised, removed and kept, and whether a conclusion or recommendation section changed, in the version's `change_facts.sections` | `research.db.test.ts`: the split, with fenced code; the comparison of two versions |
+| 0027 truth gate | The model's notes must agree with those facts. "No changes" when sections changed, a conclusion called unchanged when it changed, or a kept note naming a removed section is refused once: the submit answers `notes_rejected` with the problems and the facts, and nothing is published. A retry of that same call is refused the same way. The next submit that still contradicts the facts publishes with notes written from them (`notesFromFacts`). A first version has no "kept" note. A replay of a published submit returns the same body | `research.db.test.ts`: the three problems; the same refusal on retry; nothing published; the template notes; v1 and v2 facts and triggers through the reader; notes that agree published as written. The replay test caught the missing `notesFromFacts` and `runtime_research_submit` is replaced to return it |
+| Readers | A version's history carries `changeFacts` and `trigger`. A research task carries its progress: question, specialist, outputs, allowance committed and spent, searches and reads used of their maxima. `GET …/versions/{id}/sources` lists what a version cites with its provenance (kind, route, title, URL, coverage, origin status only when known, limitations), RLS-bound. `PATCH …/summary` edits a report's description, attributed, against the revision the editor saw; a member's description survives later versions. A read keeps the extractor's page title | `research.db.test.ts` (sources, the edit with viewer, outsider, empty and stale cases, progress); `knowledge.db.test.ts` over HTTP (sources to members only; the edit, 409 on a stale revision, 422 on a bad body, an outsider) |
+| Bridge | On `notes_rejected` the submit tool tells the model what disagreed and keeps the task running. The read capture sends the page title. Provider text is cut well formed: a cut through a surrogate pair, or a lone surrogate, becomes U+FFFD, because the service's JSON input refuses an unpaired surrogate | `research-tools.test.mjs` (the refusal, the title, the cut) |
+| Studio: Work | A research task is its own card: its state in words (Starting, Researching, Held, Stopped, Report ready, Partly delivered, Not produced with the blocker's reason; a partial is never a fallback), elapsed time and spend against the allowance, the allowance bar with "N of M reads · N of M searches" while it runs, one row per output that opens the viewer and a separate Download, and footer buttons for its sources and limitations | `report-view.test.ts`; browser |
+| Studio: viewer | A side pane (46% of the viewport, 480 to 720px, resizable and remembered, always leaving 400px; it covers the page on a phone) or a full page in the same frame. The page and the room narrow beside it. Its head names what is on screen (format, version, words, size, short hash). Tabs: Document (limitations first, then the report), Sources (a numbered row per cited source, matching the document's superscripts) and History. The text is checked against the version's hash before it is shown, and the viewer's Download saves those same bytes after checking them again. Esc steps down (full, side, closed), F toggles the full page, Back undoes each open and enlarge. `?report=<artifact>&version=<version>&view=full` deep-links it, and the report stays open across the project's views. One pane at a time with the side panel; in the room its head offers the chat | `markdown.test.ts`, `download.test.ts`, `report-view.test.ts`; browser |
+| Studio: Markdown | Our own small parser: headings, paragraphs, lists, quotes, code, tables, rules, emphasis, links. Nothing it returns is HTML: tags stay text, images are named and never loaded, links open only for http, https and mailto (with noopener). A source id the report cites, in any of the forms the research prompt allows, becomes a numbered citation into the Sources tab | `markdown.test.ts` |
+| Studio: Knowledge | The Reports tab: this project, all projects or one other, a format filter, a search over titles, descriptions and notes, pages of 30. A card names the report, its description and who wrote it (Sophia, or a member with the date), its version and what last changed. Editors and admins edit the description; someone else's newer edit is shown, never overwritten. History compares any version with the one before by section, computed in the browser | browser |
+
+**Browser.** On the dev stack (synthetic identities, PostgreSQL 16), seeded through the real SQL (grant, a ready runtime, admission, dispatch, searches, reads, drafts, v1, an amendment that passed the truth gate, and a task still researching), 55 checks pass at 1440×900 and 390×844 with measurements. They cover:
+- the three cards and their states, "0 of 8 reads · 1 of 5 searches" and "$0.01 of $5.00";
+- the pane at 662px against the right edge, with the page ending before it;
+- focus on the title, the meta line, the 613px measure, the table wrapper, fenced code, the heading order and the citations;
+- a citation opening Sources on its row, links with noopener, the chips and the section comparison;
+- the downloaded file's name and its SHA-256 equal to the version's;
+- F to a full page under the bar, Esc to the side, Back closed with a clean address;
+- the report kept across a change of view and closed there by Esc;
+- the description edit, attributed and searchable;
+- the room narrowing beside the pane and its chat swap;
+- on a phone, a covering pane with no horizontal scroll;
+- no page errors.
+
+They found two faults, both fixed before this commit:
+- Esc after a change of view stepped back into the router's history entry. The viewer now marks its own entries in `history.state`.
+- In the room, the pane covered the side panel's toggles. The room now narrows beside the pane, and the pane's head offers the chat.
+
+Not in this part:
+- the PDF switch and `PdfView` (S5);
+- "Try PDF again" (S5);
+- the card's "asked by" name, because a card has no member names. It says when the task was asked;
+- the Sources and Decisions tabs of Knowledge (S1-08).
+
+Run at `84a705d`:
+- `pnpm check` exit 0: 520 unit; 86 integration, 84 passed and 2 skipped, with the runtime-service crossings run against a disposable PostgreSQL;
+- `pnpm test:sql` 26 migrations;
+- `pnpm test:db` 262/262.
+
+The bundle archive is re-recorded: `sha256:289c0f7c96a9b8668c9d800bad749ae9dd3cba7c4b7750c3f6c1101cda1b5a90`. CI on `a56eba0` passed all eight jobs. The review request is [CC-0007](../coordination/SMC-M03/SMC-M03-CC-0007.md), which supersedes CC-0006.
+
+Still to come in S4:
+- revocation (T19);
+- the S3-key byte store, before the PDF (S5).
+

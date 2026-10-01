@@ -110,6 +110,16 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#17-s4-part-3-submit-publication-turn-end-rules-and-the-research-prompt-0026"
+    },
+    {
+      "slice": "S4 part 4",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "browser: 55 checks on the dev stack at 1440x900 and 390x844"
+      ],
+      "ref": "docs/progress/SMC-M03.md#18-s4-part-4-report-facts-the-delivery-ui-and-knowledge-0027"
     }
   ],
   "outstanding_operations": [
@@ -122,8 +132,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5934546162",
-      "state": "awaiting_operator (revision 5: M03-RF-0004..0007 re-review, Mac gate with no local record)"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5936912846",
+      "state": "awaiting_operator (revision 6, CC-0007: S4 review at 84a705d, M03-RF-0004..0007 re-review, Mac gate with no local record)"
     }
   ],
   "unknown_effects": [],
@@ -138,7 +148,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0026 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0027 so far)",
       "owner": "Claude Code"
     },
     {
@@ -150,12 +160,12 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S4 part 4: the delivery UI (WorkCard, DocumentPane side and full page, MarkdownView, Sources tab, downloads with the hash check) and the Knowledge UI; then revocation (T19) and the S3-key byte store before PDF (S5). CC-0006 awaiting Codex; an S4 review request follows the UI",
+  "next_action": "S4 part 5: revocation (T19) and the S3-key byte store before PDF (S5). CC-0007 (supersedes CC-0006) asks Codex to review S4 and re-review M03-RF-0004..0007",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256": "b5ddbdac97c9298f9db63389764472ae184e1187a85ebbbf5866a7dcc061c4ae",
+    "bundle_archive_sha256": "289c0f7c96a9b8668c9d800bad749ae9dd3cba7c4b7750c3f6c1101cda1b5a90",
     "bundle_archive_platforms": "one normalized archive and one profile lock for every platform (SMC-M03.md §14); runtime trees recorded per platform (linux-x64, darwin-arm64 e24cb887)",
     "deployed": false
   }
