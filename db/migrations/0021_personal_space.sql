@@ -425,13 +425,22 @@ END $$;
 -- An attempt renews its claim's lease as it hands what to answer from to the companion, and every few seconds while the
 -- companion answers, and goes on only while it holds the claim: so no other attempt takes the claim over meanwhile (the
 -- companion has 60 s; a lease, two minutes), only one attempt asks, and one whose claim went (an erasure took it) is told
--- to stop. For a reply (renew_personal_reply) and a welcome (renew_personal_greeting).
+-- to stop. A reply's renewal keeps the turns queued after it waiting too. For a reply (renew_personal_reply) and a
+-- welcome (renew_personal_greeting).
 CREATE FUNCTION sophia.renew_personal_reply(p_turn uuid, p_claim uuid) RETURNS boolean LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.personal_owner(); renewed bigint;
 BEGIN
  UPDATE sophia.personal_turns SET answering_since=now()
-  WHERE owner_id=sophia.personal_owner() AND id=p_turn AND reply='pending' AND answering_claim=p_claim;
- RETURN FOUND;
+  WHERE owner_id=a AND id=p_turn AND reply='pending' AND answering_claim=p_claim
+  RETURNING seq INTO renewed;
+ IF renewed IS NULL THEN RETURN false; END IF;
+ -- The turns said after it wait their turn, unclaimed: they go on waiting while it is answered, so none lapses in the
+ -- queue; once nothing renews them (the process went away), they lapse with it.
+ UPDATE sophia.personal_turns SET answering_since=now()
+  WHERE owner_id=a AND author='person' AND reply='pending' AND answering_claim IS NULL AND seq>renewed
+   AND sophia.personal_reply_state(reply,asked_at,answering_since)='pending';
+ RETURN true;
 END $$;
 
 CREATE FUNCTION sophia.renew_personal_greeting(p_claim uuid) RETURNS boolean LANGUAGE plpgsql
@@ -495,7 +504,7 @@ BEGIN
  IF p_turn IS DISTINCT FROM sophia.next_personal_reply() THEN RETURN NULL; END IF;
  UPDATE sophia.personal_turns SET answering_since=now(), answering_claim=gen_random_uuid()
   WHERE owner_id=sophia.personal_owner() AND id=p_turn AND author='person' AND reply='pending'
-   AND (answering_since IS NULL OR answering_since<now()-interval '2 minutes')
+   AND (answering_claim IS NULL OR answering_since<now()-interval '2 minutes')
   RETURNING answering_claim INTO taken;
  RETURN taken;
 END $$;

@@ -101,6 +101,29 @@ async function withinLimit<T>(work: (signal: AbortSignal) => Promise<T>, ms: num
   }
 }
 
+/** How often a write of what the companion gave is tried, and how long apart, while the database is away. */
+const TRIES = 3
+const AGAIN_MS = 300
+
+/** `work`, tried again while the database is away (unavailable); a refusal is said as itself at once. */
+async function again<T>(work: () => Promise<T>, tries = TRIES): Promise<T> {
+  for (let tried = 1; ; tried += 1) {
+    try {
+      return await work()
+    } catch (err: unknown) {
+      const away = !(err instanceof DomainError) || err.code === 'unavailable'
+      if (!away || tried >= tries) throw err
+      await delay(AGAIN_MS * tried)
+    }
+  }
+}
+
+/** A welcome not written: a definitive refusal said as itself; anything else may be asked again under the same key. */
+const unwritten = (err: unknown): DomainError =>
+  err instanceof DomainError && (err.code === 'outcome_unknown' || err.retry === 'never')
+    ? err
+    : new DomainError('outcome_unknown', NO_WELCOME, { cause: err })
+
 /** One call to the companion in this process, begun in an epoch of the space: it can be told to stop, and waited for. */
 interface Call {
   id: string
@@ -207,24 +230,28 @@ export class CompanionRunner {
     if (begun === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
     if (!('claim' in begun)) return begun
     const attempt = { actorId, key, epoch, claim: begun.claim, name }
+    let text: string
     try {
-      return await this.welcome(attempt)
+      text = await this.welcome(attempt)
     } catch (err: unknown) {
-      // Whatever failed after the claim (a read, the companion, the write), the claim goes, so the same request may
-      // ask again at once; a later attempt's claim stays (the release is fenced to this one). A definitive refusal
-      // (the space erased meanwhile) is said as itself; anything else may be asked again under the same key.
+      // Whatever failed before the welcome was in hand (a read, the companion), the claim goes, so the same request
+      // may ask again at once; a later attempt's claim stays (the release is fenced to this one).
       await withActor(this.pool, actorId, 'write', (c) => releasePersonalGreeting(c, attempt.claim)).catch(
         () => undefined,
       )
-      if (err instanceof DomainError && (err.code === 'outcome_unknown' || err.retry === 'never')) throw err
-      throw new DomainError('outcome_unknown', NO_WELCOME, { cause: err })
+      throw unwritten(err)
     }
+    // The welcome is in hand: its write is tried again while the database is away for a moment. Should every try
+    // fail, the claim stays (it lapses in two minutes), so no attempt asks the companion again meanwhile.
+    return again(() => this.settle(attempt, text)).catch((err: unknown) => {
+      throw unwritten(err)
+    })
   }
 
-  /** The welcome under the attempt's claim: what it is written from, the companion's words, then the write. */
-  private async welcome(attempt: Attempt): Promise<PersonalReceipt> {
+  /** The welcome's words under the attempt's claim, from what it is written from ('' when none is due any more). */
+  private async welcome(attempt: Attempt): Promise<string> {
     const { actorId, claim, name } = attempt
-    const text = await this.withCall(
+    return this.withCall(
       actorId,
       (c) => renewPersonalGreeting(c, claim),
       async (stop) => {
@@ -239,7 +266,6 @@ export class CompanionRunner {
         }
       },
     )
-    return this.settle(attempt, text)
   }
 
   /**
@@ -280,8 +306,9 @@ export class CompanionRunner {
       },
     )
     if (!claim) return
+    let reply: CompanionReply | null
     try {
-      const reply = await this.withCall(
+      reply = await this.withCall(
         actorId,
         (c) => renewPersonalReply(c, turnId, claim),
         async (stop) => {
@@ -290,15 +317,23 @@ export class CompanionRunner {
           return context ? withinLimit((signal) => this.companion.answer(context, signal), this.limitMs, stop) : null
         },
       )
-      if (!reply) return
-      await withActor(this.pool, actorId, 'write', (c) =>
-        recordPersonalReply(c, turnId, claim, reply.text, reply.suggestion),
-      )
     } catch (err: unknown) {
       this.onError(err)
-      // The turn says it failed; if even that write fails, it stays pending and the person's client says so in time.
+      // The companion couldn't answer: the turn says it failed; if even that write fails, it stays pending and the
+      // person's client says so in time.
       await withActor(this.pool, actorId, 'write', (c) => failPersonalReply(c, turnId, claim)).catch(() => undefined)
+      return
     }
+    if (!reply) return
+    const { text, suggestion } = reply
+    // The companion answered: its words are written, tried again while the database is away for a moment. The turn is
+    // never marked failed for that, nor the companion asked again; should every try fail, the claim lapses and the
+    // turn reads as lost.
+    await again(() =>
+      withActor(this.pool, actorId, 'write', (c) => recordPersonalReply(c, turnId, claim, text, suggestion)),
+    ).catch((err: unknown) => {
+      this.onError(err)
+    })
   }
 }
 

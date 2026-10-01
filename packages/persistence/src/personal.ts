@@ -43,12 +43,21 @@ const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
 
 /**
  * The conversation as the companion reads it to answer the turn at `$1`: each turn with the answer to it, up to that one
- * (an answer written after a later turn was said stays with its own), at most `$2` of them, newest first.
+ * (an answer written after a later turn was said stays with its own), at most `$2` of them, newest first. Only the
+ * newest `$2` turns up to it are read (by the conversation's order), and the answers written to them since: never the
+ * whole conversation.
  */
-const HISTORY = `SELECT t.author, t.body FROM sophia.personal_turns t
-  LEFT JOIN sophia.personal_turns q ON q.owner_id = t.owner_id AND q.id = t.reply_to
-  WHERE t.owner_id = sophia.actor_id() AND coalesce(q.seq, t.seq) <= $1
-  ORDER BY coalesce(q.seq, t.seq) DESC, t.seq DESC LIMIT $2`
+const HISTORY = `WITH recent AS (
+    SELECT id, seq, author, body, reply_to FROM sophia.personal_turns
+     WHERE owner_id = sophia.actor_id() AND seq <= $1 ORDER BY seq DESC LIMIT $2
+  ), later AS (
+    SELECT id, seq, author, body, reply_to FROM sophia.personal_turns
+     WHERE owner_id = sophia.actor_id() AND seq > $1 AND reply_to IN (SELECT id FROM recent)
+  )
+  SELECT c.author, c.body FROM (SELECT * FROM recent UNION ALL SELECT * FROM later) c
+   ORDER BY coalesce((SELECT q.seq FROM sophia.personal_turns q
+                       WHERE q.owner_id = sophia.actor_id() AND q.id = c.reply_to), c.seq) DESC, c.seq DESC
+   LIMIT $2`
 
 function turnOf(r: TurnRow): PersonalTurn {
   return {
