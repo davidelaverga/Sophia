@@ -5,7 +5,11 @@
 --   a closed gate, means no allowance can open and no reservation can be made: absent is never unlimited.
 -- * One allowance per research lineage (the original task, its amendments, renditions and repairs). It copies the
 --   grant's task cap and the source policy's limits when it opens, and keeps headroom so a partial result can still
---   be written when the rest is spent. Nothing resets it: not Resume, a new format or a new session.
+--   be written when the rest is spent. Opening it again, also concurrently, returns the same allowance unchanged.
+--   Nothing resets it: not Resume, a new format or a new session.
+-- * Only a reservation whose purpose is the partial result may use the headroom. That purpose is a model call's
+--   alone, at most one is in flight per allowance, and S4's authenticated wrapper sets it from the attempt's own
+--   finalize step, never from a tool argument or model output.
 -- * A reservation is made before every paid call (model, search, read, render), serialized per allowance by a row
 --   lock (the grant's row first, then the allowance's, so allowances under one grant cannot overspend it together).
 --   It is idempotent by key (native session and call id). It ends settled from reported usage, released when the
@@ -49,7 +53,7 @@ CREATE TABLE sophia.research_reservations (
  kind text NOT NULL CHECK(kind IN ('model','search','read','render')),
  provider text NOT NULL CHECK(provider ~ '^[a-z][a-z0-9-]{0,62}$'),
  state text NOT NULL DEFAULT 'reserved' CHECK(state IN ('reserved','settled','released','uncertain')),
- uses_headroom boolean NOT NULL DEFAULT false,
+ purpose text NOT NULL DEFAULT 'call' CHECK(purpose IN ('call','partial_result')),
  reserved_usd numeric(12,6) NOT NULL CHECK(reserved_usd>0),
  settled_usd numeric(12,6) CHECK(settled_usd>=0),
  usage jsonb CHECK(usage IS NULL OR jsonb_typeof(usage)='object'),
@@ -57,8 +61,13 @@ CREATE TABLE sophia.research_reservations (
  created_at timestamptz NOT NULL DEFAULT now(), ended_at timestamptz,
  PRIMARY KEY(project_id,id), UNIQUE(project_id,allowance_id,reservation_key),
  FOREIGN KEY(project_id,allowance_id) REFERENCES sophia.research_allowances(project_id,id),
- CHECK((state='settled')=(settled_usd IS NOT NULL)), CHECK((state='reserved')=(ended_at IS NULL))
+ CHECK((state='settled')=(settled_usd IS NOT NULL)), CHECK((state='reserved')=(ended_at IS NULL)),
+ -- The partial result is written by a model call; no search, read or render may draw on the headroom.
+ CHECK(purpose='call' OR kind='model')
 );
+-- At most one partial-result call in flight per allowance.
+CREATE UNIQUE INDEX research_reservations_one_partial ON sophia.research_reservations(project_id,allowance_id)
+ WHERE purpose='partial_result' AND state='reserved';
 
 CREATE TABLE sophia.source_provenance (
  project_id uuid NOT NULL, source_id uuid NOT NULL,
@@ -113,7 +122,8 @@ BEGIN
 END $$;
 
 -- Open the allowance of a research lineage under the project's grant. The source policy's limits are resolved here
--- and recorded, never read again from the policy. Idempotent by root job.
+-- and recorded, never read again from the policy. Idempotent by root job, also when two open it at once: the loser
+-- of the insert waits for the winner and returns the winner's row, its caps and counters untouched.
 CREATE FUNCTION sophia.open_research_allowance(p_project uuid, p_root_job uuid, p_headroom numeric)
 RETURNS sophia.research_allowances LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE g sophia.research_grants; a sophia.research_allowances;
@@ -122,28 +132,34 @@ BEGIN
  SELECT * INTO g FROM sophia.research_grants WHERE project_id=p_project FOR SHARE;
  IF NOT FOUND OR g.state<>'enabled' THEN RAISE EXCEPTION 'Research gate closed' USING ERRCODE='55000'; END IF;
  IF g.source_policy<>'web-pilot-v1' THEN RAISE EXCEPTION 'Unknown source policy %', g.source_policy USING ERRCODE='22023'; END IF;
- SELECT * INTO a FROM sophia.research_allowances WHERE project_id=p_project AND root_job_id=p_root_job;
- IF FOUND THEN RETURN a; END IF;
  INSERT INTO sophia.research_allowances(project_id,root_job_id,cap_usd,headroom_usd,source_policy,max_searches,max_reads)
- VALUES(p_project,p_root_job,g.task_cap_usd,p_headroom,g.source_policy,5,8) RETURNING * INTO a;
+ VALUES(p_project,p_root_job,g.task_cap_usd,p_headroom,g.source_policy,5,8)
+ ON CONFLICT (project_id,root_job_id) DO NOTHING RETURNING * INTO a;
+ IF FOUND THEN RETURN a; END IF;
+ SELECT * INTO STRICT a FROM sophia.research_allowances WHERE project_id=p_project AND root_job_id=p_root_job;
  RETURN a;
 END $$;
 
 -- Reserve before one paid call. Refused when the gate is closed, the allowance or the grant's total would be
--- exceeded, or the source policy's limit is reached. Only a call that writes the partial result may use headroom.
+-- exceeded, or the source policy's limit is reached. Only the partial-result purpose may use headroom: a model call,
+-- one in flight per allowance. An ordinary call ('call') stops at the cap less headroom, whatever its kind.
 CREATE FUNCTION sophia.reserve_research(p_project uuid, p_allowance uuid, p_key text, p_kind text, p_provider text,
-  p_amount numeric, p_uses_headroom boolean DEFAULT false)
+  p_amount numeric, p_purpose text DEFAULT 'call')
 RETURNS sophia.research_reservations LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE g sophia.research_grants; a sophia.research_allowances; r sophia.research_reservations; committed numeric; n integer;
 BEGIN
  IF p_amount IS NULL OR p_amount<=0 THEN RAISE EXCEPTION 'A reservation is a positive amount' USING ERRCODE='22023'; END IF;
+ IF p_purpose IS NULL OR p_purpose NOT IN ('call','partial_result') THEN
+  RAISE EXCEPTION 'Unknown reservation purpose' USING ERRCODE='22023'; END IF;
+ IF p_purpose='partial_result' AND p_kind IS DISTINCT FROM 'model' THEN
+  RAISE EXCEPTION 'Only a model call writes the partial result' USING ERRCODE='22023'; END IF;
  SELECT * INTO g FROM sophia.research_grants WHERE project_id=p_project FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Research gate closed' USING ERRCODE='55000'; END IF;
  SELECT * INTO a FROM sophia.research_allowances WHERE project_id=p_project AND id=p_allowance FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Research allowance not found' USING ERRCODE='22023'; END IF;
  SELECT * INTO r FROM sophia.research_reservations WHERE project_id=p_project AND allowance_id=p_allowance AND reservation_key=p_key;
  IF FOUND THEN
-  IF r.kind<>p_kind OR r.provider<>p_provider OR r.reserved_usd<>p_amount OR r.uses_headroom<>p_uses_headroom THEN
+  IF r.kind<>p_kind OR r.provider<>p_provider OR r.reserved_usd<>p_amount OR r.purpose<>p_purpose THEN
    RAISE EXCEPTION 'Idempotency key reused for another reservation' USING ERRCODE='23505'; END IF;
   RETURN r;
  END IF;
@@ -154,14 +170,17 @@ BEGIN
   IF n>=(CASE p_kind WHEN 'search' THEN a.max_searches ELSE a.max_reads END) THEN
    RAISE EXCEPTION 'Research source policy limit reached: %', p_kind USING ERRCODE='55000'; END IF;
  END IF;
+ IF p_purpose='partial_result' AND EXISTS(SELECT 1 FROM sophia.research_reservations
+   WHERE project_id=p_project AND allowance_id=p_allowance AND purpose='partial_result' AND state='reserved') THEN
+  RAISE EXCEPTION 'A partial-result call is already in flight' USING ERRCODE='55000'; END IF;
  committed:=a.reserved_usd+a.spent_usd+a.uncertain_usd;
- IF committed+p_amount>a.cap_usd-(CASE WHEN p_uses_headroom THEN 0 ELSE a.headroom_usd END) THEN
+ IF committed+p_amount>a.cap_usd-(CASE WHEN p_purpose='partial_result' THEN 0 ELSE a.headroom_usd END) THEN
   RAISE EXCEPTION 'Research allowance exhausted' USING ERRCODE='55000'; END IF;
  SELECT coalesce(sum(x.reserved_usd+x.spent_usd+x.uncertain_usd),0) INTO committed
   FROM sophia.research_allowances x WHERE x.project_id=p_project;
  IF committed+p_amount>g.total_cap_usd THEN RAISE EXCEPTION 'Research grant exhausted' USING ERRCODE='55000'; END IF;
- INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,uses_headroom,reserved_usd)
- VALUES(p_project,p_allowance,p_key,p_kind,p_provider,p_uses_headroom,p_amount) RETURNING * INTO r;
+ INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,purpose,reserved_usd)
+ VALUES(p_project,p_allowance,p_key,p_kind,p_provider,p_purpose,p_amount) RETURNING * INTO r;
  UPDATE sophia.research_allowances SET reserved_usd=reserved_usd+p_amount WHERE project_id=p_project AND id=p_allowance;
  RETURN r;
 END $$;
@@ -198,7 +217,7 @@ END $$;
 
 REVOKE ALL ON FUNCTION sophia.set_research_grant(uuid,text,numeric,numeric,text,text),
  sophia.open_research_allowance(uuid,uuid,numeric),
- sophia.reserve_research(uuid,uuid,text,text,text,numeric,boolean),
+ sophia.reserve_research(uuid,uuid,text,text,text,numeric,text),
  sophia.end_research_reservation(uuid,uuid,text,numeric,jsonb,text) FROM PUBLIC;
 
 COMMIT;

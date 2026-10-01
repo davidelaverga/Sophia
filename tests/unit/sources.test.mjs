@@ -263,6 +263,51 @@ test('eligibility: credentials, other ports, other schemes and signed URLs are r
   assert.equal(await reason('https://example.org:443/'), 'ok', 'the default port, spelled out, is the default port')
 })
 
+test('eligibility: a token-bearing or signed storage link is refused before resolution, so no extractor ever sees it (M03-RF-0004)', async () => {
+  let resolved = 0
+  const counting = async () => {
+    resolved += 1
+    return ['93.184.215.14']
+  }
+  const jwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJwcml2YXRlL3JlcG9ydC5tZCJ9.c3ludGhldGljLXNpZ25hdHVyZQ'
+  const cases = [
+    // The reproduction's shape: a Supabase signed object link (synthetic, as in the byte-store tests).
+    [`https://abcdefgh.supabase.co/storage/v1/object/sign/private/report.md?token=${jwt}`, 'signed_url'],
+    ['https://abcdefgh.supabase.co/storage/v1/object/sign/private/report.md', 'signed_url'],
+    ['https://abcdefgh.supabase.co/storage/v1/object/authenticated/private/report.md', 'signed_url'],
+    ['https://abcdefgh.supabase.co/storage/v1/render/image/sign/private/chart.png?token=x', 'signed_url'],
+    ['https://files.example.org/report.pdf?token=abc123', 'credentials'],
+    ['https://files.example.org/report.pdf?Token=abc123', 'credentials'],
+    ['https://files.example.org/report.pdf?%74oken=abc123', 'credentials'],
+    ['https://example.org/a?auth_token=x', 'credentials'],
+    ['https://example.org/a?X-Auth-Token=x', 'credentials'],
+    ['https://example.org/a?csrftoken=x', 'credentials'],
+    ['https://example.org/a?sessionid=x', 'credentials'],
+    ['https://example.org/a?sid=x', 'credentials'],
+    ['https://example.org/a?jwt=x', 'credentials'],
+    ['https://maps.example.org/api?key=AIzaSyDUMMYDUMMYDUMMYDUMMYDUMMY', 'credentials'],
+    ['https://example.org/a?api-key=x', 'credentials'],
+    ['https://example.org/a?client_secret=x', 'credentials'],
+    ['https://example.org/callback#access_token=abc&token_type=bearer', 'credentials'],
+    ['https://example.org/callback#id_token=abc', 'credentials'],
+    ['https://example.org/callback?code=abc&state=xyz', 'credentials'],
+    [`https://example.org/view?d=${jwt}`, 'credentials'],
+    [`https://example.org/share/${jwt}/file`, 'credentials'],
+    [`https://example.org/share/${encodeURIComponent(jwt)}`, 'credentials'],
+    ['https://example.org/view?ref=tvly-ABCDEFGHIJKLMNOPQRST', 'credentials'],
+  ]
+  for (const [url, expected] of cases) assert.equal(await reason(url, counting), expected, url)
+  assert.equal(resolved, 0, 'refused from the URL alone')
+  for (const url of [
+    'https://abcdefgh.supabase.co/storage/v1/object/public/docs/report.md',
+    'https://example.org/blog/sk-learn-random-forest-classifier',
+    'https://example.org/search?keyword=tokens&author=ada&monkey=1&code=US&page=2&utm_source=x',
+    'https://example.org/docs#section-token-limits',
+  ]) {
+    assert.equal(await reason(url), 'ok', url)
+  }
+})
+
 test('eligibility: fetchers, proxies and shorteners are refused, the extractor itself included', async () => {
   for (const url of ['https://r.jina.ai/https://example.org', 'https://s.jina.ai/q', 'https://bit.ly/abc', 'https://t.co/abc', 'https://webcache.googleusercontent.com/search?q=cache:x', 'https://example-org.translate.goog/', 'https://archive.ph/abc', 'https://web.archive.org/save/https://example.org']) {
     assert.equal(await reason(url), 'fetcher_host', url)
@@ -306,6 +351,39 @@ test('containment: a query carrying private text, a roster member or a secret is
     assert.deepEqual(guard(`find ${secret}`), { ok: false, code: 'disclosure_denied', reason: 'secret' }, secret)
   }
   assert.deepEqual(guard('sandboxed headless chromium pdf rendering hosts 2026'), { ok: true })
+})
+
+// Mathematical bold letters and digits: NFKC turns them into ASCII, upper case into upper case.
+const bold = (text) =>
+  [...text]
+    .map((c) => {
+      const code = c.charCodeAt(0)
+      if (c >= 'A' && c <= 'Z') return String.fromCodePoint(0x1d400 + code - 65)
+      if (c >= 'a' && c <= 'z') return String.fromCodePoint(0x1d41a + code - 97)
+      if (c >= '0' && c <= '9') return String.fromCodePoint(0x1d7ce + code - 48)
+      return c
+    })
+    .join('')
+
+test('containment: compatibility variants, case folding and invisible characters do not hide a span, a name or a secret (M03-RF-0005)', () => {
+  const guard = createQueryGuard({
+    privateTexts: ['Our Q3 board memo: the acquisition of Northwind closes on 12 November pending the final audit.', 'Die Straße nach Norden bleibt bis Montag gesperrt.'],
+    roster: [{ name: 'Giulia Rossi', email: 'giulia@example.com' }],
+  })
+  const denied = (reason) => ({ ok: false, code: 'disclosure_denied', reason })
+  // The reproduction: the same phrase and name in mathematical bold capitals.
+  assert.deepEqual(guard(bold('THE ACQUISITION OF NORTHWIND CLOSES ON')), denied('private_span'))
+  assert.deepEqual(guard(bold('the acquisition of Northwind closes on 12 November')), denied('private_span'))
+  assert.deepEqual(guard(bold('who is GIULIA ROSSI')), denied('roster'))
+  assert.deepEqual(guard('ｗｈｏ　ｉｓ　ＧＩＵＬＩＡ　ＲＯＳＳＩ'), denied('roster'), 'full-width')
+  assert.deepEqual(guard('mail ｇｉｕｌｉａ＠ｅｘａｍｐｌｅ．ｃｏｍ'), denied('roster'), 'a full-width address')
+  assert.deepEqual(guard('the acqui\u200bsition of North\u00adwind closes on'), denied('private_span'), 'zero-width space, soft hyphen')
+  assert.deepEqual(guard('DIE STRASSE NACH NORDEN BLEIBT BIS'), denied('private_span'), 'ß folds to ss')
+  assert.deepEqual(guard(bold('find tvly-ABCDEFGHIJKLMNOPQRST')), denied('secret'))
+  assert.deepEqual(guard(bold('northwind acquisition closes on 12 November pending')), { ok: true }, 'still five words')
+  const boldIndex = createQueryGuard({ privateTexts: [bold('THE ACQUISITION OF NORTHWIND CLOSES ON')], roster: [{ name: bold('GIULIA ROSSI') }] })
+  assert.deepEqual(boldIndex('the acquisition of northwind closes on'), denied('private_span'), 'the index is canonical too')
+  assert.deepEqual(boldIndex('giulia rossi'), denied('roster'))
 })
 
 test('paging: passages page past 4,096 characters, at most 6,000 each, with every cut declared and no split character', () => {

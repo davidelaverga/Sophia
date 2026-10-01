@@ -77,11 +77,11 @@ interface Call {
   key: string
   kind: 'model' | 'search' | 'read'
   amount: number
-  headroom?: boolean
+  purpose?: 'call' | 'partial_result'
   client?: pg.Client
 }
 
-const reserve = (p: string, allowance: string, { key, kind, amount, headroom = false, client = owner }: Call) =>
+const reserve = (p: string, allowance: string, { key, kind, amount, purpose = 'call', client = owner }: Call) =>
   one<Reservation>(
     `SELECT (r).* FROM (SELECT sophia.reserve_research($1, $2, $3, $4, $5, $6, $7) AS r) x`,
     [
@@ -91,7 +91,7 @@ const reserve = (p: string, allowance: string, { key, kind, amount, headroom = f
       kind,
       kind === 'model' ? 'openai-research' : kind === 'search' ? 'tavily' : 'jina',
       amount,
-      headroom,
+      purpose,
     ],
     client,
   )
@@ -109,7 +109,17 @@ const end = (p: string, reservation: string, outcome: string, cost: number | nul
 const allowanceOf = (p: string, id: string) =>
   one<Allowance>(`SELECT * FROM sophia.research_allowances WHERE project_id=$1 AND id=$2`, [p, id])
 
-const reserveSql = `SELECT sophia.reserve_research($1, $2, $3, 'model', 'openai-research', $4, false)`
+/** Wait until a backend is blocked on a lock, so a race is the one the test means, not whichever lands first. */
+async function waitUntilBlocked(pid: number): Promise<void> {
+  for (let i = 0; i < 200; i += 1) {
+    const { n } = await one<{ n: number }>(`SELECT cardinality(pg_blocking_pids($1))::int AS n`, [pid])
+    if (n > 0) return
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error(`backend ${pid} never waited on a lock`)
+}
+
+const reserveSql = `SELECT sophia.reserve_research($1, $2, $3, 'model', 'openai-research', $4, 'call')`
 
 let seed: SeededProject
 
@@ -178,15 +188,31 @@ describe('research allowance (0024)', () => {
     const partial = await reserve(seed.projectId, a.id, {
       key: 'model:partial',
       kind: 'model',
-      amount: 0.5,
-      headroom: true,
+      amount: 0.3,
+      purpose: 'partial_result',
     })
     assert.equal(partial.state, 'reserved')
     assert.match(
-      await failure(`SELECT sophia.reserve_research($1, $2, 'model:5', 'model', 'openai-research', 0.000001, true)`, [
-        seed.projectId,
-        a.id,
-      ]),
+      await failure(
+        `SELECT sophia.reserve_research($1, $2, 'model:partial2', 'model', 'openai-research', 0.1, 'partial_result')`,
+        [seed.projectId, a.id],
+      ),
+      /^55000: A partial-result call is already in flight/,
+      'one partial-result call at a time',
+    )
+    await end(seed.projectId, partial.id, 'settled', 0.3)
+    const last = await reserve(seed.projectId, a.id, {
+      key: 'model:partial3',
+      kind: 'model',
+      amount: 0.2,
+      purpose: 'partial_result',
+    })
+    await end(seed.projectId, last.id, 'settled', 0.2)
+    assert.match(
+      await failure(
+        `SELECT sophia.reserve_research($1, $2, 'model:5', 'model', 'openai-research', 0.000001, 'partial_result')`,
+        [seed.projectId, a.id],
+      ),
       /^55000: Research allowance exhausted/,
       'the headroom is a part of the cap, not more',
     )
@@ -195,6 +221,102 @@ describe('research allowance (0024)', () => {
       /^22023/,
       'a reservation is a positive amount',
     )
+  })
+
+  it('keeps the headroom from every ordinary call: a search, a read or a model call cannot claim it (M03-RF-0006)', async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A })
+    await grant(p.projectId, 'enabled', 5, 40)
+    const a = await open(p.projectId, await job(p.projectId))
+    await reserve(p.projectId, a.id, { key: 'model:1', kind: 'model', amount: 4.5 })
+    const claim = (key: string, kind: string, provider: string, purpose: string | null) =>
+      failure(`SELECT sophia.reserve_research($1, $2, $3, $4, $5, 0.5, $6)`, [
+        p.projectId,
+        a.id,
+        key,
+        kind,
+        provider,
+        purpose,
+      ])
+    assert.match(await claim('s1', 'search', 'tavily', 'call'), /^55000: Research allowance exhausted/)
+    assert.match(
+      await claim('s2', 'search', 'tavily', 'partial_result'),
+      /^22023: Only a model call writes the partial result/,
+      'the reproduction: a Tavily search asking for the headroom',
+    )
+    assert.match(await claim('r1', 'read', 'jina', 'partial_result'), /^22023: Only a model call/)
+    assert.match(await claim('m2', 'model', 'openai-research', 'call'), /^55000: Research allowance exhausted/)
+    assert.match(await claim('m3', 'model', 'openai-research', 'headroom'), /^22023: Unknown reservation purpose/)
+    assert.match(await claim('m4', 'model', 'openai-research', null), /^22023: Unknown reservation purpose/)
+    assert.match(
+      await failure(
+        `INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,purpose,reserved_usd)
+         VALUES($1,$2,'direct','search','tavily','partial_result',0.5)`,
+        [p.projectId, a.id],
+      ),
+      /check constraint/,
+      'the table refuses it too',
+    )
+    assert.equal(Number((await allowanceOf(p.projectId, a.id)).reserved_usd), 4.5, 'nothing reached the headroom')
+    await reserve(p.projectId, a.id, { key: 'model:partial', kind: 'model', amount: 0.5, purpose: 'partial_result' })
+    assert.match(
+      await failure(
+        `SELECT sophia.reserve_research($1, $2, 'model:partial', 'model', 'openai-research', 0.5, 'call')`,
+        [p.projectId, a.id],
+      ),
+      /^23505: Idempotency key reused/,
+      'a replay cannot change the purpose',
+    )
+  })
+
+  it('opens one allowance when two open the same research job at once, and reopening changes nothing (M03-RF-0007)', async () => {
+    const p = await seedProject(db.ownerUrl, { admin: A })
+    await grant(p.projectId, 'enabled', 5, 40)
+    const root = await job(p.projectId)
+    const clients = [new pg.Client({ connectionString: db.ownerUrl }), new pg.Client({ connectionString: db.ownerUrl })]
+    await Promise.all(clients.map((c) => c.connect()))
+    try {
+      const openOn = (c: pg.Client, headroom: number) =>
+        one<Allowance>(
+          `SELECT (a).* FROM (SELECT sophia.open_research_allowance($1, $2, $3) AS a) x`,
+          [p.projectId, root, headroom],
+          c,
+        )
+      const [first, second] = clients as [pg.Client, pg.Client]
+      const waiter = (await one<{ pid: number }>('SELECT pg_backend_pid() AS pid', [], second)).pid
+      await Promise.all(clients.map((c) => c.query('BEGIN')))
+      // The first open inserts and stays uncommitted; the second must wait on its key, not miss it.
+      const firstRow = await openOn(first, 0.5)
+      const pending = openOn(second, 1).then(
+        (row) => row,
+        (err: unknown) => `${(err as { code?: string }).code}`,
+      )
+      await waitUntilBlocked(waiter)
+      await first.query('COMMIT')
+      const secondRow = await pending
+      await second.query(typeof secondRow === 'string' ? 'ROLLBACK' : 'COMMIT')
+      const opened = [firstRow, secondRow]
+      const ids = opened.map((o) => (typeof o === 'string' ? o : o.id))
+      assert.equal(ids[0], ids[1], `both opens return the same allowance, got ${ids.join(', ')}`)
+      const headrooms = opened.map((o) => (typeof o === 'string' ? o : Number(o.headroom_usd)))
+      assert.equal(headrooms[0], headrooms[1], "the second open reports the first one's row")
+      const count = await one<{ n: number }>(
+        `SELECT count(*)::int AS n FROM sophia.research_allowances WHERE project_id=$1 AND root_job_id=$2`,
+        [p.projectId, root],
+      )
+      assert.equal(count.n, 1)
+      const id = ids[0] ?? ''
+      await reserve(p.projectId, id, { key: 'm', kind: 'model', amount: 2 })
+      await grant(p.projectId, 'enabled', 3, 40)
+      const again = await open(p.projectId, root, 0.25)
+      assert.deepEqual(
+        [again.id, Number(again.cap_usd), Number(again.reserved_usd)],
+        [id, 5, 2],
+        'a replay resets no cap, headroom or counter',
+      )
+      assert.equal(Number(again.headroom_usd), headrooms[0])
+    } finally {
+      await Promise.all(clients.map((c) => c.end()))
+    }
   })
 
   it('serializes reservations: two concurrent calls that each fit alone cannot both pass, and exactly the cap does', async () => {
@@ -257,7 +379,7 @@ describe('research allowance (0024)', () => {
     assert.equal(r2.id, r1.id)
     assert.equal(Number((await allowanceOf(seed.projectId, a.id)).reserved_usd), 0.01, 'reserved once')
     assert.match(
-      await failure(`SELECT sophia.reserve_research($1, $2, 'sophia-x:call_1', 'search', 'tavily', 0.02, false)`, [
+      await failure(`SELECT sophia.reserve_research($1, $2, 'sophia-x:call_1', 'search', 'tavily', 0.02, 'call')`, [
         seed.projectId,
         a.id,
       ]),
@@ -271,7 +393,7 @@ describe('research allowance (0024)', () => {
     const searches = []
     for (let i = 0; i < 5; i += 1)
       searches.push(await reserve(seed.projectId, a.id, { key: `s${i}`, kind: 'search', amount: 0.01 }))
-    const sixth = `SELECT sophia.reserve_research($1, $2, 's5', 'search', 'tavily', 0.01, false)`
+    const sixth = `SELECT sophia.reserve_research($1, $2, 's5', 'search', 'tavily', 0.01, 'call')`
     assert.match(await failure(sixth, [seed.projectId, a.id]), /^55000: Research source policy limit reached: search/)
     await end(seed.projectId, searches[0]?.id ?? '', 'released', null)
     assert.equal(
@@ -280,7 +402,7 @@ describe('research allowance (0024)', () => {
       'a call that never left frees its slot',
     )
     for (let i = 0; i < 8; i += 1) await reserve(seed.projectId, a.id, { key: `r${i}`, kind: 'read', amount: 0.01 })
-    const ninth = `SELECT sophia.reserve_research($1, $2, 'r8', 'read', 'jina', 0.01, false)`
+    const ninth = `SELECT sophia.reserve_research($1, $2, 'r8', 'read', 'jina', 0.01, 'call')`
     assert.match(await failure(ninth, [seed.projectId, a.id]), /^55000: Research source policy limit reached: read/)
   })
 

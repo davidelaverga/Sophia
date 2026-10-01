@@ -73,7 +73,16 @@ export type GuardResult =
 /** Words in a query that, run together, count as a verbatim span of a private source. */
 export const SPAN_WORDS = 6
 
-const words = (text: string) => text.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}]+/gu) ?? []
+/**
+ * The guard's canonical form: compatibility-normalized first (so mathematical, full-width or circled letters become
+ * ordinary ones), then case-folded (upper then lower, so ß and SS, ς and σ meet), normalized again, and stripped of
+ * default-ignorable characters (zero-width spaces and joiners, soft hyphens) that would otherwise split a word. The
+ * index and the query both go through it. Look-alike letters from other scripts are not folded (no confusables map).
+ */
+export const canonical = (text: string) =>
+  text.normalize('NFKC').toUpperCase().toLowerCase().normalize('NFKC').replace(/\p{Default_Ignorable_Code_Point}/gu, '')
+
+const words = (text: string) => canonical(text).match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
 
 const SECRET_PATTERNS: readonly RegExp[] = [
   /\bsk-[A-Za-z0-9_-]{16,}/,
@@ -85,6 +94,12 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
 ]
+
+/** Whether text carries a known key, token or private-key format, as written or in its canonical form. */
+export function looksSecret(text: string): boolean {
+  const folded = text.normalize('NFKC').replace(/\p{Default_Ignorable_Code_Point}/gu, '')
+  return SECRET_PATTERNS.some((p) => p.test(text) || p.test(folded))
+}
 
 /** A long token mixing letters and digits, as keys and tokens do. */
 function highEntropyToken(query: string): boolean {
@@ -101,17 +116,17 @@ export function createQueryGuard(context: GuardContext): (query: string) => Guar
     const w = words(text)
     for (let i = 0; i + SPAN_WORDS <= w.length; i += 1) spans.add(w.slice(i, i + SPAN_WORDS).join(' '))
   }
-  const emails = context.roster.map((m) => m.email?.trim().toLowerCase()).filter((e): e is string => !!e && e.includes('@'))
+  const emails = context.roster.map((m) => (m.email ? canonical(m.email.trim()) : '')).filter((e) => e.includes('@'))
   // A single given name is too common to refuse on; a full name is not.
   const names = context.roster.map((m) => words(m.name)).filter((w) => w.length >= 2).map((w) => w.join(' '))
 
   return (query) => {
-    if (SECRET_PATTERNS.some((p) => p.test(query)) || highEntropyToken(query)) {
+    const folded = canonical(query)
+    if (looksSecret(query) || highEntropyToken(query) || highEntropyToken(query.normalize('NFKC'))) {
       return { ok: false, code: 'disclosure_denied', reason: 'secret' }
     }
-    const lower = query.toLowerCase()
     const joined = ` ${words(query).join(' ')} `
-    if (emails.some((e) => lower.includes(e)) || names.some((n) => joined.includes(` ${n} `))) {
+    if (emails.some((e) => folded.includes(e)) || names.some((n) => joined.includes(` ${n} `))) {
       return { ok: false, code: 'disclosure_denied', reason: 'roster' }
     }
     const q = words(query)

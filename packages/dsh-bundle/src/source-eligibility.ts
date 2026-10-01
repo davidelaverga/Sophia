@@ -3,17 +3,23 @@
  * (a tool names a search result, an extracted link or an admitted input, never a free URL, and cross-project refs
  * never resolve); this module is the check every such URL still passes before any read:
  * - parsed by the WHATWG parser (so `http://0x7f.1/` is seen as 127.0.0.1, and an IPv6 zone id is refused);
- * - http or https on its default port, no credentials, no credential or signature query parameters;
+ * - http or https on its default port, no credentials, and nothing that carries one: no credential-named or
+ *   signature parameter in the query or the fragment (`token`, `access_token`, `key`, `X-Amz-Signature`, …), no
+ *   JWT or known key format anywhere in the URL, and no signed or authenticated storage path (a Supabase
+ *   `/storage/v1/object/sign/…` link is a bearer credential however public its host's addresses are);
  * - not a special-use or single-label name, a wildcard or rebinding DNS service, or a fetcher, proxy or shortener
  *   (the extractor itself included), any of which could reach a host this check never saw;
  * - every A and AAAA address public, with IPv4 embedded in IPv6 (mapped, NAT64, 6to4) checked as IPv4.
  *
  * It resolves names but never fetches: nothing is pre-fetched from Sophia's infrastructure. The extractor resolves
- * the host again, so a rebinding name can still differ at read time; every read records that limitation.
+ * the host again, so a rebinding name can still differ at read time; every read records that limitation. A public
+ * address is not proof of public content: a capability URL whose secret is an opaque path segment cannot be told
+ * from a permalink here, which is why S4 binds every read to a search result, an extracted link or an admitted input.
  * @module @sophia/dsh-bundle/source-eligibility
  */
 
 import { isIP } from 'node:net'
+import { looksSecret } from './source-containment.js'
 
 export type IneligibleReason =
   | 'not_a_url'
@@ -46,13 +52,39 @@ const FETCHER_HOSTS = [
   'bit.ly', 't.co', 'tinyurl.com', 'goo.gl', 'ow.ly', 'is.gd', 'v.gd', 'buff.ly', 'rebrand.ly', 'cutt.ly',
   'shorturl.at', 'tiny.cc', 'rb.gy', 'lnkd.in', 'dlvr.it', 't.ly', 's.id', 'bl.ink',
 ]
-const CREDENTIAL_PARAMS = new Set(['access_token', 'api_key', 'apikey', 'password', 'passwd', 'secret', 'client_secret', 'private_token'])
+/**
+ * A parameter name that carries a credential: one of these words as a whole name or as a delimited part of one
+ * (`token`, `access_token`, `X-Auth-Token`, `sessionid`), or a name ending in one (`authtoken`, `clientsecret`).
+ */
+const CREDENTIAL_WORDS = [
+  'token', 'secret', 'password', 'passwd', 'pwd', 'apikey', 'auth', 'authorization', 'bearer', 'jwt', 'credential',
+  'credentials', 'session', 'sessionid', 'sid', 'key', 'signature', 'sig', 'otp', 'ticket', 'nonce',
+]
+const CREDENTIAL_NAME = new RegExp(
+  `(?:^|[^a-z0-9])(?:${CREDENTIAL_WORDS.join('|')})(?:$|[^a-z0-9])|(?:token|secret|password|passwd|apikey|sessionid)$`,
+)
+/** OAuth's authorization-code redirect (`?code=…&state=…`) carries a one-time credential. */
+const isAuthorizationCode = (names: readonly string[]) => names.includes('code') && names.includes('state')
+/** Storage paths that serve private objects to whoever holds the link. */
+const SIGNED_PATHS = [/\/storage\/v1\/object\/(?:sign|authenticated|upload\/sign)\//i, /\/storage\/v1\/render\/image\/(?:sign|authenticated)\//i]
+const JWT = /eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/
 const SIGNATURE_PARAMS = new Set([
   'x-amz-signature', 'x-amz-credential', 'x-amz-security-token', 'x-goog-signature', 'x-goog-credential',
   'googleaccessid', 'signature', 'key-pair-id', 'x-oss-signature', 'ossaccesskeyid',
 ])
 
 const underSuffix = (host: string, suffix: string) => host === suffix || host.endsWith(`.${suffix}`)
+
+const decoded = (text: string) => {
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return text
+  }
+}
+
+/** The fragment read as parameters when it is written as them (`#access_token=…`); a plain anchor is not. */
+const fragmentParams = (url: URL) => new URLSearchParams(url.hash.includes('=') ? url.hash.slice(1) : '')
 
 // --- addresses -----------------------------------------------------------------------------------------------
 
@@ -153,11 +185,18 @@ export function urlProblem(raw: string): { reason: IneligibleReason } | { url: U
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return { reason: 'scheme' }
   if (url.username !== '' || url.password !== '') return { reason: 'credentials' }
   if (url.port !== '') return { reason: 'port' }
-  const names = [...url.searchParams.keys()].map((k) => k.toLowerCase())
-  if (names.some((k) => CREDENTIAL_PARAMS.has(k))) return { reason: 'credentials' }
+  const params = [...url.searchParams, ...fragmentParams(url)]
+  const names = params.map(([k]) => k.toLowerCase())
   if (names.some((k) => SIGNATURE_PARAMS.has(k)) || (names.includes('sig') && (names.includes('sv') || names.includes('se')))) {
     return { reason: 'signed_url' }
   }
+  if (SIGNED_PATHS.some((p) => p.test(decoded(url.pathname)))) return { reason: 'signed_url' }
+  if (names.some((k) => CREDENTIAL_NAME.test(k)) || isAuthorizationCode(names)) return { reason: 'credentials' }
+  // A credential under an innocent name: a JWT anywhere in the URL, or a known key format as a parameter value (not
+  // in the path, where a slug such as `sk-learn-…` is ordinary).
+  const values = params.map(([, v]) => v)
+  if ([decoded(url.pathname), decoded(url.hash), ...values].some((part) => JWT.test(part))) return { reason: 'credentials' }
+  if (values.some(looksSecret)) return { reason: 'credentials' }
   const host = url.hostname.toLowerCase().replace(/\.$/, '')
   if (host.startsWith('[') || isIP(host) !== 0) return { url, host }
   if (!host.includes('.') || SPECIAL_SUFFIXES.some((s) => underSuffix(host, s))) return { reason: 'special_name' }
