@@ -169,7 +169,7 @@ function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
             {place !== 'work' && (
               <button className="pill has-tip" type="button" onClick={onLock}>
                 Lock now
-                <Tip label={LOCK_TIP.open.label} keys={LOCK_TIP.open.keys} side="bottom" />
+                <Tip label={LOCK_TIP.open.label} side="bottom" />
               </button>
             )}
             <button className="text-button" type="button" onClick={onPrivacy}>

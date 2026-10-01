@@ -223,17 +223,22 @@ export function suggestionFor(turns: readonly PersonalTurn[], turnId: string): P
   return turns.find((t) => t.replyTo === turnId)?.suggestion ?? null
 }
 
-/** The id of Sophia's newest turn, or null: what was already there when the space loaded (heard). */
-export const newestFromSophia = (turns: readonly PersonalTurn[]): string | null =>
-  turns.findLast((t) => t.author === 'sophia')?.id ?? null
-
 /**
- * What a screen reader hears as the conversation moves on: Sophia writing, then her newest reply. Never what was there
- * when the space loaded (`baseline`: her newest turn then; undefined until it has loaded), and never the person's own.
+ * What a screen reader hears when the conversation is read again: Sophia's new turns, all of them in order; a reply that
+ * failed (also while a later message waits, and again after Ask again); or Sophia beginning to write. `previous` is null
+ * at a load (the first read after opening or unlocking), so nothing already there is read out. Null: nothing to say.
  */
-export function heard(turns: readonly PersonalTurn[], baseline: string | null | undefined, writing: boolean): string {
-  if (baseline === undefined) return ''
-  if (writing) return 'Sophia is writing…'
-  const newest = turns.findLast((t) => t.author === 'sophia')
-  return newest && newest.id !== baseline ? `Sophia: ${newest.text}` : ''
+export function heard(
+  previous: readonly PersonalTurn[] | null,
+  next: readonly PersonalTurn[],
+  writing: boolean,
+  wasWriting: boolean,
+): string | null {
+  if (previous === null) return null
+  const before = new Map(previous.map((t) => [t.id, t]))
+  const replies = next.filter((t) => t.author === 'sophia' && !before.has(t.id))
+  if (replies.length > 0) return replies.map((t) => `Sophia: ${t.text}`).join(' ')
+  const failed = next.some((t) => t.author === 'person' && t.reply === 'failed' && before.get(t.id)?.reply !== 'failed')
+  if (failed) return 'Sophia couldn’t answer this one.'
+  return writing && !wasWriting ? 'Sophia is writing…' : null
 }

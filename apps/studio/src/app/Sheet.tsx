@@ -11,12 +11,14 @@ interface Props {
   id: string
   title: string
   onClose: () => void
+  /** Where the focus goes on closing when what opened the sheet is gone (useDialog). */
+  returnTo?: () => HTMLElement | null
   children: React.ReactNode
 }
 
-export function Sheet({ id, title, onClose, children }: Props) {
+export function Sheet({ id, title, onClose, returnTo, children }: Props) {
   const panel = useRef<HTMLDivElement>(null)
-  useDialog(panel, onClose)
+  useDialog(panel, onClose, returnTo)
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1}>

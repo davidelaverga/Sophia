@@ -34,3 +34,7 @@ export function forgetDrafts(store: Store = localStorage): void {
     // storage unavailable: nothing was kept
   }
 }
+
+/** Words that didn't go come back ahead of anything written meanwhile, so nothing typed is lost. */
+export const restoredDraft = (words: string, current: string): string =>
+  current.trim() ? `${words}\n${current}` : words

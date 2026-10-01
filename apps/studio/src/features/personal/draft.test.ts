@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { forgetDrafts } from './draft.ts'
+import { forgetDrafts, restoredDraft } from './draft.ts'
 
 /** A store holding these keys, as a browser's localStorage lists them. */
 function store(keys: string[]) {
@@ -27,5 +27,13 @@ describe('drafts on this device', () => {
     ])
     forgetDrafts(s)
     assert.deepEqual(s.held, ['sophia.mic.v1', 'sophia.personal.lock.v1.ana@sophia.test'])
+  })
+})
+
+describe('words that didn’t go', () => {
+  it('come back ahead of anything written meanwhile, so nothing typed is lost', () => {
+    assert.equal(restoredDraft('First thought', ''), 'First thought')
+    assert.equal(restoredDraft('First thought', '  '), 'First thought')
+    assert.equal(restoredDraft('First thought', 'and a second'), 'First thought\nand a second')
   })
 })

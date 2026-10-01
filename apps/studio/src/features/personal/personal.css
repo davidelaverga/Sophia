@@ -634,6 +634,9 @@
   transform: translateX(var(--shift, 0px));
   transition: transform 320ms var(--ease);
 }
+.places .msgs:focus {
+  outline: none;
+}
 .places .msgs {
   position: relative;
   z-index: 0;
@@ -1320,6 +1323,10 @@
 .places .unlock-ways {
   display: grid;
   gap: 6px;
+}
+/* A press that is being answered ("Sending…", "Loading…") keeps the focus, so it waits instead of being disabled. */
+.places .sheet [aria-disabled='true'] {
+  cursor: progress;
 }
 .places .privacy-rules {
   display: grid;

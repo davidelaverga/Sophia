@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
+import { focusSoon } from './focus.ts'
 import { membersLabel } from './places-view.ts'
 
 interface Props {
@@ -105,6 +106,7 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
           <button
             className="ghost"
             type="button"
+            data-carry={note.id}
             aria-expanded={carrying === note.id}
             onClick={() => setCarrying(carrying === note.id ? null : note.id)}
           >
@@ -114,7 +116,11 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
             <CarryTo
               projects={projects}
               onPick={(p) => carry(note, p)}
-              onCancel={() => setCarrying(null)}
+              onCancel={() => {
+                // "Keep here" goes with the list it heads: the focus goes back to the note's Carry.
+                setCarrying(null)
+                focusSoon(`[data-carry="${note.id}"]`)
+              }}
               onStartProject={onStartProject}
             />
           )}

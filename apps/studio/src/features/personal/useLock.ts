@@ -1,67 +1,75 @@
-// The padlock's state for the signed-in person (lock.ts), kept on this device and the same in each of its tabs. It
-// lives with the app, not a place: joining a room shuts it wherever the person is, and leaving the room lifts a lock
-// the room set.
-import { useCallback, useEffect, useRef, useState } from 'react'
+// The padlock for the signed-in person (lock.ts): one stored value per device, and every tab shows what it says. Every
+// call shuts it, also one that moves to another project without a pause; a call's end opens nothing; only the person
+// opens it again, after confirming it's them.
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { orLate } from '../../app/deadline.ts'
 import { unlockAfterRedirect } from '../../app/reauth.ts'
-import { followed, lockKey, onCallChange, readLock, storedLock, writeLock, type Lock } from './lock.ts'
+import { lockKey, lockStore, onCallStart, storedLock, type Lock } from './lock.ts'
+
+/** The browser's storage, or null where even asking for it throws (the padlock then starts shut: lockStore). */
+function deviceStorage(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
 
 /** `room`: the project whose room holds this tab's call, or null. */
 export function useLock(identity: string, room: string | null): readonly [Lock, (next: Lock) => void] {
-  const [lock, setLock] = useState<Lock>(() => readLock(identity))
-  const set = useCallback(
-    (next: Lock) => {
-      setLock(next)
-      writeLock(identity, next)
+  const key = lockKey(identity)
+  const store = useMemo(() => lockStore(key, deviceStorage()), [key])
+  // Read again on this tab's own writes, on another tab's (the storage event; a null key is storage cleared), and when
+  // the tab comes back from the background or the back-forward cache, where an event may have been missed.
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const onStorage = (e: StorageEvent) => {
+        if (e.key === key || e.key === null) onChange()
+      }
+      const off = store.subscribe(onChange)
+      window.addEventListener('storage', onStorage)
+      window.addEventListener('pageshow', onChange)
+      document.addEventListener('visibilitychange', onChange)
+      return () => {
+        off()
+        window.removeEventListener('storage', onStorage)
+        window.removeEventListener('pageshow', onChange)
+        document.removeEventListener('visibilitychange', onChange)
+      }
     },
-    [identity],
+    [key, store],
   )
+  const stored = useSyncExternalStore(subscribe, store.read)
+  const set = useCallback((next: Lock) => store.write(next.locked ? next.by : null), [store])
   const lastRoom = useRef<string | null>(null)
   useEffect(() => {
     const was = lastRoom.current
     lastRoom.current = room
-    if (was === room) return
-    setLock((prev) => {
-      const next = onCallChange(prev, was, room)
-      writeLock(identity, next)
-      return next
-    })
-  }, [room, identity])
-  useOtherTabs(identity, room !== null, setLock)
-  return [lock, set] as const
+    if (room !== null && room !== was) store.write(onCallStart(store.read()))
+  }, [room, store])
+  return [storedLock(stored), set] as const
 }
 
-/**
- * Another tab of this person shut the padlock or opened it (the browser tells every other tab): this one follows, so a
- * screen shared from that tab never shows this one open. A tab in a call itself stays shut (followed).
- */
-function useOtherTabs(identity: string, inRoom: boolean, setLock: (lock: Lock) => void) {
-  const room = useRef(inRoom)
-  useEffect(() => {
-    room.current = inRoom
-  })
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === lockKey(identity)) setLock(followed(storedLock(e.newValue), room.current))
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [identity, setLock])
-}
+/** How long the check of a provider's return may take before the person is told it couldn't be read. */
+const RETURN_CHECK_MS = 20_000
 
 /**
- * Back from the provider the padlock sent the person to (app/reauth.ts): a check that passed runs `onPassed` once
- * (open the side, go to it). A check that didn't, or none, changes nothing.
+ * Back from the provider the padlock sent the person to (app/reauth.ts): a check that passed runs `passed` once (open the
+ * side, go to it); one that couldn't be read in time, or at all, runs `unchecked` (the toast says so). A check that
+ * didn't pass (Back, another account), or none, changes nothing.
  */
-export function useUnlockOnReturn(onPassed: () => void): void {
-  const latest = useRef(onPassed)
+export function useUnlockOnReturn(on: { passed: () => void; unchecked: () => void }): void {
+  const latest = useRef(on)
   useEffect(() => {
-    latest.current = onPassed
+    latest.current = on
   })
   useEffect(() => {
-    void unlockAfterRedirect()
-      .then((passed) => {
-        if (passed) latest.current()
-      })
-      .catch(() => undefined) // a check that couldn't be read opens nothing
+    void orLate(unlockAfterRedirect(), RETURN_CHECK_MS).then(
+      (outcome) => {
+        if (outcome === 'passed') latest.current.passed()
+        else if (outcome === 'late') latest.current.unchecked()
+      },
+      () => latest.current.unchecked(),
+    )
   }, [])
 }

@@ -10,6 +10,8 @@ export const NOTICE = {
   copied: 'Copied to your clipboard',
   clipboardBlocked: 'Couldn’t copy here. Your browser blocked the clipboard.',
   erased: 'Deleted. Sophia starts fresh.',
+  /** Back from a provider, the check couldn't be read in time (reauth.ts): nothing opened. */
+  unchecked: 'Couldn’t confirm it’s you. Your personal space stays locked.',
 } as const
 
 export interface CallEnd {
@@ -18,19 +20,12 @@ export interface CallEnd {
   note: string | null
   /** The call's project is on screen: its dock or mini dock already says what happened. */
   here: boolean
-  /** Leaving lifted the padlock the room had shut. */
-  reopens: boolean
 }
-
-const REOPENED = 'Your personal space is open again.'
 
 /**
  * What a call that ended says in the toast, or null when the room on screen says it all. Where the room can't be seen
- * the toast says why it ended (or that this person left it); wherever they are, it says when the personal space opened
- * again, which no room shows.
+ * the toast says why it ended (or that this person left it). It never says the personal space opened: a call's end
+ * opens nothing (lock.ts), only the person does.
  */
-export function callEnded({ title, note, here, reopens }: CallEnd): string | null {
-  const why = here ? null : (note ?? `You left ${title}.`)
-  const words = [why, reopens ? REOPENED : null].filter((w) => w !== null)
-  return words.length > 0 ? words.join(' ') : null
-}
+export const callEnded = ({ title, note, here }: CallEnd): string | null =>
+  here ? null : (note ?? `You left ${title}.`)

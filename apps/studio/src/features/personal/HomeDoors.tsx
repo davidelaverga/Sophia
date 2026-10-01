@@ -139,7 +139,7 @@ function Line({ lockedBy, onLock }: { lockedBy: LockedBy | null; onLock: () => v
         <span className="shut">
           <Icon name="lock" />
         </span>
-        <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" />
+        <Tip label={tip.label} keys={tip.keys} side="bottom" />
       </button>
     </div>
   )

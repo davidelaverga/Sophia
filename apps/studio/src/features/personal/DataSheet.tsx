@@ -1,12 +1,13 @@
 // "Your data" (direction C), in the Studio's sheet (app/Sheet.tsx): what the personal space keeps, counted; everything
 // as text to copy; and deleting it all, with a typed confirmation for the one thing that can't be undone. Behind the
 // padlock it shows nothing of the space, not even the counts, until the person confirms it's them.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
+import { focusSoon } from './focus.ts'
 import { NOTICE } from './notice-view.ts'
 import { personalFailure } from './write-words.ts'
 
@@ -105,7 +106,7 @@ function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
     return (
       <>
         <p className="muted">{DATA.locked}</p>
-        <button className="pill" type="button" onClick={onUnlock}>
+        <button id="c-data-unlock" className="pill" type="button" onClick={onUnlock}>
           {DATA.unlock}
         </button>
       </>
@@ -114,7 +115,7 @@ function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
   return (
     <>
       <Facts space={space} />
-      <button className="pill" type="button" onClick={onCopy}>
+      <button id="c-data-copy" className="pill" type="button" onClick={onCopy}>
         {DATA.copy}
       </button>
       <Erase onErase={onErase} />
@@ -122,9 +123,26 @@ function DataBody({ space, locked, onUnlock, onCopy, onErase }: BodyProps) {
   )
 }
 
+/**
+ * The padlock shut or opened from elsewhere (another tab, a call) swaps the body while the sheet is open: a focus that
+ * went with the old body goes to the new one's first control.
+ */
+function useSwapFocus(locked: boolean) {
+  const was = useRef(locked)
+  useEffect(() => {
+    if (was.current === locked) return
+    was.current = locked
+    requestAnimationFrame(() => {
+      if (document.activeElement && document.activeElement !== document.body) return
+      document.getElementById(locked ? 'c-data-unlock' : 'c-data-copy')?.focus()
+    })
+  }, [locked])
+}
+
 export function DataSheet(props: Props) {
   const { token, who, space, locked, toast, onClose, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
+  useSwapFocus(locked)
   const copy = async () => {
     try {
       await copyFetched(async () => exportText(await exportPersonalSpace(token), who, new Date()))
@@ -137,6 +155,7 @@ export function DataSheet(props: Props) {
     try {
       await onErase()
       setErased(true)
+      focusSoon('#c-data-h ~ button') // the form goes with what it deleted: the focus goes to the sheet's Close
       toast(NOTICE.erased)
     } catch (err: unknown) {
       toast(personalFailure(err))

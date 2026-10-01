@@ -7,7 +7,6 @@ import {
   daysOf,
   heard,
   introText,
-  newestFromSophia,
   notePrefill,
   topicOf,
   type ConversationInput,
@@ -153,21 +152,37 @@ describe('the words around the conversation', () => {
 })
 
 describe('what a screen reader hears', () => {
-  const asked = turn('person', 'Are you there?', at(0, 20))
+  const asked = turn('person', 'Are you there?', at(0, 20), { reply: 'pending' })
   const before = turn('sophia', 'Hello again.', at(0, 19))
+  const answered = { ...asked, reply: 'answered' as const }
   const reply = turn('sophia', 'I am.', at(0, 20, 1))
 
-  it('nothing of what was there when the space loaded, nor before it loaded', () => {
-    const loaded = [before, asked]
-    assert.equal(heard(loaded, undefined, false), '')
-    assert.equal(heard(loaded, newestFromSophia(loaded), false), '')
-    assert.equal(heard([asked], newestFromSophia([asked]), false), '')
+  it('nothing at a load: what was already there is not read out', () => {
+    assert.equal(heard(null, [before, answered, reply], false, false), null)
   })
 
-  it('Sophia writing, then her newest reply, never the person’s own turn', () => {
-    const baseline = newestFromSophia([before, asked])
-    assert.equal(heard([before, asked], baseline, true), 'Sophia is writing…')
-    assert.equal(heard([before, asked, reply], baseline, false), 'Sophia: I am.')
-    assert.equal(heard([before, asked, reply, turn('person', 'Good', at(0, 20, 2))], baseline, false), 'Sophia: I am.')
+  it('Sophia beginning to write, then her reply, never the person’s own turn', () => {
+    assert.equal(heard([before], [before, asked], true, false), 'Sophia is writing…')
+    assert.equal(heard([before, asked], [before, answered, reply], false, true), 'Sophia: I am.')
+    assert.equal(
+      heard([before, answered, reply], [before, answered, reply, turn('person', 'Good', at(0, 21))], false, false),
+      null,
+    )
+  })
+
+  it('every new reply in one read, in order: two quick messages', () => {
+    const second = turn('sophia', 'Still here.', at(0, 20, 2))
+    assert.equal(
+      heard([before, asked], [before, answered, reply, second], false, true),
+      'Sophia: I am. Sophia: Still here.',
+    )
+  })
+
+  it('a reply that failed, also while a later message waits, and again after Ask again', () => {
+    const later = turn('person', 'Hello?', at(0, 20, 3), { reply: 'pending' })
+    const failed = { ...asked, reply: 'failed' as const }
+    assert.equal(heard([before, asked, later], [before, failed, later], true, true), 'Sophia couldn’t answer this one.')
+    assert.equal(heard([before, failed], [before, asked], true, false), 'Sophia is writing…')
+    assert.equal(heard([before, asked], [before, failed], false, true), 'Sophia couldn’t answer this one.')
   })
 })

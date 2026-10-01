@@ -1,54 +1,78 @@
-// The padlock on the personal space (direction C): a privacy screen on this device, in every tab of it. While it is shut
-// nothing personal is fetched or shown, and opening it asks the person to confirm it's them (app/reauth.ts). A lock set
-// by joining a room (where a screen may be shared) lifts when the room is left; a lock the person set stays until they
-// unlock. A room doesn't survive a reload, so a lock kept across one counts as the person's.
+// The padlock on the personal space (direction C): a privacy screen on this device, the same in every tab of it. While
+// it is shut nothing personal is fetched or shown, and opening it asks the person to confirm it's them
+// (app/reauth.ts). The person shuts it, and so does every call (a screen may be shared there); only the person opens
+// it again. One stored value is the truth (useLock): every write only shuts it, but the person's own unlock, so writes
+// from any number of tabs, in any order, leave it shut once a call has shut it.
 import type { LockedBy } from './places-view.ts'
 
 export type Lock = { locked: false } | { locked: true; by: LockedBy }
 
 export const OPEN: Lock = { locked: false }
 
-/** Close the side. A lock already set keeps who set it: a room never turns the person's own lock into its own. */
+/** Close the side. A lock already set keeps who set it. */
 export const shut = (lock: Lock, by: LockedBy): Lock => (lock.locked ? lock : { locked: true, by })
-
-/** Leaving a room opens a lock the room set, and nothing else. */
-export const afterRoom = (lock: Lock): Lock => (lock.locked && lock.by === 'room' ? OPEN : lock)
-
-/**
- * The padlock as the call changes (its project, or none): every new call shuts it, also one that replaces another
- * without a pause (a screen may be shared in it); the end of the calls lifts the room's lock.
- */
-export function onCallChange(lock: Lock, was: string | null, now: string | null): Lock {
-  if (now === was) return lock
-  return now === null ? afterRoom(lock) : shut(lock, 'room')
-}
 
 export const lockedBy = (lock: Lock): LockedBy | null => (lock.locked ? lock.by : null)
 
 export const lockKey = (identity: string) => `sophia.personal.lock.v1.${identity}`
 
-/** What another tab of this person stored ('locked' was written before the reason was kept). */
+/**
+ * The stored value as the padlock: absent is open; "room", shut by a call; anything else ("you", and "locked" as it was
+ * written before the reason was kept), shut by the person.
+ */
 export function storedLock(value: string | null): Lock {
   if (value === null) return OPEN
   return { locked: true, by: value === 'room' ? 'room' : 'you' }
 }
 
-/** Another tab shut the padlock or opened it: this one follows, but never opens while it holds a call itself. */
-export const followed = (stored: Lock, inRoom: boolean): Lock => (inRoom ? shut(stored, 'room') : stored)
+/** What a call that begins, or moves to another project, stores: a lock the person set stays theirs. */
+export const onCallStart = (stored: string | null): string => (stored === null || stored === 'room' ? 'room' : stored)
 
-export function readLock(identity: string): Lock {
-  try {
-    return localStorage.getItem(lockKey(identity)) === null ? OPEN : { locked: true, by: 'you' }
-  } catch {
-    return OPEN // storage unavailable: nothing was kept, so nothing is locked
-  }
+type Kept = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+export interface LockStore {
+  /** The stored value now, as the raw string (the same between changes), or null for open. */
+  read: () => string | null
+  write: (value: string | null) => void
+  /** Told after every write of this tab; the storage event tells the others. */
+  subscribe: (onChange: () => void) => () => void
 }
 
-export function writeLock(identity: string, lock: Lock): void {
-  try {
-    if (lock.locked) localStorage.setItem(lockKey(identity), lock.by)
-    else localStorage.removeItem(lockKey(identity))
-  } catch {
-    // storage unavailable: the lock lasts for this page only
+/**
+ * One person's stored padlock on this device. Where the browser keeps nothing (storage that can't be read), it starts
+ * shut: a personal space never shows unasked. Once a write fails, this page keeps what it last wrote.
+ */
+export function lockStore(key: string, storage: Kept | null): LockStore {
+  let memory: string | null = 'you'
+  let ownWrite = storage === null
+  const listeners = new Set<() => void>()
+  return {
+    read: () => {
+      if (ownWrite || !storage) return memory
+      try {
+        return storage.getItem(key)
+      } catch {
+        ownWrite = true
+        return memory
+      }
+    },
+    write: (value) => {
+      memory = value
+      try {
+        if (!storage) throw new Error('No storage on this page')
+        if (value === null) storage.removeItem(key)
+        else storage.setItem(key, value)
+        ownWrite = false
+      } catch {
+        ownWrite = true
+      }
+      for (const told of listeners) told()
+    },
+    subscribe: (onChange) => {
+      listeners.add(onChange)
+      return () => {
+        listeners.delete(onChange)
+      }
+    },
   }
 }

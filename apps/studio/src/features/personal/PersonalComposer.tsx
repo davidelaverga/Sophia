@@ -5,9 +5,19 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { useDictation } from './dictation.ts'
-import { readDraft, writeDraft } from './draft.ts'
+import { readDraft, restoredDraft, writeDraft } from './draft.ts'
+import type { Unsent } from './write-words.ts'
 
 const KEPT = 'Draft kept on this device'
+
+/** Why words are back in the field: they weren't sent, or no answer came back (they may have been). */
+const BACK: Record<Exclude<Unsent, 'erased'>, string> = {
+  unsent: 'Not sent: it’s back in the field',
+  unconfirmed: 'Not confirmed: check the conversation before sending again',
+}
+
+/** How a send went: sent, or why not (unsent, in write-words.ts). */
+export type SendOutcome = 'sent' | Unsent
 
 /** Until the space has loaded nothing is sent; without a companion the field says Sophia can't answer here. */
 type ComposerState = 'loading' | 'ready' | 'unavailable'
@@ -22,7 +32,10 @@ const PLACEHOLDER: Record<ComposerState, string> = {
 function useDraft(identity: string) {
   const [text, setText] = useState(() => readDraft(identity))
   const [note, setNote] = useState(() => (readDraft(identity) ? KEPT : ''))
+  // What the field holds now, for words that come back after a send that waited (restoredDraft).
+  const latest = useRef(text)
   const change = (value: string, why = value ? KEPT : '') => {
+    latest.current = value
     setText(value)
     setNote(why)
     writeDraft(identity, value)
@@ -31,8 +44,10 @@ function useDraft(identity: string) {
     text,
     note,
     change,
+    current: () => latest.current,
     /** The words go: the field empties at once, and the copy on this device stays until they're sent. */
     go: () => {
+      latest.current = ''
       setText('')
       setNote('')
     },
@@ -41,6 +56,18 @@ function useDraft(identity: string) {
       if (readDraft(identity) === draft) writeDraft(identity, '')
     },
   }
+}
+
+/** Whether this composer is still on the page (false once it went: signing out, an erasure). */
+function useMounted() {
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  return mounted
 }
 
 function Listening() {
@@ -111,13 +138,14 @@ function Field({ field, text, state, onChange, onSend }: FieldProps) {
 interface Props {
   identity: string
   state: ComposerState
-  /** Resolves to whether the words were sent; if not, they go back into the field. */
-  onSend: (text: string) => Promise<boolean>
+  /** Resolves to how the send went; words that didn't go come back into the field, unless erased with the space. */
+  onSend: (text: string) => Promise<SendOutcome>
   onListening: (listening: boolean) => void
 }
 
 export function PersonalComposer({ identity, state, onSend, onListening }: Props) {
-  const { text, note, change, go, sent } = useDraft(identity)
+  const { text, note, change, current, go, sent } = useDraft(identity)
+  const mounted = useMounted()
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
     change(text ? `${text} ${heard}` : heard, 'From your voice · edit it or send')
@@ -125,14 +153,17 @@ export function PersonalComposer({ identity, state, onSend, onListening }: Props
   })
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready'
-  // Closing the page while the words are on their way loses nothing: they come back as the draft.
+  // Closing the page while the words are on their way loses nothing: they come back as the draft. A composer that went
+  // meanwhile (signing out, an erasure) takes nothing back: those words went with the rest.
   const send = async () => {
     const draft = text
     const words = draft.trim()
     if (!words || !ready) return
     go()
-    if (await onSend(words)) sent(draft)
-    else change(words, 'Not sent: it’s back in the field')
+    const outcome = await onSend(words)
+    if (!mounted.current) return
+    if (outcome === 'sent' || outcome === 'erased') sent(draft)
+    else change(restoredDraft(words, current()), BACK[outcome])
   }
   return (
     <form

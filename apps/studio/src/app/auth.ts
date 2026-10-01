@@ -25,18 +25,20 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 // Read before the client starts: its own PKCE exchange rewrites the address when it succeeds.
 const callback = readAuthCallback(window.location.href)
 
-export const supabase: SupabaseClient | null =
-  url && key
-    ? createClient(url, key, {
-        auth: {
-          flowType: 'pkce',
-          // The client only exchanges ?code= itself; invitation tokens in the fragment are handled below.
-          detectSessionInUrl: () => false,
-          persistSession: true,
-          autoRefreshToken: true,
-        },
-      })
-    : null
+/** The Supabase project the Studio signs in with, when one is configured (the key is the publishable one). */
+export const authProject = url && key ? { url, key } : null
+
+export const supabase: SupabaseClient | null = authProject
+  ? createClient(authProject.url, authProject.key, {
+      auth: {
+        flowType: 'pkce',
+        // The client only exchanges ?code= itself; invitation tokens in the fragment are handled below.
+        detectSessionInUrl: () => false,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : null
 
 export type AuthMode = 'supabase' | 'dev' | 'none'
 export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length > 0 ? 'dev' : 'none'

@@ -383,26 +383,45 @@ direction C of Luis's prototype, "Two doors"): home with its two doors, their
 personal space with Sophia (its data side is "The personal space" above), and
 their work. Keep these when you change them:
 
-- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`), in
-  every tab of it: another tab's lock reaches this one, and a tab in a call
-  never opens with another (`followed`, with tests). Shut by the person or by
-  joining a room (a screen may be shared there), every new call shuts it,
-  also one straight after another (`onCallChange`, with tests); a room's lock
-  lifts when the room is left, the person's stays. While shut, nothing
-  personal is fetched or shown, and opening it asks to confirm it's them
-  (`app/reauth.ts`: passkey, the provider they signed in with, or an email
-  code, and the same account must come back). In a call no provider is
-  offered: signing in again leaves the page and would end the call. A code
-  that couldn't be sent, or ways that couldn't load, say so and can be tried
-  again. A place that can't be shown (a locked personal space) takes its
-  history entry's place, so Back goes on past it.
+- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`,
+  with tests), the same in every tab: one stored value per person (open,
+  shut by the person, shut by a call), read again whenever a tab comes back.
+  The person shuts it (L, the padlock, the bar's chip), and so does every
+  call that begins, also one that moves to another project without a pause
+  (`onCallStart`); nothing else writes it but the person's own unlock, so
+  writes from any number of tabs leave it shut once a call shut it. A call's
+  end opens nothing: only the person opens it, after confirming it's them.
+  Where storage can't be read it starts shut. Every lock closes the notes and
+  drops what was read of the space: nothing personal is fetched, shown or
+  kept in memory while it is shut. A place that can't be shown (a locked
+  personal space) takes its history entry's place, so Back goes on past it.
+- **Unlocking checks the same person, off the app's session**
+  (`app/reauth.ts`; `unlock-check.ts`, with tests). A passkey or an email
+  code is checked on a client of its own that stores and refreshes nothing;
+  the user it returns must be the one in the app's own token, and its
+  session is ended at once. A provider's check crosses a page load, so it
+  must come back as a new sign-in of the same account. Anyone else is
+  "another account"; a check that returns nobody never is. Only the network
+  has a deadline, each request on its own (20 s), never the passkey prompt:
+  a prompt the person closes leaves the sheet waiting. The passkey works
+  while the other ways load, and ways that failed or came late say so at
+  once, with Try again (`orLate`, with tests). In a call no provider is
+  offered, since signing in again leaves the page: the sheet says to leave
+  the call first. Another tab's unlock closes this tab's sheet and nothing
+  else: only the tab whose check passed goes where it was asked.
 - **A write that is refused reads the space again.** "That changed a moment
   ago. This is how it is now" (`movedOn`, with tests) must be true: the space
-  is read again, so a second press or another tab's change shows. The draft
-  stays on this device until its words were sent, and signing out or erasing
-  forgets it (`draft.ts`). "Join the room" from Work asks to join on that
-  opening only (`joinStands`, with tests): leaving before the room could join
-  drops it.
+  is read again, so a second press or another tab's change shows. A write
+  with no answer is retried under its key only within two minutes of its
+  first attempt (`once`, with tests); later it is said as not confirmed, and
+  the space is read again. A message's words stay on this device until they
+  were sent, and come back to the field, ahead of anything typed meanwhile,
+  when the send failed ("Not sent") or got no answer ("Not confirmed: check
+  the conversation"), never when the space was erased (`request_erased`) or
+  the field went with a sign-out (`restoredDraft`, `unsent`, with tests).
+  Signing out or erasing forgets the draft (`draft.ts`). "Join the room"
+  from Work asks to join on that opening only (`joinStands`, with tests):
+  leaving before the room could join drops it.
 - **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,
   `data-view.ts` and `notice-view.ts` own every sentence the places say (door
   verbs, sessions, rooms, the introduction and when it shows, days, topics,
@@ -423,19 +442,36 @@ their work. Keep these when you change them:
   adds two tokens and redefines none. Compare a change side by side with the
   artifact at the stage's size (1238 x 708) and on a phone before calling it
   done.
+- **The call in the places' bar.** The bar shows the call kept out of sight
+  (`ProjectCall`): the room's own switches (`CallSwitches`), text mode, what
+  Sophia is looking at and what stopped a device. These are the copies a
+  screen reader hears (status and alert); the room's own are in the hidden
+  project. A call that ends out of sight says so in the toast (`callEnded`),
+  never that the space opened.
 - **Keys.** H, P and W go to the three places, D opens your data, L the
   padlock, T the notes; Enter at home goes to the side used last and the
   arrows pick a door; in a project, H and W work too. Every key is in a tip,
   never drawn inside a control. Esc closes what opened last (`useEscape`),
   then goes home; a sheet or a popover takes its own Esc first; in the
   composer the first Esc only lets go of the field; the notes take Esc only
-  where they are on screen. Arriving in Personal on a desktop puts the cursor
-  in the field, and a letter typed with the focus nowhere goes into it
-  (`data-typing-sink`), so a message's first L never locks the space. A
-  control that goes away when pressed hands the focus on (`focus.ts`: the
-  conversation, Note this, the Notes toggle), and Undo hands it back where it
-  was (`Toast`). A screen reader hears Sophia writing and then her reply
-  (`heard`, with tests), never what was there when the space loaded.
+  where they are on screen.
+- **Typing goes to the message bar.** The conversation column is the typing
+  scope (`data-typing-scope`): a letter typed with the focus nowhere, on the
+  conversation or on one of its controls goes into the message bar, the
+  first sink on screen and not inert (`typingSink`, with tests), so a
+  message's first L never locks the space. Where the notes cover the column
+  (860 px and narrower, the CSS's own width) it is inert. Arriving in
+  Personal puts the cursor in the field on a desktop, and the focus on the
+  conversation on touch, so no keyboard pops up uninvited.
+- **The focus is never dropped.** A control that goes away when pressed
+  hands the focus on (`focus.ts`: the conversation, Note this, the note's
+  Carry, the Notes toggle; in a sheet, its Close or the first control of
+  what replaced it), a sheet whose opener is gone gives it to the place
+  (`returnTo` in `useDialog`), and Undo hands it back where it was (`Toast`).
+  A press that is being answered keeps the focus as it waits ("Sending…",
+  "Loading…": `aria-disabled`, never `disabled`). A screen reader hears
+  Sophia writing and then her reply (`heard`, with tests), never what was
+  there when the space loaded.
 
 ## The Studio's hosting headers
 

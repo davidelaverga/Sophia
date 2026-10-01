@@ -1,10 +1,9 @@
 // The personal space and the Work list as server state (react-query), and the writes the three places make. Every
-// write has its own Idempotency-Key and is retried once with the SAME key when no reply came (the write may have
-// committed); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
+// write has its own Idempotency-Key and is retried once with the SAME key when no reply came, while its first attempt
+// is recent (once.ts); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { PersonalReceipt } from '@sophia/contracts'
-import { ApiError } from '../../api/client.ts'
 import {
   carryPersonalNote,
   decidePersonalSuggestion,
@@ -22,21 +21,11 @@ import {
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Sending } from './conversation-view.ts'
 import { writeDraft } from './draft.ts'
-import { movedOn } from './write-words.ts'
+import { once } from './once.ts'
+import { readsAgain } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
 const POLL_MS = 700
-
-/** Once with a fresh key, then once more with the SAME key if no reply came: never a second write. */
-async function once(run: (key: string) => Promise<PersonalReceipt>): Promise<PersonalReceipt> {
-  const key = crypto.randomUUID()
-  try {
-    return await run(key)
-  } catch (err: unknown) {
-    if (err instanceof ApiError && err.code === 'outcome_unknown') return run(key)
-    throw err
-  }
-}
 
 /**
  * The space, and while a reply is pending, what came after the last turn until nothing is. The server says how each
@@ -73,8 +62,8 @@ export function useProjects(identity: Identity) {
 }
 
 /**
- * The personal writes, each refreshing what it changed, and what a refusal says moved on ("This is how it is now":
- * movedOn). `sending` shows a message at once, before its receipt.
+ * The personal writes, each refreshing what it changed, and what a refusal or a lost answer may have changed ("This is
+ * how it is now": readsAgain). `sending` shows a message at once, before its receipt.
  */
 export function usePersonalWrites(identity: Identity) {
   const client = useQueryClient()
@@ -92,7 +81,7 @@ export function usePersonalWrites(identity: Identity) {
       await refresh(projects)
       return receipt
     } catch (err: unknown) {
-      if (movedOn(err)) await refresh(projects)
+      if (readsAgain(err)) await refresh(projects)
       throw err
     }
   }

@@ -212,7 +212,14 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
     )
   }
   if (row.kind === 'intro') return <Intro text={row.text} />
-  if (row.kind === 'starters') return <Starters onStart={actions.start} />
+  if (row.kind === 'starters') {
+    // The starters go once one is sent: the focus goes to the conversation first.
+    const start = (text: string) => {
+      actions.start(text)
+      focusConversation()
+    }
+    return <Starters onStart={start} />
+  }
   if (row.kind === 'typing') return <Typing first={row.first} />
   if (row.kind === 'failed') {
     // Ask again goes as the wait begins: the focus goes to the conversation first.
@@ -328,18 +335,22 @@ interface ConversationProps {
   setEarlier: (open: boolean) => void
   /** What a slow or failed read says, where the conversation would be (ReadNotes). */
   notice: React.ReactNode
+  /** The notes cover it (a narrow screen): nothing in it can be reached or typed into until they close. */
+  covered: boolean
   composer: React.ReactNode
   actions: ConversationActions
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered } = props
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
+  // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
+  // itself, is text for the message bar, never a place's key.
   return (
-    <div className={`c3-convo${day ? ' scrolled' : ''}`}>
+    <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
       <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} />
-      <div ref={list} className="msgs" aria-label="Conversation with Sophia">
+      <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
         {notice}
         {rows.map((row) => (
           <RowView

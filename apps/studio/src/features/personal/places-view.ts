@@ -68,22 +68,22 @@ export const PRIVACY_RULES = [
   },
   {
     lead: 'The padlock locks your personal space.',
-    rest: 'Opening it again asks for your passkey. It also locks by itself when you join a room.',
+    rest: 'Opening it again asks for your passkey. It also locks by itself when you join a room, and stays locked until you open it.',
   },
 ] as const
 
-/** The padlock on the line between the doors: what pressing it does, and its key when it has one. */
+/** The padlock on the line between the doors: what pressing it does, and its key. Only the person opens it. */
 export const LOCK_TIP = {
   open: { label: 'Lock your personal space', keys: 'L' },
   you: { label: 'Unlock with your passkey', keys: 'L' },
-  room: { label: 'Locked while you’re in a room. Leaving opens it.', keys: null },
+  room: { label: 'Locked when you joined a room. Unlock with your passkey', keys: 'L' },
 } as const
 
 /** The edge from Work to Personal: where it goes, or why it is shut. */
 export const EDGE_TIP = {
   open: 'Cross to Personal',
   you: 'Your personal space is locked. Opening it asks for your passkey.',
-  room: 'Your personal space is locked while you’re in a room.',
+  room: 'Your personal space locked when you joined a room. Opening it asks for your passkey.',
 } as const
 
 /** Confirming it's the same person before the personal space opens again. */
@@ -99,8 +99,41 @@ export const UNLOCK = {
   sending: (to: string) => `Sending a code to ${to}…`,
   sent: (to: string) => `Code sent to ${to}`,
   /** Signing in again with a provider leaves the page, and a call can't come along. */
-  inCall: (names: string) => `${names} isn’t offered during a call: it leaves this page, and the call would end.`,
+  inCall: (names: string) => `Leave the call, then continue with ${names}.`,
 } as const
+
+/**
+ * What the unlock sheet shows below the passkey: the press for the other ways, its wait while they load, the ways (at
+ * once when there is no passkey), or that they couldn't load, as soon as that happens and before any press.
+ */
+export type OtherWaysShown = 'ask' | 'loading' | 'ways' | 'failed'
+
+export function otherWaysShown(s: {
+  ways: { passkey: boolean } | null
+  failed: boolean
+  asked: boolean
+}): OtherWaysShown {
+  if (s.failed) return 'failed'
+  if (!s.ways) return s.asked ? 'loading' : 'ask'
+  return s.asked || !s.ways.passkey ? 'ways' : 'ask'
+}
+
+/**
+ * The code's one button: it stays through sending (so does the focus on it) until the code's field takes the focus,
+ * then asks for a new code where one can be sent.
+ */
+export function codeButton(s: { codes: number; sending: boolean; canResend: boolean }) {
+  const quiet = s.codes > 0
+  if (s.sending) return { label: 'Sending…', quiet }
+  if (!quiet) return { label: 'Email me a code', quiet }
+  return s.canResend ? { label: 'Send a new code', quiet } : null
+}
+
+/** Beside the other ways: a provider waits until the call ends (signing in again leaves the page), or there is none. */
+export function otherWaysNote(ways: { providers: readonly string[]; code: boolean }, inCall: boolean): string | null {
+  if (ways.providers.length > 0) return inCall ? UNLOCK.inCall(ways.providers.join(' or ')) : null
+  return ways.code ? null : UNLOCK.noOther
+}
 
 /** The name a greeting uses: a provider's first name, or a dev identity's own name; never an email. */
 export function firstName(identity: { name: string; displayName?: string | null }): string | null {
@@ -141,7 +174,7 @@ export function youDoor(input: {
   if (input.locked) {
     return {
       verb: 'Unlock',
-      meta: input.locked === 'room' ? 'Locked while you’re in a room' : 'Locked on this device',
+      meta: input.locked === 'room' ? 'Locked when you joined a room' : 'Locked on this device',
       notes: null,
     }
   }

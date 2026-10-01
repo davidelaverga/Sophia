@@ -3,12 +3,16 @@ import { describe, it } from 'node:test'
 import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contracts'
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
 import {
+  codeButton,
   firstName,
   greeting,
+  otherWaysNote,
+  otherWaysShown,
   projectCard,
   readState,
   roomCaption,
   sessionWhen,
+  UNLOCK,
   workDoor,
   youDoor,
 } from './places-view.ts'
@@ -70,9 +74,10 @@ describe('home words', () => {
       notes: 3,
     })
     assert.equal(youDoor({ ...base, turns: [...yesterday, turn('Just talk', 2)] }).meta, 'Just now · a chat')
+    // A call shut it, and only the person opens it again: true during the call and after it.
     assert.deepEqual(youDoor({ ...base, locked: 'room', turns: yesterday }), {
       verb: 'Unlock',
-      meta: 'Locked while you’re in a room',
+      meta: 'Locked when you joined a room',
       notes: null,
     })
     assert.equal(youDoor({ ...base, locked: 'you', turns: undefined }).meta, 'Locked on this device')
@@ -190,5 +195,48 @@ describe('your data', () => {
     )
     assert.equal(confirmsErasure(' Delete '), true)
     assert.equal(confirmsErasure('del'), false)
+  })
+})
+
+describe('unlocking', () => {
+  it('offers the other ways on request, says so while they load, and says at once when they couldn’t', () => {
+    const withPasskey = { passkey: true }
+    assert.equal(otherWaysShown({ ways: null, failed: false, asked: false }), 'ask')
+    assert.equal(otherWaysShown({ ways: null, failed: false, asked: true }), 'loading')
+    assert.equal(otherWaysShown({ ways: withPasskey, failed: false, asked: false }), 'ask')
+    assert.equal(otherWaysShown({ ways: withPasskey, failed: false, asked: true }), 'ways')
+    assert.equal(
+      otherWaysShown({ ways: { passkey: false }, failed: false, asked: false }),
+      'ways',
+      'nothing to ask for',
+    )
+    assert.equal(otherWaysShown({ ways: null, failed: true, asked: false }), 'failed', 'before any press')
+  })
+
+  it('keeps one button for the code: asked for, waiting while it is sent, then a new one on request', () => {
+    assert.deepEqual(codeButton({ codes: 0, sending: false, canResend: true }), {
+      label: 'Email me a code',
+      quiet: false,
+    })
+    assert.deepEqual(codeButton({ codes: 0, sending: true, canResend: true }), { label: 'Sending…', quiet: false })
+    assert.deepEqual(codeButton({ codes: 1, sending: false, canResend: true }), {
+      label: 'Send a new code',
+      quiet: true,
+    })
+    assert.deepEqual(codeButton({ codes: 2, sending: true, canResend: true }), { label: 'Sending…', quiet: true })
+    assert.equal(codeButton({ codes: 1, sending: false, canResend: false }), null, 'a dev identity has nothing to send')
+  })
+
+  it('says how to use a provider during a call, and when there is no other way, in a call too', () => {
+    const google = { providers: ['Google'], code: true }
+    assert.equal(otherWaysNote(google, true), 'Leave the call, then continue with Google.')
+    assert.equal(
+      otherWaysNote({ providers: ['Google', 'GitHub'], code: false }, true),
+      'Leave the call, then continue with Google or GitHub.',
+    )
+    assert.equal(otherWaysNote(google, false), null)
+    assert.equal(otherWaysNote({ providers: [], code: false }, true), UNLOCK.noOther)
+    assert.equal(otherWaysNote({ providers: [], code: false }, false), UNLOCK.noOther)
+    assert.equal(otherWaysNote({ providers: [], code: true }, true), null)
   })
 })

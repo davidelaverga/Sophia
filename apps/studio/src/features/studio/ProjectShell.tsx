@@ -239,6 +239,7 @@ export function ProjectShell(props: Props) {
           pulse={<WorkPulse feed={feed} connection={connection} />}
           onShow={onShow}
           onInvite={invite}
+          background={!!props.background}
         />
       )}
     </div>
@@ -316,6 +317,8 @@ interface BodyProps {
   pulse: React.ReactNode
   onShow: (view: View) => void
   onInvite: () => void
+  /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
+  background: boolean
 }
 
 /**
@@ -323,9 +326,10 @@ interface BodyProps {
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
  */
 function ProjectBody(props: BodyProps) {
-  const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite } = props
-  // The side panel's state lives here, past a visit to another view (useRoomPanel).
-  const panel = useRoomPanel(snapshot, room, view === 'studio')
+  const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite, background } = props
+  // The side panel's state lives here, past a visit to another view (useRoomPanel). Out of sight for its call, its open
+  // tab isn't in view: what arrives there meanwhile is new when the person comes back.
+  const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   const lobby = (
     <LobbyPanel

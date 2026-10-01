@@ -1,11 +1,18 @@
-// Confirming it's the same person before their personal space opens again (the padlock, direction C). With Supabase Auth
-// the checks are real: the passkey, the provider they signed in with, or a code sent to their email. Each must come
-// back as the SAME account; a different one is refused (the side stays shut), and signing in as someone else never
-// opens this person's side, because a lock and a space belong to one account. A provider's check crosses a page load,
-// so it must also come back as a NEW sign-in: returning with Back proves nothing. Locally, dev identities have nothing
-// to check, and the dialog says so.
+// Confirming it's the same person before their personal space opens again (the padlock, direction C). With Supabase
+// Auth the checks are real: the passkey, the provider they signed in with, or a code sent to their email, and each must
+// come back as the signed-in person; anyone else is refused and the side stays shut.
+//
+// A passkey or a code is checked on a client of its own (checkClient), never the app's: it stores nothing and
+// refreshes nothing, so the app's session and the other tabs hear nothing of it, and the session the check got is ended
+// as soon as it answered (scope local: that one only). Only the network is bounded, each request on its own; the
+// passkey prompt is the person's, and the browser ends it at its own timeout. A provider's check crosses a page load on
+// the app's own client, so it must come back as a NEW sign-in of the same account: returning with Back proves nothing.
+// Locally, dev identities have nothing to check, and the sheet says so.
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { providerCheckPassed, tokenSession, type ProviderCheck } from './auth-callback.ts'
-import { authMode, listPasskeys, oauthProviders, passkeysOffered, supabase, type OAuthProvider } from './auth.ts'
+import { sendFailure } from './auth-words.ts'
+import { authProject, listPasskeys, oauthProviders, passkeysOffered, supabase, type OAuthProvider } from './auth.ts'
+import { checked, CHECK_WORDS, type CheckError, type Checked } from './unlock-check.ts'
 
 export interface UnlockWays {
   /** Dev identities: nothing is checked. */
@@ -16,71 +23,105 @@ export interface UnlockWays {
   email: string | null
 }
 
-export type Confirmed = 'confirmed' | 'dismissed' | 'other_account'
-
 const DEV_WAYS: UnlockWays = { dev: true, passkey: true, providers: ['google'], email: null }
+
+/** Whether a passkey is offered before the account's ways have loaded: locally, and where passkeys work on this site. */
+export const passkeyAtFirst = !supabase || passkeysOffered
 
 const isProvider = (value: unknown): value is OAuthProvider =>
   typeof value === 'string' && oauthProviders.some((p) => p === value)
 
-async function currentUser() {
-  if (!supabase) return null
-  const { data } = await supabase.auth.getUser()
-  return data.user
-}
-
-async function hasPasskey(): Promise<boolean> {
-  if (!passkeysOffered) return false
-  try {
-    return (await listPasskeys()).length > 0
-  } catch {
-    return false
-  }
-}
-
-/** The ways this account can confirm it's them here. */
+/** The ways this account can confirm it's them here. A read that failed throws: "no passkey" is never a guess. */
 export async function unlockWays(): Promise<UnlockWays> {
-  if (authMode !== 'supabase') return DEV_WAYS
-  const user = await currentUser()
-  const signedWith: unknown = user?.app_metadata.providers
+  if (!supabase) return DEV_WAYS
+  const { data, error } = await supabase.auth.getUser()
+  if (error) throw error
+  const signedWith: unknown = data.user.app_metadata.providers
   return {
     dev: false,
-    passkey: await hasPasskey(),
+    passkey: passkeysOffered && (await listPasskeys()).length > 0,
     providers: Array.isArray(signedWith) ? signedWith.filter(isProvider) : [],
-    email: user?.email ?? null,
+    email: data.user.email ?? null,
   }
 }
 
-/** The same account as before the check, or not. */
-async function sameAccount(before: string | null): Promise<Confirmed> {
-  const after = (await currentUser())?.id ?? null
-  return before && after === before ? 'confirmed' : 'other_account'
+/** How long one request of a check may take: a lost connection says so instead of leaving the sheet waiting. */
+const REQUEST_MS = 20_000
+
+/**
+ * fetch with an end for each request: its own controller, aborted after REQUEST_MS or with the caller's signal, which is
+ * followed by hand (AbortSignal.any isn't in Safari 16.4, which the build targets).
+ */
+const boundedFetch: typeof fetch = (input, init) => {
+  const stop = new AbortController()
+  const timer = setTimeout(() => stop.abort(), REQUEST_MS)
+  const caller = init?.signal
+  const follow = () => stop.abort()
+  if (caller?.aborted) stop.abort()
+  else caller?.addEventListener('abort', follow, { once: true })
+  return fetch(input, { ...init, signal: stop.signal }).finally(() => {
+    clearTimeout(timer)
+    caller?.removeEventListener('abort', follow)
+  })
 }
 
-export async function unlockWithPasskey(): Promise<Confirmed> {
-  if (!supabase) return 'confirmed'
-  const before = (await currentUser())?.id ?? null
-  const { error } = await supabase.auth.signInWithPasskey()
-  if (error) {
-    if (error.name === 'NotAllowedError' || error.name === 'AbortError') return 'dismissed'
-    throw new Error('That passkey didn’t work here. Try another way.')
-  }
-  return sameAccount(before)
+let checker: SupabaseClient | null = null
+
+/** The checks' own client, made once: nothing stored or refreshed, the address bar left alone, every request bounded. */
+function checkClient(): SupabaseClient | null {
+  if (!authProject) return null
+  checker ??= createClient(authProject.url, authProject.key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'sophia.personal.unlock.check',
+    },
+    global: { fetch: boundedFetch },
+  })
+  return checker
 }
 
-/** A code by email to an account that already exists: it never creates one. */
+/** One check at a time: each starts once the one before has ended the session it got. */
+let ended: Promise<unknown> = Promise.resolve()
+
+interface Answer {
+  data: { user: { id: string } | null } | null
+  error: (CheckError & { name: string }) | null
+}
+
+function check(kind: 'passkey' | 'code', me: string | null, verify: (auth: SupabaseClient['auth']) => Promise<Answer>) {
+  const client = checkClient()
+  if (!client) return Promise.resolve<Checked>('confirmed')
+  const run = ended.then(async (): Promise<Checked> => {
+    try {
+      const { data, error } = await verify(client.auth)
+      return checked(kind, { user: data?.user?.id ?? null, error }, me)
+    } catch {
+      return { failed: CHECK_WORDS.notConfirmed }
+    }
+  })
+  const end = () => client.auth.signOut({ scope: 'local' })
+  ended = run.then(end, end).catch(() => undefined)
+  return run
+}
+
+/**
+ * The passkey, on the checks' own client. `me` is the signed-in person (the app's token); `signal` closes the prompt
+ * when the sheet goes away.
+ */
+export const unlockWithPasskey = (me: string | null, signal: AbortSignal): Promise<Checked> =>
+  check('passkey', me, (auth) => auth.signInWithPasskey({ options: { signal } }))
+
+export const unlockWithCode = (me: string | null, email: string, code: string): Promise<Checked> =>
+  check('code', me, (auth) => auth.verifyOtp({ email, token: code, type: 'email' }))
+
+/** A code by email to an account that already exists (it never creates one), sent from the checks' own client. */
 export async function sendUnlockCode(email: string): Promise<void> {
-  if (!supabase) return
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
-  if (error) throw new Error('The code couldn’t be sent. Wait a minute, then try again.')
-}
-
-export async function unlockWithCode(email: string, code: string): Promise<Confirmed> {
-  if (!supabase) return 'confirmed'
-  const before = (await currentUser())?.id ?? null
-  const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
-  if (error) throw new Error('That code didn’t work, or it has expired.')
-  return sameAccount(before)
+  const client = checkClient()
+  if (!client) return
+  const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
+  if (error) throw new Error(sendFailure(error, email))
 }
 
 const PENDING = 'sophia.personal.unlock'
@@ -90,8 +131,9 @@ async function signedInNow(): Promise<{ user: string | null; session: string | n
   if (!supabase) return { user: null, session: null }
   const token = (await supabase.auth.getSession()).data.session?.access_token // after the client's ?code= exchange
   if (!token) return { user: null, session: null }
-  const { data } = await supabase.auth.getUser(token)
-  return { user: data.user?.id ?? null, session: tokenSession(token) }
+  const { data, error } = await supabase.auth.getUser(token)
+  if (error) throw error
+  return { user: data.user.id, session: tokenSession(token) }
 }
 
 /**
@@ -101,9 +143,9 @@ async function signedInNow(): Promise<{ user: string | null; session: string | n
 export async function unlockWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) return
   const left = await signedInNow()
-  const check: ProviderCheck = { user: left.user ?? '', session: left.session ?? '', at: Date.now() }
+  const pending: ProviderCheck = { user: left.user ?? '', session: left.session ?? '', at: Date.now() }
   try {
-    sessionStorage.setItem(PENDING, JSON.stringify(check))
+    sessionStorage.setItem(PENDING, JSON.stringify(pending))
   } catch {
     // storage unavailable: the person unlocks again after coming back
   }
@@ -114,14 +156,18 @@ export async function unlockWithProvider(provider: OAuthProvider): Promise<void>
   if (error) throw new Error('That sign-in didn’t start. Try another way.')
 }
 
-/** After a provider's redirect: true once, when the check passed (providerCheckPassed). Nothing pending asks nobody. */
-export async function unlockAfterRedirect(): Promise<boolean> {
-  let check: unknown = null
+/**
+ * After a provider's redirect: "passed" once, when the check passed (providerCheckPassed); "failed" when it didn't
+ * (Back, another account); "none" when nothing was pending. A read that failed throws.
+ */
+export async function unlockAfterRedirect(): Promise<'passed' | 'failed' | 'none'> {
+  let pending: unknown = null
   try {
-    check = JSON.parse(sessionStorage.getItem(PENDING) ?? 'null')
+    pending = JSON.parse(sessionStorage.getItem(PENDING) ?? 'null')
     sessionStorage.removeItem(PENDING)
   } catch {
-    return false
+    return 'none'
   }
-  return check !== null && providerCheckPassed(check, await signedInNow(), Date.now())
+  if (pending === null) return 'none'
+  return providerCheckPassed(pending, await signedInNow(), Date.now()) ? 'passed' : 'failed'
 }

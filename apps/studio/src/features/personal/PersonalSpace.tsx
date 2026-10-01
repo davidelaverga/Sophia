@@ -2,7 +2,16 @@
 // Everything here is the person's alone; the only way out of it is carrying a note, one at a time. Until the space has
 // loaded nothing is offered (no introduction, no ways to start, no field): a first conversation offered over one that
 // is still loading would read as the old one gone.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react'
 import type {
   PersonalNote,
   PersonalSpace as Space,
@@ -13,14 +22,14 @@ import type {
 import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, type ConversationActions } from './Conversation.tsx'
-import { conversationRows, heard, newestFromSophia, opensWithIntro, welcomeDue } from './conversation-view.ts'
+import { conversationRows, heard, opensWithIntro, welcomeDue } from './conversation-view.ts'
 import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
-import { PersonalComposer } from './PersonalComposer.tsx'
+import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import type { PersonalWrites } from './usePersonal.ts'
-import { personalFailure } from './write-words.ts'
+import { personalFailure, unsent } from './write-words.ts'
 
 interface Props {
   /** Not on screen (another place is): kept mounted, so a draft and the scroll survive. */
@@ -62,6 +71,20 @@ function useShift(body: React.RefObject<HTMLDivElement | null>, open: boolean): 
     return () => watch.disconnect()
   }, [body, open])
   return shift
+}
+
+/** Where the notes cover the conversation instead of sitting beside it: the same width as personal.css says. */
+const NOTES_COVER = '(max-width: 860px)'
+
+/** Whether the notes cover the conversation now, following the window as it is resized. */
+function useNotesCover(open: boolean): boolean {
+  const subscribe = useCallback((changed: () => void) => {
+    const narrow = matchMedia(NOTES_COVER)
+    narrow.addEventListener('change', changed)
+    return () => narrow.removeEventListener('change', changed)
+  }, [])
+  const narrow = useSyncExternalStore(subscribe, () => matchMedia(NOTES_COVER).matches)
+  return open && narrow
 }
 
 /** Writes that say what happened, and offer Undo where it can be undone. */
@@ -197,16 +220,24 @@ function Head({ count, notes }: { count: number; notes: Props['notes'] }) {
 }
 
 /**
- * What a screen reader is told as the conversation moves on (heard): Sophia writing, then her reply. The baseline is
- * taken once the space has loaded, so nothing that was already there is read out.
+ * What a screen reader is told as the conversation is read again (heard): Sophia writing, then her replies, or a reply
+ * that failed. Each load (the first read after opening or unlocking) is the baseline, so nothing already there is read
+ * out. The line ends in a no-break space every other time, so the same words twice in a row are said twice.
  */
 function useHeard(space: Space | undefined, turns: readonly PersonalTurn[], writing: boolean): string {
-  const [baseline, setBaseline] = useState<string | null | undefined>(undefined)
+  const [said, setSaid] = useState({ text: '', count: 0 })
+  const last = useRef<{ turns: readonly PersonalTurn[] | null; writing: boolean }>({ turns: null, writing: false })
   const loaded = space !== undefined
   useEffect(() => {
-    if (loaded && baseline === undefined) setBaseline(newestFromSophia(turns))
-  }, [loaded, baseline, turns])
-  return heard(turns, baseline, writing)
+    if (!loaded) {
+      last.current = { turns: null, writing: false }
+      return
+    }
+    const message = heard(last.current.turns, turns, writing, last.current.writing)
+    last.current = { turns, writing }
+    if (message) setSaid((s) => ({ text: message, count: s.count + 1 }))
+  }, [loaded, turns, writing])
+  return said.count % 2 === 1 ? `${said.text}\u00a0` : said.text
 }
 
 /** The latest turn is in sight whenever the conversation grows: a turn, a message on its way, Sophia writing. */
@@ -217,16 +248,18 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, turns: number,
   }, [list, turns, sending, writing])
 }
 
-/** Sending from the composer: true once sent; a failure is said, and the words go back into the field. */
-const sender = (writes: PersonalWrites, onFailed: (err: unknown) => void) => async (text: string) => {
-  try {
-    await writes.send(text)
-    return true
-  } catch (err: unknown) {
-    onFailed(err)
-    return false
+/** Sending from the composer: how it went (SendOutcome); a failure is said, and the composer decides about the words. */
+const sender =
+  (writes: PersonalWrites, onFailed: (err: unknown) => void) =>
+  async (text: string): Promise<SendOutcome> => {
+    try {
+      await writes.send(text)
+      return 'sent'
+    } catch (err: unknown) {
+      onFailed(err)
+      return unsent(err)
+    }
   }
-}
 
 export function PersonalSpace(props: Props) {
   const { identity, space, projects, writes, notes, earlier, toast } = props
@@ -234,6 +267,7 @@ export function PersonalSpace(props: Props) {
   const list = useRef<HTMLDivElement>(null)
   const [listening, setListening] = useState(false)
   const shift = useShift(body, notes.open)
+  const covered = useNotesCover(notes.open)
   const onFailed = useCallback((err: unknown) => toast(personalFailure(err)), [toast])
   const actions = useActions(props, onFailed)
   const { turns, rows } = useRows(props)
@@ -266,7 +300,7 @@ export function PersonalSpace(props: Props) {
       <Head count={space?.notes.length ?? 0} notes={notes} />
       <div className="c3-body" ref={body}>
         <Conversation
-          {...{ rows, turns, list, actions, composer }}
+          {...{ rows, turns, list, actions, composer, covered }}
           notice={<ReadNotes reads={[props.read]} />}
           earlier={earlier.open}
           setEarlier={earlier.set}

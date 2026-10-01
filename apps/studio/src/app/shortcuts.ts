@@ -85,10 +85,21 @@ export function onScreen(el: { getClientRects: () => ArrayLike<unknown>; checkVi
   return typeof el.checkVisibility === 'function' ? el.checkVisibility() : el.getClientRects().length > 0
 }
 
-/** Where stray typing goes: the chat's foot, when it is on screen and the key is stray (strayFrom). */
+type Field = Parameters<typeof onScreen>[0] & { closest: (selector: string) => unknown }
+
+/**
+ * The field that takes stray typing: the first on screen, never one out of sight (a project kept running for its call
+ * has its own) or behind something the page made inert (the notes covering the conversation on a narrow screen).
+ */
+export function typingSink<T extends Field>(fields: Iterable<T>): T | null {
+  for (const field of fields) if (onScreen(field) && !field.closest('[inert]')) return field
+  return null
+}
+
+/** Where stray typing goes: the chat's foot on screen (typingSink), when the key is stray (strayFrom). */
 function strayField(target: HTMLElement | null, key: string): HTMLElement | null {
-  const field = document.querySelector<HTMLElement>('[data-typing-sink]')
-  return field && onScreen(field) && strayFrom(focusAt(target, field), key) ? field : null
+  const field = typingSink(document.querySelectorAll<HTMLElement>('[data-typing-sink]'))
+  return field && strayFrom(focusAt(target, field), key) ? field : null
 }
 
 function keyLike(e: KeyboardEvent): KeyLike {

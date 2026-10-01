@@ -1,6 +1,7 @@
-// A modal panel's keyboard contract: focus moves in when it opens and back to what opened it when it closes,
-// Tab stays inside, Escape closes. The latest onClose is always used, so a parent that re-renders (a voice
-// in the call, a knock at the door) never pulls focus out of a field someone is typing in.
+// A modal panel's keyboard contract: focus moves in when it opens and back to what opened it when it closes (or, when
+// that is gone or was the page itself, where `returnTo` says), Tab stays inside, Escape closes. The latest onClose is
+// always used, so a parent that re-renders (a voice in the call, a knock at the door) never pulls focus out of a field
+// someone is typing in.
 import { useEffect, useRef, type RefObject } from 'react'
 
 const FOCUSABLE =
@@ -22,10 +23,16 @@ function keepFocusInside(e: KeyboardEvent, root: HTMLElement): void {
   }
 }
 
-export function useDialog(panel: RefObject<HTMLElement | null>, onClose: () => void): void {
+export function useDialog(
+  panel: RefObject<HTMLElement | null>,
+  onClose: () => void,
+  returnTo?: () => HTMLElement | null,
+): void {
   const close = useRef(onClose)
+  const back = useRef(returnTo)
   useEffect(() => {
     close.current = onClose
+    back.current = returnTo
   })
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -37,7 +44,8 @@ export function useDialog(panel: RefObject<HTMLElement | null>, onClose: () => v
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('keydown', onKey)
-      opener?.focus()
+      const nowhere = !opener?.isConnected || opener === document.body
+      ;((nowhere ? back.current?.() : null) ?? opener)?.focus()
     }
   }, [panel])
 }

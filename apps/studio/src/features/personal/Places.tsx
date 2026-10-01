@@ -4,7 +4,9 @@
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
+import { tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { initialOf } from '../../app/profile.ts'
@@ -186,7 +188,6 @@ function usePlaceNavigation(props: PlacesProps, layers: Layers) {
   )
   const lockNow = () => {
     setLock(shut(lock, 'you'))
-    layers.setNotes(false)
     if (place === 'personal') onGo('home', true)
     toast(NOTICE.locked)
   }
@@ -438,7 +439,7 @@ function Sheets({ v }: { v: View }) {
   const { identity } = props
   return (
     <>
-      <PlaceDialogs layers={layers} inCall={!!props.call} onUnlocked={nav.unlocked} />
+      <PlaceDialogs layers={layers} me={tokenSubject(identity.token)} inCall={!!props.call} onUnlocked={nav.unlocked} />
       {layers.data && (
         <DataSheet
           token={identity.token}
@@ -458,8 +459,38 @@ function Sheets({ v }: { v: View }) {
   )
 }
 
+/**
+ * What a shut space does, whoever shut it (the person's L, a call, another tab). It is never on screen: arriving at it
+ * (a reload, Back, a room joined) lands at home instead, in its history entry's place, so Back goes on past it. Its
+ * notes close, and what was read of it is dropped: nothing personal stays in memory while it is shut, and the first read
+ * after unlocking is a load, so a screen reader is not read what was already there (useHeard).
+ */
+function useShutSpace({ place, lock, identity, onGo }: PlacesProps, setNotes: (open: boolean) => void) {
+  const client = useQueryClient()
+  useEffect(() => {
+    if (place === 'personal' && lock.locked) onGo('home', true)
+  }, [place, lock.locked, onGo])
+  useEffect(() => {
+    if (!lock.locked) return
+    setNotes(false)
+    client.removeQueries({ queryKey: ['personal', identity.name] })
+  }, [lock.locked, identity.name, setNotes, client])
+}
+
+/**
+ * Another tab's unlock closes this tab's unlock sheet and does nothing else: only the tab whose check passed goes where
+ * it was asked (a tab sharing its screen in a call never moves into the space on its own). The sheet gives the focus
+ * back to what opened it (useDialog), or to the place.
+ */
+function useUnlockedElsewhere(locked: boolean, layers: Layers) {
+  const { unlock, setUnlock } = layers
+  useEffect(() => {
+    if (!locked && unlock) setUnlock(null)
+  }, [locked, unlock, setUnlock])
+}
+
 export function Places(props: PlacesProps) {
-  const { place, identity, lock, onGo } = props
+  const { place, identity, lock } = props
   const root = useRef<HTMLDivElement>(null)
   const layers = useLayers()
   const explain = useExplain(identity.name)
@@ -482,11 +513,8 @@ export function Places(props: PlacesProps) {
   usePlaceKeys(props, layers, nav, explain)
   useOpening(props, layers)
   useDocumentTitle(PLACE_TITLE[place])
-  // A shut space is never on screen: arriving at it (a reload, Back, a room joined) lands at home instead, in its
-  // history entry's place, so Back goes on past it rather than landing there again.
-  useEffect(() => {
-    if (place === 'personal' && lock.locked) onGo('home', true)
-  }, [place, lock.locked, onGo])
+  useShutSpace(props, layers.setNotes)
+  useUnlockedElsewhere(lock.locked, layers)
   return (
     <div ref={root} className={`places${props.call ? ' in-room' : ''}`} data-place={place}>
       <Bar v={v} />

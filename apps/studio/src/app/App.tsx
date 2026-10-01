@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { forgetDrafts } from '../features/personal/draft.ts'
-import { callEnded } from '../features/personal/notice-view.ts'
+import { callEnded, NOTICE } from '../features/personal/notice-view.ts'
 import { Places, type Opening } from '../features/personal/Places.tsx'
 import type { InCall } from '../features/personal/PlacesBar.tsx'
-import { OPEN, type Lock } from '../features/personal/lock.ts'
+import { OPEN } from '../features/personal/lock.ts'
 import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
@@ -126,15 +126,13 @@ const inCall = (call: ProjectCall, onReturn: () => void): InCall & { projectId: 
 function useSayings(input: {
   ended: RefObject<OnEnded | null>
   say: ShowToast
-  lock: Lock
   project: string | null
   notice: string | undefined
 }) {
-  const { ended, say, lock, project, notice } = input
+  const { ended, say, project, notice } = input
   useEffect(() => {
     ended.current = (endedCall, note) => {
-      const reopens = lock.locked && lock.by === 'room'
-      const message = callEnded({ title: endedCall.title, note, here: project === endedCall.projectId, reopens })
+      const message = callEnded({ title: endedCall.title, note, here: project === endedCall.projectId })
       if (message) say(message)
     }
   })
@@ -220,12 +218,15 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const [call, reportCall] = useCall(ended)
   const join = useJoinRequest(route.projectId)
   const [lock, setLock] = useLock(identity.name, call?.projectId ?? null)
-  useUnlockOnReturn(() => {
-    setLock(OPEN)
-    goTo('personal')
+  useUnlockOnReturn({
+    passed: () => {
+      setLock(OPEN)
+      goTo('personal')
+    },
+    unchecked: () => toast.show(NOTICE.unchecked),
   })
   const project = route.projectId
-  useSayings({ ended, say: toast.show, lock, project, notice })
+  useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
   const actions = { data: sheets.data, privacy: sheets.privacy, chooseDev: onChooseDev, signOut: onSignOut }
   const ids = [project, call && call.projectId !== project ? call.projectId : null].filter(
