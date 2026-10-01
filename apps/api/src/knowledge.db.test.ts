@@ -250,6 +250,17 @@ describe('Knowledge reads (A11)', () => {
     assert.equal((await get(`/api/v1/knowledge/reports?project=all&cursor=bm9wZQ`, A)).status, 422)
   })
 
+  it('refuses a cursor the API could not have issued before any query, never as a retryable failure (M03-RF-0002)', async () => {
+    const id = randomUUID()
+    const status = async (keyset: string) =>
+      (await get(`/api/v1/knowledge/reports?project=all&cursor=${Buffer.from(keyset).toString('base64url')}`, A)).status
+    assert.equal(await status(`9999999999999999999.${id}`), 422, 'beyond bigint')
+    assert.equal(await status(`9223372036854775808.${id}`), 422, 'bigint max + 1')
+    assert.equal(await status(`9223372036854775807.${id}`), 200, 'bigint max: a valid, empty-tailed page')
+    assert.equal(await status(`0.${id}`), 200, 'zero: nothing older')
+    assert.equal(await status(`1.${id}.1`), 422, 'an extra segment')
+  })
+
   it('answers a report’s published versions with their notes, never a candidate, only to its members', async () => {
     const r = R['Sandboxed PDF rendering']
     assert.ok(r)

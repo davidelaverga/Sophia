@@ -183,11 +183,18 @@ interface CardRow {
 /** The keyset of the last card on a page: its update time in microseconds and its id. */
 const encodeCursor = (us: string, id: string) => Buffer.from(`${us}.${id}`).toString('base64url')
 
+/** The largest PostgreSQL bigint: a cursor's microseconds are compared as one in SQL. */
+const BIGINT_MAX = 9223372036854775807n
+
+/** A cursor this API issued, or `invalid_request` before any SQL: never a value the query would fail on (M03-RF-0002). */
 function decodeCursor(cursor: string): { us: string; id: string } {
-  const [us, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('.')
+  const parts = Buffer.from(cursor, 'base64url').toString('utf8').split('.')
+  const [us, id] = parts
   if (
+    parts.length !== 2 ||
     !us ||
     !/^[0-9]{1,19}$/.test(us) ||
+    BigInt(us) > BIGINT_MAX ||
     !id ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)
   ) {
