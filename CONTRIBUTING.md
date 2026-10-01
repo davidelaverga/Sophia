@@ -413,11 +413,14 @@ either:
   companion answers (`WATCH_MS`), so a stalled attempt asks nothing and
   nobody takes the claim over meanwhile; a reply reads as lost two minutes
   after it was asked for or last claimed, whichever is later. A call is
-  known to every API process while it runs (`begin_companion_call`): an
-  erasure tells this process's calls for the person to stop, every other
-  process stops its own once it finds its claim gone, and the erasure is
-  acknowledged only once none is in flight anywhere (`stoppedEverywhere`,
-  at most 65 seconds).
+  known to every API process while it runs, with the space's epoch then
+  (`begin_companion_call`): an erasure tells this process's calls for the
+  person to stop, every other process stops its own once it finds its claim
+  gone, and the erasure is acknowledged only once none begun before it is in
+  flight anywhere (`stoppedEverywhere`, at most 65 seconds); then they are
+  forgotten, with any a process that went away left behind. Should that
+  wait fail after the erasure committed, it answers `outcome_unknown`: asked
+  again under its key, it gets its receipt and waits again.
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole
@@ -425,7 +428,10 @@ either:
   most 1000 turns at a time (`after`, `next`), so one read stays bounded.
 - **One read of the Work list stays small.** It holds at most 4000 carried
   notes in all (`PROJECT_LIST_BOUNDS`), the reader's own first, then the
-  newest; each project's own bound still holds.
+  newest; each project's own bound still holds. The database reads no more
+  than that either: the reader's own (a person carries at most 2000), and
+  per project the newest of the others' within its bound, by index, however
+  many they carried.
 - **One read of the Work list asks the room server little.** One question
   finds the rooms that exist (`liveRooms`); only those are asked who is in
   them, a few at a time and within the list's time (`lookupAll`). Never by a

@@ -57,7 +57,8 @@ function sessionOf(r: ProjectRow): RoomSession | null {
 
 /**
  * Notes carried to these projects, each marked `mine` when the caller carried it: per project `limit` of them, and in
- * all `total`.
+ * all `total`, the caller's own first, then the newest. The database reads no more than that: the caller's own (a
+ * person carries at most 2000) and, per project, the newest `limit` of the others' (by index, however many they are).
  */
 async function readProjectReleases(
   c: pg.PoolClient,
@@ -73,14 +74,21 @@ async function readProjectReleases(
     mine: boolean
     created_at: Date
   }>(
-    `SELECT id, project_id, body, owner_name, mine, created_at FROM (
-       SELECT *, row_number() OVER (ORDER BY mine DESC, created_at DESC, id DESC) AS overall FROM (
-         SELECT id, project_id, body, owner_name, owner_id = sophia.actor_id() AS mine, created_at,
-                row_number() OVER (PARTITION BY project_id
-                  ORDER BY owner_id = sophia.actor_id() DESC, created_at DESC, id DESC) AS place
-           FROM sophia.personal_releases WHERE project_id = ANY($1::uuid[])) ranked
-        WHERE place <= $2) kept
-      WHERE overall <= $3 ORDER BY created_at, id`,
+    `WITH own AS (
+       SELECT id, project_id, body, owner_name, true AS mine, created_at FROM sophia.personal_releases
+        WHERE owner_id = sophia.actor_id() AND project_id = ANY($1::uuid[])
+     ), others AS (
+       SELECT r.* FROM unnest($1::uuid[]) AS p(id) CROSS JOIN LATERAL (
+         SELECT id, project_id, body, owner_name, false AS mine, created_at FROM sophia.personal_releases
+          WHERE project_id = p.id AND owner_id <> sophia.actor_id()
+          ORDER BY created_at DESC, id DESC LIMIT $2) r
+     ), ranked AS (
+       SELECT *, row_number() OVER (PARTITION BY project_id ORDER BY mine DESC, created_at DESC, id DESC) AS place
+         FROM (SELECT * FROM own UNION ALL SELECT * FROM others) carried
+     )
+     SELECT id, project_id, body, owner_name, mine, created_at FROM (
+       SELECT * FROM ranked WHERE place <= $2 ORDER BY mine DESC, created_at DESC, id DESC LIMIT $3) kept
+      ORDER BY created_at, id`,
     [projectIds, limit, total],
   )
   const byProject = new Map<string, ProjectRelease[]>()

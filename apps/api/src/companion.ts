@@ -14,10 +14,11 @@ import {
   beginCompanionCall,
   beginPersonalGreeting,
   claimPersonalReply,
-  companionCallsRunning,
   endCompanionCall,
+  erasedCompanionCalls,
   failPersonalReply,
   fencePersonalWrite,
+  forgetErasedCompanionCalls,
   readCompanionContext,
   readWelcomeContext,
   recordPersonalGreeting,
@@ -283,16 +284,20 @@ export class CompanionRunner {
 
 /**
  * After an erasure: the person's calls to the companion in this process are told to stop and waited for, and those of
- * every other process (each stops its own once its claim is gone, within WATCH_MS): this waits until none is in flight
- * anywhere, within STOPPING_MS (a companion that never stops, a process that went away), so the erasure is acknowledged
- * only once nothing of the space is being answered.
+ * every other process (each stops its own once its claim is gone, within WATCH_MS): this waits until none begun before
+ * the erasure is in flight anywhere, within `ms` (a companion that never stops, a process that went away), so the
+ * erasure is acknowledged only once nothing of the space is being answered; then they are all forgotten.
  */
-export async function stoppedEverywhere(pool: pg.Pool, actorId: string, runner: CompanionRunner | null): Promise<void> {
-  const end = Date.now() + STOPPING_MS
-  await Promise.race([runner?.stopFor(actorId), delay(STOPPING_MS, undefined, { ref: false })])
-  for (;;) {
-    const running = await withActor(pool, actorId, 'read', (c) => companionCallsRunning(c))
-    if (running === 0 || Date.now() > end) return
+export async function stoppedEverywhere(
+  pool: pg.Pool,
+  actorId: string,
+  runner: CompanionRunner | null,
+  ms = STOPPING_MS,
+): Promise<void> {
+  const end = Date.now() + ms
+  await Promise.race([runner?.stopFor(actorId), delay(ms, undefined, { ref: false })])
+  while ((await withActor(pool, actorId, 'read', (c) => erasedCompanionCalls(c))) > 0 && Date.now() <= end) {
     await delay(100)
   }
+  await withActor(pool, actorId, 'write', (c) => forgetErasedCompanionCalls(c))
 }
