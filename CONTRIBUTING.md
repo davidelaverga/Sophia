@@ -41,9 +41,11 @@ contract; this file holds the code rules.
 - **Every fix gets a regression test that fails without the fix.** Check it
   by reverting the fix once (a mutation check), and say so in the PR. A test
   that can hang is not a check: `node --test` counts a hang as cancelled,
-  not failed. Race what is awaited against a timer that settles after it
-  should have (to a sentinel, or a rejection), and assert the timer didn't
-  win; a value already settled wins at once and checks nothing.
+  not failed. Race what is awaited against a sentinel, and assert that the
+  sentinel lost: a timer that settles after the operation should have, or,
+  under mocked timers, a value already settled, which reads the promise at
+  that moment (`now` in `deadline.test.ts`). A race whose winner isn't
+  asserted checks nothing.
 - **Before a PR is ready, read it to break it.** Happy paths and screens
   checked by eye miss what a review finds. For each function the PR changes:
   - walk the states it can meet: not loaded yet (null, never `[]`), empty,
