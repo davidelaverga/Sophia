@@ -46,6 +46,22 @@ contract; this file holds the code rules.
   under mocked timers, a value already settled, which reads the promise at
   that moment (`now` in `deadline.test.ts`). A race whose winner isn't
   asserted checks nothing.
+- **Before writing a feature, write down its states.** Most review findings
+  were states and crossings nobody had listed: text mode after each way a call
+  ends, everything a panel covers on a phone, a view that unmounts, a second
+  join while one runs. Before the code, put a few lines in the PR:
+  - each state and transition, and how the screen, the keyboard and a screen
+    reader meet it, on a phone and wide;
+  - what the change covers, unmounts or replaces, and everything that lived
+    there;
+  - the failures: slow, refused, pressed twice, interleaved, a reload in the
+    middle;
+  - the platforms the build targets: an API missing from Safari 16.4 broke
+    every shortcut there.
+
+  Test those transitions, not only the happy path.
+- **One concern per PR.** Each request added to a PR crosses the ones before
+  it: #24 grew to 33 files, and most of its findings were crossings.
 - **Before a PR is ready, read it to break it.** Happy paths and screens
   checked by eye miss what a review finds. For each function the PR changes:
   - walk the states it can meet: not loaded yet (null, never `[]`), empty,
