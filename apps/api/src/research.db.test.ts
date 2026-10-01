@@ -9,7 +9,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { RuntimeCommand } from '@sophia/contracts'
-import { createPool, readSnapshot, startExchange, withActor } from '@sophia/persistence'
+import { admitResearchTask, createPool, readSnapshot, startExchange, withActor } from '@sophia/persistence'
 import {
   createTestDatabase,
   registerRuntime,
@@ -80,9 +80,10 @@ after(async () => {
 })
 
 const ROLES = [{ id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }]
+const PDF_ROLE = { id: 'sophia-research-pdf-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:pdf' }
 
 /** A project with a research grant, a ready runtime advertising the Markdown specialist, and an open exchange. */
-async function world() {
+async function world(roles = ROLES) {
   const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
   const owner = new pg.Client({ connectionString: db.ownerUrl })
   await owner.connect()
@@ -102,7 +103,7 @@ async function world() {
     bundle: 'test',
     protocolVersion: 1,
     dshVersion: 'x',
-    roles: ROLES,
+    roles,
   })
   assert.equal(hello.status, 200, JSON.stringify(hello.json))
   assert.equal((await runtime('/v1/runtime/ready', { state: 'ready', reason: null, unrecovered: [] })).status, 204)
@@ -153,7 +154,7 @@ describe('the guide’s tool surface is versioned (A11)', () => {
 
 describe('start_research over /v1/media/tool-calls', () => {
   it('admits for the bound speaker, returns the task under way to a repeat, and types every refusal', async () => {
-    const w = await world()
+    const w = await world([...ROLES, PDF_ROLE])
     const first = await tool(w, { question: 'Which sandboxes do PDF rendering services use?' })
     assert.equal(first.status, 'admitted', JSON.stringify(first))
     assert.equal(first.output.stage, 'admitted')
@@ -161,7 +162,21 @@ describe('start_research over /v1/media/tool-calls', () => {
     assert.deepEqual([repeat.status, repeat.output.existingTaskId], ['ok', first.output.taskId])
     // A viewer's refusal (not_started:forbidden) is the database suite's: here the floor is the editor's.
     const pdf = await tool(w, { question: 'As a PDF, please.', outputs: ['markdown', 'pdf'], newRequest: true })
-    assert.deepEqual([pdf.status, pdf.output.code], ['refused', 'not_started:pdf_unavailable'])
+    assert.deepEqual([pdf.status, pdf.output.code], ['refused', 'not_started:pdf_unavailable'], 'no renderer running')
+    const runner = new pg.Client({ connectionString: db.ownerUrl })
+    await runner.connect()
+    const label = `start-research-${String(Date.now())}`
+    await runner.query(
+      `INSERT INTO sophia.render_runners(label, token_sha256, seen_at) VALUES($1, $2, now() - interval '11 minutes')`,
+      [label, createHash('sha256').update(label).digest()],
+    )
+    const stale = await tool(w, { question: 'As a PDF, please.', outputs: ['markdown', 'pdf'], newRequest: true })
+    assert.equal(stale.output.code, 'not_started:pdf_unavailable', 'a renderer silent for over ten minutes')
+    await runner.query(`UPDATE sophia.render_runners SET seen_at=now() WHERE label=$1`, [label])
+    const ready = await tool(w, { question: 'As a PDF, please.', outputs: ['markdown', 'pdf'], newRequest: true })
+    assert.equal(ready.status, 'admitted', JSON.stringify(ready))
+    await runner.query(`UPDATE sophia.render_runners SET state='revoked', revoked_at=now() WHERE label=$1`, [label])
+    await runner.end()
     const vague = await tool(w, { question: '  ' })
     assert.equal(vague.status, 'clarify')
     const bad = await tool(w, { question: 'Read this', urls: ['ftp://example.org/x'] })
@@ -279,5 +294,105 @@ describe('the runtime research routes (A11)', () => {
     assert.deepEqual([submitted.status, submitted.json.outcome, submitted.json.versionNumber], [200, 'published', 1])
     const again = await w.runtime('/v1/runtime/research/submit', { ...at, callId: 's2', result })
     assert.deepEqual([again.status, again.json.code], [409, 'invalid_state'], 'the task has ended')
+  })
+})
+
+describe("the research PDF's runtime routes (A11, 0031)", () => {
+  it('print the draft as the PDF package, answer a failing report with its checks, and take no markup', async () => {
+    const w = await world([...ROLES, PDF_ROLE])
+    await withActor(pool, E, 'write', (c) =>
+      admitResearchTask(c, w.projectId, {
+        key: randomUUID(),
+        exchangeId: null,
+        request: { question: 'Which hosts render PDFs in a sandbox?', outputs: ['markdown', 'pdf'] },
+        specialist: { role: PDF_ROLE.id, route: PDF_ROLE.route },
+      }),
+    )
+    await dispatchOnce(worker, { workerId: 'test-worker' })
+    const batch = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
+    const create = (batch.json.commands as Array<{ command: RuntimeCommand }>).at(-1)?.command
+    assert.ok(create)
+    assert.equal(create.payload.role, PDF_ROLE.id)
+    const at = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+    const reserve = await w.runtime('/v1/runtime/research/reserve', {
+      ...at,
+      callId: 'call_1',
+      kind: 'search',
+      provider: 'tavily',
+      amountUsd: 0.01,
+      query: 'pdf rendering sandbox',
+    })
+    const capture = await w.runtime('/v1/runtime/research/capture', {
+      ...at,
+      reservationId: reserve.json.reservationId,
+      kind: 'search_results',
+      provider: 'tavily',
+      providerHttpStatus: 200,
+      coverage: 'complete',
+      limitations: [],
+      results: [{ url: 'https://hosts.example.org/a', title: 'Hosts' }],
+    })
+    assert.equal(capture.status, 200, JSON.stringify(capture.json))
+    const thin = await w.runtime('/v1/runtime/research/draft', {
+      ...at,
+      callId: 'd1',
+      expectedSha256: null,
+      text: '# Notes',
+    })
+    const rejected = await w.runtime('/v1/runtime/research/render', {
+      ...at,
+      callId: 'p1',
+      draftSha256: thin.json.sha256,
+    })
+    assert.deepEqual([rejected.status, rejected.json.state], [200, 'rejected'], JSON.stringify(rejected.json))
+    const checks = rejected.json.reportChecks as Array<{ name: string; outcome: string }>
+    assert.ok(checks.some((c) => c.outcome === 'failed'))
+
+    const filler = Array.from({ length: 60 }, (_, i) => `w${String(i)}`).join(' ')
+    const text = `# Hosts\n\n## Summary\n\n${filler} [${String(capture.json.sourceId)}]\n\n## Findings\n\n${filler}\n\n## Conclusion\n\n${filler}\n`
+    const draft = await w.runtime('/v1/runtime/research/draft', {
+      ...at,
+      callId: 'd2',
+      expectedSha256: thin.json.sha256,
+      text,
+    })
+    const markup = await w.runtime('/v1/runtime/research/render', {
+      ...at,
+      callId: 'p2',
+      draftSha256: draft.json.sha256,
+      html: '<script>x</script>',
+    })
+    assert.equal(markup.status, 422, 'the request carries no markup')
+    const queued = await w.runtime('/v1/runtime/research/render', {
+      ...at,
+      callId: 'p3',
+      draftSha256: draft.json.sha256,
+    })
+    assert.deepEqual(
+      [queued.status, queued.json.state, queued.json.repair, queued.json.report.sections.length],
+      [200, 'queued', 'none', 3],
+      JSON.stringify(queued.json),
+    )
+    const read = await w.runtime('/v1/runtime/research/render-result', at)
+    assert.deepEqual([read.status, read.json.renderJobId, read.json.state], [200, queued.json.renderJobId, 'queued'])
+    const twice = await w.runtime('/v1/runtime/research/render', {
+      ...at,
+      callId: 'p4',
+      draftSha256: draft.json.sha256,
+    })
+    assert.deepEqual([twice.status, twice.json.code], [409, 'invalid_state'], 'one render at a time')
+    const early = await w.runtime('/v1/runtime/research/submit', {
+      ...at,
+      callId: 's1',
+      result: {
+        draftSha256: draft.json.sha256,
+        title: 'Hosts',
+        summary: 'Which hosts render PDFs in a sandbox.',
+        resultSummary: 'One host found.',
+        limitations: [],
+        citations: [capture.json.sourceId],
+      },
+    })
+    assert.deepEqual([early.status, early.json.code], [409, 'invalid_state'], 'the render is still running')
   })
 })

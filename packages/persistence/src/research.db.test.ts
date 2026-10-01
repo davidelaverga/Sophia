@@ -39,6 +39,8 @@ import {
   runtimeResearchCapture,
   runtimeResearchContext,
   runtimeResearchDraft,
+  runtimeResearchRender,
+  runtimeResearchRenderResult,
   runtimeResearchReserve,
   runtimeResearchSettle,
   runtimeResearchSubmit,
@@ -170,8 +172,8 @@ const ask = (
   )
 
 /** Admit one task, dispatch its create and deliver it; the attempt and the session a research tool runs in. */
-async function started(w: World, request: Partial<ResearchAdmissionRequest> = {}) {
-  const admission = await ask(w, request, { exchange: randomUUID() })
+async function started(w: World, request: Partial<ResearchAdmissionRequest> = {}, as = specialist) {
+  const admission = await ask(w, request, { exchange: randomUUID(), as })
   assert.ok('admitted' in admission)
   await dispatchAll(w.projectId)
   const batch = await withService(pool, (c) => runtimePoll(c, w.who, 0))
@@ -2181,5 +2183,305 @@ describe('render jobs (0030)', () => {
         c.query(`UPDATE sophia.render_runners SET state='active', revoked_at=NULL WHERE label='test-runner'`),
       )
     }
+  })
+})
+
+// --- the research PDF (0031) ----------------------------------------------------------------------------------
+
+const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ')
+const reportOf = (cite: string, extra = '') =>
+  `# Sandboxes for PDF rendering\n\n## Summary\n\n${words(60)} [${cite}]\n\n## Hosts\n\n${words(60)}\n\n## Conclusion\n\n${words(30)}${extra}\n`
+
+/** A started PDF task with a cited source and a full draft, a registered runner, and the kernel's side of a render. */
+async function pdfWorld(as = { role: PDF.id, route: PDF.route }) {
+  const w = await world()
+  const { at, create } = await started(w, { outputs: ['markdown', 'pdf'] }, as)
+  await owner((c) =>
+    c.query(`INSERT INTO sophia.render_runners(label,token_sha256) VALUES($1,$2) ON CONFLICT (label) DO NOTHING`, [
+      'test-runner',
+      runnerHash(),
+    ]),
+  )
+  const cited = await citable(w, at)
+  let last: string | null = null
+  const draft = async (text: string) => {
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...at, callId: randomUUID(), expectedSha256: last, text }),
+    )
+    last = d.sha256
+    return d
+  }
+  const d = await draft(reportOf(cited.sourceId))
+  const render = (draftSha256: string, callId: string = randomUUID()) =>
+    service((c) => runtimeResearchRender(c, w.who, { ...at, callId, draftSha256 }))
+  /** Claim the render and end it as the kernel would: a PDF and its receipt, or a failure. */
+  const settle = async (jobId: string, status: 'succeeded' | 'failed' = 'succeeded') => {
+    const job = await claimMine(jobId)
+    const outSha = status === 'succeeded' ? sha(`pdf ${jobId}`) : null
+    if (outSha) {
+      const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+      await service((c) =>
+        rendererRecordOutput(c, runnerHash(), job.jobId, job.leaseToken, {
+          sourceId: slot.sourceId,
+          sha256: outSha,
+          byteLength: 3,
+        }),
+      )
+    }
+    const receipt = {
+      ...receiptFor(job.sourceManifestHash, outSha, status),
+      checks: [{ name: 'blank_pages', outcome: 'unknown' as const, detail: null }],
+    }
+    return service((c) => rendererSettle(c, runnerHash(), job.jobId, job.leaseToken, receipt))
+  }
+  const submit = (draftSha256: string, callId: string = randomUUID()) =>
+    service((c) => runtimeResearchSubmit(c, w.who, { ...at, callId, result: resultOf(draftSha256, [cited.sourceId]) }))
+  const renders = () =>
+    owner(
+      async (c) =>
+        (
+          await c.query<{ job_id: string; repair: string; layout: string; state: string }>(
+            `SELECT r.job_id, r.repair, r.layout, j.state FROM sophia.render_jobs r JOIN sophia.jobs j ON j.project_id=r.project_id AND j.id=r.job_id
+              JOIN sophia.jobs p ON p.project_id=r.project_id AND p.id=r.parent_job_id WHERE p.attempt_id=$1 ORDER BY r.created_at`,
+            [at.attemptId],
+          )
+        ).rows,
+    )
+  return { w, at, create, cited, d, draft, render, settle, submit, renders }
+}
+
+const entryOf = (jobId: string) =>
+  one<{ body: string; mime: string; deps: string[] }>(
+    `SELECT t.body, s.mime, (SELECT array_agg(d.source_id::text ORDER BY d.source_id) FROM sophia.source_dependencies d
+       WHERE d.project_id=s.project_id AND d.derived_source_id=s.id) AS deps
+      FROM sophia.render_job_files f JOIN sophia.source_objects s ON s.project_id=f.project_id AND s.id=f.source_id
+      JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=s.id WHERE f.job_id=$1 AND f.role='entry'`,
+    [jobId],
+  )
+
+describe('the research PDF (0031)', () => {
+  it('prints the current draft with the report template and queues that HTML as the package, once per call', async () => {
+    const p = await pdfWorld()
+    const queued = await p.render(p.d.sha256, 'render_1')
+    assert.deepEqual(
+      [queued.state, queued.repair, queued.layout, queued.draftSha256],
+      ['queued', 'none', 'standard', p.d.sha256],
+    )
+    assert.deepEqual(
+      queued.report?.sections.map((s) => [s.id, s.role]),
+      [
+        ['summary', 'summary'],
+        ['hosts', 'body'],
+        ['conclusion', 'conclusion'],
+      ],
+    )
+    assert.deepEqual(await p.render(p.d.sha256, 'render_1'), queued, 'a replay returns the same render')
+    const entry = await entryOf(queued.renderJobId!)
+    assert.equal(entry.mime, 'text/html; charset=utf-8')
+    assert.match(entry.body, /<h1>Sandboxes for PDF rendering<\/h1>/)
+    assert.match(entry.body, /<section id="hosts" data-report-role="body">/)
+    assert.match(entry.body, /<li id="cite-1">/, 'the cited source is listed')
+    assert.doesNotMatch(entry.body, new RegExp(p.cited.sourceId), 'by its title and URL, not its id')
+    assert.deepEqual(entry.deps, [p.d.sourceId, p.cited.sourceId].toSorted(), 'derived from the draft and the source')
+  })
+
+  it('answers a report that fails its checks with them, and queues nothing', async () => {
+    const p = await pdfWorld()
+    const thin = await p.draft('# Notes\n\nToo short to be a report.')
+    const rejected = await p.render(thin.sha256)
+    assert.equal(rejected.state, 'rejected')
+    assert.deepEqual(
+      rejected.reportChecks?.filter((c) => c.outcome === 'failed').map((c) => c.name),
+      ['report_sections', 'report_words'],
+    )
+    assert.equal(rejected.renderJobId, undefined)
+    assert.deepEqual(await p.renders(), [])
+  })
+
+  it("refuses a render that is not this task's to make now", async () => {
+    const md = await pdfWorld(specialist)
+    await owner((c) =>
+      c.query(
+        `UPDATE sophia.source_texts SET body=jsonb_set(body::jsonb,'{outputs}','["markdown"]')::text
+          WHERE source_id=(SELECT j.input_source_id FROM sophia.jobs j WHERE j.attempt_id=$1)`,
+        [md.at.attemptId],
+      ),
+    )
+    assert.equal(await codeOf(md.render(md.d.sha256)), 'invalid_request', 'a task admitted without a PDF')
+    const p = await pdfWorld()
+    assert.equal(await codeOf(p.render('a'.repeat(64))), 'stale_revision', 'not the current draft')
+    const queued = await p.render(p.d.sha256)
+    assert.equal(await codeOf(p.render(p.d.sha256)), 'invalid_state', 'one render at a time')
+    await p.settle(queued.renderJobId!)
+    assert.equal(await codeOf(p.render(p.d.sha256)), 'invalid_request', 'a draft that already has its PDF')
+    const f = await pdfWorld()
+    await owner((c) =>
+      c.query(
+        `UPDATE sophia.research_tasks t SET finalizing_at=now(), finalize_calls=1 FROM sophia.jobs j
+          WHERE j.project_id=t.project_id AND j.id=t.job_id AND j.attempt_id=$1`,
+        [f.at.attemptId],
+      ),
+    )
+    assert.equal(await codeOf(f.render(f.d.sha256)), 'research_limit_reached', 'finalizing: no render')
+  })
+
+  it('allows one format repair and one revision, then refuses', async () => {
+    const p = await pdfWorld()
+    const first = await p.render(p.d.sha256)
+    await p.settle(first.renderJobId!, 'failed')
+    const format = await p.render(p.d.sha256)
+    assert.deepEqual([format.repair, format.layout], ['format', 'compact'], 'the same draft again, compact')
+    assert.match((await entryOf(format.renderJobId!)).body, /<body class="compact">/)
+    await p.settle(format.renderJobId!, 'failed')
+    const d2 = await p.draft(reportOf(p.cited.sourceId, ' Revised.'))
+    const revision = await p.render(d2.sha256)
+    assert.deepEqual([revision.repair, revision.layout], ['semantic', 'compact'], 'a revision keeps the layout')
+    await p.settle(revision.renderJobId!, 'failed')
+    const d3 = await p.draft(reportOf(p.cited.sourceId, ' Again.'))
+    assert.equal(await codeOf(p.render(d3.sha256)), 'research_limit_reached')
+    assert.deepEqual(
+      (await p.renders()).map((r) => [r.repair, r.state]),
+      [
+        ['none', 'failed'],
+        ['format', 'failed'],
+        ['semantic', 'failed'],
+      ],
+    )
+
+    // A second revision is refused on its own rule, before the three-render cap.
+    const q = await pdfWorld()
+    await q.settle((await q.render(q.d.sha256)).renderJobId!, 'failed')
+    const r2 = await q.draft(reportOf(q.cited.sourceId, ' Revised.'))
+    await q.settle((await q.render(r2.sha256)).renderJobId!, 'failed')
+    const r3 = await q.draft(reportOf(q.cited.sourceId, ' Revised again.'))
+    assert.equal(await codeOf(q.render(r3.sha256)), 'research_limit_reached', 'one revision')
+    assert.equal((await q.renders()).length, 2)
+  })
+
+  it('waits for a render in flight, then publishes its PDF as the rendition of exactly that draft', async () => {
+    const p = await pdfWorld()
+    const queued = await p.render(p.d.sha256)
+    assert.equal(await codeOf(p.submit(p.d.sha256)), 'invalid_state', 'a render still running')
+    await p.settle(queued.renderJobId!)
+    const done = await p.submit(p.d.sha256, 'submit_1')
+    assert.equal(done.outcome, 'published')
+    assert.equal(await codeOf(p.render(p.d.sha256)), 'invalid_state', 'the task has ended: no more renders')
+    const rendition = await one<{ source_id: string; page_count: number; job_id: string; limitations: string[] }>(
+      `SELECT source_id, page_count, job_id, limitations FROM sophia.artifact_renditions WHERE artifact_version_id=$1 AND format='pdf'`,
+      [done.versionId],
+    )
+    assert.deepEqual(done.pdf, { state: 'produced', sourceId: rendition.source_id, renderJobId: queued.renderJobId })
+    assert.deepEqual(
+      [rendition.page_count, rendition.job_id, rendition.limitations],
+      [1, queued.renderJobId, ['The PDF check blank_pages could not be confirmed']],
+    )
+    assert.deepEqual(await p.submit(p.d.sha256, 'submit_1'), done, 'a replay returns the same, PDF included')
+    const [version] = await withActor(pool, E, 'read', (c) => readArtifactVersions(c, done.artifactId!))
+    assert.deepEqual(
+      version?.renditions?.map((r) => r.format),
+      ['pdf'],
+    )
+  })
+
+  it('never lets a silent renderer cost the report: past ten minutes, or finalizing, the render is given up', async () => {
+    const p = await pdfWorld()
+    const queued = await p.render(p.d.sha256)
+    await owner((c) =>
+      c.query(`UPDATE sophia.render_jobs SET created_at=now()-interval '11 minutes' WHERE job_id=$1`, [
+        queued.renderJobId,
+      ]),
+    )
+    const done = await p.submit(p.d.sha256)
+    assert.deepEqual(done.pdf, {
+      state: 'not_produced',
+      reason: 'The PDF could not be produced (cancelled: the report was submitted while the PDF was still rendering)',
+    })
+    assert.equal((await renderState(p.w, queued.renderJobId!)).state, 'cancelled')
+    const f = await pdfWorld()
+    const running = await f.render(f.d.sha256)
+    await owner((c) =>
+      c.query(
+        `UPDATE sophia.research_tasks t SET finalizing_at=now(), finalize_calls=1 FROM sophia.jobs j
+          WHERE j.project_id=t.project_id AND j.id=t.job_id AND j.attempt_id=$1`,
+        [f.at.attemptId],
+      ),
+    )
+    assert.equal((await f.submit(f.d.sha256)).outcome, 'published', 'the finalize step does not wait')
+    assert.equal((await renderState(f.w, running.renderJobId!)).state, 'cancelled')
+  })
+
+  it('publishes the Markdown alone when no render of this version succeeded, and says why', async () => {
+    const earlier = await pdfWorld()
+    await earlier.settle((await earlier.render(earlier.d.sha256)).renderJobId!)
+    const d2 = await earlier.draft(reportOf(earlier.cited.sourceId, ' Changed after the PDF.'))
+    const a = await earlier.submit(d2.sha256)
+    assert.deepEqual(a.pdf, {
+      state: 'not_produced',
+      reason: 'The PDF was rendered from an earlier draft, not from this version',
+    })
+    const failed = await pdfWorld()
+    await failed.settle((await failed.render(failed.d.sha256)).renderJobId!, 'failed')
+    assert.deepEqual((await failed.submit(failed.d.sha256)).pdf, {
+      state: 'not_produced',
+      reason: 'The PDF could not be produced (failed: render_error)',
+    })
+    const none = await pdfWorld()
+    const b = await none.submit(none.d.sha256)
+    assert.deepEqual(b.pdf, { state: 'not_produced', reason: 'The PDF was not rendered' })
+    assert.equal(
+      (
+        await one<{ n: string }>(`SELECT count(*) AS n FROM sophia.artifact_renditions WHERE artifact_version_id=$1`, [
+          b.versionId,
+        ])
+      ).n,
+      '0',
+    )
+    const state = await one<{ pdf_state: string; pdf_reason: string }>(
+      `SELECT t.pdf_state, t.pdf_reason FROM sophia.research_tasks t JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id
+        WHERE j.attempt_id=$1`,
+      [none.at.attemptId],
+    )
+    assert.deepEqual(state, { pdf_state: 'not_produced', pdf_reason: 'The PDF was not rendered' })
+    const w = await world()
+    const md = await started(w)
+    const c = await citable(w, md.at)
+    const d = await service((cl) =>
+      runtimeResearchDraft(cl, w.who, { ...md.at, callId: 'd', expectedSha256: null, text: reportOf(c.sourceId) }),
+    )
+    const plain = await service((cl) =>
+      runtimeResearchSubmit(cl, w.who, { ...md.at, callId: 's', result: resultOf(d.sha256, [c.sourceId]) }),
+    )
+    assert.equal(plain.pdf, undefined, 'a Markdown task has no PDF to speak of')
+  })
+
+  it("reads a render back: its state, then the kernel's checks and its render-result.v1 record", async () => {
+    const p = await pdfWorld()
+    const queued = await p.render(p.d.sha256)
+    const read = (renderJobId?: string) =>
+      service((c) => runtimeResearchRenderResult(c, p.w.who, { ...p.at, ...(renderJobId ? { renderJobId } : {}) }))
+    assert.equal((await read()).state, 'queued', 'the latest render')
+    await p.settle(queued.renderJobId!)
+    const done = await read(queued.renderJobId)
+    assert.equal(done.state, 'succeeded')
+    assert.deepEqual([done.pdf?.bytes, done.pdf?.pages], [3, 1])
+    assert.deepEqual(done.checks, [{ name: 'blank_pages', outcome: 'unknown', detail: null }])
+    assert.deepEqual(done.result, {
+      schema: 'sophia.render-result.v1',
+      jobId: queued.renderJobId,
+      sourceVersionId: p.d.sourceId,
+      sourceManifestHash: queued.manifestSha256,
+      status: 'succeeded',
+      rendererUnitId: 'test-runner',
+      outputs: [{ sourceId: done.pdf?.sourceId, sha256: done.pdf?.sha256, bytes: 3 }],
+      previewSourceIds: [],
+      checks: [
+        { name: 'blank_pages', outcome: 'unknown', evidenceRef: `render-job:${queued.renderJobId}#checks/blank_pages` },
+      ],
+      warnings: [],
+      exportEditability: 'source_editable',
+    })
+    const other = await pdfWorld()
+    const theirs = await other.render(other.d.sha256)
+    assert.equal(await codeOf(read(theirs.renderJobId)), 'not_found', "another task's render")
   })
 })

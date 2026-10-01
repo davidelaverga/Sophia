@@ -14,7 +14,6 @@
         "research_search",
         "research_read_source",
         "research_write_draft",
-        "research_inspect_output",
         "research_submit_result",
         "research_report_blocker"
       ],

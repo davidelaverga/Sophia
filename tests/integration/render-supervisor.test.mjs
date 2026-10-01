@@ -102,7 +102,7 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
   })
 
   /** A new research task with a queued render of an HTML entry and one byte-stored image. */
-  async function queued() {
+  async function queued(html = HTML) {
     await s.persistence.withActor(pool, E, 'write', (c) =>
       s.persistence.admitResearchTask(c, projectId, {
         key: randomUUID(),
@@ -118,7 +118,7 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
         [projectId],
       )
     ).rows[0]
-    const entry = (await owner.query(`SELECT id FROM sophia.put_text_source($1, $2, 'text/html; charset=utf-8', $3)`, [projectId, E, HTML])).rows[0]
+    const entry = (await owner.query(`SELECT id FROM sophia.put_text_source($1, $2, 'text/html; charset=utf-8', $3)`, [projectId, E, html])).rows[0]
     const imageId = randomUUID()
     await owner.query(
       `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
@@ -158,6 +158,33 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
     const source = (await owner.query(`SELECT sha256, mime FROM sophia.source_objects WHERE id=$1`, [row.result_source_id])).rows[0]
     assert.deepEqual([source.sha256, source.mime], [sha(pdf), 'application/pdf'])
     assert.deepEqual(readdirSync(work), [], 'the job directory is gone')
+  })
+
+  test('renders a report printed by the report template with nothing past the printable width (pdf-report-v1, S5b)', async () => {
+    const { renderReport } = await import('../../packages/report/src/report-html.ts')
+    const longUrl = `https://example.org/${'a-very-long-path-segment-'.repeat(12)}`
+    const cells = (text) => Array.from({ length: 8 }, (_, i) => `${text}${i}`).join(' | ')
+    const md = [
+      '# Rapporto sugli host che stampano PDF',
+      `## Sintesi\n\n${'Città, señal, naïve façade. '.repeat(30)}`,
+      `## Tabella larga\n\n| ${cells('Colonna ')} |\n|${' --- |'.repeat(8)}\n| ${cells('valore-lungo-senza-spazi-valore-lungo-')} |`,
+      `## Indirizzi\n\nVedi ${longUrl} per i dettagli, e [la fonte](${longUrl}).`,
+      '## Codice\n\n```\n' + `const percorso = '${'segmento/'.repeat(30)}'` + '\n```',
+      `## Conclusione\n\n${'Fine della relazione. '.repeat(20)}`,
+    ].join('\n\n')
+    const doc = renderReport({ markdown: md, language: 'it', title: 'Rapporto', sources: [], layout: 'standard' })
+    assert.equal(doc.accepted, true, JSON.stringify(doc.checks))
+    const job = await queued(doc.html)
+    const lines = []
+    const run = await s.supervisor.runOnce(config({ log: (l) => lines.push(l) }))
+    assert.deepEqual(run, { claimed: true, jobId: job.jobId, outcome: 'succeeded' }, lines.join('\n'))
+    const { receipt } = await jobRow(job.jobId)
+    const unknown = new Set(['blank_pages', 'short_pages'])
+    for (const c of receipt.checks) assert.equal(c.outcome, unknown.has(c.name) ? 'unknown' : 'passed', `${c.name}: ${c.detail}`)
+    assert.ok(receipt.checks.some((c) => c.name === 'layout_overflow'))
+    assert.deepEqual([receipt.measurements.overflow.measurement, receipt.measurements.overflow.px], ['measured', 0])
+    assert.deepEqual([receipt.blockedRequests, receipt.undeclaredAssets], [[], []])
+    assert.ok(receipt.output.pageCount >= 1)
   })
 
   test('stops the kernel at a Stop during the render and keeps nothing', async () => {

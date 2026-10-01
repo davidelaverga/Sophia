@@ -26,7 +26,7 @@ import type { JinaReader } from './source-jina.js'
 import type { TavilySearch } from './source-tavily.js'
 import { TransportError } from './transport.js'
 import type { ServiceTransport } from './transport.js'
-import type { ResearchSourcePage, ResearchTaskContext } from './runtime-wire-types.generated.js'
+import type { ResearchRender, ResearchSourcePage, ResearchTaskContext } from './runtime-wire-types.generated.js'
 
 /** The attempt and native session a research tool works for. */
 export interface ResearchSession {
@@ -37,7 +37,7 @@ export interface ResearchSession {
 /** The service operations the tools use (the bridge's transport). */
 export type ResearchClient = Pick<
   ServiceTransport,
-  'researchContext' | 'researchReserve' | 'researchSettle' | 'researchCapture' | 'researchDraft' | 'researchSubmit'
+  'researchContext' | 'researchReserve' | 'researchSettle' | 'researchCapture' | 'researchDraft' | 'researchSubmit' | 'researchRender' | 'researchRenderResult'
 >
 
 export interface ResearchSources {
@@ -52,7 +52,12 @@ export interface ResearchToolDeps {
   /** The research attempt that owns the calling agent, or null outside one. */
   readonly sessionOf: (exec: ToolRunContext) => ResearchSession | null
   readonly log: (line: string) => void
+  /** How long research_render_pdf waits for its render and how often it looks (defaults: RENDER_WAIT). */
+  readonly renderWait?: { readonly maxMs: number; readonly pollMs: number }
 }
+
+/** research_render_pdf waits up to this long for its render, looking this often (a look is a service call, not a model call). */
+export const RENDER_WAIT = { maxMs: 150_000, pollMs: 1_500 } as const
 
 /**
  * Accounting estimates for the pilot's providers (Codex replaces them with measured prices): a basic search costs one
@@ -120,6 +125,37 @@ const MESSAGES: Readonly<Record<string, string>> = {
 const NOTES_REJECTED =
   'Not published: your changeNote or retainedNote disagrees with what changed (see problems and sections). Submit ' +
   'again with notes that match; if they still disagree, the report is published with notes written from the facts.'
+
+/** What a render's state asks of the model next. */
+function renderNote(state: ResearchRender['state']): string {
+  switch (state) {
+    case 'rejected':
+      return 'Not rendered: the report failed its checks (see reportChecks). Revise the draft with research_write_draft, then call research_render_pdf again.'
+    case 'succeeded':
+      return 'The PDF is ready. Submit this exact draft with research_submit_result and the PDF is published with it; a changed draft needs a new render.'
+    case 'failed':
+      return 'The PDF could not be produced (reason, errorCode and checks say why). One format repair (the same draft again, in a compact layout) and one revision (a corrected draft) are allowed; past that, submit the Markdown and say in the limitations that the PDF could not be produced.'
+    case 'cancelled':
+      return 'The render was cancelled by a Hold or Stop. Stop and wait for an explicit Resume.'
+    default:
+      return 'The render has not finished. Check it with research_inspect_output; do not submit while it is still rendering.'
+  }
+}
+
+/** A render as the model reads it: everything but the service's render-result record, with what to do next. */
+const renderView = (reply: ResearchRender): Json => {
+  const { result: _result, ...view } = reply
+  return asJson({ ...view, note: renderNote(reply.state) })
+}
+
+const RENDER_DONE: ReadonlySet<ResearchRender['state']> = new Set(['rejected', 'succeeded', 'failed', 'cancelled'])
+
+/** Wait `ms`, or less if the call is aborted. */
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms)
+    signal.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
+  })
 
 /** A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. */
 function serviceProblem(error: unknown): { code: string; message: string } {
@@ -487,6 +523,95 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
     },
   })
 
+  /** Look at a queued render until it ends, the wait runs out or the call is aborted. */
+  async function awaitRender(session: ResearchSession, first: ResearchRender, signal: AbortSignal): Promise<ResearchRender> {
+    const wait = deps.renderWait ?? RENDER_WAIT
+    const until = Date.now() + wait.maxMs
+    let current = first
+    while (!RENDER_DONE.has(current.state) && current.renderJobId && Date.now() < until && !signal.aborted) {
+      await pause(wait.pollMs, signal)
+      if (signal.aborted) break
+      current = await deps.client.researchRenderResult({ ...ids(session), renderJobId: current.renderJobId }, signal)
+    }
+    return current
+  }
+
+  /**
+   * Why a render or a submit was refused, when the latest render explains it better than the code alone: a render
+   * still running (the code says invalid_state, as for a Hold), or this very draft already rendered.
+   */
+  async function renderRefusal(session: ResearchSession, error: TransportError, draftSha256: string | null, signal: AbortSignal) {
+    const latest = await deps.client.researchRenderResult(ids(session), signal).catch(() => null)
+    if (latest && (latest.state === 'queued' || latest.state === 'rendering')) {
+      return { code: 'render_running', message: 'A PDF render of this task is still running: check it with research_inspect_output, then continue.' }
+    }
+    if (latest?.state === 'succeeded' && draftSha256 !== null && latest.draftSha256 === draftSha256) {
+      return { code: 'already_rendered', message: 'This draft already has its PDF: submit it with research_submit_result.' }
+    }
+    return serviceProblem(error)
+  }
+
+  const renderPdf = defineTool({
+    name: 'research_render_pdf',
+    description:
+      'Render your current draft as the task\'s PDF: pass its draftSha256 (from research_read_context) and the report\'s ' +
+      'language (a BCP 47 tag, en when omitted). Sophia prints the Markdown with its report template and checks it ' +
+      'first; this waits for the render and returns its outcome (rejected, succeeded, failed or cancelled) with a note ' +
+      'on what to do next.',
+    parameters: {
+      draftSha256: { type: 'string', required: true },
+      language: { type: 'string', description: 'The report\'s language, e.g. en, it or es.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => json(value),
+    },
+    async execute(args, exec): Promise<Json> {
+      const session = sessionOf(exec)
+      try {
+        const queued = await deps.client.researchRender({
+          ...ids(session),
+          callId: callKeyOf(exec.callId),
+          draftSha256: args.draftSha256,
+          ...(args.language ? { language: args.language } : {}),
+        }, exec.signal)
+        return renderView(await awaitRender(session, queued, exec.signal))
+      } catch (error) {
+        if (error instanceof TransportError) return renderRefusal(session, error, args.draftSha256, exec.signal)
+        if (error instanceof Error && /does not match the runtime contract/.test(error.message)) {
+          return { code: 'invalid_request', message: 'Check draftSha256 (a 64-character hash) and language (a BCP 47 tag).' }
+        }
+        throw error
+      }
+    },
+  })
+
+  const inspectOutput = defineTool({
+    name: 'research_inspect_output',
+    description:
+      'Read a PDF render of this task (the latest when renderJobId is omitted): its state, the report\'s sections and ' +
+      'checks, and once it has ended the PDF\'s pages and size or why it failed. Costs nothing.',
+    parameters: {
+      renderJobId: { type: 'string', description: 'A render research_render_pdf returned; the latest when omitted.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => json(value),
+    },
+    async execute(args, exec): Promise<Json> {
+      const session = sessionOf(exec)
+      try {
+        return renderView(await deps.client.researchRenderResult({ ...ids(session), ...(args.renderJobId ? { renderJobId: args.renderJobId } : {}) }, exec.signal))
+      } catch (error) {
+        if (error instanceof TransportError) return serviceProblem(error)
+        if (error instanceof Error && /does not match the runtime contract/.test(error.message)) {
+          return { code: 'invalid_request', message: 'renderJobId is the id research_render_pdf returned.' }
+        }
+        throw error
+      }
+    },
+  })
+
   const submit = defineTool({
     name: 'research_submit_result',
     description:
@@ -527,8 +652,10 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
         })
         if (done.outcome === 'notes_rejected') return asJson({ ...done, note: NOTES_REJECTED })
         caches.delete(session.attemptId)
-        return asJson({ ...done, note: 'Published. The task has ended; Sophia tells the team.' })
+        const pdf = done.pdf?.state === 'produced' ? ' Its PDF is published with it.' : done.pdf ? ` Published as Markdown only: ${done.pdf.reason ?? 'the PDF was not produced'}.` : ''
+        return asJson({ ...done, note: `Published.${pdf} The task has ended; Sophia tells the team.` })
       } catch (error) {
+        if (error instanceof TransportError && error.code === 'invalid_state') return renderRefusal(session, error, null, exec.signal)
         if (error instanceof TransportError) return serviceProblem(error)
         if (error instanceof Error && /does not match the runtime contract/.test(error.message)) {
           return { code: 'invalid_request', message: MESSAGES.invalid_request ?? 'Check each field.' }
@@ -568,7 +695,7 @@ export function researchTools(deps: ResearchToolDeps): ToolDefinition[] {
     },
   })
 
-  return [readContext, search, readSource, writeDraft, submit, blocker]
+  return [readContext, search, readSource, writeDraft, renderPdf, inspectOutput, submit, blocker]
 }
 
 /**
@@ -595,6 +722,8 @@ export const RESEARCH_TOOL_NAMES = [
   'research_search',
   'research_read_source',
   'research_write_draft',
+  'research_render_pdf',
+  'research_inspect_output',
   'research_submit_result',
   'research_report_blocker',
 ] as const

@@ -48,6 +48,9 @@ importers:
       '@sophia/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence
+      '@sophia/report':
+        specifier: workspace:*
+        version: link:../../packages/report
       fastify:
         specifier: 5.12.5
         version: 5.12.5
@@ -113,6 +116,9 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: 5.3.0
         version: 5.3.0
+      '@sophia/report':
+        specifier: workspace:*
+        version: link:../../packages/report
       '@sophia/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -233,6 +239,9 @@ importers:
       '@sophia/domain':
         specifier: workspace:*
         version: link:../domain
+      '@sophia/report':
+        specifier: workspace:*
+        version: link:../report
       pg:
         specifier: 8.23.0
         version: 8.23.0
@@ -243,6 +252,8 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+
+  packages/report: {}
 
   packages/test-support:
     dependencies:

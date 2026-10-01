@@ -8,6 +8,8 @@ import type {
   ResearchCaptureRequest,
   ResearchContextRequest,
   ResearchDraftRequest,
+  ResearchRenderRequest,
+  ResearchRenderResultRequest,
   ResearchReserveRequest,
   ResearchSettleRequest,
   ResearchSubmitRequest,
@@ -26,6 +28,8 @@ import {
   runtimeResearchCapture,
   runtimeResearchContext,
   runtimeResearchDraft,
+  runtimeResearchRender,
+  runtimeResearchRenderResult,
   runtimeResearchReserve,
   runtimeResearchSettle,
   runtimeResearchSubmit,
@@ -47,6 +51,8 @@ export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
   '/v1/runtime/research/capture',
   '/v1/runtime/research/draft',
   '/v1/runtime/research/submit',
+  '/v1/runtime/research/render',
+  '/v1/runtime/research/render-result',
 ])
 
 /** The transport headers every runtime call carries (A04). */
@@ -204,5 +210,16 @@ export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
     '/v1/runtime/research/submit',
     research('ResearchSubmitRequest', 'ResearchSubmission'),
     async (req) => withService(pool, (c) => runtimeResearchSubmit(c, callerOf(req), req.body)),
+  )
+  // The PDF (S5b, 0031): the API prints the draft with the report template inside the same transaction.
+  app.post<{ Body: ResearchRenderRequest }>(
+    '/v1/runtime/research/render',
+    research('ResearchRenderRequest', 'ResearchRender'),
+    async (req) => withService(pool, (c) => runtimeResearchRender(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: ResearchRenderResultRequest }>(
+    '/v1/runtime/research/render-result',
+    research('ResearchRenderResultRequest', 'ResearchRender'),
+    async (req) => withService(pool, (c) => runtimeResearchRenderResult(c, callerOf(req), req.body)),
   )
 }

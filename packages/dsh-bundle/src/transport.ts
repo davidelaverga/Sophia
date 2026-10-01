@@ -12,7 +12,7 @@
  *   POST {base}/v1/runtime/receipts       <- RuntimeReceiptBatch
  *   POST {base}/v1/runtime/observations   <- RuntimeObservationBatch
  *   POST {base}/v1/runtime/ready          <- RuntimeReady
- *   POST {base}/v1/runtime/research/{context,reserve,settle,capture,draft}  (SMC-M03, A11)
+ *   POST {base}/v1/runtime/research/{context,reserve,settle,capture,draft,submit,render,render-result}  (SMC-M03, A11)
  *
  * Every reply is validated against the contract before the bridge reads it,
  * and every body is validated before it is sent: a reply that breaks the
@@ -36,6 +36,9 @@ import type {
   ResearchContextRequest,
   ResearchDraft,
   ResearchDraftRequest,
+  ResearchRender,
+  ResearchRenderRequest,
+  ResearchRenderResultRequest,
   ResearchReservation,
   ResearchReserveRequest,
   ResearchSettleRequest,
@@ -191,5 +194,16 @@ export class ServiceTransport {
   async researchSubmit(body: ResearchSubmitRequest): Promise<ResearchSubmission> {
     checked('submit request', wire.ResearchSubmitRequest, body)
     return checked('submission', wire.ResearchSubmission, await this.request('POST', '/v1/runtime/research/submit', body))
+  }
+
+  /** Print the current draft as the task's PDF and queue it (S5b); the service prints, the request carries no markup. */
+  async researchRender(body: ResearchRenderRequest, signal?: AbortSignal): Promise<ResearchRender> {
+    checked('render request', wire.ResearchRenderRequest, body)
+    return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render', body, signal))
+  }
+
+  async researchRenderResult(body: ResearchRenderResultRequest, signal?: AbortSignal): Promise<ResearchRender> {
+    checked('render result request', wire.ResearchRenderResultRequest, body)
+    return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render-result', body, signal))
   }
 }

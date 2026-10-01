@@ -42,6 +42,13 @@ const SCHEMAS = [
   'ReportSections',
   'ResearchSubmitRequest',
   'ResearchSubmission',
+  'ResearchRenderRequest',
+  'ResearchRenderResultRequest',
+  'ReportCheck',
+  'ReportManifest',
+  'RenderCheck',
+  'RenderResult',
+  'ResearchRender',
 ] as const
 /** What the bridge validates at runtime: every reply it reads, each command, and what it sends. */
 const VALIDATED = [
@@ -64,6 +71,9 @@ const VALIDATED = [
   'ResearchDraft',
   'ResearchSubmitRequest',
   'ResearchSubmission',
+  'ResearchRenderRequest',
+  'ResearchRenderResultRequest',
+  'ResearchRender',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')

@@ -44,9 +44,28 @@ const MARKDOWN = `## Markdown report
 
 Write a clear UTF-8 Markdown document that answers the question, with references to real sources placed next to the claims they support (cite a source by its sourceId), a concise conclusion and meaningful limitations. Keep the structure in proportion to the task rather than a fixed long template. No active HTML, remote assets or secrets.`
 
+const PDF = `## PDF report
+
+This task also delivers the report as a PDF. You still write Markdown: Sophia prints the PDF from your draft with a fixed report template, so never write HTML or CSS and never describe a layout. Write for the page: a level-1 title, then a section per main point under level-2 headings (a summary first, a conclusion last), tables only where they help, and at least a hundred words.
+
+When the draft is final, call research_render_pdf with its hash and the report's language. It waits for the render and returns the outcome with a note:
+- rejected: the report failed its checks (reportChecks say which) and nothing was rendered; fix the draft and render again.
+- succeeded: the PDF is published with the version only if you submit this exact draft; a changed draft needs a new render.
+- failed: the reason and the renderer's checks say why. You have one format repair (render the same draft again: Sophia uses a compact layout for wide tables and long code) and one revision (shorten what overflowed, then render the new draft).
+If research_render_pdf returns before the render ends, check it with research_inspect_output and do not submit while it is still rendering.
+
+If the PDF still cannot be produced, or your allowance runs low, submit the Markdown and say in the limitations that the PDF could not be produced: Sophia publishes the Markdown and records the missing PDF as a partial delivery. Never present a Markdown-only result as a PDF.`
+
 /** The section every research specialist gets (Markdown is the authored format of every report). */
 export const RESEARCH_PROMPT: PromptAsset = {
   id: 'sophia.research-base.v1+markdown.v1',
   order: 650,
   text: `${BASE}\n\n${MARKDOWN}`,
+}
+
+/** The section a PDF specialist gets as well, after the base: how its draft becomes the PDF (S5b). */
+export const PDF_PROMPT: PromptAsset = {
+  id: 'sophia.research-format-pdf.v1',
+  order: 651,
+  text: PDF,
 }

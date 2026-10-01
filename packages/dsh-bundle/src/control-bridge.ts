@@ -39,7 +39,7 @@ import { commandText, parseCommand, ProtocolError } from './protocol.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
-import { RESEARCH_PROMPT } from './research-prompt.js'
+import { PDF_PROMPT, RESEARCH_PROMPT } from './research-prompt.js'
 import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
@@ -467,6 +467,9 @@ export class ControlBridge {
         const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
         if (!prompts) throw new ProtocolError('this runtime unit has no system prompt service for the research section')
         prompts.section({ name: 'sophia-research', order: RESEARCH_PROMPT.order, text: RESEARCH_PROMPT.text, interpolate: false })
+        if (role.nativeTools.has('research_render_pdf')) {
+          prompts.section({ name: 'sophia-research-pdf', order: PDF_PROMPT.order, text: PDF_PROMPT.text, interpolate: false })
+        }
       }
     }
   }

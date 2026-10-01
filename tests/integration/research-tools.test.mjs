@@ -161,3 +161,58 @@ test('a spent allowance enters the finalize step: ordinary research is refused a
     'the finalize tools still run',
   )
 })
+
+test('a PDF attempt renders its draft, waits for the render, and publishes with its PDF (S5b)', async (t) => {
+  const w = await world(t)
+  await w.start()
+  w.service.onResearch('render', (body) => ({ renderJobId: '00000000-0000-4000-8000-000000005002', state: 'queued', repair: 'none', layout: 'standard', draftSha256: body.draftSha256 }))
+  let looks = 0
+  w.service.onResearch('render-result', (body) => {
+    looks += 1
+    return looks === 1
+      ? { renderJobId: body.renderJobId, state: 'rendering', repair: 'none', layout: 'standard', draftSha256: 'b'.repeat(64) }
+      : { renderJobId: body.renderJobId, state: 'succeeded', repair: 'none', layout: 'standard', draftSha256: 'b'.repeat(64),
+          pdf: { sourceId: '00000000-0000-4000-8000-000000005999', sha256: 'c'.repeat(64), bytes: 2048, pages: 2 } }
+  })
+  w.service.onResearch('submit', (body) => ({ taskId: '00000000-0000-4000-8000-000000000001', outcome: 'published', artifactId: '00000000-0000-4000-8000-000000004000',
+    versionId: '00000000-0000-4000-8000-000000004001', versionNumber: 1, sourceId: '00000000-0000-4000-8000-000000004002', sha256: body.result.draftSha256,
+    resultSourceId: '00000000-0000-4000-8000-000000004003', pdf: { state: 'produced', sourceId: '00000000-0000-4000-8000-000000005999', renderJobId: '00000000-0000-4000-8000-000000005002' } }))
+  w.llm.script(
+    { toolCall: { name: 'research_write_draft', arguments: { text: '# Hosts\n\n## Summary\n\nTwo hosts.', expectedSha256: null } } },
+    { toolCall: { name: 'research_render_pdf', arguments: { draftSha256: 'b'.repeat(64), language: 'en' } } },
+    {
+      toolCall: {
+        name: 'research_submit_result',
+        arguments: {
+          draftSha256: 'b'.repeat(64), title: 'Sandboxed PDF hosts', summary: 'Which hosts render PDFs in a sandbox.',
+          resultSummary: 'Two hosts.', limitations: [], citations: ['00000000-0000-4000-8000-000000000001'],
+        },
+      },
+    },
+    { text: 'Submitted with its PDF.' },
+  )
+  w.send(w.cmd('create', { text: 'Which hosts render PDFs in a sandbox? As a PDF.', role: 'sophia-research-pdf-v1', route: 'research-sol-medium-v1' }))
+  await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the PDF research turn')
+  assert.deepEqual(w.turnEnds().map((e) => e.data.reason.kind), ['completed'])
+  const ops = w.service.research.filter((o) => o.op !== 'reserve' && o.op !== 'settle')
+  assert.deepEqual(ops.map((o) => o.op), ['draft', 'render', 'render-result', 'render-result', 'submit'], 'it waited for the render, then submitted')
+  const render = ops[1].body
+  assert.deepEqual(Object.keys(render).toSorted(), ['attemptId', 'callId', 'draftSha256', 'language', 'nativeSessionId'], 'no markup, only the draft it names')
+  assert.equal(ops[2].body.renderJobId, '00000000-0000-4000-8000-000000005002', 'it looks at its own render')
+  const [first, , third, fourth] = w.llm.requests
+  assert.match(JSON.stringify(first.body), /## PDF report/, 'the PDF section is in a PDF specialist\'s prompt')
+  assert.match(JSON.stringify(third.body.input), /The PDF is ready/, 'the model read the outcome')
+  assert.match(JSON.stringify(fourth.body.input), /Its PDF is published with it/)
+})
+
+test('a Markdown attempt is offered no PDF tools and no PDF section', async (t) => {
+  const w = await world(t)
+  await w.start()
+  w.llm.script({ toolCall: { name: 'research_render_pdf', arguments: { draftSha256: 'b'.repeat(64) } } }, { text: 'Done.' })
+  w.send(create(w))
+  await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the Markdown research turn')
+  const [first, second] = w.llm.requests
+  assert.doesNotMatch(JSON.stringify(first.body), /## PDF report|"research_render_pdf"/, 'neither the section nor the tool')
+  assert.match(JSON.stringify(second.body.input), /research_render_pdf/, 'the call was answered as an unknown tool')
+  assert.equal(w.service.research.some((o) => o.op === 'render'), false, 'nothing reached the service')
+})

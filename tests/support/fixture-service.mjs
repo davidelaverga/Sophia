@@ -39,6 +39,9 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     submit: (body) => body.result
       ? { taskId: uuid(1), outcome: 'published', artifactId: uuid(4000), versionId: uuid(4001), versionNumber: 1, sourceId: uuid(4002), sha256: body.result.draftSha256, resultSourceId: uuid(4003) }
       : { taskId: uuid(1), outcome: 'blocked', resultSourceId: uuid(4004) },
+    render: (body) => ({ renderJobId: uuid(5000 + ++researchSeq), state: 'queued', repair: 'none', layout: 'standard', draftSha256: body.draftSha256 }),
+    'render-result': (body) => ({ renderJobId: body.renderJobId ?? uuid(5000), state: 'succeeded', repair: 'none', layout: 'standard', draftSha256: 'b'.repeat(64),
+      pdf: { sourceId: uuid(5999), sha256: 'c'.repeat(64), bytes: 2048, pages: 2 } }),
   }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
@@ -84,7 +87,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       notify()
       return reply(204)
     }
-    const op = req.method === 'POST' && /^\/v1\/runtime\/research\/(context|reserve|settle|capture|draft|submit)$/.exec(url.pathname)?.[1]
+    const op = req.method === 'POST' && /^\/v1\/runtime\/research\/(context|reserve|settle|capture|draft|submit|render|render-result)$/.exec(url.pathname)?.[1]
     if (op) {
       research.push({ op, body: json })
       notify()

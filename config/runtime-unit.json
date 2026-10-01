@@ -69,7 +69,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "1fa975f974348e1ca95112c43ba1b96c092b5b21ea44f548adb1ce8b72132c3b",
+  "workspace_lock_sha256": "2f6b471666ed0f8cf14d7d8e913c2e3c9cb90086c7cad20fc1e1bbab42ee4b42",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -97,9 +97,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "b70b259226bb8fb3c63dfeebbf57e398193e99e87787d07f77954ef7f7499faf",
-    "archive_integrity": "sha512-sGKJoDs+nHLX7b7IFRhzyml+vv2AMuA7kgMU4ciDgpT6JKy9889j36BeA1Lk9YvHYBGilW4QidohiE/3z/ZKtQ==",
-    "artifact_digest": "sha256:b70b259226bb8fb3c63dfeebbf57e398193e99e87787d07f77954ef7f7499faf",
+    "archive_sha256": "6a01ce0ef18045abdc9ab7b5390736908c6dc8c0907d2d5cb6a0a7cc872747e1",
+    "archive_integrity": "sha512-BvT5PMucZ7hGHuRiudFNq4F7ETI/U7H/NSyQ5HnsOHvpJIgXJRBfE0tvMt0og7ojJw1JgJvQQRDz1BZnNTrmcg==",
+    "artifact_digest": "sha256:6a01ce0ef18045abdc9ab7b5390736908c6dc8c0907d2d5cb6a0a7cc872747e1",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },

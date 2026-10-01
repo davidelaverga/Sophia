@@ -6,15 +6,12 @@
 import type { MediaToolResult } from '@sophia/contracts'
 import { SPECIALISTS } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { admitResearchTask, withActor, type ResearchAdmissionRequest } from '@sophia/persistence'
+import { admitResearchTask, pdfRendererReady, withActor, type ResearchAdmissionRequest } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max
-
-/** PDF reports arrive with the renderer host (S5); until then a research report is Markdown only. */
-export const PDF_REPORTS_AVAILABLE: boolean = false
 
 /** The registry's specialist for these formats: the one whose outputs are exactly them. */
 export function specialistFor(outputs: readonly string[]): { role: string; route: string } | null {
@@ -105,12 +102,13 @@ function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | Me
 export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> {
   const request = requestOf(ctx.args)
   if ('status' in request) return request
-  if (request.outputs.includes('pdf') && !PDF_REPORTS_AVAILABLE) {
+  // A PDF needs a renderer that is running now (S5b, 0031); without one the report can still be Markdown.
+  if (request.outputs.includes('pdf') && !(await withActor(ctx.pool, ctx.actorId, 'read', pdfRendererReady))) {
     return {
       status: 'refused',
       output: {
         code: 'not_started:pdf_unavailable',
-        reason: 'PDF reports are not available yet. I can write the report in Markdown instead.',
+        reason: 'PDF reports are not available right now. I can write the report in Markdown instead.',
       },
     }
   }

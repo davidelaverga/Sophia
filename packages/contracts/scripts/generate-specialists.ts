@@ -32,7 +32,10 @@ const targets = [
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8')) as unknown
 const quote = (value: string) => `'${value}'`
 
-/** The registry's problems beyond its schema: duplicate ids, and a PDF output without the tool that renders it. */
+/**
+ * The registry's problems beyond its schema: duplicate ids, a PDF output without the tool that renders it, and the
+ * render inspector without the renderer (it reads PDF renders only, S5b).
+ */
 function problems(specialists: readonly Specialist[]): string[] {
   const found: string[] = []
   const seen = new Set<string>()
@@ -42,6 +45,9 @@ function problems(specialists: readonly Specialist[]): string[] {
     const renders = s.native_tools.includes('research_render_pdf')
     if (s.outputs.includes('pdf') !== renders) {
       found.push(`${s.id}: a PDF output and the research_render_pdf tool go together`)
+    }
+    if (s.native_tools.includes('research_inspect_output') !== renders) {
+      found.push(`${s.id}: the research_inspect_output and research_render_pdf tools go together`)
     }
   }
   return found

@@ -7,7 +7,7 @@ export const SPECIALISTS = [
     family: 'research',
     outputs: ['markdown'],
     route: 'research-sol-medium-v1',
-    nativeTools: ['todo_write', 'research_read_context', 'research_search', 'research_read_source', 'research_write_draft', 'research_inspect_output', 'research_submit_result', 'research_report_blocker'],
+    nativeTools: ['todo_write', 'research_read_context', 'research_search', 'research_read_source', 'research_write_draft', 'research_submit_result', 'research_report_blocker'],
   },
   {
     id: 'sophia-research-pdf-v1',

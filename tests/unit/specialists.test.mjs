@@ -65,6 +65,7 @@ test('the registry schema refuses a specialist that widens what it may do', () =
       ['the default route', (s) => { s.route = 'default' }],
       ['an unknown field', (s) => { s.model = 'gpt-6.1-sol' }],
       ['a PDF output without its renderer', (s) => { s.native_tools = s.native_tools.filter((t) => t !== 'research_render_pdf') }],
+      ['a renderer without its inspector', (s) => { s.native_tools = s.native_tools.filter((t) => t !== 'research_inspect_output') }],
       ['a duplicate id', (s) => { s.id = registry.specialists[0].id }],
     ]) {
       const result = check(mutate)
