@@ -82,7 +82,7 @@ writing a new one, and keep the rule when you change the code around it.
   by the same numbers. Keep the two in step.
 - **Alignment is measured.** A label sits at the center of its control.
   Things that belong together share a line: the room's blocks one center
-  axis, the Work view's two heads one rule and one baseline. Check them as
+  axis, the Tasks view's two heads one rule and one baseline. Check them as
   numbers (label center minus control center, the y of each rule) at desktop
   and phone widths, and look first for children that cannot be seen and
   still take room.
@@ -110,15 +110,38 @@ writing a new one, and keep the rule when you change the code around it.
   seconds adds one line (`useSlow`, `SLOW_NOTE`): under Creating…, on
   "Opening the room…" (`SlowNote`), and over a project that is slow to open
   (`.wait-note`, where the lobby floats; on a phone over the lenses, which
-  have nothing to change yet). A hosted API that sat idle can take close to
-  a minute to answer; without the line, that minute looks broken.
-- **Going home from a call says so first.** Home ends the call (the room
-  lives in the project's page). While in the call its name and tip read
-  "Home: you leave the room".
+  have nothing to change yet), and over a place whose read is slow
+  (`ReadNotes`). A hosted API that sat idle can take close to a minute to
+  answer; without the line, that minute looks broken.
+- **One bar.** The places' bar and a project's are the same `.topbar` (48 px,
+  `--gutter`): the mark goes home (H) and never moves between the two, and the
+  account is one control at the end of both (`AccountMenu`: who is signed in,
+  your data, how privacy works, passkeys, Sign out). In a project, Work
+  between the mark and the name goes back to the projects (W).
+- **A task that takes the whole attention is a sheet** (`app/Sheet.tsx`: the
+  Studio's side panel, modal through `useDialog`, closed with Esc, Close or
+  the veil). There are no centered dialogs. One sheet at a time: a sheet that
+  needs another (your data asking to unlock) closes and comes back after.
+- **A menu or a popover closes itself** (`usePopover`): a press anywhere
+  outside it, or Esc inside it, which gives the focus back to its control.
+  It listens for `pointerdown`, so the click that opened it from elsewhere
+  can't close it.
+- **A result out of sight is a toast** (`app/Toast.tsx`, one for the whole
+  app, above the floor). Say a result where it happened when that place stays
+  on screen (the lobby's "Declined … · Let in instead"); when it doesn't (a
+  note carried away, the padlock shut, a call that ended out of sight), the
+  toast says it, one at a time, with Undo when it can be undone. Its words
+  come from a view module (`notice-view.ts`).
+- **Going home keeps the call.** The project whose room holds the call stays
+  mounted out of sight (`background`, taking no keys through `ShortcutScope`)
+  and reports the call upward (`onCall`); the places' bar shows the room with
+  the call's switches and Leave (`CallSwitches`). One call at a time: a call
+  starting in another project ends the one before (`useCall` in `App.tsx`).
 - **What a person sends stays in sight.** A microphone, a camera or a shared
   screen that is on shows wherever this person is, with its off switch: the
-  dock in the room, the mini dock from every other view (`Sending` in
-  `MiniDock`). Nothing keeps sending out of sight because the view changed.
+  dock in the room, and everywhere else the dock's own toggles
+  (`CallSwitches`: the chat panel's head, the mini dock, the places' bar).
+  Nothing keeps sending out of sight because the view changed.
 - **A guest is always marked as one** (`presenceRole`, `screenCaption` in
   `room-view.ts`, with tests). A visitor chooses their own name, so the word
   "guest" is what tells them from a member of the same name: it stays while
@@ -231,8 +254,9 @@ when you change the room:
   tests). The tips show the combination as the platform writes it. Keys that
   only change the view (C, B, 1 to 3, I) stay single letters.
 - **Text mode is said wherever it holds.** Typing to Sophia is text mode:
-  she is not heard and the microphone is off. The dock, the mini dock and the
-  panel's head say so (`TextMode` in `RoomDock`) and one press returns to
+  she is not heard and the microphone is off. The dock, the mini dock, the
+  panel's head and the places' bar say so (`TextMode` in `RoomDock`, beside
+  the microphone in `CallSwitches`) and one press returns to
   voice; so does turning the microphone on, once it did come on, also when
   text mode began while the browser was asking (`switchMicrophone` reads it
   then, with tests: a refused press keeps text mode and Sophia muted). Any end
@@ -254,8 +278,8 @@ when you change the room:
   `room-view.ts`, with tests).
 - **The call's switches follow the panel.** Where the panel covers the room
   (up to 760 px wide), a row under its head shows the microphone, and the camera and the
-  shared screen while they are on (`CallSwitches` in `StudioShell`, the
-  dock's own `Toggle`). Someone reading the chat on a phone must not have to
+  shared screen while they are on (`CallSwitches`, the dock's own
+  `Toggle`). Someone reading the chat on a phone must not have to
   close it to see that they are heard, or to mute. Beside the room the dock
   already shows them, so the head does not repeat it. The row also shows
   text mode, and what Sophia is looking at, and it wraps: the head keeps its
@@ -271,7 +295,8 @@ when you change the room:
   room", or two tabs take the call from each other with the same "You were
   disconnected" and nobody knows why. Taken out of the call and a closed room
   have their own sentence. The note shows in the dock, the mini dock and the
-  chat's foot.
+  chat's foot; where the room is out of sight (at home, in another place) the
+  toast says it (`callEnded` in `notice-view.ts`, with tests).
 - **Nothing offers to join before it can.** Until the project has loaded
   there is no room to join (`room.ready`): the room's line says "Opening the
   project…", and Join, J, the mini dock's Join and Chat with Sophia wait. A
@@ -350,6 +375,67 @@ either:
   development and tests only, and the space says so (`companion:
   'rehearsal'`). Without a companion, sending is refused and nothing is kept:
   never store a message nobody will answer.
+
+## The three places
+
+Outside a project a person is in one of three places (`features/personal`,
+direction C of Luis's prototype, "Two doors"): home with its two doors, their
+personal space with Sophia (its data side is "The personal space" above), and
+their work. Keep these when you change them:
+
+- **The padlock is this device's privacy screen** (`lock.ts`, `useLock`), in
+  every tab of it: another tab's lock reaches this one, and a tab in a call
+  never opens with another (`followed`, with tests). Shut by the person or by
+  joining a room (a screen may be shared there), every new call shuts it,
+  also one straight after another (`onCallChange`, with tests); a room's lock
+  lifts when the room is left, the person's stays. While shut, nothing
+  personal is fetched or shown, and opening it asks to confirm it's them
+  (`app/reauth.ts`: passkey, the provider they signed in with, or an email
+  code, and the same account must come back). In a call no provider is
+  offered: signing in again leaves the page and would end the call. A code
+  that couldn't be sent, or ways that couldn't load, say so and can be tried
+  again. A place that can't be shown (a locked personal space) takes its
+  history entry's place, so Back goes on past it.
+- **A write that is refused reads the space again.** "That changed a moment
+  ago. This is how it is now" (`movedOn`, with tests) must be true: the space
+  is read again, so a second press or another tab's change shows. The draft
+  stays on this device until its words were sent, and signing out or erasing
+  forgets it (`draft.ts`). "Join the room" from Work asks to join on that
+  opening only (`joinStands`, with tests): leaving before the room could join
+  drops it.
+- **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,
+  `data-view.ts` and `notice-view.ts` own every sentence the places say (door
+  verbs, sessions, rooms, the introduction and when it shows, days, topics,
+  facts, the toasts), with tests. The side the person keeps to themselves is
+  their "personal space"; Personal is only the place's name.
+- **Nothing still loading looks empty** (`readState`, `ReadNotes`). A door
+  whose read hasn't come back only opens (no "Start talking", no "Start a
+  project"); the personal space offers no introduction, no ways to start and
+  no field until it has loaded; a slow read adds the Studio's wait line and a
+  failed one says so with Try again. In a private space, what looks empty
+  reads as deleted.
+- **The places are built from the Studio.** The layout is the prototype's
+  (direction C: the doors, the line with the padlock, the edges, the
+  conversation); the bar, buttons (`.pill`, `.ghost`, `.round`,
+  `.text-button`), fields (`.field`), the message bar, tips, sheets, the
+  toast and the account are the Studio's own, unchanged. `personal.css`
+  holds only the places' layout, scoped to `.places` with `ps-` keyframes; it
+  adds two tokens and redefines none. Compare a change side by side with the
+  artifact at the stage's size (1238 x 708) and on a phone before calling it
+  done.
+- **Keys.** H, P and W go to the three places, D opens your data, L the
+  padlock, T the notes; Enter at home goes to the side used last and the
+  arrows pick a door; in a project, H and W work too. Every key is in a tip,
+  never drawn inside a control. Esc closes what opened last (`useEscape`),
+  then goes home; a sheet or a popover takes its own Esc first; in the
+  composer the first Esc only lets go of the field; the notes take Esc only
+  where they are on screen. Arriving in Personal on a desktop puts the cursor
+  in the field, and a letter typed with the focus nowhere goes into it
+  (`data-typing-sink`), so a message's first L never locks the space. A
+  control that goes away when pressed hands the focus on (`focus.ts`: the
+  conversation, Note this, the Notes toggle), and Undo hands it back where it
+  was (`Toast`). A screen reader hears Sophia writing and then her reply
+  (`heard`, with tests), never what was there when the space loaded.
 
 ## The Studio's hosting headers
 

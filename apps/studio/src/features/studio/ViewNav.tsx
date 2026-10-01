@@ -8,7 +8,7 @@ import { routePath, VIEWS, type View } from '../../app/route.ts'
 const LABEL: Record<View, string> = {
   studio: 'Studio',
   goals: 'Goals',
-  work: 'Work',
+  work: 'Tasks',
   knowledge: 'Knowledge',
   updates: 'Updates',
   resources: 'Resources',

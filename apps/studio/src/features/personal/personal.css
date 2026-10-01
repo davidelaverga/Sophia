@@ -1,0 +1,1537 @@
+/* The three places outside a project: home (two doors), the personal space and the work space. The layout is Luis's
+   prototype, direction C "Two doors"; everything a person also meets inside a project comes from the Studio's own
+   primitives in theme.css (the bar, the mark, buttons, tips, sheets, the message bar, the account), so the two halves
+   read as one product. Selectors are scoped to .places and keyframes carry a ps- prefix: nothing here reaches a
+   project's page. */
+.places {
+  /* What the places add to the Studio's tokens; nothing of theirs is redefined. */
+  --warm-soft: rgba(241, 220, 199, 0.1);
+  /* Secondary text that keeps 4.5:1 on a door's surface. */
+  --text-sec: rgba(236, 235, 241, 0.62);
+  position: fixed;
+  inset: 0;
+  overflow: clip;
+  background: var(--void);
+  color: var(--text);
+  isolation: isolate;
+}
+
+/* The bar: the Studio's topbar, with the three places centred in it. */
+.places .places-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.places .places-bar > .mark {
+  justify-self: start;
+}
+.places .places-bar .topbar-end {
+  justify-self: end;
+  margin-left: 0;
+  min-width: 0;
+}
+.places .places-switch button {
+  gap: 6px;
+}
+.places .places-switch button[aria-pressed='true'] {
+  color: var(--text);
+}
+.places .seg-i,
+.places .seg-lock {
+  display: none;
+}
+.places .places-switch button.locked .seg-lock {
+  display: block;
+  color: var(--warm);
+}
+/* Who can see this side, as a control: a tap explains it. Warm for Personal, quiet for Work. */
+.places .chip-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-2);
+  border: 1px solid rgba(241, 220, 199, 0.28);
+  background: none;
+  color: var(--warm);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.places .chip-private:hover,
+.places .chip-private[aria-expanded='true'] {
+  border-color: rgba(241, 220, 199, 0.55);
+}
+.places .chip-private.team {
+  border-color: var(--line-2);
+  color: var(--text-2);
+}
+.places .chip-wrap {
+  position: relative;
+}
+/* A small menu under a control: the privacy chip's answer and the list of earlier days. */
+.places .popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 230px;
+  padding: 6px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  animation: arrive var(--base) var(--ease) both;
+}
+.places .chip-pop {
+  width: 290px;
+  padding: 12px;
+  gap: 10px;
+}
+.places .chip-pop p {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.places .chip-pop .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* In a room: the bar says so, with the call's own switches, the same as the mini dock's. */
+.places .room-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 3px 0 10px;
+  border-radius: var(--r-3);
+  border: 1px solid rgba(241, 220, 199, 0.35);
+  background: rgba(241, 220, 199, 0.06);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.places .room-pill .live {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--warm);
+  animation: ps-dot-pulse 1.4s ease-in-out infinite;
+}
+/* Back to the room: the pill's whole height is its target. */
+.places .room-pill .t {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px 0 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+}
+.places .room-pill .round {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-2);
+}
+.places .room-pill .round:not([aria-pressed='true']) {
+  border-color: transparent;
+  background: transparent;
+}
+/* Under the bar's call: what Sophia is looking at and what stopped a device, as the dock says them. */
+.places .room-pill-notes {
+  position: absolute;
+  top: calc(var(--topbar) + 8px);
+  right: var(--gutter);
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.places .room-pill-notes .dock-note {
+  margin: 0;
+}
+
+/* ---------- Home: two doors ---------- */
+.places .c-home {
+  position: absolute;
+  inset: var(--topbar) 0 0;
+  overflow: auto;
+  padding: clamp(24px, 5vh, 56px) var(--gutter) 32px;
+  display: grid;
+  align-content: center;
+  gap: clamp(20px, 3.6vh, 32px);
+}
+.places .c2-hello {
+  display: grid;
+  gap: 4px;
+}
+/* The greeting is the page's title, at the size of the Studio's largest (.screen-title). */
+.places .c2-hello h2 {
+  font-size: clamp(22px, 2.2vw, 26px);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+.places .c2-date {
+  color: var(--text-sec);
+  font-size: 13px;
+}
+.places .c2-doors {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  align-items: stretch;
+}
+.places .c2-door {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 6px;
+  min-height: clamp(260px, 44vh, 400px);
+  padding: clamp(18px, 2.4vw, 26px);
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+  cursor: pointer;
+  transition:
+    border-color var(--base) var(--ease),
+    background var(--base) var(--ease);
+}
+.places .c2-door:hover {
+  border-color: var(--line-3);
+  background: var(--plane-2);
+}
+.places .c2-door:has(.c2-main:focus-visible) {
+  outline: 2px solid rgba(185, 168, 255, 0.7);
+  outline-offset: 3px;
+}
+.places .c2-door h3 {
+  font-size: clamp(20px, 2vw, 24px);
+  letter-spacing: -0.03em;
+}
+.places .c2-door .field-label {
+  color: var(--text-sec);
+}
+.places .c2-door.you .field-label {
+  color: var(--warm);
+}
+.places .c2-orb {
+  place-self: center;
+  width: clamp(84px, 12vw, 128px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(250, 248, 255, 0.95) 0 9%,
+    rgba(214, 204, 255, 0.55) 16%,
+    rgba(156, 130, 245, 0.22) 38%,
+    rgba(156, 130, 245, 0) 70%
+  );
+  animation: ps-breathe 5.5s ease-in-out infinite;
+}
+.places .c2-door.you:hover .c2-orb {
+  filter: brightness(1.15);
+}
+@keyframes ps-breathe {
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+.places .c2-foot {
+  grid-row: 4;
+  display: grid;
+  gap: 10px;
+}
+.places .c2-main {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: end;
+  column-gap: 12px;
+  width: 100%;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.places .c2-main:focus-visible {
+  outline: none;
+}
+/* The primary action covers the whole door, so a click anywhere opens that side. */
+.places .c2-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-4);
+}
+.places .c2-verb {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.places .c2-meta {
+  grid-row: 2;
+  min-height: 1.5em;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+.places .c2-arrow {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  color: var(--text-sec);
+  transition:
+    transform var(--base) var(--ease),
+    color var(--base);
+}
+.places .c2-door:hover .c2-arrow,
+.places .c2-door:has(.c2-main:focus-visible) .c2-arrow {
+  transform: translateX(4px);
+  color: var(--text);
+}
+.places .c2-door.soon .c2-verb {
+  color: var(--core);
+}
+.places .c2-acts {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  margin-left: -8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.places .c2-count {
+  padding: 0 8px;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+/* Work's centre shows who is in: people as warm presences and Sophia as the same light as on the left. */
+.places .c2-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  min-height: 0;
+}
+.places .c2-room {
+  display: flex;
+  align-items: center;
+}
+.places .c2-room .p {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(241, 220, 199, 0.45);
+  background: var(--plane-2);
+  color: var(--warm);
+  font: 600 14px/1 var(--sans);
+}
+.places .c2-room .p + .p {
+  margin-left: -10px;
+}
+.places .c2-room .p.seat {
+  border-style: dashed;
+  border-color: rgba(241, 220, 199, 0.22);
+  background: var(--plane);
+}
+.places .c2-room .s {
+  width: 12px;
+  height: 12px;
+  margin-left: 16px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 14px 4px rgba(156, 130, 245, 0.5);
+  animation: ps-breathe 5.5s ease-in-out infinite;
+}
+.places .c2-door.job:hover .c2-room .s {
+  filter: brightness(1.2);
+}
+.places .c2-room-cap {
+  color: var(--text-sec);
+  font-size: 12.5px;
+  text-align: center;
+}
+.places .sdot {
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 0 2px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 8px 2px rgba(156, 130, 245, 0.5);
+}
+.places .pdot {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(241, 220, 199, 0.4);
+  background: var(--plane);
+  color: var(--warm);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.places .pdot + .pdot {
+  margin-left: -12px;
+}
+.places .pdot:last-of-type {
+  margin-right: 4px;
+}
+.places .c2-line {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.places .c2-line::before {
+  content: '';
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(transparent, var(--line-3) 25%, var(--line-3) 75%, transparent);
+}
+/* The padlock on the line, a control like any other: a square with a small radius. */
+.places .c2-lock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--void);
+  color: var(--text-sec);
+  transition:
+    color var(--fast),
+    border-color var(--fast);
+}
+.places .c2-lock:hover {
+  color: var(--warm);
+  border-color: rgba(241, 220, 199, 0.45);
+}
+/* The padlock shows its state: open while your personal space is open, shut and warm once it is locked. */
+.places .c2-lock .shut {
+  display: none;
+}
+.places .c2-lock[aria-pressed='true'] .open {
+  display: none;
+}
+.places .c2-lock[aria-pressed='true'] .shut {
+  display: block;
+}
+.places .c2-lock[aria-pressed='true'] {
+  color: var(--warm);
+  border-color: rgba(241, 220, 199, 0.55);
+  background: #15110f;
+}
+/* A locked Personal door: the light goes dark and a padlock sits where it was. */
+.places .c2-locked {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  color: var(--warm);
+}
+.places .c2-door.you.locked .c2-locked {
+  display: grid;
+}
+.places .c2-door.you.locked .c2-orb {
+  filter: grayscale(1) brightness(0.4);
+  animation-play-state: paused;
+}
+.places .c2-door.you.locked .field-label {
+  color: var(--text-sec);
+}
+/* The line explained in one sentence, between the greeting and the doors: it never covers either door. */
+.places .c2-intro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid rgba(241, 220, 199, 0.22);
+  background: rgba(241, 220, 199, 0.04);
+  color: var(--text-2);
+  font-size: 13px;
+  animation: ps-arrive 220ms var(--ease);
+}
+.places .c2-intro strong {
+  color: var(--warm);
+  font-weight: 560;
+}
+.places .c2-intro-lock {
+  display: grid;
+  color: var(--warm);
+}
+.places .c2-intro .text-button {
+  justify-self: end;
+}
+@media (max-width: 560px) {
+  .places .c2-intro {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+  .places .c2-intro-lock {
+    margin-top: 3px;
+  }
+  .places .c2-intro .text-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+/* A read that is failing says so where its content would be, with the way to ask again. */
+.places .place-notices {
+  display: grid;
+  gap: 6px;
+}
+.places .place-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* ---------- The two spaces ---------- */
+/* One column system: the same centred width for the head and the content, and the same 64px lanes at the sides,
+   where the edge with the lock lives. */
+.places .c3-space {
+  position: absolute;
+  inset: var(--topbar) 0 0;
+  z-index: 4;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  padding-inline: 64px;
+  background: var(--void);
+}
+.places .c3-head {
+  position: relative;
+  z-index: 1;
+  width: min(760px, 100%);
+  justify-self: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 22px 0 12px;
+}
+.places .c3-head h2 {
+  font-size: 20px;
+}
+.places .c3-head h2:focus {
+  outline: none;
+}
+/* With the notes open the whole column moves together, title included. */
+.places .c3-space.you .c3-head {
+  transform: translateX(var(--shift, 0px));
+  transition: transform 320ms var(--ease);
+}
+.places .c3-head-acts {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.places .c3-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-1);
+  background: var(--warm-soft);
+  color: var(--warm);
+  font: 600 11px/1 var(--sans);
+}
+.places .c3-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 0;
+}
+
+/* Sophia's light is the room's own light: a wash from above, not an object. It breathes a little faster while she
+   answers or listens. */
+.places .c3-ambient {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 70%;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 55% 75% at 50% 0%,
+    rgba(156, 130, 245, 0.14),
+    rgba(156, 130, 245, 0.045) 50%,
+    transparent 78%
+  );
+  animation: ps-ambient 7s ease-in-out infinite;
+}
+.places .c3-space.speaking .c3-ambient,
+.places .c3-space.listening .c3-ambient {
+  animation-duration: 1.8s;
+}
+@keyframes ps-ambient {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.places .c3-glowfly {
+  position: absolute;
+  z-index: 7;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(250, 248, 255, 0.95) 0 9%,
+    rgba(214, 204, 255, 0.55) 16%,
+    rgba(156, 130, 245, 0.22) 38%,
+    rgba(156, 130, 245, 0) 70%
+  );
+}
+
+/* The conversation moves aside when the notes open on a wide screen, so nothing hides behind them. */
+.places .c3-convo {
+  --gut: 22px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 0;
+  width: min(760px, 100%);
+  justify-self: center;
+  transform: translateX(var(--shift, 0px));
+  transition: transform 320ms var(--ease);
+}
+.places .msgs {
+  position: relative;
+  z-index: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  /* The list reaches a gutter to its left so Sophia's dot has room and isn't clipped by the scroll box. */
+  padding: 18px 0 18px var(--gut);
+  margin-left: calc(-1 * var(--gut));
+  scroll-behavior: smooth;
+}
+.places .msg {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  max-width: 64ch;
+  animation: ps-arrive 280ms var(--ease);
+}
+.places .msg.me {
+  justify-self: end;
+}
+.places .msg.me .body {
+  padding: 9px 12px;
+  border-radius: var(--r-3);
+  border: 1px solid rgba(241, 220, 199, 0.18);
+  background: var(--warm-soft);
+}
+.places .msg.sophia .body {
+  padding: 2px 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.places .msg .body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Messages from the same side group together; the time shows on hover. Sophia's turn starts with her dot. */
+.places .msg.cont {
+  margin-top: -10px;
+}
+.places .s-dot {
+  position: absolute;
+  left: calc(2px - var(--gut));
+  top: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.55);
+}
+.places .msg.typing .s-dot {
+  animation: ps-dot-pulse 1s ease-in-out infinite;
+}
+.places .msg.typing .body {
+  min-height: 22px;
+}
+@keyframes ps-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+.places .msg .at {
+  position: absolute;
+  bottom: 6px;
+  color: var(--text-4);
+  font: 10.5px var(--mono);
+  opacity: 0;
+  transition: opacity var(--fast);
+  white-space: nowrap;
+}
+.places .msg.sophia .at {
+  left: 100%;
+  margin-left: 12px;
+}
+.places .msg.me .at {
+  right: 100%;
+  margin-right: 10px;
+}
+.places .msg .note-this {
+  position: absolute;
+  right: 100%;
+  top: 2px;
+  margin-right: 6px;
+  height: 24px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--fast);
+}
+.places .msg.me:has(.note-this) .at {
+  bottom: -2px;
+}
+.places .msg:hover .at,
+.places .msg:focus-within .at,
+.places .msg:hover .note-this,
+.places .msg:focus-within .note-this {
+  opacity: 1;
+}
+.places .c3-failed {
+  justify-self: start;
+  margin-top: -6px;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+/* Touch and narrow screens: no hover, so a tap on a message shows its time under it. */
+@media (hover: none), (max-width: 860px) {
+  .places .c3-convo {
+    --gut: 16px;
+  }
+  .places .msg .note-this {
+    position: static;
+    justify-self: end;
+    margin: 0;
+    display: none;
+    opacity: 1;
+  }
+  .places .msg.show-at .note-this {
+    display: inline-flex;
+  }
+  .places .msg .at {
+    position: static;
+    margin: 0;
+    display: none;
+    opacity: 1;
+  }
+  .places .msg.show-at .at {
+    display: block;
+  }
+  .places .msg.me .at {
+    justify-self: end;
+  }
+}
+/* The day you are reading stays at the top while you scroll back; tapping it lists the days. */
+.places .c3-daybar {
+  position: relative;
+  z-index: 3;
+  height: 0;
+  display: flex;
+  justify-content: center;
+}
+.places .c3-daypill {
+  position: absolute;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--text-2);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: ps-arrive 200ms var(--ease);
+}
+.places .c3-daypill:hover,
+.places .c3-daypill[aria-expanded='true'] {
+  color: var(--text);
+  border-color: var(--line-3);
+}
+.places .c3-convo.scrolled .msgs {
+  -webkit-mask-image: linear-gradient(transparent 0 30px, #000 68px);
+  mask-image: linear-gradient(transparent 0 30px, #000 68px);
+}
+.places .c3-daybar .popover {
+  top: 42px;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.places .c3-daybar .popover .muted {
+  font-size: 11.5px;
+}
+.places .c3-day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-sec);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  scroll-margin-top: 44px;
+}
+.places .c3-day::before,
+.places .c3-day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.places .c3-day:hover {
+  color: var(--text);
+}
+/* Note this: a short line in your own words, prefilled, kept with Enter; the Studio's field with its button. */
+.places .c3-noteform {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-self: end;
+  width: min(460px, 100%);
+  margin-top: -8px;
+  animation: ps-arrive 200ms var(--ease);
+}
+.places .c3-noteform .field {
+  flex: 1;
+  min-width: 220px;
+}
+.places .c3-noteform .use {
+  flex-basis: 100%;
+  color: var(--text-sec);
+  font-size: 12px;
+}
+/* Sophia never keeps a note silently: she suggests it, you keep it or let it go. */
+.places .c3-suggest {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: -6px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--r-3);
+  border: 1px dashed rgba(241, 220, 199, 0.35);
+  background: rgba(241, 220, 199, 0.04);
+  font-size: 13px;
+  animation: ps-arrive 260ms var(--ease);
+}
+.places .c3-suggest .field-label {
+  color: var(--warm);
+}
+.places .c3-suggest q {
+  color: var(--text);
+  quotes: '“' '”';
+}
+.places .c3-suggest .acts {
+  display: flex;
+  gap: 4px;
+}
+.places .c3-kept {
+  margin-top: -8px;
+  color: var(--text-sec);
+  font-size: 12px;
+}
+.places .c3-kept q {
+  color: var(--text-2);
+  quotes: '“' '”';
+}
+.places .c3-kept .text-button {
+  font-size: 12px;
+}
+/* A first conversation starts from a blank page; three quiet ways in, gone after the first message. */
+.places .c3-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -4px;
+  animation: ps-arrive 260ms var(--ease);
+}
+/* Writing to Sophia: the Studio's message bar on the Studio's floor, with its one line above for the draft and the
+   voice (.chat-line). */
+.places .ps-composer {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0 var(--floor);
+  border-top: 1px solid var(--line);
+}
+.places .ps-composer .message-bar .round {
+  border-color: transparent;
+  background: transparent;
+}
+.places .ps-composer .message-bar .round[aria-pressed='true'] {
+  color: var(--core);
+  background: rgba(156, 130, 245, 0.18);
+}
+/* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
+.places .message-bar.listening textarea {
+  display: none;
+}
+.places .c3-listen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  color: var(--halo-text);
+}
+.places .c3-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+}
+.places .c3-wave i {
+  width: 3px;
+  height: 6px;
+  border-radius: 2px;
+  background: linear-gradient(var(--core), var(--halo));
+  animation: ps-wave 1s ease-in-out infinite;
+}
+.places .c3-wave i:nth-child(2) {
+  animation-delay: -0.8s;
+}
+.places .c3-wave i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+.places .c3-wave i:nth-child(4) {
+  animation-delay: -0.4s;
+}
+.places .c3-wave i:nth-child(5) {
+  animation-delay: -0.2s;
+}
+@keyframes ps-wave {
+  0%,
+  100% {
+    height: 5px;
+    opacity: 0.6;
+  }
+  50% {
+    height: 18px;
+    opacity: 1;
+  }
+}
+
+/* Notes slide out of the edge, next to the line they may cross. */
+.places .c3-notes {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  z-index: 5;
+  width: min(340px, 100%);
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 12px 14px 16px;
+  border-left: 1px solid var(--line-2);
+  border-radius: var(--r-3) 0 0 var(--r-3);
+  background: var(--plane);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
+  animation: ps-from-edge 260ms var(--ease);
+}
+.places .c3-notes:focus {
+  outline: none;
+}
+@keyframes ps-from-edge {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+.places .c3-notes .sheet-head {
+  margin-bottom: 2px;
+}
+.places .c2-t {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: var(--r-2);
+  transition:
+    transform 460ms var(--ease),
+    opacity 460ms var(--ease);
+}
+.places .c2-t:hover {
+  background: rgba(236, 235, 241, 0.04);
+}
+.places .c2-t p {
+  font-size: 13px;
+}
+.places .c3-notes .c2-t.crossing {
+  transform: translateX(120px);
+  opacity: 0;
+}
+.places .c2-t .by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--halo-text);
+  font-size: 11.5px;
+}
+.places .c2-t .by::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 6px 1px rgba(156, 130, 245, 0.6);
+}
+.places .c2-to {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+}
+.places .c2-to small {
+  color: var(--text-sec);
+  font-size: 11.5px;
+}
+.places .c2-to-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px 2px;
+}
+.places .c3-carry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-size: 13px;
+}
+.places .c3-carry span {
+  color: var(--text-sec);
+  font-size: 11.5px;
+}
+.places .c3-carry:hover,
+.places .c3-carry:focus-visible {
+  border-color: rgba(241, 220, 199, 0.45);
+  background: var(--warm-soft);
+}
+.places .ps-empty {
+  padding: 4px 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+/* The edge crosses; it shows a padlock only when the side behind it is locked. */
+.places .c3-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-sec);
+  transition: background var(--base) var(--ease);
+}
+.places .c3-edge.right {
+  right: 0;
+}
+.places .c3-edge.left {
+  left: 0;
+}
+.places .c3-edge::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(transparent, var(--line-3) 20%, var(--line-3) 80%, transparent);
+}
+.places .c3-edge:hover {
+  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.025), transparent);
+}
+.places .c3-edge:hover .c2-lock,
+.places .c3-edge:focus-visible .c2-lock {
+  color: var(--warm);
+  border-color: rgba(241, 220, 199, 0.45);
+}
+.places .c3-edge:focus-visible {
+  outline-offset: -4px;
+}
+.places .c3-edge .shut {
+  display: none;
+}
+.places .c3-edge.locked .go {
+  display: none;
+}
+.places .c3-edge.locked .shut {
+  display: block;
+}
+.places .c3-edge-label {
+  position: absolute;
+  top: calc(50% + 26px);
+  writing-mode: vertical-rl;
+  padding: 8px 3px;
+  background: var(--void);
+  font: 500 10px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-sec);
+  transition: color var(--fast);
+}
+.places .c3-edge.left .c3-edge-label {
+  transform: rotate(180deg);
+}
+.places .c3-edge:hover .c3-edge-label,
+.places .c3-edge:focus-visible .c3-edge-label {
+  color: var(--text);
+}
+/* The edge is the height of the screen: its tip sits over the padlock, not at the top of the screen. */
+.places .c3-edge .tip {
+  bottom: calc(50% + 26px);
+}
+.places .c3-badge {
+  position: absolute;
+  top: calc(50% - 44px);
+  padding: 2px 6px;
+  border-radius: var(--r-1);
+  background: var(--warm);
+  color: #1a1512;
+  font: 600 10px/1.3 var(--sans);
+}
+.places .c3-edge.pulse .c2-lock {
+  animation: ps-pulse 1.2s var(--ease);
+}
+@keyframes ps-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(241, 220, 199, 0.5);
+    color: var(--warm);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(241, 220, 199, 0);
+  }
+}
+
+/* Work: your projects, with what was carried to each. */
+.places .c3-projects {
+  width: min(760px, 100%);
+  justify-self: center;
+  overflow: auto;
+  padding: 6px 0 28px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.places .c3-proj {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+}
+.places .c3-proj h3 {
+  font-size: 15px;
+}
+.places .c3-proj .meta {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-sec);
+  font-size: 12.5px;
+}
+.places .c3-proj > .pill {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+.places .c3-proj .carried {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* What was carried, as Work shows it: yours marked with a warm dot and yours to take back; a teammate's, theirs. */
+.places .c3-from {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: var(--r-2);
+  border: 1px solid rgba(241, 220, 199, 0.2);
+  background: var(--warm-soft);
+}
+.places .c3-from.new {
+  border-color: rgba(241, 220, 199, 0.5);
+}
+.places .c3-from p {
+  font-size: 13px;
+}
+.places .c3-from .prov {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warm);
+  font-size: 11.5px;
+}
+.places .c3-from .prov::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warm);
+}
+.places .c3-from .ghost {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.places .c3-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  max-width: 460px;
+  padding: 24px 0;
+  color: var(--text-sec);
+}
+.places .c3-newproj {
+  display: grid;
+  gap: 6px;
+  animation: ps-arrive 200ms var(--ease);
+}
+.places .c3-newproj-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.places .c3-newproj-row .field {
+  flex: 1;
+}
+
+/* Your data and the sheets of the places: the Studio's sheet, with the places' own contents. */
+.places .facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.places .fact {
+  padding: 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: var(--void);
+}
+.places .fact b {
+  display: block;
+  font: 600 18px/1.1 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+.places .fact span {
+  color: var(--text-3);
+  font-size: 11px;
+}
+.places .danger-zone {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-3);
+  border: 1px solid rgba(238, 159, 176, 0.3);
+  background: rgba(238, 159, 176, 0.06);
+}
+.places .danger-zone p {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.places .unlock-ways {
+  display: grid;
+  gap: 6px;
+}
+.places .privacy-rules {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.places .privacy-rules li {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.places .privacy-rules strong {
+  display: block;
+  color: var(--text);
+  font-weight: 560;
+}
+@keyframes ps-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Narrow screens: the doors stack with a horizontal boundary, the side lanes give way to the bar's switch, notes
+   become a sheet, and being in a room becomes a strip under the bar, like a call in progress. */
+@media (max-width: 860px) {
+  .places .c2-doors {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+  }
+  .places .c2-line {
+    min-height: 34px;
+  }
+  .places .c2-line::before {
+    top: 50%;
+    bottom: auto;
+    left: 12%;
+    right: 12%;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line-3) 25%, var(--line-3) 75%, transparent);
+  }
+  .places .c3-space {
+    padding-inline: var(--gutter);
+  }
+  .places .c3-head {
+    padding-top: 14px;
+  }
+  .places .c3-head h2 {
+    font-size: 19px;
+  }
+  .places .c3-edge {
+    display: none;
+  }
+  .places .places-switch [data-place='work'][data-new]::after {
+    content: attr(data-new);
+    margin-left: 6px;
+    padding: 1px 5px;
+    border-radius: var(--r-1);
+    background: var(--warm);
+    color: #1a1512;
+    font: 600 10px/1.3 var(--sans);
+  }
+  .places .c3-notes {
+    left: calc(-1 * var(--gutter));
+    right: calc(-1 * var(--gutter));
+    bottom: 0;
+    width: auto;
+    max-height: none;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+    animation: ps-sheet-up 240ms var(--ease);
+  }
+  @keyframes ps-sheet-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  .places .c3-proj {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .places .c3-proj > .pill {
+    grid-row: auto;
+    grid-column: 1;
+    justify-self: start;
+  }
+  /* Phone doors: title on the left, their light or their people on the right, the action below. */
+  .places .c2-door {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    padding: 16px;
+  }
+  .places .c2-door > .field-label,
+  .places .c2-door h3 {
+    grid-column: 1;
+  }
+  .places .c2-visual {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .places .c2-orb {
+    width: 58px;
+  }
+  .places .c2-room .p {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+  }
+  .places .c2-room .p + .p {
+    margin-left: -8px;
+  }
+  .places .c2-room .s {
+    width: 8px;
+    height: 8px;
+    margin-left: 10px;
+  }
+  .places .c2-room-cap {
+    display: none;
+  }
+  .places .c2-foot {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    gap: 4px;
+  }
+  .places .c2-main {
+    padding-top: 10px;
+  }
+  .places .c-home {
+    align-content: start;
+    gap: 14px;
+    padding-top: 20px;
+  }
+  .places .places-bar {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+  }
+  .places .places-switch {
+    justify-self: center;
+  }
+  /* The call becomes a strip under the bar, its switches at the dock's touch size. */
+  .places .room-pill {
+    position: absolute;
+    top: calc(var(--topbar) + 6px);
+    left: var(--gutter);
+    right: var(--gutter);
+    z-index: 12;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 3px 0 12px;
+    background: #16120f;
+  }
+  .places .room-pill .t {
+    margin-right: auto;
+  }
+  .places .room-pill .round {
+    width: 40px;
+    height: 40px;
+  }
+  .places.in-room .c3-space,
+  .places.in-room .c-home {
+    top: calc(var(--topbar) + 60px);
+  }
+  .places .room-pill-notes {
+    top: calc(var(--topbar) + 62px);
+    left: var(--gutter);
+  }
+}
+@media (max-width: 560px) {
+  .places .chip-private .t {
+    display: none;
+  }
+}
+@media (max-width: 420px) {
+  .places .seg-t {
+    display: none;
+  }
+  .places .seg-i {
+    display: block;
+  }
+}
+/* Touch: every control of the places takes the Studio's touch size (CONTRIBUTING, Studio UI). In the bar the call's
+   pill grows with its switches. */
+@media (pointer: coarse) {
+  .places .chip-private,
+  .places .c3-daypill,
+  .places .c2-lock {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .places .room-pill {
+    height: 46px;
+  }
+  .places .room-pill .round {
+    width: 40px;
+    height: 40px;
+  }
+  .places .c3-day {
+    min-height: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .places *,
+  .places *::before,
+  .places *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
