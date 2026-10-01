@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** first commit `c3f8968` on `studio/personal-space` (#30), 2026-09-30. On 2026-10-01 Luis asked to split it: the data and API on `personal/data` (from main `860a01a`), and the Studio's places on top of it (#30).
-- **End:** the data side's code at `ce5a86c` (#35's head); the Studio's at `506feb6` (tree `5295c3fef97e`), the head the checks below ran on. The commit after it changes only this line.
+- **End:** the data side's code at `ce5a86c` (#35's head); the Studio's at `c243311` (tree `b26f93c01e9f`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** this repository. **No hosted service was changed.** Migration 0021 is on no hosted database.
 
 ## Outcome
