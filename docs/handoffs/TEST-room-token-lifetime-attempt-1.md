@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `test/room-token-lifetime` from main `860a01a`, 2026-10-01; first commit `80bc5b6`.
-- **End:** the PR's head when merged (#36); this file arrives in its last commit. Changed: `apps/api/src/rooms.db.test.ts`, `docs/SOURCE_MAP.md` and this file.
+- **End:** the code and docs at `c8a9324` (tree `d5ad16f73618`), the head every check below ran on; the commit after it changes only this line. Changed: `apps/api/src/rooms.db.test.ts`, `docs/SOURCE_MAP.md` and this file.
 - **Writable scope:** this repository. **No hosted service was changed.**
 
 ## Outcome
