@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "569fc75",
+  "candidate_commit": "3c37f48",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -70,8 +70,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5923289220",
-      "state": "answered by CX-0003 (revision 2); M03-RF-0002 fixed; re-review requested in CC-0004 (revision 3)"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5930776701",
+      "state": "awaiting_operator (revision 3: M03-RF-0002 re-review, S2 review, darwin-arm64 record)"
     }
   ],
   "unknown_effects": [],
@@ -98,7 +98,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0004 to Codex: review of S2 (parts 1-3) and darwin-arm64 artifacts:record; then S3 (source access)",
+  "next_action": "S3 (source access: Tavily, Jina, provenance, injection envelope, reservation service) while Codex answers CC-0004",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
