@@ -55,10 +55,19 @@ contract; this file holds the code rules.
   - a new state or a new way to fail (a status, a timeout) is checked in
     every branch and caller that can meet it, and a protocol (retry with the
     same key) lives in the API, not in each caller;
-  - a finding is fixed as a class: look for the same pattern elsewhere
-    before pushing;
+  - a finding is fixed as a class: list its siblings (the same feature, the
+    same way to fail) and fix them in one push, since each push starts a new
+    review round;
+  - every `{ error }` a call returns is read, and a wrapper that swallows
+    one says why;
+  - a race or a state that is hard to fence is removed rather than fenced;
+  - before each push, one independent review of the whole diff: a reviewer
+    given the code and this list, not your conclusions;
   - a rule written here names its mechanism and its test, and is checked
     against the code before it is written.
+- **Merge after the last push's review.** Codex reviews each push within
+  minutes. #23 was merged two minutes before its last review, and that
+  review's two findings needed a follow-up PR.
 - **Tests use `node --test`** with `node:assert/strict`. A test that needs
   PostgreSQL is `*.db.test.ts`; one that needs a Supabase stack is
   `*.live.test.ts`. `pnpm test` runs neither.
