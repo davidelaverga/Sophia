@@ -29,7 +29,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck and contracts check; unit tests: 437 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); database tests: 241 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck and contracts check; unit tests: 437 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); database tests: 243 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Reviews:**
   - Codex on #30's `8bf2acf`: one P1 and four P2, all fixed.
   - An independent review of #30's whole diff: its data findings are fixed here (a retry racing its first attempt, a suggestion let go, erasure's records).
@@ -42,6 +42,7 @@ Missing or unverified:
   - Codex on `f600665`: three P2 (a welcome's key not tied to whom it greets; a companion call past its time left running; a welcome's write not fenced to its epoch), and on #30's `3d8bc84`, its data half (a conversation past 500 turns could not be read back, and its days were counted from the newest 500 only), all fixed, each undone once to see its test fail.
   - Codex on `4fd79b5`: one P2 (a welcome's attempt that stalled past its claim still read what to welcome from), fixed; undone once, its test fails.
   - Codex on `ce11764`: two P2 (a retry refused where no companion runs, before its kept receipt was looked up; an export with no bound), fixed; each undone once fails its test.
+  - Codex on `d183cae`: two P2 (asking again cleared a claim just taken, judged by when the reply was asked for; a claim not renewed as its context went to the companion), fixed, also for the welcome's claim; each undone once fails its test.
 - Every logic fix has a database test that fails without it (a mutation check on each).
 
 ## Decisions and changes

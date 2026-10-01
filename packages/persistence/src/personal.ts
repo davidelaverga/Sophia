@@ -35,7 +35,7 @@ interface TurnRow {
 
 // A reply reads as it stands: one whose wait outlasted any answer reads as failed (0021, personal_reply_state).
 const TURNS = `SELECT t.id, t.seq, t.author, t.body, t.created_at, t.reply_to,
-    sophia.personal_reply_state(t.reply, t.asked_at) AS reply,
+    sophia.personal_reply_state(t.reply, t.asked_at, t.answering_since) AS reply,
     sg.id AS suggestion_id, sg.body AS suggestion_body, sg.state AS suggestion_state
   FROM sophia.personal_turns t
   LEFT JOIN sophia.personal_suggestions sg ON sg.owner_id = t.owner_id AND sg.turn_id = t.id
@@ -183,7 +183,7 @@ export async function readPersonalTurnsAfter(c: pg.PoolClient, after: number): P
   ])
   const pending = await c.query<{ pending: boolean }>(
     `SELECT EXISTS(SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND reply = 'pending'
-       AND sophia.personal_reply_state(reply, asked_at) = 'pending') AS pending`,
+       AND sophia.personal_reply_state(reply, asked_at, answering_since) = 'pending') AS pending`,
   )
   return { revision: await readRevision(c), turns: rows.map(turnOf), pending: onlyRow(pending.rows, 'pending').pending }
 }
@@ -215,9 +215,10 @@ export interface CompanionContext {
 }
 
 /**
- * The context for answering `turnId` under `claim` (claimPersonalReply), or null when that turn is not the caller's, no
- * longer waits, or is held by another attempt (this process stalled past its claim): only one attempt asks the
- * companion, so the person's words go to it once.
+ * The context for answering `turnId` under `claim` (claimPersonalReply), its lease renewed as it goes to the companion;
+ * or null when that turn is not the caller's, no longer waits, or is held by another attempt (this process stalled
+ * past its claim): only one attempt asks the companion, so the person's words go to it once. Call inside
+ * withActor(..., "write").
  */
 export async function readCompanionContext(
   c: pg.PoolClient,
@@ -225,11 +226,8 @@ export async function readCompanionContext(
   claim: string,
   depth = 20,
 ): Promise<CompanionContext | null> {
-  const held = await c.query(
-    `SELECT 1 FROM sophia.personal_turns WHERE owner_id = sophia.actor_id() AND id = $1 AND answering_claim = $2`,
-    [turnId, claim],
-  )
-  if (held.rowCount === 0) return null
+  const held = await c.query<{ held: boolean }>('SELECT sophia.renew_personal_reply($1, $2) AS held', [turnId, claim])
+  if (!onlyRow(held.rows, 'renew_personal_reply').held) return null
   const asked = (await c.query<TurnRow>(`${TURNS} AND t.id = $1`, [turnId])).rows[0]
   if (!asked || asked.author !== 'person' || asked.reply !== 'pending') return null
   const { rows } = await c.query<TurnRow>(`${TURNS} AND t.seq <= $1 ORDER BY t.seq DESC LIMIT $2`, [asked.seq, depth])
@@ -246,16 +244,17 @@ const WELCOME_DUE = `SELECT (t.created_at < now() - interval '1 hour' AND NOT (t
   FROM sophia.personal_turns t WHERE t.owner_id = sophia.actor_id() ORDER BY t.seq DESC LIMIT 1`
 
 /**
- * What Sophia's welcome back is written from, for the attempt holding the welcome's `claim` (beginPersonalGreeting), or
- * null when none is due or another attempt holds it (this process stalled past its claim): no companion is asked then.
+ * What Sophia's welcome back is written from, for the attempt holding the welcome's `claim` (beginPersonalGreeting), its
+ * lease renewed as it goes to the companion; or null when none is due or another attempt holds it (this process stalled
+ * past its claim): no companion is asked then. Call inside withActor(..., "write").
  */
 export async function readWelcomeContext(
   c: pg.PoolClient,
   claim: string,
   depth = 20,
 ): Promise<Omit<CompanionContext, 'asked'> | null> {
-  const held = await c.query<{ held: boolean }>('SELECT sophia.personal_greeting_held($1) AS held', [claim])
-  if (!onlyRow(held.rows, 'personal_greeting_held').held) return null
+  const held = await c.query<{ held: boolean }>('SELECT sophia.renew_personal_greeting($1) AS held', [claim])
+  if (!onlyRow(held.rows, 'renew_personal_greeting').held) return null
   const due = (await c.query<{ due: boolean }>(WELCOME_DUE)).rows[0]?.due ?? false
   if (!due) return null
   const { rows } = await c.query<TurnRow>(`${TURNS} ORDER BY t.seq DESC LIMIT $1`, [depth])
