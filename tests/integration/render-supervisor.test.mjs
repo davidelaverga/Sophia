@@ -4,7 +4,9 @@
  * real; its package is an inline HTML entry and a byte-stored image (in-memory byte store). The supervisor holds
  * only the runner capability: it claims, fetches every file through the API, renders confined, uploads the PDF
  * once and settles with the kernel's receipt. A Stop during the render kills the kernel and keeps nothing; a stored
- * file that no longer matches its record is never rendered.
+ * file that no longer matches its record is never rendered; a host without a browser takes no job. The supervisor
+ * finds the browser only in Playwright's default cache under its HOME (as on a CI runner), which the kernel's own
+ * home, the job directory, does not have.
  *
  * Needs SOPHIA_DISPOSABLE_DATABASE_URL and the confined renderer (Linux, user namespaces, the pinned headless
  * shell); skipped without them, failed without them when SOPHIA_RENDERER_REQUIRED=1.
@@ -13,9 +15,9 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import pg from 'pg'
 import { after, before, describe, test } from 'node:test'
 
@@ -43,7 +45,7 @@ const PNG = Buffer.from(
 const HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body><h1>Hosts</h1><p>Città, señal.</p><img src="img/chart.png" width="40" height="40"></body></html>'
 
 describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)', { skip: why ?? false }, () => {
-  let s, db, pool, owner, app, store, base, projectId, who, work
+  let s, db, pool, owner, app, store, base, projectId, who, work, home, homeEnv
   const A = randomUUID()
   const E = randomUUID()
   const ROLE = { id: 'sophia-research-pdf-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:pdf' }
@@ -57,6 +59,16 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
       import('../../renderers/web/pdf/supervisor.mjs'),
     ])
     s = { persistence, testSupport, supervisor, objectPath }
+    // A home whose default Playwright cache holds the browser, and an environment that names it no other way.
+    const { chromiumPath } = await import('../../renderers/web/pdf/confine.mjs')
+    home = mkdtempSync(join(tmpdir(), 'sophia-home-'))
+    chmodSync(home, 0o755)
+    homeEnv = { ...env, HOME: home }
+    delete homeEnv.SOPHIA_CHROMIUM_PATH
+    delete homeEnv.PLAYWRIGHT_BROWSERS_PATH
+    const cached = chromiumPath(homeEnv)
+    mkdirSync(dirname(cached), { recursive: true, mode: 0o755 })
+    symlinkSync(chromiumPath(env), cached)
     db = await testSupport.createTestDatabase()
     pool = persistence.createPool(db.apiUrl, { max: 6 })
     owner = new pg.Client({ connectionString: db.ownerUrl })
@@ -86,6 +98,7 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
     await pool?.end()
     await db?.drop()
     if (work) rmSync(work, { recursive: true, force: true })
+    if (home) rmSync(home, { recursive: true, force: true })
   })
 
   /** A new research task with a queued render of an HTML entry and one byte-stored image. */
@@ -120,7 +133,7 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
     return { ...job, goalId: task.goal_id, imageId }
   }
 
-  const config = (extra = {}) => ({ apiUrl: base, token: RUNNER, workDir: work, env, heartbeatMs: 200, ...extra })
+  const config = (extra = {}) => ({ apiUrl: base, token: RUNNER, workDir: work, env: homeEnv, heartbeatMs: 200, ...extra })
   const jobRow = async (jobId) =>
     (
       await owner.query(
@@ -132,8 +145,9 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
 
   test('renders a queued package end to end: fetched through the API, confined, uploaded once and settled', async () => {
     const job = await queued()
-    const run = await s.supervisor.runOnce(config())
-    assert.deepEqual(run, { claimed: true, jobId: job.jobId, outcome: 'succeeded' })
+    const lines = []
+    const run = await s.supervisor.runOnce(config({ log: (l) => lines.push(l) }))
+    assert.deepEqual(run, { claimed: true, jobId: job.jobId, outcome: 'succeeded' }, lines.join('\n'))
     const row = await jobRow(job.jobId)
     assert.equal(row.state, 'succeeded')
     assert.equal(row.receipt.source.manifestSha256, row.manifest_sha256, 'the kernel and the service agree on the package')
@@ -187,5 +201,12 @@ describe('render supervisor crossing (real API, PostgreSQL, confined Chromium)',
     assert.ok(lines.some((l) => /503/.test(l)), lines.join('\n'))
     assert.equal((await jobRow(job.jobId)).result_source_id, null)
     assert.deepEqual(readdirSync(work), [])
+  })
+
+  test('takes no job when the host has no browser', async () => {
+    const job = await queued()
+    const missing = { ...homeEnv, SOPHIA_CHROMIUM_PATH: join(work, 'no-such-browser') }
+    await assert.rejects(s.supervisor.runOnce(config({ env: missing })), /no headless shell/)
+    assert.equal((await jobRow(job.jobId)).state, 'pending', 'the job is still queued')
   })
 })

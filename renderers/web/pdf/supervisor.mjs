@@ -3,24 +3,26 @@
 // render runner capability and talks only to the Sophia API. For each claimed job it:
 // - fetches every file of the source package through the API, checking each against the package's SHA-256 and size,
 //   into a fresh job directory;
-// - runs the kernel (render-html.mjs) as its own process group, with an environment that names the browser and the
-//   render user and nothing else, so the capability never reaches the kernel or the browser;
+// - runs the kernel (render-html.mjs) as its own process group, with an environment that names the browser (resolved
+//   here, as the kernel's home is the job directory) and the render user and nothing else, so the capability never
+//   reaches the kernel or the browser;
 // - sends heartbeats while it runs: a Hold or a Stop (or a lost lease) kills the kernel, and nothing is uploaded;
 // - uploads the PDF once if the kernel succeeded, then settles with the kernel's receipt;
 // - removes the job directory, whatever happened.
 // Usage: supervisor.mjs, with SOPHIA_API_URL, SOPHIA_RENDER_RUNNER_TOKEN_FILE (or SOPHIA_RENDER_RUNNER_TOKEN),
 // SOPHIA_RENDER_WORK (a directory), and for the kernel SOPHIA_RENDER_UID (when root), SOPHIA_CHROMIUM_PATH or
-// PLAYWRIGHT_BROWSERS_PATH.
+// PLAYWRIGHT_BROWSERS_PATH (or Playwright's default cache in HOME).
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { chromiumPath } from './confine.mjs'
 import { sha256Hex } from './source-manifest.mjs'
 
 const KERNEL = fileURLToPath(new URL('./render-html.mjs', import.meta.url))
-/** What the kernel inherits: the browser, the render user and nothing else (never the capability). */
-const KERNEL_ENV = ['SOPHIA_RENDER_UID', 'SOPHIA_RENDER_GID', 'SOPHIA_CHROMIUM_PATH', 'PLAYWRIGHT_BROWSERS_PATH']
+/** What the kernel inherits besides the browser's path: the render user and nothing else (never the capability). */
+const KERNEL_ENV = ['SOPHIA_RENDER_UID', 'SOPHIA_RENDER_GID']
 const KILL_GRACE_MS = 10_000
 
 /**
@@ -92,7 +94,10 @@ function receiptFacts(receipt) {
     typeof output === 'object' && output !== null && 'sha256' in output && typeof output.sha256 === 'string'
       ? output.sha256
       : null
-  return { status: receipt.status, outputSha256 }
+  /** @type {unknown} */
+  const error = Reflect.get(receipt, 'error')
+  const errorCode = typeof error === 'object' && error !== null ? textOf(error, 'code') : ''
+  return { status: receipt.status, outputSha256, errorCode }
 }
 
 /**
@@ -200,12 +205,13 @@ function kernelJob(job, where) {
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
  * @param {string} jobFile
+ * @param {string} browser the headless shell, resolved by this process
  * @returns {Promise<{ cancelled: boolean }>}
  */
-function runKernel(cfg, job, jobFile) {
+function runKernel(cfg, job, jobFile, browser) {
   const source = cfg.env ?? process.env
   /** @type {NodeJS.ProcessEnv} */
-  const env = { PATH: '/usr/bin:/bin', HOME: path.dirname(jobFile) }
+  const env = { PATH: '/usr/bin:/bin', HOME: path.dirname(jobFile), SOPHIA_CHROMIUM_PATH: browser }
   for (const key of KERNEL_ENV) if (source[key]) env[key] = source[key]
   const child = spawn(process.execPath, [KERNEL, '--job', jobFile], {
     env,
@@ -257,20 +263,27 @@ async function deliver(cfg, job, outputDir) {
     const pdf = fs.readFileSync(path.join(outputDir, 'report.pdf'))
     if (sha256Hex(pdf) !== facts.outputSha256) throw new Error('the PDF does not match its receipt')
     await api(cfg, `/v1/renderer/jobs/${job.jobId}/output`, { method: 'PUT', lease: job.leaseToken, pdf })
-  }
+  } else cfg.log?.(`render ${job.jobId} ${String(facts.status)}: ${facts.errorCode || 'no error code'}`)
   const res = await api(cfg, `/v1/renderer/jobs/${job.jobId}/settle`, { json: { leaseToken: job.leaseToken, receipt } })
   return stateOf(await res.json())
 }
 
 /**
- * When this process is root, the browser runs as the render user, who must reach the job directories: the work
- * directory needs search permission for others. Checked before a claim, so a misconfigured host takes no job.
- * @param {string} workDir
+ * What a host needs before it claims, so a misconfigured host takes no job; returns the browser's path.
+ * - The headless shell, resolved here: the kernel's home is the job directory, so it is handed the path.
+ * - When this process is root, the browser runs as the render user, who must reach the job directories: the work
+ *   directory needs search permission for others.
+ * @param {SupervisorConfig} cfg
  */
-function assertReachable(workDir) {
-  if (process.getuid?.() === 0 && (fs.statSync(workDir).mode & 0o001) === 0) {
-    throw new Error(`the render user cannot reach ${workDir}: give it search permission for others (o+x)`)
+function hostReady(cfg) {
+  const browser = chromiumPath(cfg.env ?? process.env)
+  if (!fs.existsSync(browser)) {
+    throw new Error(`no headless shell at ${browser}: set SOPHIA_CHROMIUM_PATH or PLAYWRIGHT_BROWSERS_PATH`)
   }
+  if (process.getuid?.() === 0 && (fs.statSync(cfg.workDir).mode & 0o001) === 0) {
+    throw new Error(`the render user cannot reach ${cfg.workDir}: give it search permission for others (o+x)`)
+  }
+  return browser
 }
 
 /**
@@ -279,7 +292,7 @@ function assertReachable(workDir) {
  * @returns {Promise<RunOutcome>}
  */
 export async function runOnce(cfg) {
-  assertReachable(cfg.workDir)
+  const browser = hostReady(cfg)
   const job = jobOf(await (await api(cfg, '/v1/renderer/claim')).json())
   if (!job) return { claimed: false }
   const dir = fs.mkdtempSync(path.join(cfg.workDir, 'job-'))
@@ -293,7 +306,7 @@ export async function runOnce(cfg) {
     const jobFile = path.join(dir, 'job.json')
     fs.writeFileSync(jobFile, JSON.stringify(kernelJob(job, where)), { flag: 'wx', mode: 0o600 })
     await cfg.beforeRender?.(job)
-    const run = await runKernel(cfg, job, jobFile)
+    const run = await runKernel(cfg, job, jobFile, browser)
     if (run.cancelled) return { claimed: true, jobId: job.jobId, outcome: 'cancelled' }
     return { claimed: true, jobId: job.jobId, outcome: await deliver(cfg, job, where.outputDir) }
   } catch (error) {

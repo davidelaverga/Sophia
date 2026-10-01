@@ -73,7 +73,7 @@ Stated limits:
 The trusted process on the renderer host (S5a part 2). It holds only a render runner capability and talks only to the Sophia API (`/v1/renderer/*`, A11). It never holds a database URL, a storage URL or a storage key. For each job it:
 1. claims the job under a lease (`POST /v1/renderer/claim`);
 2. fetches every file of the source package through the API, each checked against the package's SHA-256 and size, into a fresh job directory;
-3. runs the kernel as its own process group. The kernel's environment carries only the render user and the browser's location, never the capability;
+3. runs the kernel as its own process group. The kernel's environment carries only the render user and the browser's path, never the capability. The supervisor resolves that path itself, because the kernel's home is the job directory;
 4. sends heartbeats while the kernel runs. A Hold or a Stop, or a lost lease, kills the kernel, and nothing is uploaded or settled;
 5. uploads the PDF once (`PUT …/output`) if the kernel succeeded, then settles with the kernel's receipt (`POST …/settle`);
 6. removes the job directory.
@@ -82,7 +82,7 @@ Configuration:
 - `SOPHIA_API_URL`: https, or localhost for development;
 - `SOPHIA_RENDER_RUNNER_TOKEN_FILE`: the capability, registered by the owner by its SHA-256 (`sophia.register_render_runner`);
 - `SOPHIA_RENDER_WORK`: the work directory. When the supervisor runs as root it must be searchable by others, so the render user reaches the job directories; a host where it is not takes no job;
-- for the kernel: `SOPHIA_RENDER_UID` (when root), and `SOPHIA_CHROMIUM_PATH` or `PLAYWRIGHT_BROWSERS_PATH`.
+- for the kernel: `SOPHIA_RENDER_UID` (when root), and the browser: `SOPHIA_CHROMIUM_PATH`, `PLAYWRIGHT_BROWSERS_PATH`, or Playwright's default cache in `HOME`. A host where the browser is missing takes no job.
 
 On the service side (migration 0030):
 - **Queue and claims.** A render job is a research task's child job. The queue skips goals that are not working. A lease runs 5 minutes and is extended by heartbeats. A lost lease is claimed again, at most three times, then the job fails as `renderer_lost`.

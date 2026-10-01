@@ -30,7 +30,7 @@ export class ConfinementError extends Error {
 
 /**
  * The headless shell pinned with playwright-core (its browsers.json revision), under PLAYWRIGHT_BROWSERS_PATH or
- * Playwright's default cache; SOPHIA_CHROMIUM_PATH overrides it.
+ * Playwright's default cache in the environment's home; SOPHIA_CHROMIUM_PATH overrides it.
  * @param {NodeJS.ProcessEnv} env
  */
 export function chromiumPath(env = process.env) {
@@ -39,7 +39,7 @@ export function chromiumPath(env = process.env) {
   const browsers = fs.readFileSync(path.join(pkg, 'browsers.json'), 'utf8')
   const revision = /"name":\s*"chromium-headless-shell",\s*"revision":\s*"(\d+)"/.exec(browsers)?.[1]
   if (!revision) throw new ConfinementError('no_browser', 'playwright-core names no headless shell')
-  const base = env.PLAYWRIGHT_BROWSERS_PATH || path.join(os.homedir(), '.cache', 'ms-playwright')
+  const base = env.PLAYWRIGHT_BROWSERS_PATH || path.join(env.HOME || os.homedir(), '.cache', 'ms-playwright')
   return path.join(base, `chromium_headless_shell-${revision}`, 'chrome-linux', 'headless_shell')
 }
 
