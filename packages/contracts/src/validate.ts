@@ -27,6 +27,7 @@ import {
   validateReportList,
   validateReportSourceList,
   validateReportSummary,
+  validateResearchRendition,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
   validateProjectCreated,
@@ -90,6 +91,7 @@ export const parseArtifactVersionList = parser('ArtifactVersionList', validateAr
 export const parseReportList = parser('ReportList', validateReportList)
 export const parseReportSourceList = parser('ReportSourceList', validateReportSourceList)
 export const parseReportSummary = parser('ReportSummary', validateReportSummary)
+export const parseResearchRendition = parser('ResearchRendition', validateResearchRendition)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

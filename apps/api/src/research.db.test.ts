@@ -396,3 +396,94 @@ describe("the research PDF's runtime routes (A11, 0031)", () => {
     assert.deepEqual([early.status, early.json.code], [409, 'invalid_state'], 'the render is still running')
   })
 })
+
+describe('Try PDF again over HTTP (A11, 0032)', () => {
+  it('queues a rendition of a report published without its PDF, for editors, once per key', async () => {
+    const w = await world([...ROLES, PDF_ROLE])
+    await withActor(pool, E, 'write', (c) =>
+      admitResearchTask(c, w.projectId, {
+        key: randomUUID(),
+        exchangeId: null,
+        request: { question: 'Which hosts render PDFs in a sandbox?', outputs: ['markdown', 'pdf'] },
+        specialist: { role: PDF_ROLE.id, route: PDF_ROLE.route },
+      }),
+    )
+    await dispatchOnce(worker, { workerId: 'test-worker' })
+    const batch = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
+    const create = (batch.json.commands as Array<{ command: RuntimeCommand }>).at(-1)?.command
+    assert.ok(create)
+    const at = { attemptId: create.binding.attemptId, nativeSessionId: `sophia-${create.binding.attemptId}` }
+    const reserve = await w.runtime('/v1/runtime/research/reserve', {
+      ...at,
+      callId: 'call_1',
+      kind: 'search',
+      provider: 'tavily',
+      amountUsd: 0.01,
+      query: 'pdf rendering sandbox',
+    })
+    const capture = await w.runtime('/v1/runtime/research/capture', {
+      ...at,
+      reservationId: reserve.json.reservationId,
+      kind: 'search_results',
+      provider: 'tavily',
+      providerHttpStatus: 200,
+      coverage: 'complete',
+      limitations: [],
+      results: [{ url: 'https://hosts.example.org/a', title: 'Hosts' }],
+    })
+    const filler = Array.from({ length: 60 }, (_, i) => `w${String(i)}`).join(' ')
+    const text = `# Hosts\n\n## Summary\n\n${filler} [${String(capture.json.sourceId)}]\n\n## Findings\n\n${filler}\n\n## Conclusion\n\n${filler}\n`
+    const draft = await w.runtime('/v1/runtime/research/draft', { ...at, callId: 'd1', expectedSha256: null, text })
+    const done = await w.runtime('/v1/runtime/research/submit', {
+      ...at,
+      callId: 's1',
+      result: {
+        draftSha256: draft.json.sha256,
+        title: 'Hosts',
+        summary: 'Which hosts render PDFs in a sandbox.',
+        resultSummary: 'One host found.',
+        limitations: [],
+        citations: [capture.json.sourceId],
+      },
+    })
+    assert.deepEqual([done.status, done.json.pdf?.state], [200, 'not_produced'], JSON.stringify(done.json))
+    const path = `/api/v1/projects/${w.projectId}/native-tasks/${String(done.json.taskId)}/rendition`
+    const again = async (actor: string, key: string | null) =>
+      call(path, {
+        bearer: await token(actor),
+        body: {},
+        headers: key === null ? {} : { 'idempotency-key': key },
+      })
+
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(`DELETE FROM sophia.render_runners WHERE label='api-test-runner'`)
+      const none = await again(E, 'try-0')
+      assert.deepEqual([none.status, none.json.code], [503, 'native_capability_unavailable'], 'no render runner')
+      await owner.query(
+        `INSERT INTO sophia.render_runners(label,token_sha256,seen_at) VALUES('api-test-runner',$1,now())
+          ON CONFLICT (label) DO UPDATE SET seen_at=now(), state='active', revoked_at=NULL`,
+        [createHash('sha256').update('api-test-runner-token', 'utf8').digest()],
+      )
+    } finally {
+      await owner.end()
+    }
+    const viewer = await again(V, 'try-v')
+    assert.deepEqual([viewer.status, viewer.json.code], [403, 'forbidden'], 'a viewer')
+    assert.equal((await again(E, null)).status, 422, 'an Idempotency-Key is required')
+    const queued = await again(E, 'try-1')
+    assert.deepEqual(
+      [queued.status, Object.keys(queued.json), queued.json.state],
+      [202, ['state', 'renderJobId'], 'queued'],
+      'the rendition, and nothing of the printed report',
+    )
+    assert.deepEqual(await again(E, 'try-1'), queued, 'a replay answers the same')
+    const twice = await again(E, 'try-2')
+    assert.deepEqual([twice.status, twice.json.code], [409, 'invalid_state'], 'one rendition at a time')
+    const detail = await call(`/api/v1/projects/${w.projectId}/native-tasks/${String(done.json.taskId)}`, {
+      bearer: await token(E),
+    })
+    assert.deepEqual([detail.status, detail.json.research.pdfRendering], [200, true])
+  })
+})

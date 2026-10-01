@@ -6,6 +6,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { RenderJob, RenderReceipt, RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
+import { parseArtifactVersionList } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
 import {
   createTestDatabase,
@@ -34,6 +35,7 @@ import {
   rendererOutputSlot,
   rendererRecordOutput,
   rendererSettle,
+  requestResearchRendition,
   runtimeHello,
   runtimePoll,
   runtimeResearchCapture,
@@ -2485,5 +2487,310 @@ describe('the research PDF (0031)', () => {
     const other = await pdfWorld()
     const theirs = await other.render(other.d.sha256)
     assert.equal(await codeOf(read(theirs.renderJobId)), 'not_found', "another task's render")
+  })
+})
+
+// --- Try PDF again (0032) ---------------------------------------------------------------------------------------
+
+/** A PDF task published without its PDF (no render), and an editor's "Try PDF again" on it. */
+async function partialWorld() {
+  const p = await pdfWorld()
+  const done = await p.submit(p.d.sha256)
+  assert.equal(done.pdf?.state, 'not_produced')
+  // The runner asks for work: a render runner is live.
+  await owner((c) => c.query(`UPDATE sophia.render_runners SET seen_at=now() WHERE label='test-runner'`))
+  const taskId = done.taskId
+  const { goal_id: goalId } = await one<{ goal_id: string }>(`SELECT goal_id FROM sophia.work_attempts WHERE id=$1`, [
+    p.at.attemptId,
+  ])
+  const again = (key: string, actor = E) =>
+    withActor(pool, actor, 'write', (c) => requestResearchRendition(c, p.w.projectId, taskId, key))
+  const goal = async () => (await goalOf(p.w, goalId)).status
+  const task = () =>
+    one<{ pdf_state: string; pdf_reason: string | null }>(
+      `SELECT pdf_state, pdf_reason FROM sophia.research_tasks WHERE job_id=$1`,
+      [taskId],
+    )
+  const read = () => withActor(pool, E, 'read', (c) => readNativeTask(c, p.w.projectId, taskId))
+  return { ...p, done, taskId, goalId, again, goal, task, read }
+}
+
+const versionsOf = (artifactId: string) =>
+  owner(
+    async (c) =>
+      (
+        await c.query<{
+          id: string
+          version_number: number
+          state: string
+          source_id: string
+          change_note: string | null
+          retained_note: string | null
+          change_facts: Record<string, unknown>
+          trigger: Record<string, unknown>
+          limitations: string[]
+        }>(
+          `SELECT id, version_number, state, source_id, change_note, retained_note, change_facts, trigger, limitations
+             FROM sophia.artifact_versions WHERE artifact_id=$1 ORDER BY version_number`,
+          [artifactId],
+        )
+      ).rows,
+  )
+
+describe('Try PDF again (0032)', () => {
+  it('prints the published version with the report template and queues it as a rendition, reopening the goal', async () => {
+    const p = await partialWorld()
+    const queued = await p.again('try-1')
+    assert.deepEqual(
+      [queued.state, queued.repair, queued.layout, queued.draftSha256],
+      ['queued', 'none', 'standard', undefined],
+    )
+    assert.deepEqual(await p.again('try-1'), queued, 'a replay returns the same rendition')
+    const entry = await entryOf(queued.renderJobId!)
+    assert.match(entry.body, /<h1>Sandboxes for PDF rendering<\/h1>/)
+    assert.match(entry.body, /<li id="cite-1">/)
+    const [v1] = await versionsOf(p.done.artifactId!)
+    assert.deepEqual(
+      entry.deps,
+      [v1!.source_id, p.cited.sourceId].toSorted(),
+      'derived from the version and its source',
+    )
+    const kind = await one<{ kind: string; base_version_id: string; requested_by: string; reopened_goal: boolean }>(
+      `SELECT kind, base_version_id, requested_by, reopened_goal FROM sophia.render_jobs WHERE job_id=$1`,
+      [queued.renderJobId],
+    )
+    assert.deepEqual(kind, {
+      kind: 'rendition',
+      base_version_id: p.done.versionId,
+      requested_by: E,
+      reopened_goal: true,
+    })
+    assert.equal(await p.goal(), 'running', 'the goal reopens while it renders')
+    const reading = await p.read()
+    assert.deepEqual([reading.task.phase, reading.research?.pdfRendering], ['result_ready', true])
+    assert.equal(await codeOf(p.again('try-2')), 'invalid_state', 'one rendition at a time')
+  })
+
+  it('publishes a rendition-only version with the PDF, and completes the goal again', async () => {
+    const p = await partialWorld()
+    // A limitation the report gave about its missing PDF (as a model might write it), which the PDF now answers.
+    await owner((c) =>
+      c.query(
+        `UPDATE sophia.artifact_versions SET limitations=limitations||'{"No PDF: the render failed."}' WHERE id=$1`,
+        [p.done.versionId],
+      ),
+    )
+    const queued = await p.again('try-1')
+    await p.settle(queued.renderJobId!)
+    assert.equal(await p.goal(), 'completed')
+    assert.deepEqual(await p.task(), { pdf_state: 'produced', pdf_reason: null })
+    const [v1, v2, ...more] = await versionsOf(p.done.artifactId!)
+    assert.ok(v1 && v2 && more.length === 0, 'two versions')
+    assert.deepEqual([v1.state, v2.state, v2.version_number], ['superseded', 'stable', 2])
+    assert.equal(v2.source_id, v1.source_id, 'the same text')
+    assert.deepEqual(
+      [v2.change_note, v2.retained_note],
+      ['Adds the PDF that could not be produced in v1', 'Everything in v1 is kept'],
+    )
+    const { renditionOnly, notesFromFacts, previousVersionId } = v2.change_facts
+    assert.deepEqual([renditionOnly, notesFromFacts, previousVersionId], [true, true, v1.id])
+    assert.deepEqual(v2.trigger, { kind: 'rendition', taskId: p.taskId, renderJobId: queued.renderJobId })
+    assert.deepEqual(
+      [v1.limitations, v2.limitations],
+      [['One vendor page could not be read.', 'No PDF: the render failed.'], ['One vendor page could not be read.']],
+      'the limitations of v1 less the one about the PDF',
+    )
+    const reading = await p.read()
+    assert.deepEqual(
+      reading.result?.outputs?.map((o) => [o.artifactVersionId, o.format]),
+      [
+        [v2.id, 'markdown'],
+        [v2.id, 'pdf'],
+      ],
+      'the card reads the new version, PDF included',
+    )
+    assert.equal(reading.research?.pdfRendering, undefined)
+    const history = await withActor(pool, E, 'read', (c) => readArtifactVersions(c, p.done.artifactId!))
+    assert.deepEqual(parseArtifactVersionList(history), history, 'a client reads the history as the contract has it')
+    const [read2] = history
+    assert.deepEqual(
+      [
+        read2?.versionNumber,
+        read2?.trigger,
+        read2?.changeFacts?.renditionOnly,
+        read2?.renditions?.map((r) => r.format),
+      ],
+      [2, { kind: 'rendition', taskId: p.taskId, renderJobId: queued.renderJobId }, true, ['pdf']],
+      'the history reads it as the contract has it',
+    )
+    const event = await one<{ type: string; entity_id: string }>(
+      `SELECT type, entity_id FROM sophia.project_events WHERE project_id=$1 AND type='artifact.rendition_ready'`,
+      [p.w.projectId],
+    )
+    assert.equal(event.entity_id, p.done.artifactId)
+    assert.equal((await p.again('try-1')).state, 'succeeded', 'a replay reads the rendition it queued')
+    assert.equal(await codeOf(p.again('try-2')), 'invalid_request', 'the report has its PDF now')
+  })
+
+  it('records why a rendition failed, completes the goal, and allows three per version', async () => {
+    const p = await partialWorld()
+    for (const key of ['a', 'b', 'c']) {
+      await p.settle((await p.again(key)).renderJobId!, 'failed')
+      assert.equal(await p.goal(), 'completed')
+    }
+    assert.deepEqual(await p.task(), {
+      pdf_state: 'not_produced',
+      pdf_reason: 'The PDF could not be produced again (failed: render_error)',
+    })
+    assert.equal((await p.read()).research?.pdfReason, 'The PDF could not be produced again (failed: render_error)')
+    assert.equal((await versionsOf(p.done.artifactId!)).length, 1, 'nothing published')
+    assert.equal(await codeOf(p.again('d')), 'research_limit_reached')
+  })
+
+  it("refuses a rendition that is not the member's to ask for, or not the report's to have", async () => {
+    const p = await partialWorld()
+    assert.equal(await codeOf(p.again('v', V)), 'forbidden', 'a viewer')
+    assert.equal(await codeOf(p.again('c', C)), 'not_found', 'an outsider')
+    assert.equal(await codeOf(p.again('not a key')), 'invalid_request')
+    const other = await pdfWorld()
+    const running = await one<{ job_id: string }>(
+      `SELECT t.job_id FROM sophia.research_tasks t JOIN sophia.jobs j ON j.id=t.job_id WHERE j.attempt_id=$1`,
+      [other.at.attemptId],
+    )
+    assert.equal(
+      await codeOf(
+        withActor(pool, E, 'write', (c) => requestResearchRendition(c, other.w.projectId, running.job_id, 'k')),
+      ),
+      'invalid_request',
+      'not published yet',
+    )
+    const w = await world()
+    const md = await started(w)
+    const cited = await citable(w, md.at)
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...md.at, callId: 'd', expectedSha256: null, text: reportOf(cited.sourceId) }),
+    )
+    const plain = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...md.at, callId: 's', result: resultOf(d.sha256, [cited.sourceId]) }),
+    )
+    assert.equal(
+      await codeOf(withActor(pool, E, 'write', (c) => requestResearchRendition(c, w.projectId, plain.taskId, 'k'))),
+      'invalid_request',
+      'a Markdown task',
+    )
+    await owner((c) => c.query(`UPDATE sophia.render_runners SET seen_at=now()-interval '11 minutes'`))
+    try {
+      assert.equal(await codeOf(p.again('r')), 'native_capability_unavailable', 'no render runner')
+    } finally {
+      await owner((c) => c.query(`UPDATE sophia.render_runners SET seen_at=now()`))
+    }
+    assert.equal(await p.goal(), 'completed', 'nothing reopened')
+    assert.deepEqual(await p.renders(), [])
+  })
+
+  it('waits under a Hold, renders after Resume, and is cancelled by a Stop that completes the goal again', async () => {
+    const p = await partialWorld()
+    const seen = new Set([p.create.commandId])
+    const queued = await p.again('try-1')
+    const job = await claimMine(queued.renderJobId!)
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+    await service((c) =>
+      rendererRecordOutput(c, runnerHash(), job.jobId, job.leaseToken, {
+        sourceId: slot.sourceId,
+        sha256: sha('held pdf'),
+        byteLength: 3,
+      }),
+    )
+    await control(p.w, 'hold', p.goalId)
+    await deliverAll(p.w, seen, () => 'checked')
+    assert.equal(await p.goal(), 'held')
+    const late = await service((c) =>
+      rendererSettle(c, runnerHash(), job.jobId, job.leaseToken, receiptFor(job.sourceManifestHash, sha('held pdf'))),
+    )
+    assert.deepEqual(late, { state: 'pending', reason: 'held: queued again for after Resume' })
+    assert.equal((await versionsOf(p.done.artifactId!)).length, 1, 'nothing published under a Hold')
+    assert.equal(await codeOf(p.again('try-2')), 'invalid_state', 'held: resume it first')
+    const claimed = await service((c) => rendererClaim(c, runnerHash()))
+    assert.notEqual(claimed?.jobId, queued.renderJobId, 'not claimed while held')
+    await control(p.w, 'resume', p.goalId)
+    await deliverAll(p.w, seen)
+    assert.equal(await p.goal(), 'running')
+    await p.settle(queued.renderJobId!)
+    assert.equal(await p.goal(), 'completed')
+    assert.equal((await versionsOf(p.done.artifactId!)).length, 2)
+
+    const q = await partialWorld()
+    const qSeen = new Set([q.create.commandId])
+    const stopped = await q.again('try-1')
+    await claimMine(stopped.renderJobId!)
+    await control(q.w, 'stop', q.goalId)
+    await deliverAll(q.w, qSeen, () => 'checked')
+    assert.equal(await q.goal(), 'completed', 'a Stop that ended only the rendition')
+    assert.deepEqual(await renderState(q.w, stopped.renderJobId!), {
+      state: 'cancelled',
+      reason: 'stopped: the work was stopped',
+      claims: 1,
+      result_source_id: null,
+    })
+    assert.deepEqual(await q.task(), {
+      pdf_state: 'not_produced',
+      pdf_reason: 'The PDF could not be produced again (stopped: the work was stopped)',
+    })
+    assert.equal((await q.read()).task.phase, 'result_ready')
+    assert.equal((await versionsOf(q.done.artifactId!)).length, 1)
+  })
+
+  it('publishes nothing once a newer version is the report’s, and cancels a rendition still waiting for it', async () => {
+    const newer = async (p: Awaited<ReturnType<typeof partialWorld>>) =>
+      owner(async (c) => {
+        const base = p.done.versionId!
+        await c.query(`UPDATE sophia.artifact_versions SET state='superseded' WHERE id=$1`, [base])
+        const { rows } = await c.query<{ id: string }>(
+          `INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
+             authority_epoch,state,validation_source_id,checks_passed,version_number,change_note,retained_note,change_facts,trigger,
+             job_id,limitations)
+           SELECT project_id,artifact_id,id,source_id,source_hash,goal_id,goal_revision,authority_epoch,'stable',validation_source_id,
+             checks_passed,version_number+1,'An amendment','The rest',change_facts,trigger,job_id,limitations
+             FROM sophia.artifact_versions WHERE id=$1 RETURNING id`,
+          [base],
+        )
+        await c.query(`UPDATE sophia.artifacts SET stable_version_id=$1 WHERE id=$2`, [rows[0]!.id, p.done.artifactId])
+      })
+    const p = await partialWorld()
+    const running = await p.again('try-1')
+    const job = await claimMine(running.renderJobId!)
+    await newer(p)
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+    await service((c) =>
+      rendererRecordOutput(c, runnerHash(), job.jobId, job.leaseToken, {
+        sourceId: slot.sourceId,
+        sha256: sha('late pdf'),
+        byteLength: 3,
+      }),
+    )
+    const settled = await service((c) =>
+      rendererSettle(c, runnerHash(), job.jobId, job.leaseToken, receiptFor(job.sourceManifestHash, sha('late pdf'))),
+    )
+    assert.equal(settled.state, 'succeeded')
+    assert.deepEqual(
+      (await versionsOf(p.done.artifactId!)).map((v) => [v.version_number, v.state]),
+      [
+        [1, 'superseded'],
+        [2, 'stable'],
+      ],
+      'the newer version wins',
+    )
+    assert.equal(await p.goal(), 'completed')
+
+    const q = await partialWorld()
+    const waiting = await q.again('try-1')
+    await newer(q)
+    await service((c) => rendererClaim(c, runnerHash()))
+    assert.deepEqual(await renderState(q.w, waiting.renderJobId!), {
+      state: 'cancelled',
+      reason: 'cancelled: a newer version of the report was published',
+      claims: 0,
+      result_source_id: null,
+    })
   })
 })

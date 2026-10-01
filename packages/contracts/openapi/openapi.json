@@ -7445,6 +7445,117 @@
         "x-sophia-release-goal": "SMC-M03"
       }
     },
+    "/api/v1/projects/{projectId}/native-tasks/{taskId}/rendition": {
+      "post": {
+        "operationId": "requestResearchRendition",
+        "summary": "Try PDF again: render a published report that has no PDF, with no model call, as a rendition of its current version. Editors and admins only. The same Idempotency-Key returns the same rendition.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued (or what the earlier call with this key did); rejected when the version cannot be printed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchRendition"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (editors and admins only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A newer version exists, research is under way or held or stopped, or a rendition is already in flight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or the task is not found, asked for no PDF, published nothing or already has its PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Three attempts on this version (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No PDF renderer is running, or a dependent service is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
     "/api/v1/artifacts/{artifactId}/versions/{versionId}/sources": {
       "get": {
         "operationId": "listReportSources",
@@ -8761,6 +8872,10 @@
               },
               "notesFromFacts": {
                 "type": "boolean"
+              },
+              "renditionOnly": {
+                "type": "boolean",
+                "description": "The version adds a PDF its parent could not produce (Try PDF again, 0032): the same text and sources."
               }
             },
             "required": [
@@ -8777,7 +8892,8 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "research"
+                  "research",
+                  "rendition"
                 ]
               },
               "taskId": {
@@ -8787,13 +8903,17 @@
               "amendsTaskId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "renderJobId": {
+                "type": "string",
+                "format": "uuid"
               }
             },
             "required": [
               "kind",
               "taskId"
             ],
-            "description": "What produced this version. Omitted when unknown."
+            "description": "What produced this version: a research task, or a rendition of the task's report (Try PDF again, with its render job). Omitted when unknown."
           }
         },
         "required": [
@@ -15195,6 +15315,10 @@
           "pdfReason": {
             "type": "string",
             "description": "A PDF task published without its PDF: why, in one sentence (at most 300 characters, held by the database) the service wrote from the facts: not rendered, rendered from an earlier draft, or the render's failure. Omitted otherwise."
+          },
+          "pdfRendering": {
+            "type": "boolean",
+            "description": "True while a rendition (\"Try PDF again\") of the task's report is queued or rendering. Omitted otherwise."
           }
         },
         "required": [
@@ -15729,6 +15853,69 @@
           },
           "result": {
             "$ref": "#/components/schemas/RenderResult"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "ResearchRendition": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "\"Try PDF again\": the rendition queued for a published report without its PDF (queued, rendering, or how an earlier call with the same key ended), or rejected with the report's checks when the version cannot be printed.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "rejected",
+              "queued",
+              "rendering",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed"
+                  ]
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "outcome",
+                "detail"
+              ]
+            }
           }
         },
         "required": [

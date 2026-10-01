@@ -14,6 +14,8 @@ interface Props {
   task: NativeTask
   projectId: string
   identity: Identity
+  /** Editors and admins act on a task's report (Try PDF again); viewers read. */
+  canAct?: boolean
 }
 
 export function TaskCard(props: Props) {

@@ -2,7 +2,14 @@
 // tested: the card's state in words, its progress and spend, the file a version downloads as, the chips a version's
 // change facts give, and how each cited source was retrieved. Every word here comes from a record, never a guess:
 // a partial is never called a fallback, and an origin status the extractor did not report stays unknown.
-import type { ArtifactVersion, NativeTask, NativeTaskDetail, ReportSource, ResearchProgress } from '@sophia/contracts'
+import type {
+  ArtifactVersion,
+  NativeTask,
+  NativeTaskDetail,
+  ReportSource,
+  ResearchProgress,
+  ResearchRendition,
+} from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
 
 export type ResearchState =
@@ -33,24 +40,23 @@ function notProducedNote(reason: string | null): string {
 
 const ENDED_BADLY: ReadonlySet<string> = new Set(['failed', 'outcome_unknown', 'denied'])
 
+/** What the PDF of a partly delivered report is doing: rendering again, or why it is missing. */
+type PdfNews = Pick<ResearchProgress, 'pdfReason' | 'pdfRendering'>
+
+function partialNote({ pdfReason, pdfRendering }: PdfNews): string {
+  if (pdfRendering) return 'The Markdown report is ready. The PDF is being rendered again.'
+  return pdfReason
+    ? `The Markdown report is ready. ${pdfReason.replace(/\.?$/, '.')}`
+    : 'The Markdown report is ready; the PDF was not produced.'
+}
+
 /**
  * A delivered report: ready, or partly delivered when the PDF asked for is not among its outputs, with the reason the
- * service recorded when there is one.
+ * service recorded when there is one, or that it is being rendered again.
  */
-function delivered(
-  formats: ReadonlySet<string>,
-  asked: readonly ('markdown' | 'pdf')[],
-  pdfReason?: string,
-): StateWords {
+function delivered(formats: ReadonlySet<string>, asked: readonly ('markdown' | 'pdf')[], pdf: PdfNews): StateWords {
   return asked.includes('pdf') && !formats.has('pdf')
-    ? {
-        state: 'partial',
-        label: 'Partly delivered',
-        tone: 'amber',
-        note: pdfReason
-          ? `The Markdown report is ready. ${pdfReason.replace(/\.?$/, '.')}`
-          : 'The Markdown report is ready; the PDF was not produced.',
-      }
+    ? { state: 'partial', label: 'Partly delivered', tone: 'amber', note: partialNote(pdf) }
     : { state: 'ready', label: 'Report ready', tone: 'teal', note: null }
 }
 
@@ -83,16 +89,36 @@ function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>): Stat
 
 /**
  * A research card's state: what the task's phase and its delivered outputs say. A Markdown report with the PDF asked
- * for and not delivered is "partly delivered", with that reason, never a fallback.
+ * for and not delivered is "partly delivered", with that reason (or that it is rendering again), never a fallback.
  */
 export function researchState(
   task: Pick<NativeTask, 'phase' | 'state' | 'reason'>,
   outputs: readonly Pick<Output, 'format'>[],
   asked: readonly ('markdown' | 'pdf')[],
-  pdfReason?: string,
+  pdf: PdfNews = {},
 ): StateWords {
   const formats = new Set<string>(outputs.map((o) => o.format))
-  return formats.has('markdown') ? delivered(formats, asked, pdfReason) : undelivered(task)
+  return formats.has('markdown') ? delivered(formats, asked, pdf) : undelivered(task)
+}
+
+/** What "Try PDF again" answered: queued, or the report checks the printed version failed, in their own words. */
+export function renditionWords(r: ResearchRendition): string {
+  if (r.state === 'rejected') {
+    const failed = (r.checks ?? []).filter((c) => c.outcome === 'failed').map((c) => c.detail ?? c.name)
+    return `This report can’t be printed as a PDF: ${failed.join('; ') || 'it failed its checks'}.`
+  }
+  if (r.state === 'succeeded') return 'The PDF is ready.'
+  if (r.state === 'failed' || r.state === 'cancelled')
+    return `The PDF could not be produced again (${r.reason ?? r.state}).`
+  return 'Rendering the PDF again. It appears here when it’s ready.'
+}
+
+/** Why "Try PDF again" was refused: no renderer, the attempts used up, a role that can’t ask, or the API's reason. */
+export function renditionRefusal(error: { status: number; code: string; message: string }): string {
+  if (error.code === 'native_capability_unavailable') return 'No PDF renderer is running right now. Try again later.'
+  if (error.code === 'research_limit_reached') return 'The PDF was already tried three times for this version.'
+  if (error.status === 403) return 'Your role can’t ask for the PDF.'
+  return error.message
 }
 
 /** "$0.74": cents, never fractions of one. */
@@ -165,6 +191,7 @@ export function factChips(version: Pick<ArtifactVersion, 'changeFacts' | 'versio
   const f = version.changeFacts
   if (!f) return []
   if (version.versionNumber === 1) return [{ label: plural(f.cited, 'source', 'sources'), tone: 'muted' }]
+  if (f.renditionOnly) return [{ label: 'PDF added', tone: 'teal' }]
   const chips: Chip[] = []
   if (f.added.length > 0) chips.push({ label: `+${plural(f.added.length, 'source', 'sources')}`, tone: 'teal' })
   if (f.dropped.length > 0) chips.push({ label: `−${plural(f.dropped.length, 'source', 'sources')}`, tone: 'rose' })

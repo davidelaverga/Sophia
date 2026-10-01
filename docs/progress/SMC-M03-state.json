@@ -167,6 +167,26 @@
         "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
       ],
       "ref": "docs/progress/SMC-M03.md#23-s5b-part-1-the-research-pdf-printed-by-the-service-0031"
+    },
+    {
+      "slice": "S5b part 2a (the PDF in Studio)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:db",
+        "browser check on the dev stack (32 checks, unprivileged user, sandbox on)",
+        "CSP check: production build under vercel.json enforced"
+      ],
+      "ref": "docs/progress/SMC-M03.md#24-s5b-part-2a-the-pdf-in-studio"
+    },
+    {
+      "slice": "S5b part 2b (Try PDF again, 0032)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "browser check on the dev stack (14 checks, unprivileged user, sandbox on)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#25-s5b-part-2b-try-pdf-again-0032"
     }
   ],
   "outstanding_operations": [
@@ -195,7 +215,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0030 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0032 so far)",
       "owner": "Claude Code"
     },
     {
@@ -207,7 +227,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0009 awaits Codex. Then a review request covering S5a and S5b part 1 (kernel, 0030, renderer API, supervisor; the report template, 0031, the render tools). Next: S5b part 2 (PdfView, the card’s PDF rows and partial state, “Try PDF again” via render_research, CSP), with the renderer host probe (OP-C) as a Codex operation under Davide’s approval",
+  "next_action": "CC-0009 awaits Codex. Then a review request covering S5a and S5b (kernel, 0030, renderer API, supervisor; the report template, 0031, the render tools; PdfView; 0032 Try PDF again). Next: the renderer host probe (OP-C) as a Codex operation under Davide’s approval, text extraction for the blank and short page checks, then S6 (guide v1.2: start_research, render_research, steer, the text-mode notice)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

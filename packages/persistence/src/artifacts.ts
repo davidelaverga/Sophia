@@ -43,6 +43,7 @@ interface StoredFacts {
   previousBytes?: number | null
   sections?: ReportSections
   notesFromFacts?: boolean
+  renditionOnly?: boolean
 }
 
 const VERSION_COLUMNS = `v.id, v.artifact_id, v.project_id, v.parent_id, v.source_id, v.source_hash, v.state, a.format,
@@ -64,6 +65,7 @@ function factsOf(f: StoredFacts): NonNullable<ArtifactVersion['changeFacts']> {
     ...(f.previousBytes === undefined ? {} : { previousBytes: f.previousBytes }),
     ...(f.sections === undefined ? {} : { sections: f.sections }),
     ...(f.notesFromFacts === undefined ? {} : { notesFromFacts: f.notesFromFacts }),
+    ...(f.renditionOnly === undefined ? {} : { renditionOnly: f.renditionOnly }),
   }
 }
 

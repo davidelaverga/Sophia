@@ -1,7 +1,8 @@
 // A research task as the team sees it (plan §2.8.2): its state in words, how long and how much of its allowance it
 // has used, the question, and once delivered one row per output. The whole row opens the viewer; a separate
-// Download saves that version. The footer opens the viewer on its sources and limitations. Hold and Stop live on
-// its goal (WorkControls), as for every task.
+// Download saves that version. The footer opens the viewer on its sources and limitations. A report delivered
+// without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
+// (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
@@ -11,6 +12,7 @@ import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer, type OpenRequest } from './DocumentViewer.tsx'
 import { downloadSource } from './download.ts'
+import { RetryPdf } from './RetryPdf.tsx'
 import {
   elapsedText,
   formatBytes,
@@ -30,24 +32,34 @@ interface Props {
   task: NativeTask
   projectId: string
   identity: Identity
+  /** Editors and admins may ask for a missing PDF again; viewers read. */
+  canAct?: boolean
 }
 
 const ACTIVE: ReadonlySet<NativeTask['phase']> = new Set(['queued', 'dispatched', 'running', 'holding', 'stopping'])
 
+/** How often the detail is read again: while the task runs, and faster while its PDF renders again. */
+const pollEvery = (task: NativeTask, detail: NativeTaskDetail | undefined): number | false => {
+  if (ACTIVE.has(task.phase)) return 15_000
+  return detail?.research?.pdfRendering ? 5_000 : false
+}
+
 /**
- * The task's detail (question, spend, outputs), read again while it runs and whenever its phase or result changes;
- * its state in words; and the delivered version the footer describes.
+ * The task's detail (question, spend, outputs), read again while it runs or its PDF renders, and whenever its phase
+ * or result changes; its state in words; and the delivered version the footer describes (a rendition publishes a
+ * new one).
  */
 function useResearch({ task, projectId, identity }: Props) {
   const detail = useQuery({
     queryKey: ['native-task', projectId, task.id, task.phase, task.resultSourceId, identity.name],
     queryFn: () => getNativeTask(identity.token, projectId, task.id),
-    refetchInterval: ACTIVE.has(task.phase) ? 15_000 : false,
+    refetchInterval: (q) => pollEvery(task, q.state.data),
   })
   const outputs = detail.data?.result?.outputs ?? []
   const research = detail.data?.research
+  const latest = outputs[0]?.artifactVersionId
   const versions = useQuery({
-    queryKey: ['report-versions', task.artifactId, identity.name],
+    queryKey: ['report-versions', task.artifactId, latest, identity.name],
     queryFn: () => listArtifactVersions(identity.token, task.artifactId ?? ''),
     enabled: task.artifactId !== undefined && outputs.length > 0,
   }).data
@@ -55,8 +67,8 @@ function useResearch({ task, projectId, identity }: Props) {
     research,
     outputs,
     versions,
-    words: researchState(task, outputs, research?.outputs ?? ['markdown'], research?.pdfReason),
-    current: versions?.find((v) => v.id === outputs[0]?.artifactVersionId),
+    words: researchState(task, outputs, research?.outputs ?? ['markdown'], research ?? {}),
+    current: versions?.find((v) => v.id === latest),
   }
 }
 
@@ -77,11 +89,16 @@ function useMinute(running: boolean): number {
   return now
 }
 
+/** "Try PDF again" is offered to editors on a partly delivered report whose PDF is not already rendering again. */
+const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined) =>
+  canAct && words.state === 'partial' && research !== undefined && !research.pdfRendering
+
 export function WorkCard(props: Props) {
-  const { task, identity } = props
+  const { task, identity, projectId, canAct = false } = props
   const { research, outputs, versions, words, current } = useResearch(props)
   const now = useMinute(ACTIVE.has(task.phase))
   const open = useOpen(task.artifactId)
+  const retry = offersRetry(canAct, words, research)
   return (
     <li className="task work-card" data-state={words.state}>
       <CardHead words={words} task={task} research={research} now={now} />
@@ -89,6 +106,7 @@ export function WorkCard(props: Props) {
       {words.state === 'researching' && research && <Progress research={research} />}
       <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} />
       {words.note && <p className="goal-outcome">{words.note}</p>}
+      {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
       {current && open && <CardFoot version={current} open={open} />}
     </li>
   )

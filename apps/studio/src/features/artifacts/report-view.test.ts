@@ -9,6 +9,8 @@ import {
   money,
   progressRatio,
   progressText,
+  renditionRefusal,
+  renditionWords,
   reportFilename,
   researchState,
   sourceWords,
@@ -21,6 +23,8 @@ const progress = {
   searches: { used: 2, max: 5 },
   reads: { used: 3, max: 8 },
 }
+
+const refusal = (code: string, status = 409) => renditionRefusal({ status, code, message: 'The research is held' })
 
 describe('a research card in words', () => {
   const running = { phase: 'running', state: 'running', reason: null } as const
@@ -35,9 +39,47 @@ describe('a research card in words', () => {
     const partial = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'])
     assert.deepEqual([partial.state, partial.label], ['partial', 'Partly delivered'])
     assert.equal(/fallback/i.test(JSON.stringify(partial)), false)
-    const why = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], 'The PDF was not rendered')
+    const why = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], {
+      pdfReason: 'The PDF was not rendered',
+    })
     assert.equal(why.note, 'The Markdown report is ready. The PDF was not rendered.', 'the reason the service recorded')
+    const again = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], {
+      pdfReason: 'The PDF was not rendered',
+      pdfRendering: true,
+    })
+    assert.deepEqual(
+      [again.state, again.note],
+      ['partial', 'The Markdown report is ready. The PDF is being rendered again.'],
+      'Try PDF again under way',
+    )
     assert.equal(researchState(done, [{ format: 'markdown' }, { format: 'pdf' }], ['markdown', 'pdf']).state, 'ready')
+  })
+
+  it('answers Try PDF again in words: queued, the checks a version fails, or why it was refused', () => {
+    assert.equal(
+      renditionWords({ state: 'queued', renderJobId: 'j' }),
+      'Rendering the PDF again. It appears here when it’s ready.',
+    )
+    const checks = [
+      { name: 'report_title', outcome: 'passed', detail: null },
+      { name: 'report_words', outcome: 'failed', detail: 'The report has 40 words; a report has at least 100' },
+      { name: 'report_sections', outcome: 'failed', detail: null },
+    ] as const
+    assert.equal(
+      renditionWords({ state: 'rejected', checks }),
+      'This report can’t be printed as a PDF: The report has 40 words; a report has at least 100; report_sections.',
+    )
+    assert.equal(
+      renditionWords({ state: 'failed', reason: 'failed: render_error' }),
+      'The PDF could not be produced again (failed: render_error).',
+    )
+    assert.equal(
+      refusal('native_capability_unavailable', 503),
+      'No PDF renderer is running right now. Try again later.',
+    )
+    assert.equal(refusal('research_limit_reached'), 'The PDF was already tried three times for this version.')
+    assert.equal(refusal('forbidden', 403), 'Your role can’t ask for the PDF.')
+    assert.equal(refusal('invalid_state'), 'The research is held', 'otherwise the API’s own reason')
   })
 
   it('says why a report was not produced, in the blocker’s own words', () => {
@@ -111,6 +153,12 @@ describe('a version’s chips come from its facts, never its notes', () => {
       ['1 source'],
     )
     assert.deepEqual(factChips({ versionNumber: 3 }), [])
+    const pdfOnly = { cited: 4, added: [], dropped: [], notesFromFacts: true, renditionOnly: true }
+    assert.deepEqual(
+      factChips({ versionNumber: 3, changeFacts: pdfOnly }).map((c) => c.label),
+      ['PDF added'],
+      'a rendition-only version adds the PDF and nothing else',
+    )
   })
 })
 

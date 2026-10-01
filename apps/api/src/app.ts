@@ -93,7 +93,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.research_revoke_source(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.reconcile_research_overrun(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.renderer_claim(bytea)') IS NOT NULL
-  AND to_regprocedure('sophia.runtime_research_render(bytea,text,text,jsonb,text,jsonb)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.runtime_research_render(bytea,text,text,jsonb,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.request_research_rendition(uuid,uuid,text,text,text,jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({

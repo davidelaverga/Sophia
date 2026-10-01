@@ -132,6 +132,12 @@
   display: flex;
   gap: 16px;
 }
+.retry-pdf {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 @container (max-width: 420px) {
   .output-download-label {
     display: none;

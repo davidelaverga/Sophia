@@ -455,3 +455,31 @@ Run (linux-x64): `pnpm check` exit 0 (559 unit; 95 integration, 93 passed and 2 
 
 Not here (S5b part 2b): "Try PDF again" (`render_research`, a binding-less rendition, and its rendition-only version), and text extraction for the kernel's blank and short page checks.
 
+## 25. S5b part 2b: Try PDF again (0032)
+
+A report published without the PDF it asked for can get it later: an editor presses "Try PDF again" on the work card. The service prints that published version with the same template and queues the render. While it renders, the goal is working again (Hold and Stop apply). When it succeeds, the PDF arrives as the report's next version. Nothing here is hosted.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0032 request | `research_rendition_input` gives the API the version's text, the question, the language of the task's renders and the sources the version cites. The API prints and checks it in the same transaction, and `request_research_rendition` checks everything again, stores the HTML (derived from the version and its sources) and queues it as a rendition (`render_jobs.kind`, `base_version_id`, `requested_by`, `reopened_goal`). Refused for: a viewer or outsider, a task that asked no PDF, one not published or already with its PDF, a version that is no longer the report's current one, a goal held, stopped or with research under way, a rendition already in flight, three on one version, or no live render runner. The same key returns the same rendition | `research.db.test.ts` "Try PDF again (0032)" (6 tests) |
+| 0032 settle | `renderer_settle` and `render_sweep`, replaced with the same signatures. A rendition ending under a Hold is queued again for after Resume. A succeeded one publishes the rendition-only version and sets the task's PDF produced, with `artifact.rendition_ready`. A failed one records the reason on the task. Either way the goal completes again unless other work is under way. A deferred trigger handles a settled Stop: its renditions are cancelled with the reason, and a goal whose latest attempt was accepted completes again. A rendition whose report has a newer version is cancelled | the DB tests; mutation-checked: each of 10 rules (the reopen, the settle hook, the Stop completion, the Stop reason, the stale-base sweep, the newer-version guard, the Hold requeue, the per-version cap, the editor check, the PDF-limitation filter) fails a test when removed. The limitation filter needed a fixture that mentions the PDF: the first one passed without it |
+| API | `POST /api/v1/projects/{projectId}/native-tasks/{taskId}/rendition` with an Idempotency-Key: `202` with the rendition's state and render job (never the printed report), `403` for a viewer, `409` while one renders, `503` with no runner, `422` without a key; a replay answers the same | `apps/api` "Try PDF again over HTTP" over real HTTP |
+| Readers | `ResearchProgress.pdfRendering`. The task's outputs already read a rendition's version, because it is written by a child job of the task. A version's `trigger` and `changeFacts` read `rendition` and `renditionOnly`, and the DB test now validates the history against the contract | the DB test's contract check fails with the old enum (mutation-checked) |
+| Studio | On a partly delivered card, editors get "Try PDF again" (one key per press, kept for a retry after no reply). While it renders, the card says so and reads the task every 5 s. When the PDF lands, the card turns to "Report ready" with both rows on the new version. A version that fails the report checks says which, in the checks' own words. A refusal is told plainly (no renderer, three tries used, a role that can't ask). A rendition-only version's chip is "PDF added" | `report-view.test.ts` (the words and the chip); the browser check below |
+
+Browser check on the dev stack (14 checks; unprivileged user, Chromium's sandbox on). The seeded v2 task is a PDF task published without its PDF, and a root-side helper plays the render runner once Studio queues the rendition. What was checked:
+- the partly delivered card, its reason and the button;
+- one request with an idempotency key;
+- the rendering state, with no second button;
+- the card turning to "Report ready" by itself;
+- the Markdown and PDF rows on v3;
+- the new PDF drawn in the viewer with its exact head;
+- no console errors.
+
+The first run found one fault, fixed before the commit:
+- **The client refused the report's version list once it held a rendition-only version.** The contract's `trigger.kind` allowed only `research`, so every card on that report lost its file names. A11 now has `rendition`, and the DB test validates the history against the contract.
+
+Run (linux-x64): `pnpm check` exit 0 (560 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 31 migrations, `pnpm test:db` 298/298. The bundle is unchanged.
+
+Not here: the voice tool `render_research` (S6, guide v1.2, the same operation); a rendition crossed with the real supervisor and Chromium (it is the same package and claim path as a task render, which the supervisor test crosses); text extraction for the kernel's blank and short page checks.
+

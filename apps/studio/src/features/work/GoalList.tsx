@@ -33,20 +33,30 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
           <GoalCard key={g.id} goal={g} projectId={projectId} identity={identity} controls={controls && canAct} />
         ))}
       </ol>
-      {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} />}
+      {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} canAct={canAct} />}
     </section>
   )
 }
 
 /** Briefs and research from the runtime (A05, A11); their Hold and Stop are the goal controls above. */
-function NativeTasks({ snapshot, projectId, identity }: { snapshot: Snapshot; projectId: string; identity: Identity }) {
+function NativeTasks({
+  snapshot,
+  projectId,
+  identity,
+  canAct,
+}: {
+  snapshot: Snapshot
+  projectId: string
+  identity: Identity
+  canAct: boolean
+}) {
   if (snapshot.work.length === 0) return null
   return (
     <>
       <h3 className="view-subhead">{workHeading(snapshot.work)}</h3>
       <ol className="task-list">
         {snapshot.work.map((t) => (
-          <TaskCard key={t.id} task={t} projectId={projectId} identity={identity} />
+          <TaskCard key={t.id} task={t} projectId={projectId} identity={identity} canAct={canAct} />
         ))}
       </ol>
     </>

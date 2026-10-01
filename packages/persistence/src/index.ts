@@ -69,7 +69,12 @@ export {
   type ResearchAdmissionRequest,
   type ResearchSpecialist,
 } from './research.ts'
-export { pdfRendererReady, runtimeResearchRender, runtimeResearchRenderResult } from './research-render.ts'
+export {
+  pdfRendererReady,
+  requestResearchRendition,
+  runtimeResearchRender,
+  runtimeResearchRenderResult,
+} from './research-render.ts'
 export {
   admitNativeTask,
   readDiscussion,
