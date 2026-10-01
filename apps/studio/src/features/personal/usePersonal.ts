@@ -144,13 +144,13 @@ function useRun(identity: Identity) {
     await client.invalidateQueries({ queryKey: ['personal', identity.name], exact: true })
     if (projects) await client.invalidateQueries({ queryKey: ['projects', identity.name] })
   }
-  return async (write: (key: string, epoch: number) => Promise<PersonalReceipt>, projects = false) => {
+  return async (write: (key: string, epoch: number) => Promise<PersonalReceipt>, projects = false, key?: string) => {
     const at = epochNow(
       client.getQueryData<PersonalSpace>(['personal', identity.name]),
       client.getQueryData<ProjectList>(['projects', identity.name]),
     )
     try {
-      const receipt = await once((key) => write(key, at))
+      const receipt = await once((k) => write(k, at), Date.now, key)
       await refresh(projects)
       return receipt
     } catch (err: unknown) {
@@ -192,13 +192,14 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
         setWelcoming(false)
       }
     },
-    send: async (text: string) => {
+    /** `key`: the draft's (every tab sends the same draft under it), or none for a way to start. */
+    send: async (text: string, key?: string) => {
       if (onItsWay.current) throw new OnItsWay('Another message is on its way')
       onItsWay.current = true
       setBusy(true)
       setSending({ text, at: new Date() })
       try {
-        return await run((k, at) => sendPersonalTurn(token, k, at, text))
+        return await run((k, at) => sendPersonalTurn(token, k, at, text), false, key)
       } finally {
         onItsWay.current = false
         setBusy(false)

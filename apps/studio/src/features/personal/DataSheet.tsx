@@ -17,6 +17,8 @@ interface Props {
   token: string
   who: string
   space: PersonalSpace | undefined
+  /** The space's epoch as this page knows it (epochNow): a copy is read against it, and an erasure moves it. */
+  epoch: number
   locked: boolean
   /** The padlock as stored this moment (useLock): a copy reads it when its export arrives. */
   lockedNow: () => boolean
@@ -130,38 +132,45 @@ function useSwapFocus(locked: boolean) {
 }
 
 /**
- * A signal for each copy's export, aborted (CopyCalledOff) once the padlock shuts or the sheet goes: the export then
- * stops at once, asks for no page more and lets what came go. No export starts while the padlock is shut, so any change
- * of it calls off every export on its way.
+ * A signal for each copy's export, aborted (CopyCalledOff) once the padlock shuts, the sheet goes or the space is erased
+ * (here: `all`, as the erasure begins; anywhere: the epoch moves): the export then stops at once, asks for no page more
+ * and lets what came go. No export starts while the padlock is shut, so any change of it calls off every one on its way.
  */
-function useCalledOff(locked: boolean): () => AbortSignal {
+function useCalledOff(locked: boolean, epoch: number) {
   const exports = useRef(new Set<AbortController>())
+  const all = () => {
+    for (const one of exports.current) one.abort(new CopyCalledOff('The padlock shut, the sheet went, or an erasure'))
+    exports.current.clear()
+  }
+  const callOff = useRef(all)
   useEffect(() => {
-    const running = exports.current
-    return () => {
-      for (const one of running) one.abort(new CopyCalledOff('The padlock shut, or the sheet went, during the export'))
-      running.clear()
-    }
-  }, [locked])
-  return () => {
-    const one = new AbortController()
-    exports.current.add(one)
-    return one.signal
+    callOff.current = all
+  })
+  useEffect(() => () => callOff.current(), [locked, epoch])
+  return {
+    all,
+    signal: () => {
+      const one = new AbortController()
+      exports.current.add(one)
+      return one.signal
+    },
   }
 }
 
 export function DataSheet(props: Props) {
-  const { token, who, space, locked, lockedNow, toast, onClose, returnTo, onUnlock, onErase } = props
+  const { token, who, space, epoch, locked, lockedNow, toast, onClose, returnTo, onUnlock, onErase } = props
   const [erased, setErased] = useState(false)
   const open = useMounted()
-  const calledOff = useCalledOff(locked)
+  const calledOff = useCalledOff(locked, epoch)
   useSwapFocus(locked)
   // A copy whose export arrives once the padlock is shut (as stored then, wherever it was shut) or the sheet has gone
-  // (closed, signing out) copies nothing; one still on its way then stops at once.
+  // (closed, signing out) copies nothing; one still on its way then stops at once, and so does one when the space is
+  // erased (here, or anywhere this page hears of). Its pages are read against the epoch it began in: one asked for
+  // after an erasure is refused.
   const copy = async () => {
     try {
-      const signal = calledOff()
-      const load = async () => exportText(await exportPersonalSpace(token, signal), who, new Date())
+      const signal = calledOff.signal()
+      const load = async () => exportText(await exportPersonalSpace(token, epoch, signal), who, new Date())
       await copyFetched(load, browserClip(), () => open.current && !lockedNow())
       toast(NOTICE.copied)
     } catch (err: unknown) {
@@ -170,6 +179,7 @@ export function DataSheet(props: Props) {
     }
   }
   const erase = async () => {
+    calledOff.all() // what is being copied goes with what is erased
     try {
       await onErase()
       setErased(true)

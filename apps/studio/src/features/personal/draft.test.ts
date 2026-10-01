@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { draftIn, draftKept, draftToStore, forgetDrafts, restoredDraft } from './draft.ts'
+import { afterSent, draftIn, draftKept, draftOf, draftToStore, forgetDrafts, restoredDraft } from './draft.ts'
 
 /** A store holding these keys, as a browser's localStorage lists them. */
 function store(keys: string[]) {
@@ -31,20 +31,49 @@ describe('drafts on this device', () => {
 })
 
 describe('a draft and the erasures since it was written', () => {
-  it('shows the words written in the space’s epoch, or in a later one another tab has read', () => {
-    assert.equal(draftIn(draftKept('Hello', 3), 3), 'Hello')
-    assert.equal(draftIn(draftKept('Hello', 4), 3), 'Hello')
+  const hello = draftOf('Hello')
+
+  it('shows the words written in the space’s epoch, or in a later one another tab has read, with their key', () => {
+    assert.deepEqual(draftIn(draftKept(hello, 3), 3), hello)
+    assert.deepEqual(draftIn(draftKept(hello, 4), 3), hello)
   })
 
   it('shows none written before an erasure, wherever it happened, nor anything it can’t read', () => {
-    assert.equal(draftIn(draftKept('Hello', 2), 3), '')
-    assert.equal(draftIn('Hello', 0), '', 'words kept without their epoch, as before it was kept')
-    assert.equal(draftIn('{"text":"Hello"}', 0), '')
-    assert.equal(draftIn(null, 0), '')
+    assert.equal(draftIn(draftKept(hello, 2), 3), null)
+    assert.equal(draftIn('Hello', 0), null, 'words kept without their epoch, as before it was kept')
+    assert.equal(draftIn('{"text":"Hello","epoch":0}', 0), null, 'nor without the key they go under')
+    assert.equal(draftIn(null, 0), null)
   })
 
   it('keeps nothing for an empty field', () => {
-    assert.equal(draftKept('', 1), null)
+    assert.equal(draftKept(draftOf(''), 1), null)
+    assert.equal(draftKept(null, 1), null)
+  })
+
+  it('gives each version of the words a key of its own', () => {
+    assert.notEqual(draftOf('Hello').key, draftOf('Hello').key)
+  })
+})
+
+describe('the draft once a message went', () => {
+  const sent = draftOf('On its way')
+
+  it('keeps nothing when the device holds just the words that went', () => {
+    assert.equal(afterSent(sent, sent), null)
+    assert.equal(afterSent(null, sent), null)
+  })
+
+  it('keeps what was typed after them, as words of their own (a key of their own)', () => {
+    const rest = afterSent(draftOf('On its way\nAnd more'), sent)
+    assert.equal(rest?.text, 'And more')
+    assert.notEqual(rest?.key, sent.key)
+  })
+
+  it('keeps another tab’s words as they are', () => {
+    const theirs = draftOf('Written in the other tab')
+    assert.equal(afterSent(theirs, sent), theirs)
+    const same = draftOf('On its way')
+    assert.equal(afterSent(same, sent), same, 'the same words written again are another message')
   })
 })
 

@@ -13,6 +13,7 @@ import type { Place } from '../../app/route.ts'
 import { modalOnScreen, useShortcuts } from '../../app/shortcuts.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
+import { epochNow } from './epoch.ts'
 import { focusConversation, focusNotesToggle, focusPersonalSwitch, placesAccount } from './focus.ts'
 import { HomeDoors } from './HomeDoors.tsx'
 import { OPEN, lockedBy, shut, type Lock } from './lock.ts'
@@ -461,6 +462,7 @@ function Sheets({ v }: { v: View }) {
           token={identity.token}
           who={identity.displayName ?? firstName(identity) ?? identity.name}
           space={v.personal}
+          epoch={epochNow(v.personal, v.projects.data)}
           locked={props.lock.locked}
           lockedNow={props.lockedNow}
           toast={props.toast}

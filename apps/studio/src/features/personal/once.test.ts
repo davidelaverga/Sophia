@@ -17,6 +17,14 @@ function write(fails: number) {
   }
 }
 
+describe('a personal write given its key', () => {
+  it('goes under that key, also when sent once more: the same draft sent from two tabs is one message', async () => {
+    const w = write(1)
+    await once(w.run, () => 0, 'the-draft-key')
+    assert.deepEqual(w.keys, ['the-draft-key', 'the-draft-key'])
+  })
+})
+
 describe('a personal write with no answer', () => {
   it('is sent once more, under the same key, while its first attempt is recent', async () => {
     const w = write(1)

@@ -26,9 +26,13 @@ const page = (seqs: number[], next: number | null) =>
   })
 
 /** A server answering each page as `answer` says; the pages asked for, by where each starts. */
-function server(answer: (after: number, signal: AbortSignal | null | undefined) => Promise<Response>): number[] {
+function server(
+  answer: (after: number, signal: AbortSignal | null | undefined) => Promise<Response>,
+  epochs: Array<string | null> = [],
+): number[] {
   const asked: number[] = []
   globalThis.fetch = (url, init) => {
+    epochs.push(new Headers(init?.headers).get('x-sophia-personal-epoch'))
     const after = Number(
       new URL(url instanceof Request ? url.url : url, 'http://studio.test').searchParams.get('after'),
     )
@@ -43,10 +47,12 @@ describe('the export, read a page at a time', () => {
     globalThis.fetch = realFetch
   })
 
-  it('reads every page, in order, into one export', async () => {
-    const asked = server((after) => Promise.resolve(after === 0 ? page([1, 2], 2) : page([3], null)))
-    const all = await exportPersonalSpace('token', new AbortController().signal)
+  it('reads every page, in order, into one export, each against the epoch the copy began in', async () => {
+    const epochs: Array<string | null> = []
+    const asked = server((after) => Promise.resolve(after === 0 ? page([1, 2], 2) : page([3], null)), epochs)
+    const all = await exportPersonalSpace('token', 3, new AbortController().signal)
     assert.deepEqual(asked, [0, 2])
+    assert.deepEqual(epochs, ['3', '3'])
     assert.deepEqual(
       all.turns.map((t) => t.seq),
       [1, 2, 3],
@@ -67,7 +73,7 @@ describe('the export, read a page at a time', () => {
         signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })
-    const exported = exportPersonalSpace('token', stop.signal)
+    const exported = exportPersonalSpace('token', 0, stop.signal)
     await second.promise
     stop.abort(shut)
     assert.equal(asking?.aborted, true, 'the page on its way is stopped at once, not at its time limit')
@@ -82,7 +88,7 @@ describe('the export, read a page at a time', () => {
       if (after === 0) stop.abort(gone) // the first page arrives as the copy is called off
       return Promise.resolve(after === 0 ? page([1], 1) : page([2], null))
     })
-    await assert.rejects(exportPersonalSpace('token', stop.signal), (err) => err === gone)
+    await assert.rejects(exportPersonalSpace('token', 0, stop.signal), (err) => err === gone)
     assert.deepEqual(asked, [0])
   })
 })

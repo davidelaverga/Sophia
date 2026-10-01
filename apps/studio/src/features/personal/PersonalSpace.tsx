@@ -269,9 +269,9 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, newest: number
 /** Sending from the composer: how it went (SendOutcome); a failure is said, and the composer decides about the words. */
 const sender =
   (writes: PersonalWrites, onFailed: (err: unknown) => void) =>
-  async (text: string): Promise<SendOutcome> => {
+  async (text: string, key: string): Promise<SendOutcome> => {
     try {
-      await writes.send(text)
+      await writes.send(text, key)
       return 'sent'
     } catch (err: unknown) {
       onFailed(err)

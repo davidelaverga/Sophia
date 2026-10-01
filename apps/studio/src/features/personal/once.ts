@@ -7,8 +7,12 @@ import type { PersonalReceipt } from '@sophia/contracts'
 /** How long after a write's first attempt its retry may still go. */
 export const RETRY_WINDOW_MS = 120_000
 
-export async function once<R = PersonalReceipt>(run: (key: string) => Promise<R>, clock = Date.now): Promise<R> {
-  const key = crypto.randomUUID()
+/** `key`: the write's own (a draft's, kept with its words on the device, so every tab sends them under it). */
+export async function once<R = PersonalReceipt>(
+  run: (key: string) => Promise<R>,
+  clock = Date.now,
+  key: string = crypto.randomUUID(),
+): Promise<R> {
   const began = clock()
   try {
     return await run(key)

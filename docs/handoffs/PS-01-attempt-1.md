@@ -24,7 +24,7 @@ What works, on the local dev stack with the rehearsal companion:
 - **Studio** (#30, on top of the data side):
   - the three places (home, Personal, Work) under one bar, built from the Studio's own controls;
   - the padlock: one value per device and account (never the address, which can change); the person shuts it and so does every call; a call's end opens nothing; only the person opens it, by confirming it's them (a passkey or an emailed code on a client of its own, so the app's session is never touched; or the provider they signed in with, as a new sign-in);
-  - Your data: copy everything (with the suggestions not decided yet), delete everything;
+  - Your data: copy everything (with the suggestions not decided yet; called off by a lock, the sheet closing or an erasure, here or elsewhere), delete everything;
   - a call that goes on across the places, with its switches, text mode, what Sophia is looking at and what stopped a device in the places' bar; opening another project leaves it, and says so, its project staying on screen with its controls until it has left; "Join the room" from Work joins on that opening only;
   - for the keyboard and screen readers: Sophia's replies are said once; a letter typed with the focus nowhere in Personal goes into the message bar (never the padlock), and never into a field the notes cover; a modal sheet takes every key; the focus is handed on wherever a control goes away;
   - a message's words stay on the device until they were sent, also while they are on their way, and come back when a send fails or gets no answer; not when the space was erased;
@@ -43,7 +43,7 @@ Missing or unverified:
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 514 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 283; database tests: 251 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
+- **Gates:** format, lint, typecheck, contracts check and the Studio build; unit tests: 520 pass, plus the 5 known failures on Windows (launch environment and bundle digest tests); Studio tests: 288; database tests: 251 (`pnpm test:db`); the tests against a real LiveKit server: 4 (`pnpm test:livekit`); the SQL run of the 21 migrations (`pnpm test:sql`).
 - **Browser checks** (local stacks, synthetic identities and accounts, this branch's own Studio):
   - the second review round (`personal-round6`): the padlock across a call, stray typing with a project kept for its call, the notes covering the conversation, touch, the focus handed on, another tab's unlock, a send with no answer and one refused as erased, the places' bar in a call, a check under way when another tab unlocks;
   - the code review's fixes (`personal-round7`): another project leaves the call, nothing personal in memory while locked in a project, the focus after a menu's sheet and after Leave, the notes while loading, a waiting press, a sheet in a project out of sight, a refused keep, the draft while a message is on its way, a lock and the screen reader;
@@ -54,6 +54,7 @@ Missing or unverified:
   - Codex's sixth review of #30 (`personal-codex30e`): the padlock shut with a draft and a message on its way; open across midnight; and in `personal-codex30d`, a lock lets what was read back go;
   - Codex's seventh review of #30 (`personal-codex30f`, a conversation three pages of the export long): a copy still paging when another tab shuts the padlock, and when its sheet closes (the page on its way stopped at once, none after it asked for, nothing copied); left alone, it reads all three pages;
   - Codex's eighth review of #30 (`personal-codex30g`): a draft typed before an erasure on another device while this one was locked (and, as control, with no erasure); another project opened during a call (the call never out of sight beside it); a page read back while new turns come (every turn there);
+  - Codex's ninth review of #30 (`personal-codex30h`): "Delete everything" while a copy pages, in the sheet (stopped as the erasure begins) and on another device (nothing copied, and the sheet says why; stopped at once once this page hears of it); the same draft sent from two tabs (one message); a slow send that settles while another tab writes (its words stay);
   - the earlier suites on this Studio: the previous rounds (31 checks), the places’ keys and flows (37), a call across the places (12 of 13: a teammate's Work showed who had just joined only once the room server's count caught up, up to five seconds later; the data side's next commit asks the rooms themselves), the call and interface checks (6, 33 and 8), and the room’s suites from #24 (43).
 - **Mutation checks:** every logic fix has a unit or database test that fails without it; every fix the tests can't reach was undone in the browser to see its scenario fail (this round, 4 Studio rules, 7 database rules and 4 API rules each failed their test before the fix, and of 10 browser fixes undone 9 were caught by their scenario, the tenth being backed by a second mechanism the scenario also exercises; the second round, 14 rules and 22 browser fixes, all caught).
 - **Reviews:**
@@ -79,6 +80,7 @@ Missing or unverified:
   - Codex on #30's `9dea6f2`: one P2 (a page read back that arrived after the padlock shut was kept), fixed; its scenario failed before the fix.
   - Codex on #30's `8d07bb8`: one P2 (a copy's export went on paging after the padlock shut), fixed: the export takes a signal the padlock or the sheet's going aborts; its three unit tests failed before the fix, and each part undone once fails its test or scenario.
   - Codex on #30's `19f8f90`: two P1 (a draft from before an erasure on another device came back after a lock; another project shown while the call's project, its microphone on, was out of sight) and two P2 (what was read back of an erased space kept in memory; a page read back dropped the turns that left the window while it was on its way), fixed; each scenario failed before the fix, and each part undone once fails its test or scenario.
+  - Codex on #30's `153e2aa`: three P2 (a copy still paging when the space was erased, from the sheet or elsewhere, could reach the clipboard; a slow send that settled took the words another tab wrote meanwhile; the same draft sent from two tabs was kept twice), fixed (the export's data half on #35); each part undone once fails its test or scenario.
 
 ## Decisions and changes
 

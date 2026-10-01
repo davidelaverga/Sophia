@@ -60,30 +60,35 @@ export const getPersonalTurns = (token: string, after: number): Promise<Personal
   read(token, `/api/v1/personal/turns?after=${after}`, parsePersonalTurnPage)
 
 /**
- * One page of the export: the turns after `after` (a seq), and `next` where the following page starts. Once `signal`
- * aborts, the page on its way stops and fails with its reason, as does one that arrives after it.
+ * One page of the export: the turns after `after` (a seq), and `next` where the following page starts, read against
+ * `epoch` (one asked for after an erasure is refused, request_erased). Once `signal` aborts, the page on its way stops
+ * and fails with its reason, as does one that arrives after it.
  */
-async function exportPage(token: string, after: number, signal: AbortSignal): Promise<PersonalExport> {
+async function exportPage(token: string, epoch: number, after: number, signal: AbortSignal): Promise<PersonalExport> {
   const path = `/api/v1/personal/export?after=${String(after)}` as const
-  const page = await callApi(path, { token, method: 'GET', signal }, parsePersonalExport).catch((err: unknown) => {
-    signal.throwIfAborted()
-    throw err
-  })
+  const headers = { 'x-sophia-personal-epoch': String(epoch) }
+  const page = await callApi(path, { token, method: 'GET', headers, signal }, parsePersonalExport).catch(
+    (err: unknown) => {
+      signal.throwIfAborted()
+      throw err
+    },
+  )
   signal.throwIfAborted()
   return page
 }
 
 /**
  * Everything the personal space keeps, read a page at a time (A10 bounds each): the first page's date, notes and carried
- * notes, with every page's turns, in order. Called off (`signal`: the padlock shut, the sheet went), it stops at once,
- * asks for no page more and lets what came go.
+ * notes, with every page's turns, in order, all read against `epoch`, the space's as the copy began. Called off
+ * (`signal`: the padlock shut, the sheet went, an erasure), it stops at once, asks for no page more and lets what came
+ * go.
  */
-export async function exportPersonalSpace(token: string, signal: AbortSignal): Promise<PersonalExport> {
-  const first = await exportPage(token, 0, signal)
+export async function exportPersonalSpace(token: string, epoch: number, signal: AbortSignal): Promise<PersonalExport> {
+  const first = await exportPage(token, epoch, 0, signal)
   const turns = [...first.turns]
   let next = first.next
   while (next !== null) {
-    const page = await exportPage(token, next, signal)
+    const page = await exportPage(token, epoch, next, signal)
     turns.push(...page.turns)
     next = page.next
   }

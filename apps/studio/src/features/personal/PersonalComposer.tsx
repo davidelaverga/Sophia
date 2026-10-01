@@ -6,7 +6,16 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
-import { draftKey, draftToStore, readDraft, restoredDraft, writeDraft } from './draft.ts'
+import {
+  afterSent,
+  draftKey,
+  draftOf,
+  draftToStore,
+  readDraft,
+  restoredDraft,
+  writeDraft,
+  type Draft,
+} from './draft.ts'
 import type { Unsent } from './write-words.ts'
 
 const KEPT = 'Draft kept on this device'
@@ -35,7 +44,11 @@ const PLACEHOLDER: Record<ComposerState, string> = {
  * whose answer was lost, one while this device was locked) moves the epoch, which takes the words written before it
  * from the field and from this device. `adopt` is told whether the words are the draft the device kept, read first.
  */
-function useDraftFollows(account: string, epoch: number | undefined, adopt: (value: string, first: boolean) => void) {
+function useDraftFollows(
+  account: string,
+  epoch: number | undefined,
+  adopt: (draft: Draft | null, first: boolean) => void,
+) {
   const follow = useRef(adopt)
   useEffect(() => {
     follow.current = adopt
@@ -59,49 +72,55 @@ function useDraftFollows(account: string, epoch: number | undefined, adopt: (val
 
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
 function useDraft(account: string, epoch: number | undefined) {
-  const [text, setText] = useState(() => (epoch === undefined ? '' : readDraft(account, epoch)))
-  const [note, setNote] = useState(() => (text ? KEPT : ''))
-  // What the field holds now, for words that come back after a send that waited (restoredDraft).
-  const latest = useRef(text)
-  // Words on their way: the device keeps them ahead of anything typed meanwhile until they are sent (draftToStore).
-  const sending = useRef<string | null>(null)
-  useDraftFollows(account, epoch, (value, first) => {
-    latest.current = value
-    setText(value)
-    setNote(first && value ? KEPT : '')
-  })
-  // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
-  const keep = (words: string) => {
-    if (epoch !== undefined) writeDraft(account, words, epoch)
-  }
-  const change = (value: string, why = value ? KEPT : '') => {
-    latest.current = value
-    setText(value)
+  const [first] = useState(() => (epoch === undefined ? null : readDraft(account, epoch)))
+  const [text, setText] = useState(first?.text ?? '')
+  const [note, setNote] = useState(first ? KEPT : '')
+  // What the field holds now, with its key, for words that come back after a send that waited (restoredDraft).
+  const latest = useRef<Draft | null>(first)
+  // Words on their way, with their key: the device keeps them ahead of anything typed meanwhile until they are sent.
+  const sending = useRef<Draft | null>(null)
+  const show = (draft: Draft | null, why: string) => {
+    latest.current = draft
+    setText(draft?.text ?? '')
     setNote(why)
-    keep(draftToStore(sending.current, value))
+  }
+  useDraftFollows(account, epoch, (draft, read) => show(draft, read && draft ? KEPT : ''))
+  // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
+  const keep = (draft: Draft | null) => {
+    if (epoch !== undefined) writeDraft(account, draft, epoch)
+  }
+  /** Words typed (a key of their own), or words back with the key they went under: the device keeps them. */
+  const set = (draft: Draft | null, why: string) => {
+    show(draft, why)
+    const words = sending.current
+    keep(words && draft ? draftOf(draftToStore(words.text, draft.text)) : (words ?? draft))
   }
   return {
     text,
     note,
-    change,
+    change: (value: string, why = value ? KEPT : '') => set(value ? draftOf(value) : null, why),
+    /** The words in the field, with the key they go under. */
     current: () => latest.current,
-    /** The words go: the field empties at once, and the device keeps them until they're sent. */
-    go: (words: string) => {
+    /** The words go, under their key: the field empties at once, and the device keeps them until they're sent. */
+    go: (words: Draft) => {
       sending.current = words
-      latest.current = ''
-      setText('')
-      setNote('')
-      keep(draftToStore(words, ''))
+      show(null, '')
+      keep(words)
     },
-    /** Sent (or erased with the space): the device keeps only what was typed meanwhile. */
+    /** Sent (or erased with the space): the device keeps what it holds without those words (afterSent). */
     sent: () => {
+      const words = sending.current
       sending.current = null
-      keep(latest.current)
+      if (!words || epoch === undefined) return
+      const now = afterSent(readDraft(account, epoch), words)
+      keep(now)
+      show(now, '')
     },
-    /** Not sent: the words come back to the field (change), which the device then keeps. */
-    back: (words: string, why: string) => {
+    /** Not sent: the words come back to the field, under the key they went with when nothing was typed meanwhile. */
+    back: (words: Draft, why: string) => {
       sending.current = null
-      change(restoredDraft(words, latest.current), why)
+      const typed = latest.current?.text ?? ''
+      set(typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words, why)
     },
   }
 }
@@ -182,7 +201,8 @@ interface Props {
   /** A message is on its way, from the field or a way to start: the next waits in the field. */
   busy: boolean
   /** Resolves to how the send went; words that didn't go come back into the field, unless erased with the space. */
-  onSend: (text: string) => Promise<SendOutcome>
+  /** Sends the words under `key`, the draft's: every tab sends the same draft under the same key. */
+  onSend: (text: string, key: string) => Promise<SendOutcome>
   onListening: (listening: boolean) => void
 }
 
@@ -195,10 +215,12 @@ interface Props {
 function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, busy: boolean, onSend: Props['onSend']) {
   const mounted = useMounted()
   return async () => {
-    const words = draft.text.trim()
-    if (!words || !ready || busy) return
+    const current = draft.current()
+    const text = current?.text.trim() ?? ''
+    if (!current || !text || !ready || busy) return
+    const words = { text, key: current.key }
     draft.go(words)
-    const outcome = await onSend(words)
+    const outcome = await onSend(text, words.key)
     if (!mounted.current) return
     if (outcome === 'sent' || outcome === 'erased') draft.sent()
     else draft.back(words, BACK[outcome])

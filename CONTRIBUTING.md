@@ -468,7 +468,10 @@ their work. Keep these when you change them:
   A copy of the space reads the padlock as stored when its export arrives,
   and copies nothing once it shut or its sheet went; an export still paging
   then stops at once (the page on its way too), asks for no page more and
-  lets what came go (`exportPersonalSpace`'s signal). Dictation stops when the
+  lets what came go (`exportPersonalSpace`'s signal). Its pages are read
+  against the epoch the copy began in (one asked for after an erasure is
+  refused), and erasing from the sheet, or an epoch that moves, calls it off
+  too: nothing of an erased space reaches the clipboard. Dictation stops when the
   space goes out of sight, and a start still waiting for the device's
   language is called off (`useDictation`): the microphone never turns on out
   of sight.
@@ -509,7 +512,11 @@ their work. Keep these when you change them:
   draft keeps the epoch it was written in (`draftIn`), so words from before
   an erasure never come back, also when it happened on another device while
   this one was locked; the field reads the draft only once the space's epoch
-  is known. A long conversation reads back from the Earlier days menu
+  is known. Each version of the draft keeps the admission key it is sent
+  under (`Draft`), so the same draft sent from two tabs, or again from one
+  that hadn't heard it went, is one message; a message that settles leaves
+  the device's draft as it is then, without its words (`afterSent`), so
+  words another tab wrote meanwhile stay. A long conversation reads back from the Earlier days menu
   ("Show earlier days"); turns that leave the space's window as new ones
   come stay with what was read, also while a page is on its way (it joins
   what was read by the time it arrives), and an erasure lets all of it go; Your data's copy reads the export a page at a time, so it
