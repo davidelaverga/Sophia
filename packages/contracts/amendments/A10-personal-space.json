@@ -1612,7 +1612,7 @@
       "value": {
         "post": {
           "operationId": "erasePersonalSpace",
-          "summary": "Delete the conversation, suggestions and notes for good. Carried notes stay in their projects, still the person’s to take back.",
+          "summary": "Delete the conversation, suggestions and notes for good. Carried notes stay in their projects, still the person’s to take back. A personal write from before it, retried under its key, answers 409 request_erased and writes nothing.",
           "tags": ["personal"],
           "security": [
             {

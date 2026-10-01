@@ -366,9 +366,9 @@ either:
   the person keeps it or lets it go, and one let go is deleted. "Note this"
   keeps a line in the person's own words. The export carries every turn with
   its suggestion still open. Erasing deletes the conversation, suggestions
-  and notes, deletes the requests older than ten minutes and redacts the rest
-  (a late retry still writes nothing), and leaves carried notes where they
-  were, still the owner's.
+  and notes, deletes the requests older than ten minutes and keeps only the
+  key of the rest, dated at the erasure (a late retry still writes nothing),
+  and leaves carried notes where they were, still the owner's.
 - **The companion is behind one interface** (`apps/api/src/companion.ts`):
   `answer` for a pending turn, `greet` for the welcome back. The keyless
   rehearsal (`SOPHIA_COMPANION=rehearse`, refused in production) is for

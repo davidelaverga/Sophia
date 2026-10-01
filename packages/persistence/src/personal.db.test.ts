@@ -387,21 +387,24 @@ describe('personal space: erasure', () => {
       [ANA],
     )
     assert.equal(left[0]?.n, '0')
-    // No record of when or how she wrote outlives the erasure but the last ten minutes', each redacted.
-    const requests = await owner<{ operation: string; key: string; redacted: boolean }>(
-      `SELECT operation, idempotency_key AS key, semantic_request ? 'redacted' AS redacted
-         FROM sophia.personal_requests WHERE owner_id = $1 ORDER BY created_at`,
+    // No record of when or how she wrote outlives the erasure: the last ten minutes' requests keep only their key,
+    // dated at the erasure, and the erasure keeps its own receipt.
+    const requests = await owner<{ operation: string; key: string; redacted: boolean; at_erasure: boolean }>(
+      `SELECT r.operation, r.idempotency_key AS key, r.semantic_request ? 'redacted' AS redacted,
+              r.created_at = (SELECT created_at FROM sophia.personal_requests
+                               WHERE owner_id = $1 AND operation = 'erase') AS at_erasure
+         FROM sophia.personal_requests r WHERE r.owner_id = $1 ORDER BY r.operation`,
       [ANA],
     )
     assert.deepEqual(
-      requests.map((r) => [r.operation, r.key === k, r.redacted]),
+      requests.map((r) => [r.operation, r.key === k, r.redacted, r.at_erasure]),
       [
-        ['send_turn', true, true],
-        ['erase', false, false],
+        ['erase', false, false, true],
+        ['redacted', true, true, true],
       ],
     )
     // A late retry from those ten minutes writes nothing.
-    assert.equal(await codeOf(write(ANA, (c) => sendPersonalTurn(c, k, 'One more thing'))), 'stale_revision')
+    assert.equal(await codeOf(write(ANA, (c) => sendPersonalTurn(c, k, 'One more thing'))), 'request_erased')
     // Taking the carried note back after erasing brings it back as a note.
     await write(ANA, (c) => takeBackPersonalRelease(c, key(), space.releases[0]?.id ?? ''))
     const back = await read(ANA, (c) => readPersonalExport(c))
