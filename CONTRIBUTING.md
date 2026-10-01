@@ -400,7 +400,16 @@ either:
   nothing over a later one, neither a reply nor a failure. A welcome not
   written yet, because the companion failed (its claim goes) or the same
   request is still writing it, answers `outcome_unknown`: the client asks
-  again under the same key.
+  again under the same key. A welcome's request is its key and whom it
+  greets (a digest): the same key with another name is refused, also after
+  an attempt that failed. Each companion call is given a signal that aborts
+  when its time is up, and is waited for: a turn fails, or a welcome lets
+  its claim go, only once the call has stopped. The welcome's write is
+  fenced to the request's epoch too: an erasure meanwhile refuses it.
+- **A long conversation is read back a page at a time.** A space read lists
+  the newest 500 turns; earlier ones come a page at a time
+  (`/personal/turns/earlier`), and the space's `days` count the whole
+  conversation, in the reader's time zone.
 - **One read of the Work list stays small.** It holds at most 4000 carried
   notes in all (`PROJECT_LIST_BOUNDS`), the reader's own first, then the
   newest; each project's own bound still holds.

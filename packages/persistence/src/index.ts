@@ -133,6 +133,7 @@ export {
   claimPersonalReply,
   readPersonalSpace,
   readPersonalTurnsAfter,
+  readPersonalTurnsBefore,
   readWelcomeContext,
   recordPersonalGreeting,
   recordPersonalReply,

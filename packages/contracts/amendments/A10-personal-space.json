@@ -222,9 +222,15 @@
             "minimum": 0,
             "maximum": 9007199254740991,
             "description": "Moves with each erasure: a write names the epoch it was made against, and one made against another is refused."
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The days on which the person wrote, over the whole conversation (not only the turns listed), as `timeZone` counts them (UTC without it)."
           }
         },
-        "required": ["companion", "revision", "turns", "earlier", "notes", "releases", "epoch"]
+        "required": ["companion", "revision", "turns", "earlier", "notes", "releases", "epoch", "days"]
       }
     },
     {
@@ -251,6 +257,27 @@
           }
         },
         "required": ["revision", "turns", "pending"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PersonalEarlierTurns",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "turns": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PersonalTurn"
+            }
+          },
+          "earlier": {
+            "type": "boolean"
+          }
+        },
+        "required": ["turns", "earlier"]
       }
     },
     {
@@ -651,14 +678,26 @@
       "value": {
         "get": {
           "operationId": "getPersonalSpace",
-          "summary": "The calling person's own space: the latest turns of their one conversation with Sophia (earlier ones exist when `earlier`), the notes they keep and the notes they carried. Owner-only: nobody else, project admins included, reads any of it.",
+          "summary": "The calling person's own space: the latest turns of their one conversation with Sophia (earlier ones exist when `earlier`), the notes they keep and the notes they carried. Owner-only: nobody else, project admins included, reads any of it. Its `days` are counted in the reader's `timeZone` (an IANA name; UTC without one), over the whole conversation; earlier turns are read back a page at a time (getEarlierPersonalTurns).",
           "tags": ["personal"],
           "security": [
             {
               "supabaseBearer": []
             }
           ],
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "timeZone",
+              "in": "query",
+              "required": false,
+              "description": "The reader's IANA time zone (Europe/Madrid), for counting `days`; one the server doesn't know is refused (422).",
+              "schema": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$"
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "OK",
@@ -874,6 +913,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PersonalMessage"
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "PS-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1personal~1turns~1earlier",
+      "value": {
+        "get": {
+          "operationId": "getEarlierPersonalTurns",
+          "summary": "The newest page of turns before `before` (a seq), in order, and whether earlier ones exist: reading a long conversation back, a page at a time.",
+          "tags": ["personal"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "before",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PersonalEarlierTurns"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no personal space)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
                 }
               }
             }
@@ -1534,7 +1648,7 @@
       "value": {
         "post": {
           "operationId": "resumePersonalSpace",
-          "summary": "The person is back after a quiet spell: Sophia welcomes them with a turn of hers, written only when the last turn is more than an hour old and is not already a welcome (turnId null otherwise). `name` is the name she greets them by. Never two welcomes in a row, and idempotent by its key: a retry, however late, gets the first receipt, and while one request is getting a welcome another gets nothing written. A welcome not written yet (the companion failed, or an earlier attempt of the same request is still writing it) answers 503 outcome_unknown: ask again under the same key.",
+          "summary": "The person is back after a quiet spell: Sophia welcomes them with a turn of hers, written only when the last turn is more than an hour old and is not already a welcome (turnId null otherwise). `name` is the name she greets them by. Never two welcomes in a row, and idempotent by its key: a retry, however late, gets the first receipt, and while one request is getting a welcome another gets nothing written. A welcome not written yet (the companion failed, or an earlier attempt of the same request is still writing it) answers 503 outcome_unknown: ask again under the same key. The request is its key and whom it greets: the same key with another `name` is refused (409 idempotency_conflict), also after an attempt that failed.",
           "tags": ["personal"],
           "security": [
             {
