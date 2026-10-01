@@ -81,10 +81,13 @@ function inConfinement(node, program, args, renderUser) {
 }
 
 // Inside the namespace: each attempt must fail. A value of null means it succeeded. With -e there is no script path,
-// so the arguments start at argv[1].
+// so the arguments start at argv[1]. The supervisor's PID can name another process in the fresh PID namespace (in a
+// container the supervisor is often PID 1, and so is the confined process), so an environment read there is the
+// supervisor's only when its bytes are the supervisor's own (compared by hash).
 const INSIDE = `
 import net from 'node:net'; import dns from 'node:dns/promises'; import fs from 'node:fs'
-const [apiIp, apiPort, supervisorPid, ...files] = process.argv.slice(1)
+import { createHash } from 'node:crypto'
+const [apiIp, apiPort, supervisorPid, supervisorEnvSha, ...files] = process.argv.slice(1)
 const tcp = (host, port) => new Promise((resolve) => {
   const s = net.connect({ host, port: Number(port), timeout: 3000 })
   s.on('connect', () => { s.destroy(); resolve(null) })
@@ -92,12 +95,17 @@ const tcp = (host, port) => new Promise((resolve) => {
   s.on('error', (e) => resolve(e.code || e.message))
 })
 const fail = async (fn) => { try { await fn(); return null } catch (e) { return e.code || e.message } }
+const environ = () => {
+  let bytes
+  try { bytes = fs.readFileSync('/proc/' + supervisorPid + '/environ') } catch (e) { return e.code || e.message }
+  return createHash('sha256').update(bytes).digest('hex') === supervisorEnvSha ? null : 'that PID here is another process'
+}
 const out = {
   'public_tcp:1.1.1.1:443': await tcp('1.1.1.1', 443),
   'dns:example.com': await fail(() => dns.lookup('example.com')),
   'metadata:169.254.169.254:80': await tcp('169.254.169.254', 80),
   ['api_host:' + (apiIp || 'none') + ':' + apiPort]: apiIp ? await tcp(apiIp, apiPort) : 'no API host to try',
-  ['supervisor_environment:/proc/' + supervisorPid + '/environ']: await fail(() => fs.readFileSync('/proc/' + supervisorPid + '/environ')),
+  ['supervisor_environment:/proc/' + supervisorPid + '/environ']: environ(),
 }
 for (const f of files) out['unreadable:' + f] = await fail(() => fs.statSync(f).isDirectory() ? fs.readdirSync(f) : fs.readFileSync(f))
 process.stdout.write(JSON.stringify(out))
@@ -143,10 +151,17 @@ async function renderCheck(env) {
       },
       { env },
     )
+    const rendered = receipt.status === 'succeeded'
     const failed = receipt.checks.filter((c) => c.outcome !== 'passed').map((c) => `${c.name}=${c.outcome}`)
+    // The checks pass only on a PDF that exists and was judged: a render that failed ran no check.
+    const judged = rendered && receipt.checks.length > 0
     return [
-      { check: 'render', ok: receipt.status === 'succeeded', detail: receipt.error?.code ?? receipt.status },
-      { check: 'kernel_checks', ok: failed.length === 0, detail: failed.join(', ') || 'all passed' },
+      { check: 'render', ok: rendered, detail: receipt.error?.code ?? receipt.status },
+      {
+        check: 'kernel_checks',
+        ok: judged && failed.length === 0,
+        detail: judged ? failed.join(', ') || 'all passed' : 'not run: no PDF was rendered',
+      },
       {
         check: 'sandbox',
         ok: receipt.sandbox?.active === true,
@@ -169,7 +184,8 @@ async function confinementChecks(env, secrets, node) {
   const renderUser = renderUserOf(env)
   const api = await apiTarget(env)
   const files = [env.SOPHIA_RENDER_RUNNER_TOKEN_FILE ?? '', ...secrets].filter(Boolean)
-  const inside = inConfinement(node, INSIDE, [api.ip, api.port, String(process.pid), ...files], renderUser)
+  const envSha = sha256Hex(fs.readFileSync('/proc/self/environ'))
+  const inside = inConfinement(node, INSIDE, [api.ip, api.port, String(process.pid), envSha, ...files], renderUser)
   return Object.entries(inside).map(([check, error]) => ({
     check,
     ok: error !== null,

@@ -67,6 +67,18 @@ function readableSecret(): string {
 }
 
 describe('the renderer host probe (OP-C)', () => {
+  it('a render that did not happen passes no check, on any host', async () => {
+    const results = await probeHost({ env: { ...env, SOPHIA_CHROMIUM_PATH: path.join(scratch, 'no-browser') }, node })
+    const byName = new Map(results.map((r) => [r.check, r]))
+    assert.equal(byName.get('render')?.ok, false)
+    assert.deepEqual(byName.get('kernel_checks'), {
+      check: 'kernel_checks',
+      ok: false,
+      detail: 'not run: no PDF was rendered',
+    })
+    assert.equal(byName.get('sandbox')?.ok, false)
+  })
+
   it('passes every check on a host whose confinement holds', { skip }, async () => {
     const results = await probeHost({ env, node })
     assert.deepEqual(
