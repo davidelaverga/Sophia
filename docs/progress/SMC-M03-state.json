@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "de6acd5",
+  "candidate_commit": "d525c18",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -74,6 +74,15 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#12-s3-part-2-grants-allowances-reservations-and-provenance-0024"
+    },
+    {
+      "slice": "CX-0005 fixes (archive normalization, M03-RF-0004..0007)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#14-cx-0005-one-archive-for-every-platform-and-m03-rf-00040007"
     }
   ],
   "outstanding_operations": [
@@ -86,8 +95,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5932890015",
-      "state": "awaiting_operator (revision 4: M03-RF-0003 re-review, S3 review, Mac/Linux archive comparison)"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5934546162",
+      "state": "awaiting_operator (revision 5: M03-RF-0004..0007 re-review, Mac gate with no local record)"
     }
   ],
   "unknown_effects": [],
@@ -114,13 +123,13 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S4 (durable Markdown): runtime operations, admission, research tools and presets' plugins, reservation hook, S3-key byte store, publish, delivery and Knowledge UI; CC-0004 awaiting Codex",
+  "next_action": "S4 (durable Markdown): runtime operations, admission, research tools and presets' plugins, reservation hook, S3-key byte store, publish, delivery and Knowledge UI; CC-0006 awaiting Codex",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256_linux_x64": "88e9dc2ada0d8ba8d78d659015b5267aa3619ed9c1f68b19c4f73c13e63bac4e",
-    "darwin_arm64": "bundle archive and profile lock recorded at the release candidate; CX-0004's values at 3c37f48 kept as evidence (SMC-M03.md §13); runtime tree e24cb887 recorded",
+    "bundle_archive_sha256": "9f911688f251e44f78f881c33a5c6e0006fd36db1706d359e2143e9037d8d7e7",
+    "bundle_archive_platforms": "one normalized archive and one profile lock for every platform (SMC-M03.md §14); runtime trees recorded per platform (linux-x64, darwin-arm64 e24cb887)",
     "deployed": false
   }
 }
