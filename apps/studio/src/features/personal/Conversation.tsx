@@ -15,6 +15,8 @@ export interface ConversationActions {
   /** Resolves to whether it was kept. */
   keepNote: (text: string, turnId: string, suggestion: PersonalSuggestion | null) => Promise<boolean>
   retry: (turnId: string) => void
+  /** The page of days before those shown (a long conversation). */
+  readEarlier: () => void
 }
 
 const dayId = (key: string) => `c-${key}`
@@ -292,8 +294,16 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
 }
 
 /** The day at the top of what you're reading, and the list of days it opens (so do the days' own dividers). */
-function Earlier(props: { rows: readonly Row[]; open: boolean; day: string | null; setOpen: (open: boolean) => void }) {
-  const { rows, open, day, setOpen } = props
+function Earlier(props: {
+  rows: readonly Row[]
+  open: boolean
+  day: string | null
+  setOpen: (open: boolean) => void
+  /** Earlier days than those shown exist: the first item reads them back. */
+  more: boolean
+  onMore: () => void
+}) {
+  const { rows, open, day, setOpen, more, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
   return (
     <div ref={menu.wrap} className="c3-daybar">
@@ -318,6 +328,11 @@ function Earlier(props: { rows: readonly Row[]; open: boolean; day: string | nul
           aria-label="Earlier days"
           onKeyDown={menu.onKeyDown}
         >
+          {more && (
+            <button role="menuitem" type="button" onClick={onMore}>
+              <span>Show earlier days</span>
+            </button>
+          )}
           {daysOf(rows).map((d) => (
             <button
               key={d.key}
@@ -345,6 +360,8 @@ interface ConversationProps {
   list: RefObject<HTMLDivElement | null>
   earlier: boolean
   setEarlier: (open: boolean) => void
+  /** Earlier days than those shown exist (a long conversation). */
+  more: boolean
   /** What a slow or failed read says, where the conversation would be (ReadNotes). */
   notice: React.ReactNode
   /** The notes cover it (a narrow screen): nothing in it can be reached or typed into until they close. */
@@ -354,14 +371,14 @@ interface ConversationProps {
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more } = props
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (
     <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
-      <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} />
+      <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} more={more} onMore={actions.readEarlier} />
       <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
         {notice}
         {rows.map((row) => (

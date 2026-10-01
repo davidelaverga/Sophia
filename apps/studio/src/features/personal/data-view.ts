@@ -8,15 +8,9 @@ export interface Facts {
   carried: number
 }
 
-const localDay = (iso: string) => {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-}
-
-/** Days with Sophia (days the person wrote to her), notes kept, notes carried to projects. */
-export function factsOf(space: Pick<PersonalSpace, 'turns' | 'notes' | 'releases'>): Facts {
-  const days = new Set(space.turns.filter((t) => t.author === 'person').map((t) => localDay(t.createdAt)))
-  return { days: days.size, notes: space.notes.length, carried: space.releases.length }
+/** The days are the server's count over the whole conversation (a long one lists only its newest turns). */
+export function factsOf(space: Pick<PersonalSpace, 'days' | 'notes' | 'releases'>): Facts {
+  return { days: space.days, notes: space.notes.length, carried: space.releases.length }
 }
 
 export const factWords = (facts: Facts) => ({

@@ -2,13 +2,14 @@
 // write has its own Idempotency-Key and is retried once with the SAME key when no reply came, while its first attempt
 // is recent (once.ts); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
-import type { PersonalReceipt, PersonalSpace, ProjectList } from '@sophia/contracts'
+import { useEffect, useRef, useState } from 'react'
+import type { PersonalReceipt, PersonalSpace, PersonalTurn, ProjectList } from '@sophia/contracts'
 import {
   carryPersonalNote,
   decidePersonalSuggestion,
   erasePersonalSpace,
   forgetPersonalNote,
+  getEarlierPersonalTurns,
   getPersonalSpace,
   getPersonalTurns,
   keepPersonalNote,
@@ -18,9 +19,10 @@ import {
   sendPersonalTurn,
   takeBackPersonalRelease,
 } from '../../api/personal.ts'
+import { ApiError } from '../../api/client.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import type { Sending } from './conversation-view.ts'
+import { keptOnReadBack, type Sending } from './conversation-view.ts'
 import { writeDraft } from './draft.ts'
 import { epochNow } from './epoch.ts'
 import { once } from './once.ts'
@@ -28,6 +30,28 @@ import { readsAgain } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
 const POLL_MS = 700
+
+const NO_TURNS: readonly PersonalTurn[] = []
+
+/** This device's time zone, for the space's `days`: the browser's own, when it names one. */
+function zoneHere(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null
+  } catch {
+    return null
+  }
+}
+
+/** The space, its days counted in this device's time zone; a zone the server doesn't know counts them in UTC. */
+async function readSpace(token: string) {
+  const zone = zoneHere()
+  try {
+    return await getPersonalSpace(token, zone)
+  } catch (err: unknown) {
+    if (zone && err instanceof ApiError && err.code === 'invalid_request') return getPersonalSpace(token, null)
+    throw err
+  }
+}
 
 /**
  * The space, and while a reply is pending, what came after the last turn until nothing is. The server says how each
@@ -37,7 +61,7 @@ const POLL_MS = 700
 export function usePersonalSpace(identity: Identity, open: boolean) {
   const client = useQueryClient()
   const queryKey = ['personal', identity.name]
-  const space = useQuery({ queryKey, queryFn: () => getPersonalSpace(identity.token), enabled: open })
+  const space = useQuery({ queryKey, queryFn: () => readSpace(identity.token), enabled: open })
   const turns = space.data?.turns ?? []
   const waiting = turns.some((t) => t.reply === 'pending')
   const last = turns.at(-1)?.seq ?? 0
@@ -53,6 +77,47 @@ export function usePersonalSpace(identity: Identity, open: boolean) {
   })
   return space
 }
+
+/**
+ * A long conversation read back a page at a time, before the newest turns the space lists: what was read so far
+ * (oldest first), whether more exist, and the next page. What leaves the window as new turns come stays
+ * (keptOnReadBack); an erasure (a new epoch) starts again, and a lock lets all of it go.
+ */
+export function useReadBack(identity: Identity, space: PersonalSpace | undefined) {
+  const [back, setBack] = useState<{ epoch: number; turns: readonly PersonalTurn[]; more: boolean } | null>(null)
+  const reading = useRef(false)
+  const listed = useRef<readonly PersonalTurn[]>(NO_TURNS)
+  useEffect(() => {
+    const before = listed.current
+    listed.current = space?.turns ?? NO_TURNS
+    if (!space) {
+      setBack(null) // locked (or not read yet): nothing read back is kept
+      return
+    }
+    setBack((now) => {
+      if (now?.epoch !== space.epoch) return now
+      const turns = keptOnReadBack(now.turns, before, space.turns)
+      return turns === now.turns ? now : { ...now, turns }
+    })
+  }, [space])
+  const current = back && space && back.epoch === space.epoch ? back : null
+  const older = current?.turns ?? NO_TURNS
+  const more = current ? current.more : (space?.earlier ?? false)
+  const readMore = async () => {
+    const from = older[0]?.seq ?? space?.turns[0]?.seq
+    if (!space || from === undefined || !more || reading.current) return
+    reading.current = true
+    try {
+      const page = await getEarlierPersonalTurns(identity.token, from)
+      setBack({ epoch: space.epoch, turns: [...page.turns, ...older], more: page.earlier })
+    } finally {
+      reading.current = false
+    }
+  }
+  return { older, more, readMore }
+}
+
+export type ReadBack = ReturnType<typeof useReadBack>
 
 export function useProjects(identity: Identity) {
   return useQuery({
@@ -95,17 +160,24 @@ function useRun(identity: Identity) {
 
 /**
  * The personal writes, each refreshing what it changed. `sending` shows a message at once, before its receipt; one is
- * on its way at a time, from the field or a way to start (OnItsWay), so the conversation shows them in order.
+ * on its way at a time, from the field or a way to start (OnItsWay, `busy`), so the conversation shows them in order.
+ * While the padlock is shut (`locked`) the page keeps none of its words: the message on its way goes on unseen.
  */
-export function usePersonalWrites(identity: Identity) {
+export function usePersonalWrites(identity: Identity, locked: boolean) {
   const run = useRun(identity)
   const [sending, setSending] = useState<Sending | null>(null)
+  const [busy, setBusy] = useState(false)
   const onItsWay = useRef(false)
+  useEffect(() => {
+    if (locked) setSending(null)
+  }, [locked])
   const [welcoming, setWelcoming] = useState(false)
   const [erasures, setErasures] = useState(0)
   const { token } = identity
   return {
     sending,
+    /** A message is on its way (its words may be let go: a lock). */
+    busy,
     /** Sophia is writing her welcome back. */
     welcoming,
     /** Moves with each erasure: the composer starts afresh, its draft forgotten with everything else. */
@@ -121,11 +193,13 @@ export function usePersonalWrites(identity: Identity) {
     send: async (text: string) => {
       if (onItsWay.current) throw new OnItsWay('Another message is on its way')
       onItsWay.current = true
+      setBusy(true)
       setSending({ text, at: new Date() })
       try {
         return await run((k, at) => sendPersonalTurn(token, k, at, text))
       } finally {
         onItsWay.current = false
+        setBusy(false)
         setSending(null)
       }
     },

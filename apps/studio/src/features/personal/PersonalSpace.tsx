@@ -22,23 +22,29 @@ import type {
 import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, type ConversationActions } from './Conversation.tsx'
-import { conversationRows, heard, opensWithIntro, welcomeDue } from './conversation-view.ts'
+import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
 import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
-import type { PersonalWrites } from './usePersonal.ts'
+import type { PersonalWrites, ReadBack } from './usePersonal.ts'
 import { personalFailure, unsent } from './write-words.ts'
 
 interface Props {
   /** Not on screen (another place is): kept mounted, so a draft and the scroll survive. */
   hidden: boolean
+  /** The padlock is shut: the field is not on the page (the device keeps the draft). */
+  locked: boolean
+  /** The clock the conversation's days are told by: it moves, so "Today" becomes "Yesterday" at midnight. */
+  now: Date
   /** Whose draft the composer keeps (accountOf). */
   account: string
   name: string | null
   /** Undefined until it has loaded (`read` says how that goes). */
   space: Space | undefined
+  /** A long conversation read back, before what the space lists. */
+  readBack: ReadBack
   read: Read
   /** Undefined until the projects have loaded. */
   projects: readonly ProjectSummary[] | undefined
@@ -107,6 +113,7 @@ function useActions(
     decide: (suggestion: PersonalSuggestion, decision) => attempt(() => writes.decide(suggestion.id, decision)),
     openNotes: () => props.notes.set(true),
     retry: (turnId) => attempt(() => writes.retry(turnId)),
+    readEarlier: () => attempt(() => props.readBack.readMore()),
     // Whether it was kept: a refused note's words go back into its form.
     keepNote: (text, turnId, suggestion) =>
       writes.keep(text, turnId, suggestion?.id ?? null).then(
@@ -177,9 +184,10 @@ const NO_TURNS: readonly PersonalTurn[] = []
  * failed, so it can be asked again (usePersonalSpace).
  */
 function useRows(props: Props) {
-  const { space, writes, name } = props
-  const turns = space?.turns ?? NO_TURNS
-  const earlier = space?.earlier ?? false
+  const { space, writes, name, readBack, now } = props
+  const listed = space?.turns ?? NO_TURNS
+  const turns = useMemo(() => withReadBack(readBack.older, listed), [readBack.older, listed])
+  const earlier = readBack.more
   const loaded = !!space
   const rows = useMemo(
     () =>
@@ -188,12 +196,12 @@ function useRows(props: Props) {
             turns,
             sending: writes.sending,
             welcoming: writes.welcoming,
-            now: new Date(),
+            now,
             name,
-            fromTheStart: opensWithIntro(turns, earlier, new Date()),
+            fromTheStart: opensWithIntro(turns, earlier, now),
           })
         : [],
-    [loaded, turns, writes.sending, writes.welcoming, name, earlier],
+    [loaded, turns, writes.sending, writes.welcoming, name, earlier, now],
   )
   return { turns, rows }
 }
@@ -251,11 +259,11 @@ function useHeard(space: Space | undefined, turns: readonly PersonalTurn[], writ
 }
 
 /** The latest turn is in sight whenever the conversation grows: a turn, a message on its way, Sophia writing. */
-function useLatestInSight(list: RefObject<HTMLDivElement | null>, turns: number, sending: unknown, writing: boolean) {
+function useLatestInSight(list: RefObject<HTMLDivElement | null>, newest: number, sending: unknown, writing: boolean) {
   useEffect(() => {
     const box = list.current
     if (box) box.scrollTop = box.scrollHeight
-  }, [list, turns, sending, writing])
+  }, [list, newest, sending, writing])
 }
 
 /** Sending from the composer: how it went (SendOutcome); a failure is said, and the composer decides about the words. */
@@ -284,12 +292,12 @@ export function PersonalSpace(props: Props) {
   useWelcomeBack(props, turns)
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
-  useLatestInSight(list, turns.length, writes.sending, waiting)
-  const composer = (
+  useLatestInSight(list, turns.at(-1)?.seq ?? 0, writes.sending, waiting)
+  const composer = props.locked ? null : (
     <PersonalComposer
       // An erasure forgets the draft too: the composer starts afresh.
       key={writes.erasures}
-      {...{ account, hidden: props.hidden, busy: writes.sending !== null }}
+      {...{ account, epoch: space?.epoch, hidden: props.hidden, busy: writes.busy }}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={setListening}
       onSend={sender(writes, onFailed)}
@@ -310,7 +318,7 @@ export function PersonalSpace(props: Props) {
       <Head count={space?.notes.length} notes={notes} />
       <div className="c3-body" ref={body}>
         <Conversation
-          {...{ rows, turns, list, actions, composer, covered }}
+          {...{ rows, turns, list, actions, composer, covered, more: props.readBack.more }}
           notice={<ReadNotes reads={[props.read]} />}
           earlier={earlier.open}
           setEarlier={earlier.set}

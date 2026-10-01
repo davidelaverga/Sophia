@@ -477,7 +477,17 @@ their work. Keep these when you change them:
   field waits meanwhile. Every write but erasure names the epoch of the
   space as this page last read it (`epochNow`: the space or the Work list,
   the newer), and its retry names the same one, so nothing sent before an
-  erasure lands after it. "Join the room"
+  erasure lands after it. The field follows the one draft the device keeps:
+  another tab's change at once, and an erasure anywhere (it moves the epoch;
+  also one whose answer was lost) takes the words written before it.
+  A long conversation reads back from the Earlier days menu ("Show earlier
+  days"); turns that leave the space's window as new ones come stay with
+  what was read. Your data's days are the server's count, over the whole
+  conversation, in this device's time zone (UTC where the server doesn't
+  know it). While the padlock is shut the field is off the page and the
+  page keeps none of the space's words: neither a message on its way nor
+  what was read back (the device keeps the draft). The conversation's days
+  follow the clock: past midnight, Today becomes Yesterday. "Join the room"
   from Work asks to join on that opening only (`joinStands`, with tests):
   leaving before the room could join drops it.
 - **Words from the view modules.** `places-view.ts`, `conversation-view.ts`,

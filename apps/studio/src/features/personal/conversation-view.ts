@@ -198,6 +198,28 @@ export function welcomeDue(turns: readonly PersonalTurn[], now: Date): boolean {
   return !greeting && now.getTime() - new Date(last.createdAt).getTime() > 3_600_000
 }
 
+/** The conversation shown: what was read back (only what comes before the window the space lists), then the window. */
+export function withReadBack(older: readonly PersonalTurn[], listed: readonly PersonalTurn[]): readonly PersonalTurn[] {
+  const first = listed[0]?.seq ?? Number.POSITIVE_INFINITY
+  const before = older.filter((t) => t.seq < first)
+  return before.length === 0 ? listed : [...before, ...listed]
+}
+
+/**
+ * Once the person has read back, turns that leave the window as new ones come stay with what was read, in order and
+ * once, so nothing read goes missing between the two. The same array when none left.
+ */
+export function keptOnReadBack(
+  read: readonly PersonalTurn[],
+  before: readonly PersonalTurn[],
+  after: readonly PersonalTurn[],
+): readonly PersonalTurn[] {
+  const first = after[0]?.seq ?? Number.POSITIVE_INFINITY
+  const have = new Set(read.map((t) => t.seq))
+  const left = before.filter((t) => t.seq < first && !have.has(t.seq))
+  return left.length === 0 ? read : [...read, ...left].toSorted((a, b) => a.seq - b.seq)
+}
+
 /** The days of the conversation for the "earlier" menu: each day and what the person talked about in it. */
 export function daysOf(rows: readonly Row[]): Array<{ key: string; label: string; topics: string }> {
   const days: Array<{ key: string; label: string; topics: string[] }> = []

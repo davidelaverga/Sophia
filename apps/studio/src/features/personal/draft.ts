@@ -2,7 +2,7 @@
 // tab loses nothing. It belongs to the account signed in (accountOf): signing out forgets every draft on this device,
 // and erasing the personal space forgets theirs.
 const PREFIX = 'sophia.personal.draft.v1.'
-const draftKey = (account: string) => `${PREFIX}${account}`
+export const draftKey = (account: string) => `${PREFIX}${account}`
 
 export function readDraft(account: string): string {
   try {

@@ -11,6 +11,8 @@ import {
   opensWithIntro,
   topicOf,
   type ConversationInput,
+  withReadBack,
+  keptOnReadBack,
 } from './conversation-view.ts'
 
 const NOW = new Date(2026, 8, 30, 21, 0)
@@ -193,5 +195,31 @@ describe('a conversation that starts again', () => {
     const first = turn('person', 'Starting again', at(0, 20), { seq: 7 })
     assert.equal(opensWithIntro([first], false, NOW), true)
     assert.equal(opensWithIntro([first], true, NOW), false, 'not when earlier turns exist')
+  })
+})
+
+describe('a long conversation read back', () => {
+  const run = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => ({
+      ...turn('person', `Turn ${from + i}`, at(0, 9)),
+      seq: from + i,
+    }))
+
+  it('shows what was read back before the window the space lists, once', () => {
+    const window = run(501, 1000)
+    assert.equal(withReadBack([], window), window, 'nothing read back: the window as it is')
+    const shown = withReadBack(run(401, 500), window)
+    assert.deepEqual([shown.length, shown[0]?.seq, shown.at(-1)?.seq], [600, 401, 1000])
+    assert.equal(withReadBack(run(401, 520), window).length, 600, 'what the window lists is shown once')
+  })
+
+  it('keeps what leaves the window as new turns come, so nothing read goes missing', () => {
+    const read = run(401, 500)
+    const before = run(501, 1000)
+    const after = run(511, 1010)
+    const kept = keptOnReadBack(read, before, after)
+    assert.deepEqual([kept.length, kept[0]?.seq, kept.at(-1)?.seq], [110, 401, 510])
+    assert.equal(keptOnReadBack(read, before, before), read, 'nothing left the window: the same turns')
+    assert.equal(withReadBack(kept, after).length, 610)
   })
 })

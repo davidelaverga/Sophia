@@ -23,7 +23,14 @@ import { PersonalSpace } from './PersonalSpace.tsx'
 import { dateLine, firstName, greeting, PLACE_TITLE, READ_FAILED, readState, workDoor, youDoor } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
-import { usePersonalSpace, usePersonalWrites, useProjects, type PersonalWrites } from './usePersonal.ts'
+import {
+  usePersonalSpace,
+  usePersonalWrites,
+  useProjects,
+  useReadBack,
+  type PersonalWrites,
+  type ReadBack,
+} from './usePersonal.ts'
 import { usePlaceMotion } from './usePlaceMotion.ts'
 import { WorkSpace } from './WorkSpace.tsx'
 import { personalFailure } from './write-words.ts'
@@ -316,6 +323,8 @@ interface View {
   space: ReturnType<typeof usePersonalSpace>
   /** What the places may show of the space: nothing while it is locked, not even what was read before it shut. */
   personal: Space | undefined
+  /** A long conversation read back, before what the space lists. */
+  readBack: ReadBack
   projects: ReturnType<typeof useProjects>
   writes: PersonalWrites
   shown: readonly Place[]
@@ -369,9 +378,12 @@ function Personal({ v }: { v: View }) {
   return (
     <PersonalSpace
       hidden={!v.shown.includes('personal') || props.lock.locked}
+      locked={props.lock.locked}
+      now={v.now}
       account={accountOf(props.identity)}
       name={firstName(props.identity)}
       space={v.personal}
+      readBack={v.readBack}
       read={personalRead(v)}
       projects={v.projects.data?.projects}
       writes={v.writes}
@@ -507,8 +519,9 @@ export function Places(props: PlacesProps) {
     layers,
     space,
     personal: lock.locked ? undefined : space.data,
+    readBack: useReadBack(identity, lock.locked ? undefined : space.data),
     projects: useProjects(identity),
-    writes: usePersonalWrites(identity),
+    writes: usePersonalWrites(identity, lock.locked),
     shown: usePlaceMotion(place, root),
     nav,
     carried: useCarried(place),

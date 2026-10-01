@@ -189,7 +189,8 @@ describe('your data', () => {
         },
       ],
     }
-    assert.deepEqual(factsOf(everything), { days: 2, notes: 1, carried: 1 })
+    // Days are the server's count over the whole conversation (a long one lists only its newest turns).
+    assert.deepEqual(factsOf({ ...everything, days: 31 }), { days: 31, notes: 1, carried: 1 })
     const text = exportText(everything, 'Ana', NOW)
     assert.match(text, /^Ana · personal space with Sophia\n\nNotes:\n- Take a day off/)
     assert.match(text, /Carried to projects:\n- Ask Luis \(Launch plan\)/)

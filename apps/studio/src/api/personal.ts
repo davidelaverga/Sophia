@@ -4,6 +4,7 @@
 // is made against: one from before an erasure is refused (request_erased). Receipts carry ids; read the space again
 // for words.
 import type {
+  PersonalEarlierTurns,
   PersonalExport,
   PersonalNoteRequest,
   PersonalReceipt,
@@ -12,6 +13,7 @@ import type {
   ProjectList,
 } from '@sophia/contracts'
 import {
+  parsePersonalEarlierTurns,
   parsePersonalExport,
   parsePersonalReceipt,
   parsePersonalSpace,
@@ -41,8 +43,17 @@ const write = (
     parsePersonalReceipt,
   )
 
-export const getPersonalSpace = (token: string): Promise<PersonalSpace> =>
-  read(token, '/api/v1/personal', parsePersonalSpace)
+/** The space, its `days` counted in `timeZone` (an IANA name; UTC without one). */
+export const getPersonalSpace = (token: string, timeZone: string | null): Promise<PersonalSpace> =>
+  read(
+    token,
+    timeZone ? `/api/v1/personal?timeZone=${encodeURIComponent(timeZone)}` : '/api/v1/personal',
+    parsePersonalSpace,
+  )
+
+/** A long conversation read back: the page of turns before `before` (a seq), and whether earlier ones exist. */
+export const getEarlierPersonalTurns = (token: string, before: number): Promise<PersonalEarlierTurns> =>
+  read(token, `/api/v1/personal/turns/earlier?before=${String(before)}`, parsePersonalEarlierTurns)
 
 /** What a client waiting for Sophia polls: turns after `after`, and whether a reply is still pending. */
 export const getPersonalTurns = (token: string, after: number): Promise<PersonalTurnPage> =>

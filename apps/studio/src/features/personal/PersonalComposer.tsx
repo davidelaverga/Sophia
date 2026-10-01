@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
-import { draftToStore, readDraft, restoredDraft, writeDraft } from './draft.ts'
+import { draftKey, draftToStore, readDraft, restoredDraft, writeDraft } from './draft.ts'
 import type { Unsent } from './write-words.ts'
 
 const KEPT = 'Draft kept on this device'
@@ -29,14 +29,48 @@ const PLACEHOLDER: Record<ComposerState, string> = {
   unavailable: 'Sophia can’t answer here yet',
 }
 
+/**
+ * The field follows the one draft this device keeps: another tab's change (a send there, an erasure there) at once; and
+ * an erasure anywhere (another device, or one whose answer was lost) moves the space's epoch, which takes the words
+ * written before it from the field and from this device.
+ */
+function useDraftFollows(account: string, epoch: number | undefined, adopt: (value: string) => void) {
+  const follow = useRef(adopt)
+  useEffect(() => {
+    follow.current = adopt
+  })
+  useEffect(() => {
+    const key = draftKey(account)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key || e.key === null) follow.current(readDraft(account))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [account])
+  const seen = useRef(epoch)
+  useEffect(() => {
+    const was = seen.current
+    if (epoch === undefined) return
+    seen.current = epoch
+    if (was === undefined || epoch <= was) return
+    writeDraft(account, '')
+    follow.current('')
+  }, [account, epoch])
+}
+
 /** The draft, kept on this device as it is written, and the line above the field that says where it came from. */
-function useDraft(account: string) {
+function useDraft(account: string, epoch: number | undefined) {
   const [text, setText] = useState(() => readDraft(account))
   const [note, setNote] = useState(() => (readDraft(account) ? KEPT : ''))
   // What the field holds now, for words that come back after a send that waited (restoredDraft).
   const latest = useRef(text)
   // Words on their way: the device keeps them ahead of anything typed meanwhile until they are sent (draftToStore).
   const sending = useRef<string | null>(null)
+  useDraftFollows(account, epoch, (value) => {
+    latest.current = value
+    setText(value)
+    setNote('')
+  })
   const change = (value: string, why = value ? KEPT : '') => {
     latest.current = value
     setText(value)
@@ -137,6 +171,8 @@ function Field({ field, text, state, onChange, onSend }: FieldProps) {
 interface Props {
   /** Whose draft this is (accountOf). */
   account: string
+  /** The space's epoch as read (undefined until it has loaded): an erasure anywhere moves it. */
+  epoch: number | undefined
   /** The space is out of sight (a lock, another place): dictation stops, and a start still waiting is called off. */
   hidden: boolean
   state: ComposerState
@@ -166,8 +202,8 @@ function useSend(draft: ReturnType<typeof useDraft>, ready: boolean, busy: boole
   }
 }
 
-export function PersonalComposer({ account, hidden, state, busy, onSend, onListening }: Props) {
-  const draft = useDraft(account)
+export function PersonalComposer({ account, epoch, hidden, state, busy, onSend, onListening }: Props) {
+  const draft = useDraft(account, epoch)
   const { text, note, change } = draft
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useDictation((heard) => {
