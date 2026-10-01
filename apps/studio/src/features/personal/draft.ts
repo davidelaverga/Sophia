@@ -168,20 +168,25 @@ export function forgetDraft(account: string): void {
 type Store = Pick<Storage, 'length' | 'key' | 'removeItem'>
 
 /**
- * Signing out: no draft of anyone's stays on this device. Storage is reached inside the guard: where even reaching it
- * throws (storage blocked), nothing was kept, and signing out goes on.
+ * The device keeps only the draft of `account`, the one signed in; with nobody signed in (null), no draft of anyone's
+ * stays. Storage is reached inside the guard: where even reaching it throws (storage blocked), nothing was kept, and
+ * signing out goes on.
  */
-export function forgetDrafts(given?: Store): void {
+export function draftsOnlyOf(account: string | null, given?: Store): void {
   try {
     const store = given ?? localStorage
+    const kept = account === null ? null : draftKey(account)
     for (let i = store.length - 1; i >= 0; i -= 1) {
       const key = store.key(i)
-      if (key?.startsWith(FAMILY)) store.removeItem(key)
+      if (key?.startsWith(FAMILY) && key !== kept) store.removeItem(key)
     }
   } catch {
     // storage unavailable: nothing was kept
   }
 }
+
+/** Signing out: no draft of anyone's stays on this device. */
+export const forgetDrafts = (given?: Store): void => draftsOnlyOf(null, given)
 
 /** Words that didn't go come back ahead of anything written meanwhile, so nothing typed is lost. */
 export const restoredDraft = (words: string, current: string): string =>

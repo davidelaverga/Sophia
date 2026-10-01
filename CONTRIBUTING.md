@@ -525,12 +525,13 @@ their work. Keep these when you change them:
   when the send failed ("Not sent") or got no answer ("Not confirmed: check
   the conversation"), never when the space was erased (`request_erased`) or
   the field went with a sign-out (`restoredDraft`, `unsent`, with tests).
-  The drafts belong to the account signed in: signing out forgets them at
-  once, and they go again once the account is gone, however it goes
-  (signed out here or in another tab, a session that ended, a provider's
-  return refused) or another is chosen (`useForgetDraftsWhenGone`), so
-  nothing written meanwhile stays; a page that loads signed in keeps them;
-  erasing forgets the draft as soon as it is confirmed, before the space is
+  The device keeps only the draft of the account signed in (`draftsOnlyOf`,
+  with tests): once the app knows who that is, anyone else's goes, and all
+  go once it knows nobody is (signed out here or in another tab, a session
+  that ended, also while the page was closed, a provider's return
+  refused). Signing out forgets them at once and again once it has
+  settled, also when it failed (`signOutForgetting`, with tests), so
+  nothing written meanwhile stays; erasing forgets the draft as soon as it is confirmed, before the space is
   read afresh (`draft.ts`). One message is on its way at a time, from the
   field or a way to start (`OnItsWay`), and from any tab of the device: a
   send holds the browser's lock across tabs until it settles

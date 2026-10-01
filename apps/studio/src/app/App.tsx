@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import { forgetDrafts } from '../features/personal/draft.ts'
+import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { callEnded, NOTICE } from '../features/personal/notice-view.ts'
 import { Places, type Opening } from '../features/personal/Places.tsx'
 import type { InCall } from '../features/personal/PlacesBar.tsx'
@@ -9,10 +9,11 @@ import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
-import { useAuth } from './auth.ts'
+import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { joinStands, opensJoinPage, projectOnScreen } from './route.ts'
 import { ShortcutScope } from './shortcuts.ts'
+import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import { useProjectRoute } from './useProjectRoute.ts'
@@ -22,17 +23,22 @@ const queryClient = new QueryClient()
 // Invitation links are a separate door: their page loads only when someone opens one.
 const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) => ({ default: m.JoinFlow })))
 
+/** Whose draft the device keeps: the account signed in's; nobody's once signed out; not decided while loading. */
+function draftsKeptFor(state: AuthState): string | null | undefined {
+  if (state.status === 'signed_in') return accountOf(state.identity)
+  return state.status === 'signed_out' ? null : undefined
+}
+
 /**
- * The drafts on this device belong to the account signed in: once it goes, however (signed out here or in another tab,
- * a session that ended, a provider's return refused), or another is chosen, they go too, also what was written while
- * a sign-out was on its way. A page that loads signed in keeps them.
+ * The device keeps only the draft of the account signed in: once the app knows who that is, anyone else's goes, and
+ * all go once it knows nobody is (signed out here or in another tab, a session that ended, also while the page was
+ * closed, a provider's return refused). While it is still finding out, nothing goes.
  */
-function useForgetDraftsWhenGone(signedInAs: string | null) {
-  const was = useRef<string | null>(null)
+function useDraftsOnlyOfWhoIsIn(state: AuthState) {
+  const who = draftsKeptFor(state)
   useEffect(() => {
-    if (was.current !== null && was.current !== signedInAs) forgetDrafts()
-    was.current = signedInAs
-  }, [signedInAs])
+    if (who !== undefined) draftsOnlyOf(who)
+  }, [who])
 }
 
 export function App() {
@@ -41,7 +47,7 @@ export function App() {
   // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
   const signedInAs = state.status === 'signed_in' ? state.identity.name : null
   useEffect(() => () => queryClient.clear(), [signedInAs])
-  useForgetDraftsWhenGone(signedInAs)
+  useDraftsOnlyOfWhoIsIn(state)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -51,8 +57,7 @@ export function App() {
   // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
     queryClient.clear()
-    forgetDrafts()
-    void signOut()
+    void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
   }
 
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question

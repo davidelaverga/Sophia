@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   afterSent,
+  draftKey,
   draftOf,
+  draftsOnlyOf,
   forgetDrafts,
   goingOut,
   keptAs,
@@ -41,6 +43,12 @@ describe('drafts on this device', () => {
     ])
     forgetDrafts(s)
     assert.deepEqual(s.held, ['sophia.mic.v1', 'sophia.personal.lock.v1.ana@sophia.test'])
+  })
+
+  it('keep only the one of the account signed in: anyone else’s go', () => {
+    const s = store([draftKey('ana'), draftKey('ben'), 'sophia.personal.draft.v1.ana', 'sophia.mic.v1'])
+    draftsOnlyOf('ana', s)
+    assert.deepEqual(s.held, [draftKey('ana'), 'sophia.mic.v1'])
   })
 })
 
