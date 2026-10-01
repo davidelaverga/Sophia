@@ -35,7 +35,7 @@ import {
   takeBackPersonalRelease,
   withActor,
 } from '@sophia/persistence'
-import type { CompanionRunner } from '../companion.ts'
+import { stoppedEverywhere, type CompanionRunner } from '../companion.ts'
 import { idempotencyHeader, UUID_PATTERN } from './schemas.ts'
 
 interface Deps {
@@ -287,7 +287,7 @@ function noteRoutes(app: FastifyInstance, { pool }: Deps): void {
   )
 }
 
-function crossingRoutes(app: FastifyInstance, { pool }: Deps): void {
+function crossingRoutes(app: FastifyInstance, { pool, companion }: Deps): void {
   // A carried note is attributed to the name the person shows (their token's), never to an id or to request input.
   app.post<{ Params: { noteId: string }; Headers: Fenced; Body: PersonalCarryRequest }>(
     '/api/v1/personal/notes/:noteId/carry',
@@ -320,6 +320,8 @@ function crossingRoutes(app: FastifyInstance, { pool }: Deps): void {
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
         erasePersonalSpace(c, req.headers['idempotency-key'], req.body.confirm),
       )
+      // Acknowledged once nothing of the space is being answered, in any process.
+      await stoppedEverywhere(pool, req.actorId, companion)
       return reply.status(202).send(receipt)
     },
   )

@@ -21,7 +21,7 @@ import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 import { rehearsalCompanion } from './companion-rehearsal.ts'
-import { ANSWER_LIMIT_MS, CompanionRunner } from './companion.ts'
+import { ANSWER_LIMIT_MS, CompanionRunner, WATCH_MS } from './companion.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -382,6 +382,111 @@ describe('a welcome the companion could not write', () => {
     const welcome = await runner.greet(BACK, k, 0, null)
     assert.ok(welcome.turnId, 'the same request asked again, and wrote it')
     assert.equal(asked, 2)
+  })
+})
+
+/** A companion that answers only once told to stop, and stops 200 ms later. */
+function holding() {
+  const seen = { asked: Promise.withResolvers<void>(), stopped: 0, settled: 0 }
+  const waits = (signal: AbortSignal) => {
+    seen.asked.resolve()
+    return new Promise<never>((_, reject) => {
+      signal.addEventListener('abort', () => {
+        seen.stopped += 1
+        setTimeout(() => {
+          seen.settled += 1
+          reject(new Error('Stopped'))
+        }, 200)
+      })
+    })
+  }
+  const companion = {
+    mode: 'rehearsal' as const,
+    answer: (_context: unknown, signal: AbortSignal) => waits(signal),
+    greet: (_context: unknown, _name: string | null, signal: AbortSignal) => waits(signal),
+  }
+  return { seen, companion }
+}
+
+describe('an erasure while the companion answers', () => {
+  it('is acknowledged once this process’s call to the companion stopped', async () => {
+    const HERE = randomUUID()
+    const { seen, companion } = holding()
+    const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
+    const busy = buildApp({ pool, verifyActor, companion })
+    await busy.listen({ port: 0, host: '127.0.0.1' })
+    const at = `http://127.0.0.1:${String((busy.server.address() as AddressInfo).port)}`
+    try {
+      const sent = await call('/api/v1/personal/turns', {
+        as: HERE,
+        body: { text: 'Take your time' },
+        key: randomUUID(),
+        epoch: 0,
+        at,
+      })
+      assert.equal(sent.status, 202)
+      await seen.asked.promise
+      const asked = Date.now()
+      const erased = await call('/api/v1/personal/erasure', {
+        as: HERE,
+        body: { confirm: 'delete' },
+        key: randomUUID(),
+        at,
+      })
+      assert.equal(erased.status, 202)
+      assert.deepEqual(
+        [seen.stopped, seen.settled],
+        [1, 1],
+        'told to stop, and stopped, before the erasure was acknowledged',
+      )
+      assert.ok(Date.now() - asked < WATCH_MS, 'told at once, not on its next look at its claim')
+    } finally {
+      await busy.close()
+    }
+  })
+
+  it('tells another process’s call to stop, and is acknowledged once it stopped', async () => {
+    const THERE = randomUUID()
+    const { seen, companion } = holding()
+    // Another API process answers this person: its own runner, which watches its claim every 200 ms.
+    const elsewhere = new CompanionRunner(pool, companion, () => undefined, ANSWER_LIMIT_MS, 200)
+    const sent = await withActor(pool, THERE, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Answer from there'))
+    const answering = elsewhere.answer(THERE, sent.turnId ?? '')
+    await seen.asked.promise
+    const asked = Date.now()
+    await write('/api/v1/personal/erasure', THERE, { confirm: 'delete' })
+    assert.deepEqual(
+      [seen.stopped, seen.settled],
+      [1, 1],
+      'the call elsewhere had stopped when the erasure was acknowledged',
+    )
+    assert.ok(Date.now() - asked < WATCH_MS, 'told on its next look at its claim, not at its time limit')
+    await answering
+  })
+
+  it('tells a welcome being written elsewhere to stop, too', async () => {
+    const BACK = randomUUID()
+    const { seen, companion } = holding()
+    const quick = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Noted.', suggestion: null }),
+      greet: () => Promise.resolve('Welcome back.'),
+    }
+    const sent = await withActor(pool, BACK, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
+    await new CompanionRunner(pool, quick, () => undefined).answer(BACK, sent.turnId ?? '')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [BACK])
+    const elsewhere = new CompanionRunner(pool, companion, () => undefined, ANSWER_LIMIT_MS, 200)
+    const greeting = elsewhere.greet(BACK, randomUUID(), 0, null).catch(() => null)
+    await seen.asked.promise
+    const asked = Date.now()
+    await write('/api/v1/personal/erasure', BACK, { confirm: 'delete' })
+    assert.deepEqual(
+      [seen.stopped, seen.settled],
+      [1, 1],
+      'the welcome elsewhere had stopped when the erasure was acknowledged',
+    )
+    assert.ok(Date.now() - asked < WATCH_MS, 'told on its next look at its claim, not at its time limit')
+    assert.equal(await greeting, null, 'and it wrote nothing')
   })
 })
 

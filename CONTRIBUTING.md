@@ -409,10 +409,15 @@ either:
   its claim go, only once the call has stopped. The welcome's write is
   fenced to the request's epoch too: an erasure meanwhile refuses it. What
   the companion answers or welcomes from is read only under the claim that
-  holds it, renewing its lease as it goes, so a stalled attempt asks nothing
-  and nobody takes the claim over while the companion answers; a reply
-  reads as lost two minutes after it was asked for or last claimed,
-  whichever is later.
+  holds it, renewing its lease as it goes and every few seconds while the
+  companion answers (`WATCH_MS`), so a stalled attempt asks nothing and
+  nobody takes the claim over meanwhile; a reply reads as lost two minutes
+  after it was asked for or last claimed, whichever is later. A call is
+  known to every API process while it runs (`begin_companion_call`): an
+  erasure tells this process's calls for the person to stop, every other
+  process stops its own once it finds its claim gone, and the erasure is
+  acknowledged only once none is in flight anywhere (`stoppedEverywhere`,
+  at most 65 seconds).
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole

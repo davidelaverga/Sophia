@@ -411,6 +411,36 @@ export async function recordPersonalGreeting(
   return greeting(onlyRow(rows, 'record_personal_greeting').receipt)
 }
 
+/** Whether this process still holds the turn's claim, renewing it: a call to the companion watches it (0021). */
+export async function renewPersonalReply(c: pg.PoolClient, turnId: string, claim: string): Promise<boolean> {
+  const { rows } = await c.query<{ held: boolean }>('SELECT sophia.renew_personal_reply($1, $2) AS held', [
+    turnId,
+    claim,
+  ])
+  return onlyRow(rows, 'renew_personal_reply').held
+}
+
+/** Whether this attempt still holds the welcome's claim, renewing it: a call to the companion watches it (0021). */
+export async function renewPersonalGreeting(c: pg.PoolClient, claim: string): Promise<boolean> {
+  const { rows } = await c.query<{ held: boolean }>('SELECT sophia.renew_personal_greeting($1) AS held', [claim])
+  return onlyRow(rows, 'renew_personal_greeting').held
+}
+
+/** A call to the companion begins (an erasure anywhere waits for it to end): an id, nothing of the words. */
+export async function beginCompanionCall(c: pg.PoolClient, callId: string): Promise<void> {
+  await c.query('SELECT sophia.begin_companion_call($1)', [callId])
+}
+
+export async function endCompanionCall(c: pg.PoolClient, callId: string): Promise<void> {
+  await c.query('SELECT sophia.end_companion_call($1)', [callId])
+}
+
+/** How many of the caller's calls to the companion are in flight, whichever process makes them. */
+export async function companionCallsRunning(c: pg.PoolClient): Promise<number> {
+  const { rows } = await c.query<{ running: number }>('SELECT sophia.companion_calls_running() AS running')
+  return onlyRow(rows, 'companion_calls_running').running
+}
+
 /** The companion couldn't write the welcome: its claim goes, so the same request may ask again at once. */
 export async function releasePersonalGreeting(c: pg.PoolClient, claim: string): Promise<void> {
   await c.query('SELECT sophia.release_personal_greeting($1)', [claim])

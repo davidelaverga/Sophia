@@ -113,6 +113,16 @@ CREATE TABLE sophia.personal_greeting_claims (
  claimed_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- The calls to the companion in flight for a person, whichever API process makes them, so an erasure is acknowledged
+-- only once none is left (each call watches its claim and stops once an erasure takes it). A call has 60 s; a row
+-- older than two minutes is a process that went away mid-call. No words: an id and a time.
+CREATE TABLE sophia.personal_companion_calls (
+ owner_id uuid NOT NULL,
+ call_id uuid NOT NULL,
+ started_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(owner_id,call_id)
+);
+
 -- Idempotency for every personal write: per owner and key, the operation, a digest of the request and its receipt.
 CREATE TABLE sophia.personal_requests (
  owner_id uuid NOT NULL, idempotency_key text NOT NULL CHECK(length(idempotency_key) BETWEEN 1 AND 160),
@@ -133,6 +143,7 @@ CREATE POLICY owner_or_member_read ON sophia.personal_releases FOR SELECT TO sop
  USING(owner_id=sophia.actor_id() OR sophia.is_member(project_id));
 ALTER TABLE sophia.personal_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.personal_greeting_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sophia.personal_companion_calls ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON sophia.personal_spaces, sophia.personal_turns, sophia.personal_suggestions, sophia.personal_notes,
  sophia.personal_releases TO sophia_api;
 -- No write grant on any of these tables, and none to the worker: the functions below are the only writers.
@@ -409,9 +420,10 @@ BEGIN
  UPDATE sophia.personal_greeting_claims SET claim=NULL WHERE owner_id=sophia.personal_owner() AND claim=p_claim;
 END $$;
 
--- An attempt about to hand what to answer from to the companion renews its claim's lease, and goes on only while it
--- holds the claim: so no other attempt takes the claim over while the companion answers (it has 60 s; a lease, two
--- minutes), and only one attempt asks. For a reply (renew_personal_reply) and a welcome (renew_personal_greeting).
+-- An attempt renews its claim's lease as it hands what to answer from to the companion, and every few seconds while the
+-- companion answers, and goes on only while it holds the claim: so no other attempt takes the claim over meanwhile (the
+-- companion has 60 s; a lease, two minutes), only one attempt asks, and one whose claim went (an erasure took it) is told
+-- to stop. For a reply (renew_personal_reply) and a welcome (renew_personal_greeting).
 CREATE FUNCTION sophia.renew_personal_reply(p_turn uuid, p_claim uuid) RETURNS boolean LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 BEGIN
@@ -426,6 +438,23 @@ BEGIN
  UPDATE sophia.personal_greeting_claims SET claimed_at=now() WHERE owner_id=sophia.personal_owner() AND claim=p_claim;
  RETURN FOUND;
 END $$;
+
+-- A call to the companion begins (clearing the caller's calls a process that went away left behind) and ends;
+-- companion_calls_running says how many of the caller's are in flight, in any process, for an erasure to wait on.
+CREATE FUNCTION sophia.begin_companion_call(p_call uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ DELETE FROM sophia.personal_companion_calls
+  WHERE owner_id=sophia.personal_owner() AND started_at<=now()-interval '2 minutes';
+ INSERT INTO sophia.personal_companion_calls(owner_id,call_id) VALUES(sophia.personal_owner(),p_call) $$;
+
+CREATE FUNCTION sophia.end_companion_call(p_call uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ DELETE FROM sophia.personal_companion_calls WHERE owner_id=sophia.personal_owner() AND call_id=p_call $$;
+
+CREATE FUNCTION sophia.companion_calls_running() RETURNS integer LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT count(*)::integer FROM sophia.personal_companion_calls
+  WHERE owner_id=sophia.personal_owner() AND started_at>now()-interval '2 minutes' $$;
 
 -- The API process about to ask the companion claims the pending turn first: its claim, which the reply or the failure
 -- must carry, or NULL when another process is answering it (a retry reached another process, a restart). A claim
@@ -651,6 +680,7 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
+ sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.companion_calls_running(),
  sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
@@ -659,6 +689,7 @@ REVOKE ALL ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_repl
  sophia.forget_personal_note(text,uuid), sophia.carry_personal_note(text,uuid,uuid,text),
  sophia.take_back_personal_release(text,uuid), sophia.erase_personal_space(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.personal_fence(bigint), sophia.renew_personal_reply(uuid,uuid), sophia.renew_personal_greeting(uuid),
+ sophia.begin_companion_call(uuid), sophia.end_companion_call(uuid), sophia.companion_calls_running(),
  sophia.send_personal_turn(text,text,boolean), sophia.record_personal_reply(uuid,uuid,text,text),
  sophia.claim_personal_reply(uuid), sophia.begin_personal_greeting(text,text,boolean), sophia.release_personal_greeting(uuid),
  sophia.fail_personal_reply(uuid,uuid), sophia.retry_personal_turn(text,uuid,boolean),
