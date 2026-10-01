@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "dfb91d6",
+  "candidate_commit": "29bb825",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {

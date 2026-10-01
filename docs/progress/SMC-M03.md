@@ -49,6 +49,12 @@ All recorded in plan §8. D1–D10 decided on 2026-09-30, with D1 raised to **$5
 | SMC-M03-OP-0001 | read only | [CC-0001](../coordination/SMC-M03/SMC-M03-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0001 on #31 and act within its scope.` |
 | SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0002 on #31 and act within its scope.` |
 
+Cloud Codex review of #32 at `29bb825` (Davide's request, [comment](https://github.com/davidelaverga/Sophia/pull/32#issuecomment-5922653573)): verified by Claude.
+- The PR is not end to end yet. That is true, and by plan: it stays a draft until S7.
+- The mission state named the S1 part 1 commit. Fixed.
+- Three docs ended with a blank line (`git diff --check`). Fixed.
+- Its suites did not run there, because Node 24.21.0 and the dependency set were unavailable. CC-0002's test item stays open for the operator Codex.
+
 No hosted effect, deployment, migration, paid call or credential use happened in this attempt.
 
 ## 5. Luis's open work
@@ -82,4 +88,3 @@ Compatibility: every added property is omitted when it has no value, so an older
 | Report content | `GET /api/v1/sources/{id}/content?disposition=`: published report versions and their renditions only (never a candidate or a rejected version); inline text as text, stored bytes as a 120-second URL; `no-store`; not ready → 409; no store → 503 for stored bytes only | `sources.db.test.ts` 5/5 over HTTP, mutation-checked |
 | Knowledge | `GET /api/v1/knowledge/reports?project=<id>|all&format=&q=&cursor=` (cards, per-project counts, 30 per page) and `GET /api/v1/artifacts/{id}/versions` (published versions with notes) | `knowledge.db.test.ts` 5/5: <br>• isolation across projects (no card, count or name from another project); <br>• format and search; <br>• paging; <br>• no candidate version; <br>• guest refused |
 | Studio | Icons `download`, `expand`, `collapse` (L4); `api/artifacts.ts` for the three reads | typecheck |
-
