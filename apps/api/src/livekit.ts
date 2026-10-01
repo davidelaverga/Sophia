@@ -139,13 +139,15 @@ export async function roomParticipants(
 }
 
 /**
- * The rooms among `roomIds` that someone is in, by one question to the room server (it counts each room's
- * participants), so only those are asked who is in them. An unreachable server throws: callers fail closed.
+ * The rooms among `roomIds` that exist on the room server now, by one question: only those can have anyone in them, so
+ * only those are asked who is (roomParticipants). Their count of participants is not read: the server refreshes it
+ * only every few seconds, and someone who just joined would read as nobody. An unreachable server throws: callers
+ * fail closed.
  */
-export async function occupiedRooms(cfg: LiveKitConfig, roomIds: readonly string[]): Promise<Set<string>> {
+export async function liveRooms(cfg: LiveKitConfig, roomIds: readonly string[]): Promise<Set<string>> {
   if (roomIds.length === 0) return new Set()
   const rooms = await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).listRooms([...roomIds])
-  return new Set(rooms.filter((r) => r.numParticipants > 0).map((r) => r.name))
+  return new Set(rooms.map((r) => r.name))
 }
 
 /**

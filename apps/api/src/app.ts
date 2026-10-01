@@ -89,10 +89,11 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.personal_reply_state(text,timestamptz)') IS NOT NULL
   AND to_regprocedure('sophia.send_personal_turn(text,text)') IS NOT NULL
   AND to_regprocedure('sophia.retry_personal_turn(text,uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.record_personal_reply(uuid,text,text)') IS NOT NULL
-  AND to_regprocedure('sophia.fail_personal_reply(uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.record_personal_greeting(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.record_personal_reply(uuid,uuid,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.fail_personal_reply(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.record_personal_greeting(text,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.begin_personal_greeting(text)') IS NOT NULL
+  AND to_regprocedure('sophia.release_personal_greeting(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.claim_personal_reply(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.decide_personal_suggestion(text,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.keep_personal_note(text,text,uuid,uuid)') IS NOT NULL

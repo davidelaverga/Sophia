@@ -134,6 +134,7 @@ export {
   readWelcomeContext,
   recordPersonalGreeting,
   recordPersonalReply,
+  releasePersonalGreeting,
   retryPersonalTurn,
   sendPersonalTurn,
   takeBackPersonalRelease,

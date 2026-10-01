@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { ProjectCreate, ProjectSummary } from '@sophia/contracts'
 import { createProject, listProjects, withActor, type ProjectListing } from '@sophia/persistence'
-import { occupiedRooms, roomParticipants, type LiveKitConfig } from '../livekit.ts'
+import { liveRooms, roomParticipants, type LiveKitConfig } from '../livekit.ts'
 import { lookupAll } from '../presence.ts'
 import { idempotencyHeader } from './schemas.ts'
 
@@ -40,7 +40,7 @@ const roomNow = (livekit: LiveKitConfig, roomId: string, ms: number): Promise<Ro
   )
 
 /**
- * Every listed project's room, within ROOM_LOOKUP_MS in all: one question finds the rooms someone is in (the rest are
+ * Every listed project's room, within ROOM_LOOKUP_MS in all: one question finds the rooms that exist (the rest are
  * empty), and only those are asked who is in them, a few at a time (lookupAll). Unknown (null) when the room server
  * can't be asked in time.
  */
@@ -48,16 +48,16 @@ async function roomsNow(livekit: LiveKitConfig | undefined, listed: readonly Pro
   if (!livekit) return listed.map(() => null)
   const began = Date.now()
   const ids = listed.flatMap((p) => (p.roomId ? [p.roomId] : []))
-  const occupied = await orNull(occupiedRooms(livekit, ids), ROOM_LOOKUP_MS)
-  if (!occupied) return listed.map(() => null)
-  const asked = [...occupied]
+  const live = await orNull(liveRooms(livekit, ids), ROOM_LOOKUP_MS)
+  if (!live) return listed.map(() => null)
+  const asked = [...live]
   const found = await lookupAll(asked, LOOKUPS_AT_ONCE, ROOM_LOOKUP_MS - (Date.now() - began), (id, left) =>
     roomNow(livekit, id, left),
   )
   const byRoom = new Map(asked.map((id, i) => [id, found[i] ?? null]))
   return listed.map((p) => {
     if (!p.roomId) return null
-    return occupied.has(p.roomId) ? (byRoom.get(p.roomId) ?? null) : { people: [], sophia: false }
+    return live.has(p.roomId) ? (byRoom.get(p.roomId) ?? null) : { people: [], sophia: false }
   })
 }
 

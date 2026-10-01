@@ -267,36 +267,64 @@ export const erasePersonalSpace = (c: pg.PoolClient, key: string, confirm: strin
 export async function recordPersonalReply(
   c: pg.PoolClient,
   turnId: string,
+  claim: string,
   text: string,
   suggestion: string | null,
 ): Promise<void> {
-  await c.query('SELECT sophia.record_personal_reply($1, $2, $3)', [turnId, text, suggestion])
-}
-
-/** Whether this process may answer the pending turn: false while another process is answering it (0021). */
-export async function claimPersonalReply(c: pg.PoolClient, turnId: string): Promise<boolean> {
-  const { rows } = await c.query<{ claimed: boolean }>('SELECT sophia.claim_personal_reply($1) AS claimed', [turnId])
-  return onlyRow(rows, 'claim_personal_reply').claimed
+  await c.query('SELECT sophia.record_personal_reply($1, $2, $3, $4)', [turnId, claim, text, suggestion])
 }
 
 /**
- * A welcome back asked for under `key`: its receipt when the key has one, or nothing is due, or another request is
- * getting it; 'claimed' when this request may ask the companion (then recordPersonalGreeting under the same key).
+ * The claim under which this process may answer the pending turn, or null while another process is answering it. The
+ * reply or the failure is written only under it (0021).
  */
-export async function beginPersonalGreeting(c: pg.PoolClient, key: string): Promise<PersonalReceipt | 'claimed'> {
-  const { rows } = await c.query<{ receipt: PersonalReceipt | { claimed: true } }>(
+export async function claimPersonalReply(c: pg.PoolClient, turnId: string): Promise<string | null> {
+  const { rows } = await c.query<{ claim: string | null }>('SELECT sophia.claim_personal_reply($1) AS claim', [turnId])
+  return onlyRow(rows, 'claim_personal_reply').claim
+}
+
+/** What a welcome request writes or waits for: the key's receipt, or 'writing' while another attempt of it holds it. */
+type Greeting = PersonalReceipt | 'writing'
+
+const greeting = <T extends object>(answer: T | { writing: true }): T | 'writing' =>
+  'writing' in answer ? 'writing' : answer
+
+/**
+ * A welcome back asked for under `key`: its receipt when the key has one, or nothing is due, or another request is
+ * getting it; the claim to write it under when this request may ask the companion (then recordPersonalGreeting, or
+ * releasePersonalGreeting when it couldn't); 'writing' while an earlier attempt of the same request still is.
+ */
+export async function beginPersonalGreeting(c: pg.PoolClient, key: string): Promise<Greeting | { claim: string }> {
+  const { rows } = await c.query<{ receipt: PersonalReceipt | { claim: string } | { writing: true } }>(
     'SELECT sophia.begin_personal_greeting($1) AS receipt',
     [key],
   )
-  const answer = onlyRow(rows, 'begin_personal_greeting').receipt
-  return 'claimed' in answer ? 'claimed' : answer
+  return greeting(onlyRow(rows, 'begin_personal_greeting').receipt)
 }
 
-/** Sophia's welcome back under `key`; written only by the request holding the claim, while one is still due. */
-export const recordPersonalGreeting = (c: pg.PoolClient, key: string, text: string) =>
-  receipt(c, 'record_personal_greeting', 'SELECT sophia.record_personal_greeting($1, $2) AS receipt', [key, text])
+/**
+ * Sophia's welcome back under `key` and the claim the first step gave; written only while that claim holds and one is
+ * still due. 'writing' when a later attempt of the same request took the claim over: that one settles the key.
+ */
+export async function recordPersonalGreeting(
+  c: pg.PoolClient,
+  key: string,
+  claim: string,
+  text: string,
+): Promise<Greeting> {
+  const { rows } = await c.query<{ receipt: PersonalReceipt | { writing: true } }>(
+    'SELECT sophia.record_personal_greeting($1, $2, $3) AS receipt',
+    [key, claim, text],
+  )
+  return greeting(onlyRow(rows, 'record_personal_greeting').receipt)
+}
 
-/** The companion could not answer: the turn says so, and the person may ask again. */
-export async function failPersonalReply(c: pg.PoolClient, turnId: string): Promise<void> {
-  await c.query('SELECT sophia.fail_personal_reply($1)', [turnId])
+/** The companion couldn't write the welcome: its claim goes, so the same request may ask again at once. */
+export async function releasePersonalGreeting(c: pg.PoolClient, claim: string): Promise<void> {
+  await c.query('SELECT sophia.release_personal_greeting($1)', [claim])
+}
+
+/** The companion could not answer: the turn says so, under this process's claim, and the person may ask again. */
+export async function failPersonalReply(c: pg.PoolClient, turnId: string, claim: string): Promise<void> {
+  await c.query('SELECT sophia.fail_personal_reply($1, $2)', [turnId, claim])
 }

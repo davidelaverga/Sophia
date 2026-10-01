@@ -14,6 +14,7 @@ import {
   parsePersonalTurnPage,
   parseProjectList,
 } from '@sophia/contracts/validate'
+import { DomainError } from '@sophia/domain'
 import { createPool, sendPersonalTurn, withActor } from '@sophia/persistence'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
@@ -263,6 +264,35 @@ describe('a companion that fails', () => {
     } finally {
       await loud.close()
     }
+  })
+})
+
+describe('a welcome the companion could not write', () => {
+  it('answers outcome_unknown, and the same request asks again', async () => {
+    const BACK = randomUUID()
+    let asked = 0
+    const once = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Noted.', suggestion: null }),
+      greet: () => {
+        asked += 1
+        return asked === 1 ? Promise.reject(new Error('The model was busy')) : Promise.resolve('Welcome back.')
+      },
+    }
+    const runner = new CompanionRunner(pool, once, () => undefined)
+    const sent = await withActor(pool, BACK, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
+    await runner.answer(BACK, sent.turnId ?? '')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [BACK])
+    const k = randomUUID()
+    const failure: unknown = await runner.greet(BACK, k, null).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    assert.ok(failure instanceof DomainError)
+    assert.deepEqual([failure.code, failure.retry], ['outcome_unknown', 'same_admission_key'])
+    const welcome = await runner.greet(BACK, k, null)
+    assert.ok(welcome.turnId, 'the same request asked again, and wrote it')
+    assert.equal(asked, 2)
   })
 })
 

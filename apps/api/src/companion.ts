@@ -16,6 +16,7 @@ import {
   readWelcomeContext,
   recordPersonalGreeting,
   recordPersonalReply,
+  releasePersonalGreeting,
   withActor,
   type CompanionContext,
 } from '@sophia/persistence'
@@ -45,6 +46,9 @@ export function companionFailure(err: unknown): { name: string; code: string | n
 
 /** A welcome that couldn't be written: said in the Studio's words, with nothing of the companion's error in it. */
 const NO_WELCOME = 'Sophia couldn’t answer just now.'
+
+/** A welcome an earlier attempt of the same request is still writing. */
+const WELCOME_WRITING = 'Sophia is still writing her welcome.'
 
 /** How long one answer may take before the turn says it failed (the person can ask again). */
 export const ANSWER_LIMIT_MS = 60_000
@@ -88,39 +92,58 @@ export class CompanionRunner {
   }
 
   /**
-   * Welcome the person back under the request's key, if a welcome is due and this request holds its claim (the
-   * database decides, and decides again when writing it): the companion is asked only then, by one process. A failure
-   * writes nothing, and the conversation simply goes on without one.
+   * Welcome the person back under the request's key, if a welcome is due and this attempt holds its claim (the
+   * database decides, and decides again when writing it): the companion is asked only then, by one process. A welcome
+   * not written yet, because the companion failed (its claim goes) or an earlier attempt of the same request is still
+   * writing it, is outcome_unknown: the client asks again under the same key.
    */
   async greet(actorId: string, key: string, name: string | null): Promise<PersonalReceipt> {
     const begun = await withActor(this.pool, actorId, 'write', (c) => beginPersonalGreeting(c, key))
-    if (begun !== 'claimed') return begun
+    if (begun === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
+    if (!('claim' in begun)) return begun
+    const { claim } = begun
     const context = await withActor(this.pool, actorId, 'read', (c) => readWelcomeContext(c))
     // No longer due (a turn came meanwhile): nothing is written, and the key keeps that answer.
-    if (!context) return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, key, ''))
+    if (!context) return this.settle(actorId, key, claim, '')
     let text: string
     try {
       text = await withinLimit(this.companion.greet(context, name), this.limitMs)
     } catch (err: unknown) {
       this.onError(err)
-      throw new DomainError('unavailable', NO_WELCOME) // no cause: the error handler logs nothing of the companion's
+      await withActor(this.pool, actorId, 'write', (c) => releasePersonalGreeting(c, claim)).catch(() => undefined)
+      throw new DomainError('outcome_unknown', NO_WELCOME) // no cause: the error handler logs nothing of the companion's
     }
-    return withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, key, text))
+    return this.settle(actorId, key, claim, text)
+  }
+
+  /** The welcome (or nothing) under the attempt's claim; a later attempt of the request that took it over settles it. */
+  private async settle(actorId: string, key: string, claim: string, text: string): Promise<PersonalReceipt> {
+    const recorded = await withActor(this.pool, actorId, 'write', (c) => recordPersonalGreeting(c, key, claim, text))
+    if (recorded === 'writing') throw new DomainError('outcome_unknown', WELCOME_WRITING)
+    return recorded
   }
 
   private async run(actorId: string, turnId: string): Promise<void> {
+    // One process asks the companion for a turn, under its claim: another one answering it (a retry that reached it)
+    // leaves it, and an attempt whose claim lapsed (it stalled past it) writes neither its reply nor its failure.
+    const claim = await withActor(this.pool, actorId, 'write', (c) => claimPersonalReply(c, turnId)).catch(
+      (err: unknown) => {
+        this.onError(err)
+        return null
+      },
+    )
+    if (!claim) return
     try {
-      // One process asks the companion for a turn: another one answering it (a retry that reached it) leaves it.
-      const claimed = await withActor(this.pool, actorId, 'write', (c) => claimPersonalReply(c, turnId))
-      if (!claimed) return
       const context = await withActor(this.pool, actorId, 'read', (c) => readCompanionContext(c, turnId))
       if (!context) return
       const reply = await withinLimit(this.companion.answer(context), this.limitMs)
-      await withActor(this.pool, actorId, 'write', (c) => recordPersonalReply(c, turnId, reply.text, reply.suggestion))
+      await withActor(this.pool, actorId, 'write', (c) =>
+        recordPersonalReply(c, turnId, claim, reply.text, reply.suggestion),
+      )
     } catch (err: unknown) {
       this.onError(err)
       // The turn says it failed; if even that write fails, it stays pending and the person's client says so in time.
-      await withActor(this.pool, actorId, 'write', (c) => failPersonalReply(c, turnId)).catch(() => undefined)
+      await withActor(this.pool, actorId, 'write', (c) => failPersonalReply(c, turnId, claim)).catch(() => undefined)
     }
   }
 }
