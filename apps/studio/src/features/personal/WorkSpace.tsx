@@ -31,6 +31,8 @@ interface Props {
     join: (projectId: string) => void
     leaveRoom: () => void
     takeBack: (release: ProjectRelease, project: ProjectSummary) => void
+    /** Whether a note's take-back is on its way: its press waits ("Taking back…"). */
+    takingBack: (releaseId: string) => boolean
     cross: () => void
   }
 }
@@ -153,10 +155,12 @@ function Carried({
   project,
   fresh,
   onTakeBack,
+  takingBack,
 }: {
   project: ProjectSummary
   fresh: ReadonlySet<string>
   onTakeBack: Props['actions']['takeBack']
+  takingBack: Props['actions']['takingBack']
 }) {
   if (project.releases.length === 0) return null
   return (
@@ -166,8 +170,13 @@ function Carried({
           <p>{r.text}</p>
           <span className="prov">{carriedFrom(r.mine, r.ownerName)}</span>
           {r.mine && (
-            <button className="ghost" type="button" onClick={() => onTakeBack(r, project)}>
-              Take back
+            <button
+              className="ghost"
+              type="button"
+              aria-disabled={takingBack(r.id) || undefined}
+              onClick={() => onTakeBack(r, project)}
+            >
+              {takingBack(r.id) ? 'Taking back…' : 'Take back'}
             </button>
           )}
         </div>
@@ -204,7 +213,7 @@ function Card({ project, props }: { project: ProjectSummary; props: Props }) {
           card.meta
         )}
       </span>
-      <Carried project={project} fresh={props.fresh} onTakeBack={actions.takeBack} />
+      <Carried project={project} fresh={props.fresh} onTakeBack={actions.takeBack} takingBack={actions.takingBack} />
     </article>
   )
 }

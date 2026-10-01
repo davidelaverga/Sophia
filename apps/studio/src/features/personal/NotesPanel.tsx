@@ -6,12 +6,15 @@ import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { focusLater, focusSoon } from './focus.ts'
 import { membersLabel } from './places-view.ts'
+import type { Read } from './ReadNotes.tsx'
 
 interface Props {
   /** Undefined until the space has loaded: nothing is said of them before (never "No notes yet"). */
   notes: readonly PersonalNote[] | undefined
   /** Undefined until the projects have loaded. */
   projects: readonly ProjectSummary[] | undefined
+  /** How their read stands: a failed one is said where they would be, with Try again. */
+  projectsRead: Read
   onClose: () => void
   onCarry: (note: PersonalNote, project: ProjectSummary) => void
   onStartProject: () => void
@@ -22,7 +25,21 @@ const CROSSING_MS = 440
 
 const NOTES_EMPTY = 'No notes yet. Note something from the conversation, or keep what Sophia suggests.'
 
-function Where({ projects, onStartProject }: Pick<Props, 'projects' | 'onStartProject'>) {
+function Where({
+  projects,
+  projectsRead,
+  onStartProject,
+}: Pick<Props, 'projects' | 'projectsRead' | 'onStartProject'>) {
+  if (!projects && projectsRead.state === 'failed') {
+    return (
+      <small role="alert">
+        {projectsRead.failed}{' '}
+        <button className="text-button" type="button" onClick={projectsRead.retry}>
+          Try again
+        </button>
+      </small>
+    )
+  }
   if (!projects) return <small>Your projects haven’t loaded yet.</small>
   if (projects.length === 0) {
     return (
@@ -39,11 +56,12 @@ function Where({ projects, onStartProject }: Pick<Props, 'projects' | 'onStartPr
 
 function CarryTo(props: {
   projects: Props['projects']
+  projectsRead: Read
   onPick: (project: ProjectSummary) => void
   onCancel: () => void
   onStartProject: () => void
 }) {
-  const { projects, onPick, onCancel, onStartProject } = props
+  const { projects, projectsRead, onPick, onCancel, onStartProject } = props
   const group = useRef<HTMLDivElement>(null)
   useEffect(() => group.current?.querySelector<HTMLElement>('.c3-carry, .text-button')?.focus(), [])
   return (
@@ -60,7 +78,7 @@ function CarryTo(props: {
           <span>{membersLabel(p.members)}</span>
         </button>
       ))}
-      <Where projects={projects} onStartProject={onStartProject} />
+      <Where projects={projects} projectsRead={projectsRead} onStartProject={onStartProject} />
     </div>
   )
 }
@@ -98,7 +116,7 @@ function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry'
   return { carrying, setCarrying, crossing, carry }
 }
 
-export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }: Props) {
+export function NotesPanel({ notes, projects, projectsRead, onClose, onCarry, onStartProject }: Props) {
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
@@ -131,6 +149,7 @@ export function NotesPanel({ notes, projects, onClose, onCarry, onStartProject }
           {carrying === note.id && (
             <CarryTo
               projects={projects}
+              projectsRead={projectsRead}
               onPick={(p) => carry(note, p)}
               onCancel={() => {
                 // "Keep here" goes with the list it heads: the focus goes back to the note's Carry.

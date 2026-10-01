@@ -27,6 +27,7 @@ import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
+import { usePresses } from './presses.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import type { PersonalWrites, ReadBack } from './usePersonal.ts'
 import { personalFailure, unsent } from './write-words.ts'
@@ -53,6 +54,8 @@ interface Props {
   read: Read
   /** Undefined until the projects have loaded. */
   projects: readonly ProjectSummary[] | undefined
+  /** How the projects' read stands: the notes' carry menu says a failed one, with Try again. */
+  projectsRead: Read
   writes: PersonalWrites
   notes: { open: boolean; set: (open: boolean) => void }
   earlier: { open: boolean; set: (open: boolean) => void }
@@ -110,6 +113,7 @@ function useActions(
 } {
   const { writes, toast, onCarried } = props
   const starter = useRef<((words: string) => void) | null>(null)
+  const presses = usePresses()
   const attempt = useCallback(
     (work: () => Promise<unknown>) => {
       void work().catch(onFailed)
@@ -118,11 +122,13 @@ function useActions(
   )
   return {
     starter,
+    waits: presses.waits,
     // A way to start goes as the field's words do, through the composer (one at a time, its own key, kept on its way).
     start: (text) => starter.current?.(text),
-    decide: (suggestion: PersonalSuggestion, decision) => attempt(() => writes.decide(suggestion.id, decision)),
+    decide: (suggestion: PersonalSuggestion, decision) =>
+      presses.press(suggestion.id, () => writes.decide(suggestion.id, decision).catch(onFailed)),
     openNotes: () => props.notes.set(true),
-    retry: (turnId) => attempt(() => writes.retry(turnId)),
+    retry: (turnId) => presses.press(turnId, () => writes.retry(turnId).catch(onFailed)),
     readEarlier: () => attempt(() => props.readBack.readMore()),
     // Whether it was kept: a refused note's words go back into its form.
     keepNote: (text, turnId, suggestion) =>
@@ -388,6 +394,7 @@ export function PersonalSpace(props: Props) {
           <NotesPanel
             notes={space?.notes}
             projects={projects}
+            projectsRead={props.projectsRead}
             onClose={() => {
               notes.set(false)
               focusNotesToggle()

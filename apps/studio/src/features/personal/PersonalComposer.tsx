@@ -2,7 +2,7 @@
 // until there is something to send, the draft stays on this device, and the first Escape only lets go of the field (the
 // draft stays; the next one goes home). "Talk instead" dictates on the device. One line above the bar says where the
 // draft came from or why it is back, as the chat's foot does (.chat-line).
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { WRITE_TIMEOUT_MS } from '../../api/client.ts'
 import { useMounted } from '../../app/useMounted.ts'
@@ -377,15 +377,21 @@ function useBehind(at: number | undefined, epoch: number | undefined, onBehind: 
 }
 
 /**
- * What the voice heard goes into the field, and the focus with it (focusLater, taken as the listening starts): unless
- * the person moved on while it listened.
+ * What the voice heard goes into the field, and the focus with it once the field is back on screen (it gives way to
+ * the listening line): unless the person moved on while it listened (focusLater, taken as the listening starts).
  */
 function useVoice(draft: ReturnType<typeof useDraft>, field: RefObject<HTMLTextAreaElement | null>, hidden: boolean) {
   const land = useRef<(el: HTMLElement | null) => void>(() => undefined)
+  const landing = useRef<((el: HTMLElement | null) => void) | null>(null)
   const dictation = useDictation((heard) => {
     draft.change(draft.text ? `${draft.text} ${heard}` : heard, 'From your voice · edit it or send')
-    land.current(field.current)
+    landing.current = land.current
   }, hidden)
+  useLayoutEffect(() => {
+    if (dictation.listening || !landing.current) return
+    landing.current(field.current)
+    landing.current = null
+  }, [dictation.listening, field])
   const start = () => {
     land.current = focusLater()
     dictation.start()

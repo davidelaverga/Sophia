@@ -1,7 +1,7 @@
 // "Your data" (direction C), in the Studio's sheet (app/Sheet.tsx): what the personal space keeps, counted; everything
 // as text to copy; and deleting it all, with a typed confirmation for the one thing that can't be undone. Behind the
 // padlock it shows nothing of the space, not even the counts, until the person confirms it's them.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalSpace } from '@sophia/contracts'
 import { exportPersonalSpace } from '../../api/personal.ts'
 import { Sheet } from '../../app/Sheet.tsx'
@@ -11,12 +11,15 @@ import { browserClip, copyFetched, CopyCalledOff } from './copy.ts'
 import { confirmsErasure, DATA, exportText, factsOf, factWords } from './data-view.ts'
 import { focusSoon } from './focus.ts'
 import { NOTICE } from './notice-view.ts'
+import { ReadNotes, type Read } from './ReadNotes.tsx'
 import { personalFailure } from './write-words.ts'
 
 interface Props {
   token: string
   who: string
   space: PersonalSpace | undefined
+  /** How the space's read stands: a slow or failed one is said here too, with Try again (never bare dashes). */
+  read: Read
   /** The space's epoch as this page knows it (epochNow): a copy is read against it, and an erasure moves it. */
   epoch: number
   locked: boolean
@@ -87,15 +90,18 @@ function Erase({ onErase }: { onErase: () => Promise<void> }) {
 
 interface BodyProps {
   space: PersonalSpace | undefined
+  read: Read
   locked: boolean
   onUnlock: () => void
   onCopy: () => void
+  /** A copy is under way: the press waits for it ("Copying…"), and starts no other. */
+  copying: boolean
   /** An erasure is under way: no copy starts (it would read what is being erased). */
   erasing: boolean
   onErase: () => Promise<void>
 }
 
-function DataBody({ space, locked, onUnlock, onCopy, erasing, onErase }: BodyProps) {
+function DataBody({ space, read, locked, onUnlock, onCopy, copying, erasing, onErase }: BodyProps) {
   if (locked) {
     return (
       <>
@@ -108,9 +114,16 @@ function DataBody({ space, locked, onUnlock, onCopy, erasing, onErase }: BodyPro
   }
   return (
     <>
+      <ReadNotes reads={[read]} />
       <Facts space={space} />
-      <button id="c-data-copy" className="pill" type="button" aria-disabled={erasing || undefined} onClick={onCopy}>
-        {DATA.copy}
+      <button
+        id="c-data-copy"
+        className="pill"
+        type="button"
+        aria-disabled={copying || erasing || undefined}
+        onClick={onCopy}
+      >
+        {copying ? DATA.copying : DATA.copy}
       </button>
       <Erase onErase={onErase} />
     </>
@@ -159,24 +172,21 @@ function useCalledOff(locked: boolean, epoch: number) {
   }
 }
 
-export function DataSheet(props: Props) {
-  const { token, who, space, epoch, locked, lockedNow, toast, onClose, returnTo, onUnlock, onErase } = props
-  const [erased, setErased] = useState(false)
+type CalledOff = ReturnType<typeof useCalledOff>
+
+/**
+ * Copying everything as text, one copy at a time: a press while one is under way waits ("Copying…") and starts no
+ * other, so an erasure waits for the only clipboard write there can be (`copying`). A copy whose export arrives once
+ * the padlock is shut (as stored then, wherever it was shut) or the sheet has gone (closed, signing out) copies
+ * nothing; one still on its way then stops at once, and so does one when the space is erased (here, or anywhere this
+ * page hears of). Its pages are read against the epoch it began in: one asked for after an erasure is refused.
+ */
+function useCopy(props: Props, calledOff: CalledOff, erasingNow: RefObject<boolean>) {
+  const { token, who, epoch, lockedNow, toast } = props
   const open = useMounted()
-  const calledOff = useCalledOff(locked, epoch)
-  useSwapFocus(locked)
-  // A copy whose export arrives once the padlock is shut (as stored then, wherever it was shut) or the sheet has gone
-  // (closed, signing out) copies nothing; one still on its way then stops at once, and so does one when the space is
-  // erased (here, or anywhere this page hears of). Its pages are read against the epoch it began in: one asked for
-  // after an erasure is refused.
-  // The copy on its way, so an erasure waits for its clipboard write to settle: nothing erased lands there after.
   const copying = useRef<Promise<void>>(Promise.resolve())
-  // An erasure under way: no copy starts meanwhile, so the two never overlap.
-  const [erasing, setErasing] = useState(false)
-  const erasingNow = useRef(false)
-  const copy = () => {
-    if (!erasingNow.current) copying.current = copyNow()
-  }
+  const [busy, setBusy] = useState(false)
+  const busyNow = useRef(false)
   const copyNow = async () => {
     try {
       const signal = calledOff.signal()
@@ -188,6 +198,27 @@ export function DataSheet(props: Props) {
       toast(err instanceof DOMException ? NOTICE.clipboardBlocked : personalFailure(err))
     }
   }
+  const copy = () => {
+    if (erasingNow.current || busyNow.current) return
+    busyNow.current = true
+    setBusy(true)
+    copying.current = copyNow().finally(() => {
+      busyNow.current = false
+      setBusy(false)
+    })
+  }
+  return { copy, busy, copying }
+}
+
+export function DataSheet(props: Props) {
+  const { space, read, locked, epoch, onClose, returnTo, onUnlock, onErase, toast } = props
+  const [erased, setErased] = useState(false)
+  const calledOff = useCalledOff(locked, epoch)
+  useSwapFocus(locked)
+  // An erasure under way: no copy starts meanwhile, so the two never overlap.
+  const [erasing, setErasing] = useState(false)
+  const erasingNow = useRef(false)
+  const { copy, busy, copying } = useCopy(props, calledOff, erasingNow)
   const erase = async () => {
     erasingNow.current = true
     setErasing(true)
@@ -210,7 +241,7 @@ export function DataSheet(props: Props) {
       {erased ? (
         <p className="sheet-lead">{DATA.erased}</p>
       ) : (
-        <DataBody space={space} locked={locked} onUnlock={onUnlock} onCopy={copy} erasing={erasing} onErase={erase} />
+        <DataBody {...{ space, read, locked, onUnlock, erasing }} onCopy={copy} copying={busy} onErase={erase} />
       )}
     </Sheet>
   )

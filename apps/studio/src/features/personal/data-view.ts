@@ -47,6 +47,7 @@ export const confirmsErasure = (typed: string) => typed.trim().toLowerCase() ===
 /** What the "Your data" sheet says. */
 export const DATA = {
   copy: 'Copy everything as text',
+  copying: 'Copying…',
   locked: 'Your personal space is locked.',
   unlock: 'Unlock to copy or delete',
   erase: 'Delete all personal data',

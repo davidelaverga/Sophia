@@ -15,6 +15,8 @@ export interface ConversationActions {
   /** Resolves to whether it was kept. */
   keepNote: (text: string, turnId: string, suggestion: PersonalSuggestion | null) => Promise<boolean>
   retry: (turnId: string) => void
+  /** Whether the press for a suggestion or a turn asked again is being answered: it waits (presses.ts). */
+  waits: (key: string) => boolean
   /** The page of days before those shown (a long conversation). */
   readEarlier: () => void
 }
@@ -81,11 +83,17 @@ function NoteForm(props: {
 
 function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }>; actions: ConversationActions }) {
   const { suggestion, shown } = row
+  const [chose, setChose] = useState<'keep' | 'dismiss' | null>(null)
+  const waiting = actions.waits(suggestion.id)
   // The row changes once the decision is written, and its buttons with it: the focus goes to the conversation first.
+  // Until then both buttons wait, and a second press decides nothing.
   const decide = (decision: 'keep' | 'dismiss') => {
+    if (waiting) return
+    setChose(decision)
     actions.decide(suggestion, decision)
     focusConversation()
   }
+  const keep = waiting && chose === 'keep' ? 'Keeping…' : 'Keep'
   if (shown === 'kept') {
     return (
       <p className="c3-kept">
@@ -100,8 +108,13 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
     return (
       <p className="c3-kept">
         Sophia suggested a note: <q>{suggestion.text}</q> ·{' '}
-        <button className="text-button" type="button" onClick={() => decide('keep')}>
-          Keep
+        <button
+          className="text-button"
+          type="button"
+          aria-disabled={waiting || undefined}
+          onClick={() => decide('keep')}
+        >
+          {keep}
         </button>
       </p>
     )
@@ -111,10 +124,10 @@ function Suggestion({ row, actions }: { row: Extract<Row, { kind: 'suggestion' }
       <span className="field-label">Keep a note?</span>
       <q>{suggestion.text}</q>
       <span className="acts">
-        <button className="pill" type="button" onClick={() => decide('keep')}>
-          Keep
+        <button className="pill" type="button" aria-disabled={waiting || undefined} onClick={() => decide('keep')}>
+          {keep}
         </button>
-        <button className="ghost" type="button" onClick={() => decide('dismiss')}>
+        <button className="ghost" type="button" aria-disabled={waiting || undefined} onClick={() => decide('dismiss')}>
           No thanks
         </button>
       </span>
@@ -195,12 +208,13 @@ function Intro({ text }: { text: string }) {
   )
 }
 
-function Failed({ onRetry }: { onRetry: () => void }) {
+/** Ask again waits while it is asked ("Asking…"): a second press asks nothing. */
+function Failed({ onRetry, waiting }: { onRetry: () => void; waiting: boolean }) {
   return (
     <p className="c3-failed">
       Sophia couldn’t answer this one.{' '}
-      <button className="text-button" type="button" onClick={onRetry}>
-        Ask again
+      <button className="text-button" type="button" aria-disabled={waiting || undefined} onClick={onRetry}>
+        {waiting ? 'Asking…' : 'Ask again'}
       </button>
     </p>
   )
@@ -233,7 +247,7 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
       actions.retry(row.turnId)
       focusConversation()
     }
-    return <Failed onRetry={retry} />
+    return <Failed onRetry={retry} waiting={actions.waits(row.turnId)} />
   }
   return <Suggestion row={row} actions={actions} />
 }

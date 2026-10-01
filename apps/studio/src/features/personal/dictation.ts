@@ -83,6 +83,8 @@ function listenOnce(Recognizer: RecognitionClass, ended: (heard: string) => void
  * Dictation in a composer that can go out of sight (`hidden`: a lock, another place). The microphone never turns on
  * out of sight: going out of sight stops it, and calls off a start still waiting for the person's language, as does
  * the composer going (signing out). A newer start calls off one still waiting, so one microphone listens at a time.
+ * What a recognizer heard lands only while its composer is here: gone (signing out, an erasure, the padlock), nothing
+ * of it is said, so no words come back after the draft was let go.
  */
 export function useDictation(onText: (text: string) => void, hidden: boolean) {
   const [available, setAvailable] = useState(false)
@@ -94,10 +96,13 @@ export function useDictation(onText: (text: string) => void, hidden: boolean) {
   useEffect(() => {
     deliver.current = onText
   })
+  const gone = useRef(false)
   useEffect(() => {
+    gone.current = false
     const Recognizer = recognitionClass()
     if (Recognizer) void onDevice(Recognizer).then(setAvailable)
     return () => {
+      gone.current = true
       waiting.current = null
       current.current?.abort()
     }
@@ -121,7 +126,7 @@ export function useDictation(onText: (text: string) => void, hidden: boolean) {
     const r = listenOnce(Recognizer, (heard) => {
       current.current = null
       setListening(false)
-      if (heard) deliver.current(heard)
+      if (heard && !gone.current) deliver.current(heard)
     })
     current.current = r
     setListening(true)

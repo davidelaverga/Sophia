@@ -486,10 +486,15 @@ their work. Keep these when you change them:
   lets what came go (`exportPersonalSpace`'s signal). Its pages are read
   against the epoch the copy began in (one asked for after an erasure is
   refused), and erasing from the sheet, or an epoch that moves, calls it off
-  too: nothing of an erased space reaches the clipboard. Dictation stops when the
+  too: nothing of an erased space reaches the clipboard. One copy goes at a
+  time (Copy waits, "Copying…"), so an erasure waits for the only clipboard
+  write there can be. Dictation stops when the
   space goes out of sight, and a start still waiting for the device's
   language is called off (`useDictation`): the microphone never turns on out
-  of sight.
+  of sight. What it heard lands only while its composer is there: never
+  after signing out, an erasure or the padlock, so no words come back to
+  the device after its draft went. The focus goes with them to the field
+  once the field is back on screen (it gives way to the listening line).
 - **Unlocking checks the same person** (`app/reauth.ts`; `unlock-check.ts`,
   with tests). A passkey or an email code is checked on a client of its own,
   off the app's session, that stores and refreshes nothing;
@@ -574,7 +579,10 @@ their work. Keep these when you change them:
   in a newer epoch; or a write refused as erased, `refusedAsErased`)
   everything read of the space goes at once, the turns waited for
   included, and the space is read afresh (`readAfresh`): a read that fails
-  then says so, with Try again, and shows none of it. A message on its way
+  then says so, with Try again, and shows none of it. A read that fails says
+  so with Try again wherever what it reads is used (`ReadNotes`): each place,
+  the notes' carry menu (the projects) and Your data (the space's counts,
+  never bare dashes). A message on its way
   shows only over the space of the epoch it was sent in. Until the space is read the
   field goes by the epoch the Work list names, so a draft from before the
   erasure leaves the field and the device at once (one written after it
@@ -659,7 +667,11 @@ their work. Keep these when you change them:
   call's pill gives it to the bar's mark when it goes, however the call ends;
   a lock from anywhere gives it to the bar's Personal switch. A press that
   is being answered keeps the focus as it waits ("Sending…", "Checking…",
-  "Deleting…": `aria-disabled`, never `disabled`). A modal sheet on screen
+  "Deleting…": `aria-disabled`, never `disabled`), and starts no second
+  write for the same thing (`presses.ts`: Keep and No thanks on a
+  suggestion, Ask again, Take back; Copy has its own wait): a second would
+  be refused as stale, and its notice would replace the first's, Undo and
+  all. A modal sheet on screen
   takes every key and every stray letter (`modalOnScreen`); one left open in
   a project out of sight takes none, and takes the focus again when the
   project is back on screen. A screen reader hears Sophia writing and then

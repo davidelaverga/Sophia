@@ -21,6 +21,7 @@ import { NOTICE } from './notice-view.ts'
 import { PlaceDialogs } from './PlaceDialogs.tsx'
 import { PlacesBar, type InCall } from './PlacesBar.tsx'
 import { PersonalSpace } from './PersonalSpace.tsx'
+import { usePresses, type Presses } from './presses.ts'
 import { dateLine, firstName, greeting, PLACE_TITLE, READ_FAILED, readState, workDoor, youDoor } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
@@ -219,19 +220,24 @@ function usePlaceNavigation(props: PlacesProps, layers: Layers) {
 
 type Nav = ReturnType<typeof usePlaceNavigation>
 
-/** Taking a carried note back from Work, with Undo that carries it to the same project again. */
-function takeBack(writes: PersonalWrites, toast: ShowToast) {
+/**
+ * Taking a carried note back from Work, with Undo that carries it to the same project again. Its press waits while
+ * it is taken back (presses.ts): a second takes nothing back, and says nothing over the first.
+ */
+function takeBack(writes: PersonalWrites, toast: ShowToast, presses: Presses) {
   return (release: ProjectRelease, project: ProjectSummary) => {
     const again = (noteId: string) => () =>
       void writes.carry(noteId, project.projectId).catch((err: unknown) => toast(personalFailure(err)))
     const land = focusLater() // its button goes with the note: Work's heading, unless they moved on meanwhile
-    void writes
-      .takeBack(release.id)
-      .then((receipt) => {
-        land(document.getElementById('c-w-h'))
-        toast(NOTICE.takenBack, receipt.noteId ? again(receipt.noteId) : undefined)
-      })
-      .catch((err: unknown) => toast(personalFailure(err)))
+    presses.press(release.id, () =>
+      writes.takeBack(release.id).then(
+        (receipt) => {
+          land(document.getElementById('c-w-h'))
+          toast(NOTICE.takenBack, receipt.noteId ? again(receipt.noteId) : undefined)
+        },
+        (err: unknown) => toast(personalFailure(err)),
+      ),
+    )
   }
 }
 
@@ -390,6 +396,7 @@ function Personal({ v }: { v: View }) {
       readBack={v.readBack}
       read={personalRead(v)}
       projects={v.projects.data?.projects}
+      projectsRead={projectsRead(v)}
       writes={v.writes}
       notes={{ open: layers.notes, set: layers.setNotes }}
       earlier={{ open: layers.earlier, set: layers.setEarlier }}
@@ -404,6 +411,7 @@ function Personal({ v }: { v: View }) {
 
 function Work({ v }: { v: View }) {
   const { props, layers, nav } = v
+  const presses = usePresses()
   return (
     <WorkSpace
       hidden={!v.shown.includes('work')}
@@ -418,7 +426,8 @@ function Work({ v }: { v: View }) {
         open: (id) => props.onOpenProject(id, false),
         join: (id) => props.onOpenProject(id, true),
         leaveRoom: () => props.call?.onLeave(),
-        takeBack: takeBack(v.writes, props.toast),
+        takeBack: takeBack(v.writes, props.toast, presses),
+        takingBack: presses.waits,
         cross: () => nav.enter('personal'),
       }}
     />
@@ -465,6 +474,7 @@ function Sheets({ v }: { v: View }) {
           token={identity.token}
           who={identity.displayName ?? firstName(identity) ?? identity.name}
           space={v.personal}
+          read={personalRead(v)}
           epoch={epochNow(v.personal, v.projects.data)}
           locked={props.lock.locked}
           lockedNow={props.lockedNow}
