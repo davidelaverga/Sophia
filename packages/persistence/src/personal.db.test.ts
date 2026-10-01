@@ -36,6 +36,7 @@ import {
   recordPersonalGreeting,
   recordPersonalReply,
   releasePersonalGreeting,
+  renewPersonalReply,
   retryPersonalTurn,
   sendPersonalTurn,
   takeBackPersonalRelease,
@@ -63,6 +64,8 @@ const CALLING = randomUUID() // someone the companion is answering, in one proce
 const READER = randomUUID() // a member of a project where someone else carried many notes
 const QUEUED = randomUUID() // someone who says two things before Sophia answers the first
 const ASKED_AGAIN = randomUUID() // someone who asks again for a lost reply while a process takes up the next turn
+const IN_LINE = randomUUID() // someone whose second message waits while the first is answered slowly
+const STORIED = randomUUID() // someone with a long conversation the companion reads before answering
 
 let db: TestDatabase
 let pool: pg.Pool
@@ -80,14 +83,17 @@ after(async () => {
   await db.drop()
 })
 
-/** How many carried notes this transaction has read so far, by any scan of their table. */
-async function releasesRead(c: pg.PoolClient): Promise<number> {
+/** How many rows of `table` this transaction has read so far, by any scan. */
+async function rowsRead(c: pg.PoolClient, table: string): Promise<number> {
   const { rows } = await c.query<{ n: string }>(
     `SELECT coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0) AS n FROM pg_stat_xact_user_tables
-      WHERE relid = 'sophia.personal_releases'::regclass`,
+      WHERE relid = $1::regclass`,
+    [table],
   )
   return Number(rows[0]?.n ?? 0)
 }
+
+const releasesRead = (c: pg.PoolClient) => rowsRead(c, 'sophia.personal_releases')
 
 async function codeOf(p: Promise<unknown>): Promise<string> {
   try {
@@ -284,6 +290,48 @@ describe('personal space: one conversation, owner-only', () => {
     await retrying
     assert.equal(claimed, null, 'the claim waited, then found the turn asked again first')
     assert.equal(await read(ASKED_AGAIN, (c) => nextPersonalReply(c)), first)
+  })
+
+  it('keeps the turns said after one waiting while it is answered: none lapses in the queue', async () => {
+    const first = (await write(IN_LINE, (c) => sendPersonalTurn(c, key(), 'One'))).turnId ?? ''
+    const second = (await write(IN_LINE, (c) => sendPersonalTurn(c, key(), 'Two'))).turnId ?? ''
+    const claim = (await write(IN_LINE, (c) => claimPersonalReply(c, first))) ?? ''
+    assert.ok(await write(IN_LINE, (c) => renewPersonalReply(c, first, claim)), 'the first is being answered')
+    // Minutes on, the first still being answered (its lease renewed as the companion works):
+    await owner(`UPDATE sophia.personal_turns SET asked_at = asked_at - interval '3 minutes' WHERE id = $1`, [second])
+    const waiting = (await read(IN_LINE, (c) => readPersonalSpace(c))).turns.find((t) => t.id === second)
+    assert.equal(waiting?.reply, 'pending', 'the second still waits its turn, never tried, so never lost')
+    await write(IN_LINE, (c) => recordPersonalReply(c, first, claim, 'Done.', null))
+    assert.equal(await read(IN_LINE, (c) => nextPersonalReply(c)), second)
+    assert.ok(await write(IN_LINE, (c) => claimPersonalReply(c, second)), 'and is claimed when it comes')
+  })
+
+  it('reads a long conversation for the companion within its bound, however long it is', async () => {
+    await owner(
+      `INSERT INTO sophia.personal_spaces(owner_id, turn_seq) VALUES ($1, 300)
+       ON CONFLICT (owner_id) DO UPDATE SET turn_seq = 300`,
+      [STORIED],
+    )
+    await owner(
+      `INSERT INTO sophia.personal_turns(owner_id, seq, author, body, reply, asked_at, created_at)
+       SELECT $1, s, 'person', 'Turn ' || s, 'answered', now(), now() FROM generate_series(1, 300) s`,
+      [STORIED],
+    )
+    const asked = (await write(STORIED, (c) => sendPersonalTurn(c, key(), 'And now?'))).turnId ?? ''
+    const claim = (await write(STORIED, (c) => claimPersonalReply(c, asked))) ?? ''
+    const { context, fetched } = await write(STORIED, async (c) => {
+      // The plan the indexes allow, however small the table here.
+      await c.query('SET LOCAL enable_seqscan = off')
+      await c.query('SET LOCAL enable_bitmapscan = off')
+      const already = await rowsRead(c, 'sophia.personal_turns')
+      const got = await readCompanionContext(c, asked, claim)
+      return { context: got, fetched: (await rowsRead(c, 'sophia.personal_turns')) - already }
+    })
+    assert.deepEqual(
+      context?.history.slice(-2).map((h) => h.text),
+      ['Turn 300', 'And now?'],
+    )
+    assert.ok(fetched <= 60, `${String(fetched)} turns read: never the whole conversation`)
   })
 
   it('renews a claim as its context goes to the companion, and reads a fresh claim as waiting', async () => {

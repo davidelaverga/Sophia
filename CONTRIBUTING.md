@@ -429,7 +429,13 @@ either:
   turn at a time, in order (`next_personal_reply`): a turn is claimed only
   as the person's oldest one waiting, while none is being answered; the
   process that answered one takes up the next, and each is asked with the
-  answers before it.
+  answers before it, read from the newest turns only (never the whole
+  conversation). The turns queued behind one being answered go on waiting
+  with it (its renewal renews them), so none lapses in the queue. What the
+  companion gave is never lost to a database away for a moment: a reply or a
+  welcome is written again a few times (`again`), the turn is never marked
+  failed for it, and a welcome that still can't be written keeps its claim,
+  so nothing asks the companion twice.
 - **A long conversation is read back a page at a time.** A space read lists
   the newest 500 turns; earlier ones come a page at a time
   (`/personal/turns/earlier`), and the space's `days` count the whole

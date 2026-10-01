@@ -426,6 +426,33 @@ function failingAt(nth: number): pg.Pool {
   })
 }
 
+/** The pool, but the first `times` queries whose text has `what` fail: the database went away for a while. */
+function failingQuery(what: string, times = 1): pg.Pool {
+  let failed = 0
+  const client = (c: pg.PoolClient): pg.PoolClient =>
+    new Proxy(c, {
+      get(target, prop) {
+        const own: unknown = Reflect.get(target, prop, target)
+        if (prop !== 'query' || typeof own !== 'function') return own
+        return (...args: unknown[]) => {
+          if (failed < times && typeof args[0] === 'string' && args[0].includes(what)) {
+            failed += 1
+            return Promise.reject(new Error('The database went away'))
+          }
+          const result: unknown = Reflect.apply(own, target, args)
+          return result
+        }
+      },
+    })
+  return new Proxy(pool, {
+    get(target, prop) {
+      const own: unknown = Reflect.get(target, prop, target)
+      if (prop !== 'connect') return own
+      return async () => client(await target.connect())
+    },
+  })
+}
+
 /** A companion that answers only once told to stop, and stops 200 ms later. */
 function holding() {
   const seen = { asked: Promise.withResolvers<void>(), stopped: 0, settled: 0 }
@@ -626,6 +653,95 @@ describe('a conversation answered one turn at a time', () => {
     )
     const said = (await space(TWICE)).turns.map((t) => t.text)
     assert.deepEqual(said, ['First', 'Second', 'Answer 1', 'Answer 2'], 'answered in order')
+  })
+})
+
+describe('an answer the database could not write at once', () => {
+  it('writes the reply when it comes back, and asks the companion once', async () => {
+    const ONCE = randomUUID()
+    let asked = 0
+    const companion = {
+      mode: 'rehearsal' as const,
+      answer: () => {
+        asked += 1
+        return Promise.resolve({ text: 'Answered once.', suggestion: null })
+      },
+      greet: () => Promise.resolve('Welcome back.'),
+    }
+    const runner = new CompanionRunner(failingQuery('record_personal_reply'), companion, () => undefined)
+    const sent = await withActor(pool, ONCE, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Write this down'))
+    await runner.answer(ONCE, sent.turnId ?? '')
+    const turns = (await space(ONCE)).turns
+    assert.equal(turns.find((t) => t.id === sent.turnId)?.reply, 'answered', 'never marked failed for it')
+    assert.equal(turns.at(-1)?.text, 'Answered once.')
+    assert.equal(asked, 1, 'the companion was not asked again')
+  })
+
+  it('never marks a turn failed for a reply it could not write: its claim lapses instead', async () => {
+    const LATER = randomUUID()
+    const companion = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Lost in the writing.', suggestion: null }),
+      greet: () => Promise.resolve('Welcome back.'),
+    }
+    const runner = new CompanionRunner(failingQuery('record_personal_reply', 10), companion, () => undefined)
+    const sent = await withActor(pool, LATER, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Will this stick?'))
+    await runner.answer(LATER, sent.turnId ?? '')
+    const turn = (await space(LATER)).turns.find((t) => t.id === sent.turnId)
+    assert.equal(turn?.reply, 'pending', 'it waits on: it reads as lost once its claim lapses, never as refused')
+  })
+
+  it('writes the welcome when it comes back, and greets once', async () => {
+    const RETURNS = randomUUID()
+    let greeted = 0
+    const companion = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Noted.', suggestion: null }),
+      greet: () => {
+        greeted += 1
+        return Promise.resolve('Welcome back, once.')
+      },
+    }
+    const steady = new CompanionRunner(pool, companion, () => undefined)
+    const sent = await withActor(pool, RETURNS, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
+    await steady.answer(RETURNS, sent.turnId ?? '')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [
+      RETURNS,
+    ])
+    const shaky = new CompanionRunner(failingQuery('record_personal_greeting'), companion, () => undefined)
+    const welcome = await shaky.greet(RETURNS, randomUUID(), 0, null)
+    assert.ok(welcome.turnId, 'written on its second try')
+    assert.equal(greeted, 1, 'the companion was not asked again')
+  })
+
+  it('keeps a welcome’s claim when it could not be written at all: asked again meanwhile, nothing is greeted twice', async () => {
+    const AWAY = randomUUID()
+    let greeted = 0
+    const companion = {
+      mode: 'rehearsal' as const,
+      answer: () => Promise.resolve({ text: 'Noted.', suggestion: null }),
+      greet: () => {
+        greeted += 1
+        return Promise.resolve('Welcome back.')
+      },
+    }
+    const steady = new CompanionRunner(pool, companion, () => undefined)
+    const sent = await withActor(pool, AWAY, 'write', (c) => sendPersonalTurn(c, randomUUID(), 'Before the quiet'))
+    await steady.answer(AWAY, sent.turnId ?? '')
+    await owner(`UPDATE sophia.personal_turns SET created_at = now() - interval '3 hours' WHERE owner_id = $1`, [AWAY])
+    const k = randomUUID()
+    const gone = new CompanionRunner(failingQuery('record_personal_greeting', 10), companion, () => undefined)
+    const failure: unknown = await gone.greet(AWAY, k, 0, null).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    assert.ok(failure instanceof DomainError && failure.code === 'outcome_unknown', 'not written: asked again later')
+    const again: unknown = await steady.greet(AWAY, k, 0, null).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    assert.ok(again instanceof DomainError && again.code === 'outcome_unknown', 'the claim stays: it is being written')
+    assert.equal(greeted, 1, 'and the companion was asked once')
   })
 })
 
