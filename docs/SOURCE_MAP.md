@@ -134,6 +134,15 @@ Read in the installed packages of dsh `0.2.0-rc.2` (`639ed01`) and pi-ai `0.87.1
 | DSH-29 | `@deepseek-ai/dsh-llm-pi-ai` (credential resolution) | A provider route whose `apiKeyEnv` is unset fails its request with `MISSING_CREDENTIAL`; no other route is tried | `scripts/runtime-host.mjs` (research keys by name) |
 | DSH-30 | `@deepseek-ai/dsh-app-boot` (bundle manifest) | `dsh.bundle.patch` may be one file or a list of files | the preset patch files, moved to S4 (`docs/progress/SMC-M03-contract-binding.md` §8) |
 
+Vendor sources for S3's adapters, read on 2026-09-30 (the vendors' documentation sites are blocked from Claude's container, so primary source code was read instead; live behavior is Codex's to check under an allowance):
+
+| What | Version / identity | Used for | Sophia files |
+|---|---|---|---|
+| `@tavily/core` (npm) | 0.7.13, `dist/index.mjs` 110–350 | Endpoint `POST https://api.tavily.com/search`, `Authorization: Bearer`; request fields; response `results[{url,title,content,score,published_date}]`, `usage.credits` only with `include_usage`, `request_id`; the SDK switches to keyless mode without a key | `packages/dsh-bundle/src/source-tavily.ts` |
+| `tavily-ai/tavily-python` | `1aeb9db`, `tavily.py` 116–145 | Errors by status: 400, 401, 403/432/433, 429; 432 plan limit and 433 pay-as-you-go limit | `packages/dsh-bundle/src/source-errors.ts` |
+| `jina-ai/reader` | `1574bfd`: `crawler-options.ts`, `snapshot-formatter.ts`, `crawler.ts` | Headers (`X-Respond-With`, `X-No-Cache`, `DNT`, `X-Timeout` ≤ 180, `X-Max-Tokens` trims silently, `X-Set-Cookie`, `X-Proxy-Url`); `data.url` is the requested URL; the origin status only as a warning string for an error; `numPages` for PDFs | `packages/dsh-bundle/src/source-jina.ts` |
+| jina-ai/reader#1103 | GitHub issue | An origin 404 answered as JSON `code: 200` with a warning | `tests/unit/sources.test.mjs` |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

@@ -58,6 +58,13 @@
         "pnpm test:db"
       ],
       "ref": "docs/progress/SMC-M03.md#10-s2-part-3-the-specialist-registry"
+    },
+    {
+      "slice": "S3 part 1",
+      "commands": [
+        "pnpm check"
+      ],
+      "ref": "docs/progress/SMC-M03.md#11-s3-part-1-source-adapters-and-guards"
     }
   ],
   "outstanding_operations": [
@@ -98,12 +105,12 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "S3 (source access: Tavily, Jina, provenance, injection envelope, reservation service) while Codex answers CC-0004",
+  "next_action": "S3 part 2: provenance table, allowance grants and reservations (0024); CC-0004 awaiting Codex",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
     "previous": "sophia-runtime-m02-dev",
-    "bundle_archive_sha256_linux_x64": "b085f3f9f7c225ceac3390fa3df2883263759ba6b3c3882ea793bd225ecb00a1",
+    "bundle_archive_sha256_linux_x64": "0e413faa42e30eb950425e1fd8dd9400eea59e79d5169edf6d9a9602fb34a5a0",
     "darwin_arm64": "pending Codex artifacts:record",
     "deployed": false
   }
