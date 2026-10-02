@@ -43,9 +43,9 @@ contract; this file holds the code rules.
   that can hang is not a check: `node --test` counts a hang as cancelled,
   not failed. Race what is awaited against a sentinel, and assert that the
   sentinel lost: a timer that settles after the operation should have, or,
-  under mocked timers, a value already settled, which reads the promise at
-  that moment (`now` in `deadline.test.ts`). A race whose winner isn't
-  asserted checks nothing.
+  under mocked timers, a `setImmediate` (it isn't among the mocked timers),
+  which settles once every pending promise callback has run (`now` in
+  `deadline.test.ts`). A race whose winner isn't asserted checks nothing.
 - **Before writing a feature, write down its states.** Most review findings
   were states and crossings nobody had listed: text mode after each way a call
   ends, everything a panel covers on a phone, a view that unmounts, a second

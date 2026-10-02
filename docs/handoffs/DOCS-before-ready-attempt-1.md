@@ -33,6 +33,7 @@ Missing or unverified: these are working rules, and nothing in the gate enforces
 - Codex's reviews:
   - on `431f6d5`, one P2: a hang guard raced a value already settled. Fixed in `c5d1bbe` and `9281b56`.
   - on `04fcd8d`, one P1: this handoff was missing. Fixed here.
+  - on `b9d927b`, two P2. The hang-guard rule described the sentinel `deadline.test.ts` used before main changed it: it now names the `setImmediate` that settles once every pending promise callback has run. The End line names the last commit with content, not the one after it: a file can't name the commit or the tree that holds it, so the commit after only fills in that line.
 
 ## Decisions and changes
 
