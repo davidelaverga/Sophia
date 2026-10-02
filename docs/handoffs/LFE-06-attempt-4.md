@@ -7,7 +7,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/panel-ux` from main `8816d66`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the view, checks and docs at `953ab8b` (tree `d4a2c052f9d5`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`;
   - one slot in `features/studio/ProjectShell.tsx`;
