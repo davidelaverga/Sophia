@@ -13,10 +13,11 @@
 - **[`DirectionDetail`](../../apps/studio/src/features/explore/DirectionDetail.tsx)** shows the picture beside the choice and the provenance:
   - the route, and the model the provider reported, or "Not reported";
   - the brief's revision and the references;
-  - the asset id, its SHA-256 and its size.
+  - the asset id, its whole SHA-256 and its size.
 
   "Choose this one" asks for that choice only, with the direction's revision. After the choice the focus goes to Back, and Esc returns to the same tile.
 - **An image is drawn only from bytes that match their record** ([`useVerifiedImage`](../../apps/studio/src/features/explore/useVerifiedImage.ts)). A candidate without bytes shows its state in words, never a stand-in picture. An image that doesn't match its record can't be chosen. Nothing is offered while the check runs.
+- **Each image is read once, and only when wanted.** A tile's bytes are read when it comes within 200 px of the screen. The detail reuses the tile's check rather than reading again. The checked pictures are freed when the gallery closes (`VerifiedImages`, `useNearScreen`).
 - **Permissions:** editors and admins choose. Anyone else sees "Editors and admins choose." instead of a button.
 - **On a phone,** two candidates sit side by side to compare. Back and Choose are in view without scrolling.
 - **The shapes are the Studio's proposal** for S1-06's read contract ([`direction.ts`](../../apps/studio/src/features/explore/direction.ts)). The bytes and the choice go through ports, so nothing invents an endpoint. There is no generation port at all.
@@ -29,8 +30,8 @@ Missing or unverified:
 
 ## Evidence
 
-- `pnpm --filter @sophia/studio test:browser`: the 6 Explore checks and the 6 room checks pass. With `--repeat-each=3`, 36 of 36 pass.
-- **Twelve mutations of the new code** each made their check fail, every run on a fresh fixture server:
+- `pnpm --filter @sophia/studio test:browser`: the 7 Explore checks and the 6 room checks pass. With `--repeat-each=3`, 39 of 39 pass.
+- **Fifteen mutations of the new code** each made their check fail, every run on a fresh fixture server:
   - choosing asks twice;
   - the choice names the wrong revision;
   - a refused candidate can be chosen;
@@ -42,7 +43,10 @@ Missing or unverified:
   - Back doesn't return to the tile;
   - the focus falls after choosing;
   - one column on a phone;
-  - the state is shown by color only.
+  - the state is shown by color only;
+  - the detail reads its image again;
+  - every tile reads at once;
+  - a 12-character digest.
 - `node --test` on `direction.test.ts`: 4 pass.
 - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass. The Studio's production build has no fixture string. `pnpm test`: the new tests pass, plus the 5 known failures on Windows, as on main.
 
@@ -52,6 +56,9 @@ Missing or unverified:
 - **The checks found two bugs while being written, both fixed here:**
   - choosing by keyboard dropped the focus to the page, so Esc did nothing;
   - while the image was being checked, the choice said it "doesn't match its record".
+- **After Codex's review on #43 (two P2s, both fixed here):**
+  - the detail showed a 12-character prefix labelled SHA-256; it now shows the whole digest;
+  - every tile read and hashed its full image at once, and opening it read it again; reads are now lazy and shared (`many=1` in the fixture, 24 candidates).
 - **The fixture images are plain gradients** drawn for the fixture, not provider output. Their SHA-256 values are in the fixture data.
 
 ## Remaining obligations

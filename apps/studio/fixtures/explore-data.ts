@@ -56,7 +56,21 @@ const candidates: Direction['candidates'] = [
   },
 ]
 
-export const direction = (chosenId: string | null): Direction => ({
+/**
+ * `many`: a direction whose retained alternatives run past the screen, 24 ready candidates over the two simulated
+ * images, each its own candidate and asset.
+ */
+function manyCandidates(): Direction['candidates'] {
+  const ready = candidates.filter((c) => c.asset !== null)
+  // ids 40–63 for the assets and 64–87 for the candidates; their jobs are the two that returned images.
+  return Array.from({ length: 24 }, (_, i) => {
+    const from = ready[i % ready.length]
+    if (!from?.asset) throw new Error('the fixture needs its ready images')
+    return { ...from, id: id(64 + i), asset: { ...from.asset, id: id(40 + i) } }
+  })
+}
+
+export const direction = (chosenId: string | null, many = false): Direction => ({
   id: id(1),
   title: 'Hero image for the landing page',
   brief: { sourceId: id(2), revision: 3 },
@@ -67,13 +81,13 @@ export const direction = (chosenId: string | null): Direction => ({
       sha256: 'e0fa5d747e986b5232dd312fe2e63327f2f601f1f7450a2bab943a4503e4d995',
     },
   ],
-  candidates,
+  candidates: many ? manyCandidates() : candidates,
   chosenId,
   revision: 1,
 })
 
-/** Where each asset's simulated bytes are served (fixtures/images). */
+/** Where the simulated bytes behind each SHA-256 are served (fixtures/images). */
 export const FILE: Record<string, string> = {
-  [id(30)]: './images/candidate-a.png',
-  [id(31)]: './images/candidate-b.png',
+  e8b52a695e063f17310dcd97cb8d3c5d12a10beadefd02a8ffd0e2b9a45cb0bc: './images/candidate-a.png',
+  e6740bffe898e68ad277660121d1efa4925ebd66cba5ad84419be88dcd114811: './images/candidate-b.png',
 }

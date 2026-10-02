@@ -5,7 +5,7 @@ import type { Membership } from '@sophia/contracts'
 import { Icon, Tag } from '@sophia/ui'
 import { CandidateImage } from './CandidateImage.tsx'
 import { choice, provenance, ROUTE, STATE, type Candidate, type Direction } from './direction.ts'
-import { useVerifiedImage, type ReadBytes, type Shown } from './useVerifiedImage.ts'
+import { useVerifiedImage, type Shown, type VerifiedImages } from './useVerifiedImage.ts'
 
 export type Choose = (candidateId: string, expectedRevision: number) => Promise<void>
 
@@ -14,12 +14,13 @@ interface Props {
   candidate: Candidate
   n: number
   role: Membership['role'] | undefined
-  read: ReadBytes
+  /** The gallery's checks: an image its tile already read isn't read again. */
+  images: VerifiedImages
   onChoose: Choose
   onBack: () => void
 }
 
-interface ChooseProps extends Omit<Props, 'n' | 'read' | 'onBack'> {
+interface ChooseProps extends Omit<Props, 'n' | 'images' | 'onBack'> {
   /** Its bytes as checked: nothing is offered or refused while the check is under way. */
   shown: Shown | null
   /** The button goes once the choice holds: the focus needs somewhere to go. */
@@ -60,11 +61,11 @@ function ChooseButton({ direction, candidate, role, onChoose, shown, onChosen }:
 }
 
 export function DirectionDetail(props: Props) {
-  const { direction, candidate, n, read, onBack } = props
+  const { direction, candidate, n, images, onBack } = props
   const back = useRef<HTMLButtonElement>(null)
   useEffect(() => back.current?.focus({ preventScroll: true }), [])
   const state = STATE[candidate.state]
-  const shown = useVerifiedImage(candidate.asset, read)
+  const shown = useVerifiedImage(candidate.asset, images, true)
   return (
     <section
       className="direction-detail"

@@ -6,7 +6,8 @@ import { Tag } from '@sophia/ui'
 import { CandidateImage } from './CandidateImage.tsx'
 import { DirectionDetail, type Choose } from './DirectionDetail.tsx'
 import { nextTile, ROUTE, STATE, type Candidate, type Direction } from './direction.ts'
-import { useVerifiedImage, type ReadBytes } from './useVerifiedImage.ts'
+import { useNearScreen } from './useNearScreen.ts'
+import { useVerifiedImage, useVerifiedImages, type ReadBytes, type VerifiedImages } from './useVerifiedImage.ts'
 import './explore.css'
 
 interface Props {
@@ -21,19 +22,23 @@ interface TileProps {
   n: number
   chosen: boolean
   focusable: boolean
-  read: ReadBytes
+  images: VerifiedImages
   onOpen: () => void
   onKey: (e: React.KeyboardEvent) => void
   tile: (el: HTMLButtonElement | null) => void
 }
 
-function CandidateTile({ candidate, n, chosen, focusable, read, onOpen, onKey, tile }: TileProps) {
+function CandidateTile({ candidate, n, chosen, focusable, images, onOpen, onKey, tile }: TileProps) {
   const state = STATE[candidate.state]
-  const shown = useVerifiedImage(candidate.asset, read)
+  const [watch, near] = useNearScreen()
+  const shown = useVerifiedImage(candidate.asset, images, near)
   return (
     <li>
       <button
-        ref={tile}
+        ref={(el) => {
+          tile(el)
+          watch(el)
+        }}
         type="button"
         className="candidate-tile"
         tabIndex={focusable ? 0 : -1}
@@ -66,6 +71,7 @@ function DirectionHead({ direction }: { direction: Direction }) {
 }
 
 export function DirectionGallery({ direction, role, read, onChoose }: Props) {
+  const images = useVerifiedImages(read)
   const [open, setOpen] = useState<string | null>(null)
   const [focus, setFocus] = useState(0)
   const tiles = useRef<(HTMLButtonElement | null)[]>([])
@@ -95,7 +101,7 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
               n={i + 1}
               chosen={direction.chosenId === c.id}
               focusable={i === focus}
-              read={read}
+              images={images}
               onOpen={() => {
                 setFocus(i)
                 setOpen(c.id)
@@ -114,7 +120,7 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
           candidate={detail}
           n={opened + 1}
           role={role}
-          read={read}
+          images={images}
           onChoose={onChoose}
           onBack={back}
         />

@@ -1,7 +1,8 @@
 // Explore's fixture page for the direction checks (e2e/explore.spec.ts): the real DirectionGallery over labelled
 // simulated data. Its two ports are the fixture's own: the bytes are read from fixtures/images, and a choice is
 // recorded and applied here. No image service, provider or API is reached, and the page says so on screen. The query
-// string picks the scenario: `role=viewer` (who may not choose), `tamper=<asset id>` (bytes that don't match).
+// string picks the scenario: `role=viewer` (who may not choose), `tamper=<asset id>` (bytes that don't match),
+// `many=1` (24 candidates, past the screen).
 // `window.explore` lets a check read what was asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -32,7 +33,7 @@ window.explore = { asked }
 
 async function read(asset: ImageAsset): Promise<ArrayBuffer> {
   asked.push(`read:${asset.id}`)
-  const file = FILE[asset.id]
+  const file = FILE[asset.sha256]
   if (!file) throw new Error(`no simulated bytes for ${asset.id}`)
   const bytes = await (await fetch(file)).arrayBuffer()
   if (tampered === asset.id) {
@@ -43,7 +44,7 @@ async function read(asset: ImageAsset): Promise<ArrayBuffer> {
 }
 
 function Explore() {
-  const [current, setCurrent] = useState(() => direction(null))
+  const [current, setCurrent] = useState(() => direction(null, query.get('many') === '1'))
   const choose = async (candidateId: string, expectedRevision: number) => {
     asked.push(`choose:${candidateId}@${expectedRevision}`)
     await Promise.resolve()

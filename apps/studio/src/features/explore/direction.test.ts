@@ -58,7 +58,7 @@ describe('an image direction', () => {
     const rows = new Map(provenance({ ...ready, model: 'gpt-image-2.5-sunburst-2026-09-08' }, direction))
     assert.equal(rows.get('Model'), 'gpt-image-2.5-sunburst-2026-09-08')
     assert.equal(rows.get('Asset'), 'asset-b')
-    assert.equal(rows.get('SHA-256'), 'abababababab')
+    assert.equal(rows.get('SHA-256'), 'ab'.repeat(32), 'the whole digest, to compare with a file’s')
   })
 
   it('moves the focus over the tiles with arrows, Home and End, and stays inside', () => {

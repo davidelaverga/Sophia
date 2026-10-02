@@ -76,8 +76,6 @@ export function stateLine(c: Candidate): string {
   return c.state === 'running' ? 'The provider is working on it.' : 'Waiting its turn.'
 }
 
-export const shortHash = (sha256: string) => sha256.slice(0, 12)
-
 /** The facts behind a candidate, in reading order: what was asked, what answered, what was kept. */
 export function provenance(c: Candidate, d: Direction): [string, string][] {
   const rows: [string, string][] = [
@@ -87,7 +85,7 @@ export function provenance(c: Candidate, d: Direction): [string, string][] {
     ['References', d.references.length ? d.references.map((r) => r.label).join(', ') : 'None'],
   ]
   if (c.asset) {
-    rows.push(['Asset', c.asset.id], ['SHA-256', shortHash(c.asset.sha256)])
+    rows.push(['Asset', c.asset.id], ['SHA-256', c.asset.sha256])
     rows.push(['Size', `${c.asset.width} × ${c.asset.height}`])
   }
   return rows

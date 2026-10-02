@@ -103,9 +103,27 @@ test('IMG-04 @phone · every choice and its facts are reachable by touch, withou
   await tile(page, 2).tap()
   await expect(back(page)).toBeInViewport()
   await expect(choose(page)).toBeInViewport()
-  await expect(page.getByText('e6740bffe898')).toBeVisible() // the asset's hash, in words on the page
+  await expect(page.getByText('e6740bffe898e68ad277660121d1efa4925ebd66cba5ad84419be88dcd114811')).toBeVisible() // the whole digest, in words on the page
   await choose(page).tap()
   await expect(chosen(page)).toBeVisible()
   await back(page).tap()
   await expect(tile(page, 2)).toHaveAccessibleName('Candidate 2, OpenAI, Ready, chosen')
+})
+
+test('each image is read once, and only when its tile comes near the screen', async ({ page }) => {
+  await page.goto(`${PAGE}?many=1`)
+  const reads = async () =>
+    (await page.evaluate(() => window.explore?.asked ?? [])).filter((a) => a.startsWith('read:'))
+  await expect(page.getByRole('img', { name: 'Candidate 1, from Google' })).toBeVisible()
+  const first = await reads()
+  expect(first.length, 'tiles far below the screen are not read yet').toBeLessThan(24)
+
+  const last = tile(page, 24)
+  await last.scrollIntoViewIfNeeded()
+  await expect(last.getByRole('img')).toBeVisible()
+  await last.click()
+  await expect(page.getByRole('region', { name: /^Candidate 24/ }).getByRole('img')).toBeVisible()
+  const all = await reads()
+  expect(new Set(all).size, 'no image read twice, up close included').toBe(all.length)
+  expect(all).toContain('read:00000000-0000-4000-8000-000000000363')
 })

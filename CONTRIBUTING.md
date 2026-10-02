@@ -419,8 +419,8 @@ when you change the room:
   LFE-03): on `fixtures/explore.html`, labelled "Simulated — no image
   service", the real `DirectionGallery` over a direction whose jobs went four
   ways. Choosing asks for that choice only; an image is drawn only from bytes
-  that match its record; a viewer sees who chooses; the keyboard and a phone
-  reach everything. Explore in the Studio still says it is coming: it shows
+  that match its record, read once and only when its tile nears the screen;
+  a viewer sees who chooses; the keyboard and a phone reach everything. Explore in the Studio still says it is coming: it shows
   the gallery once S1-06 serves real candidates.
 
 ## The personal space
