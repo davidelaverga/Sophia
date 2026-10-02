@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-00/drop-in-panel` from main `9dd0019`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the check and docs at `c4c3c8f` (tree `59e4fee8200c`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** one browser check and LFE-00's records. **No product code, schema, dependency or hosted service was changed.**
 
 ## Outcome
