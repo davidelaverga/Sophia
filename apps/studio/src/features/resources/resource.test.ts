@@ -6,6 +6,9 @@ import {
   capacity,
   capacityLine,
   summary,
+  matches,
+  inFilter,
+  activity,
   expiry,
   windowView,
   type QuotaObservation,
@@ -174,5 +177,47 @@ describe('a required action', () => {
   it('says when it stops waiting, or that it already has', () => {
     assert.equal(expiry(at(40), now), 'expires in 40 min')
     assert.equal(expiry(at(-5), now), 'expired 5 min ago')
+  })
+})
+
+describe('finding a resource among many', () => {
+  const claude = {
+    id: 'davide-claude',
+    owner: { id: 'davide', name: 'Davide' },
+    tool: 'claude-code',
+    host: { state: 'online', observedAt: null },
+    sessions: [
+      {
+        id: 'a',
+        role: 'worker',
+        model: 'claude-opus-5-5',
+        effort: null,
+        assignment: { workId: 'w', title: 'Implement the PDF retry', state: 'waiting' },
+      },
+      { id: 'b', role: 'reviewer', model: null, effort: null, assignment: null },
+    ],
+  } as unknown as Resource
+  const open = { resourceId: 'davide-claude', state: 'open' } as RequiredAction
+
+  it('finds by tool, maker, owner, model or work, every word, whatever the case or accents', () => {
+    for (const q of ['', 'claude', 'ANTHROPIC', 'davide pdf', 'opus', 'reviewer', 'Davidé'])
+      assert.equal(matches(claude, q), true, q)
+    for (const q of ['codex', 'luis', 'davide codex']) assert.equal(matches(claude, q), false, q)
+  })
+
+  it('filters by what waits, what is online and whose it is', () => {
+    assert.equal(inFilter('all', claude, [], 'luis'), true)
+    assert.equal(inFilter('waiting', claude, [open], 'luis'), true)
+    assert.equal(inFilter('waiting', claude, [{ ...open, state: 'resolved' }], 'luis'), false)
+    assert.equal(inFilter('online', claude, [], 'luis'), true)
+    assert.equal(inFilter('mine', claude, [], 'luis'), false)
+    assert.equal(inFilter('mine', claude, [], 'davide'), true)
+  })
+
+  it('says what a resource does in one line', () => {
+    assert.equal(activity(claude), 'Implement the PDF retry · 2 sessions')
+    assert.equal(activity({ ...claude, sessions: claude.sessions.slice(0, 1) }), 'Implement the PDF retry')
+    const idle = { ...claude, sessions: claude.sessions.map((s) => ({ ...s, assignment: null })) } as Resource
+    assert.equal(activity(idle), '2 sessions, none assigned')
   })
 })

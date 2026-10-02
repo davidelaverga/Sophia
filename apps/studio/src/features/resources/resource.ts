@@ -238,7 +238,7 @@ export function capacity(obs: QuotaObservation | undefined, now: Date): Capacity
 
 export const capacityLine = (obs: QuotaObservation | undefined, now: Date) => capacity(obs, now).line
 
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+export const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** Beside the view's count: how many hosts are online and how many requests wait. Never a capacity total. */
 export function summary(resources: Resource[], actions: RequiredAction[]): string {
@@ -280,4 +280,52 @@ export const SUPPORT: Record<Support, string> = {
   supported: 'supported',
   unqualified: 'not qualified yet',
   unsupported: 'not offered',
+}
+
+/** The resource list's filters: everything, what has a request waiting, what is online, what is the viewer's own. */
+export type Filter = 'all' | 'waiting' | 'online' | 'mine'
+export const FILTERS: Filter[] = ['all', 'waiting', 'online', 'mine']
+export const FILTER_LABEL: Record<Filter, string> = { all: 'All', waiting: 'Waiting', online: 'Online', mine: 'Mine' }
+
+const waitingOn = (r: Resource, actions: RequiredAction[]) =>
+  actions.some((a) => a.resourceId === r.id && a.state === 'open')
+
+export function inFilter(filter: Filter, r: Resource, actions: RequiredAction[], viewerId: string): boolean {
+  if (filter === 'waiting') return waitingOn(r, actions)
+  if (filter === 'online') return r.host.state === 'online'
+  if (filter === 'mine') return r.owner.id === viewerId
+  return true
+}
+
+/** Text to compare in a search: no case, no accents ("Mérida" finds "merida"). */
+const fold = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+
+/**
+ * Whether a resource answers a search: every word must be found in its tool, maker, owner, sessions' roles and models,
+ * or what they work on. Case and accents don't matter; an empty search finds everything.
+ */
+export function matches(r: Resource, query: string): boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean)
+  if (words.length === 0) return true
+  const haystack = fold(
+    [
+      TOOL[r.tool],
+      VENDOR[r.tool],
+      r.owner.name,
+      ...r.sessions.flatMap((s) => [s.role, s.model ?? '', s.assignment?.title ?? '']),
+    ].join(' '),
+  )
+  return words.every((w) => haystack.includes(w))
+}
+
+/** What a resource is doing, in a tile's one line: its first assignment, and how many sessions share the account. */
+export function activity(r: Resource): string {
+  const n = r.sessions.length
+  const first = r.sessions.find((s) => s.assignment)?.assignment
+  if (!first) return n > 1 ? `${n} sessions, none assigned` : 'No assignment'
+  return n > 1 ? `${first.title} · ${n} sessions` : first.title
 }

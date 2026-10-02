@@ -362,12 +362,12 @@ function ProjectBody(props: BodyProps) {
     )
   }
   const work = view === 'work'
-  // A served Resources view is a page beside its own column (what waits on an owner), as Work is beside its pulse.
+  // A served Resources view takes the page's whole width: its tiles fill it.
   const resources = view === 'resources' ? props.resources : undefined
   return (
     <>
       {lobby}
-      <main className={`page${work || resources ? ' split' : ''}`}>
+      <main className={`page${work ? ' split' : ''}`}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>

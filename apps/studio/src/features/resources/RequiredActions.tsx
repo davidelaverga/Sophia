@@ -1,11 +1,9 @@
-// What waits on an owner, in the Resources view's side column, as Work has its pulse: the requests a native tool is
-// holding for its owner, with whose they are, the session, what they ask and until when. Only the owner is told how
-// to answer, in the native tool, and gets the session's id to copy; there is no Approve here (phase one), and seeing
-// a request answers nothing. A resource's row brings the focus here (`requestId`).
+// What waits on a resource's owner, in its sheet: the requests its native tool is holding, with the session, what they
+// ask and until when. Only the owner is told how to answer, in the native tool, and gets the session's id to copy;
+// there is no Approve here (phase one), and seeing a request answers nothing.
 import { useRef, useState } from 'react'
 import { Tag } from '@sophia/ui'
 import { actionLine, actionState, expiry, TOOL, type RequiredAction, type Resource } from './resource.ts'
-import { ToolLogo } from './ToolLogo.tsx'
 
 const TONE = {
   open: 'amber',
@@ -15,16 +13,6 @@ const TONE = {
   superseded: 'muted',
   unknown: 'amber',
 } as const
-
-/** The element a request is shown in, for a row that points to it. */
-export const requestId = (actionId: string) => `request-${actionId}`
-
-interface Props {
-  actions: RequiredAction[]
-  resources: Resource[]
-  viewerId: string
-  now: Date
-}
 
 /** The session's id, to find it in the native tool: copied, and said so for a moment. */
 function CopySession({ sessionId }: { sessionId: string }) {
@@ -47,57 +35,50 @@ function CopySession({ sessionId }: { sessionId: string }) {
   )
 }
 
-interface RequestProps {
-  action: RequiredAction
+interface Props {
+  actions: RequiredAction[]
   resource: Resource
   viewerId: string
   now: Date
 }
 
-function Request({ action, resource, viewerId, now }: RequestProps) {
+function Request({ action, resource, viewerId, now }: Omit<Props, 'actions'> & { action: RequiredAction }) {
   const line = actionLine(action, viewerId, resource)
   const mine = viewerId === action.ownerId && action.state === 'open'
   return (
-    <li className={`event waiting ${action.state}`} id={requestId(action.id)} tabIndex={-1}>
+    <li className={`event waiting ${action.state}`}>
       <span className="dot" aria-hidden />
       <div className="waiting-body">
-        <p className="waiting-owner">
-          <ToolLogo tool={resource.tool} size="sm" />
-          {resource.owner.name}’s {TOOL[resource.tool]} · session {action.sessionId}
-        </p>
         <p className="waiting-operation">{action.operation}</p>
+        <p className="waiting-session">Session {action.sessionId}</p>
         {line && <p className="waiting-line">{line}</p>}
         <p className="waiting-foot">
           <Tag tone={TONE[action.state]}>{actionState(action)}</Tag>
           {action.deadline && <span className="muted">{expiry(action.deadline, now)}</span>}
+          {mine && <CopySession sessionId={action.sessionId} />}
+          {mine && action.openTarget && (
+            <a className="pill" href={action.openTarget}>
+              Open in {TOOL[resource.tool]}
+            </a>
+          )}
         </p>
-        {mine && <CopySession sessionId={action.sessionId} />}
-        {mine && action.openTarget && (
-          <a className="pill" href={action.openTarget}>
-            Open in {TOOL[resource.tool]}
-          </a>
-        )}
       </div>
     </li>
   )
 }
 
-export function RequiredActions({ actions, resources, viewerId, now }: Props) {
+/** First in the sheet when anything waits; nothing at all when nothing does. */
+export function ResourceRequests({ actions, resource, viewerId, now }: Props) {
+  const own = actions.filter((a) => a.resourceId === resource.id)
+  if (own.length === 0) return null
   return (
-    <aside className="pulse resources-waiting" aria-labelledby="waiting-title">
-      <div className="pulse-head">
-        <h4 id="waiting-title">Waiting on an owner</h4>
-      </div>
-      {actions.length === 0 ? (
-        <p className="empty">Nothing is waiting on an owner.</p>
-      ) : (
-        <ol className="events">
-          {actions.map((a) => {
-            const resource = resources.find((r) => r.id === a.resourceId)
-            return resource ? <Request key={a.id} action={a} resource={resource} viewerId={viewerId} now={now} /> : null
-          })}
-        </ol>
-      )}
-    </aside>
+    <section className="sheet-section resource-requests" aria-labelledby="requests-title">
+      <h3 id="requests-title">Waiting on {resource.owner.id === viewerId ? 'you' : resource.owner.name}</h3>
+      <ol className="events">
+        {own.map((a) => (
+          <Request key={a.id} action={a} resource={resource} viewerId={viewerId} now={now} />
+        ))}
+      </ol>
+    </section>
   )
 }
