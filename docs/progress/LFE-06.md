@@ -59,6 +59,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 11** ([handoff](../handoffs/LFE-06-attempt-11.md)): each session's effort in its tool's own look.
   - Claude Code's dotted bar, full and alive in ultracode (its mode, said alone); GPT's gradient sparkling at Ultra; a plain bar for the others.
 - **Attempt 12** ([handoff](../handoffs/LFE-06-attempt-12.md)): a request said once: three lines for its owner instead of five, the session named once, "Waiting" said by its heading.
+- **Attempt 13** ([handoff](../handoffs/LFE-06-attempt-13.md)): the capacity's facts in one line: "shared by 2 sessions · 6 readings in 3 h · 1 min ago".
 
 ## Acceptance cases
 
