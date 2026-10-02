@@ -683,9 +683,11 @@ their work. Keep these when you change them:
   her reply (`heard`, with tests), never what was there when the space
   loaded, nor earlier days read back.
 - **An answer never moves the person.** What comes back after a wait (an
-  answer, a slide, the voice heard) moves the focus only if the person left
-  it where the act did, or it was dropped (`focusLater`, with tests: Take
-  back, a note's carry, dictation); a control that appears in place of the
+  answer, the voice heard) moves the focus only if the person left it where
+  the act did, or it was dropped (`focusLater`, with tests: Take back,
+  dictation). A note carried hands the focus to the notes as it starts to
+  cross, before it goes out of reach, and nothing moves it after the slide;
+  a control that appears in place of the
   focused one takes it only from nobody (`focusIfDropped`: a refused note's
   form). The conversation keeps its latest turn in sight as it grows while
   the person reads at its end (also when they come back from another

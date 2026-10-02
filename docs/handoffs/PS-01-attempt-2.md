@@ -12,6 +12,7 @@
 Codex's last review of #30 (on `84a7c76`) found two P2 and no P1, so #30 merged under Luis's rule (merge when there is no P1) and these two came here:
 
 - **A note carried twice.** The carry's guard ended with its 440 ms slide. With a slow write, the note came back within reach and could be carried to another project; one of the two writes was refused, and its notice could replace the first's. Now the note stays crossed, out of reach, until its write settles, and comes back if the write failed. The write goes through `presses.ts`, keyed by the note, as Take back does.
+- **The focus while a note crosses** (Codex on this PR's `44c6e7c`, one P2). The crossing note went inert at once, with the project just picked inside it, so the focus was dropped for the slide. Now the notes panel takes the focus as the note starts to cross, before it goes out of reach, and nothing moves it after the slide.
 - **A clipboard write past the padlock.** Once the browser has the text, the write can't be called off. One that settled after the sheet closed or the padlock shut still landed, and said "Copied". Now such a copy is taken back: the clipboard is emptied as far as the browser lets a page, and nothing says it was copied.
 
 Missing or unverified:
@@ -25,9 +26,10 @@ Missing or unverified:
 - **Browser** (`personal-followups`, on the personal stack):
   - a note carried while its write is slow: it stays crossed and out of reach, one write goes, and it says where it went;
   - a copy whose clipboard write is slow, with the sheet closed meanwhile: nothing of the space stays on the clipboard, and nothing says Copied;
-  - a note whose carry fails: crossed while the write is on its way, then back within reach, with the failure said.
-- **Earlier suites:** the ten earlier personal suites that copy or carry all pass.
-- **Mutations:** each fix undone once fails its test or scenario (4 of 4).
+  - a note whose carry fails: crossed while the write is on its way, then back within reach, with the failure said;
+  - a project picked with the keyboard: the focus is on the panel while the note crosses, never dropped, and stays there.
+- **Earlier suites:** the ten earlier personal suites that copy or carry all pass, and so does `personal-round7` (the focus handed on).
+- **Mutations:** each fix undone once fails its test or scenario (5 of 5).
 
 ## Decisions and changes
 
