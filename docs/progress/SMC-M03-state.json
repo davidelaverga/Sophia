@@ -260,6 +260,14 @@
         "pnpm --filter @sophia/studio test:browser (48 checks; 22 report checks, each new one failing without its fix)"
       ],
       "ref": "docs/progress/SMC-M03.md#34-cx-0011-m03-rf-00210023-and-mains-4748-2026-10-02"
+    },
+    {
+      "slice": "CX-0015 feasibility: the PDF renderer beside the runtime at 0.5 CPU / 512 MiB (local cgroup measurements, four reviews, three skeptics)",
+      "commands": [
+        "cgroup v1 limits 512/384/256 MiB and quota 50000/100000; the real kernel and headless shell with template-printed reports",
+        "the real dsh runtime under the RuntimeSupervisor against the fixture service and the mock model"
+      ],
+      "ref": "docs/progress/SMC-M03.md#36-cx-0015-the-pdf-renderer-on-the-existing-runtime-host-measured-blocked-as-proposed-2026-10-02"
     }
   ],
   "outstanding_operations": [
@@ -267,8 +275,8 @@
       "operation_id": "SMC-M03-OP-0001",
       "kind": "inspect_request",
       "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526",
-      "state": "blocked (CX-0008: read-only preflight done; the hosted episode waits on S6, the release batches and OP-C, each with Davide's bound approval)",
-      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5942292042"
+      "state": "awaiting_owner (CX-0015 proposed the renderer on the existing runtime host; CC-0017: blocked as proposed, measured. Davide chooses: Markdown now, a separate small renderer, or the runtime on Standard)",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5956497250"
     },
     {
       "operation_id": "SMC-M03-OP-0002",
@@ -302,7 +310,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CX-0012 verified M03-RF-0021..0023 on ebcbbc0 and reviewed the whole head with no P0–P2; M03-RF-0024 (P3, LFE-06's resource headline) is handed to LFE-06 and reaches this branch with main. Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CX-0012 verified M03-RF-0021..0023 on ebcbbc0 and reviewed the whole head with no P0–P2; M03-RF-0024 (P3, LFE-06's resource headline) is handed to LFE-06 and reaches this branch with main. PDF hosting: CC-0017 found the runtime-host co-location blocked as proposed (measured); Davide chooses Markdown now, a separate small renderer, or the runtime on Standard. Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

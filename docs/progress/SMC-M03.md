@@ -549,6 +549,8 @@ Not live-verified: no Gemini Live session ran with guide v1.2 (the provider-faci
 | Host requirement | The confinement needs unprivileged user namespaces and a fresh `/proc`. In a stock Docker container (default seccomp profile, masked `/proc` paths) `unshare` is refused, even as root: the probe fails closed ("the confinement did not run"). With seccomp unconfined and `systempaths=unconfined` (or `CAP_SYS_ADMIN` and `systempaths=unconfined`), every network and secret check passes | Local Docker 29.3.1 runs of the probe in `node:24.21.0-bookworm-slim`, with the renderer mounted read-only, the render user uid 10001, a runner token at 0600 and a loopback API listener. Re-run with CX-0009's probe: with Docker's defaults it fails closed ("the confinement did not run: unshare: … Operation not permitted"); with `seccomp=unconfined` and `systempaths=unconfined`, the job has its own network namespace with no interface up and only its four variables, and public TCP, DNS, the metadata address, the supervisor's environment, the API host and the runner token (EACCES) are all refused. In that stock image the render itself fails (it has none of the browser's libraries; the renderer image is not built), so `render`, `kernel_checks` and `sandbox` fail, as they must |
 | Resources | One render at a time; 1 vCPU and 2 GiB RAM; a 1 GiB ephemeral work directory (per job: the source package, each file at most 16 MiB; Chromium's profile; and the PDF, at most 32 MiB); the kernel's own limits (`prlimit`: no core files, 4096 files, 256 MiB per file, 600 s CPU; the job timeout); egress to the API host only, over HTTPS | `bin/confine-chromium`, `supervisor.mjs` |
 
+**Co-location on the runtime host (CX-0015):** measured and blocked as proposed; see §36.
+
 **Where it can run.** A host passes only if the probe passes there. Expect a managed container service with Docker's default profile (Render's Docker services included, unless Render documents otherwise) to fail the namespace step; that is for Codex to probe, not assumed. Alternatives for Davide, each with its price and data-recipient implications to be confirmed at OP-C:
 1. A small VM the team controls (one vCPU, 2 GiB), running the image with `--security-opt seccomp=<profile allowing unshare> --security-opt systempaths=unconfined`, or the supervisor directly under systemd. The report HTML and PDF reach only that VM's provider.
 2. A container platform that runs each container in its own micro-VM, where the namespaces are available inside. To be probed.
@@ -698,3 +700,58 @@ One new finding, **M03-RF-0024 (P3)**, is in LFE-06's resource panel (`apps/stud
 - A window whose state is unknown says the same, rather than "Capacity unknown".
 
 It was confirmed here. It is LFE-06's code (`029b6ba`, `cecea8b`), which is still moving, and M03 changes nothing under `features/resources/`, so it is handed to LFE-06 rather than fixed in PR #32 ([disposition](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951638955)). The panel is not mounted in production. A fix on `main` reaches this branch at its next merge, where the resource checks run with everything else.
+
+## 36. CX-0015: the PDF renderer on the existing runtime host, measured: blocked as proposed (2026-10-02)
+
+Davide ruled out a new $25/month renderer service. Codex then proposed ([CX-0015](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5956497250)) one Docker image on the existing runtime service (one instance, 0.5 CPU, 512 MB), running dsh and the PDF supervisor side by side. Its acceptance: a total cgroup peak of at most 384 MiB, no OOM, and the runtime within its deadlines. It asked Claude for a feasible-or-blocked verdict with evidence. **The verdict is blocked as proposed.**
+
+**How it was measured.** Locally, linux-x64, with cgroup v1 limits matching the plan (memory 512, 384 and 256 MiB; CPU quota 50000/100000):
+- the real kernel and headless shell, with reports printed by the real template;
+- the real dsh runtime under the RuntimeSupervisor, against the fixture service and the keyless mock model: idle, research turns and briefs.
+
+Four reviews then looked from separate angles (capacity, isolation on a shared host, supervision and limits, Render's platform), and three skeptics tried to refute the result. Nothing hosted ran: no provider call, no key.
+
+| Measured (0.5 CPU) | rss + shmem | Outcome |
+|---|---|---|
+| Runtime alone, idle / research turn | 150 / 166–176 MiB | fits even 384 MiB; boot 9.3 s against the 60 s ready timeout |
+| Render alone: typical (13 pages), draft-limit prose (95 pages), wide tables (156 pages) | 140 / 250–262 / 390–420 MiB | 3.5 / 8.5 / 11.6 s per render |
+| Render alone: dense tables (262,144 B Markdown, 199 tables, 275 pages; a legal draft) | about 1.3 GiB | Chromium OOM-killed even in a 1 GiB cgroup |
+| Runtime plus typical and draft-limit renders, one cgroup, 512 MiB | 444–452 MiB (working set 499–507) | 90 of 90 renders succeeded, no OOM; research turns about 35% slower; probes at most 118 ms |
+| The same pair, hard limit 384 MiB | — | thrashing: research turns 8–20 times slower, draft-limit renders time out, poll gap about 50 s |
+| Runtime plus wide-table renders, 512 MiB | 494 MiB | 0 of 4 renders; a research turn fails; poll gap about 100 s, past the runtime's 90 s `seen_at` deadline, so research admission refuses ("No research runtime is ready") |
+| Runtime plus wide-table renders, Chromium capped at 256 MiB (RLIMIT_DATA), 512 MiB | 444 MiB | every wide render fails fast ("PDF not produced"); the runtime unaffected (gap 20 s, probes at most 54 ms) |
+
+Lowering the render's priority (`nice 19`) brought no benefit, because one CPU quota covers both. Memory follows layout (pages, table cells), not bytes: the proposed 8 MiB input bound is 12 times the largest legal HTML, so it bounds nothing.
+
+**Why it is blocked.**
+- **Capacity.** The 384 MiB acceptance is not met by any combined run, and a hard 384 MiB limit thrashes. A legal draft can take the runtime past its `seen_at` deadline at 512 MiB, and a legal dense draft needs about 1.3 GiB on its own. No instance size prints every legal draft, so a PDF needs admission by structure (pages, table cells) whatever the host.
+- **No hard boundary for the render.** Only a delegated sub-cgroup with its own memory limit bounds a render, and whether Render's Docker containers allow one is unknown. The other levers do not hold:
+  - `oom_score_adj` is not pinned: without CAP_SYS_RESOURCE the render uid can lower it again, and Chromium lowers its renderer to 300 on its own;
+  - the browser can fill the container's shared `/dev/shm`, and those pages outlive the render;
+  - RLIMIT_DATA works only per process, and cannot usefully apply to the kernel's Node, which aborts at start with a limit of 512 MiB or less.
+- **Isolation.** The reviewed layout runs the supervisor and the kernel as root. Inside the runtime's container that is not safe:
+  - root processes with Docker's default capabilities can read each other's environment, including PID 1's, which holds every Render-injected secret;
+  - job directories (0755/0644) are readable by the runtime's uid, so dsh's file tools could read other projects' report HTML;
+  - one container boundary would hold the provider keys, every project's `/var/data` and the cross-project runner capability, all reachable from report content through a Chromium escape plus a kernel exploit.
+
+  Fixing this means changing the reviewed kernel files, which changes the kernel identity and couples renderer releases to runtime redeploys.
+- **Platform.** Only a hosted probe can show whether:
+  - a Render Docker service runs as root with CAP_SETUID and CAP_SETGID;
+  - it allows a fresh `/proc` mount (any `/proc` mask refuses `--mount-proc`; reproduced locally);
+  - a memory-cgroup OOM kills the whole instance (`memory.oom.group`);
+  - `/var/data` keeps its ownership across a native-to-Docker change.
+
+**Options for Davide** (prices for Codex to confirm on Render's pricing page):
+1. **Markdown now, PDF later.** No cost. This is already built: `start_research` refuses PDF while no runner has asked for work in ten minutes, and reports arrive as Markdown.
+2. **A separate small renderer service** (a Starter background worker: 512 MB, 0.5 CPU), with admission by structure and a Chromium cap. It keeps the runtime untouched and keeps the service boundary. Alone at 512 MiB (warm) the renderer printed every input except the dense one, which would be refused before printing. The wide-table input with its own file pages charged was not measured and may need the cap. The platform questions above still need the hosted probe.
+3. **The runtime moved to Standard (2 GB, 1 CPU) and shared**, with the isolation changes, admission by structure and a render sub-cgroup if Render delegates one. A plan upgrade; the dense draft still needs admission.
+
+Not run, and needed before any choice is accepted:
+- the real supervisor (claim, heartbeat, settle) under contention;
+- Hold, Stop and `start_research` during a render under load;
+- a run at 488 MiB, in case Render's 512 MB is decimal;
+- the dense draft beside the runtime;
+- a cold start from storage the host does not cache;
+- a memory soak over hours.
+
+Some combined results rest on a single run each: the 384 MiB run and the uncapped wide-table run. The raw logs and harnesses are in this session's private scratch, and Claude can add the harness to the repository if Codex wants to reproduce the runs.
