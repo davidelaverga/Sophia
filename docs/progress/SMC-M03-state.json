@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "1ebf440",
+  "candidate_commit": "4515093",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -229,6 +229,17 @@
         "docker run node:24.21.0-bookworm-slim … host-probe.mjs (default and relaxed security options)"
       ],
       "ref": "docs/progress/SMC-M03.md#31-cx-0009-m03-rf-00170020"
+    },
+    {
+      "slice": "main merged at 55ddc1e (PS-01, Studio follow-ups, LFE-00)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (main's Chromium preservation checks)",
+        "pnpm artifacts:record, then pnpm artifacts"
+      ],
+      "ref": "docs/progress/SMC-M03.md#32-main-merged-2026-10-02-the-personal-space-and-lfe-00"
     }
   ],
   "outstanding_operations": [
@@ -242,8 +253,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0012.md",
-      "state": "awaiting_operator (revision 11, CC-0012: re-review of M03-RF-0017..0020 and the further fixes, the release clarifications, at 1ebf440; CC-0011 answered by CX-0009)"
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0013.md",
+      "state": "awaiting_operator (revision 12, CC-0013: CC-0012's asks on the merged candidate 4515093, and the merge's resolutions)"
     }
   ],
   "unknown_effects": [],
@@ -270,7 +281,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0012 awaits Codex (M03-RF-0017..0020 and the further fixes at 1ebf440, with the release clarifications). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
+  "next_action": "CC-0013 awaits Codex (CC-0012's asks, M03-RF-0017..0020 and the further fixes with the release clarifications, on the merged candidate 4515093, and the merge's resolutions). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
