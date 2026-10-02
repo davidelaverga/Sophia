@@ -3,7 +3,7 @@
 // where everything else is. It goes in ProjectShell's `resources`. It shows; it doesn't steer, hold or stop
 // (LFE-06.4), and nothing here calls a tool.
 import { useRef, useState } from 'react'
-import { useSlidingThumb } from '@sophia/ui'
+import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { glideName, moving } from './motion.ts'
@@ -124,21 +124,18 @@ function Search({ query, onChange }: SearchProps) {
     else input.current?.blur()
   }
   return (
-    <div className="field quiet resource-search">
+    <div className="field quiet resource-search has-tip">
       <input
         ref={input}
         type="search"
         aria-label="Search resources"
+        aria-keyshortcuts="/"
         placeholder="Search tools, owners, work…"
         value={query}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
       />
-      {!query && (
-        <kbd className="field-key" aria-hidden>
-          /
-        </kbd>
-      )}
+      <Tip label="Search" keys="/" side="bottom" />
     </div>
   )
 }

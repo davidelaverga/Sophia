@@ -276,6 +276,16 @@ export function actionLine(a: RequiredAction, viewerId: string, r: Resource): st
   return `Answer it in ${tool}, session ${a.sessionId}.`
 }
 
+/** How full a window is, as its meter's colour: amber from 75 % used, red from 90 %. */
+export type UsageTone = 'ok' | 'warn' | 'full'
+export const WARN_AT = 75
+export const FULL_AT = 90
+
+export function usageTone(percent: number): UsageTone {
+  if (percent >= FULL_AT) return 'full'
+  return percent >= WARN_AT ? 'warn' : 'ok'
+}
+
 export const SUPPORT: Record<Support, string> = {
   supported: 'supported',
   unqualified: 'not qualified yet',

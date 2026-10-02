@@ -40,6 +40,8 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - A tile's light follows the pointer in its tool's colour.
   - What waits keeps a slow pulse, and a light runs once along the waiting line.
   - Nothing moves when reduced motion is asked for.
+  - A meter turns amber from 75 % used and red from 90 %.
+  - Codex's review: a tile now tells assistive technology all its lines (P1); the search's `/` is in its tip; the windows' chevron is still with reduced motion.
 
 ## Acceptance cases
 

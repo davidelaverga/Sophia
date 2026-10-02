@@ -2,7 +2,8 @@
 // the real ResourcePanel in it over labelled simulated data, so the panel is seen where it will live. The shell's own
 // reads are answered at fetch (fixture-api.ts); the panel has no port that acts, and any other request is recorded as
 // unexpected. The query string picks who is looking, `viewer=davide` (default: Luis); `stale=1` (Codex's reading has
-// expired); `more=1` (Grok and Gemini CLI join the three enrollments); `quiet=1` (nothing waits on an owner).
+// expired); `more=1` (Grok and Gemini CLI join the three enrollments); `quiet=1` (nothing waits on an owner);
+// `busy=1` (Codex's account at 92 % and 78 %).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -16,6 +17,7 @@ import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import {
   actions,
+  busyCodex,
   expiredAt,
   moreObservations,
   moreResources,
@@ -40,9 +42,12 @@ const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
 const more = query.get('more') === '1'
 const shown = more ? [...resources, ...moreResources] : resources
 const stale = query.get('stale') === '1'
-const read = [...observations, ...(more ? moreObservations : [])].map((o) =>
-  stale && o.entitlement_id === 'ent-davide-openai' ? { ...o, valid_until: expiredAt() } : o,
-)
+const busy = query.get('busy') === '1'
+const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
+  if (o.entitlement_id !== 'ent-davide-openai') return o
+  if (stale) return { ...o, valid_until: expiredAt() }
+  return busy ? busyCodex(o) : o
+})
 
 const root = document.getElementById('root')
 if (!root) throw new Error('resources.html must contain #root')

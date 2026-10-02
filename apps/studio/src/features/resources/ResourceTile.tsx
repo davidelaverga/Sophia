@@ -1,5 +1,7 @@
 // One resource as a tile, to scan many at a glance: its tool as itself and its host, whose it is, what it is doing,
-// and how full its account is. Four lines, never more; everything else opens in its sheet (ResourceSheet).
+// and how full its account is. Four lines, never more; everything else opens in its sheet (ResourceSheet). Its name
+// is whose tool it is; what its lines say is its description, so assistive technology hears them too.
+import { useId } from 'react'
 import { Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
 import { followPointer } from './motion.ts'
@@ -18,9 +20,45 @@ interface Props {
   onOpen: () => void
 }
 
+interface OwnerProps {
+  name: string
+  mine: boolean
+  waiting: number
+  /** The id a part of the tile is said under, for the tile's description. */
+  said: (part: string) => string
+}
+
+/** Whose it is, and the tags that apply: "You", and how many requests wait on its owner. */
+function Owner({ name, mine, waiting, said }: OwnerProps) {
+  return (
+    <span className="resource-tile-owner">
+      <span className="resource-initial" aria-hidden>
+        {name.charAt(0)}
+      </span>
+      {name}
+      {mine && (
+        <span id={said('you')}>
+          <Tag tone="lav">You</Tag>
+        </span>
+      )}
+      {waiting > 0 && (
+        <span id={said('waiting')}>
+          <Tag tone="amber">{waiting} waiting</Tag>
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function ResourceTile({ resource, observation, now, mine, waiting, onOpen }: Props) {
   const { tool, owner, host } = resource
   const { line, limiting, known } = capacity(observation, now)
+  const id = useId()
+  const said = (part: string) => `${id}-${part}`
+  const described = ['host', mine && 'you', waiting > 0 && 'waiting', 'activity', 'capacity']
+    .filter((part) => typeof part === 'string')
+    .map(said)
+    .join(' ')
   return (
     <button
       type="button"
@@ -28,26 +66,20 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
       data-tool={tool}
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
+      aria-describedby={described}
       onClick={onOpen}
       onPointerMove={followPointer}
     >
       <span className="resource-tile-head">
         <ToolLogo tool={tool} />
         <span className="resource-tile-name">{TOOL[tool]}</span>
-        <span className={`resource-tile-host ${host.state}`}>
+        <span id={said('host')} className={`resource-tile-host ${host.state}`}>
           <span className="resource-dot" aria-hidden />
           {HOST[host.state]}
         </span>
       </span>
-      <span className="resource-tile-owner">
-        <span className="resource-initial" aria-hidden>
-          {owner.name.charAt(0)}
-        </span>
-        {owner.name}
-        {mine && <Tag tone="lav">You</Tag>}
-        {waiting > 0 && <Tag tone="amber">{waiting} waiting</Tag>}
-      </span>
-      <span className="resource-tile-activity" title={activity(resource)}>
+      <Owner name={owner.name} mine={mine} waiting={waiting} said={said} />
+      <span id={said('activity')} className="resource-tile-activity" title={activity(resource)}>
         {activity(resource)}
       </span>
       <span className="resource-tile-capacity">
@@ -58,7 +90,7 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
             value={line}
           />
         )}
-        <span className="resource-tile-capacity-line" title={line}>
+        <span id={said('capacity')} className="resource-tile-capacity-line" title={line}>
           {line}
         </span>
       </span>

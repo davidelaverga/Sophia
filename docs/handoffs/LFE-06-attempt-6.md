@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/panel-ux` at `143c99c` (attempt 5), 2026-10-02.
-- **End:** content commit `e49c5e8`; its checks ran on it.
+- **End:** pending: the commit after the content commit fills it in.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `motion.ts`, the panel, the tile, the requests and the stylesheet;
   - the resource checks;
@@ -25,11 +25,28 @@ All of it builds on the app's own motion (`arrive`, the room's `ignite` ring, `S
   - "Copy session id" crossfades to "Copied" (`SwapLabel`);
   - the sheet's sections arrive one after another;
   - the `/` key in the search steps aside while the search has the focus.
-- **Reduced motion:** with it asked for, nothing animates and nothing glides. The same changes happen at once.
+- **Reduced motion:** with it asked for, nothing animates and nothing glides. The same changes happen at once. The windows' chevron turns at once too.
+- **Usage colours,** at Luis's request: a meter's fill is teal, turns amber from 75 % used and red from 90 %. One function says it (`usageTone`, unit-tested at 74, 75, 89 and 90), and the meter takes its colour from it. The fixture's `busy=1` puts Codex at 92 % and 78 %, so both show.
+
+## Codex's review of `d8cc43e`
+
+- **P1, fixed: a tile hid its state from assistive technology.** Its name stays whose tool it is ("Davide · Claude Code"). Its lines are now its description, which a screen reader hears: host, "You", waiting, activity and capacity (`aria-describedby`).
+- **P2, fixed: `/` was a visible badge instead of the Studio's tip.** The search field now has `has-tip` and `<Tip keys="/">`, and the input says `aria-keyshortcuts="/"`.
+- **P2, fixed: the windows' chevron still turned with reduced motion.**
+- **P2, measured, no change: inline styles and the Content-Security-Policy.** The page was loaded with `style-src 'self'` as report-only, through filters and hover. It reported no `style-src-attr` violation: React sets these styles through the CSSOM, which the policy doesn't govern. The only reports were `style-src-elem`, for the `<style>` tags of Vite's dev server, which the build doesn't have.
 
 ## Evidence
 
-- `pnpm --filter @sophia/studio test:browser --repeat-each=2`: 78 of 78. That is 39 checks, 21 of them the resource checks, four of those new for motion:
+- After the usage colours and Codex's fixes: `test:browser --repeat-each=2` passes 80 of 80. Six more mutations each made their check fail:
+  - amber from 80 instead of 75;
+  - never red;
+  - red drawn as amber;
+  - a tile's description removed;
+  - the search's `aria-keyshortcuts` removed;
+  - the chevron still turning with reduced motion.
+
+  All 35 mutations of attempts 5 and 6 still fail their checks. `pnpm test`: 579 pass, plus the 5 known Windows failures.
+- Before them: `pnpm --filter @sophia/studio test:browser --repeat-each=2` passed 78 of 78. That is 39 checks, 21 of them the resource checks, four of those new for motion:
   - a filter glides and typing doesn't;
   - every tile has its own glide name;
   - tiles arrive in turn, meters fill and what waits pulses;

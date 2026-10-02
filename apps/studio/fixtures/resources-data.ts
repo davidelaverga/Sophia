@@ -72,6 +72,12 @@ const percent = (window_id: string, value: number, resetsIn: number): QuotaWindo
   state: 'observed',
 })
 
+/** `busy=1`: Codex's account nearly used up: its 5-hour window at 92 % (red), its 7-day at 78 % (amber). */
+export const busyCodex = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: [percent('five_hour', 92, 40), percent('seven_day', 78, 3 * 1440)],
+})
+
 export const observations: QuotaObservation[] = [
   {
     observation_id: 'obs-codex',

@@ -148,6 +148,13 @@ test('what waits on an owner is one line on top, and it opens that resource', as
   const first = await tile(page, 'Davide · Codex').boundingBox()
   expect((await line.boundingBox())?.y ?? Infinity, 'above the tiles').toBeLessThan(first?.y ?? 0)
   await expect(tile(page, 'Davide · Claude Code').getByText('1 waiting')).toBeVisible()
+  // A screen reader hears the tile's lines, not only whose it is.
+  await expect(tile(page, 'Davide · Claude Code')).toHaveAccessibleDescription(
+    'Online 1 waiting Implement the PDF retry · 2 sessions 5-hour window: 63% used, resets in 55 min',
+  )
+  await expect(tile(page, 'Luis · Claude Code')).toHaveAccessibleDescription(
+    'Unknown You No assignment Capacity unknown',
+  )
   await expect(tile(page, 'Davide · Codex').getByText(/waiting/)).toHaveCount(0) // none waiting
   await line.click()
   await expect(sheet(page, 'Davide · Claude Code').getByText('Run a shell command', { exact: false })).toBeVisible()
@@ -168,6 +175,7 @@ test('with nothing waiting, nothing is said on top and no tile says it waits', a
 
 test('the search finds by tool, owner or work, "/" reaches it, and Escape clears it', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
+  await expect(search(page)).toHaveAttribute('aria-keyshortcuts', '/') // and its tip shows the key
   await page.keyboard.press('/')
   await expect(search(page)).toBeFocused()
   await page.keyboard.type('gemini')
@@ -219,6 +227,29 @@ test('a meter is drawn only for a percentage known to apply', async ({ page }) =
   await expect(claude.getByRole('meter', { name: '5-hour window' })).toHaveAttribute('aria-valuenow', '63')
   await claude.getByRole('button', { name: 'All 3 windows' }).click()
   await expect(claude.getByRole('meter')).toHaveCount(2) // the 88 % that may not apply has none
+})
+
+/** A theme colour (#rrggbb) as the browser computes it. */
+const rgb = (hex = '') => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`
+
+test('a meter turns amber from 75 % used and red from 90 %', async ({ page }) => {
+  await page.goto(`${PAGE}?busy=1`)
+  await expect(tile(page, 'Davide · Codex').getByRole('meter')).toHaveClass(/is-full/) // the 92 % heads it
+  await expect(tile(page, 'Davide · Claude Code').getByRole('meter')).not.toHaveClass(/is-warn|is-full/) // 63 %
+  await open(page, 'Davide · Codex')
+  const codex = capacity(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'All 2 windows' }).click()
+  const fill = (name: string) =>
+    codex
+      .getByRole('meter', { name })
+      .last() // the window's own, under the headline's
+      .locator('.capacity-meter-fill')
+      .evaluate((el) => getComputedStyle(el).backgroundColor)
+  const [rose, amber] = await page.evaluate(() =>
+    ['--rose', '--amber'].map((v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()),
+  )
+  expect(await fill('5-hour window')).toBe(rgb(rose))
+  expect(await fill('7-day window')).toBe(rgb(amber))
 })
 
 test('the viewer’s own resource says so', async ({ page }) => {
@@ -389,4 +420,7 @@ test('motion · with less motion asked for, the same changes come at once and no
   await filter(page, 'Mine 2').click()
   await expect(grid(page).getByRole('button')).toHaveCount(2)
   expect(await glides(page)).toBe(0)
+  await open(page, 'Luis · Gemini CLI')
+  const chevron = capacity(page, 'Luis · Gemini CLI').locator('.capacity-toggle .icon')
+  await expect(chevron).toHaveCSS('transition-duration', '0s') // the windows' chevron turns at once
 })

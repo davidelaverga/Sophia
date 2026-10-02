@@ -64,11 +64,6 @@
   flex: 1;
   min-width: 0;
 }
-.field-key {
-  margin-right: 4px;
-  color: var(--text-3);
-  font-size: 11px;
-}
 .filter-count {
   margin-left: 6px;
   font-family: var(--mono);
@@ -343,8 +338,11 @@
   border-radius: inherit;
   background: var(--teal);
 }
-.capacity-meter.is-high .capacity-meter-fill {
+.capacity-meter.is-warn .capacity-meter-fill {
   background: var(--amber);
+}
+.capacity-meter.is-full .capacity-meter-fill {
+  background: var(--rose);
 }
 .capacity-toggle {
   display: inline-flex;
@@ -522,12 +520,6 @@
     grid-column: 1;
   }
 }
-/* No keyboard to press it with: the search's key is not shown. */
-@media (hover: none) {
-  .field-key {
-    display: none;
-  }
-}
 
 /* Motion, kept small. A tile's light follows the pointer, in its tool's colour, on its face and along its edge. */
 @media (hover: hover) {
@@ -638,14 +630,6 @@
   }
 }
 
-/* The search's key steps aside while the search has the focus. */
-.field-key {
-  transition: opacity var(--fast) var(--ease);
-}
-.resource-search:focus-within .field-key {
-  opacity: 0;
-}
-
 /* The sheet's sections arrive one after another. */
 .resource-sheet > :not(.sheet-top) {
   animation: arrive 0.4s var(--ease) both;
@@ -680,5 +664,8 @@
   .resource-tile:hover,
   .resource-tile:active {
     transform: none;
+  }
+  .capacity-toggle .icon {
+    transition: none;
   }
 }

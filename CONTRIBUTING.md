@@ -442,7 +442,9 @@ when you change the room:
   gets its session's id to copy; controls are shown, never offered. Its
   motion is small and checked: a filter glides the tiles (View Transitions),
   tiles arrive in turn, a tile's light follows the pointer, and what waits
-  keeps a slow pulse. With reduced motion asked for, nothing moves.
+  keeps a slow pulse. With reduced motion asked for, nothing moves. A meter
+  turns amber from 75 % used and red from 90 % (`usageTone`; `busy=1` shows
+  both). A tile's name is whose tool it is; its lines are its description.
 
 ## The personal space
 

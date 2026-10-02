@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  usageTone,
   actionLine,
   ago,
   capacity,
@@ -147,6 +148,12 @@ describe('the panel’s summary and meter', () => {
     assert.equal(capacity(undefined, now).limiting, null)
     assert.equal(capacity(observation([tokens]), now).known, true, 'a balance is observed, not unknown')
     assert.equal(capacity(undefined, now).known, false)
+  })
+})
+
+describe('a meter’s colour', () => {
+  it('turns amber from 75 % used and red from 90 %', () => {
+    assert.deepEqual([0, 74, 75, 89, 90, 100].map(usageTone), ['ok', 'ok', 'warn', 'warn', 'full', 'full'])
   })
 })
 
