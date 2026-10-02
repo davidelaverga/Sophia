@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/arrange`, stacked on `lfe-06/windows-once` (#59) at its tip, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `33c7476`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `TileGrid.tsx` (the grid, taken out of the panel, with its keys, buddies and dragging), plus `order.ts`, `prefs.ts`, the panel, the tile and the stylesheet;
   - their tests and LFE-06's records.
