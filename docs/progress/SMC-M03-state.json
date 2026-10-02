@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "4515093",
+  "candidate_commit": "389a2c9",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -253,8 +253,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0013.md",
-      "state": "awaiting_operator (revision 12, CC-0013: CC-0012's asks on the merged candidate 4515093, and the merge's resolutions)"
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0014.md",
+      "state": "awaiting_operator (revision 13, CC-0014: CC-0013's asks on 389a2c9, with main's #41 merged in)"
     }
   ],
   "unknown_effects": [],
@@ -281,7 +281,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0013 awaits Codex (CC-0012's asks, M03-RF-0017..0020 and the further fixes with the release clarifications, on the merged candidate 4515093, and the merge's resolutions). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
+  "next_action": "CC-0014 awaits Codex (CC-0012's asks, M03-RF-0017..0020 and the further fixes with the release clarifications, on the merged candidate 389a2c9, and the merges' resolutions). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
