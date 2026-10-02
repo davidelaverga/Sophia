@@ -12,6 +12,7 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
+import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
@@ -57,17 +58,33 @@ export function RoomDock(props: Props) {
   return (
     <div ref={wrap} className="dock-wrap">
       <LookingIndicator text={props.sophia.looking} />
-      {(room.mediaError ?? (room.status === 'failed' ? room.error : null)) && (
+      {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
+      {(room.mediaError ?? room.error) && (
         <p className="dock-note" role="alert">
           {room.mediaError ?? room.error}
         </p>
       )}
       <nav className="dock" aria-label="Room controls">
-        {live ? <LiveControls {...props} /> : <JoinButton room={room} />}
+        {live ? (
+          <LiveControls {...props} />
+        ) : (
+          <>
+            <JoinButton room={room} />
+            <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+          </>
+        )}
       </nav>
     </div>
   )
 }
+
+/** How the next join starts, as Join's tip says it: in text mode (kept after a lost connection), or by voice. */
+export const joinTip = (textMode: boolean) =>
+  textMode
+    ? 'You join typing to Sophia, with your microphone off'
+    : micOnJoin()
+      ? 'You join with your microphone on'
+      : 'You join with your microphone off'
 
 function JoinButton({ room }: { room: ProjectRoom }) {
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
@@ -75,13 +92,14 @@ function JoinButton({ room }: { room: ProjectRoom }) {
     <button
       type="button"
       className="pill primary has-tip"
-      disabled={room.status === 'joining'}
+      // Where a switch beside it that goes away hands the focus (TextMode).
+      data-call-anchor
+      disabled={room.status === 'joining' || !room.ready}
       onClick={() => void room.join()}
     >
       <span className="pill-dot" aria-hidden />
       <SwapLabel value={label} labels={{ join: 'Join the room', joining: 'Joining…', retry: 'Try again' }} />
-      <kbd aria-hidden>J</kbd>
-      <Tip label={micOnJoin() ? 'You join with your microphone on' : 'You join with your microphone off'} />
+      <Tip label={joinTip(room.textMode)} keys={roomKey('join')} />
     </button>
   )
 }
@@ -89,18 +107,50 @@ function JoinButton({ room }: { room: ProjectRoom }) {
 interface ToggleProps {
   on: boolean
   label: string
-  /** The single-key shortcut, shown in the tip (RoomStage binds it). */
-  keys: string
+  /** The shortcut, shown in the tip where it works (RoomStage binds it); none where the room's keys don't reach. */
+  keys?: string | undefined
   icons: [IconName, IconName]
+  /** Where the tip opens: above at the foot of the screen, below in a bar at its top. */
+  side?: 'top' | 'bottom'
+  /** Where a switch beside it that goes away hands the focus (the microphone; TextMode, CallSwitches). */
+  anchor?: boolean
   onToggle: () => void
 }
 
 /** A toggle: its name says what it controls, aria-pressed says whether it is on, the tip gives its key. */
-export function Toggle({ on, label, keys, icons, onToggle }: ToggleProps) {
+export function Toggle({ on, label, keys, icons, side = 'top', anchor = false, onToggle }: ToggleProps) {
   return (
-    <button type="button" className="round has-tip" aria-pressed={on} aria-label={label} onClick={onToggle}>
+    <button
+      type="button"
+      className="round has-tip"
+      aria-pressed={on}
+      aria-label={label}
+      data-call-anchor={anchor ? '' : undefined}
+      onClick={onToggle}
+    >
       <Icon name={on ? icons[0] : icons[1]} />
-      <Tip label={label} keys={keys} />
+      <Tip label={label} side={side} {...(keys ? { keys } : {})} />
+    </button>
+  )
+}
+
+/**
+ * Text mode, said wherever it holds and left from there: Sophia is not heard and the microphone is off, which the
+ * chat panel explains but a closed panel does not. Out of the call it says how the next join starts (text mode
+ * outlives a lost connection). One press goes back to voice; the pill goes with it, and the focus moves to the
+ * anchor beside it (`data-call-anchor`: the microphone in the call, Join out of it) instead of the page.
+ */
+export function TextMode({ on, onVoice }: { on: boolean; onVoice: () => void }) {
+  if (!on) return null
+  const toVoice = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const group = e.currentTarget.parentElement
+    onVoice()
+    requestAnimationFrame(() => group?.querySelector<HTMLElement>('[data-call-anchor]')?.focus({ preventScroll: true }))
+  }
+  return (
+    <button type="button" className="pill has-tip" aria-pressed onClick={toVoice}>
+      Text mode
+      <Tip label="Sophia answers in the chat and is not heard. Press for voice" />
     </button>
   )
 }
@@ -111,14 +161,16 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
       <Toggle
         on={!!me?.micOn}
         label="Microphone"
-        keys="M"
+        keys={roomKey('microphone')}
         icons={['mic', 'micOff']}
+        anchor
         onToggle={() => void room.setMicrophone(!me?.micOn)}
       />
+      <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
       <Toggle
         on={!!me?.cameraOn}
         label="Camera"
-        keys="V"
+        keys={roomKey('camera')}
         icons={['camera', 'cameraOff']}
         onToggle={() => void room.setCamera(!me?.cameraOn)}
       />
@@ -126,7 +178,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         <Toggle
           on={!!me?.screenOn}
           label={me?.screenOn ? 'Stop sharing' : 'Share your screen'}
-          keys="S"
+          keys={roomKey('screen')}
           icons={['screen', 'screen']}
           onToggle={() => void room.setScreenShare(!me?.screenOn)}
         />

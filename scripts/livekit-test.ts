@@ -1,10 +1,14 @@
-// The media bridge's LiveKit adapter and the worker's room removal against the pinned LiveKit server image
-// (S1-05A checkpoints C and D): a local container with development-only keys, real rtc-node participants, no
-// Google. `pnpm test:livekit`.
+// The media bridge's LiveKit adapter, the worker's room removal and the rooms the Work list asks, against the pinned
+// LiveKit server image (S1-05A checkpoints C and D): a local container with development-only keys, real rtc-node
+// participants, no Google. `pnpm test:livekit`.
 import { spawnSync } from 'node:child_process'
 import { namedLiveKit } from './lib/livekit.ts'
 
-const TESTS = ['apps/media-bridge/src/rtc.livekit.test.ts', 'apps/worker/src/room-removals.livekit.test.ts']
+const TESTS = [
+  'apps/media-bridge/src/rtc.livekit.test.ts',
+  'apps/worker/src/room-removals.livekit.test.ts',
+  'apps/api/src/room-presence.livekit.test.ts',
+]
 
 const livekit = namedLiveKit()
 const run = spawnSync(process.execPath, ['--test', '--test-concurrency=1', '--test-timeout=120000', ...TESTS], {

@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
+import { CodeField } from './CodeField.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
@@ -200,13 +201,11 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
 
 /** The emailed code signs in on this browser whichever device the email was read on. */
 export function CodeForm({ email }: { email: string }) {
-  const [code, setCode] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const check = async (code: string) => {
     setState({ step: 'sending' })
     try {
-      await verifyEmailCode(email, code.trim())
+      await verifyEmailCode(email, code)
       // Signed in: the auth listener replaces this screen with the project.
     } catch (err: unknown) {
       setState({ step: 'error', message: err instanceof Error ? err.message : 'That code did not work.' })
@@ -214,24 +213,12 @@ export function CodeForm({ email }: { email: string }) {
   }
   return (
     <>
-      <form className="field" onSubmit={(e) => void submit(e)}>
-        <label htmlFor="email-code" className="sr-only">
-          Code from the email
-        </label>
-        <input
-          id="email-code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]{6,10}"
-          required
-          placeholder="Code from the email"
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-        />
-        <button type="submit" className="pill primary" disabled={state.step === 'sending'}>
-          {state.step === 'sending' ? 'Checking…' : 'Sign in with code'}
-        </button>
-      </form>
+      <CodeField
+        id="email-code"
+        action="Sign in with code"
+        busy={state.step === 'sending'}
+        onCheck={(code) => void check(code)}
+      />
       {state.step === 'error' && (
         <p className="form-error" role="alert">
           {state.message}
