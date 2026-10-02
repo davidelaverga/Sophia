@@ -4,9 +4,10 @@ import { useRef, useState } from 'react'
 import type { Membership } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { CandidateImage } from './CandidateImage.tsx'
-import { DirectionDetail, type Choose } from './DirectionDetail.tsx'
+import { DirectionDetail } from './DirectionDetail.tsx'
 import { nextTile, ROUTE, STATE, type Candidate, type Direction } from './direction.ts'
 import { useNearScreen } from './useNearScreen.ts'
+import { useSerialChoice, type Choose } from './useSerialChoice.ts'
 import { useVerifiedImage, useVerifiedImages, type ReadBytes, type VerifiedImages } from './useVerifiedImage.ts'
 import './explore.css'
 
@@ -23,15 +24,16 @@ interface TileProps {
   chosen: boolean
   focusable: boolean
   images: VerifiedImages
+  attempt: number
   onOpen: () => void
   onKey: (e: React.KeyboardEvent) => void
   tile: (el: HTMLButtonElement | null) => void
 }
 
-function CandidateTile({ candidate, n, chosen, focusable, images, onOpen, onKey, tile }: TileProps) {
+function CandidateTile({ candidate, n, chosen, focusable, images, attempt, onOpen, onKey, tile }: TileProps) {
   const state = STATE[candidate.state]
   const [watch, near] = useNearScreen()
-  const shown = useVerifiedImage(candidate.asset, images, near)
+  const shown = useVerifiedImage(candidate.asset, images, near, attempt)
   return (
     <li>
       <button
@@ -70,24 +72,33 @@ function DirectionHead({ direction }: { direction: Direction }) {
   )
 }
 
-export function DirectionGallery({ direction, role, read, onChoose }: Props) {
-  const images = useVerifiedImages(read)
-  const [open, setOpen] = useState<string | null>(null)
+/** Roving focus over the tiles: one in the tab order, arrows move it, and a tile can take it back (after Back). */
+function useRovingTiles(count: number) {
   const [focus, setFocus] = useState(0)
   const tiles = useRef<(HTMLButtonElement | null)[]>([])
-  const { candidates } = direction
-  const opened = candidates.findIndex((c) => c.id === open)
-  const detail = candidates[opened]
-  const back = () => {
-    setOpen(null)
-    requestAnimationFrame(() => tiles.current[opened]?.focus({ preventScroll: true }))
-  }
   const move = (i: number) => (e: React.KeyboardEvent) => {
-    const next = nextTile(e.key, i, candidates.length)
+    const next = nextTile(e.key, i, count)
     if (next === null) return
     e.preventDefault()
     setFocus(next)
     tiles.current[next]?.focus()
+  }
+  const refocus = (i: number) => requestAnimationFrame(() => tiles.current[i]?.focus({ preventScroll: true }))
+  return { focus, setFocus, tiles, move, refocus }
+}
+
+export function DirectionGallery({ direction, role, read, onChoose }: Props) {
+  const images = useVerifiedImages(read)
+  const [attempt, setAttempt] = useState(0)
+  const serial = useSerialChoice(direction.revision, onChoose)
+  const [open, setOpen] = useState<string | null>(null)
+  const { candidates } = direction
+  const { focus, setFocus, tiles, move, refocus } = useRovingTiles(candidates.length)
+  const opened = candidates.findIndex((c) => c.id === open)
+  const detail = candidates[opened]
+  const back = () => {
+    setOpen(null)
+    refocus(opened)
   }
   return (
     <div className="direction">
@@ -102,6 +113,7 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
               chosen={direction.chosenId === c.id}
               focusable={i === focus}
               images={images}
+              attempt={attempt}
               onOpen={() => {
                 setFocus(i)
                 setOpen(c.id)
@@ -121,7 +133,9 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
           n={opened + 1}
           role={role}
           images={images}
-          onChoose={onChoose}
+          attempt={attempt}
+          onRetry={() => setAttempt((a) => a + 1)}
+          serial={serial}
           onBack={back}
         />
       )}
