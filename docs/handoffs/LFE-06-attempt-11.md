@@ -7,7 +7,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/effort`, stacked on `lfe-06/history-models` (#54) at `0190ab8`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `d8d11ef`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `effort.ts` and `EffortMeter` with their test, plus the sheet, the models, the session type and the stylesheet;
   - the resource fixture and its checks;
