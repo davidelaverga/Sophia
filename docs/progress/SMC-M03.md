@@ -685,3 +685,16 @@ Not changed: a refused read is still tried four times (TanStack Query's default 
 `main`'s #47 (the resource panel, LFE-06, `cb78c86`) is merged at `2709330`, and #48 (capacity that honours `valid_until` and applicability, `3e46e48`) at `5033ff5`. They bring Studio's resources feature, its own fixture page and checks, and LFE-06's docs. CONTRIBUTING keeps both sections. Neither changes a file this branch changes otherwise, and neither changes SQL, persistence or the API.
 
 Run here (linux-x64): at `ebcbbc0`, `pnpm check` (794 unit: 793 passed, 1 skipped; 95 integration, 2 skipped), `pnpm --filter @sophia/studio test:browser` 48/48 (7 room, 11 Explore, 8 resource, 22 report), the room and report checks twice more with no flake, `pnpm test:sql` 35 migrations and `pnpm test:db` 376/376. Every new check was run against the code without its fix and failed.
+
+## 35. CX-0012: the whole head reviewed, and M03-RF-0024 handed to LFE-06 (2026-10-02)
+
+Codex re-reviewed RF-0021..0023 on exactly `ebcbbc0`, and all of `f8b9c35..ebcbbc0`, `main`'s #47 and #48 included ([CX-0012](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951619757)).
+- **All three fixes verified.** Its reproducers now pass. Its own mutations fail as expected: removing the error classification or the focus guard fails two browser checks, and the old main-module guard fails six entry tests.
+- **Every gate passes on Apple silicon.** 794 unit (780 passed, 14 skipped), 89 integration (2 skipped), `test:sql` 35, `test:db` 376/376, and 48/48 browser checks.
+- **No P0–P2 finding.**
+
+One new finding, **M03-RF-0024 (P3)**, is in LFE-06's resource panel (`apps/studio/src/features/resources/resource.ts`, `capacityLine`), which came from `main`:
+- An observed `tokens_remaining` or `credits_remaining` window has no percentage, so the headline says "No window observed".
+- A window whose state is unknown says the same, rather than "Capacity unknown".
+
+It was confirmed here. It is LFE-06's code (`029b6ba`, `cecea8b`), which is still moving, and M03 changes nothing under `features/resources/`, so it is handed to LFE-06 rather than fixed in PR #32 ([disposition](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951638955)). The panel is not mounted in production. A fix on `main` reaches this branch at its next merge, where the resource checks run with everything else.

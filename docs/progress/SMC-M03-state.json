@@ -274,8 +274,8 @@
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
       "request": "docs/coordination/SMC-M03/SMC-M03-CC-0016.md",
-      "state": "awaiting_operator (revision 15, CC-0016: M03-RF-0021..0023 re-reviewed on ebcbbc0, and f8b9c35..ebcbbc0 reviewed, main's #47 and #48 included)",
-      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5950629855"
+      "state": "answered (revision 15, CX-0012: M03-RF-0021..0023 verified on ebcbbc0 and f8b9c35..ebcbbc0 reviewed, no P0–P2; M03-RF-0024 (P3) is LFE-06's code from main, handed to LFE-06). The next request comes with M03's next change",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951619757"
     }
   ],
   "unknown_effects": [],
@@ -302,7 +302,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0016 awaits Codex (M03-RF-0021..0023, CX-0011's findings, re-reviewed on ebcbbc0, and f8b9c35..ebcbbc0 reviewed, main's #47 and #48 included). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CX-0012 verified M03-RF-0021..0023 on ebcbbc0 and reviewed the whole head with no P0–P2; M03-RF-0024 (P3, LFE-06's resource headline) is handed to LFE-06 and reaches this branch with main. Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
