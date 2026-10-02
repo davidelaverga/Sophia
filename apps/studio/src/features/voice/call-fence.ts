@@ -23,6 +23,14 @@ export class CallFence<C extends Leavable> {
     return call === this.generation
   }
 
+  /**
+   * Is `c` the call right now? Leaving, a lost connection (its end sets `current` to null) and a newer call make it
+   * not. A join that got in asks this once it has settled.
+   */
+  holds(c: C): boolean {
+    return this.current === c
+  }
+
   /** The join `call` opened `opened`: it becomes the call, or, superseded meanwhile, it is left at once. */
   adopt(call: number, opened: C): boolean {
     if (!this.isCurrent(call)) {

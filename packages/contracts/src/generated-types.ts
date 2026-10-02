@@ -97,8 +97,27 @@ export type MissionDecisionRequest = { "decision": "accept" | "reject"; "expecte
 export type MissionNotePolicyRequest = { "capture": "off" | "automatic"; "expectedRevision": number; };
 export type MissionNoteConsentRequest = { "state": "accepted" | "declined"; };
 export type MediaToolSurface = { "names": ReadonlyArray<string>; };
+export type PersonalSuggestion = { "id": string; "text": string; "state": "open" | "kept"; };
+export type PersonalTurn = { "id": string; "seq": number; "author": "person" | "sophia"; "text": string; "createdAt": string; "replyTo": string | null; "reply": "pending" | "answered" | "failed" | null; "suggestion": PersonalSuggestion | null; };
+export type PersonalNote = { "id": string; "text": string; "keptBy": "person" | "sophia"; "fromTurnId": string | null; "createdAt": string; };
+export type PersonalRelease = { "id": string; "noteId": string | null; "projectId": string; "projectTitle": string | null; "text": string; "createdAt": string; };
+export type PersonalSpace = { "companion": "rehearsal" | "live" | "unavailable"; "revision": number; "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; "epoch": number; "days": number; };
+export type PersonalTurnPage = { "revision": number; "turns": ReadonlyArray<PersonalTurn>; "pending": boolean; };
+export type PersonalEarlierTurns = { "turns": ReadonlyArray<PersonalTurn>; "earlier": boolean; };
+export type PersonalExport = { "exportedAt": string; "turns": ReadonlyArray<PersonalTurn>; "notes": ReadonlyArray<PersonalNote>; "releases": ReadonlyArray<PersonalRelease>; "next": number | null; };
+export type PersonalMessage = { "text": string; };
+export type PersonalSuggestionDecision = { "decision": "keep" | "dismiss"; };
+export type PersonalNoteRequest = { "text": string; "fromTurnId"?: string; "suggestionId"?: string; };
+export type PersonalCarryRequest = { "projectId": string; };
+export type PersonalErasureRequest = { "confirm": "delete"; };
+export type PersonalResumeRequest = { "name"?: string; };
+export type PersonalReceipt = { "operation": "send_turn" | "retry_turn" | "decide_suggestion" | "keep_note" | "forget_note" | "carry_note" | "take_back" | "erase" | "resume"; "revision": number; "turnId": string | null; "seq": number | null; "suggestionId": string | null; "noteId": string | null; "releaseId": string | null; "projectId": string | null; "erased": { "turns": number; "notes": number; "suggestions": number; } | null; };
+export type ProjectRelease = { "id": string; "text": string; "ownerName": string; "mine": boolean; "createdAt": string; };
+export type ProjectSummary = { "projectId": string; "title": string; "role": "admin" | "editor" | "viewer"; "members": number; "room": { "people": ReadonlyArray<string>; "sophia": boolean; } | null; "nextSession": RoomSession | null; "releases": ReadonlyArray<ProjectRelease>; };
+export type ProjectList = { "projects": ReadonlyArray<ProjectSummary>; "personalEpoch": number; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
+  "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
   "getProjectSnapshot": { method: "GET"; path: "/api/v1/projects/{projectId}/snapshot"; request: undefined; response: Snapshot; };
   "followProjectEvents": { method: "GET"; path: "/api/v1/projects/{projectId}/events"; request: undefined; response: AsyncIterable<Event | CursorAdvance>; };
   "submitContribution": { method: "POST"; path: "/api/v1/projects/{projectId}/contributions"; request: Contribution; response: ContributionReceipt; };
@@ -172,4 +191,17 @@ export interface Operations {
   "setMissionNotePolicy": { method: "PUT"; path: "/api/v1/projects/{projectId}/mission/note-policy"; request: MissionNotePolicyRequest; response: MissionNotePolicy; };
   "setMissionNoteConsent": { method: "PUT"; path: "/api/v1/projects/{projectId}/mission/note-consent"; request: MissionNoteConsentRequest; response: MissionNotePolicy; };
   "mediaToolSurface": { method: "GET"; path: "/v1/media/tool-surface"; request: undefined; response: MediaToolSurface; };
+  "getPersonalSpace": { method: "GET"; path: "/api/v1/personal"; request: undefined; response: PersonalSpace; };
+  "getPersonalTurns": { method: "GET"; path: "/api/v1/personal/turns"; request: undefined; response: PersonalTurnPage; };
+  "sendPersonalTurn": { method: "POST"; path: "/api/v1/personal/turns"; request: PersonalMessage; response: PersonalReceipt; };
+  "getEarlierPersonalTurns": { method: "GET"; path: "/api/v1/personal/turns/earlier"; request: undefined; response: PersonalEarlierTurns; };
+  "retryPersonalTurn": { method: "POST"; path: "/api/v1/personal/turns/{turnId}/retry"; request: undefined; response: PersonalReceipt; };
+  "decidePersonalSuggestion": { method: "POST"; path: "/api/v1/personal/suggestions/{suggestionId}/decision"; request: PersonalSuggestionDecision; response: PersonalReceipt; };
+  "keepPersonalNote": { method: "POST"; path: "/api/v1/personal/notes"; request: PersonalNoteRequest; response: PersonalReceipt; };
+  "forgetPersonalNote": { method: "POST"; path: "/api/v1/personal/notes/{noteId}/forget"; request: undefined; response: PersonalReceipt; };
+  "carryPersonalNote": { method: "POST"; path: "/api/v1/personal/notes/{noteId}/carry"; request: PersonalCarryRequest; response: PersonalReceipt; };
+  "takeBackPersonalRelease": { method: "POST"; path: "/api/v1/personal/releases/{releaseId}/take-back"; request: undefined; response: PersonalReceipt; };
+  "resumePersonalSpace": { method: "POST"; path: "/api/v1/personal/resume"; request: PersonalResumeRequest; response: PersonalReceipt; };
+  "exportPersonalSpace": { method: "GET"; path: "/api/v1/personal/export"; request: undefined; response: PersonalExport; };
+  "erasePersonalSpace": { method: "POST"; path: "/api/v1/personal/erasure"; request: PersonalErasureRequest; response: PersonalReceipt; };
 }

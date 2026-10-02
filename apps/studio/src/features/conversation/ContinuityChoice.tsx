@@ -36,39 +36,44 @@ function useContinuity({
   return { mission, busy, error, choose }
 }
 
-/** Team defaults never manufacture an individual's consent. Make the actual choice visible before chatting. */
-export function ContinuityChoice(props: { projectId: string; identity: Identity; cursor: string | undefined }) {
+interface Props {
+  projectId: string
+  identity: Identity
+  cursor: string | undefined
+  /** The message bar is on screen. Without it there are no turns to keep notes from, and nothing is asked. */
+  withBar: boolean
+}
+
+/**
+ * Team defaults never manufacture an individual's consent: while notes are on and this person hasn't chosen, the
+ * choice sits above the message bar. Otherwise nothing: the brief says where notes stand. It stays mounted without
+ * the bar, so the answer is already known when the bar appears and nothing pops in after it.
+ */
+export function ContinuityChoice({ withBar, ...props }: Props) {
   const { mission, busy, error, choose } = useContinuity(props)
-  if (!mission.data)
-    return (
-      <p className="composer-note">{mission.isError ? 'Continuity status is unavailable.' : 'Checking continuity…'}</p>
-    )
-  const policy = mission.data.notePolicy
-  if (policy.capture === 'off')
-    return <p className="composer-note">Project note capture is off. Existing notes remain in the brief.</p>
-  if (policy.consent !== 'unset')
-    return (
-      <p className="composer-note">
-        {policy.consent === 'accepted'
-          ? 'Shared project notes are enabled for your turns.'
-          : 'No notes are kept from your turns.'}{' '}
-        Manage this in the brief.
-      </p>
-    )
+  const policy = mission.data?.notePolicy
+  if (!withBar || !policy || policy.capture === 'off' || policy.consent !== 'unset') return null
   return (
     <div className="continuity-choice">
-      <p>
-        Allow Sophia to keep structured notes from your turns for continuity? Existing project members can read them.
-        You can change your consent or forget notes in the brief.
-      </p>
-      <div className="control-row">
-        <button type="button" className="pill" disabled={busy} onClick={() => void choose('accepted')}>
-          Allow shared notes
-        </button>
-        <button type="button" className="text-button" disabled={busy} onClick={() => void choose('declined')}>
-          Keep no notes
-        </button>
-      </div>
+      <p>Keep notes from your turns? Members can read them.</p>
+      <button
+        type="button"
+        className="pill"
+        aria-label="Allow: shared notes from my turns"
+        disabled={busy}
+        onClick={() => void choose('accepted')}
+      >
+        Allow
+      </button>
+      <button
+        type="button"
+        className="text-button"
+        aria-label="No thanks: keep no notes from my turns"
+        disabled={busy}
+        onClick={() => void choose('declined')}
+      >
+        No thanks
+      </button>
       {error && <p role="status">{error}</p>}
     </div>
   )

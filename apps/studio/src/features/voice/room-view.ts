@@ -4,6 +4,33 @@ import type { NativeTask, Snapshot } from '@sophia/contracts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
+export type Device = 'microphone' | 'camera' | 'screen'
+
+/** A device that LiveKit wouldn't turn off: what is still on, never that it couldn't start. */
+const STILL_ON: Record<Device, string> = {
+  microphone: 'The microphone couldn’t be turned off. Try again.',
+  camera: 'The camera couldn’t be turned off. Try again.',
+  screen: 'Screen sharing couldn’t stop. Try again.',
+}
+
+/**
+ * What stopped a device, and what to do about it, for the way it was going: on (the browser's reasons) or off
+ * (STILL_ON). Null when there is nothing to say: cancelling the screen picker is a choice, not an error. The note stays
+ * until the device works or the call ends.
+ */
+export function mediaMessage(err: unknown, device: Device, on: boolean): string | null {
+  if (!on) return STILL_ON[device]
+  const name = err instanceof Error ? err.name : ''
+  if (device === 'screen') {
+    return name === 'NotAllowedError' || name === 'AbortError' ? null : 'Screen sharing couldn’t start. Try again.'
+  }
+  const Title = device.charAt(0).toUpperCase() + device.slice(1)
+  if (name === 'NotAllowedError') return `${Title} blocked. Allow it in the address bar.`
+  if (name === 'NotFoundError') return `No ${device} found.`
+  if (name === 'NotReadableError') return `Another app is using your ${device}. Close it and try again.`
+  return `The ${device} couldn’t start. Try again.`
+}
+
 /** A member's role or a guest, from the token's metadata; unknown when the token had none. */
 export type Standing = 'admin' | 'editor' | 'viewer' | 'guest' | 'unknown'
 

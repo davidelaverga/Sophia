@@ -12,6 +12,7 @@ import {
   OTHER_BROWSER_NOTICE,
   readAuthCallback,
   tokenSubject,
+  UNLOCK_OTHER_ACCOUNT_NOTICE,
   withoutAuthParams,
 } from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
@@ -20,6 +21,7 @@ import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-
 import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
+import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -27,18 +29,20 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 // Read before the client starts: its own PKCE exchange rewrites the address when it succeeds.
 const callback = readAuthCallback(window.location.href)
 
-export const supabase: SupabaseClient | null =
-  url && key
-    ? createClient(url, key, {
-        auth: {
-          flowType: 'pkce',
-          // The client only exchanges ?code= itself; invitation tokens in the fragment are handled below.
-          detectSessionInUrl: () => false,
-          persistSession: true,
-          autoRefreshToken: true,
-        },
-      })
-    : null
+/** The Supabase project the Studio signs in with, when one is configured (the key is the publishable one). */
+export const authProject = url && key ? { url, key } : null
+
+export const supabase: SupabaseClient | null = authProject
+  ? createClient(authProject.url, authProject.key, {
+      auth: {
+        flowType: 'pkce',
+        // The client only exchanges ?code= itself; invitation tokens in the fragment are handled below.
+        detectSessionInUrl: () => false,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : null
 
 export type AuthMode = 'supabase' | 'dev' | 'none'
 export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length > 0 ? 'dev' : 'none'
@@ -116,6 +120,10 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange
   if (callback.kind === 'code' && !data.session) notice = OTHER_BROWSER_NOTICE
   if (callback.kind !== 'none') window.history.replaceState(null, '', withoutAuthParams(window.location.href))
+  // Back from a provider an unlock left for, as another account: nobody is signed in, and nothing of it opens.
+  if (await refuseOtherAccount(client.auth, data.session?.user.id ?? null)) {
+    return { status: 'signed_out', notice: UNLOCK_OTHER_ACCOUNT_NOTICE }
+  }
   const state = fromSession(data.session)
   return notice ? { ...state, notice } : state
 }
@@ -123,13 +131,17 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
 function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) => void): () => void {
   let alive = true
+  // Back from a provider an unlock left for, nothing the client says is adopted before the redirect's state: the
+  // account it signed in may be another, which never opens (its SIGNED_IN comes on its own, a moment later).
+  let returning = pendingUnlock() !== null
   void sessionAfterRedirect(client).then((state) => {
+    returning = false
     if (alive) onState(state)
   })
   // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it,
   // and neither may a guest's session or none (offerStands). An account that signs in ends the offer.
   const { data } = client.auth.onAuthStateChange((event, session) => {
-    if (event === 'INITIAL_SESSION' || offerStands(offered !== null, session)) return
+    if (event === 'INITIAL_SESSION' || returning || offerStands(offered !== null, session)) return
     if (session && !session.user.is_anonymous) offered = null
     onState(fromSession(session))
   })
@@ -213,6 +225,8 @@ export async function sendMagicLink(email: string): Promise<void> {
 
 /** Supabase provider ids ("azure" is Microsoft), in the order the sign-in row shows them. */
 export type OAuthProvider = 'google' | 'github' | 'azure'
+/** How a provider is named on screen. */
+export const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', github: 'GitHub', azure: 'Microsoft' }
 const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
 
 /**
@@ -305,6 +319,7 @@ export async function removePasskey(id: string): Promise<void> {
 /** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
+  forgetPendingUnlock() // a sign-in of the person's own: no unlock's check refuses the account it brings back
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
