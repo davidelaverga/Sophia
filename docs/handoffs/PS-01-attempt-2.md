@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `personal/follow-ups` from main `7e640bc` (#30's merge), 2026-10-01.
-- **End:** the code at `b3bec8b` (tree `5f7f9d9848dd`), the head the checks below ran on. The commit after it changes only this line.
+- **End:** the code at `753a064` (tree `bcee06e662e9`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** this repository. **No hosted service was changed.**
 
 ## Outcome
