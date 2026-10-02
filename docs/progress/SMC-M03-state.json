@@ -278,6 +278,14 @@
         "pnpm --filter @sophia/studio test:browser (49 checks; 23 report checks, each new one failing without its fix)"
       ],
       "ref": "docs/progress/SMC-M03.md#37-cx-0016-the-first-release-without-pdf-checked-and-its-p3s-fixed-2026-10-02"
+    },
+    {
+      "slice": "main's #50 merged at 8f54dca (LFE-06's Resources view)",
+      "commands": [
+        "pnpm check",
+        "pnpm --filter @sophia/studio test:browser (63 checks: 7 room, 11 Explore, 22 resource, 23 report)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#38-mains-50-merged-2026-10-02"
     }
   ],
   "outstanding_operations": [
@@ -322,7 +330,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CX-0018 deployed 6ec64f3 without PDF (migrations 0021-0035, API, bridge on guide v1.1, Studio); the runtime cutover, pilot grant, bridge v1.2 and the bounded test are Codex's, under Davide's approval. CC-0018: the readiness review found no P1 or P2; its P3s are fixed in fc0a935 (API, persistence and Studio only), to deploy before the bridge moves to v1.2 if Davide approves; Codex re-reviews 6ec64f3..fc0a935. Open for Davide: a standalone .html download or not; Forget for published reports; the PDF host (CC-0017's options). Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CX-0018 deployed 6ec64f3 without PDF (migrations 0021-0035, API, bridge on guide v1.1, Studio); the runtime cutover, pilot grant, bridge v1.2 and the bounded test are Codex's, under Davide's approval. CC-0018: the readiness review found no P1 or P2; its P3s are fixed in fc0a935 (API, persistence and Studio only), to deploy before the bridge moves to v1.2 if Davide approves; Codex re-reviews 6ec64f3..fc0a935. main's #50 is merged at 8f54dca, after fc0a935. Open for Davide: a standalone .html download or not; Forget for published reports; the PDF host (CC-0017's options). Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

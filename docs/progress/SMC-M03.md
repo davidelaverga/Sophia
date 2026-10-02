@@ -802,3 +802,18 @@ Run here (linux-x64) at `fc0a935`:
 - `pnpm test:db` 376/376 and `pnpm test:sql` 35;
 - `test:browser` 49/49, with the report checks once more and the new no-PDF check five times in a row;
 - each fix's check run without it, and failing.
+
+## 38. `main`'s #50 merged (2026-10-02)
+
+`main` merged #50 (`14687b8`, LFE-06's Resources view: tiles, search, filters, a sheet and each tool's mark). It is merged here at `8f54dca`, after `fc0a935`, so the follow-up candidate for the deployed release stays `fc0a935` (CC-0018).
+
+**What #50 changes in production Studio.** Only `ProjectShell`'s structure: a `PageBody` for the pages, and a `resources` slot for the Resources view. Nothing outside its fixture page fills that slot, so production keeps the view's "coming" note until SCM-01/02 serve resources. The panel and its marks (`@lobehub/icons-static-svg`) are reached only from `fixtures/resources.html`. CC-0018 said #50 "mounts in Studio's `ProjectShell`"; it mounts there only on its fixture page.
+
+**Resolutions** (both sides kept):
+- `ProjectShell`: `main`'s `PageBody` and `resources` slot, inside this branch's report viewer (`withViewer`); Knowledge is a `PageBody` case.
+- `apps/studio/package.json`: both new dependencies (`@lobehub/icons-static-svg`, `@sophia/report`).
+- `pnpm-lock.yaml`: this branch's lock, with `main`'s one package added by `pnpm install` (the same version and integrity as `main`'s). `config/runtime-unit.json`'s `workspace_lock_sha256` is re-recorded with `pnpm artifacts:record`; the bundle archive (`6a01ce0e…`) and the dsh identities are unchanged.
+- `CONTRIBUTING.md`: `main`'s new resource-panel text, then this branch's report-viewer checks.
+- `fixtures/resources.tsx` (`main`'s, new to the fixture API): it now passes this branch's report fields, at rest, to the fixture API it shares with the room page.
+
+Run here at `8f54dca`: `pnpm check` with 804 unit tests (803 passed, 1 skipped) and 95 integration (2 skipped), and `pnpm artifacts` reproducing every identity; `test:browser` 63/63 (7 room, 11 Explore, 22 resource and 23 report checks). #50 changes no SQL, persistence or API, so `test:sql` (35) and `test:db` (376/376) stand from `fc0a935`.
