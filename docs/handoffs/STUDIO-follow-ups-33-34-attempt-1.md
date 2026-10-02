@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `follow-ups/33-34` from main `96f1485` (#33's merge), 2026-10-02.
-- **End:** the code and docs at `de1cba8` (tree `eadf906c6cd7`), the head the checks below ran on. The commit after it changes only this line. Changed: `apps/studio/src/app/link-accept.ts` (and its test), `apps/studio/src/app/SignIn.tsx`, `CONTRIBUTING.md` and this file.
+- **End:** the code and docs at `2882267` (tree `22c73289bd72`), the head the checks below ran on. The commit after it changes only this line. Changed: `apps/studio/src/app/link-accept.ts` (and its test), `apps/studio/src/app/SignIn.tsx`, `CONTRIBUTING.md` and this file.
 - **Writable scope:** this repository. **No hosted service was changed.**
 
 ## Outcome
