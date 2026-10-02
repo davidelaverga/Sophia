@@ -1,0 +1,13 @@
+{
+  "preview_id": "preview-1",
+  "owner_id": "alice",
+  "package_id": "pkg-1",
+  "expected_package_version": 1,
+  "destination_project_id": "project-1",
+  "membership_revision": 1,
+  "policy_revision": 1,
+  "snapshot_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "selected_attachment_refs": [],
+  "request_key": "share-1",
+  "state": "preview"
+}

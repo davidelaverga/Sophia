@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Owner-bound quota observation",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.capacity.observation.v1"
+    },
+    "observation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "entitlement_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "resource_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "native_runtime_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "source_channel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "valid_until": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coverage": {
+      "enum": [
+        "complete_for_route",
+        "partial",
+        "unavailable"
+      ]
+    },
+    "windows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "window_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "window_epoch": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "unit": {
+            "enum": [
+              "percent_used",
+              "credits_remaining",
+              "tokens_remaining",
+              "spend_percent_used"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "enum": [
+              "account",
+              "model",
+              "spend",
+              "unknown"
+            ]
+          },
+          "applies_to_models": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "maxItems": 200
+          },
+          "applicability": {
+            "enum": [
+              "known",
+              "partial",
+              "unknown"
+            ]
+          },
+          "state": {
+            "enum": [
+              "observed",
+              "unknown",
+              "refresh_pending"
+            ]
+          }
+        },
+        "required": [
+          "window_id",
+          "window_epoch",
+          "unit",
+          "value",
+          "resets_at",
+          "scope",
+          "applies_to_models",
+          "applicability",
+          "state"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "state": {
+                  "const": "unknown"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "unit": {
+                  "const": "percent_used"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 32
+    },
+    "missing_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    },
+    "sharing_policy_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "schema_version",
+    "observation_id",
+    "owner_id",
+    "entitlement_id",
+    "resource_ids",
+    "provider",
+    "native_runtime_version",
+    "source_channel",
+    "observed_at",
+    "valid_until",
+    "coverage",
+    "windows",
+    "missing_capabilities",
+    "sharing_policy_ref"
+  ]
+}

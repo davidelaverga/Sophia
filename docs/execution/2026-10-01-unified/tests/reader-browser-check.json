@@ -1,0 +1,39 @@
+{
+  "schema": "sophia.reader-browser.v2",
+  "status": "passed",
+  "scope": "Exact local HTML bytes in system Chromium only. Not Sophia Studio, mobile Safari, accessibility certification, or provider integration. Browser sandbox flag belongs only to this documentation test, not the Sophia PDF renderer.",
+  "chromium_version": "144.0.7559.96",
+  "results": [
+    {
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "start_page": true,
+      "full_text_search": true,
+      "search_empty_state": true,
+      "sidebar_navigation": true,
+      "body_cross_document_navigation": true,
+      "single_document_visible": true,
+      "mobile_menu": "not_applicable",
+      "all_document_page_overflow_errors": [],
+      "screenshot": "tests/reader-desktop.png"
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "start_page": true,
+      "full_text_search": true,
+      "search_empty_state": true,
+      "sidebar_navigation": true,
+      "body_cross_document_navigation": true,
+      "single_document_visible": true,
+      "mobile_menu": true,
+      "all_document_page_overflow_errors": [],
+      "screenshot": "tests/reader-mobile.png"
+    }
+  ],
+  "page_errors": [],
+  "external_requests": [],
+  "external_request_count": 0
+}

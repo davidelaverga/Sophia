@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sophia:pa:package:v1",
+  "title": "Proposed Sophia package — not deployed API",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "package_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "audience": {
+      "const": "personal"
+    },
+    "report": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 524288
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "original",
+              "user_note",
+              "prior_model_report",
+              "recall",
+              "inference"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "access_state": {
+            "type": "string",
+            "enum": [
+              "requested",
+              "searched",
+              "read",
+              "omitted",
+              "inaccessible",
+              "duplicate",
+              "unsupported"
+            ]
+          },
+          "source_time": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
+          },
+          "private_locator": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
+          },
+          "content_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "source_id",
+          "kind",
+          "label",
+          "access_state",
+          "source_time",
+          "reason",
+          "private_locator",
+          "content_sha256"
+        ]
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "object_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 26214400
+          }
+        },
+        "required": [
+          "object_ref",
+          "sha256",
+          "media_type",
+          "bytes"
+        ]
+      }
+    },
+    "coverage": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "maxLength": 4096
+      }
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "received",
+        "validated",
+        "needs_revision",
+        "ready_for_owner",
+        "deleted"
+      ]
+    }
+  },
+  "required": [
+    "package_id",
+    "owner_id",
+    "job_id",
+    "generation",
+    "version",
+    "audience",
+    "report",
+    "sources",
+    "attachments",
+    "coverage",
+    "limitations",
+    "manifest_sha256",
+    "state"
+  ]
+}

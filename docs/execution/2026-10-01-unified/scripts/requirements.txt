@@ -1,0 +1,6 @@
+# Documentation build and validation only. Not Sophia runtime dependencies.
+markdown-it-py==4.2.0
+jsonschema==4.26.0
+beautifulsoup4==4.14.3
+# Optional: reader browser checks (system Chromium also required)
+playwright==1.57.0

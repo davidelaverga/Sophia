@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Server-authored coordination command",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.coordination.command.v1"
+    },
+    "command_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "work_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "human",
+            "assignment",
+            "service"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "authority_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "authority_ref"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "commission",
+        "review",
+        "steer",
+        "peer_message",
+        "context_update",
+        "hold",
+        "stop",
+        "resume",
+        "handover_request"
+      ]
+    },
+    "delivery": {
+      "enum": [
+        "immediate_control",
+        "active_boundary",
+        "next_eligible_episode",
+        "record_only"
+      ]
+    },
+    "target_assignment_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "target_attempt_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "controller_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "grant_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "eligibility_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "content_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "caused_by_command_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "command_id",
+    "idempotency_key",
+    "project_id",
+    "work_id",
+    "work_revision",
+    "actor",
+    "kind",
+    "delivery",
+    "target_assignment_id",
+    "target_attempt_id",
+    "controller_generation",
+    "grant_revision",
+    "eligibility_revision",
+    "content_ref",
+    "payload_sha256",
+    "caused_by_command_id",
+    "created_at",
+    "expires_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "hold",
+              "stop"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "delivery": {
+            "const": "immediate_control"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "steer",
+              "peer_message",
+              "commission"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "content_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        }
+      }
+    }
+  ]
+}

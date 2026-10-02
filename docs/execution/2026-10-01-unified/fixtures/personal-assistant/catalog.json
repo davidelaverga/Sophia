@@ -1,0 +1,47 @@
+{
+  "valid": [
+    {
+      "file": "fixtures/personal-assistant/connection.valid.json",
+      "schema": "contracts/personal-assistant/connection.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/job.valid.json",
+      "schema": "contracts/personal-assistant/job.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/message.valid.json",
+      "schema": "contracts/personal-assistant/message.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/package.valid.json",
+      "schema": "contracts/personal-assistant/package.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/share.valid.json",
+      "schema": "contracts/personal-assistant/share.schema.json"
+    }
+  ],
+  "invalid": [
+    {
+      "file": "fixtures/personal-assistant/invalid/job-team-audience.json",
+      "schema": "contracts/personal-assistant/job.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/job-paid-fallback.json",
+      "schema": "contracts/personal-assistant/job.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/message-forged-publish.json",
+      "schema": "contracts/personal-assistant/message.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/share-missing-confirmation.json",
+      "schema": "contracts/personal-assistant/share.schema.json"
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/package-bad-hash.json",
+      "schema": "contracts/personal-assistant/package.schema.json"
+    }
+  ],
+  "fixture_only": true
+}

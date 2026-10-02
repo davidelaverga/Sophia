@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sophia:pa:message:v1",
+  "title": "Proposed Sophia message — not deployed API",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sender_connection_or_actor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "audience": {
+      "const": "personal"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "question",
+        "answer",
+        "guidance",
+        "finding",
+        "blocker",
+        "checkpoint",
+        "handoff",
+        "ack"
+      ]
+    },
+    "reply_to": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "causal_root": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16384
+    },
+    "evidence_refs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "request_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "delivery": {
+      "type": "string",
+      "enum": [
+        "stored",
+        "fetched",
+        "incorporation_reported",
+        "outcome_checked"
+      ]
+    }
+  },
+  "required": [
+    "message_id",
+    "job_id",
+    "generation",
+    "sequence",
+    "sender_connection_or_actor",
+    "audience",
+    "kind",
+    "reply_to",
+    "causal_root",
+    "body",
+    "evidence_refs",
+    "request_key",
+    "delivery"
+  ]
+}

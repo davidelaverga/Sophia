@@ -1,0 +1,43 @@
+{
+  "schema": "sophia.part2.operation-request.v1",
+  "template": true,
+  "status": "draft_not_authorized",
+  "mission_id": null,
+  "request_id": null,
+  "revision": 1,
+  "approval_ref": null,
+  "approved_by": null,
+  "expires_at": null,
+  "repository": "davidelaverga/Sophia",
+  "candidate_sha": null,
+  "base_sha": null,
+  "artifacts": [],
+  "targets": [],
+  "steps": [],
+  "migrations": [],
+  "environment_names": [],
+  "preconditions": [
+    "Exact source/artifact/target identity verified",
+    "Current work and outstanding effects reconciled",
+    "Compatible recovery and limits accepted"
+  ],
+  "allowance": {
+    "currency": null,
+    "maximum_new_spend": null,
+    "remaining_authorized_spend": null,
+    "providers": [],
+    "new_payer_allowed": false
+  },
+  "recovery": {
+    "method": null,
+    "compatible_source_sha": null,
+    "schema_compatibility": null,
+    "preserve_state_refs": []
+  },
+  "tests": [],
+  "non_effects": [
+    "No provider credential sharing",
+    "No unapproved plan/provider/payer change",
+    "No automatic human acceptance"
+  ]
+}

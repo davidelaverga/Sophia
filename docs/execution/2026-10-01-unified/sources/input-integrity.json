@@ -1,0 +1,53 @@
+{
+  "inputs": [
+    {
+      "name": "Sophia_Implementation_Pack_v0.4_Part2_2026-09-24(3).zip",
+      "bytes": 1397954,
+      "sha256": "2a869f5201bac25c47584fda95b7146ef9dfd3b5ab86ef71db11cc93d9973766",
+      "use": "read-only consolidation input"
+    },
+    {
+      "name": "Sophia_Implementation_Pack_v0.3_Part1_LINKS_FIXED_2026-09-24(3).zip",
+      "bytes": 322228,
+      "sha256": "61fb067bf32541496c7fbf5ec8ce59ea33a2e6e3a6441dbb11c5f1cf9761d7b3",
+      "use": "read-only consolidation input"
+    },
+    {
+      "name": "Sophia_Current_Execution_and_Luis_Frontend_v1.0_2026-10-01(1).zip",
+      "bytes": 796635,
+      "sha256": "655a89f5398a1be0abad4d45e759131f45e6fd2cddce8efe6e34ffba046d9774",
+      "use": "read-only consolidation input"
+    },
+    {
+      "name": "Sophia_Current_Execution_Index_2026-10-01(1).md",
+      "bytes": 11926,
+      "sha256": "66c7ef91e7ee5c89b3e68a8940ea8562c79ca6737b095d8a4a4c33da339ffccb",
+      "use": "supporting latest execution navigation"
+    },
+    {
+      "name": "Sophia_Luis_Frontend_Track_2026-10-01(1).md",
+      "bytes": 10071,
+      "sha256": "86bfbc64f393edffa029415612a819ec4a95dca9b3a5bbba76aa7e351cbf33e5",
+      "use": "supporting latest execution navigation"
+    },
+    {
+      "name": "Sophia_Luis_Start_2026-10-01(1).md",
+      "bytes": 1620,
+      "sha256": "3404e986d5d5818eb17029c5671b8f6d4d908b16a8510a27d2819ed14ac072dc",
+      "use": "supporting latest execution navigation"
+    },
+    {
+      "name": "Pasted markdown(10).md",
+      "bytes": 12863,
+      "sha256": "6d6606295d5daadafcae69c53f061230e8768792ac3b867b903d04b84812aa10",
+      "use": "supporting latest execution navigation"
+    }
+  ],
+  "cumulative_v04_git_tree": "3c5dbc412cd2660231159c2d5a0a99c2ead54e26",
+  "repository_tree_match": true,
+  "main": "aadd192d66bb60dea6c2ba212cea5e192d704858",
+  "old_packs_modified": false,
+  "repository_mutations_performed": false,
+  "provider_calls_performed": false,
+  "product_tests_performed": false
+}

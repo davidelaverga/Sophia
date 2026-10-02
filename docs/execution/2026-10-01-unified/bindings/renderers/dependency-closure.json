@@ -1,0 +1,44 @@
+{
+  "status": "audited_direct_dependency_closure",
+  "baseline_commit": "d467ab97464908b4e7c7752701eee9d24db7faf6",
+  "dependencies": {
+    "render-html.mjs": [
+      "node:fs",
+      "node:path",
+      "node:process",
+      "node:url",
+      "playwright-core"
+    ],
+    "render-slide.mjs": [
+      "node:fs",
+      "node:path",
+      "node:process",
+      "node:url",
+      "playwright-core"
+    ],
+    "compile-pptx.mjs": [
+      "node:fs",
+      "node:path",
+      "node:process",
+      "pptxgenjs"
+    ]
+  },
+  "audited_package_versions": {
+    "playwright-core": "1.56.1",
+    "pptxgenjs": "4.0.1"
+  },
+  "production_runtime_unit_status": "must be built and locked in S1-13B",
+  "not_required_by_these_kernels": [
+    "langchain",
+    "langgraph",
+    "deerflow",
+    "react",
+    "react-dom",
+    "mermaid"
+  ],
+  "remaining_binary_dependencies": [
+    "compatible Chromium executable with enforced sandbox",
+    "licensed system fonts installed in image"
+  ],
+  "font_files_in_pack": false
+}

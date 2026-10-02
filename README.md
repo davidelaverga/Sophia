@@ -25,10 +25,14 @@ Sophia service binding the runtime reports `readiness=not_ready` by design.
 ## Read first
 
 - [AGENTS.md](AGENTS.md): the coding-agent contract.
+- [docs/execution/2026-10-01-unified/00_START_HERE.md](docs/execution/2026-10-01-unified/00_START_HERE.md):
+  the v2.0 continuation, the forward plan. Its
+  [goals](docs/execution/2026-10-01-unified/goals/INDEX.md) and
+  [sequence](docs/execution/2026-10-01-unified/04_SEQUENCE_AND_OWNERSHIP.md)
+  say what starts next; [LFE-00 progress](docs/progress/LFE-00.md) records
+  where the source and the deployments stand.
 - [docs/pack/00_START_HERE.md](docs/pack/00_START_HERE.md): the v0.4
-  implementation pack, the design source of truth.
-- [docs/pack/delivery/GOAL_INDEX.md](docs/pack/delivery/GOAL_INDEX.md): the
-  goals. S1-02 (admission) and S1-03 (this runtime) are the current work.
+  implementation pack, history since v2.0.
 - [docs/RUNTIME_UNIT.md](docs/RUNTIME_UNIT.md): what is pinned, how it is
   identified and how to reproduce it.
 - [docs/DESTINATION_MAP.md](docs/DESTINATION_MAP.md): every planned source

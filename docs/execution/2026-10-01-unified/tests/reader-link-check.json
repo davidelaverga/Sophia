@@ -1,0 +1,11 @@
+{
+  "schema": "sophia.reader-links.v2",
+  "status": "passed",
+  "documents": 303,
+  "html_ids": 1491,
+  "internal_content_links": 747,
+  "external_source_links": 41,
+  "embedded_images": 0,
+  "external_asset_dependencies": 0,
+  "errors": []
+}

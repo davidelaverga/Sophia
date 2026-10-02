@@ -1,0 +1,186 @@
+{
+  "schema": "sophia.unified-source-register.v2",
+  "date": "2026-10-01",
+  "sources": [
+    {
+      "id": "R-MAIN",
+      "title": "Main branch",
+      "url": "https://github.com/davidelaverga/Sophia/tree/aadd192d66bb60dea6c2ba212cea5e192d704858",
+      "kind": "fresh_connector_metadata",
+      "accessed": "2026-10-01",
+      "coverage": "Exact main SHA from GitHub branch read.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-RUNTIME",
+      "title": "Runtime unit",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/config/runtime-unit.json",
+      "kind": "fresh_connector_source",
+      "accessed": "2026-10-01",
+      "coverage": "Full runtime identity; dated not-deployed prose is reconciled with PR29, not treated as a fresh verdict.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-AGENTS",
+      "title": "Repository entry rules",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/AGENTS.md",
+      "kind": "fresh_connector_source",
+      "accessed": "2026-10-01",
+      "coverage": "Exact toolchain, frozen reference pack and source/authority rules.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-PR29",
+      "title": "PR29",
+      "url": "https://github.com/davidelaverga/Sophia/pull/29",
+      "kind": "fresh_connector_metadata",
+      "accessed": "2026-10-01",
+      "coverage": "Merged exact source and author-reported bounded runtime/Studio checks.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-PR32",
+      "title": "PR32",
+      "url": "https://github.com/davidelaverga/Sophia/pull/32",
+      "kind": "fresh_connector_metadata",
+      "accessed": "2026-10-01",
+      "coverage": "Open draft, actual current head and latest body with S5b part1/0031; no live provider/hosted claims.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-PR35",
+      "title": "PR35",
+      "url": "https://github.com/davidelaverga/Sophia/pull/35",
+      "kind": "fresh_connector_metadata",
+      "accessed": "2026-10-01",
+      "coverage": "Open personal data/API; owner-private RLS and rehearsal-only Companion reported.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-PR30",
+      "title": "PR30",
+      "url": "https://github.com/davidelaverga/Sophia/pull/30",
+      "kind": "fresh_connector_metadata",
+      "accessed": "2026-10-01",
+      "coverage": "Open stacked personal UI; current head and call/lock/keyboard behavior reported.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-M03-PLAN",
+      "title": "M03 active plan",
+      "url": "https://github.com/davidelaverga/Sophia/blob/bb25f0588ad7a78d73039a838498d4a36225e473/docs/progress/SMC-M03-plan.md",
+      "kind": "fresh_connector_source",
+      "accessed": "2026-10-01",
+      "coverage": "Selected opening/ground-truth/registry sections read. Old cutover statements are historical; current PR reports supersede them.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-M03-STATE",
+      "title": "M03 state",
+      "url": "https://github.com/davidelaverga/Sophia/blob/bb25f0588ad7a78d73039a838498d4a36225e473/docs/progress/SMC-M03-state.json",
+      "kind": "fresh_connector_source",
+      "accessed": "2026-10-01",
+      "coverage": "Full state read; candidate_commit and one migration note lag latest progress; do not reproduce that stale baseline.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "R-V04-TREE",
+      "title": "Exact cumulative pack tree",
+      "url": "https://github.com/davidelaverga/Sophia/tree/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack",
+      "kind": "fresh_connector_tree_and_local_hash",
+      "accessed": "2026-10-01",
+      "coverage": "Mounted v0.4 directory Git-tree SHA 3c5dbc412cd2660231159c2d5a0a99c2ead54e26 matches repository tree.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "P-PLUGIN",
+      "title": "Paperclip implemented plugin guide",
+      "url": "https://github.com/paperclipai/paperclip/blob/5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb/doc/plugins/PLUGIN_AUTHORING_GUIDE.md",
+      "kind": "fresh_connector_source",
+      "accessed": "2026-10-01",
+      "coverage": "Lines1-270; trusted alpha surface, namespace routes/SQL, managed objects; no core-table mutation.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "P-ADAPTER",
+      "title": "Paperclip adapter types",
+      "url": "https://github.com/paperclipai/paperclip/blob/5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb/packages/adapter-utils/src/types.ts",
+      "kind": "fresh_connector_source",
+      "accessed": "2026-10-01",
+      "coverage": "Selected declaration range through cancellation/recovery/usage/quota; no provider execution.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-WORK",
+      "title": "Grok Bot work model",
+      "url": "https://cursor.com/docs/grok-bot/work",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official page: cloud/shared-account computer, local-command separation, roles/skills/native handoffs and result evidence.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-ROUTINES",
+      "title": "Routine webhook and activation",
+      "url": "https://cursor.com/help/grok-bot/routines",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official search result with endpoint semantics: owner obtains URL/key; authenticated POST/JSON, 200 means started not completed. No general external cancellation/idempotency claimed.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-BILLING",
+      "title": "Grok Bot plans and billing",
+      "url": "https://cursor.com/help/grok-bot/plans",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official search result: eligible account grants, non-stacking, on-demand off stops at included allowance; enabled limit not a mid-run hard stop. No personal per-job quota API established.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-TEMPLATE",
+      "title": "Template packaging",
+      "url": "https://x.ai/bot/guides/templates-for-grok-bot",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official guide dated September8: reviewed recipe/copy, selected context/skills, separate nonstandard MCP setup; no programmatic provisioning established.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-OAUTH",
+      "title": "Custom MCP OAuth support boundary",
+      "url": "https://forum.cursor.com/t/grok-bot-custom-mcp-oauth-fails-before-sign-in-redirect-uri-not-allowed/171877",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh first-party staff responses through September25 plus September30 follow-up. Cloudflare registration issue, no safe arbitrary secret-header workaround in Bot UI. Do not generalize to all auth servers.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-COMPUTER",
+      "title": "Local versus cloud computer",
+      "url": "https://cursor.com/docs/grok-bot/work#your-local-computer-is-separate",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official work page; local execution policy is separate and device-dependent. Network-proxy details are retained from prior review, not re-probed.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "GB-CUA",
+      "title": "Optional Cua Driver integration",
+      "url": "https://cua.ai/docs/use-cua-with/grok-bot",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official driver documentation: local/hosted install and permission distinction, fresh-state action/verify loop. No installation or test performed.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    },
+    {
+      "id": "WA-TRIGGER",
+      "title": "Deferred Workspace Agent trigger",
+      "url": "https://developers.openai.com/workspace-agents/trigger-runs",
+      "kind": "fresh_public_primary_source",
+      "accessed": "2026-10-01",
+      "coverage": "Fresh official documentation: asynchronous trigger, idempotency, beta status polling and no answer retrieval. Deferred ledger is retained, not reopened.",
+      "limitations": "No live provider/hosted acceptance was performed for this pack."
+    }
+  ]
+}

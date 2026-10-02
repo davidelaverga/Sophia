@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sophia:pa:share:v1",
+  "title": "Proposed Sophia share — not deployed API",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "preview_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "package_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expected_package_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "destination_project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "membership_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "snapshot_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selected_attachment_refs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "human_confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "auth_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "confirmed_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "actor_id",
+        "auth_time",
+        "confirmed_digest"
+      ]
+    },
+    "request_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "preview",
+        "approved_pending_copy",
+        "published",
+        "refused",
+        "withdrawn"
+      ]
+    }
+  },
+  "required": [
+    "preview_id",
+    "owner_id",
+    "package_id",
+    "expected_package_version",
+    "destination_project_id",
+    "membership_revision",
+    "policy_revision",
+    "snapshot_sha256",
+    "selected_attachment_refs",
+    "human_confirmation",
+    "request_key",
+    "state"
+  ]
+}

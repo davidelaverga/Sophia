@@ -1,0 +1,179 @@
+{
+  "kind": "synthetic_contract_examples",
+  "commit": "7496d36bde584d0a7d11c1d92a6d126f128bc1cd",
+  "not_live_evidence": true,
+  "cases": [
+    {
+      "id": "authorize",
+      "source": "OM-09",
+      "method": "POST",
+      "path": "/oauth/device/authorize",
+      "contentType": "application/json",
+      "request": {
+        "client_id": "sophia"
+      },
+      "response": {
+        "device_code": "REDACTED",
+        "user_code": "ABCD-EFGH",
+        "verification_uri": "https://bridge.example/oauth/device",
+        "verification_uri_complete": "https://bridge.example/oauth/device?user_code=ABCD-EFGH",
+        "expires_in": 600,
+        "interval": 5
+      }
+    },
+    {
+      "id": "exchange",
+      "source": "OM-09",
+      "method": "POST",
+      "path": "/oauth/token",
+      "contentType": "application/x-www-form-urlencoded",
+      "request": {
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+        "device_code": "REDACTED"
+      }
+    },
+    {
+      "id": "refresh",
+      "source": "OM-09",
+      "method": "POST",
+      "path": "/oauth/token",
+      "contentType": "application/x-www-form-urlencoded",
+      "request": {
+        "grant_type": "refresh_token",
+        "refresh_token": "REDACTED"
+      },
+      "uncertainResponse": "rotation_unknown; do not reuse old token automatically"
+    },
+    {
+      "id": "revoke",
+      "source": "OM-09",
+      "method": "POST",
+      "path": "/oauth/revoke",
+      "contentType": "application/x-www-form-urlencoded",
+      "request": {
+        "refresh_token": "REDACTED"
+      },
+      "response": {
+        "revoked": true
+      }
+    },
+    {
+      "id": "create_dormant",
+      "source": "OM-03",
+      "method": "POST",
+      "path": "/v1/sessions",
+      "contentType": "multipart/form-data",
+      "parts": {
+        "metadata": "{\"title\":\"Sophia bounded goal\",\"labels\":{\"sophia.launch_nonce\":\"example-nonce\"}}",
+        "bundle": "native-agent.tar.gz"
+      },
+      "response": {
+        "session_id": "conv_example"
+      }
+    },
+    {
+      "id": "hosts",
+      "source": "OM-06",
+      "method": "GET",
+      "path": "/v1/hosts",
+      "response": {
+        "hosts": [
+          {
+            "host_id": "host_example",
+            "owner": "native-owner",
+            "name": "Owner Mac",
+            "status": "online",
+            "configured_harnesses": {
+              "claude-native": true,
+              "codex-native": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "launch",
+      "source": "OM-06",
+      "method": "POST",
+      "path": "/v1/hosts/host_example/runners",
+      "request": {
+        "session_id": "conv_example",
+        "workspace": "/Users/owner/project",
+        "git": {
+          "branch_name": "sophia/goal-example/a1",
+          "base_branch": "BASE_COMMIT"
+        }
+      },
+      "response": {
+        "runner_id": "runner_example",
+        "status": "launching"
+      }
+    },
+    {
+      "id": "message",
+      "source": "OM-05",
+      "method": "POST",
+      "path": "/v1/sessions/conv_example/events",
+      "request": {
+        "type": "message",
+        "data": {
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "[Sophia message example-id] Read the current bounded brief."
+            }
+          ]
+        }
+      },
+      "response": {
+        "queued": true,
+        "pending_id": "pending_example"
+      }
+    },
+    {
+      "id": "policy_denied_2xx",
+      "source": "OM-05",
+      "status": 200,
+      "response": {
+        "queued": false,
+        "denied": true,
+        "reason": "Denied by policy"
+      }
+    },
+    {
+      "id": "stop_receipt",
+      "source": "OM-05",
+      "method": "POST",
+      "path": "/v1/sessions/conv_example/events",
+      "request": {
+        "type": "stop_session",
+        "data": {}
+      },
+      "response": {
+        "queued": false
+      },
+      "notProven": "Specific process and external effects settled"
+    },
+    {
+      "id": "resolved_unknown",
+      "source": "OM-03",
+      "event": {
+        "type": "response.elicitation_resolved",
+        "elicitation_id": "elicit_example"
+      },
+      "normalized": "resolved_unknown"
+    },
+    {
+      "id": "resolve_once",
+      "source": "OM-04",
+      "method": "POST",
+      "path": "/v1/sessions/conv_example/elicitations/elicit_example/resolve",
+      "request": {
+        "action": "accept"
+      },
+      "sprint": 2,
+      "notIncluded": "_meta.persist"
+    }
+  ]
+}

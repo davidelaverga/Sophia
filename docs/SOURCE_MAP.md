@@ -1,9 +1,12 @@
 # Document and source map
 
 This file answers two questions: which document governs a decision, and which
-upstream source a Sophia file is grounded in. Design authority is the v0.4
-pack. Upstream sources establish mechanisms and never override a Sophia
-decision.
+upstream source a Sophia file is grounded in. Forward planning authority is the
+v2.0 continuation in
+[`docs/execution/2026-10-01-unified/`](execution/2026-10-01-unified/00_START_HERE.md)
+since 2026-10-02. The v0.4 pack below is history, and what was built from it
+stays as built. Upstream sources establish mechanisms and never override a
+Sophia decision.
 
 ## 1. The implementation pack
 
@@ -17,10 +20,16 @@ decision.
 
 Do not edit files under `docs/pack/`. Record repository-specific decisions in
 the files outside it (this map, [DESTINATION_MAP](DESTINATION_MAP.md),
-[RUNTIME_UNIT](RUNTIME_UNIT.md), handoffs). The next pack installment
-replaces `docs/pack/` wholesale.
+[RUNTIME_UNIT](RUNTIME_UNIT.md), handoffs). The v2.0 continuation did not
+replace it: it is installed beside it, in `docs/execution/`
+([installation record](execution/README.md)).
 
-### Which document governs what
+### Which v0.4 document governed what
+
+These are the v0.4 documents, history since v2.0. The continuation restates what
+it retains in its own
+[architecture](execution/2026-10-01-unified/architecture/INDEX.md) and
+[bindings](execution/2026-10-01-unified/bindings/README.md).
 
 | Document | Governs | Read by goals |
 |---|---|---|
