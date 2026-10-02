@@ -39,7 +39,51 @@ contract; this file holds the code rules.
 - **Comments explain why**, not what. Each module opens with what it
   guarantees and what it does not.
 - **Every fix gets a regression test that fails without the fix.** Check it
-  by reverting the fix once (a mutation check), and say so in the PR.
+  by reverting the fix once (a mutation check), and say so in the PR. A test
+  that can hang is not a check: `node --test` counts a hang as cancelled,
+  not failed. Race what is awaited against a sentinel, and assert that the
+  sentinel lost: a timer that settles after the operation should have, or,
+  under mocked timers, a `setImmediate` (it isn't among the mocked timers),
+  which settles once every pending promise callback has run (`now` in
+  `deadline.test.ts`). A race whose winner isn't asserted checks nothing.
+- **Before writing a feature, write down its states.** Most review findings
+  were states and crossings nobody had listed: text mode after each way a call
+  ends, everything a panel covers on a phone, a view that unmounts, a second
+  join while one runs. Before the code, put a few lines in the PR:
+  - each state and transition, and how the screen, the keyboard and a screen
+    reader meet it, on a phone and wide;
+  - what the change covers, unmounts or replaces, and everything that lived
+    there;
+  - the failures: slow, refused, pressed twice, interleaved, a reload in the
+    middle;
+  - the platforms the build targets: an API missing from Safari 16.4 broke
+    every shortcut there.
+
+  Test those transitions, not only the happy path.
+- **One concern per PR.** Each request added to a PR crosses the ones before
+  it: #24 grew to 33 files, and most of its findings were crossings.
+- **Before a PR is ready, read it to break it.** Happy paths and screens
+  checked by eye miss what a review finds. For each function the PR changes:
+  - walk the states it can meet: not loaded yet (null, never `[]`), empty,
+    full at a cap (a history kept at 50 or 100 entries), slow (every network
+    wait has a limit), failed (an error caught is reported to whoever needs
+    it), pressed twice, and the next key once the focus moves;
+  - a new state or a new way to fail (a status, a timeout) is checked in
+    every branch and caller that can meet it, and a protocol (retry with the
+    same key) lives in the API, not in each caller;
+  - a finding is fixed as a class: list its siblings (the same feature, the
+    same way to fail) and fix them in one push, since each push starts a new
+    review round;
+  - every `{ error }` a call returns is read, and a wrapper that swallows
+    one says why;
+  - a race or a state that is hard to fence is removed rather than fenced;
+  - before each push, one independent review of the whole diff: a reviewer
+    given the code and this list, not your conclusions;
+  - a rule written here names its mechanism and its test, and is checked
+    against the code before it is written.
+- **Merge after the last push's review.** Codex reviews each push within
+  minutes. #23 was merged two minutes before its last review, and that
+  review's two findings needed a follow-up PR.
 - **Tests use `node --test`** with `node:assert/strict`. A test that needs
   PostgreSQL is `*.db.test.ts`; one that needs a Supabase stack is
   `*.live.test.ts`. `pnpm test` runs neither.
