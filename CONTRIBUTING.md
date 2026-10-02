@@ -421,8 +421,17 @@ when you change the room:
   ways. Choosing asks for that choice only; an image is drawn only from bytes
   that match its record, read once and only when its tile nears the screen,
   and read again on Try again after a failed read; one choice is saved at a
-  time; a viewer sees who chooses; the keyboard and a phone reach everything. Explore in the Studio still says it is coming: it shows
-  the gallery once S1-06 serves real candidates.
+  time; a viewer sees who chooses; the keyboard and a phone reach everything.
+  Explore in the Studio still says it is coming: it shows the gallery once
+  S1-06 serves real candidates.
+- **The resource panel has its own checks** (`e2e/resources.spec.ts`,
+  LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
+  or account read", the real `ResourcePanel` over the three enrollments.
+  Capacity that isn't observed says "Capacity unknown", never a number; a
+  reset already due is "Refresh pending"; one account's sessions share one
+  capacity; providers are never added up; only a request's owner is told
+  where to answer it, and nothing on the panel answers, steers or stops. It
+  isn't in the Studio yet: it shows there once SCM-01/02 serve resources.
 - **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
   the room's fixture page, whose API also answers the fixture report
   (`fixtures/report-data.ts`), Knowledge and a research notice. A report
