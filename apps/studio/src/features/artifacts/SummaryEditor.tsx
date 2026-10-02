@@ -1,11 +1,14 @@
 // A report's description on its Knowledge card (plan §2.9): Sophia's from publication, or a member's edit with its
-// date. An editor's change is saved against the revision they saw: when someone else changed it first, theirs is
-// shown and nothing is overwritten. A save with no reply is never sent again by itself (it may have landed).
-import { useState } from 'react'
+// date. An editor's change is saved against the revision they saw when they began (summaryEdit): when someone else
+// changed it first, theirs is shown and nothing is overwritten, even after the cards were read again meanwhile. A save
+// with no reply is never sent again by itself (it may have landed). Edit moves the focus to the text, and leaving the
+// form (Cancel, Esc, a save) hands it back to Edit.
+import { useEffect, useRef, useState } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { editReportSummary } from '../../api/artifacts.ts'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { summaryEdit, type SummaryDraft } from './report-view.ts'
 
 const LIMIT = 240
 
@@ -46,22 +49,39 @@ function Problem({ text }: { text: string | null }) {
   )
 }
 
+/** An edit under way, and leaving it: the focus goes back to Edit once the form is gone. */
+function useDraft() {
+  const [draft, setDraft] = useState<SummaryDraft | null>(null)
+  const edit = useRef<HTMLButtonElement>(null)
+  const back = useRef(false)
+  useEffect(() => {
+    if (draft !== null || !back.current) return
+    back.current = false
+    // Only when the form had it (it went with the form): never taken from where the person moved it meanwhile.
+    const at = document.activeElement
+    if (at === null || at === document.body) edit.current?.focus()
+  }, [draft])
+  const stop = () => {
+    back.current = true
+    setDraft(null)
+  }
+  const write = (text: string) => setDraft((d) => (d ? { ...d, text } : d))
+  return { draft, start: setDraft, write, stop, edit }
+}
+
 export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
-  const [draft, setDraft] = useState<string | null>(null)
+  const { draft, start, write, stop, edit } = useDraft()
   const [problem, setProblem] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const save = async (text: string) => {
+  const save = async (begun: SummaryDraft) => {
     setSaving(true)
     try {
-      await editReportSummary(identity.token, card.artifactId, {
-        summary: text,
-        expectedRevision: card.summaryRevision,
-      })
-      setDraft(null)
+      await editReportSummary(identity.token, card.artifactId, summaryEdit(begun))
+      stop()
       setProblem(null)
     } catch (err: unknown) {
       setProblem(problemOf(err))
-      if (err instanceof ApiError && err.code === 'stale_revision') setDraft(null)
+      if (err instanceof ApiError && err.code === 'stale_revision') stop()
     } finally {
       setSaving(false)
       onSaved()
@@ -74,7 +94,12 @@ export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
         <p className="report-attribution">
           {attribution(card)}
           {editable && (
-            <button type="button" className="text-button" onClick={() => setDraft(card.summary ?? '')}>
+            <button
+              ref={edit}
+              type="button"
+              className="text-button"
+              onClick={() => start({ text: card.summary ?? '', base: card.summaryRevision })}
+            >
               Edit
             </button>
           )}
@@ -85,11 +110,11 @@ export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
   }
   return (
     <SummaryForm
-      draft={draft}
+      draft={draft.text}
       saving={saving}
       problem={problem}
-      onDraft={setDraft}
-      onSave={(text) => void save(text)}
+      onDraft={(text) => (text === null ? stop() : write(text))}
+      onSave={() => void save(draft)}
     />
   )
 }
@@ -100,20 +125,23 @@ interface FormProps {
   problem: string | null
   /** A new draft, or null to stop editing. */
   onDraft: (draft: string | null) => void
-  onSave: (text: string) => void
+  onSave: () => void
 }
 
 function SummaryForm({ draft, saving, problem, onDraft, onSave }: FormProps) {
   const text = draft.trim()
+  const field = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => field.current?.focus(), [])
   return (
     <form
       className="report-summary-edit"
       onSubmit={(e) => {
         e.preventDefault()
-        if (text && !saving) onSave(text)
+        if (text && !saving) onSave()
       }}
     >
       <textarea
+        ref={field}
         aria-label="Description"
         value={draft}
         maxLength={LIMIT}

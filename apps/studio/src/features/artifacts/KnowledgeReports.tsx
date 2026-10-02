@@ -4,7 +4,7 @@
 // a member's edit, attributed), its current version and what last changed; it opens in the viewer, where its history
 // compares versions. Editors and admins edit a description against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
@@ -47,6 +47,31 @@ function useReports(identity: Identity, filter: Omit<ReportFilter, 'cursor'>) {
   })
 }
 
+/**
+ * More reports: the press keeps its focus while the page loads (aria-disabled, never disabled), then the focus goes to
+ * the first card the page brought, so neither the list growing under the button nor the button going after the last
+ * page drops it to the page.
+ */
+function useMore(reports: ReturnType<typeof useReports>, count: number) {
+  const list = useRef<HTMLElement>(null)
+  const asked = useRef<number | null>(null)
+  useEffect(() => {
+    const from = asked.current
+    if (from === null || count <= from) return
+    asked.current = null
+    // Only while the focus is still the press's (on More reports, or nowhere once it went): never taken from elsewhere.
+    const at = document.activeElement
+    if (at !== null && at !== document.body && !at.matches('.knowledge-more')) return
+    list.current?.querySelectorAll<HTMLElement>('.report-card-title')[from]?.focus()
+  }, [count])
+  const more = () => {
+    if (reports.isFetchingNextPage) return
+    asked.current = count
+    void reports.fetchNextPage()
+  }
+  return { list, more }
+}
+
 export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
   const [project, setProject] = useState<string>(projectId)
   const [format, setFormat] = useState<Format>('any')
@@ -55,17 +80,19 @@ export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
   const reports = useReports(identity, { project, format, q })
   const cards = reports.data?.pages.flatMap((p) => p.reports) ?? []
   const counts = reports.data?.pages[0]?.projects ?? []
+  const { list, more } = useMore(reports, cards.length)
   return (
-    <section className="knowledge" aria-labelledby="knowledge-title">
+    <section ref={list} className="knowledge" aria-labelledby="knowledge-title">
       <header className="view-head">
         <h2 id="knowledge-title">Knowledge</h2>
         <span className="eyebrow">Reports</span>
       </header>
       <div className="knowledge-filters">
         <ProjectFilter projectId={projectId} project={project} counts={counts} onProject={setProject} />
-        <div className="segmented" role="tablist" aria-label="Format">
+        {/* A filter, not tabs: no panel of its own, so pressed buttons, as the project filter beside it. */}
+        <div className="segmented" role="group" aria-label="Format">
           {FORMATS.map(([f, label]) => (
-            <button key={f} type="button" role="tab" aria-selected={format === f} onClick={() => setFormat(f)}>
+            <button key={f} type="button" aria-pressed={format === f} onClick={() => setFormat(f)}>
               {label}
             </button>
           ))}
@@ -90,9 +117,9 @@ export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
       {reports.hasNextPage && (
         <button
           type="button"
-          className="pill"
-          onClick={() => void reports.fetchNextPage()}
-          disabled={reports.isFetchingNextPage}
+          className="pill knowledge-more"
+          onClick={more}
+          aria-disabled={reports.isFetchingNextPage || undefined}
         >
           {reports.isFetchingNextPage ? 'Loading…' : 'More reports'}
         </button>

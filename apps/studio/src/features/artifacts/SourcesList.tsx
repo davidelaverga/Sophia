@@ -1,6 +1,7 @@
 // The Sources tab (plan §2.8.3): the provenance truth of each source a version cites. What was read in full and
 // what only as a snippet, by which route, and the origin's status only when it is known. Links open in a new tab
 // with noopener. A number is the citation's in the document, so a superscript and its row match.
+import { useEffect, useRef } from 'react'
 import type { ReportSource } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { safeHref } from './markdown.ts'
@@ -11,7 +12,7 @@ interface Props {
   /** Citation numbers by source id, from the document. */
   numbers: ReadonlyMap<string, number>
   failed: boolean
-  /** The source a citation pointed at, to show first in view. */
+  /** The source a citation pointed at: shown and focused once, when the citation was followed. */
   focus: string | null
 }
 
@@ -28,23 +29,41 @@ export function SourcesList({ sources, numbers, failed, focus }: Props) {
   )
 }
 
+/** A row's number, said: the number is drawn for the eye. */
+const citationWords = (n: number | null) => (n === null ? 'Not cited in the text' : `Citation ${n}`)
+
+/**
+ * The row a citation pointed at takes the focus once, as it comes into view: the citation's button went with the
+ * Document tab, and the reader goes on from the source they asked for. Never again on a later render.
+ */
+function useFocusedRow(focused: boolean) {
+  const row = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (!focused) return
+    row.current?.scrollIntoView({ block: 'nearest' })
+    row.current?.focus({ preventScroll: true })
+  }, [focused])
+  return row
+}
+
 function SourceRow({ source, n, focused }: { source: ReportSource; n: number | null; focused: boolean }) {
   const words = sourceWords(source)
   const title = source.title ?? (source.url ? hostOf(source.url) : 'A source from the project')
   // Only a web address opens; anything else a provider reported stays text.
   const href = source.url ? safeHref(source.url) : null
+  const row = useFocusedRow(focused)
   return (
     <li
+      ref={row}
       className="source"
       id={`source-${source.sourceId}`}
       data-focused={focused || undefined}
-      ref={(el) => {
-        if (focused) el?.scrollIntoView({ block: 'nearest' })
-      }}
+      tabIndex={focused ? -1 : undefined}
     >
-      <span className="source-n" aria-label={n === null ? 'Not cited in the text' : `Citation ${n}`}>
+      <span className="source-n" aria-hidden>
         {n ?? '·'}
       </span>
+      <span className="sr-only">{citationWords(n)}</span>
       <div className="source-body">
         <p className="source-title">
           {href ? (

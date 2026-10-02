@@ -3,8 +3,8 @@
 // Download saves that version. The footer opens the viewer on its sources and limitations. A report delivered
 // without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
 // (WorkControls), as for every task, a PDF rendering again included.
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
 import { Icon, Tag } from '@sophia/ui'
 import { listArtifactVersions } from '../../api/artifacts.ts'
@@ -58,6 +58,17 @@ function useResearch({ task, projectId, identity }: Props) {
   const outputs = detail.data?.result?.outputs ?? []
   const research = detail.data?.research
   const latest = outputs[0]?.artifactVersionId
+  // A version published since (an amendment, Try PDF again) reaches an open viewer at once: it offers it (ART-02).
+  // Only on a change: a card mounting or a phase moving reads nothing again.
+  const client = useQueryClient()
+  const seen = useRef(latest)
+  useEffect(() => {
+    const before = seen.current
+    seen.current = latest
+    if (latest && before && latest !== before && task.artifactId) {
+      void client.invalidateQueries({ queryKey: ['report-versions', task.artifactId] })
+    }
+  }, [client, latest, task.artifactId])
   const versions = useQuery({
     queryKey: ['report-versions', task.artifactId, latest, identity.name],
     queryFn: () => listArtifactVersions(identity.token, task.artifactId ?? ''),
@@ -100,7 +111,8 @@ export function WorkCard(props: Props) {
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research)
   return (
-    <li className="task work-card" data-state={words.state}>
+    // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
+    <li className="task work-card" data-state={words.state} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
@@ -203,6 +215,9 @@ const outputMeta = (output: Output, version: ArtifactVersion | undefined) =>
     .filter(Boolean)
     .join(' · ')
 
+/** A row's format, said: two rows of one report differ by it (the name alone is "Report" until the versions load). */
+const formatName = (format: Output['format']) => (format === 'pdf' ? 'PDF' : 'Markdown')
+
 function OutputRow({ output, version, token, onOpen }: RowProps) {
   const status = useTransientStatus()
   const name = nameOf(output, version)
@@ -221,7 +236,7 @@ function OutputRow({ output, version, token, onOpen }: RowProps) {
         className="output-open"
         onClick={onOpen ?? undefined}
         disabled={!onOpen}
-        aria-label={`Open ${name}`}
+        aria-label={`Open ${name}, ${formatName(output.format)}`}
       >
         <span className="report-tile" data-format={output.format} aria-hidden>
           {output.format === 'pdf' ? 'PDF' : 'MD'}
@@ -232,15 +247,19 @@ function OutputRow({ output, version, token, onOpen }: RowProps) {
           Open
         </span>
       </button>
-      <button type="button" className="ghost" onClick={() => void download()} aria-label={`Download ${name}`}>
+      <button
+        type="button"
+        className="ghost"
+        onClick={() => void download()}
+        aria-label={`Download ${name}, ${formatName(output.format)}`}
+      >
         <Icon name="download" />
         <span className="output-download-label">Download</span>
       </button>
-      {status.text && (
-        <p className="output-status" role="status" data-error={status.error || undefined}>
-          {status.text}
-        </p>
-      )}
+      {/* There before it speaks: a live region added with its words is often not read. */}
+      <p className="output-status" role="status" data-error={status.error || undefined}>
+        {status.text}
+      </p>
     </div>
   )
 }
@@ -256,7 +275,12 @@ function CardFoot({ version, open }: { version: ArtifactVersion; open: Open }) {
         </button>
       )}
       {limits > 0 && (
-        <button type="button" className="text-button" onClick={() => open({ versionId: version.id, tab: 'document' })}>
+        // The limitations head the Markdown (the PDF view shows the pages only), so they open it.
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => open({ versionId: version.id, tab: 'document', format: 'markdown' })}
+        >
           {limits} {limits === 1 ? 'limitation' : 'limitations'}
         </button>
       )}

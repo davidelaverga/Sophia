@@ -120,7 +120,7 @@ interface PageProps {
  * Draw one page and its text layer at `scale`, each time on a canvas and a layer of its own, removed when the page
  * leaves the view or the scale changes: a render still being cancelled never shares a canvas with the next one.
  */
-function usePageDrawing(props: PageProps, onFailed: () => void) {
+function usePageDrawing(props: PageProps, onDrawn: (drawn: boolean) => void) {
   const { doc, n, scale, near } = props
   const host = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -148,10 +148,11 @@ function usePageDrawing(props: PageProps, onFailed: () => void) {
       if (stopped()) return
       layer = new TextLayer({ textContentSource: page.streamTextContent(), container: text, viewport })
       await layer.render()
+      if (!stopped()) onDrawn(true)
     }
     // A render cancelled by a scroll or a zoom rejects; that is not an error to show.
     draw().catch((error: unknown) => {
-      if (!stopped() && !CANCELLED.has(error instanceof Error ? error.name : '')) onFailed()
+      if (!stopped() && !CANCELLED.has(error instanceof Error ? error.name : '')) onDrawn(false)
     })
     return () => {
       run.cancelled = true
@@ -162,7 +163,7 @@ function usePageDrawing(props: PageProps, onFailed: () => void) {
       canvas.remove()
       text.remove()
     }
-    // onFailed is a state setter: stable.
+    // onDrawn only sets the page's state: a setter, stable.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [doc, n, scale, near])
   return host
@@ -174,7 +175,8 @@ const CANCELLED: ReadonlySet<string> = new Set(['RenderingCancelledException', '
 function PdfPage(props: PageProps) {
   const { n, size, scale, observe } = props
   const [failed, setFailed] = useState(false)
-  const host = usePageDrawing(props, () => setFailed(true))
+  // Whether the latest drawing failed: a page drawn again at another zoom, or once back in view, loses the mark.
+  const host = usePageDrawing(props, (drawn) => setFailed(!drawn))
   const style = {
     width: `${size.width * scale}px`,
     height: `${size.height * scale}px`,
@@ -264,15 +266,24 @@ interface ToolbarProps {
   onZoom: (zoom: 'fit' | number) => void
 }
 
+/** A press that does nothing at a limit: the button stays focusable (aria-disabled, never disabled under the focus). */
+const unless = (atLimit: boolean, run: () => void) => () => {
+  if (!atLimit) run()
+}
+
 function PdfToolbar({ current, count, scale, fit, onGo, onZoom }: ToolbarProps) {
+  const first = current <= 1
+  const last = current >= count
+  const smallest = scale <= MIN_ZOOM
+  const largest = scale >= MAX_ZOOM
   return (
     <div className="pdf-toolbar" role="toolbar" aria-label="PDF">
       <button
         type="button"
         className="round has-tip pdf-prev"
         aria-label="Previous page"
-        disabled={current <= 1}
-        onClick={() => onGo(current - 1)}
+        aria-disabled={first || undefined}
+        onClick={unless(first, () => onGo(current - 1))}
       >
         <Icon name="chevron" />
         <Tip label="Previous page" side="bottom" />
@@ -284,8 +295,8 @@ function PdfToolbar({ current, count, scale, fit, onGo, onZoom }: ToolbarProps) 
         type="button"
         className="round has-tip"
         aria-label="Next page"
-        disabled={current >= count}
-        onClick={() => onGo(current + 1)}
+        aria-disabled={last || undefined}
+        onClick={unless(last, () => onGo(current + 1))}
       >
         <Icon name="chevron" />
         <Tip label="Next page" side="bottom" />
@@ -295,8 +306,8 @@ function PdfToolbar({ current, count, scale, fit, onGo, onZoom }: ToolbarProps) 
           type="button"
           className="round has-tip"
           aria-label="Zoom out"
-          disabled={scale <= MIN_ZOOM}
-          onClick={() => onZoom(zoomStep(scale, false))}
+          aria-disabled={smallest || undefined}
+          onClick={unless(smallest, () => onZoom(zoomStep(scale, false)))}
         >
           <Icon name="minus" />
           <Tip label="Zoom out" side="bottom" />
@@ -306,8 +317,8 @@ function PdfToolbar({ current, count, scale, fit, onGo, onZoom }: ToolbarProps) 
           type="button"
           className="round has-tip"
           aria-label="Zoom in"
-          disabled={scale >= MAX_ZOOM}
-          onClick={() => onZoom(zoomStep(scale, true))}
+          aria-disabled={largest || undefined}
+          onClick={unless(largest, () => onZoom(zoomStep(scale, true)))}
         >
           <Icon name="plus" />
           <Tip label="Zoom in" side="bottom" />

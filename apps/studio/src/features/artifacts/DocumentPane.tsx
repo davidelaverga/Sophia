@@ -4,12 +4,13 @@
 // its PDF (S5b). Every file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary region: focus moves to its title on open
 // and back to the opener on close; Esc steps down, F toggles the full page.
 import { useQuery } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { nextInRow } from '../../app/roving.ts'
+import { modalOnScreen, onScreen as isVisible, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
 import {
   checkedBlob,
   HashMismatch,
@@ -23,7 +24,18 @@ import {
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
-import { formatBytes, rereadFor, shortHash, versionMissing } from './report-view.ts'
+import {
+  currentOffer,
+  escapeStepsDown,
+  failedOutright,
+  focusReturn,
+  formatBytes,
+  pdfMissing,
+  pinTo,
+  rereadFor,
+  shortHash,
+  versionMissing,
+} from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
@@ -32,6 +44,8 @@ import { useTransientStatus } from './useTransientStatus.ts'
 interface Props {
   identity: Identity
   link: ReportLink
+  /** What opened the report, as the viewer read it at the click; null for a deep link. */
+  opener: React.RefObject<HTMLElement | null>
   tab: ViewerTab
   onTab: (tab: ViewerTab) => void
   onVersion: (versionId: string) => void
@@ -42,6 +56,17 @@ interface Props {
   onClose: () => void
   /** In the room: the chat in the report's place. */
   onChat?: (() => void) | undefined
+  /**
+   * Something new in the chat since it was last in view: the pane's Chat says so, as the corner toggle it covers on a
+   * phone and in the full page does.
+   */
+  chatUnread?: boolean
+  /**
+   * The call's switches (empty out of a call) and its note. The pane shows them under its head where it covers the dock
+   * or the mini dock (a phone, the full page), as the side panel's head does: what this person sends stays in sight.
+   */
+  call?: ReactNode
+  note: string | null
 }
 
 /** pdf.js loads with the first PDF opened, never with the Studio. */
@@ -87,6 +112,7 @@ function usePaneData(identity: Identity, link: ReportLink) {
   // The PDF is the one rendition format (A11).
   const rendition = version?.renditions?.[0]
   const showPdf = link.format === 'pdf' && rendition !== undefined
+  const noPdf = pdfMissing(link.format, version)
   const pdf = useQuery({
     queryKey: ['report-pdf', rendition?.sourceId, identity.name],
     queryFn: () => loadReportBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? ''),
@@ -94,76 +120,221 @@ function usePaneData(identity: Identity, link: ReportLink) {
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
   })
-  return { versions, version, versionSettled, text, sources, parsed, rendition, showPdf, pdf }
+  return { versions, version, versionSettled, text, sources, parsed, rendition, showPdf, noPdf, pdf }
 }
 
 type PaneData = ReturnType<typeof usePaneData>
 
-/** Esc steps down while the pane is open, unless a field or a dialog has it. */
+/**
+ * A report opened without a version keeps the one first read (pinTo): from then on the link names it, in place, so a
+ * version published while it is read never replaces it, and the head offers the current one instead (ART-02).
+ */
+function usePinnedVersion(link: ReportLink, versions: PaneData['versions'], onVersion: (versionId: string) => void) {
+  // Only in sight: out of it (kept for its call) the address is the places', never the pane's to write.
+  const inSight = useContext(ShortcutScope)
+  const pin = pinTo(link.versionId, versions)
+  const show = useRef(onVersion)
+  useEffect(() => {
+    show.current = onVersion
+  })
+  useEffect(() => {
+    if (pin !== null && inSight) show.current(pin)
+  }, [pin, inSight])
+}
+
+/** Esc steps down while the pane is open and its project in sight, unless a field, a dialog or a modal sheet has it. */
 function useEscape(onStepDown: () => void) {
+  const inSight = useContext(ShortcutScope)
   const step = useRef(onStepDown)
   useEffect(() => {
     step.current = onStepDown
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (e.key !== 'Escape') return
       const t = e.target instanceof HTMLElement ? e.target : null
-      if (t?.closest('[role="dialog"], input, textarea, select')) return
+      const owned = !!t && (t.isContentEditable || !!t.closest('[role="dialog"], input, textarea, select'))
+      const at = { defaultPrevented: e.defaultPrevented, repeat: e.repeat, owned }
+      if (!escapeStepsDown(at, inSight, modalOnScreen())) return
       e.preventDefault()
       step.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [inSight])
 }
 
-/** Focus moves to the title on open and returns to whatever opened the pane on close. */
-function useFocusHandoff() {
+/**
+ * How tall the pane's top is (its head, the call's switches, the note, the tabs), as --report-top-h: where the pane
+ * covers the room, someone at the door is shown under it, never over Close, a switch or a tab. Its height, not its place
+ * on screen: the pane's top is always the bar's, and the enlarging animation would skew a measured place.
+ */
+function usePaneTop() {
+  const top = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = top.current
+    if (!el) return undefined
+    const root = document.documentElement.style
+    const observer = new ResizeObserver(() => root.setProperty('--report-top-h', `${String(el.offsetHeight)}px`))
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      root.removeProperty('--report-top-h')
+    }
+  }, [])
+  return top
+}
+
+interface TopProps {
+  topRef: React.RefObject<HTMLDivElement | null>
+  head: ReactNode
+  call: ReactNode
+  note: string | null
+  tabs: ReactNode
+}
+
+/**
+ * The pane's top: its head, then (where the pane covers the dock or the mini dock) the call's switches and the note,
+ * then its tabs.
+ */
+function PaneTop({ topRef, head, call, note, tabs }: TopProps) {
+  return (
+    <div ref={topRef} className="report-pane-top">
+      {head}
+      {/* Its own row, which wraps: the head keeps Download and Close whatever is on (a phone's 390 px). */}
+      <div className="report-pane-call">{call}</div>
+      {/* For the eye only: the dock's own note, still in the accessibility tree under the pane, is announced. */}
+      {note && (
+        <p className="report-pane-note" aria-hidden>
+          {note}
+        </p>
+      )}
+      {tabs}
+    </div>
+  )
+}
+
+/** Still in the page and on screen: somewhere the focus can go back to. */
+const shownNow = (el: HTMLElement) => el.isConnected && isVisible(el)
+
+/** The corner toggle of the side panel `el` sits in (Chat for a chat notice's Open), or null. */
+function panelToggleOf(el: HTMLElement): HTMLElement | null {
+  const panel = el.closest('.side-panel-body')?.id.replace(/^side-/, '')
+  return panel ? document.querySelector<HTMLElement>(`.panel-toggles [data-panel="${panel}"]`) : null
+}
+
+/**
+ * Focus moves to the title on open. On close it returns to what opened the pane, or to the toggle of the side panel
+ * that held it (focusReturn), unless it already went somewhere: the side panel opening in the pane's place moves it in.
+ */
+function useFocusHandoff(opener: React.RefObject<HTMLElement | null>) {
   const title = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    // A deep link has no opener: what had the focus as the pane came.
+    const atMount = document.activeElement instanceof HTMLElement ? document.activeElement : null
     title.current?.focus({ preventScroll: true })
-    return () => opener?.focus({ preventScroll: true })
-  }, [])
+    return () => {
+      // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener.
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      const from = opener.current ?? atMount
+      const at = document.activeElement
+      const free = at === null || at === document.body || !at.isConnected
+      focusReturn(free, from, from ? panelToggleOf(from) : null, shownNow)?.focus({ preventScroll: true })
+    }
+  }, [opener])
   return title
+}
+
+/**
+ * A citation shows its source once (SourcesList focuses it); a tab chosen afterwards, or any move off Sources (an open
+ * of the same report from elsewhere), shows the list as it is.
+ */
+function useCitation(tab: ViewerTab, onTab: (tab: ViewerTab) => void) {
+  const [focusSource, setFocusSource] = useState<string | null>(null)
+  useEffect(() => {
+    if (tab !== 'sources') setFocusSource(null)
+  }, [tab])
+  return {
+    focusSource,
+    cite: (sourceId: string) => {
+      setFocusSource(sourceId)
+      onTab('sources')
+    },
+    choose: (next: ViewerTab) => {
+      setFocusSource(null)
+      onTab(next)
+    },
+  }
+}
+
+/** What the pane does around what it shows: the version it pins, its keys, the focus and its top's height. */
+function usePaneBehaviour({ link, opener, onVersion, onStepDown, onEnlarge }: Props, data: PaneData) {
+  usePinnedVersion(link, data.versions, onVersion)
+  useEscape(onStepDown)
+  useShortcuts({ f: link.size === 'full' ? onStepDown : onEnlarge })
+  const title = useFocusHandoff(opener)
+  // Back to the side pane with the focus on a call switch: beside the room the dock has them and the row is hidden,
+  // so the focus goes to the title rather than stay on a button nobody sees.
+  useEffect(() => {
+    const at = document.activeElement
+    if (at instanceof HTMLElement && at.closest('.report-pane-call') && !isVisible(at)) {
+      title.current?.focus({ preventScroll: true })
+    }
+  }, [link.size, title])
+  // The current version's offer: "Show it" goes with the offer once pressed, so the focus goes to the title.
+  const current = currentOffer(data.versions.data, data.version)
+  const offer = current
+    ? {
+        number: current.versionNumber,
+        onShow: () => {
+          onVersion(current.id)
+          title.current?.focus({ preventScroll: true })
+        },
+      }
+    : null
+  return { title, top: usePaneTop(), offer }
 }
 
 export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
   const data = usePaneData(identity, link)
-  const title = useFocusHandoff()
+  const { title, top, offer } = usePaneBehaviour(props, data)
   const width = usePaneWidth()
   const status = useTransientStatus()
-  const [focusSource, setFocusSource] = useState<string | null>(null)
+  const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
-  useEscape(onStepDown)
-  useShortcuts({ f: full ? onStepDown : onEnlarge })
-  const cite = (sourceId: string) => {
-    setFocusSource(sourceId)
-    onTab('sources')
-  }
   return (
     <aside className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
       {!full && <div className="report-pane-grip" aria-hidden onPointerDown={width.drag} />}
-      <PaneHead
-        title={data.version?.title ?? 'Report'}
-        titleRef={title}
-        {...headOf(data)}
-        full={full}
-        onDownload={() => void viewerDownload(data, status.show)}
-        onEnlarge={onEnlarge}
-        onStepDown={onStepDown}
-        onClose={onClose}
-        onChat={onChat}
-      />
-      <PaneTabs
-        tab={tab}
-        onTab={onTab}
-        sources={data.sources.data?.sources.length}
-        versions={data.versions.data?.length}
-        format={data.rendition ? (data.showPdf ? 'pdf' : 'markdown') : null}
-        onFormat={onFormat}
+      <PaneTop
+        topRef={top}
+        head={
+          <PaneHead
+            title={data.version?.title ?? 'Report'}
+            titleRef={title}
+            {...headOf(data)}
+            current={offer}
+            full={full}
+            onDownload={() => void viewerDownload(data, status.show)}
+            onEnlarge={onEnlarge}
+            onStepDown={onStepDown}
+            onClose={onClose}
+            onChat={onChat}
+            chatUnread={props.chatUnread ?? false}
+          />
+        }
+        call={props.call}
+        note={props.note}
+        tabs={
+          <PaneTabs
+            tab={tab}
+            onTab={choose}
+            sources={data.sources.data?.sources.length}
+            versions={data.versions.data?.length}
+            format={data.rendition ? (data.showPdf ? 'pdf' : 'markdown') : null}
+            onFormat={onFormat}
+          />
+        }
       />
       <PaneBody
         tab={tab}
@@ -191,16 +362,64 @@ interface BodyProps {
   onVersion: (versionId: string) => void
 }
 
-function PaneBody({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
+/**
+ * Why nothing of the report can be shown, whatever the tab: not readable to this person, or the version gone (then the
+ * current one, when the report has one, is a press away).
+ */
+function unavailable(data: PaneData): { text: string; current?: ArtifactVersion | undefined } | null {
+  if (failedOutright(data.versions)) return { text: 'This report isn’t available to you.' }
+  if (versionMissing(data.versions, data.version !== undefined, data.versionSettled)) {
+    return { text: 'This version isn’t available.', current: data.versions.data?.[0] }
+  }
+  return null
+}
+
+function Unavailable({
+  text,
+  current,
+  onShow,
+}: {
+  text: string
+  current?: ArtifactVersion | undefined
+  onShow: (id: string) => void
+}) {
   return (
-    <div className="report-pane-body" role="tabpanel" aria-label={TAB_NAME[tab]} data-pdf={data.showPdf || undefined}>
+    <p className="muted">
+      {text}{' '}
+      {current && (
+        <button type="button" className="text-button" onClick={() => onShow(current.id)}>
+          Show the current version{current.versionNumber ? `, v${current.versionNumber}` : ''}
+        </button>
+      )}
+    </p>
+  )
+}
+
+function PaneBody(props: BodyProps) {
+  const blocked = unavailable(props.data)
+  return (
+    <div
+      id="report-tabpanel"
+      className="report-pane-body"
+      role="tabpanel"
+      aria-labelledby={`report-tab-${props.tab}`}
+      data-pdf={(!blocked && props.data.showPdf) || undefined}
+    >
+      {blocked ? <Unavailable {...blocked} onShow={props.onVersion} /> : <TabContent {...props} />}
+    </div>
+  )
+}
+
+function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
+  return (
+    <>
       {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
       {tab === 'document' && !data.showPdf && <DocumentTab data={data} onCite={onCite} />}
       {tab === 'sources' && (
         <SourcesList
           sources={data.sources.data?.sources}
           numbers={numbersOf(data.parsed)}
-          failed={data.sources.isError}
+          failed={failedOutright(data.sources)}
           focus={focusSource}
         />
       )}
@@ -212,11 +431,9 @@ function PaneBody({ tab, data, full, identity, focusSource, onCite, onVersion }:
           onShow={onVersion}
         />
       )}
-    </div>
+    </>
   )
 }
-
-const TAB_NAME: Record<ViewerTab, string> = { document: 'Document', sources: 'Sources', history: 'History' }
 
 const numbersOf = (parsed: ParsedReport | null): ReadonlyMap<string, number> =>
   new Map((parsed?.citations ?? []).map((id, i) => [id, i + 1]))
@@ -284,6 +501,8 @@ interface HeadProps {
   titleRef: React.RefObject<HTMLHeadingElement | null>
   format: ViewerFormat
   meta: string
+  /** The report's current version, when another is on screen (currentOffer). */
+  current: { number: number | undefined; onShow: () => void } | null
   full: boolean
   canDownload: boolean
   onDownload: () => void
@@ -291,10 +510,24 @@ interface HeadProps {
   onStepDown: () => void
   onClose: () => void
   onChat?: (() => void) | undefined
+  chatUnread: boolean
 }
 
 function PaneHead(props: HeadProps) {
-  const { title, titleRef, format, meta, full, canDownload, onDownload, onEnlarge, onStepDown, onClose, onChat } = props
+  const {
+    title,
+    titleRef,
+    format,
+    meta,
+    current,
+    full,
+    canDownload,
+    onDownload,
+    onEnlarge,
+    onStepDown,
+    onClose,
+    onChat,
+  } = props
   const size = full ? 'Back to side panel' : 'Enlarge'
   return (
     <header className="report-pane-head">
@@ -306,6 +539,14 @@ function PaneHead(props: HeadProps) {
           {title}
         </h2>
         <p className="report-meta">{meta}</p>
+        {current && (
+          <p className="report-current" role="status">
+            {current.number ? `v${current.number} is the current version.` : 'This is not the current version.'}{' '}
+            <button type="button" className="text-button" onClick={current.onShow}>
+              Show it
+            </button>
+          </p>
+        )}
       </div>
       <button type="button" className="pill report-download has-tip" onClick={onDownload} disabled={!canDownload}>
         <Icon name="download" />
@@ -316,17 +557,28 @@ function PaneHead(props: HeadProps) {
         <Icon name={full ? 'collapse' : 'expand'} />
         <Tip label={size} keys="F" side="bottom" align="end" />
       </button>
-      {onChat && (
-        <button type="button" className="round has-tip" aria-label="Chat" onClick={onChat}>
-          <Icon name="chat" />
-          <Tip label="Chat in place of the report" keys="C" side="bottom" align="end" />
-        </button>
-      )}
+      {onChat && <ChatButton unread={props.chatUnread} onChat={onChat} />}
       <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
         <Icon name="close" />
         <Tip label="Close" keys="Esc" side="bottom" align="end" />
       </button>
     </header>
+  )
+}
+
+/** In the room: the chat in the report's place, with the corner toggle's mark for what is new there. */
+function ChatButton({ unread, onChat }: { unread: boolean; onChat: () => void }) {
+  return (
+    <button
+      type="button"
+      className="round has-tip"
+      aria-label={unread ? 'Chat, something new' : 'Chat'}
+      onClick={onChat}
+    >
+      <Icon name="chat" />
+      {unread && <span className="toggle-dot" aria-hidden />}
+      <Tip label="Chat in place of the report" keys="C" side="bottom" align="end" />
+    </button>
   )
 }
 
@@ -342,19 +594,47 @@ interface TabsProps {
 
 const count = (n: number | undefined) => (n === undefined ? '' : ` ${n}`)
 
+const TABS: readonly ViewerTab[] = ['document', 'sources', 'history']
+
+/**
+ * The report's tabs, as every tab row in Studio: the one selected is the one Tab reaches, arrow keys, Home and End move
+ * between them. The format switch sits beside the row, not in it (a tab list holds tabs only).
+ */
 function PaneTabs({ tab, onTab, sources, versions, format, onFormat }: TabsProps) {
-  const tabs: [ViewerTab, string][] = [
-    ['document', 'Document'],
-    ['sources', `Sources${count(sources)}`],
-    ['history', `History${count(versions)}`],
-  ]
+  const buttons = useRef(new Map<ViewerTab, HTMLButtonElement>())
+  const label: Record<ViewerTab, string> = {
+    document: 'Document',
+    sources: `Sources${count(sources)}`,
+    history: `History${count(versions)}`,
+  }
+  const onKey = (e: React.KeyboardEvent) => {
+    const next = nextInRow(TABS, tab, e.key)
+    if (!next) return
+    e.preventDefault()
+    onTab(next)
+    buttons.current.get(next)?.focus()
+  }
   return (
-    <div className="report-tabs" role="tablist" aria-label="Report">
-      {tabs.map(([id, label]) => (
-        <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)}>
-          {label}
-        </button>
-      ))}
+    <div className="report-tabs">
+      <div className="report-tablist" role="tablist" aria-label="Report" onKeyDown={onKey}>
+        {TABS.map((id) => (
+          <button
+            key={id}
+            ref={(el) => {
+              if (el) buttons.current.set(id, el)
+            }}
+            type="button"
+            role="tab"
+            id={`report-tab-${id}`}
+            aria-selected={tab === id}
+            aria-controls="report-tabpanel"
+            tabIndex={tab === id ? 0 : -1}
+            onClick={() => onTab(id)}
+          >
+            {label[id]}
+          </button>
+        ))}
+      </div>
       {format && <FormatSwitch format={format} onFormat={onFormat} />}
     </div>
   )
@@ -397,9 +677,6 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
 }
 
 function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: string) => void }) {
-  if (data.versions.isError) return <p className="muted">This report isn’t available to you.</p>
-  if (versionMissing(data.versions, data.version !== undefined, data.versionSettled))
-    return <p className="muted">This version isn’t available.</p>
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -412,6 +689,11 @@ function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: stri
   if (!data.parsed || !data.version) return <p className="muted">Loading the report…</p>
   return (
     <>
+      {data.noPdf && (
+        <p className="report-format-note" role="note">
+          This version has no PDF, so its Markdown is shown.
+        </p>
+      )}
       <Limitations items={data.version.limitations ?? []} />
       <MarkdownView report={data.parsed} onCite={onCite} />
     </>

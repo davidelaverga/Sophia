@@ -150,9 +150,11 @@
   top: var(--topbar);
   right: 0;
   bottom: 0;
-  z-index: 35;
+  /* Over the page, the room's dock and the mini dock (10 and under); under the lobby and a project's opening note (15),
+     which come under its top where it covers them, and the top bar (20), whose menus open over it. */
+  z-index: 12;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: var(--report-w, 560px);
   border-left: 1px solid var(--line-2);
   background: var(--plane);
@@ -161,7 +163,6 @@
 }
 .report-pane[data-size='full'] {
   inset: var(--topbar) 0 0;
-  z-index: 40;
   width: auto;
   border-left: 0;
   animation: rp-enlarge var(--base) var(--ease);
@@ -186,12 +187,45 @@
   width: 8px;
   cursor: col-resize;
 }
+/* The pane's top: its head, then (where the pane covers the dock or the mini dock) the call's switches and the note,
+   then the tabs. Someone at the door is shown under it there (--report-top-h), never over Close, a switch or a tab. */
 .report-pane-head {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
+}
+/* The call's switches, a row of their own under the head, only where the pane covers the dock or the mini dock (the
+   full page, and a phone below): a live microphone, camera or shared screen stays in sight with its off switch, as
+   under the side panel's head. Beside the room the dock shows them. Empty out of a call. */
+.report-pane-call {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 12px 10px 16px;
+}
+.report-pane-note {
+  display: none;
+  margin: 0 16px 10px;
+  padding: 7px 11px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.report-pane[data-size='full'] .report-pane-call:not(:empty) {
+  display: flex;
+}
+.report-pane[data-size='full'] .report-pane-note {
+  display: block;
+}
+/* Someone at the door is let in from over the full page, under its top: Close, the switches and the tabs stay in
+   reach. So is a project's note that it is slow to open, which floats where the lobby would. */
+.shell:has(> .report-pane[data-size='full']) :is(.lobby, .wait-note) {
+  top: calc(var(--topbar) + var(--report-top-h, 0px) + 8px);
 }
 .report-pane-name {
   flex: 1;
@@ -207,11 +241,22 @@
 .report-pane-name h2:focus {
   outline: none;
 }
+/* Another version than the current one is on screen: the head names the current one and shows it on request. */
+.report-current {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 12px;
+}
 .report-tabs {
   display: flex;
   gap: 18px;
   padding: 0 16px;
+  border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+.report-tablist {
+  display: flex;
+  gap: 18px;
 }
 .report-tabs button {
   height: 38px;
@@ -237,6 +282,13 @@
 }
 .report-pane .report-status {
   padding: 0 16px 8px;
+}
+/* The PDF asked for is missing: one line above the Markdown shown in its place. */
+.report-format-note {
+  max-width: 68ch;
+  margin-bottom: 12px;
+  color: var(--text-2);
+  font-size: 13px;
 }
 .report-limits {
   max-width: 68ch;
@@ -455,6 +507,15 @@
 .report-compare h3 {
   font-size: 14px;
 }
+.report-compare h3:focus {
+  outline: none;
+}
+/* The version on screen: its Show in place, said and not pressable. */
+.report-history .text-button[aria-disabled='true'] {
+  color: var(--text-2);
+  text-decoration: none;
+  cursor: default;
+}
 .report-compare-lists {
   display: grid;
   gap: 6px;
@@ -568,8 +629,9 @@
 }
 
 /* Beside the side pane, as beside the room's side panel: the page and the room narrow, and what floats on the right
-   (the lobby, the mini dock) keeps clear. A phone's pane covers the page instead. */
-@media (min-width: 761px) {
+   (the lobby, a project's opening note, the mini dock) keeps clear. A phone's pane covers the page instead. One
+   breakpoint for both sides of it (`> 760px` and `<= 760px` below): no fractional width falls between them. */
+@media (width > 760px) {
   .shell:has(> .report-pane[data-size='side']) > main.page {
     max-width: none;
     margin: 0;
@@ -584,13 +646,18 @@
     margin-right: var(--report-w);
   }
   .shell:has(> .report-pane[data-size='side']) .lobby,
+  .shell:has(> .report-pane[data-size='side']) .wait-note,
   .shell:has(> .report-pane[data-size='side']) .mini-dock {
     right: calc(var(--report-w) + var(--gutter));
+  }
+  /* And never wider than the room left beside the pane (a 761 px window leaves under 300). */
+  .shell:has(> .report-pane[data-size='side']) :is(.lobby, .wait-note) {
+    width: min(300px, calc(100% - var(--report-w) - 2 * var(--gutter)));
   }
 }
 
 /* --- small screens, coarse pointers, reduced motion ---------------------------------------------------------- */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .report-pane {
     inset: var(--topbar) 0 0;
     width: auto;
@@ -599,6 +666,20 @@
   .report-pane-grip,
   .report-download-label {
     display: none;
+  }
+  /* A phone's pane covers the dock and the mini dock: their switches and note come under its head (above). */
+  .report-pane-call:not(:empty) {
+    display: flex;
+  }
+  .report-pane-note {
+    display: block;
+  }
+  /* And the door is under its top, over the pane, as over the side panel. */
+  .shell:has(> .report-pane:not([hidden])) :is(.lobby, .wait-note) {
+    top: calc(var(--topbar) + var(--report-top-h, 0px) + 8px);
+    left: var(--gutter);
+    right: var(--gutter);
+    width: auto;
   }
 }
 @media (pointer: coarse) {
@@ -796,4 +877,28 @@
   background: var(--plane-2);
   color: var(--text-2);
   font-size: 12px;
+}
+
+/* A press that does nothing for now keeps the focus (aria-disabled, never disabled): drawn as a disabled button. */
+:is(.pdf-toolbar, .retry-pdf, .knowledge) button[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.45;
+}
+/* Knowledge's format filter: pressed buttons, drawn as the segmented control's selected one. */
+.knowledge-filters .segmented button[aria-pressed='true'] {
+  color: var(--text);
+}
+/* A card takes the focus when a control inside it goes (Try PDF again): no ring for a focus the reader didn't move. */
+.work-card:focus {
+  outline: none;
+}
+
+/* A status line with nothing to say yet stays in the page for its words to be read when they come (a live region
+   added with them often is not), but takes no room: no empty row in a card's grid or flow. */
+:is(.output-status, .chat-status):empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }

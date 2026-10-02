@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { readReportLink, reportSearch, withReportLink } from './report-link.ts'
+import { openedLink, readReportLink, reportSearch, withReportLink, type ReportLink } from './report-link.ts'
 import { clampWidth, defaultWidth } from './usePaneWidth.ts'
 import {
+  currentOffer,
   elapsedText,
+  escapeStepsDown,
+  failedOutright,
+  focusReturn,
+  pdfMissing,
   factChips,
   formatBytes,
   money,
@@ -14,8 +19,10 @@ import {
   reportFilename,
   researchState,
   sourceWords,
+  pinTo,
   rereadFor,
   spendText,
+  summaryEdit,
   versionMissing,
 } from './report-view.ts'
 
@@ -190,6 +197,13 @@ describe('how a cited source was retrieved', () => {
   })
 })
 
+/** A list of versions as the viewer's query holds it, newest first. */
+const list = (fetchStatus: 'fetching' | 'paused' | 'idle', ...ids: string[]) => ({
+  data: ids.map((id) => ({ id })),
+  fetchStatus,
+})
+const v = (id: string) => ({ id })
+
 describe('a version the link names', () => {
   it('is missing only once a list read again since the link named it lacks it (a cached list can predate it)', () => {
     const idle = { isSuccess: true, fetchStatus: 'idle' as const }
@@ -201,12 +215,75 @@ describe('a version the link names', () => {
     assert.equal(versionMissing({ isSuccess: false, fetchStatus: 'fetching' }, false, true), false, 'nothing read yet')
   })
 
+  it('pins a report opened without one to the current version, once a fresh list names it (ART-02)', () => {
+    assert.equal(pinTo(null, list('idle', 'v2', 'v1')), 'v2')
+    assert.equal(pinTo(null, list('fetching', 'v1')), null, 'a cached list being read again can predate v2')
+    assert.equal(pinTo(null, list('paused', 'v1')), null, 'a read paused offline is not a read')
+    assert.equal(pinTo(null, { data: undefined, fetchStatus: 'idle' }), null, 'nothing read')
+    assert.equal(pinTo(null, list('idle')), null, 'no version yet')
+    assert.equal(
+      pinTo('v1', list('idle', 'v2', 'v1')),
+      null,
+      'the link names its version: a newer one never replaces it',
+    )
+  })
+
+  it('keeps what was read when a read again in the background fails', () => {
+    assert.equal(failedOutright({ isError: true, data: undefined }), true)
+    assert.equal(failedOutright({ isError: true, data: [{ id: 'v2' }] }), false, 'the focus read failed: v2 stays')
+    assert.equal(failedOutright({ isError: false, data: undefined }), false, 'still reading')
+  })
+
+  it('offers the current version when another is on screen, and nothing when it is the one shown', () => {
+    const versions = [v('v3'), v('v2'), v('v1')]
+    assert.deepEqual(currentOffer(versions, versions[2]), v('v3'))
+    assert.equal(currentOffer(versions, versions[0]), null)
+    assert.equal(currentOffer(versions, undefined), null, 'nothing shown yet')
+    assert.equal(currentOffer(undefined, v('v1')), null)
+  })
+
   it('reads the list again once for a version it lacks, and never for the current version', () => {
     assert.equal(rereadFor(true, null, 'v4'), 'v4')
     assert.equal(rereadFor(true, 'v4', 'v4'), null, 'once')
     assert.equal(rereadFor(true, 'v4', 'v5'), 'v5', 'again for another version')
     assert.equal(rereadFor(false, null, 'v4'), null, 'the list holds it')
     assert.equal(rereadFor(true, null, null), null, 'the current version')
+  })
+})
+
+describe('a PDF asked for', () => {
+  it('is missing when the version on screen has no rendition, and only once the version is read', () => {
+    const pdf = { renditions: [{}] } as never
+    assert.equal(pdfMissing('pdf', { renditions: [] }), true)
+    assert.equal(pdfMissing('pdf', {}), true, 'a version published before renditions')
+    assert.equal(pdfMissing('pdf', pdf), false)
+    assert.equal(pdfMissing('markdown', { renditions: [] }), false, 'the Markdown was asked for')
+    assert.equal(pdfMissing('pdf', undefined), false, 'not read yet')
+  })
+})
+
+describe('the focus when the pane closes', () => {
+  const shown = new Set(['card row', 'Chat toggle'])
+  const visible = (el: string) => shown.has(el)
+  it('returns to the opener on screen, else to its panel’s toggle, and never takes it from where it went', () => {
+    assert.equal(focusReturn(true, 'card row', null, visible), 'card row')
+    // A chat notice's Open: the chat closed as the report opened, so its button is out of sight.
+    assert.equal(focusReturn(true, 'notice Open', 'Chat toggle', visible), 'Chat toggle')
+    assert.equal(focusReturn(true, 'notice Open', null, visible), null, 'nothing on screen to return to')
+    assert.equal(focusReturn(true, null, null, visible), null, 'a deep link: no opener')
+    assert.equal(focusReturn(false, 'card row', 'Chat toggle', visible), null, 'the side panel took it')
+  })
+})
+
+describe('the viewer’s Esc', () => {
+  it('steps down only in a project in sight, with no modal sheet, when no field or dialog keeps it', () => {
+    const free = { defaultPrevented: false, repeat: false, owned: false }
+    assert.equal(escapeStepsDown(free, true, false), true)
+    assert.equal(escapeStepsDown(free, false, false), false, 'a project kept out of sight for its call takes no keys')
+    assert.equal(escapeStepsDown(free, true, true), false, 'a modal sheet on screen has it')
+    assert.equal(escapeStepsDown({ ...free, owned: true }, true, false), false, 'a field or a dialog keeps its own')
+    assert.equal(escapeStepsDown({ ...free, defaultPrevented: true }, true, false), false, 'already handled')
+    assert.equal(escapeStepsDown({ ...free, repeat: true }, true, false), false, 'held down: one press, one step')
   })
 })
 
@@ -256,5 +333,36 @@ describe('the side pane’s width', () => {
     assert.equal(clampWidth(900, 1440), 900, 'a person may widen it past the default')
     assert.equal(clampWidth(1200, 1440), 1040, 'never leaving less than 400px')
     assert.equal(clampWidth(300, 1440), 480)
+  })
+})
+
+describe('a description edit', () => {
+  it('is saved against the revision it began from, trimmed', () => {
+    assert.deepEqual(summaryEdit({ text: '  A sharper description ', base: 3 }), {
+      summary: 'A sharper description',
+      expectedRevision: 3,
+    })
+  })
+})
+
+describe('opening a report', () => {
+  const A = '11111111-1111-4111-8111-111111111111'
+  const reading: ReportLink = { artifactId: A, versionId: 'v2', size: 'full', format: 'pdf' }
+  it('keeps the format on screen for the same report, unless another is asked for', () => {
+    assert.equal(openedLink(reading, { artifactId: A, versionId: 'v2' }).format, 'pdf', 'a card’s sources footer')
+    assert.equal(openedLink(reading, { artifactId: A, format: 'markdown' }).format, 'markdown')
+    assert.equal(openedLink(reading, { artifactId: 'another' }).format, 'markdown', 'another report: its Markdown')
+    assert.equal(openedLink(null, { artifactId: A }).format, 'markdown')
+  })
+
+  it('keeps the size on screen and names the version asked for, else the current one', () => {
+    assert.deepEqual(openedLink(reading, { artifactId: 'another' }), {
+      artifactId: 'another',
+      versionId: null,
+      size: 'full',
+      format: 'markdown',
+    })
+    assert.equal(openedLink(null, { artifactId: A, versionId: 'v1' }).versionId, 'v1')
+    assert.equal(openedLink(null, { artifactId: A }).size, 'side')
   })
 })

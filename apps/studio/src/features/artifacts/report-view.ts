@@ -7,6 +7,7 @@ import type {
   NativeTask,
   NativeTaskDetail,
   ReportSource,
+  ReportSummaryEdit,
   ResearchProgress,
   ResearchRendition,
 } from '@sophia/contracts'
@@ -194,6 +195,68 @@ export const versionMissing = (
 export const rereadFor = (absent: boolean, reread: string | null, versionId: string | null): string | null =>
   absent && versionId !== null && reread !== versionId ? versionId : null
 
+/**
+ * The version to pin a report opened without one to (Knowledge, a link without `version`): the current version, once a
+ * list read since the pane opened names it (a cached list can predate a newer one). Pinned, a version published while
+ * the report is read never replaces it on screen (LFE-02.1 ART-02); the head offers the current one (currentOffer).
+ */
+export const pinTo = (
+  versionId: string | null,
+  versions: { data?: readonly { id: string }[] | undefined; fetchStatus: 'fetching' | 'paused' | 'idle' },
+): string | null => (versionId === null && versions.fetchStatus === 'idle' ? (versions.data?.[0]?.id ?? null) : null)
+
+/**
+ * A read that failed with nothing to show. A read again in the background (the window's focus, a reconnect) that fails
+ * keeps what was read: a readable report never turns into "not available" because a later read failed.
+ */
+export const failedOutright = (read: { isError: boolean; data?: unknown }): boolean =>
+  read.isError && read.data === undefined
+
+/** The report's current version when another is on screen: the head names it and shows it on request. */
+export function currentOffer<T extends { id: string }>(versions: readonly T[] | undefined, shown: T | undefined) {
+  const current = versions?.[0]
+  return current && shown && current.id !== shown.id ? current : null
+}
+
+/**
+ * The PDF was asked for (a link with `format=pdf`, a notice's Open) but the version on screen has none: the pane shows
+ * its Markdown and says so; its limitations say why the PDF is missing. Unknown until the version is read.
+ */
+export const pdfMissing = (format: 'markdown' | 'pdf', version: Pick<ArtifactVersion, 'renditions'> | undefined) =>
+  format === 'pdf' && version !== undefined && (version.renditions?.length ?? 0) === 0
+
+/**
+ * Where the focus goes when the pane closes: back to what opened it while that is on screen, else to `fallback` (the
+ * corner toggle of the side panel the opener sat in: opening a report closed that panel, so its button is out of
+ * sight). Nowhere when the focus already went somewhere (`free` is false: the side panel opened in the pane's place).
+ */
+export function focusReturn<T>(
+  free: boolean,
+  opener: T | null,
+  fallback: T | null,
+  visible: (el: T) => boolean,
+): T | null {
+  if (!free) return null
+  if (opener !== null && visible(opener)) return opener
+  return fallback !== null && visible(fallback) ? fallback : null
+}
+
+/** An Esc the viewer may hear: already handled or not, held down, and whether a field or an open dialog keeps it. */
+export interface EscapeAt {
+  defaultPrevented: boolean
+  /** The key held down: one press steps down once (full → side, never on to closed). */
+  repeat: boolean
+  /** In a field (input, textarea, select, editable text) or an open dialog, which keeps its own Esc. */
+  owned: boolean
+}
+
+/**
+ * Whether Esc steps the viewer down (full → side → closed): only in a project in sight (ShortcutScope: a project kept
+ * out of sight for its call takes no keys, Esc included), with no modal sheet on screen, and when nothing else keeps it.
+ */
+export const escapeStepsDown = (at: EscapeAt, inSight: boolean, modal: boolean): boolean =>
+  inSight && !modal && !at.defaultPrevented && !at.repeat && !at.owned
+
 export interface Chip {
   label: string
   tone: Tone
@@ -262,3 +325,19 @@ export function hostOf(url: string): string {
 
 /** The project's filter on Knowledge: this project, or every project the reader is in. */
 export type ProjectScope = 'this' | 'all'
+
+/** A description being edited: its text, and the revision it began from. */
+export interface SummaryDraft {
+  text: string
+  base: number
+}
+
+/**
+ * A description edit as the API takes it: against the revision the editor saw when they began, never the one a later
+ * read of the cards brought (the window's focus reads them again), which would overwrite a teammate's newer description
+ * without a word.
+ */
+export const summaryEdit = (draft: SummaryDraft): ReportSummaryEdit => ({
+  summary: draft.text.trim(),
+  expectedRevision: draft.base,
+})

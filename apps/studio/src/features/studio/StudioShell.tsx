@@ -41,7 +41,7 @@ const COMING: Record<Exclude<Lens, 'converse'>, { title: string; body: string }>
 export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, studio: boolean) {
   const [panel, setPanel] = useState<Panel | null>(null)
   const [opener, setOpener] = useState<Panel | null>(null)
-  const unread = useUnread(chatSignature(snapshot, room.chat), studio && panel === 'chat')
+  const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
   const brief = useBriefUpdates(studio && panel === 'brief')
   return {
     panel,
@@ -83,9 +83,18 @@ function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
  * (CallSwitches: the microphone, text mode while it holds, the camera and the screen while they are on; no Leave,
  * which the dock keeps). The head shows them only where the panel covers the dock (760 px and below), so the icon and
  * its pressed state carry the meaning, as in the dock on a phone. The looking line is for the eye: the dock's own is
- * the one announced.
+ * the one announced. The report pane's head shows them too where it covers the dock or the mini dock (SMC-M03);
+ * `keys`: the tips name the room's keys only where they work, in the room.
  */
-function PanelCallSwitches({ room, looking }: { room: ProjectRoom; looking: string | null }) {
+export function PanelCallSwitches({
+  room,
+  looking,
+  keys = true,
+}: {
+  room: ProjectRoom
+  looking: string | null
+  keys?: boolean
+}) {
   const me = room.participants.find((p) => p.local)
   if (!me) return null
   return (
@@ -99,7 +108,7 @@ function PanelCallSwitches({ room, looking }: { room: ProjectRoom; looking: stri
           setScreenShare: (on) => void room.setScreenShare(on),
         }}
         textMode={{ on: room.textMode, onVoice: () => void room.setTextMode(false) }}
-        keys
+        keys={keys}
       />
     </>
   )

@@ -1,8 +1,9 @@
 // A report's History tab (plan §2.9): every published version, newest first, with what changed and what was kept
 // (the notes) and the chips the service's facts give (never the notes). Any two versions compare by section, computed
-// here from their checked texts; nothing about the comparison is stored.
+// here from their checked texts; nothing about the comparison is stored. A pressed control keeps the focus: Show this
+// version turns into "On screen" in place, a comparison takes the focus as it opens and hands it back to its Compare.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -23,10 +24,15 @@ const dateOf = (iso: string | undefined) =>
 
 export function ReportHistory({ identity, versions, shown, onShow }: Props) {
   const [compare, setCompare] = useState<{ older: ArtifactVersion; newer: ArtifactVersion } | null>(null)
+  const list = useRef<HTMLOListElement>(null)
   if (!versions) return <p className="muted">Loading the history…</p>
+  const close = (newer: string) => {
+    setCompare(null)
+    list.current?.querySelector<HTMLElement>(`[data-compare="${newer}"]`)?.focus()
+  }
   return (
     <>
-      <ol className="report-history">
+      <ol ref={list} className="report-history">
         {versions.map((v, i) => {
           const older = versions[i + 1]
           return (
@@ -40,7 +46,7 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
           )
         })}
       </ol>
-      {compare && <Comparison identity={identity} {...compare} onClose={() => setCompare(null)} />}
+      {compare && <Comparison identity={identity} {...compare} onClose={() => close(compare.newer.id)} />}
     </>
   )
 }
@@ -70,13 +76,17 @@ function VersionRow({ version, shown, onShow, onCompare }: RowProps) {
         ))}
       </div>
       <div className="control-row">
-        {!shown && (
-          <button type="button" className="text-button" onClick={onShow}>
-            Show this version
-          </button>
-        )}
+        {/* Pressed, it stays where it is as "On screen": aria-disabled, never disabled or removed under the focus. */}
+        <button
+          type="button"
+          className="text-button"
+          aria-disabled={shown || undefined}
+          onClick={shown ? undefined : onShow}
+        >
+          {shown ? 'On screen' : 'Show this version'}
+        </button>
         {onCompare && (
-          <button type="button" className="text-button" onClick={onCompare}>
+          <button type="button" className="text-button" data-compare={version.id} onClick={onCompare}>
             Compare with the version before
           </button>
         )}
@@ -105,10 +115,16 @@ function Comparison({ identity, older, newer, onClose }: CompareProps) {
     queryFn: async () => compareSections((await text(older)).text, (await text(newer)).text),
     staleTime: Infinity,
   })
+  // Opened under the whole list: the focus goes to it, so the comparison is where the reader is.
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    heading.current?.scrollIntoView({ block: 'nearest' })
+    heading.current?.focus({ preventScroll: true })
+  }, [older.id, newer.id])
   return (
     <section className="report-compare" aria-label={`v${older.versionNumber ?? '?'} to v${newer.versionNumber ?? '?'}`}>
       <header>
-        <h3>
+        <h3 ref={heading} tabIndex={-1}>
           v{older.versionNumber ?? '?'} → v{newer.versionNumber ?? '?'}, by section
         </h3>
         <button type="button" className="text-button" onClick={onClose}>

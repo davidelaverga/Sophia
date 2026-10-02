@@ -3,6 +3,18 @@
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
 import { projectEvent, membership, mission, PROJECT, roomToken, snapshot } from './data.ts'
+import {
+  content,
+  editDescription,
+  citedSources,
+  REPORT,
+  reportList,
+  researchTask,
+  TASK,
+  versions,
+  waitingAtTheDoor,
+  type Description,
+} from './report-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -16,6 +28,14 @@ interface Project {
   revision: number
   exchange: boolean
   messages: string[]
+  /** How many versions of the fixture report are published (report-data.ts). */
+  reportVersions: number
+  /** Someone is waiting at the door (report-data.ts). */
+  waiting: boolean
+  /** The report's description on Knowledge (report-data.ts). */
+  description: Description
+  /** Reads of the report's versions fail from now on, as an API that went away does. */
+  versionsFail: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -57,18 +77,24 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
   return new Response(body.pipeThrough(new TextEncoderStream()), { headers: { 'content-type': 'text/event-stream' } })
 }
 
+/** The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`). */
+function snapshotOf(project: Project) {
+  const now = snapshot(project.revision, project.exchange, project.messages)
+  return project.waiting ? { ...now, lobby: [waitingAtTheDoor] } : now
+}
+
 /** The project moves one revision, and the event saying so goes to every open stream. */
 export function publish(project: Project): void {
   project.revision += 1
   for (const controller of streams) controller.enqueue(frameOf(project.revision))
 }
 
-function answer(project: Project, method: string, url: URL, signal: AbortSignal | null | undefined) {
+function answer(project: Project, method: string, url: URL, signal: AbortSignal | null | undefined, body: unknown) {
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
   if (method === 'GET' && path === `${base}/snapshot`) {
     served.push(`snapshot:${project.revision}`)
-    return json(snapshot(project.revision, project.exchange, project.messages))
+    return json(snapshotOf(project))
   }
   if (method === 'GET' && path === `${base}/mission`) {
     served.push(`mission:${project.revision}`)
@@ -79,14 +105,48 @@ function answer(project: Project, method: string, url: URL, signal: AbortSignal 
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
   if (method === 'POST' && path === `${base}/room-token`) return json(roomToken)
+  return answerReport(project, method, url, body)
+}
+
+/**
+ * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
+ * task, its card, and an edit of its description.
+ */
+function answerReport(project: Project, method: string, url: URL, body: unknown) {
+  const path = url.pathname
+  if (method === 'PATCH' && path === `/api/v1/artifacts/${REPORT}/summary`) {
+    const { next, reply } = editDescription(project.description, body, membership.actorId)
+    project.description = next
+    return reply
+  }
+  if (method !== 'GET') return null
+  if (path === '/api/v1/knowledge/reports') {
+    return json(reportList(project.reportVersions, project.description, url.searchParams.get('cursor')))
+  }
+  if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
+  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return json(citedSources)
+  const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
+  const text = source ? content(source) : null
+  if (text) return json(text)
+  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return json(researchTask)
   return null
+}
+
+/** The report's versions, or a failed read once the page asked for that (`window.fixture.failVersions`). */
+function versionsRead(project: Project): Response {
+  if (project.versionsFail) {
+    served.push('versions:failed')
+    return new Response(null, { status: 503 })
+  }
+  served.push(`versions:${String(project.reportVersions)}`)
+  return json(versions(project.reportVersions))
 }
 
 export function installFixtureApi(project: Project): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
-    const response = answer(project, method, url, init?.signal)
+    const response = answer(project, method, url, init?.signal, init?.body)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)
     console.error(`[fixture] unexpected request: ${method} ${url.pathname}`)

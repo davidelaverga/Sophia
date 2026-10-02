@@ -68,11 +68,10 @@ export function NoticeCard(props: Props) {
           </button>
         )}
       </div>
-      {status.text && (
-        <p className="chat-status" role="status" data-error={status.error || undefined}>
-          {status.text}
-        </p>
-      )}
+      {/* There before it speaks: a live region added with its words is often not read. */}
+      <p className="chat-status" role="status" data-error={status.error || undefined}>
+        {status.text}
+      </p>
     </div>
   )
 }

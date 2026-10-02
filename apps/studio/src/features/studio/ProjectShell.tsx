@@ -24,7 +24,7 @@ import { GoalList } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
-import { StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
+import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 
@@ -335,7 +335,7 @@ function ProjectBody(props: BodyProps) {
   const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   const withViewer = (body: React.ReactNode) => (
-    <WithViewer projectId={projectId} identity={identity} panel={panel} room={view === 'studio'}>
+    <WithViewer {...props} panel={panel} looking={looking}>
       {body}
     </WithViewer>
   )
@@ -389,24 +389,31 @@ function ProjectBody(props: BodyProps) {
   )
 }
 
-interface ViewerProps {
-  projectId: string
-  identity: Identity
+interface ViewerProps extends BodyProps {
   panel: RoomPanel
-  /** In the room the pane covers the panel's toggles, so its head offers the chat. */
-  room: boolean
+  /** What Sophia is looking at, in words, or null (lookingText). */
+  looking: string | null
   children: React.ReactNode
 }
 
-/** The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. */
-function WithViewer({ projectId, identity, panel, room, children }: ViewerProps) {
+/**
+ * The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. In
+ * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
+ * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
+ */
+function WithViewer({ projectId, identity, view, room, panel, looking, children }: ViewerProps) {
+  const studio = view === 'studio'
   return (
     <DocumentViewerProvider
       projectId={projectId}
       identity={identity}
-      panelOpen={panel.panel !== null}
+      // The side panel is the room's: a chat left open there is not open on another page.
+      panelOpen={studio && panel.panel !== null}
       closePanel={() => panel.show(null)}
-      openChat={room ? () => panel.toggle('chat') : undefined}
+      openChat={studio ? () => panel.toggle('chat') : undefined}
+      chatUnread={panel.unread}
+      call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
+      note={room.mediaError ?? room.error}
     >
       {children}
     </DocumentViewerProvider>

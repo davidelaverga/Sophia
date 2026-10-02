@@ -49,3 +49,23 @@ export function withReportLink(search: string, link: ReportLink | null): string 
 
 /** Only the report's parameters of a search string, for a move to another view of the same project. */
 export const reportSearch = (search: string): string => withReportLink('', readReportLink(search))
+
+/** What a viewer's open asks for: a report, and optionally its version and format. */
+export interface OpenAsk {
+  artifactId: string
+  versionId?: string | null
+  format?: ViewerFormat
+}
+
+/**
+ * The link an open makes: the version asked for (else the current one), the size on screen, and the format asked for,
+ * else the one on screen for the same report (a card's "N sources" keeps the PDF being read), else the Markdown.
+ */
+export function openedLink(on: ReportLink | null, ask: OpenAsk): ReportLink {
+  return {
+    artifactId: ask.artifactId,
+    versionId: ask.versionId ?? null,
+    size: on?.size ?? 'side',
+    format: ask.format ?? (on?.artifactId === ask.artifactId ? on.format : 'markdown'),
+  }
+}

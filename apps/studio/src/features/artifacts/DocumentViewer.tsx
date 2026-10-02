@@ -4,8 +4,16 @@
 // time: opening a report closes the side panel, and opening the side panel closes the report.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Identity } from '../../app/dev-identity.ts'
+import { ShortcutScope } from '../../app/shortcuts.ts'
 import { DocumentPane } from './DocumentPane.tsx'
-import { readReportLink, withReportLink, type ReportLink, type ViewerFormat, type ViewerTab } from './report-link.ts'
+import {
+  openedLink,
+  readReportLink,
+  withReportLink,
+  type ReportLink,
+  type ViewerFormat,
+  type ViewerTab,
+} from './report-link.ts'
 import './artifacts.css'
 
 export interface OpenRequest {
@@ -57,8 +65,12 @@ function useReportHistory(projectId: string) {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
-  // Another project: the router dropped the report's parameters.
-  useEffect(() => setLink(here()), [projectId])
+  // Another project: the router dropped the report's parameters. The project back in sight after the places, where it
+  // was kept for its call: the address is the places' then, and a report it no longer names stays closed (LFE-02.1).
+  const inSight = useContext(ShortcutScope)
+  useEffect(() => {
+    if (inSight) setLink(here())
+  }, [projectId, inSight])
 
   const write = useCallback((next: ReportLink | null, push: boolean) => {
     if (push) window.history.pushState({ sophiaReport: viewerDepth() + 1 }, '', urlWith(next))
@@ -91,33 +103,42 @@ interface Props {
   closePanel: () => void
   /** In the room: swaps the report for the chat (the pane covers the room's own toggles). */
   openChat?: (() => void) | undefined
+  /** Something new in the chat since it was last in view (the pane's Chat says so). */
+  chatUnread?: boolean
+  /** The call's switches and its note, for the pane's head where it covers the dock or the mini dock. */
+  call?: ReactNode
+  note?: string | null
   children: ReactNode
 }
 
-export function DocumentViewerProvider({ projectId, identity, panelOpen, closePanel, openChat, children }: Props) {
+export function DocumentViewerProvider(props: Props) {
+  const { projectId, identity, panelOpen, closePanel, openChat, chatUnread, call, note, children } = props
   const { link, write, back } = useReportHistory(projectId)
   const [tab, setTab] = useState<ViewerTab>('document')
+  // What opened the report, read before the side panel closes and takes it out of sight: the focus returns there.
+  const opener = useRef<HTMLElement | null>(null)
   const open = useCallback(
     (r: OpenRequest) => {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       closePanel()
       setTab(r.tab ?? 'document')
-      const next: ReportLink = {
-        artifactId: r.artifactId,
-        versionId: r.versionId ?? null,
-        size: link?.size ?? 'side',
-        format: r.format ?? 'markdown',
-      }
       // A first open is an intent of its own (Back closes it); another report replaces the one on screen.
-      write(next, link === null)
+      write(openedLink(link, r), link === null)
     },
     [closePanel, link, write],
   )
   const api = useMemo(() => ({ open }), [open])
   const close = useCallback(() => back(link?.size === 'full' ? 2 : 1, null), [back, link?.size])
-  // The side panel opened over the report: the report gives way.
+  // One pane at a time, by what changed: the side panel opened over the report, so the report gives way; a report came
+  // (Back or Forward) while the panel was open, so the panel gives way.
+  const panelWas = useRef(panelOpen)
   useEffect(() => {
-    if (panelOpen && link) write(null, false)
-  }, [panelOpen, link, write])
+    const opened = panelOpen && !panelWas.current
+    panelWas.current = panelOpen
+    if (!panelOpen || !link) return
+    if (opened) write(null, false)
+    else closePanel()
+  }, [panelOpen, link, write, closePanel])
   return (
     <ViewerContext.Provider value={api}>
       {children}
@@ -126,6 +147,7 @@ export function DocumentViewerProvider({ projectId, identity, panelOpen, closePa
           key={link.artifactId}
           identity={identity}
           link={link}
+          opener={opener}
           tab={tab}
           onTab={setTab}
           onVersion={(versionId) => write({ ...link, versionId }, false)}
@@ -134,6 +156,9 @@ export function DocumentViewerProvider({ projectId, identity, panelOpen, closePa
           onStepDown={() => (link.size === 'full' ? back(1, { ...link, size: 'side' }) : close())}
           onClose={close}
           onChat={openChat}
+          chatUnread={chatUnread ?? false}
+          call={call}
+          note={note ?? null}
         />
       )}
     </ViewerContext.Provider>
