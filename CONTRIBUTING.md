@@ -445,8 +445,8 @@ when you change the room:
   keeps a slow pulse. With reduced motion asked for, nothing moves. A meter
   turns amber from 75 % used and red from 90 % (`usageTone`; `busy=1` shows
   both). A tile's name is whose tool it is; its lines are its description.
-  Tiles sort by attention by default (what waits, then online by use, then
-  unknown, then offline; `order.ts`); an offline tile steps back and says
+  Tiles sort by attention by default (what waits, then online, unknown and
+  offline, each by owner: never by how used across providers; `order.ts`); an offline tile steps back and says
   how long it has been gone. A meter marks how much of its window had passed
   when it was read (`pace.ts`), only where the length is certain (Claude
   Code's `five_hour` and `seven_day`; Codex reports its own durations, which

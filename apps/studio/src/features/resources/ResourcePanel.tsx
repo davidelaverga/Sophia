@@ -195,7 +195,7 @@ function Sort({ order, onChange }: SortProps) {
   )
 }
 
-function useView({ resources, observations, actions, viewerId, now }: Props) {
+function useView({ resources, actions, viewerId }: Props) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [order, setOrder] = useState<Order>('attention')
@@ -210,7 +210,7 @@ function useView({ resources, observations, actions, viewerId, now }: Props) {
   const shown = ordered(
     found.filter((r) => inFilter(filter, r, actions, viewerId)),
     order,
-    { actions, observations, now },
+    actions,
   )
   return { query, setQuery, filter, setFilter, order, setOrder, counts, shown }
 }

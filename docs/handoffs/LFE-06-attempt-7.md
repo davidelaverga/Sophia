@@ -8,7 +8,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/scan-pace` from main `14687b8`, 2026-10-02.
-- **End:** content commit `b4c2124`; its checks ran on it.
+- **End:** pending: the commit after the content commit fills it in.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `pace.ts` and `order.ts`, their tests, the meter, the tile, the capacity block, the panel and the stylesheet;
   - the resource fixture (`spent=1`) and its checks;
@@ -20,11 +20,11 @@
 
 - **By attention, by default.** The tiles come in this order:
   - what waits on an owner;
-  - what is online, the most used account first;
+  - what is online;
   - hosts not known;
   - offline ones last.
 
-  A sort control at the end of the toolbar also orders them by owner or by tool. A change of order glides the tiles, as a filter does.
+  Within each, they go by owner and tool. Accounts are never ranked by how used they are: their percentages come from different providers and windows, and LFE-06.2 forbids weighing one against another. A sort control at the end of the toolbar also orders them by owner or by tool. A change of order glides the tiles, as a filter does.
 - **A waiting tile stands out.** Its edge warms to amber.
 - **An offline tile steps back.** Its mark is greyed, its words dimmer, and it says how long it has been gone ("Offline · 26 h").
 - **The window's pace.** A meter carries a thin mark at how much of its window had passed when it was read. A fill past the mark is spending faster than the window.
@@ -56,7 +56,7 @@
   - no mark on the tile;
   - a range of 100 for 120 %;
   - what waits not first;
-  - the least used first;
+  - unknown hosts before online ones;
   - offline not dimmed;
   - no warm edge;
   - offline without its age;
@@ -70,6 +70,11 @@
 
 - **P2, fixed: the pace assumed Codex's `five_hour` lasted five hours.** The continuation asks to keep each Codex window's reported duration. `pace()` now takes the reading and knows lengths only per source: Claude Code's status line. The fixture's `busy=1` brings Davide's Claude Code to 95 % with 80 % of its window passed, to show the mark and the projection ("~47 min before it resets"). A new mutation that gives Codex a five-hour length again fails its check.
 - With Claude Code at 95 %, the waiting tile was again the most used on `busy=1`. The attention check moved to `spent=1`, where Codex at 120 % outranks it.
+
+## Codex's review of `755892f`
+
+- **P2, fixed: the attention order weighed providers' percentages against each other.** A 90 % weekly window could go ahead of an 80 % five-hour one, which LFE-06.2 forbids ("no arithmetic across different providers' percentages"). Within a rank the order is now by owner and tool.
+- The check that what waits comes first is the unit test, where the waiting resource is offline and last by name. In the fixture, Davide's Claude Code is first by name too. The mutation runner now also runs unit tests for such a case. A new mutation that puts unknown hosts before online ones fails its check.
 
 ## Decisions and changes
 

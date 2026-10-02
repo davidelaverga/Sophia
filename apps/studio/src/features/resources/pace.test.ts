@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ordered } from './order.ts'
 import { pace } from './pace.ts'
-import type { QuotaObservation, QuotaWindow, RequiredAction, Resource } from './resource.ts'
+import type { QuotaWindow, RequiredAction, Resource } from './resource.ts'
 
 const now = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString()
@@ -69,33 +69,22 @@ const resource = (id: string, owner: string, tool: Resource['tool'], host: Resou
 const ids = (rs: Resource[]) => rs.map((r) => r.id)
 
 describe('the tiles’ order', () => {
-  const observed = (id: string, value: number) =>
-    ({
-      entitlement_id: `ent-${id}`,
-      coverage: 'complete_for_route',
-      valid_until: null,
-      observed_at: at(0),
-      windows: [window({ value })],
-    }) as unknown as QuotaObservation
   const list = [
     resource('off', 'Ana', 'grok', 'offline'),
-    resource('low', 'Ben', 'codex', 'online'),
-    resource('high', 'Cy', 'cursor', 'online'),
+    resource('ben', 'Ben', 'codex', 'online'),
+    resource('cy', 'Cy', 'cursor', 'online'),
     resource('unk', 'Ada', 'claude-code', 'unknown'),
     resource('wait', 'Dee', 'gemini-cli', 'offline'),
   ]
-  const context = {
-    actions: [{ resourceId: 'wait', state: 'open' } as RequiredAction],
-    observations: [observed('low', 20), observed('high', 85)],
-    now,
-  }
+  const actions = [{ resourceId: 'wait', state: 'open' } as RequiredAction]
 
-  it('by attention: what waits, then online by use, then unknown, then offline', () => {
-    assert.deepEqual(ids(ordered(list, 'attention', context)), ['wait', 'high', 'low', 'unk', 'off'])
+  it('by attention: what waits, then online, unknown and offline, each by owner; never by how used', () => {
+    // Accounts' percentages come from different providers and windows: none is weighed against another (LFE-06.2).
+    assert.deepEqual(ids(ordered(list, 'attention', actions)), ['wait', 'ben', 'cy', 'unk', 'off'])
   })
 
   it('by owner, or by tool, as a list is read', () => {
-    assert.deepEqual(ids(ordered(list, 'owner', context)), ['unk', 'off', 'low', 'high', 'wait'])
-    assert.deepEqual(ids(ordered(list, 'tool', context)), ['unk', 'low', 'high', 'wait', 'off'])
+    assert.deepEqual(ids(ordered(list, 'owner', actions)), ['unk', 'off', 'ben', 'cy', 'wait'])
+    assert.deepEqual(ids(ordered(list, 'tool', actions)), ['unk', 'ben', 'cy', 'wait', 'off'])
   })
 })

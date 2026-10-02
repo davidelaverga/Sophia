@@ -306,16 +306,16 @@ test('a spend limit passed keeps its meter’s range true', async ({ page }) => 
 test('by attention, what needs someone comes first; a waiting tile stands out, an offline one steps back', async ({
   page,
 }) => {
-  await page.goto(`${PAGE}?more=1&spent=1`)
+  await page.goto(`${PAGE}?more=1`)
   await expect(grid(page).getByRole('button')).toHaveCount(5)
   const names = () =>
     grid(page)
       .getByRole('button')
       .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
   expect(await names()).toEqual([
-    'Davide · Claude Code', // a request waits: first, though Codex is more used
-    'Davide · Codex', // online, its spend limit at 120 %
-    'Luis · Gemini CLI', // online, a balance
+    'Davide · Claude Code', // a request waits
+    'Davide · Codex', // online, by owner: never ranked by how used, across providers
+    'Luis · Gemini CLI', // online
     'Luis · Claude Code', // host unknown
     'Davide · Grok', // offline
   ])
