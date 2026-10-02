@@ -8,7 +8,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/scan-pace` from main `14687b8`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `b4c2124`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `pace.ts` and `order.ts`, their tests, the meter, the tile, the capacity block, the panel and the stylesheet;
   - the resource fixture (`spent=1`) and its checks;
