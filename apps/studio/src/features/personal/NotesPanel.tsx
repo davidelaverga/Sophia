@@ -17,6 +17,8 @@ interface Props {
   projectsRead: Read
   onClose: () => void
   onCarry: (note: PersonalNote, project: ProjectSummary) => void
+  /** Whether a note's carry is on its way: it stays crossed, out of reach, until it settles (back if it failed). */
+  carrying: (noteId: string) => boolean
   onStartProject: () => void
 }
 
@@ -116,9 +118,11 @@ function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry'
   return { carrying, setCarrying, crossing, carry }
 }
 
-export function NotesPanel({ notes, projects, projectsRead, onClose, onCarry, onStartProject }: Props) {
+export function NotesPanel(props: Props) {
+  const { notes, projects, projectsRead, onClose, onCarry, onStartProject } = props
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
+  const crossed = (id: string) => crossing === id || props.carrying(id)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
@@ -132,7 +136,7 @@ export function NotesPanel({ notes, projects, projectsRead, onClose, onCarry, on
       </header>
       {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
       {notes?.map((note) => (
-        <div key={note.id} className={`c2-t${crossing === note.id ? ' crossing' : ''}`}>
+        <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
           <p>
             {note.text}
             {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}

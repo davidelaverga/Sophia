@@ -488,7 +488,10 @@ their work. Keep these when you change them:
   refused), and erasing from the sheet, or an epoch that moves, calls it off
   too: nothing of an erased space reaches the clipboard. One copy goes at a
   time (Copy waits, "Copying…"), so an erasure waits for the only clipboard
-  write there can be. Dictation stops when the
+  write there can be. A write the browser already has can't be called off:
+  one that settles after the padlock shut or the sheet went is taken back
+  (the clipboard emptied, as far as the browser lets a page), and nothing
+  says it was copied. Dictation stops when the
   space goes out of sight, and a start still waiting for the device's
   language is called off (`useDictation`): the microphone never turns on out
   of sight. What it heard lands only while its composer is there: never
@@ -669,9 +672,11 @@ their work. Keep these when you change them:
   is being answered keeps the focus as it waits ("Sending…", "Checking…",
   "Deleting…": `aria-disabled`, never `disabled`), and starts no second
   write for the same thing (`presses.ts`: Keep and No thanks on a
-  suggestion, Ask again, Take back; Copy has its own wait): a second would
-  be refused as stale, and its notice would replace the first's, Undo and
-  all. A modal sheet on screen
+  suggestion, Ask again, Take back, a carry; Copy has its own wait): a
+  second would be refused as stale, and its notice would replace the
+  first's, Undo and all. A note carried stays crossed, out of reach, until
+  its write settles (back within reach if it failed), never only for its
+  slide. A modal sheet on screen
   takes every key and every stray letter (`modalOnScreen`); one left open in
   a project out of sight takes none, and takes the focus again when the
   project is back on screen. A screen reader hears Sophia writing and then

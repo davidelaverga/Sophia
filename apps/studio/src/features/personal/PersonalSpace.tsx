@@ -143,13 +143,14 @@ function useActions(
           return false
         },
       ),
+    // A note carried stays crossed until its write settles (NotesPanel), and a second carry of it writes nothing.
     carry: (note, project) =>
-      attempt(async () => {
-        const carried = await writes.carry(note.id, project.projectId)
-        const releaseId = carried.releaseId
-        onCarried(releaseId)
-        if (releaseId) toast(NOTICE.carried(project.title), () => attempt(() => writes.takeBack(releaseId)))
-      }),
+      presses.press(note.id, () =>
+        writes.carry(note.id, project.projectId).then(({ releaseId }) => {
+          onCarried(releaseId)
+          if (releaseId) toast(NOTICE.carried(project.title), () => attempt(() => writes.takeBack(releaseId)))
+        }, onFailed),
+      ),
   }
 }
 
@@ -392,15 +393,14 @@ export function PersonalSpace(props: Props) {
         />
         {notes.open && (
           <NotesPanel
+            {...{ projects, projectsRead: props.projectsRead, onStartProject: props.onStartProject }}
             notes={space?.notes}
-            projects={projects}
-            projectsRead={props.projectsRead}
             onClose={() => {
               notes.set(false)
               focusNotesToggle()
             }}
             onCarry={actions.carry}
-            onStartProject={props.onStartProject}
+            carrying={actions.waits}
           />
         )}
       </div>
