@@ -34,7 +34,13 @@ const assignment = (exchangeId: string, over: Partial<MediaAssignment> = {}): Me
 const E1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const E2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
-function harness() {
+/** A room's people and how its chat answers; by default nobody, and no chat. */
+interface RoomFake {
+  people?: { identity: string; standing: 'editor' }[]
+  sendChat?: RoomLink['sendChat']
+}
+
+function harness(fake: RoomFake = {}) {
   const log: string[] = []
   const roomEvents: RoomEvents[] = []
   const service: MediaService = {
@@ -53,7 +59,8 @@ function harness() {
       roomEvents.push(events)
       log.push('join')
       const room: RoomLink = {
-        people: () => [],
+        people: () => fake.people ?? [],
+        ...(fake.sendChat ? { sendChat: fake.sendChat } : {}),
         play: () => Promise.resolve(),
         clearPlayback: () => undefined,
         watch: () => undefined,
@@ -119,6 +126,30 @@ describe('media bridge assignment loop', () => {
     await bridge.apply([assignment(E1)])
     await settle()
     assert.equal(log.filter((l) => l === 'join').length, 2)
+    await bridge.stop()
+  })
+
+  it('hands what a lost session still owes its room to the session that replaces it', async () => {
+    const reader = '11111111-1111-4111-8111-111111111111'
+    const result = { taskId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', resultRevision: 1, kind: 'research' as const }
+    // The one member reads Sophia, and their notice does not get through.
+    const { bridge, roomEvents } = harness({
+      people: [{ identity: reader, standing: 'editor' }],
+      sendChat: () => Promise.resolve(false),
+    })
+    await bridge.apply([assignment(E1, { results: [result] })])
+    await settle()
+    roomEvents[0]?.textMode?.(reader, true)
+    bridge.session(E1)?.tick()
+    await settle()
+    const owed = { owed: [{ result, attempts: 1, told: [], delivered: 0 }], unrecorded: [], done: [] }
+    assert.deepEqual(bridge.session(E1)?.handover(), owed)
+    roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await bridge.apply([assignment(E1, { results: [] })])
+    await settle()
+    assert.equal(roomEvents.length, 2, 'joined again')
+    assert.deepEqual(bridge.session(E1)?.handover(), owed, 'the replacement owes it, with the attempt it used')
     await bridge.stop()
   })
 })

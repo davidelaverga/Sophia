@@ -61,6 +61,34 @@ export function noticeTitle(taskKind: string): string {
   return 'Result ready'
 }
 
+interface DeliveredFile {
+  format: 'markdown' | 'pdf'
+  artifactVersionId: string
+}
+
+/**
+ * What a result notice's buttons open and save (M03-RF-0020): Open and Download both take the primary file, the PDF
+ * when there is one; Markdown is offered beside a PDF only. Each names its version, so all three show the same one.
+ */
+export function noticeActions<T extends DeliveredFile>(
+  outputs: readonly T[],
+): { primary: T | null; markdown: T | null } {
+  const pdf = outputs.find((o) => o.format === 'pdf') ?? null
+  const markdown = outputs.find((o) => o.format === 'markdown') ?? null
+  return { primary: pdf ?? markdown, markdown: pdf ? markdown : null }
+}
+
+/**
+ * What Open (and Markdown) ask the viewer for: the report, the file's own version and its format, always named (the
+ * viewer's own default is the Markdown, M03-RF-0020).
+ */
+export function noticeOpenRequest(
+  artifactId: string,
+  file: DeliveredFile,
+): { artifactId: string; versionId: string; format: DeliveredFile['format'] } {
+  return { artifactId, versionId: file.artifactVersionId, format: file.format }
+}
+
 export type ChatEntryItem = { type: 'turn'; turn: ChatTurn } | { type: 'notice'; notice: ChatNoticeItem }
 
 /**

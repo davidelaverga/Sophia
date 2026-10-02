@@ -99,6 +99,10 @@ const STOPPED_REPLY_WAIT_MS = 8000
 const UNAVAILABLE_RETRY_MS = 30_000
 /** A result notice whose turn ends unheard this many times is not sent again by this session. */
 const NOTICE_ATTEMPTS = 3
+/** Chat notices that reached no reader in a room where everyone reads are tried again after this wait. */
+const TEXT_RETRY_MS = 5000
+/** How long closing waits for the announcements it still owes the API (best effort; the API keeps listing the rest). */
+const CLOSE_FLUSH_MS = 3000
 /** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
 const RECEIPT_RETRY_MS = 5000
 const TOOL_RETRY_MS = [250, 1000]
@@ -143,7 +147,26 @@ interface Announced {
 }
 
 type Result = MediaAssignment['results'][number]
+/** An announcement the API has not recorded yet; `sending` is the call in flight, if any. */
+interface Receipt {
+  event: Announced
+  retryAt: number
+  sending: Promise<void> | null
+}
 const resultKey = (r: Pick<Result, 'taskId' | 'resultRevision'>) => `${r.taskId}:${String(r.resultRevision)}`
+
+/**
+ * What a closing session hands the session that replaces it on the same exchange (a room link lost and joined again):
+ * each result still owed to someone, with the attempts it used and the members who already have its chat notice;
+ * every announcement the API has not recorded; and the results already announced (`done`, by key), which the
+ * replacement never announces again, even while a listing read before their record still shows them. A process
+ * restart forgets it.
+ */
+export interface Handover {
+  owed: { result: Result; attempts: number; told: string[]; delivered: number }[]
+  unrecorded: Announced[]
+  done: string[]
+}
 
 /**
  * Typed words reach Google after the bridge's own marker; inside them, an opening bracket before "Sophia" or
@@ -278,6 +301,7 @@ export class RoomSession {
   private attempts = 0
   private reason: string | null = null
   private closed = false
+  private closing: Promise<void> | null = null
   /** The room connection is down: nobody is heard or played to, and presence is not reported (it is unknown). */
   private roomDown = false
   /** When the room connection went down, while it is down. */
@@ -327,7 +351,15 @@ export class RoomSession {
    * The notice sent and not yet heard: it is recorded as announced only once its audio reached the room, with the
    * chat notices its text-mode members received meanwhile (`cards` resolves to how many).
    */
-  private notice: { key: string; event: Announced; cards: Promise<number> } | null = null
+  private notice: { key: string; result: Result; event: Announced; cards: Promise<number> } | null = null
+  /**
+   * Results still owed to someone in the room: its listeners, after a notice nobody heard, or readers who have not had
+   * its chat notice yet. A delivery to some is recorded, and then the API no longer lists the result, so the retry is
+   * kept here (M03-RF-0017), and handed to the session that replaces this one (handover()).
+   */
+  private readonly owed = new Map<string, Result>()
+  /** Deliveries and their records still settling: a close waits for them (bounded) before anything is handed over. */
+  private readonly settling = new Set<Promise<unknown>>()
   /** Members who said they read Sophia (text mode); dropped when they leave. */
   private readonly readers = new Set<string>()
   /** Chat notices sent, by result and identity, and how many reached a member, by result. */
@@ -338,7 +370,9 @@ export class RoomSession {
    * Heard notices the API has not yet recorded. Each is retried until it is: an unrecorded result stays listed, and
    * a later session would announce it again.
    */
-  private readonly receipts = new Map<string, { event: Announced; retryAt: number; sending: boolean }>()
+  private readonly receipts = new Map<string, Receipt>()
+  /** When a result's chat notices may be tried again, after none reached a reader. */
+  private readonly textRetryAt = new Map<string, number>()
   private readonly cancelled = new Set<string>()
   private stopTicking: (() => void) | null = null
   private joining = false
@@ -354,7 +388,7 @@ export class RoomSession {
   private typedStartedAt: number | null = null
   private readonly typedSeen = new Set<string>()
 
-  constructor(assignment: MediaAssignment, deps: SessionDeps) {
+  constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | null = null) {
     this.exchangeId = assignment.exchangeId
     this.assignment = assignment
     this.deps = deps
@@ -365,6 +399,40 @@ export class RoomSession {
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
     this.providerSession = this.connection
+    if (handover) this.takeOver(handover)
+  }
+
+  /**
+   * What the session this one replaces still owed the room: owed from here, and its unrecorded announcements recorded
+   * from the first tick. One delivered in full is not announced again while the API, not having recorded it yet,
+   * still lists it.
+   */
+  private takeOver({ owed, unrecorded, done }: Handover): void {
+    for (const key of done) this.announced.add(key)
+    for (const { result, attempts, told, delivered } of owed) {
+      const key = resultKey(result)
+      this.owed.set(key, result)
+      this.noticeAttempts.set(key, attempts)
+      for (const identity of told) this.carded.add(`${key}:${identity}`)
+      this.cardsDelivered.set(key, delivered)
+    }
+    for (const event of unrecorded) {
+      const key = resultKey(event)
+      if (!this.owed.has(key)) this.announced.add(key)
+      this.record(key, event, false)
+    }
+  }
+
+  /** What this session still owes its room, once it is closed: see Handover. */
+  handover(): Handover {
+    const owed = [...this.owed].map(([key, result]) => ({
+      result,
+      attempts: this.noticeAttempts.get(key) ?? 0,
+      told: [...this.carded].filter((c) => c.startsWith(`${key}:`)).map((c) => c.slice(key.length + 1)),
+      delivered: this.cardsDelivered.get(key) ?? 0,
+    }))
+    const unrecorded = [...this.receipts.values()].map((r) => r.event)
+    return { owed, unrecorded, done: [...this.announced].filter((key) => !this.owed.has(key)) }
   }
 
   /** Join the room first (so guests are seen before anything is heard), then connect Google. */
@@ -483,13 +551,21 @@ export class RoomSession {
     this.reportDirty = true
   }
 
-  /** The exchange ended or moved away: leave the room and close Google. Work is untouched. */
-  async close(): Promise<void> {
-    if (this.closed) return
+  /**
+   * The exchange ended or moved away: leave the room and close Google. Work is untouched. Every call waits for the same
+   * close (a lost room closes itself first), so what it still owes is settled once it returns (handover()).
+   */
+  close(): Promise<void> {
+    this.closing ??= this.shutdown()
+    return this.closing
+  }
+
+  private async shutdown(): Promise<void> {
     this.deps.log('session.close', { exchangeId: this.exchangeId, lost: this.lost })
     this.finishTyped('Conversation ended; this reply was stopped.')
     this.closed = true
     this.stopTicking?.()
+    const owed = this.flushAnnouncements()
     this.logReply('closed')
     this.framer.clear()
     this.connection += 1
@@ -497,6 +573,29 @@ export class RoomSession {
     this.live = null
     await this.room?.close().catch((err: unknown) => this.deps.log('room.close_failed', { error: message(err) }))
     this.room = null
+    await owed
+  }
+
+  /**
+   * Closing: a notice still waiting to be heard was not heard, so it is owed again and the readers who got it as text
+   * are recorded, and every announcement not yet recorded is sent once more. Bounded: what does not make it is handed
+   * to the session that replaces this one (handover()), and what nothing recorded stays listed by the API.
+   */
+  private async flushAnnouncements(): Promise<void> {
+    const notice = this.notice
+    this.notice = null
+    if (notice) this.unheard(notice)
+    const flush = async () => {
+      if (notice) {
+        const textRecipients = await notice.cards
+        if (textRecipients > 0) this.record(notice.key, { ...notice.event, heard: false, textRecipients }, false)
+      }
+      // Notices on their way, and the records that follow them, settle before the receipts are sent and handed over.
+      await Promise.allSettled(this.settling)
+      const sends = [...this.receipts].map(([key, r]) => r.sending ?? this.sendReceipt(key, r))
+      await Promise.allSettled(sends)
+    }
+    await Promise.race([flush(), new Promise((resolve) => setTimeout(resolve, CLOSE_FLUSH_MS))])
   }
 
   /** What the bridge observes now: for the room's attributes, the API's presence and tests. */
@@ -578,9 +677,13 @@ export class RoomSession {
     )
   }
 
-  /** A member reads Sophia or hears her again. Only a member's signal counts (rtc.ts), and only while present. */
+  /**
+   * A member reads Sophia or hears her again. Only a member's signal reaches here (rtc.ts checks the sender's signed
+   * standing). It is kept even if this session has not yet seen that member in the room (Studio says it again the
+   * moment Sophia joins, which can come before the room's people update), and dropped when they leave.
+   */
   private onTextMode(identity: string, on: boolean): void {
-    if (on && this.people.some((p) => p.identity === identity && !isGuestLike(p))) this.readers.add(identity)
+    if (on) this.readers.add(identity)
     else this.readers.delete(identity)
   }
 
@@ -1248,36 +1351,95 @@ export class RoomSession {
   private announce(now: number): void {
     const input = this.state.input(now)
     if (input === 'paused' || input === 'settling') return
-    const next = this.assignment.results.find((r) => RESULT_NOTICES.has(r.kind) && !this.announced.has(resultKey(r)))
+    const members = this.members()
+    // Nobody to tell: it waits for someone to arrive, rather than being said to an empty room.
+    if (members.length === 0) return
+    const readers = this.presentReaders()
+    const asText = readers.length === members.length
+    const next = this.nextResult(asText, now)
     const noticeOf = next && RESULT_NOTICES.get(next.kind)
     if (!next || !noticeOf) return
-    const members = this.people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
-    const readers = members.filter((identity) => this.readers.has(identity))
-    if (readers.length > 0 && readers.length === members.length) return this.announceAsText(next, readers)
+    if (asText) return this.announceAsText(next, readers)
     const live = this.live
     if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
     const key = resultKey(next)
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
-    this.notice = { key, event, cards: this.sendCards(next, readers) }
+    this.notice = { key, result: next, event, cards: this.track(this.sendCards(next, readers)) }
     this.state.systemTurn()
     live.sendNotice(noticeOf(next.taskId))
   }
 
-  /** Everyone present reads: the chat notices alone announce it, and nobody heard it. */
+  /**
+   * The next result to announce: listed by the API or still owed, and not announced yet. An owed result a newer
+   * revision of its task has superseded is not said. In a room where everyone reads, one waiting for its text retry
+   * lets the next go first.
+   */
+  private nextResult(asText: boolean, now: number): Result | undefined {
+    this.pruneOwed()
+    return [...this.assignment.results, ...this.owed.values()].find((r) => {
+      const key = resultKey(r)
+      if (!RESULT_NOTICES.has(r.kind) || this.announced.has(key)) return false
+      return !asText || (this.textRetryAt.get(key) ?? 0) <= now
+    })
+  }
+
+  /** Drop what is owed for a task the API now lists, or this session announced, at a newer revision. */
+  private pruneOwed(): void {
+    const newest = new Map<string, number>()
+    const seen = (taskId: string, revision: number) =>
+      newest.set(taskId, Math.max(newest.get(taskId) ?? revision, revision))
+    for (const r of this.assignment.results) seen(r.taskId, r.resultRevision)
+    for (const key of this.announced) {
+      const at = key.lastIndexOf(':')
+      seen(key.slice(0, at), Number(key.slice(at + 1)))
+    }
+    for (const [key, r] of this.owed) if ((newest.get(r.taskId) ?? 0) > r.resultRevision) this.owed.delete(key)
+  }
+
+  /** Work a close waits for: a delivery, or the record that follows it. */
+  private track<T>(work: Promise<T>): Promise<T> {
+    this.settling.add(work)
+    const settled = () => {
+      this.settling.delete(work)
+    }
+    work.then(settled, settled)
+    return work
+  }
+
+  /** The members present now, guests aside. */
+  private members(): string[] {
+    return this.people.filter((p) => !isGuestLike(p)).map((p) => p.identity)
+  }
+
+  /** The members present now who read Sophia. */
+  private presentReaders(): string[] {
+    return this.members().filter((identity) => this.readers.has(identity))
+  }
+
+  /**
+   * Everyone present reads: the chat notices alone announce it, and nobody heard it. It is done once every reader
+   * present has the notice; what reached some is recorded meanwhile, and the rest are tried again after a wait.
+   */
   private announceAsText(next: Result, readers: readonly string[]): void {
     const key = resultKey(next)
     this.announced.add(key)
-    void this.sendCards(next, readers).then((delivered) => {
-      if (delivered > 0) {
-        const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
-        return this.record(key, { ...event, heard: false, textRecipients: delivered })
+    void this.track(this.sendCards(next, readers)).then((delivered) => {
+      const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
+      if (delivered > 0) this.record(key, { ...event, heard: false, textRecipients: delivered })
+      if (readers.every((identity) => this.carded.has(`${key}:${identity}`))) {
+        this.owed.delete(key)
+        return
       }
       const attempts = (this.noticeAttempts.get(key) ?? 0) + 1
       this.noticeAttempts.set(key, attempts)
-      if (attempts < NOTICE_ATTEMPTS) this.announced.delete(key)
+      // What reached some is recorded, so the API stops listing it: the rest are owed it from here.
+      if (attempts < NOTICE_ATTEMPTS) {
+        this.announced.delete(key)
+        this.owed.set(key, next)
+        this.textRetryAt.set(key, this.deps.now() + TEXT_RETRY_MS)
+      } else this.owed.delete(key)
       this.deps.log('announce.not_delivered', { exchangeId: this.exchangeId, taskId: next.taskId, attempts })
-      return undefined
     })
   }
 
@@ -1337,43 +1499,81 @@ export class RoomSession {
     const notice = this.notice
     if (!notice) return
     this.notice = null
-    void notice.cards.then((textRecipients) =>
-      this.record(notice.key, { ...notice.event, heard: true, textRecipients }),
+    this.owed.delete(notice.key)
+    // A member who turned to text while it was being said gets the notice too; then it is recorded, once both settle.
+    const late = this.sendCards(notice.result, this.presentReaders())
+    void this.track(Promise.all([notice.cards, late])).then(([first, total]) =>
+      this.record(notice.key, { ...notice.event, heard: true, textRecipients: Math.max(first, total) }),
     )
   }
 
-  /** Record an announcement with the API (sendReceipts retries until it is recorded). */
-  private record(key: string, event: Announced): void {
-    this.receipts.set(key, { event, retryAt: 0, sending: false })
-    this.sendReceipts(this.deps.now())
+  /**
+   * Record an announcement with the API (sendReceipts retries until it is recorded). A later record of the same
+   * result (text first, heard later) replaces one still waiting; the API keeps the union (0035).
+   */
+  private record(key: string, event: Announced, send = true): void {
+    // Merged with one not yet recorded, the way the API merges them: a later record never takes back "heard".
+    const waiting = this.receipts.get(key)?.event
+    const merged = waiting
+      ? {
+          ...event,
+          heard: Boolean(waiting.heard) || Boolean(event.heard),
+          textRecipients: Math.max(waiting.textRecipients ?? 0, event.textRecipients ?? 0),
+        }
+      : event
+    this.receipts.set(key, { event: merged, retryAt: 0, sending: null })
+    if (send) this.sendReceipts(this.deps.now())
   }
 
   /** Record heard notices with the API; one that fails is tried again after RECEIPT_RETRY_MS. */
   private sendReceipts(now: number): void {
     for (const [key, receipt] of this.receipts) {
       if (receipt.sending || receipt.retryAt > now) continue
-      receipt.sending = true
-      this.deps.service.announced(receipt.event).then(
-        () => this.receipts.delete(key),
-        (err: unknown) => {
-          receipt.sending = false
-          receipt.retryAt = this.deps.now() + RECEIPT_RETRY_MS
-          const taskId = receipt.event.taskId
-          this.deps.log('announce.record_failed', { exchangeId: this.exchangeId, taskId, error: message(err) })
-        },
-      )
+      void this.sendReceipt(key, receipt)
     }
   }
 
-  /** The notice's turn ended and nothing of it is still to play: it was not heard, so it may be sent again. */
+  private sendReceipt(key: string, receipt: Receipt): Promise<void> {
+    const sending = this.deps.service.announced(receipt.event).then(
+      () => {
+        // A newer record of the same result may have replaced this one meanwhile: it is still to be sent.
+        if (this.receipts.get(key) === receipt) this.receipts.delete(key)
+      },
+      (err: unknown) => {
+        receipt.sending = null
+        receipt.retryAt = this.deps.now() + RECEIPT_RETRY_MS
+        const taskId = receipt.event.taskId
+        this.deps.log('announce.record_failed', { exchangeId: this.exchangeId, taskId, error: message(err) })
+      },
+    )
+    receipt.sending = sending
+    return sending
+  }
+
+  /**
+   * The notice's turn ended and nothing of it is still to play: the room did not hear it, so it may be said again.
+   * The readers who got it as text did get it: that is recorded now, nobody having heard it, whatever the voice
+   * retries do next (M03-RF-0017). A later retry the room hears records it as heard too.
+   */
   private noticeUnheard(): void {
     const notice = this.notice
     if (!notice || this.framer.queued > 0 || this.pumping) return
     this.notice = null
-    const attempts = (this.noticeAttempts.get(notice.key) ?? 0) + 1
-    this.noticeAttempts.set(notice.key, attempts)
+    const attempts = this.unheard(notice)
     if (attempts < NOTICE_ATTEMPTS) this.announced.delete(notice.key)
     this.deps.log('announce.not_heard', { exchangeId: this.exchangeId, taskId: notice.event.taskId, attempts })
+    void this.track(notice.cards).then((textRecipients) => {
+      if (textRecipients > 0) this.record(notice.key, { ...notice.event, heard: false, textRecipients })
+    })
+  }
+
+  /** A notice the room did not hear used one attempt; it is owed again until its attempts run out. */
+  private unheard(notice: { key: string; result: Result }): number {
+    const attempts = (this.noticeAttempts.get(notice.key) ?? 0) + 1
+    this.noticeAttempts.set(notice.key, attempts)
+    if (attempts < NOTICE_ATTEMPTS) this.owed.set(notice.key, notice.result)
+    else this.owed.delete(notice.key)
+    return attempts
   }
 
   /** Room attributes when they change; the API's presence when it changed or every PRESENCE_EVERY_MS. */

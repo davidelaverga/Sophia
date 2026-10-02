@@ -351,6 +351,8 @@ interface ReportSourceRow {
  * The source `sourceId` when it is a published report version's source or a rendition of one, and the reader may see
  * it. A candidate's or a rejected version's bytes, and other sources (notes, manifests, passages until S3), are not
  * served through this read. Call inside withActor(..., "read").
+ * A source more than one version holds (a rendition-only version keeps the text of the one before) is named by the
+ * latest of them, the one the report's card and viewer show, never by whichever a scan meets first.
  */
 export async function readReportSource(c: pg.PoolClient, sourceId: string): Promise<ReportSource> {
   const { rows } = await c.query<ReportSourceRow>(
@@ -358,12 +360,14 @@ export async function readReportSource(c: pg.PoolClient, sourceId: string): Prom
             v.version_number, coalesce(o.rendition_format, a.format) AS format
        FROM sophia.source_objects s
        JOIN LATERAL (
-         SELECT v.artifact_id, v.id AS version_id, NULL::text AS rendition_format FROM sophia.artifact_versions v
+         SELECT v.artifact_id, v.id AS version_id, NULL::text AS rendition_format, v.version_number AS number
+           FROM sophia.artifact_versions v
           WHERE v.project_id = s.project_id AND v.source_id = s.id AND ${PUBLISHED}
          UNION ALL
-         SELECT rv.artifact_id, rv.id, r.format FROM sophia.artifact_renditions r
+         SELECT rv.artifact_id, rv.id, r.format, rv.version_number FROM sophia.artifact_renditions r
            JOIN sophia.artifact_versions rv ON rv.project_id = r.project_id AND rv.id = r.artifact_version_id
           WHERE r.project_id = s.project_id AND r.source_id = s.id AND rv.state IN ('stable','superseded')
+         ORDER BY number DESC NULLS LAST, version_id
          LIMIT 1) o ON true
        JOIN sophia.artifact_versions v ON v.project_id = s.project_id AND v.id = o.version_id
        JOIN sophia.artifacts a ON a.project_id = s.project_id AND a.id = o.artifact_id

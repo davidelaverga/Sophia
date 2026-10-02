@@ -586,9 +586,13 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     const b = await task('Which fonts cover Italian and Spanish?')
     const c = await task('Which hosts allow user namespaces?')
     assert.equal(new Set([a, b, c]).size, 3)
+    // Readers got it as text while the room did not hear it; a later retry the room heard adds "heard" and keeps
+    // the readers (RF-0017). A replay or a late receipt never takes anything back.
     assert.equal((await announce(a, { resultRevision: 1, heard: false, textRecipients: 2 })).status, 204)
-    assert.equal((await announce(a, { resultRevision: 1, heard: true, textRecipients: 0 })).status, 204, 'a repeat')
+    assert.equal((await announce(a, { resultRevision: 1, heard: true, textRecipients: 1 })).status, 204, 'heard later')
+    assert.equal((await announce(a, { resultRevision: 1, heard: false, textRecipients: 2 })).status, 204, 'a replay')
     assert.equal((await announce(b, { resultRevision: 1 })).status, 204, 'an older bridge: heard')
+    assert.equal((await announce(b, { resultRevision: 1, heard: false, textRecipients: 1 })).status, 204, 'a reader')
     const nobody = await announce(c, { resultRevision: 1, heard: false, textRecipients: 0 })
     assert.deepEqual([nobody.status, nobody.json.code], [422, 'invalid_request'], 'told to nobody is no announcement')
     assert.equal((await announce(c, { resultRevision: 1, textRecipients: 1001 })).status, 422, 'bounded')
@@ -601,7 +605,7 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
         [w.exchangeId],
       )
       const byJob = new Map(rows.map((r) => [r.job, [r.heard, r.text]]))
-      assert.deepEqual([byJob.size, byJob.get(a), byJob.get(b)], [2, [false, 2], [true, 0]])
+      assert.deepEqual([byJob.size, byJob.get(a), byJob.get(b)], [2, [true, 2], [true, 1]])
     } finally {
       await owner.end()
     }

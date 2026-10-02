@@ -16,6 +16,7 @@
 // Usage: render-html.mjs --job <job.json>. The job names sourceRoot, entry, assets, language and outputDir; the
 // receipt and report.pdf land in outputDir. Exit 0 when the render succeeded, 1 when it failed or was cancelled.
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -34,7 +35,20 @@ const DONOR = {
   blob: 'f2e808cf5e7c4f6514c1bb912c361dd6c21eba7d',
 }
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const KERNEL_FILES = ['render-html.mjs', 'confine.mjs', 'source-manifest.mjs', 'pdf-facts.mjs', 'bin/confine-chromium']
+/**
+ * The files whose code decides a render and judges it: every module this one imports, transitively, and the
+ * confinement wrapper the browser starts through. A test holds this list to the import closure (M03-RF-0018).
+ */
+export const KERNEL_FILES = [
+  'render-html.mjs',
+  'confine.mjs',
+  'source-manifest.mjs',
+  'pdf-facts.mjs',
+  'pdf-text.mjs',
+  'bin/confine-chromium',
+]
+/** Third-party code that judges too: pdf.js reads the printed pages back. Playwright is reported on its own. */
+export const JUDGE_PACKAGES = ['pdfjs-dist']
 
 // Right-aligned page numbers so the author never computes pagination (the donor's footer); the header stays empty.
 const FOOTER_TEMPLATE =
@@ -68,9 +82,28 @@ export class RenderFailure extends Error {
   }
 }
 
-/** The kernel's identity: its own files' bytes, in a fixed order. */
-export function rendererSha256() {
-  return sha256Hex(KERNEL_FILES.map((f) => `${f}\0${sha256Hex(fs.readFileSync(path.join(HERE, f)))}\n`).join(''))
+/**
+ * A package's version from its own package.json, as the kernel in `dir` resolves it ("unknown" if it names none,
+ * which still changes the identity).
+ * @param {string} name
+ * @param {string} dir
+ */
+function packageVersion(name, dir) {
+  const resolve = createRequire(path.join(dir, 'render-html.mjs')).resolve
+  const pkg = /** @type {unknown} */ (JSON.parse(fs.readFileSync(resolve(`${name}/package.json`), 'utf8')))
+  const version = typeof pkg === 'object' && pkg !== null && 'version' in pkg ? pkg.version : null
+  return typeof version === 'string' ? version : 'unknown'
+}
+
+/**
+ * The kernel's identity: its own files' bytes, in a fixed order, and the versions of the packages that judge with
+ * it. Two kernels that would print or judge differently never report the same identity.
+ * @param {string} [dir] where the kernel's files are (this package; a test passes a copy)
+ */
+export function rendererSha256(dir = HERE) {
+  const files = KERNEL_FILES.map((f) => `${f}\0${sha256Hex(fs.readFileSync(path.join(dir, f)))}\n`)
+  const packages = JUDGE_PACKAGES.map((name) => `${name}@${packageVersion(name, dir)}\n`)
+  return sha256Hex([...files, ...packages].join(''))
 }
 
 /**

@@ -3,7 +3,7 @@
 // are long-polled with the version the bridge last saw, so a change (a floor transfer, Stop Speaking, a guest)
 // arrives within the NOTIFY round trip; each response carries fresh short-lived room tokens.
 import type { MediaAssignment } from '@sophia/contracts'
-import { RoomSession, type SessionDeps } from './room-session.ts'
+import { type Handover, RoomSession, type SessionDeps } from './room-session.ts'
 
 /** How long one assignment poll may wait for a change. */
 export const ASSIGNMENT_WAIT_MS = 25_000
@@ -43,13 +43,18 @@ export class MediaBridge {
     }
   }
 
-  /** Bring the sessions in line with the API: close what ended (first, so a room's next exchange can join). */
+  /**
+   * Bring the sessions in line with the API: close what ended (first, so a room's next exchange can join). A session
+   * replaced on a live exchange (its room was lost) hands what it still owes the room to the one that replaces it.
+   */
   async apply(assignments: readonly MediaAssignment[]): Promise<void> {
     const live = new Set(assignments.map((a) => a.exchangeId))
+    const handovers = new Map<string, Handover>()
     for (const [exchangeId, session] of this.sessions) {
       if (live.has(exchangeId) && !session.lost) continue
       this.sessions.delete(exchangeId)
       await session.close()
+      if (live.has(exchangeId)) handovers.set(exchangeId, session.handover())
     }
     for (const assignment of assignments) {
       const session = this.sessions.get(assignment.exchangeId)
@@ -57,7 +62,7 @@ export class MediaBridge {
         session.update(assignment)
         continue
       }
-      const created = new RoomSession(assignment, this.deps)
+      const created = new RoomSession(assignment, this.deps, handovers.get(assignment.exchangeId) ?? null)
       this.sessions.set(assignment.exchangeId, created)
       created.start().catch((err: unknown) => this.deps.log('session.start_failed', { error: message(err) }))
     }

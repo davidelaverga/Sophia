@@ -23,7 +23,7 @@ import {
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
-import { formatBytes, shortHash } from './report-view.ts'
+import { formatBytes, shortHash, versionMissing } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
@@ -386,7 +386,8 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
 
 function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: string) => void }) {
   if (data.versions.isError) return <p className="muted">This report isn’t available to you.</p>
-  if (data.versions.isSuccess && !data.version) return <p className="muted">This version isn’t available.</p>
+  if (versionMissing(data.versions, data.version !== undefined))
+    return <p className="muted">This version isn’t available.</p>
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">

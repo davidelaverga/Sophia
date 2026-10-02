@@ -9,7 +9,16 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { chromiumPath, judgeSandbox, launchConfined, renderHtmlToPdf, renderUserOf } from '../index.mjs'
+import {
+  chromiumPath,
+  judgeSandbox,
+  JUDGE_PACKAGES,
+  KERNEL_FILES,
+  launchConfined,
+  renderHtmlToPdf,
+  rendererSha256,
+  renderUserOf,
+} from '../index.mjs'
 import { pageChecks, pageTexts, SHORT_PAGE_WORDS } from '../pdf-text.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -145,6 +154,140 @@ const PAGED = `<!doctype html><html><head><meta charset="utf-8"><title>Pagine</t
 
 /** One page's text facts, for the checks' rules. */
 const page = (count: number, images = 0) => ({ words: count, images })
+
+const KERNEL_DIR = fileURLToPath(new URL('..', import.meta.url))
+
+/** Every module a file names: static, side-effect, re-export, dynamic and require, in either quote. */
+const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"])([^'"\n]+)\1/g
+/** Every file a module starts or reads by its own location. */
+const STARTED = /new URL\(\s*(['"])(\.\.?\/[^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g
+
+/** What a file's text names: modules (relative, package or node:) and the files it starts. */
+function namedBy(text: string): { modules: string[]; started: string[] } {
+  return {
+    modules: [...text.matchAll(SPECIFIER)].map((m) => m[2] ?? ''),
+    started: [...text.matchAll(STARTED)].map((m) => m[2] ?? ''),
+  }
+}
+
+/** A path the kernel names, relative to the kernel's directory; it never leaves it. */
+function kernelPath(from: string, specifier: string): string {
+  const relative = path.relative(KERNEL_DIR, path.resolve(KERNEL_DIR, path.dirname(from), specifier))
+  assert.ok(
+    !relative.startsWith('..') && !path.isAbsolute(relative),
+    `${from} reaches outside the kernel: ${specifier}`,
+  )
+  return relative.split(path.sep).join('/')
+}
+
+/** A bare specifier's package, with its scope. */
+const packageOf = (specifier: string) =>
+  specifier
+    .split('/')
+    .slice(0, specifier.startsWith('@') ? 2 : 1)
+    .join('/')
+
+/**
+ * The kernel's own files, from render-html.mjs through everything it imports or starts, transitively, and the
+ * packages they import (node: builtins aside).
+ */
+function importClosure(): { files: Set<string>; packages: Set<string> } {
+  const files = new Set<string>()
+  const packages = new Set<string>()
+  const queue = ['render-html.mjs']
+  while (queue.length > 0) {
+    const file = queue.shift() ?? ''
+    if (files.has(file)) continue
+    files.add(file)
+    const { modules, started } = namedBy(fs.readFileSync(path.join(KERNEL_DIR, file), 'utf8'))
+    for (const specifier of modules) {
+      if (specifier.startsWith('.')) queue.push(kernelPath(file, specifier))
+      else if (!specifier.startsWith('node:')) packages.add(packageOf(specifier))
+    }
+    for (const name of started) queue.push(kernelPath(file, name))
+  }
+  return { files, packages }
+}
+
+describe('the kernel identity (M03-RF-0018)', () => {
+  it('reads every way a module names code', () => {
+    const text = [
+      `import a from './a.mjs'`,
+      `import "./side-effect.mjs"`,
+      `export { b } from "../up/b.mjs"`,
+      `const c = await import('./c.mjs')`,
+      `const d = require("@scope/pkg/deep.js")`,
+      `import e from 'node:fs'`,
+      `const f = fileURLToPath(new URL("./bin/f", import.meta.url))`,
+    ].join('\n')
+    assert.deepEqual(namedBy(text), {
+      modules: ['./a.mjs', './side-effect.mjs', '../up/b.mjs', './c.mjs', '@scope/pkg/deep.js', 'node:fs'],
+      started: ['./bin/f'],
+    })
+    assert.equal(packageOf('@scope/pkg/deep.js'), '@scope/pkg')
+    assert.equal(packageOf('pdfjs-dist/legacy/build/pdf.mjs'), 'pdfjs-dist')
+  })
+
+  it('covers every module the kernel runs, the wrapper it starts the browser through, and the packages that judge', () => {
+    const { files, packages } = importClosure()
+    assert.ok(files.has('pdf-text.mjs'), 'the page judge is part of the kernel')
+    assert.ok(files.has('bin/confine-chromium'))
+    assert.deepEqual([...files].toSorted(), [...KERNEL_FILES].toSorted())
+    // Playwright drives the browser and is reported on its own (its version and the browser's); every other package
+    // the kernel imports judges, and is part of the identity.
+    assert.ok(packages.has('playwright-core'))
+    assert.deepEqual(
+      [...packages].filter((name) => name !== 'playwright-core').toSorted(),
+      [...JUDGE_PACKAGES].toSorted(),
+    )
+  })
+
+  it('changes when any of those files changes, the page judge’s thresholds and its pdf.js included', () => {
+    const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-kernel-copy-'))
+    try {
+      for (const f of KERNEL_FILES) {
+        fs.mkdirSync(path.dirname(path.join(copy, f)), { recursive: true })
+        fs.copyFileSync(path.join(KERNEL_DIR, f), path.join(copy, f))
+      }
+      // The copy resolves its judging packages from its own node_modules, at the versions installed here.
+      const manifests = JUDGE_PACKAGES.map((name) => {
+        const installed = JSON.parse(
+          fs.readFileSync(path.join(KERNEL_DIR, 'node_modules', name, 'package.json'), 'utf8'),
+        ) as { version: string }
+        const file = path.join(copy, 'node_modules', name, 'package.json')
+        fs.mkdirSync(path.dirname(file), { recursive: true })
+        fs.writeFileSync(file, JSON.stringify({ name, version: installed.version }))
+        return { file, name, version: installed.version }
+      })
+      const identity = rendererSha256()
+      assert.equal(rendererSha256(copy), identity, 'the same bytes, the same identity')
+      // Codex's probe: a judge that calls a page blank up to 1000 words is another judge.
+      const judge = path.join(copy, 'pdf-text.mjs')
+      const original = fs.readFileSync(judge, 'utf8')
+      assert.ok(original.includes('p.words <= 1 &&'))
+      fs.writeFileSync(judge, original.replace('p.words <= 1 &&', 'p.words <= 1000 &&'))
+      assert.notEqual(rendererSha256(copy), identity)
+      fs.writeFileSync(judge, original)
+      for (const f of KERNEL_FILES) {
+        const file = path.join(copy, f)
+        const bytes = fs.readFileSync(file)
+        fs.writeFileSync(file, Buffer.concat([bytes, Buffer.from('\n')]))
+        assert.notEqual(rendererSha256(copy), identity, f)
+        fs.writeFileSync(file, bytes)
+      }
+      for (const { file, name, version } of manifests) {
+        fs.writeFileSync(file, JSON.stringify({ name, version: `${version}-other` }))
+        assert.notEqual(rendererSha256(copy), identity, name)
+        fs.writeFileSync(file, JSON.stringify({ name }))
+        assert.notEqual(rendererSha256(copy), identity, `${name} without a version`)
+        fs.writeFileSync(file, JSON.stringify({ name, version }))
+      }
+      assert.equal(rendererSha256(copy), identity, 'restored')
+    } finally {
+      fs.rmSync(copy, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('the printed pages, read back (pdf-text.mjs)', () => {
   it('names blank pages anywhere and short pages between the first and the last; an image keeps a page', () => {

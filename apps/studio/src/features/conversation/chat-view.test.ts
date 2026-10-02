@@ -7,6 +7,8 @@ import {
   chatLine,
   chatTimeline,
   footError,
+  noticeActions,
+  noticeOpenRequest,
   noticeTitle,
   reachesSophia,
   receiveChat,
@@ -165,4 +167,26 @@ it('words a notice by its kind only', () => {
   assert.equal(noticeTitle('research'), 'Research report ready')
   assert.equal(noticeTitle('draft_brief'), 'Brief ready')
   assert.equal(noticeTitle('something_later'), 'Result ready')
+})
+
+it('a notice opens and saves the same file, the PDF when there is one, with the Markdown beside it (RF-0020)', () => {
+  const md = { format: 'markdown' as const, artifactVersionId: 'v2' }
+  const pdf = { format: 'pdf' as const, artifactVersionId: 'v2' }
+  assert.deepEqual(noticeActions([md, pdf]), { primary: pdf, markdown: md })
+  assert.deepEqual(noticeActions([pdf, md]), { primary: pdf, markdown: md })
+  assert.deepEqual(noticeActions([md]), { primary: md, markdown: null }, 'no second button for the same file')
+  assert.deepEqual(noticeActions([]), { primary: null, markdown: null })
+})
+
+it('Open asks the viewer for the file Download saves: its version and its format, the PDF named (RF-0020)', () => {
+  const md = { format: 'markdown' as const, artifactVersionId: 'v3', sourceId: 'm' }
+  const pdf = { format: 'pdf' as const, artifactVersionId: 'v3', sourceId: 'p' }
+  const { primary, markdown } = noticeActions([md, pdf])
+  assert.equal(primary?.sourceId, 'p', 'Download saves the PDF')
+  assert.deepEqual(primary && noticeOpenRequest('a1', primary), { artifactId: 'a1', versionId: 'v3', format: 'pdf' })
+  assert.deepEqual(markdown && noticeOpenRequest('a1', markdown), {
+    artifactId: 'a1',
+    versionId: 'v3',
+    format: 'markdown',
+  })
 })

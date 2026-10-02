@@ -178,6 +178,14 @@ export function reportFilename(title: string, versionNumber: number | null, form
 /** A short sha256 for a meta line: its first 8 characters. */
 export const shortHash = (sha256: string): string => sha256.slice(0, 8)
 
+/**
+ * Whether the version a link names is missing from the report's versions. Only a list that is not being read again
+ * says so: a cached list can predate the version (a notice's new version, opened while the old list is still kept),
+ * and until it is read again the pane shows the version loading, never "not available".
+ */
+export const versionMissing = (versions: { isSuccess: boolean; isFetching: boolean }, found: boolean): boolean =>
+  versions.isSuccess && !versions.isFetching && !found
+
 export interface Chip {
   label: string
   tone: Tone

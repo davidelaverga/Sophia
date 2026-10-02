@@ -3,6 +3,8 @@
 export { ConfinementError, chromiumPath, judgeSandbox, launchConfined, processTree, renderUserOf } from './confine.mjs'
 export { pdfFacts } from './pdf-facts.mjs'
 export {
+  JUDGE_PACKAGES,
+  KERNEL_FILES,
   OUTPUT_NAME,
   PRINT_WIDTH_PX,
   RECEIPT_SCHEMA,

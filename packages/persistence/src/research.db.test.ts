@@ -26,6 +26,7 @@ import {
   listReportSources,
   readArtifactVersions,
   readNativeTask,
+  readReportSource,
   recordRuntimeObservations,
   recordRuntimeReady,
   recordRuntimeReceipts,
@@ -2815,6 +2816,16 @@ async function partialWorld() {
   return { ...p, done, taskId, goalId, again, goal, task, read }
 }
 
+/** The version number and format a source's download is named with, as an editor reads it. */
+async function downloadName(sourceId: string): Promise<[number | null, string]> {
+  const source = await withActor(pool, E, 'read', (c) => readReportSource(c, sourceId))
+  return [source.versionNumber, source.format]
+}
+
+/** The PDF a task's result delivers. */
+const pdfSourceOf = (reading: Awaited<ReturnType<typeof readNativeTask>>): string =>
+  reading.result?.outputs?.find((o) => o.format === 'pdf')?.sourceId ?? ''
+
 const versionsOf = (artifactId: string) =>
   owner(
     async (c) =>
@@ -2910,6 +2921,9 @@ describe('Try PDF again (0032)', () => {
       'the card reads the new version, PDF included',
     )
     assert.equal(reading.research?.pdfRendering, undefined)
+    // The text both versions hold downloads under the name the card and the viewer show: v2.
+    assert.deepEqual(await downloadName(v2.source_id), [2, 'markdown'])
+    assert.deepEqual(await downloadName(pdfSourceOf(reading)), [2, 'pdf'])
     const history = await withActor(pool, E, 'read', (c) => readArtifactVersions(c, p.done.artifactId!))
     assert.deepEqual(parseArtifactVersionList(history), history, 'a client reads the history as the contract has it')
     const [read2] = history

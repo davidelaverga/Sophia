@@ -20,7 +20,11 @@ The browser executable comes only from the operator (`SOPHIA_CHROMIUM_PATH`, or 
 
 The output is `report.pdf`, written once and never over an existing file, plus `receipt.json` (`sophia.pdf-render-receipt.v1`). The receipt carries:
 - the status (`succeeded`, `failed` or `cancelled`) and a stable error code;
-- the renderer's identity: its own files' hash, the donor, playwright-core and the browser version;
+- the renderer's identity:
+  - one hash (`rendererSha256`) over the kernel's files, `KERNEL_FILES`: every module it runs, transitively, and the wrapper the browser starts through. A test holds that list to the import closure (M03-RF-0018);
+  - the same hash also covers the versions of the packages that judge with it (`JUDGE_PACKAGES`: pdf.js, which reads the printed pages back);
+  - the donor, playwright-core and the browser version, reported on their own;
+  - inputs from the host are not in it (the fonts, the Node runtime and the browser binary beyond its version). They are part of a host's qualification evidence (OP-C, SMC-M03.md §29), not of a receipt;
 - the source manifest's hash;
 - the sandbox verdict;
 - the PDF's SHA-256, size, header, trailer, page count and embedded images;

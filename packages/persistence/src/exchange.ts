@@ -187,9 +187,10 @@ export async function toolSpeaker(
 }
 
 /**
- * The bridge announced a finished result in this exchange; recorded once, with how it was delivered (0035): heard
- * by the room, and to how many members in text mode as a chat notice. An older bridge says neither: it recorded only
- * what was heard. Call inside withService.
+ * The bridge announced a finished result in this exchange, with how it was delivered (0035): heard by the room, and
+ * to how many members in text mode as a chat notice. A later record of the same announcement only adds to it (heard
+ * once heard, the largest count of text recipients); it never takes anything back. An older bridge says neither: it
+ * recorded only what was heard. Call inside withService.
  */
 export async function recordAnnounced(
   c: pg.PoolClient,

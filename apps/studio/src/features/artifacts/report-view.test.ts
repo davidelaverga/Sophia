@@ -15,6 +15,7 @@ import {
   researchState,
   sourceWords,
   spendText,
+  versionMissing,
 } from './report-view.ts'
 
 const progress = {
@@ -185,6 +186,15 @@ describe('how a cited source was retrieved', () => {
       'Origin answered 200',
     )
     assert.equal(sourceWords({ kind: 'input', coverage: null, originHttpStatus: null }).coverage, 'From the project')
+  })
+})
+
+describe('a version the link names', () => {
+  it('is missing only once a list that is not being read again lacks it (a cached list can predate it)', () => {
+    assert.equal(versionMissing({ isSuccess: true, isFetching: false }, false), true)
+    assert.equal(versionMissing({ isSuccess: true, isFetching: true }, false), false, 'a stale list is being read')
+    assert.equal(versionMissing({ isSuccess: true, isFetching: false }, true), false)
+    assert.equal(versionMissing({ isSuccess: false, isFetching: true }, false), false, 'nothing read yet')
   })
 })
 
