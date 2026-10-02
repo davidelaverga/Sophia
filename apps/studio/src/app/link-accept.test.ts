@@ -43,4 +43,14 @@ describe('signing in with a link’s session', () => {
     assert.equal(await settle(again), 'in')
     assert.equal(silent.asked.set, 1, 'one attempt: a second would spend the same refresh token')
   })
+
+  it('hands the press a refusal that comes after the wait, so it never stays "Signing in…"', async () => {
+    const slow = auth()
+    const offer = linkAcceptance(slow.set, WAIT_MS)
+    assert.equal(await settle(offer.accept()), 'late')
+    const later = offer.outcome()
+    slow.answer(false)
+    assert.equal(await settle(later), 'refused')
+    assert.equal(slow.asked.set, 1, 'the same attempt: nothing is asked again')
+  })
 })

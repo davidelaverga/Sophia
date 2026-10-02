@@ -163,12 +163,21 @@ interface Auth {
 
 /**
  * Sign in with the session a link offered, once the person said the account is theirs. An Auth service that doesn't
- * answer in time leaves the offer saying so, with a way to start over, while the attempt goes on (link-accept.ts).
+ * answer in time leaves the offer saying so, with a way to start over, while the attempt goes on (link-accept.ts). Its
+ * result still reaches the press: signed in, the auth listener says so; refused, `later` gets it.
  */
-async function acceptOffered(account: string): Promise<AuthState | null> {
-  if (!offered) return { status: 'signed_out' }
-  const outcome = await offered.accept()
-  if (outcome === 'late') return { status: 'link_offer', account, slow: true }
+async function acceptOffered(account: string, later: (state: AuthState) => void): Promise<AuthState | null> {
+  const offer = offered
+  if (!offer) return { status: 'signed_out' }
+  const outcome = await offer.accept()
+  if (outcome === 'late') {
+    void offer.outcome().then((result) => {
+      if (offered !== offer || result === 'in') return // started over, declined, or in: said elsewhere
+      offered = null
+      later({ status: 'signed_out', notice: LINK_FAILED })
+    })
+    return { status: 'link_offer', account, slow: true }
+  }
   offered = null
   return outcome === 'in' ? null : { status: 'signed_out', notice: LINK_FAILED } // in: the auth listener says so
 }
@@ -196,9 +205,11 @@ export function useAuth(): Auth {
     acceptLink: async () => {
       if (state.status !== 'link_offer') return
       const { account } = state
-      const next = await acceptOffered(account)
       // Only over the same offer: an account signed in meanwhile (another tab) stays.
-      if (next) setState((now) => (now.status === 'link_offer' && now.account === account ? next : now))
+      const over = (next: AuthState) =>
+        setState((now) => (now.status === 'link_offer' && now.account === account ? next : now))
+      const next = await acceptOffered(account, over)
+      if (next) over(next)
     },
     declineLink: () => {
       offered = null
