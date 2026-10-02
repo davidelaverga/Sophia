@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-03/direction-gallery` from main `f60c387`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the gallery, checks and docs at `d99b141` (tree `75274b8f85c0`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** the Studio's new `features/explore/`, its fixture and browser checks, CONTRIBUTING and LFE-03's records. **No contract, schema, API, dependency or hosted service was changed. The Studio's Explore lens is unchanged.**
 
 ## Outcome
