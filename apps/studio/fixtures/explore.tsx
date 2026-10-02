@@ -3,7 +3,7 @@
 // recorded and applied here. No image service, provider or API is reached, and the page says so on screen. The query
 // string picks the scenario: `role=viewer` (who may not choose), `tamper=<asset id>` (bytes that don't match),
 // `many=1` (24 candidates, past the screen), `slow=1` (a choice is saved only once a check settles it),
-// `flaky=<asset id>` (its reads fail, as a network would, until a check heals it).
+// `flaky=<asset id>,…` (their reads fail, as a network would, until a check heals it).
 // `window.explore` lets a check read what was asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -33,7 +33,7 @@ declare global {
 const query = new URLSearchParams(window.location.search)
 const role: Membership['role'] = query.get('role') === 'viewer' ? 'viewer' : 'editor'
 const tampered = query.get('tamper')
-let flaky = query.get('flaky')
+const flaky = new Set((query.get('flaky') ?? '').split(',').filter(Boolean))
 const asked: string[] = []
 let settling: (() => void) | null = null
 window.explore = {
@@ -42,14 +42,12 @@ window.explore = {
     settling?.()
     settling = null
   },
-  heal: () => {
-    flaky = null
-  },
+  heal: () => flaky.clear(),
 }
 
 async function read(asset: ImageAsset): Promise<ArrayBuffer> {
   asked.push(`read:${asset.id}`)
-  if (flaky === asset.id) throw new Error('the network dropped the read')
+  if (flaky.has(asset.id)) throw new Error('the network dropped the read')
   const file = FILE[asset.sha256]
   if (!file) throw new Error(`no simulated bytes for ${asset.id}`)
   const bytes = await (await fetch(file)).arrayBuffer()

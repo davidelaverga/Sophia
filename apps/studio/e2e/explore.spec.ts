@@ -170,3 +170,24 @@ test('a tile whose read failed shows the image once it was read up close', async
   await back(page).click()
   await expect(tile(page, 2).getByRole('img')).toBeVisible() // the tile isn't left saying it couldn't be read
 })
+
+test('going back or trying one image again reads no other image', async ({ page }) => {
+  const A_ASSET = '00000000-0000-4000-8000-000000000330'
+  await page.goto(`${PAGE}?flaky=${A_ASSET},${B_ASSET}`)
+  await expect(tile(page, 1).getByText('This image couldn’t be read.')).toBeVisible()
+  await expect(tile(page, 2).getByText('This image couldn’t be read.')).toBeVisible()
+  const readsOfA = async () =>
+    (await page.evaluate(() => window.explore?.asked ?? [])).filter((a) => a === `read:${A_ASSET}`).length
+  const before = await readsOfA()
+
+  await tile(page, 2).click() // up close, B is read again, and fails again
+  const detail = page.getByRole('region', { name: /^Candidate 2/ })
+  await expect(detail.getByRole('button', { name: 'Try again' })).toBeVisible()
+  await page.evaluate(() => window.explore?.heal())
+  await detail.getByRole('button', { name: 'Try again' }).click()
+  await expect(detail.getByRole('img', { name: 'Candidate 2, from OpenAI' })).toBeVisible()
+  await back(page).click()
+  await expect(tile(page, 2).getByRole('img')).toBeVisible()
+  await expect(tile(page, 1).getByText('This image couldn’t be read.')).toBeVisible() // A waits for its own retry
+  expect(await readsOfA(), 'A was not read again behind the person’s back').toBe(before)
+})
