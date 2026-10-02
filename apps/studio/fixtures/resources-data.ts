@@ -10,7 +10,18 @@ export const expiredAt = () => new Date(NOW.getTime() - 10 * 60_000).toISOString
 export const NOW = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 
-export const people = { davide: { id: 'davide', name: 'Davide' }, luis: { id: 'luis', name: 'Luis' } } as const
+/** A drawn picture, as an account provider would give one; Luis has none, so his initial shows. */
+const picture = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="#7fd6c4"/><stop offset="1" stop-color="#6f8cff"/></linearGradient></defs>' +
+    '<rect width="32" height="32" fill="url(#g)"/><circle cx="16" cy="13" r="6" fill="#0b0a0f" opacity=".55"/>' +
+    '<path d="M5 32c1.5-7 6-10 11-10s9.5 3 11 10z" fill="#0b0a0f" opacity=".55"/></svg>',
+)}`
+
+export const people = {
+  davide: { id: 'davide', name: 'Davide', avatarUrl: picture },
+  luis: { id: 'luis', name: 'Luis', avatarUrl: null },
+} as const
 
 export const resources: Resource[] = [
   {

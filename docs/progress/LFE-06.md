@@ -46,6 +46,10 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - Tiles sort by attention by default (never by how used: LFE-06.2 forbids weighing providers' percentages), or by owner or tool. A waiting tile's edge warms; an offline one steps back and says how long it has been gone.
   - A meter marks how much of its window had passed when it was read, only where the length is certain (Claude Code's windows, not Codex's yet); the sheet says when the account runs out before the reset at that pace.
   - #50's P2 is closed: a spend limit passed keeps its meter's range true.
+- **Attempt 8** ([handoff](../handoffs/LFE-06-attempt-8.md)): identity and quality of life.
+  - Owners show their picture (the app's `Avatar`), and each tool has its own colour.
+  - The view opens as its viewer left it, a sheet has its own address, and arrow keys move across the tiles.
+  - A glide cut short no longer leaves an unhandled rejection.
 
 ## Acceptance cases
 

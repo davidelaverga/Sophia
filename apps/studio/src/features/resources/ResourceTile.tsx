@@ -5,6 +5,7 @@ import { useId } from 'react'
 import { Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
 import { followPointer } from './motion.ts'
+import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { activity, ago, capacity, TOOL, type QuotaObservation, type Resource } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
@@ -24,10 +25,14 @@ interface Props {
   /** Requests waiting on this resource's owner: said on the tile, in amber. */
   waiting: number
   onOpen: () => void
+  /** The grid's roving focus: only the current tile is in the Tab order; arrow keys move between them. */
+  current: boolean
+  onFocus: () => void
+  ref?: React.Ref<HTMLButtonElement>
 }
 
 interface OwnerProps {
-  name: string
+  owner: Resource['owner']
   mine: boolean
   waiting: number
   /** The id a part of the tile is said under, for the tile's description. */
@@ -35,13 +40,11 @@ interface OwnerProps {
 }
 
 /** Whose it is, and the tags that apply: "You", and how many requests wait on its owner. */
-function Owner({ name, mine, waiting, said }: OwnerProps) {
+function Owner({ owner, mine, waiting, said }: OwnerProps) {
   return (
     <span className="resource-tile-owner">
-      <span className="resource-initial" aria-hidden>
-        {name.charAt(0)}
-      </span>
-      {name}
+      <OwnerAvatar owner={owner} />
+      {owner.name}
       {mine && (
         <span id={said('you')}>
           <Tag tone="lav">You</Tag>
@@ -56,7 +59,8 @@ function Owner({ name, mine, waiting, said }: OwnerProps) {
   )
 }
 
-export function ResourceTile({ resource, observation, now, mine, waiting, onOpen }: Props) {
+export function ResourceTile(props: Props) {
+  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref } = props
   const { tool, owner, host } = resource
   const { line, limiting, known, pace } = capacity(observation, now)
   const id = useId()
@@ -75,6 +79,9 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
       aria-describedby={described}
+      ref={ref}
+      tabIndex={current ? 0 : -1}
+      onFocus={onFocus}
       onClick={onOpen}
       onPointerMove={followPointer}
     >
@@ -86,7 +93,7 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
           {hostLabel(host, now)}
         </span>
       </span>
-      <Owner name={owner.name} mine={mine} waiting={waiting} said={said} />
+      <Owner owner={owner} mine={mine} waiting={waiting} said={said} />
       <span id={said('activity')} className="resource-tile-activity" title={activity(resource)}>
         {activity(resource)}
       </span>
