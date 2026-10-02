@@ -5,10 +5,16 @@ import { useId } from 'react'
 import { Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
 import { followPointer } from './motion.ts'
-import { activity, capacity, TOOL, type QuotaObservation, type Resource } from './resource.ts'
+import { activity, ago, capacity, TOOL, type QuotaObservation, type Resource } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'Online', offline: 'Offline', unknown: 'Unknown' } as const
+
+/** An offline host says how long it has been gone: "Offline · 26 h". */
+function hostLabel({ state, observedAt }: Resource['host'], now: Date): string {
+  if (state !== 'offline' || !observedAt) return HOST[state]
+  return `${HOST[state]} · ${ago(observedAt, now).replace(/ ago$/, '')}`
+}
 
 interface Props {
   resource: Resource
@@ -52,7 +58,7 @@ function Owner({ name, mine, waiting, said }: OwnerProps) {
 
 export function ResourceTile({ resource, observation, now, mine, waiting, onOpen }: Props) {
   const { tool, owner, host } = resource
-  const { line, limiting, known } = capacity(observation, now)
+  const { line, limiting, known, pace } = capacity(observation, now)
   const id = useId()
   const said = (part: string) => `${id}-${part}`
   const described = ['host', mine && 'you', waiting > 0 && 'waiting', 'activity', 'capacity']
@@ -64,6 +70,8 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
       type="button"
       className="resource-tile"
       data-tool={tool}
+      data-host={host.state}
+      data-waiting={waiting > 0 || undefined}
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
       aria-describedby={described}
@@ -75,7 +83,7 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
         <span className="resource-tile-name">{TOOL[tool]}</span>
         <span id={said('host')} className={`resource-tile-host ${host.state}`}>
           <span className="resource-dot" aria-hidden />
-          {HOST[host.state]}
+          {hostLabel(host, now)}
         </span>
       </span>
       <Owner name={owner.name} mine={mine} waiting={waiting} said={said} />
@@ -88,6 +96,7 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
             label={limiting ? `${limiting.name} window` : 'Capacity'}
             percent={limiting?.percent ?? null}
             value={line}
+            passed={pace?.passed}
           />
         )}
         <span id={said('capacity')} className="resource-tile-capacity-line" title={line}>

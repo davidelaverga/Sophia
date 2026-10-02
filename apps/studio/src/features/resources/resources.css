@@ -173,6 +173,48 @@
   white-space: nowrap;
 }
 
+/* What needs someone stands out among many: a waiting tile's edge warms; an offline one steps back. */
+.resource-tile[data-waiting] {
+  border-color: color-mix(in srgb, var(--amber) 30%, var(--line));
+}
+.resource-tile[data-waiting]:hover {
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+}
+.resource-tile[data-host='offline'] .tool-logo {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.resource-tile[data-host='offline'] .resource-tile-name {
+  color: var(--text-2);
+}
+.resource-tile[data-host='offline'] .resource-tile-activity,
+.resource-tile[data-host='offline'] .resource-tile-owner {
+  color: var(--text-3);
+}
+
+/* The tiles' order, at the toolbar's end. */
+.field.resource-sort {
+  flex: none;
+  width: auto;
+  margin-left: auto;
+  align-items: center;
+  padding: 0 4px 0 10px;
+}
+.resource-sort-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.resource-sort select {
+  height: 30px;
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
 /* Nothing shown: said, with the ways back. */
 .resources-none {
   display: flex;
@@ -325,7 +367,6 @@
 .capacity-meter {
   position: relative;
   height: 3px;
-  overflow: hidden;
   border-radius: var(--r-1);
   background: var(--line-2);
 }
@@ -343,6 +384,21 @@
 }
 .capacity-meter.is-full .capacity-meter-fill {
   background: var(--rose);
+}
+/* How much of the window had passed when it was read: a fill past this mark is spending faster than the window. */
+.capacity-meter-pace {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text-2);
+  box-shadow: 0 0 0 1px var(--plane-2);
+}
+.capacity-pace {
+  color: var(--amber);
+  font-size: 12.5px;
 }
 .capacity-toggle {
   display: inline-flex;

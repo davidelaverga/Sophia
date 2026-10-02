@@ -42,6 +42,10 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - Nothing moves when reduced motion is asked for.
   - A meter turns amber from 75 % used and red from 90 %.
   - Codex's review: a tile now tells assistive technology all its lines (P1); the search's `/` is in its tip; the windows' chevron is still with reduced motion.
+- **Attempt 7** ([handoff](../handoffs/LFE-06-attempt-7.md)): what needs someone found at a glance among many, and a meter that reads against time.
+  - Tiles sort by attention by default, or by owner or tool. A waiting tile's edge warms; an offline one steps back and says how long it has been gone.
+  - A meter marks how much of its window had passed when it was read; the sheet says when the account runs out before the reset at that pace.
+  - #50's P2 is closed: a spend limit passed keeps its meter's range true.
 
 ## Acceptance cases
 

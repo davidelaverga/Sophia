@@ -7,6 +7,7 @@ import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { glideName, moving } from './motion.ts'
+import { ORDER_LABEL, ordered, ORDERS, type Order } from './order.ts'
 import { ResourceSheet } from './ResourceSheet.tsx'
 import { ResourceTile } from './ResourceTile.tsx'
 import {
@@ -166,9 +167,38 @@ function None({ query, filter, onClear, onAll }: NoneProps) {
   )
 }
 
-function useView({ resources, actions, viewerId }: Props) {
+interface SortProps {
+  order: Order
+  onChange: (order: Order) => void
+}
+
+const isOrder = (value: string): value is Order => ORDERS.some((o) => o === value)
+
+/** The tiles' order: by attention (what needs someone first), by owner or by tool. */
+function Sort({ order, onChange }: SortProps) {
+  return (
+    <label className="field quiet resource-sort">
+      <span className="resource-sort-label">Sort</span>
+      <select
+        value={order}
+        onChange={(e) => {
+          if (isOrder(e.target.value)) onChange(e.target.value)
+        }}
+      >
+        {ORDERS.map((o) => (
+          <option key={o} value={o}>
+            {ORDER_LABEL[o]}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function useView({ resources, observations, actions, viewerId, now }: Props) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [order, setOrder] = useState<Order>('attention')
   const found = resources.filter((r) => matches(r, query))
   const count = (f: Filter) => found.filter((r) => inFilter(f, r, actions, viewerId)).length
   const counts: Record<Filter, number> = {
@@ -177,8 +207,12 @@ function useView({ resources, actions, viewerId }: Props) {
     online: count('online'),
     mine: count('mine'),
   }
-  const shown = found.filter((r) => inFilter(filter, r, actions, viewerId))
-  return { query, setQuery, filter, setFilter, counts, shown }
+  const shown = ordered(
+    found.filter((r) => inFilter(filter, r, actions, viewerId)),
+    order,
+    { actions, observations, now },
+  )
+  return { query, setQuery, filter, setFilter, order, setOrder, counts, shown }
 }
 
 const observationOf = (observations: QuotaObservation[], r: Resource) =>
@@ -193,6 +227,7 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
       <div className="resources-toolbar">
         <Search query={view.query} onChange={view.setQuery} />
         <Filters filter={view.filter} counts={view.counts} onChange={(f) => moving(() => view.setFilter(f))} />
+        <Sort order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
       </div>
       <p className="sr-only" aria-live="polite">
         {view.shown.length} of {plural(resources.length, 'resource')} shown

@@ -78,6 +78,12 @@ export const busyCodex = (o: QuotaObservation): QuotaObservation => ({
   windows: [percent('five_hour', 92, 40), percent('seven_day', 78, 3 * 1440)],
 })
 
+/** `spent=1`: Codex's spend limit passed, at 120 % (a spend percentage has no ceiling). */
+export const spentCodex = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: [...o.windows, { ...percent('spend_limit', 120, 10 * 1440), unit: 'spend_percent_used', scope: 'spend' }],
+})
+
 export const observations: QuotaObservation[] = [
   {
     observation_id: 'obs-codex',

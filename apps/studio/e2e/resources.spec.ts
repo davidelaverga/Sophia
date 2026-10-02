@@ -19,6 +19,27 @@ const capacity = (page: Page, name: string) => sheet(page, name).getByRole('grou
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })
 const filter = (page: Page, name: string) => page.getByRole('tablist', { name: 'Show' }).getByRole('tab', { name })
 
+/** Counts the glides the page starts (View Transitions), on the page itself. */
+async function countGlides(page: Page) {
+  await page.addInitScript(() => {
+    const original = document.startViewTransition.bind(document)
+    let count = 0
+    Object.defineProperty(window, 'glides', { get: () => count })
+    Object.defineProperty(document, 'startViewTransition', {
+      value: (...args: Parameters<typeof original>) => {
+        count += 1
+        return original(...args)
+      },
+    })
+  })
+}
+const glides = (page: Page) => page.evaluate(() => Number(Reflect.get(window, 'glides')))
+const animation = (page: Page, selector: string, pseudo = '') =>
+  page
+    .locator(selector)
+    .first()
+    .evaluate((el, p) => getComputedStyle(el, p || null).animationName, pseudo)
+
 test.beforeEach(async ({ page }) => {
   await page.route(
     (url) => url.origin !== 'http://127.0.0.1:5199',
@@ -252,6 +273,76 @@ test('a meter turns amber from 75 % used and red from 90 %', async ({ page }) =>
   expect(await fill('7-day window')).toBe(rgb(amber))
 })
 
+test('the window’s pace: a mark for the time passed, and how long before the reset it runs out', async ({ page }) => {
+  await page.goto(`${PAGE}?busy=1`)
+  // Codex's 5-hour window, read 2 min ago with 40 min to go: 258 of its 300 minutes had passed.
+  const mark = tile(page, 'Davide · Codex').locator('.capacity-meter-pace')
+  await expect(mark).toHaveAttribute('style', 'left: 86%;')
+  await expect(tile(page, 'Davide · Codex').getByRole('meter')).toHaveAttribute(
+    'aria-valuetext',
+    '5-hour window: 92% used, resets in 40 min · 86% of the window passed',
+  )
+  await open(page, 'Davide · Codex')
+  await expect(
+    capacity(page, 'Davide · Codex').getByText('At this pace, used up ~20 min before it resets.'),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await open(page, 'Davide · Claude Code') // 63 % with 82 % of the window passed: on pace, nothing said
+  await expect(capacity(page, 'Davide · Claude Code').getByText(/At this pace/)).toHaveCount(0)
+  await expect(capacity(page, 'Davide · Claude Code').locator('.capacity-pace')).toHaveCount(0)
+})
+
+test('a spend limit passed keeps its meter’s range true', async ({ page }) => {
+  await page.goto(`${PAGE}?spent=1`)
+  const meter = tile(page, 'Davide · Codex').getByRole('meter', { name: 'Spend limit window' })
+  await expect(meter).toHaveAttribute('aria-valuenow', '120')
+  await expect(meter).toHaveAttribute('aria-valuemax', '120')
+  await expect(meter.locator('.capacity-meter-pace')).toHaveCount(0) // a spend limit's length isn't known: no mark
+})
+
+test('by attention, what needs someone comes first; a waiting tile stands out, an offline one steps back', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&busy=1`)
+  await expect(grid(page).getByRole('button')).toHaveCount(5)
+  const names = () =>
+    grid(page)
+      .getByRole('button')
+      .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
+  expect(await names()).toEqual([
+    'Davide · Claude Code', // a request waits: first, though Codex is more used
+    'Davide · Codex', // online, 92 % used
+    'Luis · Gemini CLI', // online, a balance
+    'Luis · Claude Code', // host unknown
+    'Davide · Grok', // offline
+  ])
+  const grok = tile(page, 'Davide · Grok')
+  await expect(grok).toContainText('Offline · 26 h')
+  await expect(grok.locator('.tool-logo')).toHaveCSS('filter', 'grayscale(1)')
+  await expect(tile(page, 'Davide · Codex').locator('.tool-logo')).toHaveCSS('filter', 'none')
+  const edge = (name: string) => tile(page, name).evaluate((t) => getComputedStyle(t).borderTopColor)
+  expect(await edge('Davide · Claude Code'), 'the waiting tile’s edge').not.toBe(await edge('Davide · Codex'))
+})
+
+test('the tiles sort by owner or by tool, and glide there', async ({ page }) => {
+  await countGlides(page)
+  await page.goto(`${PAGE}?more=1`)
+  const names = () =>
+    grid(page)
+      .getByRole('button')
+      .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
+  const sort = page.getByRole('combobox', { name: 'Sort' })
+  await sort.selectOption('owner')
+  await expect
+    .poll(names)
+    .toEqual(['Davide · Claude Code', 'Davide · Codex', 'Davide · Grok', 'Luis · Claude Code', 'Luis · Gemini CLI'])
+  await sort.selectOption('tool')
+  await expect
+    .poll(names)
+    .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
+  expect(await glides(page)).toBe(2)
+})
+
 test('the viewer’s own resource says so', async ({ page }) => {
   await page.goto(PAGE)
   await expect(tile(page, 'Luis · Claude Code').getByText('You', { exact: true })).toBeVisible()
@@ -346,27 +437,6 @@ test('@phone · every tile and the sheet read at a phone’s width, with nothing
   expect(box?.width ?? 0, 'the sheet fits').toBeLessThanOrEqual(width[1] ?? 0)
 })
 
-/** Counts the glides the page starts (View Transitions), on the page itself. */
-async function countGlides(page: Page) {
-  await page.addInitScript(() => {
-    const original = document.startViewTransition.bind(document)
-    let count = 0
-    Object.defineProperty(window, 'glides', { get: () => count })
-    Object.defineProperty(document, 'startViewTransition', {
-      value: (...args: Parameters<typeof original>) => {
-        count += 1
-        return original(...args)
-      },
-    })
-  })
-}
-const glides = (page: Page) => page.evaluate(() => Number(Reflect.get(window, 'glides')))
-const animation = (page: Page, selector: string, pseudo = '') =>
-  page
-    .locator(selector)
-    .first()
-    .evaluate((el, p) => getComputedStyle(el, p || null).animationName, pseudo)
-
 test('motion · a filter glides the tiles to their places; typing a search moves nothing', async ({ page }) => {
   await countGlides(page)
   await page.goto(`${PAGE}?more=1`)
@@ -395,8 +465,10 @@ test('motion · tiles arrive one after another, meters fill, and what waits keep
 test('motion · a tile’s light follows the pointer', async ({ page }) => {
   await page.goto(PAGE)
   const codex = tile(page, 'Davide · Codex')
-  const { x, y } = (await codex.boundingBox()) ?? { x: 0, y: 0 }
   const light = () => codex.evaluate((el) => ['--mx', '--my'].map((v) => parseFloat(el.style.getPropertyValue(v))))
+  await codex.hover() // the tile lifts under the pointer: measure once it has
+  await codex.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  const { x, y } = (await codex.boundingBox()) ?? { x: 0, y: 0 }
   await page.mouse.move(x + 30, y + 20)
   const [x1 = 0, y1 = 0] = await light()
   await page.mouse.move(x + 70, y + 45)

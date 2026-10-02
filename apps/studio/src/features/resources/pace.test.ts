@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { ordered } from './order.ts'
+import { pace } from './pace.ts'
+import type { QuotaObservation, QuotaWindow, RequiredAction, Resource } from './resource.ts'
+
+const now = new Date('2026-10-02T12:00:00Z')
+const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString()
+const window = (over: Partial<QuotaWindow>): QuotaWindow => ({
+  window_id: 'five_hour',
+  unit: 'percent_used',
+  value: 40,
+  resets_at: at(120),
+  scope: 'account',
+  applicability: 'known',
+  state: 'observed',
+  ...over,
+})
+
+describe('a window’s pace', () => {
+  it('says how much of the window had passed when it was read', () => {
+    // A 5-hour window resetting in 2 h, read now: 3 of its 5 hours have passed.
+    assert.equal(pace(window({}), at(0), now)?.passed, 0.6)
+    // Read 30 min ago, 2.5 of its hours had passed then.
+    assert.equal(pace(window({}), at(-30), now)?.passed, 0.5)
+  })
+
+  it('says how long before the reset the account runs out at this pace, only when it does', () => {
+    // 92 % used with 260 of 300 min passed: 100 % about 23 min later, 17 min before the reset.
+    assert.equal(
+      pace(window({ value: 92, resets_at: at(40) }), at(0), now)?.early,
+      'At this pace, used up ~17 min before it resets',
+    )
+    assert.equal(pace(window({ value: 40 }), at(0), now)?.early, null) // 40 % at 60 %: on pace
+    assert.equal(pace(window({ value: 100, resets_at: at(40) }), at(0), now)?.early, null) // already full: its colour says
+    // Too early in the window to project from: the first 5 %.
+    assert.equal(pace(window({ value: 10, resets_at: at(295) }), at(0), now)?.early, null)
+  })
+
+  it('is made up for no window: an unknown length, a balance, a window that may not apply, or a reset due', () => {
+    assert.equal(pace(window({ window_id: 'spend_limit' }), at(0), now), null)
+    assert.equal(pace(window({ unit: 'credits_remaining', window_id: 'daily_requests' }), at(0), now), null)
+    assert.equal(pace(window({ applicability: 'unknown' }), at(0), now), null)
+    assert.equal(pace(window({ resets_at: at(-5) }), at(0), now), null)
+    assert.equal(pace(window({ resets_at: null }), at(0), now), null)
+    assert.equal(pace(window({ value: null, state: 'unknown' }), at(0), now), null)
+  })
+})
+
+const resource = (id: string, owner: string, tool: Resource['tool'], host: Resource['host']['state']) =>
+  ({
+    id,
+    owner: { id: owner, name: owner },
+    tool,
+    entitlementId: `ent-${id}`,
+    host: { state: host, observedAt: null },
+    sessions: [],
+    controls: {},
+    reservePercent: null,
+  }) as unknown as Resource
+const ids = (rs: Resource[]) => rs.map((r) => r.id)
+
+describe('the tiles’ order', () => {
+  const observed = (id: string, value: number) =>
+    ({
+      entitlement_id: `ent-${id}`,
+      coverage: 'complete_for_route',
+      valid_until: null,
+      observed_at: at(0),
+      windows: [window({ value })],
+    }) as unknown as QuotaObservation
+  const list = [
+    resource('off', 'Ana', 'grok', 'offline'),
+    resource('low', 'Ben', 'codex', 'online'),
+    resource('high', 'Cy', 'cursor', 'online'),
+    resource('unk', 'Ada', 'claude-code', 'unknown'),
+    resource('wait', 'Dee', 'gemini-cli', 'offline'),
+  ]
+  const context = {
+    actions: [{ resourceId: 'wait', state: 'open' } as RequiredAction],
+    observations: [observed('low', 20), observed('high', 85)],
+    now,
+  }
+
+  it('by attention: what waits, then online by use, then unknown, then offline', () => {
+    assert.deepEqual(ids(ordered(list, 'attention', context)), ['wait', 'high', 'low', 'unk', 'off'])
+  })
+
+  it('by owner, or by tool, as a list is read', () => {
+    assert.deepEqual(ids(ordered(list, 'owner', context)), ['unk', 'off', 'low', 'high', 'wait'])
+    assert.deepEqual(ids(ordered(list, 'tool', context)), ['unk', 'low', 'high', 'wait', 'off'])
+  })
+})
