@@ -466,6 +466,10 @@ when you change the room:
   Each session's effort is a small bar in its tool's own look (`effort.ts`):
   Claude's dots, alive and saying "Ultracode" in that mode; GPT's gradient,
   sparkling at Ultra; a plain, still bar for the others.
+  In a sheet, J and K step through the shown resources. Two Claude Code
+  tiles side by side greet (`buddies.ts`), and typing "ultracode" on the
+  view sends a wave across the tiles (`ultra.ts`); with reduced motion, both
+  are still.
 
 ## The personal space
 

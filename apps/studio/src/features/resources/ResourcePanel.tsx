@@ -6,11 +6,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { useBuddies } from './buddies.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
 import { glideName, moving } from './motion.ts'
 import { ORDER_LABEL, ordered, ORDERS, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
+import { useUltra } from './ultra.ts'
 import { ResourceSheet } from './ResourceSheet.tsx'
 import { ResourceTile } from './ResourceTile.tsx'
 import {
@@ -262,10 +264,13 @@ const observationOf = (observations: QuotaObservation[], r: Resource) =>
   observations.find((o) => o.entitlement_id === r.entitlementId)
 
 /** The enrolled tools to browse: the search and filters over the tiles, or what to do when none is shown. */
-function Browse(props: Props & { onOpen: (id: string) => void }) {
-  const { resources, observations, actions, viewerId, now, onOpen } = props
-  const view = useView(props)
+type View = ReturnType<typeof useView>
+
+function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
+  const { resources, observations, actions, viewerId, now, onOpen, view } = props
   const roving = useRoving(view.shown.length)
+  const list = useRef<HTMLUListElement>(null)
+  const buddies = useBuddies(list, view.shown.map((r) => r.id).join(' '))
   return (
     <>
       <div className="resources-toolbar">
@@ -284,7 +289,7 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
           onAll={() => moving(() => view.setFilter('all'))}
         />
       ) : (
-        <ul id="resource-grid" className="resource-grid" aria-label="Resources" onKeyDown={roving.onKeyDown}>
+        <ul ref={list} id="resource-grid" className="resource-grid" aria-label="Resources" onKeyDown={roving.onKeyDown}>
           {view.shown.map((r, i) => (
             // Each arrives a beat after the one before (the first eight), and glides when a filter moves it.
             <li key={r.id} style={{ '--i': Math.min(i, 8), viewTransitionName: glideName(r.id) }}>
@@ -295,6 +300,7 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
                 mine={r.owner.id === viewerId}
                 waiting={openOn(actions, r.id)}
                 onOpen={() => onOpen(r.id)}
+                buddy={buddies.get(r.id)}
                 current={i === roving.current}
                 onFocus={() => roving.setActive(i)}
                 ref={(el) => {
@@ -328,7 +334,7 @@ function Placeholders() {
 }
 
 /** What the view shows under its head: placeholders while reading, the empty note, or the tiles to browse. */
-function Body(props: Props & { onOpen: (id: string) => void }) {
+function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
   if (props.loading) return <Placeholders />
   if (props.resources.length === 0) {
     return (
@@ -349,15 +355,24 @@ export function ResourcePanel(given: Props) {
     setOpen(id)
     showInAddress(id)
   }
+  const view = useView(props)
+  const ultra = useUltra()
+  // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
+  const order = view.shown.some((r) => r.id === open) ? view.shown : resources
+  const at = order.findIndex((r) => r.id === open)
+  const step = (by: 1 | -1) => show(order[(at + by + order.length) % order.length]?.id ?? null)
   return (
-    <section className="resources" aria-labelledby="resources-title">
+    <section className="resources" aria-labelledby="resources-title" data-ultra={ultra || undefined}>
+      <p className="sr-only" role="status">
+        {ultra ? 'Ultracode, for everyone, for a moment.' : ''}
+      </p>
       <header className="view-head">
         <h2 id="resources-title">Resources</h2>
         <span className="count">{props.loading ? '–' : resources.length}</span>
         <span className="resources-summary">{summary(resources, actions)}</span>
       </header>
       <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />
-      <Body {...props} onOpen={show} />
+      <Body {...props} onOpen={show} view={view} />
       {selected && (
         <ResourceSheet
           resource={selected}
@@ -367,6 +382,7 @@ export function ResourcePanel(given: Props) {
           viewerId={viewerId}
           now={now}
           onClose={() => show(null)}
+          onStep={order.length > 1 ? step : undefined}
         />
       )}
     </section>

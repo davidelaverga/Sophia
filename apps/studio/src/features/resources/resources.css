@@ -974,6 +974,150 @@
   }
 }
 
+/* The last pass. The sheet's head takes a faint light in its tool's colour, as the app's pages take hers from above;
+   its mark arrives with a small pop; a meter in the red glows softly; a tile's mark lifts under the pointer. */
+.resource-sheet .sheet-top {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tool-accent) 7%, var(--plane)), var(--plane));
+}
+.resource-sheet-head .tool-logo {
+  animation: logo-in 0.45s var(--ease) both;
+}
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.capacity-meter.is-full .capacity-meter-fill {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--rose) 45%, transparent);
+}
+.tool-logo.lg {
+  transition: transform var(--fast) var(--ease);
+}
+@media (hover: hover) {
+  .resource-tile:hover .tool-logo.lg {
+    transform: scale(1.05);
+  }
+}
+
+/* Two Claude Codes side by side (buddies.ts): their marks greet with a hop and a wave when they come together, then
+   rest leaning toward each other; hovering one makes the other hop back. With less motion asked, they only lean. */
+.resource-tile[data-buddy='right'] .tool-logo > * {
+  transform: rotate(6deg) translateX(1px);
+  animation: buddy-hello-right 1.6s var(--ease) 0.3s both;
+}
+.resource-tile[data-buddy='left'] .tool-logo > * {
+  transform: rotate(-6deg) translateX(-1px);
+  animation: buddy-hello-left 1.6s var(--ease) 0.3s both;
+}
+.resource-tile[data-buddy='both'] .tool-logo > * {
+  animation: buddy-hop 0.6s var(--ease) 0.3s both;
+}
+@keyframes buddy-hello-right {
+  0% {
+    transform: none;
+  }
+  18% {
+    transform: translateY(-3px) rotate(-6deg);
+  }
+  34% {
+    transform: translateY(0) rotate(10deg);
+  }
+  50% {
+    transform: rotate(-4deg);
+  }
+  66% {
+    transform: rotate(8deg);
+  }
+  to {
+    transform: rotate(6deg) translateX(1px);
+  }
+}
+@keyframes buddy-hello-left {
+  0% {
+    transform: none;
+  }
+  18% {
+    transform: translateY(-3px) rotate(6deg);
+  }
+  34% {
+    transform: translateY(0) rotate(-10deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+  66% {
+    transform: rotate(-8deg);
+  }
+  to {
+    transform: rotate(-6deg) translateX(-1px);
+  }
+}
+@keyframes buddy-hop {
+  40% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes buddy-hop-right {
+  0%,
+  to {
+    transform: rotate(6deg) translateX(1px);
+  }
+  40% {
+    transform: translateY(-3px) rotate(10deg) translateX(1px);
+  }
+}
+@keyframes buddy-hop-left {
+  0%,
+  to {
+    transform: rotate(-6deg) translateX(-1px);
+  }
+  40% {
+    transform: translateY(-3px) rotate(-10deg) translateX(-1px);
+  }
+}
+/* Hover one, and its neighbour answers. */
+@media (hover: hover) {
+  .resource-grid > li:has(.resource-tile[data-buddy='right']:hover) + li .resource-tile[data-buddy] .tool-logo > * {
+    animation: buddy-hop-left 0.6s var(--ease);
+  }
+  .resource-grid > li:has(+ li .resource-tile[data-buddy='left']:hover) .resource-tile[data-buddy] .tool-logo > * {
+    animation: buddy-hop-right 0.6s var(--ease);
+  }
+}
+
+/* The secret (ultra.ts): "ultracode" typed on the view sends the ultracode bar's lavender dots across every tile, once. */
+.resource-grid {
+  position: relative;
+}
+.resources[data-ultra] .resource-grid::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+      100deg,
+      transparent 35%,
+      rgba(179, 163, 245, 0.55) 47%,
+      #f4f0ff 50%,
+      rgba(179, 163, 245, 0.55) 53%,
+      transparent 65%
+    )
+    0 0 / 300% 100%;
+  mask: radial-gradient(circle, #000 1.2px, transparent 1.8px) 0 0 / 6px 6px;
+  -webkit-mask: radial-gradient(circle, #000 1.2px, transparent 1.8px) 0 0 / 6px 6px;
+  animation: ultra-sweep 1.6s var(--ease) both;
+}
+@keyframes ultra-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 /* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
 @media (prefers-reduced-motion: reduce) {
   .resource-tile,
@@ -986,7 +1130,8 @@
   .resource-placeholder > span,
   .effort[data-look][data-alive] .effort-fill,
   .effort[data-look][data-alive] .effort-fill::after,
-  .effort[data-look][data-alive] .effort-track::after {
+  .effort[data-look][data-alive] .effort-track::after,
+  .resource-sheet-head .tool-logo {
     animation: none;
   }
   .attention-label {
@@ -999,5 +1144,16 @@
   }
   .capacity-toggle .icon {
     transition: none;
+  }
+  .resources[data-ultra] .resource-grid::after {
+    display: none;
+  }
+  .resource-tile[data-buddy] .tool-logo > *,
+  .resource-grid > li:has(.resource-tile[data-buddy='right']:hover) + li .resource-tile[data-buddy] .tool-logo > *,
+  .resource-grid > li:has(+ li .resource-tile[data-buddy='left']:hover) .resource-tile[data-buddy] .tool-logo > * {
+    animation: none;
+  }
+  .resource-tile:hover .tool-logo.lg {
+    transform: none;
   }
 }

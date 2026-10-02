@@ -603,6 +603,100 @@ test('each session’s effort in its tool’s own look: Claude alive in ultracod
   expect(await animationOf(claude.locator('.effort-track'), '::after')).toBe('none')
 })
 
+test('the sheet steps through the resources as the list shows them: J, K, and its buttons', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await open(page, 'Davide · Codex')
+  await page.keyboard.press('j')
+  await expect(sheet(page, 'Luis · Gemini CLI')).toBeVisible() // the next tile, by attention
+  await expect(page).toHaveURL(/#resource-luis-gemini$/)
+  await page.keyboard.press('k')
+  await page.keyboard.press('k')
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+  await page.keyboard.press('k') // the first steps back to the last
+  await expect(sheet(page, 'Davide · Grok')).toBeVisible()
+  await page.getByRole('button', { name: 'Next resource' }).click()
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+  await page.keyboard.press('j') // the focus stayed in the sheet when its page turned
+  await expect(sheet(page, 'Davide · Codex')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await filter(page, 'Mine 2').click() // only what the list shows
+  await open(page, 'Luis · Gemini CLI')
+  await page.keyboard.press('j')
+  await expect(sheet(page, 'Luis · Claude Code')).toBeVisible()
+  await page.keyboard.press('j')
+  await expect(sheet(page, 'Luis · Gemini CLI')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await search(page).fill('grok')
+  await filter(page, 'All 1').click()
+  await open(page, 'Davide · Grok') // alone: nowhere to step
+  await expect(page.getByRole('button', { name: /Next resource|Previous resource/ })).toHaveCount(0)
+})
+
+test('the sheet’s head takes its tool’s light, and a meter in the red glows', async ({ page }) => {
+  await page.goto(`${PAGE}?busy=1`)
+  await expect(tile(page, 'Davide · Codex').locator('.capacity-meter-fill')).not.toHaveCSS('box-shadow', 'none')
+  await open(page, 'Davide · Codex')
+  const head = sheet(page, 'Davide · Codex').locator('.sheet-top')
+  expect(await head.evaluate((el) => getComputedStyle(el).backgroundImage)).toMatch(/linear-gradient/)
+})
+
+test('a secret: “ultracode” typed on the view sends a wave across the tiles, once; never from a field', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  const view = page.locator('section.resources')
+  await search(page).focus()
+  await page.keyboard.type('ultracode') // typed, key by key, in a field: typing, nothing more
+  await page.waitForTimeout(200)
+  expect(await view.getAttribute('data-ultra')).toBeNull()
+  await search(page).fill('')
+  await search(page).blur()
+  await page.keyboard.type('ultracode')
+  await expect(view).toHaveAttribute('data-ultra', 'true')
+  await expect(page.getByRole('status').filter({ hasText: 'Ultracode, for everyone, for a moment.' })).toBeAttached()
+  expect(await animationOf(page.locator('.resource-grid'), '::after')).toBe('ultra-sweep')
+  await expect(view).not.toHaveAttribute('data-ultra') // once, then it rests
+  await expect(grid(page).getByRole('button')).toHaveCount(5) // and it changed nothing
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.keyboard.type('ultracode')
+  await expect(view).toHaveAttribute('data-ultra', 'true') // said,
+  expect(await page.locator('.resource-grid').evaluate((g) => getComputedStyle(g, '::after').display)).toBe('none') // not drawn
+})
+
+/** A tile's mark itself, the one that moves. */
+const mark = (t: Locator) => t.locator('.tool-logo > *')
+
+test('two Claude Codes side by side greet, then look at each other; hover one and the other answers', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  const davide = tile(page, 'Davide · Claude Code')
+  const luis = tile(page, 'Luis · Claude Code')
+  await expect(davide).not.toHaveAttribute('data-buddy') // by attention they aren't neighbours
+  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await expect(davide).toHaveAttribute('data-buddy', 'right')
+  await expect(luis).toHaveAttribute('data-buddy', 'left')
+  await expect(tile(page, 'Davide · Codex')).not.toHaveAttribute('data-buddy')
+  expect(await animationOf(mark(davide))).toBe('buddy-hello-right')
+  await davide.hover()
+  await expect.poll(() => animationOf(mark(luis))).toBe('buddy-hop-left') // it answers
+  await page.mouse.move(5, 700)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await animationOf(mark(davide))).toBe('none') // still: they only lean toward each other
+  await davide.hover()
+  expect(await animationOf(mark(luis))).toBe('none') // and the answer is still too
+  expect(await mark(davide).evaluate((m) => getComputedStyle(m).transform)).not.toBe('none')
+})
+
+test('@phone · one tile to a row: no neighbours to greet', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  // Once the order has glided into place, the two Claude Codes follow each other, a row apart: no greeting.
+  await expect(grid(page).getByRole('button').nth(1)).toHaveAttribute('aria-label', 'Luis · Claude Code')
+  await page.waitForTimeout(300)
+  expect(await page.locator('.resource-tile[data-buddy]').count()).toBe(0)
+})
+
 test('the viewer’s own resource says so', async ({ page }) => {
   await page.goto(PAGE)
   await expect(tile(page, 'Luis · Claude Code').getByText('You', { exact: true })).toBeVisible()
