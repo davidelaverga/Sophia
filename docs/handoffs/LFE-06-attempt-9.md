@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/live`, stacked on `lfe-06/identity-qol` (#52) at `3997fd0`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `95c3277`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `clock.ts`, the panel, the tile and the stylesheet;
   - `features/studio/ProjectShell.tsx`: an optional `resourcesWaiting`, added to the tab's count;
