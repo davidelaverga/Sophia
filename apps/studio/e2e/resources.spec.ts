@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel on the labelled simulated fixture page
-// (fixtures/resources.html). Showing resources calls nothing: each check ends by asking the page for any request.
+// LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
+// Resources view, on the labelled simulated fixture page (fixtures/resources.html). The panel calls nothing: each check
+// ends by asking the page for any request the fixture didn't expect.
 
 const PAGE = '/resources.html'
 
@@ -30,11 +31,12 @@ test('LFE-06.1 · the three enrollments, each with its owner, tool, host, sessio
   const session = codex.getByRole('listitem').filter({ hasText: 'Review the report pane' })
   await expect(session.getByText('Working', { exact: true })).toBeVisible()
   const controls = codex.getByRole('list', { name: 'Controls' }).getByRole('listitem')
+  // Each says its state to a screen reader, and what it does in a tip.
   await expect(controls).toHaveText([
-    /Stop: supported$/,
-    /Hold: supported$/,
-    /Guidance: not qualified yet$/,
-    /Requests: not qualified yet$/,
+    /^✓Stop: supportedEnds its work/,
+    /^✓Hold: supportedPauses its work/,
+    /^–Guidance: not qualified yetSends it guidance/,
+    /^–Requests: not qualified yetAnswers its tool/,
   ])
   await expect(card(page, 'Davide · Claude Code').getByText('claude-opus-5-5 · high effort')).toBeVisible()
   await expect(card(page, 'Luis · Claude Code').getByText('Host unknown')).toBeVisible()
@@ -108,8 +110,8 @@ test('RES-03 · Davide is told where to answer it, and the page still answers no
 
 test('what waits on an owner comes first, and a card with one brings the focus to it', async ({ page }) => {
   await page.goto(PAGE)
-  await expect(page.getByText('3 resources · 2 hosts online · 1 request waiting')).toBeVisible()
-  const requests = page.getByRole('region', { name: 'Waiting on an owner' })
+  await expect(page.getByText('2 hosts online · 1 request waiting')).toBeVisible()
+  const requests = page.getByRole('complementary', { name: 'Waiting on an owner' })
   const first = await card(page, 'Davide · Codex').boundingBox()
   expect((await requests.boundingBox())?.y ?? Infinity, 'above the cards').toBeLessThan(first?.y ?? 0)
   await card(page, 'Davide · Claude Code').getByRole('button', { name: '1 request waiting' }).click()
@@ -162,6 +164,29 @@ test('a balance heads its capacity as a count, with no meter and no unknown trac
   await expect(gemini.getByRole('button', { name: 'Show window' })).toBeVisible()
   await expect(capacity(page, 'Davide · Grok').getByText('Capacity unknown')).toBeVisible()
   await expect(capacity(page, 'Davide · Grok').locator('.capacity-meter.is-unknown')).toHaveCount(1)
+})
+
+test('the owner copies the session’s id to find it in the native tool; no one else is offered it', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(`${PAGE}?viewer=davide`)
+  const copy = page.getByRole('button', { name: 'Copy session id' })
+  await copy.click()
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('claude-worker')
+  await expect(page.getByRole('button', { name: 'Copy session id' })).toBeVisible() // it says so for a moment
+  await page.goto(PAGE)
+  await expect(page.getByRole('button', { name: /Copy session id|Copied/ })).toHaveCount(0)
+})
+
+test('with nothing waiting, the column says so and no row points anywhere', async ({ page }) => {
+  await page.goto(`${PAGE}?quiet=1`)
+  const column = page.getByRole('complementary', { name: 'Waiting on an owner' })
+  await expect(column.getByText('Nothing is waiting on an owner.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /request/ })).toHaveCount(0)
+  await expect(page.getByText('2 hosts online · nothing waiting')).toBeVisible()
 })
 
 test('the windows open and close by keyboard', async ({ page }) => {

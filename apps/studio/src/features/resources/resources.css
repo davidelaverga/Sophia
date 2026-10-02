@@ -1,188 +1,75 @@
-/* The project's resources (ResourcePanel): what waits on an owner first, then one card per enrolled tool. Type is
-   kept to five sizes: 18 and 14 for headings, 13 for words, 12 mono for data, 10.5 mono capitals for labels. */
-.resources {
-  display: grid;
-  gap: 16px;
-  width: 100%;
-  max-width: 1040px;
-  margin: 0 auto;
-  font-size: 13px;
+/* The Resources view (ResourcePanel), in the Work view's own language: a list under the view's head, rows ruled
+   like goals, and what waits on an owner in the side column, timed like the pulse. Nothing here is a box of its own. */
+
+/* The side column comes first in reading order; on a wide page it stands beside the list, as the pulse does. */
+@media (min-width: 901px) {
+  .resources-waiting {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .resources {
+    grid-column: 1;
+    grid-row: 1;
+  }
 }
-.resources-head {
-  display: grid;
-  gap: 4px;
-}
-.resources-head h2 {
-  font-size: 18px;
+@media (max-width: 900px) {
+  .resources-waiting {
+    position: static;
+    margin-bottom: 8px;
+  }
 }
 .resources-summary {
-  color: var(--text-2);
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12.5px;
 }
 
-/* What waits on an owner: first, compact, one line of who and where to answer. */
-.required-actions {
-  display: grid;
-  gap: 8px;
-}
-.required-actions h3 {
-  font-size: 14px;
-}
-.required-actions ul {
-  display: grid;
-  gap: 8px;
+/* A row per resource, ruled like a goal: 18 px of air, a line under it. */
+.resource-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.required-action {
-  display: grid;
-  gap: 6px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-left: 2px solid var(--amber);
-  border-radius: var(--r-2);
-  background: var(--plane-2);
-  scroll-margin-top: 16px;
-}
-.required-action:focus-visible {
-  outline: 2px solid var(--halo);
-  outline-offset: 2px;
-}
-.required-action-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.required-action-owner {
-  color: var(--text-2);
-}
-.required-action-operation,
-.required-action-meta,
-.resource-age,
-.resource-model,
-.capacity-meta,
-.capacity-reset {
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.required-action-operation {
-  overflow-wrap: anywhere;
-}
-.required-action-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 12px;
-}
-.required-action-meta,
-.resource-age,
-.capacity-meta,
-.capacity-reset {
-  color: var(--text-3);
-}
-.required-action .pill {
-  justify-self: start;
-}
-
-/* The cards: a row shares one height; a shorter card's spare room falls below its controls. */
-.resource-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
-}
 .resource {
-  --tool-accent: var(--line-3);
-  display: flex;
-  flex-direction: column;
+  --tool-accent: var(--text-3);
+  display: grid;
   gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--tool-accent) 7%, transparent), transparent 96px), var(--plane-2);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tool-accent) 45%, transparent);
-  transition: border-color var(--fast) var(--ease);
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+  animation: arrive 0.4s var(--ease) both;
 }
-.resource:hover {
-  border-color: var(--line-2);
+.resource-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
 }
-/* Each tool's own colour, from its mark: it tints the card's top and the mark's tile, never a state. */
-[data-tool='claude-code'] {
-  --tool-accent: #d97757;
-}
-[data-tool='gemini-cli'] {
-  --tool-accent: #8e75b2;
-}
-[data-tool='codex'],
-[data-tool='grok'],
-[data-tool='github-copilot'],
-[data-tool='cursor'] {
-  --tool-accent: var(--text-2);
-}
-
-/* A tool's mark: on a tile at a card's head, bare in a line of text. */
-.tool-logo {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-}
-.tool-logo.lg {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-3);
-  background: color-mix(in srgb, var(--tool-accent, var(--text-2)) 10%, var(--plane));
-}
-.tool-logo.sm {
-  width: 16px;
-  height: 16px;
-  margin-right: 6px;
-  vertical-align: -3px;
-}
-.tool-logo img,
-.tool-logo-mark {
-  display: block;
-  width: 22px;
-  height: 22px;
-}
-.tool-logo.sm img,
-.tool-logo.sm .tool-logo-mark {
-  width: 16px;
-  height: 16px;
-}
-.tool-logo-mark {
-  background: var(--text);
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-}
-.resource-head {
+.resource-id {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
 .resource-title {
   display: grid;
   gap: 2px;
   min-width: 0;
-  margin-right: auto;
 }
-.resource-head h3 {
+.resource-meta h3 {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
 }
-.resource-vendor {
+.resource-vendor,
+.resource-role,
+.capacity-windows dt {
   font-family: var(--mono);
   font-size: 10.5px;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -192,6 +79,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text-2);
+  font-size: 13px;
 }
 .resource-initial {
   display: grid;
@@ -209,57 +97,56 @@
   align-items: center;
   gap: 6px;
   color: var(--text-2);
+  font-size: 12.5px;
+}
+.resource-age,
+.resource-model,
+.capacity-meta,
+.capacity-reset,
+.waiting-operation,
+.waiting-foot .muted {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.resource-age,
+.capacity-meta,
+.capacity-reset,
+.waiting-foot .muted {
+  color: var(--text-3);
 }
 .resource-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--text-4);
 }
 .resource-host.online .resource-dot {
   background: var(--teal);
-  box-shadow: 0 0 0 0 rgba(127, 214, 196, 0.5);
-  animation: host-live 2.4s var(--ease) infinite;
-}
-@keyframes host-live {
-  70% {
-    box-shadow: 0 0 0 5px rgba(127, 214, 196, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(127, 214, 196, 0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .resource-host.online .resource-dot {
-    animation: none;
-  }
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
 }
 .resource-host.offline .resource-dot {
   background: var(--rose);
+  box-shadow: 0 0 0 3px rgba(238, 159, 176, 0.12);
 }
 .resource-waiting {
-  align-self: flex-start;
+  justify-self: start;
+  margin-left: 44px;
   color: var(--amber);
 }
+
+/* Sessions, indented under the tool as a goal's criteria are under its title. */
 .resource-sessions {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 44px;
   list-style: none;
 }
 .resource-session {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   align-items: baseline;
-  gap: 2px 10px;
-}
-.resource-role {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  gap: 2px 12px;
 }
 .resource-model {
   color: var(--text-2);
@@ -271,32 +158,33 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  color: var(--text);
+  font-size: 13px;
 }
 .resource-work.idle {
   color: var(--text-3);
 }
-.resource-foot {
-  display: grid;
-  gap: 10px;
-}
 
-/* Capacity: the line, a meter only for a known percentage, and every window on request. */
+/* Capacity: a line, a thin meter only for a known percentage, and every window on request. No box. */
 .capacity {
   display: grid;
   gap: 6px;
-  padding: 10px;
-  border-radius: var(--r-2);
-  background: rgba(236, 235, 241, 0.03);
+  max-width: 420px;
+  padding-left: 44px;
+}
+.capacity-line {
+  font-size: 13px;
+  color: var(--text);
 }
 .capacity-meter {
   position: relative;
-  height: 4px;
+  height: 3px;
   overflow: hidden;
   border-radius: var(--r-1);
   background: var(--line-2);
 }
 .capacity-meter.is-unknown {
-  background: repeating-linear-gradient(-45deg, var(--line) 0 4px, transparent 4px 8px);
+  background: repeating-linear-gradient(-45deg, var(--line-2) 0 3px, transparent 3px 7px);
 }
 .capacity-meter-fill {
   position: absolute;
@@ -312,6 +200,7 @@
   align-items: center;
   gap: 4px;
   justify-self: start;
+  font-size: 12.5px;
 }
 .capacity-toggle .icon {
   width: 12px;
@@ -324,19 +213,14 @@
 .capacity-windows {
   display: grid;
   gap: 8px;
-  margin: 2px 0 0;
+  margin: 4px 0 0;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--line);
 }
 .capacity-windows div {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
   gap: 10px;
-}
-.capacity-windows dt {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
 }
 .capacity-windows dd {
   display: flex;
@@ -344,45 +228,150 @@
   align-items: center;
   gap: 4px 8px;
   margin: 0;
+  font-size: 12.5px;
 }
 .capacity-windows dd .capacity-meter {
   flex-basis: 100%;
 }
 .capacity-missing {
   color: var(--text-3);
+  font-size: 12.5px;
 }
 
-/* The route's controls, shown, not offered: a glyph and a word each, never a button. */
+/* The route's controls: small mono labels with a glyph, like the list's other facts; a tip says what each does. */
 .resource-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 4px 14px;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 44px;
   list-style: none;
 }
 .control {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-1);
-  color: var(--text-3);
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
 }
 .control.supported {
   color: var(--text-2);
 }
-.control-glyph {
-  font-family: var(--mono);
-  font-size: 12px;
-}
 .control.supported .control-glyph {
   color: var(--teal);
 }
+.control.unsupported .control-glyph {
+  color: var(--rose);
+}
+
+/* What waits on an owner: the pulse's timeline, with an amber dot for what waits. */
+.event.waiting {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 8px 0 12px;
+  scroll-margin-top: calc(var(--topbar) + 16px);
+}
+.event.waiting:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+  border-radius: var(--r-1);
+}
+.event.waiting .dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+}
+.event.waiting:not(.open) .dot {
+  background: var(--text-4);
+  box-shadow: none;
+}
+.waiting-body {
+  display: grid;
+  gap: 6px;
+}
+.waiting-owner {
+  color: var(--text-2);
+}
+.waiting-operation {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.waiting-line {
+  color: var(--text);
+  font-size: 13px;
+}
+.waiting-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.waiting-copy {
+  justify-self: start;
+  font-size: 12.5px;
+}
+
+/* A tool's mark: on a tile at a row's head, bare in a line of text. */
+[data-tool='claude-code'] {
+  --tool-accent: #d97757;
+}
+[data-tool='gemini-cli'] {
+  --tool-accent: #8e75b2;
+}
+.tool-logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.tool-logo.lg {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 8%, var(--plane-2));
+}
+.tool-logo.sm {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.tool-logo img,
+.tool-logo-mark {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.tool-logo.sm img,
+.tool-logo.sm .tool-logo-mark {
+  width: 14px;
+  height: 14px;
+}
+.tool-logo-mark {
+  background: var(--text);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
 @media (max-width: 560px) {
-  .resource-list {
+  .resource-sessions,
+  .capacity,
+  .resource-controls {
+    padding-left: 0;
+  }
+  .resource-waiting {
+    margin-left: 0;
+  }
+  .resource-session {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .resource-work {
+    grid-column: 1;
   }
 }

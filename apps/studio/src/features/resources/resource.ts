@@ -240,12 +240,11 @@ export const capacityLine = (obs: QuotaObservation | undefined, now: Date) => ca
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
-/** The panel in one line: how many resources, how many hosts are online, how many requests wait. No capacity total. */
+/** Beside the view's count: how many hosts are online and how many requests wait. Never a capacity total. */
 export function summary(resources: Resource[], actions: RequiredAction[]): string {
   const online = resources.filter((r) => r.host.state === 'online').length
   const waiting = actions.filter((a) => a.state === 'open').length
   return [
-    plural(resources.length, 'resource'),
     `${online} ${online === 1 ? 'host' : 'hosts'} online`,
     waiting ? `${plural(waiting, 'request')} waiting` : 'nothing waiting',
   ].join(' · ')

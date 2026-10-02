@@ -130,13 +130,10 @@ describe('a resource’s capacity', () => {
 const r = (state: Resource['host']['state']) => ({ host: { state, observedAt: null } }) as Resource
 
 describe('the panel’s summary and meter', () => {
-  it('counts resources, hosts online and requests waiting, and never capacity', () => {
+  it('counts hosts online and requests waiting, and never capacity', () => {
     const open = { state: 'open' } as RequiredAction
-    assert.equal(
-      summary([r('online'), r('online'), r('unknown')], [open]),
-      '3 resources · 2 hosts online · 1 request waiting',
-    )
-    assert.equal(summary([r('offline')], []), '1 resource · 0 hosts online · nothing waiting')
+    assert.equal(summary([r('online'), r('online'), r('unknown')], [open]), '2 hosts online · 1 request waiting')
+    assert.equal(summary([r('offline')], []), '0 hosts online · nothing waiting')
   })
 
   it('gives a meter only for a percentage known to apply', () => {

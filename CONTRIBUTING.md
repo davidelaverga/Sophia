@@ -426,17 +426,19 @@ when you change the room:
   S1-06 serves real candidates.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
-  or account read" (`more=1` adds Grok and Gemini CLI), the real
-  `ResourcePanel`. What waits on an owner comes first, and a card with a
-  waiting request takes the focus to it. Each tool shows as itself
-  (`ToolLogo`, marks from `@lobehub/icons-static-svg`; a one-colour mark takes
-  the text's colour). Capacity that isn't observed, or a reading past its
-  `valid_until`, says "Capacity unknown" over an empty track, never a number;
-  a meter is drawn only for a percentage known to apply; a balance heads as a
-  count; one account's sessions share one capacity; providers are never added
-  up; only a request's owner is told where to answer it; controls are shown,
-  never offered. It isn't in the Studio yet: it shows there once SCM-01/02
-  serve resources.
+  or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` empties the
+  column), the Studio's own `ProjectShell` on its Resources view, with the
+  real `ResourcePanel` in it (`ProjectShell`'s `resources`; production keeps
+  the view's "coming" note until SCM-01/02 serve resources). It speaks the
+  Work view's language: a list under the view's head, rows ruled like goals,
+  and what waits on an owner in the side column, timed like the pulse (first
+  on a phone). Each tool shows as itself (`ToolLogo`, marks from
+  `@lobehub/icons-static-svg`). Capacity that isn't observed, or a reading
+  past its `valid_until`, says "Capacity unknown" over an empty track, never a
+  number; a meter is drawn only for a percentage known to apply; a balance
+  heads as a count; providers are never added up. Only a request's owner is
+  told where to answer it and gets its session's id to copy; controls are
+  shown, never offered.
 
 ## The personal space
 

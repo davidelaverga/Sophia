@@ -1,6 +1,8 @@
-// The requests a native tool is holding for its owner, first on the panel: who it belongs to, the session, what it
-// asks and until when. Only the owner is told how to answer it, in the native tool; there is no Approve here (phase
-// one), and seeing a request answers nothing. A resource's card brings the focus here (`requestId`).
+// What waits on an owner, in the Resources view's side column, as Work has its pulse: the requests a native tool is
+// holding for its owner, with whose they are, the session, what they ask and until when. Only the owner is told how
+// to answer, in the native tool, and gets the session's id to copy; there is no Approve here (phase one), and seeing
+// a request answers nothing. A resource's row brings the focus here (`requestId`).
+import { useRef, useState } from 'react'
 import { Tag } from '@sophia/ui'
 import { actionLine, actionState, expiry, TOOL, type RequiredAction, type Resource } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
@@ -14,7 +16,7 @@ const TONE = {
   unknown: 'amber',
 } as const
 
-/** The element a request is shown in, for a card that points to it. */
+/** The element a request is shown in, for a row that points to it. */
 export const requestId = (actionId: string) => `request-${actionId}`
 
 interface Props {
@@ -24,50 +26,78 @@ interface Props {
   now: Date
 }
 
-function ActionCard({
-  action,
-  resource,
-  viewerId,
-  now,
-}: { action: RequiredAction; resource: Resource } & Omit<Props, 'actions' | 'resources'>) {
-  const line = actionLine(action, viewerId, resource)
-  const mine = viewerId === action.ownerId
+/** The session's id, to find it in the native tool: copied, and said so for a moment. */
+function CopySession({ sessionId }: { sessionId: string }) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(sessionId)
+      setCopied(true)
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setCopied(false)
+    }
+  }
   return (
-    <li className="required-action" id={requestId(action.id)} tabIndex={-1}>
-      <div className="required-action-head">
-        <span className="required-action-owner">
+    <button type="button" className="text-button waiting-copy" onClick={() => void copy()}>
+      {copied ? 'Copied' : 'Copy session id'}
+    </button>
+  )
+}
+
+interface RequestProps {
+  action: RequiredAction
+  resource: Resource
+  viewerId: string
+  now: Date
+}
+
+function Request({ action, resource, viewerId, now }: RequestProps) {
+  const line = actionLine(action, viewerId, resource)
+  const mine = viewerId === action.ownerId && action.state === 'open'
+  return (
+    <li className={`event waiting ${action.state}`} id={requestId(action.id)} tabIndex={-1}>
+      <span className="dot" aria-hidden />
+      <div className="waiting-body">
+        <p className="waiting-owner">
           <ToolLogo tool={resource.tool} size="sm" />
           {resource.owner.name}’s {TOOL[resource.tool]} · session {action.sessionId}
-        </span>
-        <Tag tone={TONE[action.state]}>{actionState(action)}</Tag>
+        </p>
+        <p className="waiting-operation">{action.operation}</p>
+        {line && <p className="waiting-line">{line}</p>}
+        <p className="waiting-foot">
+          <Tag tone={TONE[action.state]}>{actionState(action)}</Tag>
+          {action.deadline && <span className="muted">{expiry(action.deadline, now)}</span>}
+        </p>
+        {mine && <CopySession sessionId={action.sessionId} />}
+        {mine && action.openTarget && (
+          <a className="pill" href={action.openTarget}>
+            Open in {TOOL[resource.tool]}
+          </a>
+        )}
       </div>
-      <p className="required-action-operation">{action.operation}</p>
-      <p className="required-action-foot">
-        {line && <span className="required-action-line">{line}</span>}
-        {action.deadline && <span className="required-action-meta">{expiry(action.deadline, now)}</span>}
-      </p>
-      {mine && action.state === 'open' && action.openTarget && (
-        <a className="pill" href={action.openTarget}>
-          Open in {TOOL[resource.tool]}
-        </a>
-      )}
     </li>
   )
 }
 
 export function RequiredActions({ actions, resources, viewerId, now }: Props) {
-  if (actions.length === 0) return null
   return (
-    <section className="required-actions" aria-labelledby="required-actions-title">
-      <h3 id="required-actions-title">Waiting on an owner</h3>
-      <ul>
-        {actions.map((a) => {
-          const resource = resources.find((r) => r.id === a.resourceId)
-          return resource ? (
-            <ActionCard key={a.id} action={a} resource={resource} viewerId={viewerId} now={now} />
-          ) : null
-        })}
-      </ul>
-    </section>
+    <aside className="pulse resources-waiting" aria-labelledby="waiting-title">
+      <div className="pulse-head">
+        <h4 id="waiting-title">Waiting on an owner</h4>
+      </div>
+      {actions.length === 0 ? (
+        <p className="empty">Nothing is waiting on an owner.</p>
+      ) : (
+        <ol className="events">
+          {actions.map((a) => {
+            const resource = resources.find((r) => r.id === a.resourceId)
+            return resource ? <Request key={a.id} action={a} resource={resource} viewerId={viewerId} now={now} /> : null
+          })}
+        </ol>
+      )}
+    </aside>
   )
 }
