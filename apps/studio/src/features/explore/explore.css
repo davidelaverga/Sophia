@@ -1,0 +1,177 @@
+/* Explore's direction gallery (DirectionGallery): candidates in a grid, one up close; states in words. */
+.direction {
+  display: grid;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.direction-gallery,
+.direction-detail {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+.direction-head {
+  display: grid;
+  gap: 4px;
+}
+.direction-head h2 {
+  font-size: 18px;
+}
+.direction-meta {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.direction-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.candidate-tile {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  color: inherit;
+  text-align: left;
+  transition:
+    border-color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+.candidate-tile:hover {
+  border-color: var(--line-2);
+}
+.candidate-tile:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+/* One line, whatever the tags say: the route gives way, so every tile keeps the same height. */
+.candidate-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.candidate-route {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.candidate-image {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--r-2);
+  background: var(--void);
+}
+.candidate-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* No picture: the state in words, never a stand-in image. */
+.candidate-image.empty {
+  padding: 16px;
+  border: 1px dashed var(--line-2);
+  background: transparent;
+}
+.candidate-image.empty p {
+  max-width: 28ch;
+  color: var(--text-2);
+  font-size: 12.5px;
+  text-align: center;
+}
+.candidate-image.mismatch p {
+  color: var(--rose);
+}
+.direction-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.direction-detail-head h3 {
+  margin-right: auto;
+  font-size: 15px;
+}
+/* Up close: the picture beside the choice and its facts, both in view without scrolling on a desktop. */
+.direction-detail-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  align-items: start;
+  gap: 20px;
+}
+.direction-detail .candidate-image {
+  width: 100%;
+  max-height: calc(100dvh - 160px);
+}
+.direction-detail-side {
+  display: grid;
+  gap: 16px;
+}
+@media (max-width: 720px) {
+  .direction-detail-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.direction-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.direction-facts div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+}
+.direction-facts dt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.direction-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+}
+.direction-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.direction-why {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+/* A phone compares two at a time, side by side; the route takes its own line so nothing is cut. */
+@media (max-width: 560px) {
+  .direction-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .candidate-foot {
+    flex-wrap: wrap;
+  }
+  .candidate-route {
+    flex-basis: 100%;
+  }
+}
