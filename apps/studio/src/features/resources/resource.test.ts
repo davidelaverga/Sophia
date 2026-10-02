@@ -3,7 +3,9 @@ import { describe, it } from 'node:test'
 import {
   actionLine,
   ago,
+  capacity,
   capacityLine,
+  summary,
   expiry,
   windowView,
   type QuotaObservation,
@@ -89,8 +91,8 @@ describe('a resource’s capacity', () => {
   it('heads with an observed balance as reported, and keeps unknown apart from no window (M03-RF-0024)', () => {
     const tokens = window({ window_id: 'daily', unit: 'tokens_remaining', value: 100000, resets_at: null })
     const credits = window({ window_id: 'credits', unit: 'credits_remaining', value: 42, resets_at: null })
-    assert.equal(capacityLine(observation([tokens]), now), 'daily window: 100000 tokens left')
-    assert.equal(capacityLine(observation([credits]), now), 'credits window: 42 credits left')
+    assert.equal(capacityLine(observation([tokens]), now), 'daily: 100000 tokens left')
+    assert.equal(capacityLine(observation([credits]), now), 'credits: 42 credits left')
     assert.equal(
       capacityLine(observation([window({ value: 40 }), tokens]), now),
       '5-hour window: 40% used, resets in 2 h',
@@ -122,6 +124,29 @@ describe('a resource’s capacity', () => {
     assert.equal(windowView(window({ value: 40 }), now, true).value, 'Expired')
     assert.equal(windowView(window({ value: 40 }), now, true).percent, null)
     assert.equal(capacityLine({ ...old, valid_until: at(30) }, now), '5-hour window: 40% used, resets in 2 h')
+  })
+})
+
+const r = (state: Resource['host']['state']) => ({ host: { state, observedAt: null } }) as Resource
+
+describe('the panel’s summary and meter', () => {
+  it('counts resources, hosts online and requests waiting, and never capacity', () => {
+    const open = { state: 'open' } as RequiredAction
+    assert.equal(
+      summary([r('online'), r('online'), r('unknown')], [open]),
+      '3 resources · 2 hosts online · 1 request waiting',
+    )
+    assert.equal(summary([r('offline')], []), '1 resource · 0 hosts online · nothing waiting')
+  })
+
+  it('gives a meter only for a percentage known to apply', () => {
+    assert.equal(capacity(observation([window({ value: 40 })]), now).limiting?.percent, 40)
+    const tokens = window({ window_id: 'daily', unit: 'tokens_remaining', value: 100000, resets_at: null })
+    assert.equal(capacity(observation([tokens]), now).limiting, null)
+    assert.equal(capacity(observation([window({ value: 88, applicability: 'unknown' })]), now).limiting, null)
+    assert.equal(capacity(undefined, now).limiting, null)
+    assert.equal(capacity(observation([tokens]), now).known, true, 'a balance is observed, not unknown')
+    assert.equal(capacity(undefined, now).known, false)
   })
 })
 

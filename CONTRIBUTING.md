@@ -426,13 +426,17 @@ when you change the room:
   S1-06 serves real candidates.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
-  or account read", the real `ResourcePanel` over the three enrollments.
-  Capacity that isn't observed, or a reading past its `valid_until`, says
-  "Capacity unknown", never a number; a reset already due is "Refresh
-  pending"; a window that may not apply never limits; one account's sessions share one
-  capacity; providers are never added up; only a request's owner is told
-  where to answer it, and nothing on the panel answers, steers or stops. It
-  isn't in the Studio yet: it shows there once SCM-01/02 serve resources.
+  or account read" (`more=1` adds Grok and Gemini CLI), the real
+  `ResourcePanel`. What waits on an owner comes first, and a card with a
+  waiting request takes the focus to it. Each tool shows as itself
+  (`ToolLogo`, marks from `@lobehub/icons-static-svg`; a one-colour mark takes
+  the text's colour). Capacity that isn't observed, or a reading past its
+  `valid_until`, says "Capacity unknown" over an empty track, never a number;
+  a meter is drawn only for a percentage known to apply; a balance heads as a
+  count; one account's sessions share one capacity; providers are never added
+  up; only a request's owner is told where to answer it; controls are shown,
+  never offered. It isn't in the Studio yet: it shows there once SCM-01/02
+  serve resources.
 
 ## The personal space
 

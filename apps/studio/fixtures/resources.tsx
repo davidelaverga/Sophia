@@ -1,13 +1,23 @@
 // The resource panel's fixture page (e2e/resources.spec.ts): the real ResourcePanel over labelled simulated data. It
 // has no port that acts, and any request it makes is recorded as unexpected: showing resources calls nothing. The query
-// string picks who is looking, `viewer=davide` (default: Luis), and `stale=1` (Codex's reading has expired).
+// string picks who is looking, `viewer=davide` (default: Luis); `stale=1` (Codex's reading has expired); `more=1`
+// (Grok and Gemini CLI join the three enrollments).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import '../src/app/theme.css'
-import { actions, expiredAt, NOW, observations, people, resources } from './resources-data.ts'
+import {
+  actions,
+  expiredAt,
+  moreObservations,
+  moreResources,
+  NOW,
+  observations,
+  people,
+  resources,
+} from './resources-data.ts'
 
 declare global {
   interface Window {
@@ -24,10 +34,12 @@ window.fetch = (input: RequestInfo | URL) => {
 
 const query = new URLSearchParams(window.location.search)
 const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
-const read =
-  query.get('stale') === '1'
-    ? observations.map((o) => (o.entitlement_id === 'ent-davide-openai' ? { ...o, valid_until: expiredAt() } : o))
-    : observations
+const more = query.get('more') === '1'
+const shown = more ? [...resources, ...moreResources] : resources
+const stale = query.get('stale') === '1'
+const read = [...observations, ...(more ? moreObservations : [])].map((o) =>
+  stale && o.entitlement_id === 'ent-davide-openai' ? { ...o, valid_until: expiredAt() } : o,
+)
 
 const root = document.getElementById('root')
 if (!root) throw new Error('resources.html must contain #root')
@@ -38,7 +50,7 @@ createRoot(root).render(
       Simulated — no tool, host or account read · viewing as {viewer.name}
     </p>
     <main className="fixture-resources">
-      <ResourcePanel resources={resources} observations={read} actions={actions} viewerId={viewer.id} now={NOW} />
+      <ResourcePanel resources={shown} observations={read} actions={actions} viewerId={viewer.id} now={NOW} />
     </main>
   </StrictMode>,
 )

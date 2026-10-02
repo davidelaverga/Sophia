@@ -26,6 +26,11 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   2. a pending reset, or an unknown window, while any window is unresolved;
   3. an observed balance, as reported;
   4. "No window observed" only for a reading with no windows.
+- **Attempt 4** ([handoff](../handoffs/LFE-06-attempt-4.md)): Luis's UX and quality-of-life pass, with each tool's own mark. Measured at 1280×720, before → after:
+  - the request waiting on an owner moves from y 489 (last on the page) to y 126 (first);
+  - text styles go from 10 to 7;
+  - card heights go from 283/371/279 to one shared height;
+  - visible words go from 206 to 187.
 
 ## Acceptance cases
 

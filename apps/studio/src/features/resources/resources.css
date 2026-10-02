@@ -1,10 +1,12 @@
-/* The project's resources (ResourcePanel): one card per enrolled tool, then what waits on an owner. */
+/* The project's resources (ResourcePanel): what waits on an owner first, then one card per enrolled tool. Type is
+   kept to five sizes: 18 and 14 for headings, 13 for words, 12 mono for data, 10.5 mono capitals for labels. */
 .resources {
   display: grid;
   gap: 16px;
   width: 100%;
   max-width: 1040px;
   margin: 0 auto;
+  font-size: 13px;
 }
 .resources-head {
   display: grid;
@@ -13,107 +15,11 @@
 .resources-head h2 {
   font-size: 18px;
 }
-.resource-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  align-items: start;
-  gap: 12px;
-}
-.resource {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--plane-2);
-}
-.resource-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.resource-head h3 {
-  margin-right: auto;
-  font-size: 14px;
-}
-.resource-age,
-.capacity-meta,
-.capacity-reset,
-.required-action-meta {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
-}
-.resource-sessions {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.resource-session {
-  display: grid;
-  gap: 2px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line-2);
-}
-.resource-role {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.resource-model {
-  font-family: var(--mono);
-  font-size: 12px;
+.resources-summary {
   color: var(--text-2);
 }
-.resource-work {
-  font-size: 13px;
-}
-.capacity {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border-radius: var(--r-2);
-  background: rgba(236, 235, 241, 0.03);
-}
-.capacity-line {
-  font-size: 13px;
-}
-.capacity .text-button {
-  justify-self: start;
-}
-.capacity-windows {
-  display: grid;
-  gap: 6px;
-  margin: 6px 0 0;
-}
-.capacity-windows div {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 10px;
-}
-.capacity-windows dt {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
-}
-.capacity-windows dd {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 12.5px;
-}
-.capacity-missing,
-.resource-controls {
-  font-size: 12px;
-  color: var(--text-3);
-}
+
+/* What waits on an owner: first, compact, one line of who and where to answer. */
 .required-actions {
   display: grid;
   gap: 8px;
@@ -131,11 +37,16 @@
 .required-action {
   display: grid;
   gap: 6px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border: 1px solid var(--line);
   border-left: 2px solid var(--amber);
   border-radius: var(--r-2);
   background: var(--plane-2);
+  scroll-margin-top: 16px;
+}
+.required-action:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
 }
 .required-action-head {
   display: flex;
@@ -145,19 +56,330 @@
   gap: 8px;
 }
 .required-action-owner {
-  font-size: 12.5px;
   color: var(--text-2);
 }
-.required-action-operation {
+.required-action-operation,
+.required-action-meta,
+.resource-age,
+.resource-model,
+.capacity-meta,
+.capacity-reset {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 12px;
+}
+.required-action-operation {
   overflow-wrap: anywhere;
 }
-.required-action-line {
-  font-size: 13px;
+.required-action-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.required-action-meta,
+.resource-age,
+.capacity-meta,
+.capacity-reset {
+  color: var(--text-3);
 }
 .required-action .pill {
   justify-self: start;
+}
+
+/* The cards: a row shares one height; a shorter card's spare room falls below its controls. */
+.resource-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.resource {
+  --tool-accent: var(--line-3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tool-accent) 7%, transparent), transparent 96px), var(--plane-2);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tool-accent) 45%, transparent);
+  transition: border-color var(--fast) var(--ease);
+}
+.resource:hover {
+  border-color: var(--line-2);
+}
+/* Each tool's own colour, from its mark: it tints the card's top and the mark's tile, never a state. */
+[data-tool='claude-code'] {
+  --tool-accent: #d97757;
+}
+[data-tool='gemini-cli'] {
+  --tool-accent: #8e75b2;
+}
+[data-tool='codex'],
+[data-tool='grok'],
+[data-tool='github-copilot'],
+[data-tool='cursor'] {
+  --tool-accent: var(--text-2);
+}
+
+/* A tool's mark: on a tile at a card's head, bare in a line of text. */
+.tool-logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.tool-logo.lg {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--tool-accent, var(--text-2)) 10%, var(--plane));
+}
+.tool-logo.sm {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+.tool-logo img,
+.tool-logo-mark {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+.tool-logo.sm img,
+.tool-logo.sm .tool-logo-mark {
+  width: 16px;
+  height: 16px;
+}
+.tool-logo-mark {
+  background: var(--text);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+.resource-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.resource-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.resource-head h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+.resource-vendor {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.resource-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.resource-initial {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--line-2);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+.resource-host {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.resource-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+.resource-host.online .resource-dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 0 rgba(127, 214, 196, 0.5);
+  animation: host-live 2.4s var(--ease) infinite;
+}
+@keyframes host-live {
+  70% {
+    box-shadow: 0 0 0 5px rgba(127, 214, 196, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(127, 214, 196, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .resource-host.online .resource-dot {
+    animation: none;
+  }
+}
+.resource-host.offline .resource-dot {
+  background: var(--rose);
+}
+.resource-waiting {
+  align-self: flex-start;
+  color: var(--amber);
+}
+.resource-sessions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.resource-session {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 10px;
+}
+.resource-role {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.resource-model {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.resource-work {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.resource-work.idle {
+  color: var(--text-3);
+}
+.resource-foot {
+  display: grid;
+  gap: 10px;
+}
+
+/* Capacity: the line, a meter only for a known percentage, and every window on request. */
+.capacity {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--r-2);
+  background: rgba(236, 235, 241, 0.03);
+}
+.capacity-meter {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--line-2);
+}
+.capacity-meter.is-unknown {
+  background: repeating-linear-gradient(-45deg, var(--line) 0 4px, transparent 4px 8px);
+}
+.capacity-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--teal);
+}
+.capacity-meter.is-high .capacity-meter-fill {
+  background: var(--amber);
+}
+.capacity-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+}
+.capacity-toggle .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--fast) var(--ease);
+}
+.capacity-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.capacity-windows {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0 0;
+}
+.capacity-windows div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+}
+.capacity-windows dt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.capacity-windows dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+}
+.capacity-windows dd .capacity-meter {
+  flex-basis: 100%;
+}
+.capacity-missing {
+  color: var(--text-3);
+}
+
+/* The route's controls, shown, not offered: a glyph and a word each, never a button. */
+.resource-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  color: var(--text-3);
+}
+.control.supported {
+  color: var(--text-2);
+}
+.control-glyph {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.control.supported .control-glyph {
+  color: var(--teal);
 }
 @media (max-width: 560px) {
   .resource-list {
