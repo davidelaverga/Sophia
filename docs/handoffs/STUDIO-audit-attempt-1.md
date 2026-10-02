@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `studio/audit` from main at `503e38d` (#18 merged); first commit `9c59144`, 2026-09-30. It merged main twice: `68a836d` (#19, #20, #22 through #25) and `dfcaf97` (#28 and #29).
-- **End:** merged to main on Luis's go as `ba983e7`, 2026-09-30 at 19:48 Atlantic time: 54 files, +2055 −415. This follow-up (`studio/after-23`) adds this file. It fixes Codex's last review of #23, which arrived two minutes after the merge, and the reviews of the follow-up itself. Main is merged in (`853edae`, 2026-10-02), and the follow-up ends at `<sha>` (tree `<tree>`), the head its checks ran on; the commit after it changes only this line.
+- **End:** merged to main on Luis's go as `ba983e7`, 2026-09-30 at 19:48 Atlantic time: 54 files, +2055 −415. This follow-up (`studio/after-23`) adds this file. It fixes Codex's last review of #23, which arrived two minutes after the merge, and the reviews of the follow-up itself. Main is merged in (`853edae`, 2026-10-02), and the follow-up ends at `11d3af0` (tree `662f903a3224`), the head its checks ran on; the commit after it changes only this line.
 - **Writable scope:** this repository. **No hosted service was changed by this attempt.** On 2026-09-30 at 20:25 Atlantic time, production still served the build from before #23.
 
 ## Outcome
