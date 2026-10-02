@@ -98,6 +98,8 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
   const detail = candidates[opened]
   const back = () => {
     setOpen(null)
+    // The tiles check again: one whose read failed shows what was read up close meanwhile (from the shared checks).
+    setAttempt((a) => a + 1)
     refocus(opened)
   }
   return (

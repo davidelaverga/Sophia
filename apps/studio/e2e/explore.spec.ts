@@ -158,3 +158,15 @@ test('an image the network failed to read can be tried again, and is then usable
   await back(page).click()
   await expect(tile(page, 2).getByRole('img')).toBeVisible() // the tile shows it too
 })
+
+test('a tile whose read failed shows the image once it was read up close', async ({ page }) => {
+  await page.goto(`${PAGE}?flaky=${B_ASSET}`)
+  await expect(tile(page, 2).getByText('This image couldn’t be read.')).toBeVisible()
+  await page.evaluate(() => window.explore?.heal()) // the network is back before anyone tries again
+  await tile(page, 2).click()
+  const detail = page.getByRole('region', { name: /^Candidate 2/ })
+  await expect(detail.getByRole('img', { name: 'Candidate 2, from OpenAI' })).toBeVisible()
+  await expect(detail.getByRole('button', { name: 'Try again' })).toHaveCount(0) // nothing to try again up close
+  await back(page).click()
+  await expect(tile(page, 2).getByRole('img')).toBeVisible() // the tile isn't left saying it couldn't be read
+})
