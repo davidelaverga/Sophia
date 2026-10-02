@@ -1,20 +1,21 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// LFE-00's preservation checks (BASE-01 … BASE-03): the merged room, its Chat and Brief side panel and its dock, on the
-// labelled fixture page. A request to any other origin is aborted, and each check ends by asking the page whether
-// anything reached for the API beyond the brief it answers.
+// LFE-00's preservation checks (BASE-01 … BASE-03): the Studio's own ProjectShell, with its feed, query cache and
+// room controller, on the labelled fixture page; only the API and LiveKit are faked. A request to any other origin is
+// aborted, and each check ends by asking the page whether anything reached for the API beyond what it answers.
 
-/** In a call, with Sophia's conversation open and this viewer holding the floor: the chat's message bar is there. */
+/** Joining on opening, with Sophia's conversation open and this viewer holding the floor: the message bar is there. */
 const IN_CALL = '/room.html?call=on&exchange=open'
 
-/** What the page was asked to do and which requests it didn't expect (fixtures/room.tsx's `window.fixture`). */
+/** What the room's connection was asked, what the API answered and what it didn't expect (fixtures/room.tsx). */
 const fixture = (page: Page) =>
   page.evaluate(() => {
     const view = window.fixture
     if (!view) throw new Error('the fixture page did not start')
-    return { asked: [...view.asked], unexpected: [...view.unexpected] }
+    return { asked: [...view.asked], served: [...view.served], unexpected: [...view.unexpected] }
   })
-/** A background update: the project and its brief move one revision. */
+const asked = async (page: Page) => (await fixture(page)).asked
+/** A background update: an event on the project's stream, then a new snapshot and brief behind it. */
 const update = (page: Page) => page.evaluate(() => window.fixture?.update())
 /** Another member writes in the room's discussion. */
 const say = (page: Page, text: string) => page.evaluate((t) => window.fixture?.say(t), text)
@@ -22,6 +23,14 @@ const say = (page: Page, text: string) => page.evaluate((t) => window.fixture?.s
 const toggle = (page: Page, name: 'Chat' | 'Brief') => page.getByRole('button', { name, exact: true })
 const tab = (page: Page, name: 'Chat' | 'Brief') => page.getByRole('tab', { name, exact: true })
 const messageBar = (page: Page) => page.getByRole('textbox', { name: 'Message Sophia', exact: true })
+const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
+
+/** Opens the page and waits for the call: connected, and the microphone arrived. */
+async function enter(page: Page, url: string) {
+  await page.goto(url)
+  await expect(leave(page)).toBeVisible()
+  await expect.poll(() => asked(page)).toContain('microphone:on')
+}
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -37,7 +46,7 @@ test.afterEach(async ({ page }) => {
 test('BASE-01 · unsent words and a brief edit survive switching, a background update, closing and reopening', async ({
   page,
 }) => {
-  await page.goto(IN_CALL)
+  await enter(page, IN_CALL)
   await toggle(page, 'Chat').click()
   await messageBar(page).fill('Words not sent yet')
   await tab(page, 'Brief').click()
@@ -45,6 +54,9 @@ test('BASE-01 · unsent words and a brief edit survive switching, a background u
   await page.getByLabel('Direction').fill('A direction of my own, being written')
 
   await update(page) // the project and its brief move on while the person writes
+  await expect
+    .poll(async () => (await fixture(page)).served, { message: 'the update reached the page' })
+    .toEqual(expect.arrayContaining(['snapshot:2', 'mission:2']))
   await expect(page.getByLabel('Direction')).toHaveValue('A direction of my own, being written')
   await tab(page, 'Chat').click()
   await expect(messageBar(page)).toHaveValue('Words not sent yet')
@@ -57,10 +69,11 @@ test('BASE-01 · unsent words and a brief edit survive switching, a background u
 })
 
 test('BASE-01 · a message that arrives out of view marks Chat until it is seen, and only then', async ({ page }) => {
-  await page.goto(IN_CALL)
+  await enter(page, IN_CALL)
+  const marked = page.getByRole('button', { name: 'Chat, something new', exact: true })
   await say(page, 'Seen as it arrives') // the panel is closed: this one is unread
-  await expect(page.getByRole('button', { name: 'Chat, something new', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Chat, something new', exact: true }).click()
+  await expect(marked).toBeVisible()
+  await marked.click()
   await expect(page.getByText('Seen as it arrives')).toBeVisible()
   await expect(toggle(page, 'Chat')).toBeVisible() // read: the mark is gone
 
@@ -69,7 +82,7 @@ test('BASE-01 · a message that arrives out of view marks Chat until it is seen,
   await tab(page, 'Brief').click()
   await expect(toggle(page, 'Chat')).toBeVisible()
   await say(page, 'Written while the brief is open') // the chat is out of view again
-  await expect(page.getByRole('button', { name: 'Chat, something new', exact: true })).toBeVisible()
+  await expect(marked).toBeVisible()
   await tab(page, 'Chat').click()
   await expect(toggle(page, 'Chat')).toBeVisible()
 })
@@ -77,11 +90,12 @@ test('BASE-01 · a message that arrives out of view marks Chat until it is seen,
 test('BASE-02 · letters typed on a panel tab or with the focus nowhere reach the message bar; nothing turns on', async ({
   page,
 }) => {
-  await page.goto(IN_CALL)
+  await enter(page, IN_CALL)
+  const before = await asked(page)
   // d, e and j are the microphone, camera and join keys with the command key: alone they are only letters. With the
   // panel closed no message bar is on screen, so nothing takes them as text either.
   await page.keyboard.type('dej')
-  expect((await fixture(page)).asked, 'what the room was asked to do').toEqual([])
+  expect(await asked(page), 'what the room was asked').toEqual(before)
   await toggle(page, 'Chat').click()
   await tab(page, 'Chat').focus()
   await page.keyboard.type('dej ')
@@ -91,44 +105,65 @@ test('BASE-02 · letters typed on a panel tab or with the focus nowhere reach th
   })
   await page.keyboard.type('made')
   await expect(messageBar(page)).toHaveValue('dej made')
-  expect((await fixture(page)).asked, 'what the room was asked to do').toEqual([])
+  expect(await asked(page), 'what the room was asked').toEqual(before)
 })
 
 test('BASE-02 · leaving text mode turns it off once and hands the focus to the microphone beside it', async ({
   page,
 }) => {
-  await page.goto(`${IN_CALL}&text=on`)
-  await toggle(page, 'Chat').click() // text mode is read in the chat: the panel is open beside the dock
+  await enter(page, IN_CALL)
+  await toggle(page, 'Chat').click()
+  await messageBar(page).fill('A question, typed')
+  await messageBar(page).press('Enter') // typing to Sophia puts the call in text mode
   const textMode = page.getByRole('button', { name: /^Text mode/ })
   await expect(textMode).toHaveAttribute('aria-pressed', 'true')
+  expect(await asked(page)).toEqual(expect.arrayContaining(['text:on', 'chat']))
+
+  const before = (await asked(page)).length
   await textMode.click()
   await expect(textMode).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Microphone' })).toBeFocused()
-  expect((await fixture(page)).asked).toEqual(['text:off'])
+  expect((await asked(page)).slice(before)).toEqual(['text:off'])
 })
 
-test('BASE-03 @phone · in a call with the panel open, mute, sending, errors and the way back stay in reach', async ({
+test('BASE-03 @phone · in a call with the panel open, mute, sending and a refused device stay in reach', async ({
   page,
 }) => {
-  const errors = 'error=The%20room%20lost%20its%20connection&media=Microphone%20blocked'
-  await page.goto(`${IN_CALL}&${errors}`)
+  await enter(page, `${IN_CALL}&refuse=camera`)
+  await page.getByRole('button', { name: 'Camera' }).click() // from the dock; the browser refuses it
   await toggle(page, 'Chat').click()
   const panel = page.getByRole('complementary', { name: 'Chat' })
+  await expect(panel.getByText('Camera blocked. Allow it in the address bar.')).toBeInViewport()
   const mute = panel.getByRole('button', { name: 'Microphone' })
   await expect(mute).toBeInViewport()
   await expect(mute).toHaveAttribute('aria-pressed', 'true') // sending: the microphone is on
-  await expect(panel.getByText('Microphone blocked')).toBeInViewport()
-  await expect(panel.getByText('The room lost its connection')).toBeInViewport()
   await mute.click() // a tap reaches it: nothing covers it
   await expect(mute).toHaveAttribute('aria-pressed', 'false')
+  expect((await asked(page)).slice(-2)).toEqual(['camera:on', 'microphone:off'])
+})
 
-  await panel.getByRole('button', { name: 'Close' }).click()
-  const leave = page.getByRole('button', { name: 'Leave the room' })
-  await expect(leave).toBeInViewport()
-  await leave.click()
-  const back = page.getByRole('button', { name: /^Join the room/ }) // the way back into the call
+test('BASE-03 @phone · leaving, a lost connection and the way back stay in reach', async ({ page }) => {
+  await enter(page, IN_CALL)
+  await toggle(page, 'Chat').click()
+  await page.getByRole('complementary', { name: 'Chat' }).getByRole('button', { name: 'Close' }).click()
+  await expect(leave(page)).toBeInViewport()
+  await leave(page).click()
+  const back = page.getByRole('button', { name: /^Join the room/ })
   await expect(back).toBeInViewport()
   await back.click()
-  await expect(page.getByRole('button', { name: 'Leave the room' })).toBeInViewport()
-  expect((await fixture(page)).asked).toEqual(['microphone:off', 'leave', 'join'])
+  await expect(leave(page)).toBeInViewport()
+
+  await page.evaluate(() => window.fixture?.drop()) // the connection is lost
+  await expect(page.getByRole('alert').filter({ hasText: 'You were disconnected from the room.' })).toBeInViewport()
+  const retry = page.getByRole('button', { name: /^Try again/ })
+  await expect(retry).toBeInViewport()
+  await retry.click()
+  await expect(leave(page)).toBeInViewport()
+  const calls = (await asked(page)).filter((a) => a === 'connect' || a === 'leave')
+  expect(calls, 'joined, left, joined again, lost, and joined once more').toEqual([
+    'connect',
+    'leave',
+    'connect',
+    'connect',
+  ])
 })

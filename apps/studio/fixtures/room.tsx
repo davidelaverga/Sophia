@@ -1,28 +1,32 @@
-// The room's fixture page for the preservation checks (e2e/room.spec.ts): the real StudioShell — the stage, the dock,
-// the Chat and Brief side panel — over a room this page holds (fake-room.ts) and a brief it answers itself
-// (fixture-api.ts). It reaches no API, LiveKit or provider, and says so on screen. The query string picks the scenario:
-// `call=on`, `exchange=open` (Sophia's conversation is open and this viewer holds the floor), `text=on` (text mode),
-// `error=…`, `media=…`. `window.fixture` lets a check send a background update, have a member write, or read what
-// was asked.
+// The room's fixture page for the preservation checks (e2e/room.spec.ts): the Studio's own ProjectShell, with its
+// project feed, query cache and room controller, over two faked boundaries: the API, answered at fetch
+// (fixture-api.ts), and LiveKit (fake-livekit.ts, which the fixtures' Vite config puts in its place). It reaches no
+// server and says so on screen. The query string picks the scenario: `call=on` (join on opening), `exchange=open`
+// (Sophia's conversation is open and this viewer holds the floor), `refuse=camera` (the browser refuses it).
+// `window.fixture` lets a check move the project on, have a member write, drop the call, or read what happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode, useState } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { membershipKey } from '../src/features/access/useAccess.ts'
-import { StudioShell, useRoomPanel } from '../src/features/studio/StudioShell.tsx'
-import { snapshotKey } from '../src/features/studio/useProjectFeed.ts'
+import { ShortcutScope } from '../src/app/shortcuts.ts'
+import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
-import { identity, membership, PROJECT, snapshot } from './data.ts'
-import { asked, useFakeRoom, type Scenario } from './fake-room.ts'
-import { installFixtureApi, unexpected } from './fixture-api.ts'
+import { identity, PROJECT } from './data.ts'
+import { asked, dropCall } from './fake-livekit.ts'
+import { installFixtureApi, publish, served, unexpected } from './fixture-api.ts'
 
 interface Fixture {
-  /** A background update: the project and its brief move one revision, as the feed would bring them. */
+  /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
-  /** Another member writes in the room's discussion: a background update that brings a new message. */
+  /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** The call's connection is lost. */
+  drop: () => void
+  /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** What the API answered, as `snapshot:2` (fixture-api.ts). */
+  served: readonly string[]
   unexpected: readonly string[]
 }
 
@@ -33,56 +37,45 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
-const scenario: Scenario = {
-  inCall: query.get('call') === 'on',
-  error: query.get('error'),
-  mediaError: query.get('media'),
-  textMode: query.get('text') === 'on',
+const project = { revision: 1, exchange: query.get('exchange') === 'open', messages: [] as string[] }
+installFixtureApi(project)
+
+window.fixture = {
+  update: () => publish(project),
+  say: (text) => {
+    project.messages.push(text)
+    publish(project)
+  },
+  drop: dropCall,
+  asked,
+  served,
+  unexpected,
 }
 
-const exchange = query.get('exchange') === 'open'
-let revision = 1
-let messages: readonly string[] = []
-installFixtureApi(() => revision)
-
-const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } })
-client.setQueryData(membershipKey(PROJECT, identity.name), membership)
-client.setQueryData(snapshotKey(PROJECT, identity.name), snapshot(revision, exchange))
-
-function Room() {
-  const [current, setCurrent] = useState(() => snapshot(revision, exchange))
-  const room = useFakeRoom(scenario)
-  const panel = useRoomPanel(current, room, true)
-  const move = () => {
-    revision += 1
-    const next = snapshot(revision, exchange, messages)
-    client.setQueryData(snapshotKey(PROJECT, identity.name), next)
-    setCurrent(next)
-  }
-  window.fixture = {
-    update: move,
-    say: (text) => {
-      messages = [...messages, text]
-      move()
-    },
-    asked,
-    unexpected,
-  }
-  return (
-    <StudioShell projectId={PROJECT} identity={identity} room={room} snapshot={current} panel={panel} looking={null} />
-  )
-}
+const nothing = () => undefined
 
 const root = document.getElementById('root')
 if (!root) throw new Error('room.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={client}>
+    <QueryClientProvider client={new QueryClient()}>
       <p className="fixture-label" role="note">
         Fixture — no API, no call
       </p>
-      <Room />
+      <ShortcutScope.Provider value>
+        <ProjectShell
+          projectId={PROJECT}
+          view="studio"
+          identity={identity}
+          account={null}
+          onShow={nothing}
+          onLeave={nothing}
+          onWork={nothing}
+          onSignOut={nothing}
+          joinOnOpen={query.get('call') === 'on'}
+        />
+      </ShortcutScope.Provider>
     </QueryClientProvider>
   </StrictMode>,
 )
