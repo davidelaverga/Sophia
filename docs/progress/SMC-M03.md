@@ -654,3 +654,34 @@ The fixture page (`apps/studio/fixtures/`) now serves the report viewer's and Kn
 `main`'s #43–#46 (Explore's direction gallery, LFE-03, with its own fixture page and checks; the follow-ups to #42 and #43) are merged after the fixes (`f8b9c35`); no file this branch changes, no conflict. CONTRIBUTING lists the report viewer's checks beside the room's and Explore's.
 
 Run here (linux-x64): at `aa9a02e`, `pnpm --filter @sophia/studio test:browser` 23/23 (6 room checks, 17 report checks) three times over with no flake, every new check run against the code without its fix and failing, `pnpm test:sql` 35 migrations and `pnpm test:db` 376/376; at `f8b9c35`, `pnpm check` (776 unit: 775 passed, 1 skipped; 95 integration, 2 skipped) and `test:browser` 35/35 (7 room, 11 Explore, 17 report).
+
+## 34. CX-0011: M03-RF-0021..0023, and `main`'s #47–#48 (2026-10-02)
+
+Codex reviewed CC-0015 at `f8b9c35` ([CX-0011](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5950629855)). On Apple silicon every gate passes: 776 unit (762 passed, 14 skipped), 89 integration (2 skipped), `test:sql` 35, `test:db` 376/376, and 35/35 browser checks. RF-0017..0020 are verified, both merges keep both sides, and mute and Close stay in reach at seven widths in both sizes. It returned three findings, fixed in `ebcbbc0`, each with a check that fails without its fix.
+
+| Finding | Fix | Check |
+|---|---|---|
+| **M03-RF-0021 (P2)**: v1 was in the cached list, a link to v2 was followed, and reading the list again failed. The pane said "Loading the report…" for good | When the versions read has failed and the version asked for is not to hand, the pane says so as an alert, with Try again, which reads the list again (`versionReadFailure`). The words are "This version couldn’t be loaded.", or "The report couldn’t be loaded." when nothing of it was read. A version the list read earlier holds stays on screen, as before. A refusal is told by the API's code, not its status (`not_found` is a 422, `forbidden` a 403), and is still said as "This report isn’t available to you.", with no Try again. Any other error is a failure, so a 503 is no longer called a refusal. An error left by an earlier read is not this version's: a version the list lacks is first read for (the reread no longer waits for a successful list), then said | unit (`versionReadFailure`); browser "M03-RF-0021 ·", three checks. A failed read for v2 is said, as an alert, and Try again shows v2 (on the old code the pane stays loading). A version asked for after a failed read again is read for. A 422 refusal is said as refused, with no Try again |
+| **M03-RF-0022 (P2)**: a citation was followed while its sources were still loading, and the person moved on (Sign out, in the account menu). The source row took the focus from them when the sources came | The row takes the focus only while nobody holds it (`focusFree`): nothing has it, the page has it, or what had it went (the citation's button goes with the Document tab). Otherwise the row is shown and marked, and the focus stays where it is | unit (`focusFree`); browser "M03-RF-0022 ·", twice. Sources come late, the focus is nowhere else, and the row takes it. Sources come late after the person moved, and Sign out keeps it (this one fails on the old code) |
+| **M03-RF-0023 (P3)**: importing the renderer's public entry threw (ENOENT) when the process's first argument was not a path, because of the supervisor's main-module check | The supervisor uses the same check as the kernel and the probe (`isMain`): it never throws, and both sides are resolved | `renderers/web/pdf/test/entry.test.ts`: the entry and each module it exports import with a URL or a missing file as the first argument. 6 of the 8 fail on the old code: the entry, the supervisor, and the probe, which imports it. The supervisor still runs when named directly or through a link (the package's bin) |
+
+An independent review of the first version of this fix found three more faults, all fixed before the commit:
+- It told a refusal by a 403 or 404 status, but the API refuses an unreadable report with `not_found`, a 422. That refusal would have been said as a failure, with a Try again that can never work.
+- After a failed read again, a version asked for was said failed from the old error, without being read for.
+- The new state was not announced.
+
+The fixture's failed reads now carry the API's own error bodies (`unavailable` 503 `safe_read`, `not_found` 422 `never`); its 503 had none before.
+
+Also fixed: a gone version's "Show the current version" removed the button that had the focus, which dropped it to the page. That button and Try again now hand the focus to the title, as "Show it" does. Checked by browser "a version that is gone" and "M03-RF-0021", each of which fails without it. The rest of the viewer, Knowledge and the cards was swept for the same kind of focus handoff after a delayed read. History's comparison, the description form, More reports and Try PDF again either act at once or already check that the focus is free.
+
+The fixture page can now:
+- hold the report's sources until a check lets them through (`hold=sources`, `window.fixture.releaseSources`);
+- refuse reads of the versions as the API does, or let them succeed again (`failVersions('not_found')`, `failVersions(false)`).
+
+`e2e/report.spec.ts` holds 22 checks.
+
+Not changed: a refused read is still tried four times (TanStack Query's default retries, about seven seconds) before the pane says so.
+
+`main`'s #47 (the resource panel, LFE-06, `cb78c86`) is merged at `2709330`, and #48 (capacity that honours `valid_until` and applicability, `3e46e48`) at `5033ff5`. They bring Studio's resources feature, its own fixture page and checks, and LFE-06's docs. CONTRIBUTING keeps both sections. Neither changes a file this branch changes otherwise, and neither changes SQL, persistence or the API.
+
+Run here (linux-x64): at `ebcbbc0`, `pnpm check` (794 unit: 793 passed, 1 skipped; 95 integration, 2 skipped), `pnpm --filter @sophia/studio test:browser` 48/48 (7 room, 11 Explore, 8 resource, 22 report), the room and report checks twice more with no flake, `pnpm test:sql` 35 migrations and `pnpm test:db` 376/376. Every new check was run against the code without its fix and failed.

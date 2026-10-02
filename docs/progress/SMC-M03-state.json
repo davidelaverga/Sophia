@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "f8b9c35",
+  "candidate_commit": "ebcbbc0",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -240,6 +240,26 @@
         "pnpm artifacts:record, then pnpm artifacts"
       ],
       "ref": "docs/progress/SMC-M03.md#32-main-merged-2026-10-02-the-personal-space-and-lfe-00"
+    },
+    {
+      "slice": "LFE-02.1 (the report viewer over the room) and the sweep of its kind",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (17 report checks, each failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#33-lfe-021-the-report-viewer-over-the-room-and-a-sweep-of-its-kind-2026-10-02"
+    },
+    {
+      "slice": "CX-0011 (M03-RF-0021..0023), with main's #47 and #48 merged in",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (48 checks; 22 report checks, each new one failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#34-cx-0011-m03-rf-00210023-and-mains-4748-2026-10-02"
     }
   ],
   "outstanding_operations": [
@@ -253,8 +273,9 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0015.md",
-      "state": "awaiting_operator (revision 14, CC-0015: CC-0014's asks on f8b9c35, with main's #42–#46 merged in and the report viewer's LFE-02.1 fixes)"
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0016.md",
+      "state": "awaiting_operator (revision 15, CC-0016: M03-RF-0021..0023 re-reviewed on ebcbbc0, and f8b9c35..ebcbbc0 reviewed, main's #47 and #48 included)",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5950629855"
     }
   ],
   "unknown_effects": [],
@@ -281,7 +302,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0015 awaits Codex (CC-0012's asks, M03-RF-0017..0020 and the further fixes with the release clarifications, the merges' resolutions, and the report viewer's LFE-02.1 fixes, on f8b9c35). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CC-0016 awaits Codex (M03-RF-0021..0023, CX-0011's findings, re-reviewed on ebcbbc0, and f8b9c35..ebcbbc0 reviewed, main's #47 and #48 included). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",

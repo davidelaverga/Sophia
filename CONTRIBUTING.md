@@ -439,7 +439,8 @@ when you change the room:
   being read is never swapped for a newer version; over the room on a phone
   or as a full page it keeps mute, the door and the top bar's menus in
   reach; Esc keeps to the shortcut scope; a notice marks Chat; the focus is
-  handed back and never taken; a description never overwrites a newer one.
+  handed back and never taken; a description never overwrites a newer one;
+  a failed read is said, with a way to try again, and a refusal as one.
   Change the viewer and they must still pass.
 
 ## The personal space
