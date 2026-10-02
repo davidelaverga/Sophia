@@ -7,7 +7,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/panel-ux` at `6e40454` (attempt 4), 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `8ae5028`; its checks ran on it.
 - **Writable scope:** as attempt 4:
   - `apps/studio/src/features/resources/`;
   - one line in `features/studio/ProjectShell.tsx`: the Resources view is no longer a split page;
