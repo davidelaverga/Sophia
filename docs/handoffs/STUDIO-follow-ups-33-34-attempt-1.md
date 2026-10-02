@@ -4,23 +4,24 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `follow-ups/33-34` from main `96f1485` (#33's merge), 2026-10-02.
-- **End:** the code and docs at `de1cba8` (tree `eadf906c6cd7`), the head the checks below ran on. The commit after it changes only this line. Changed: `apps/studio/src/app/SignIn.tsx`, `CONTRIBUTING.md` and this file.
+- **End:** the code and docs at `de1cba8` (tree `eadf906c6cd7`), the head the checks below ran on. The commit after it changes only this line. Changed: `apps/studio/src/app/link-accept.ts` (and its test), `apps/studio/src/app/SignIn.tsx`, `CONTRIBUTING.md` and this file.
 - **Writable scope:** this repository. **No hosted service was changed.**
 
 ## Outcome
 
-- **Start over kept the invitation out (#34's follow-up).** A sign-in link that lands on an invitation (`/join`) and then signs in slowly offers Start over. Start over went to the root, so the invitation never opened again. It now loads the same place again: the link's session has already left the address, and `/join` with its query goes on.
+- **Start over kept the invitation out (#34's follow-up).** A sign-in link that lands on an invitation (`/join`) and then signs in slowly offers Start over. Start over went to the root, so the invitation never opened again. It now loads the same place again (`startOver` in `link-accept.ts`), without the link's session or its answer in the address, so `/join` with its query goes on.
 - **The hang rule said what Node doesn't do (#33's follow-up).** CONTRIBUTING said `node --test` counts a hanging test as cancelled. With no timeout, which is how `pnpm test` runs, it waits for good. Only with `--test-timeout` does a hang count as cancelled, and even then not as failed. Measured on Node 24.21: a test awaiting a promise that never settles was still running after 20 s, with a timer open and with nothing else open.
 
 Missing or unverified: nothing beyond the browser checks below (Chromium, local Supabase).
 
 ## Evidence
 
-- **Gates:** format, lint, typecheck, contracts check, the build and the Studio build. Unit tests: 557 pass, plus the 5 known failures on Windows. Studio tests: 325.
+- **Gates:** format, lint, typecheck, contracts check, the build and the Studio build. Unit tests: 559 pass, plus the 5 known failures on Windows. Studio tests: 327.
 - **Browser** (`after23-link.cjs` against the local Supabase stack, a synthetic `@sophia.test` account deleted after the run):
   - a link on `/join?invite=probe`, signing in slowly: Start over loads `/join?invite=probe` again, without the link's session in the address;
   - the earlier scenarios pass again (the held sign-in, Start over at the root, a refusal after the wait).
-- **Mutation:** the new scenario failed before the fix (Start over went to `/`).
+- **The regression test CI runs** (Codex on this PR's `2cd73b4`, one P1: the browser check lives outside the repository): `link-accept.test.ts` checks that `startOver` loads the same place, an invitation included, without the link's session or its answer. Changed back to the root, both tests fail. The button only calls `startOver(window.location)`, a wiring the browser check covers.
+- **Mutation:** the browser scenario failed before the fix (Start over went to `/`), and so do the unit tests when `startOver` goes to `/`.
 
 ## Remaining obligations
 

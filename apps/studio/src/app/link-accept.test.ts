@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { linkAcceptance } from './link-accept.ts'
+import { linkAcceptance, startOver } from './link-accept.ts'
 
 const WAIT_MS = 20
 const UNASKED = (_signedIn: boolean) => undefined
@@ -52,5 +52,25 @@ describe('signing in with a link’s session', () => {
     slow.answer(false)
     assert.equal(await settle(later), 'refused')
     assert.equal(slow.asked.set, 1, 'the same attempt: nothing is asked again')
+  })
+})
+
+/** A page at `href`, and the addresses it is asked to load. */
+function page(href: string) {
+  const loads: string[] = []
+  return { location: { href, assign: (to: string) => void loads.push(to) }, loads }
+}
+
+describe('starting over from a slow link', () => {
+  it('loads the same place again, so an invitation goes on (never the root)', () => {
+    const { location, loads } = page('https://studio.example/join?invite=abc')
+    startOver(location)
+    assert.deepEqual(loads, ['/join?invite=abc'])
+  })
+
+  it('never carries a link’s session or its answer back into the address', () => {
+    const { location, loads } = page('https://studio.example/join?invite=abc&code=x#access_token=a&refresh_token=b')
+    startOver(location)
+    assert.deepEqual(loads, ['/join?invite=abc'])
   })
 })

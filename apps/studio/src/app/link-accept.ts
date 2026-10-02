@@ -4,6 +4,7 @@
 // said so, never "Signing in…" for good. One attempt runs at a time: two would each try to sign in with the same
 // refresh token. Pressing Continue is the person's word that the account is theirs, so nothing declines
 // it while it is under way: a decline that raced a late sign-in could not keep that session off the device.
+import { withoutAuthParams } from './auth-callback.ts'
 import { settleWithin } from './deadline.ts'
 
 export type Acceptance = 'in' | 'refused' | 'late'
@@ -23,4 +24,13 @@ export function linkAcceptance(set: () => Promise<boolean>, waitMs: number): Lin
     return attempt.then((signedIn) => (signedIn ? ('in' as const) : ('refused' as const)))
   }
   return { accept: () => settleWithin(outcome(), waitMs, 'late'), outcome }
+}
+
+/**
+ * Starting over from a slow sign-in: the same place loads again, without the link's session or its answer in the
+ * address (they left it as the link landed). A link that landed on an invitation (/join) goes on with it, never to the
+ * root. Leaving the page leaves the attempt with it.
+ */
+export function startOver(location: Pick<Location, 'href' | 'assign'>): void {
+  location.assign(withoutAuthParams(location.href))
 }
