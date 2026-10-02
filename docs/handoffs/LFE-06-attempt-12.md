@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/declutter`, stacked on `lfe-06/effort` (#55) at its tip, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `68b0414`; its checks ran on it.
 - **Writable scope:** `RequiredActions.tsx`, the stylesheet, the fixture (`answerRequest()`), the checks and LFE-06's records. **No contract, schema or API changed.**
 
 ## Outcome (UI)
