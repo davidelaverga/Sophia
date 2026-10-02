@@ -99,6 +99,13 @@ describe('a resource’s capacity', () => {
     assert.equal(capacityLine(observation([]), now), 'No window observed')
   })
 
+  it('lets no balance head while another window known to apply is unresolved', () => {
+    const tokens = window({ window_id: 'daily', unit: 'tokens_remaining', value: 100000, resets_at: null })
+    const unknown = window({ value: null, state: 'unknown' })
+    assert.equal(capacityLine(observation([tokens, unknown]), now), 'Capacity unknown')
+    assert.equal(capacityLine(observation([tokens, window({ resets_at: at(-5) })]), now), 'Refresh pending')
+  })
+
   it('lets a window that may not apply shape nothing, not even a pending reset', () => {
     const due = window({ resets_at: at(-5), applicability: 'unknown' })
     assert.equal(capacityLine(observation([due]), now), 'Capacity unknown: no window is known to apply here')

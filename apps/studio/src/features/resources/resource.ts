@@ -166,20 +166,20 @@ export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView
 const headline = (v: WindowView) => `${v.name} window: ${v.value}${v.reset ? `, ${v.reset}` : ''}`
 
 /**
- * What the windows known to apply say together: the most used percentage; else an observed balance, as it was
- * reported (no percentage is made of it); else that a reset is pending, or that the capacity is unknown. Windows that
- * may not apply never shape it, not even as pending.
+ * What the windows known to apply say together: the most used percentage; else that a reset is pending, or that the
+ * capacity is unknown, while any window is unresolved; else an observed balance, as it was reported (no percentage is
+ * made of it). Windows that may not apply never shape it, not even as pending.
  */
 function fromKnown(known: WindowView[]): string | null {
   const limiting = known
     .filter((v) => v.percent !== null)
     .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
   if (limiting) return headline(limiting)
-  const balance = known.find((v) => v.state === 'observed')
-  if (balance) return headline(balance)
+  // A balance can't be weighed against a window that isn't resolved: the unresolved one says so first.
   if (known.some((v) => v.state === 'refresh_pending')) return 'Refresh pending'
   if (known.some((v) => v.state === 'unknown')) return 'Capacity unknown'
-  return null
+  const balance = known.find((v) => v.state === 'observed')
+  return balance ? headline(balance) : null
 }
 
 /**

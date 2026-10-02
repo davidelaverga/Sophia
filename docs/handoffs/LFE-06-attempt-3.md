@@ -5,16 +5,15 @@
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/capacity-balances` from main `3e46e48`, 2026-10-02.
 - **End:** the fix and docs at `ab846ae` (tree `84c16230d04f`), the head the checks below ran on. The commit after it changes only this line.
-- **Writable scope:** `capacityLine` in `apps/studio/src/features/resources/resource.ts` and its unit tests. **Nothing else changed.**
+- **Writable scope:** `capacityLine` in `apps/studio/src/features/resources/resource.ts`, its unit tests and LFE-06's records. **Nothing else changed.**
 
 ## Outcome
 
 `capacityLine` now reads only the windows known to apply, in this order:
 
 1. the most used percentage;
-2. else an observed balance, as reported: "100000 tokens left", "42 credits left". No percentage is made of it;
-3. else "Refresh pending";
-4. else "Capacity unknown" for a window whose state is unknown.
+2. else "Refresh pending", or "Capacity unknown" for a window whose state is unknown, while any such window is unresolved. A balance can't be weighed against them (Codex's P2 on #49);
+3. else an observed balance, as reported: "100000 tokens left", "42 credits left". No percentage is made of it.
 
 Two more cases:
 
@@ -28,11 +27,12 @@ Before:
 
 ## Evidence
 
-- **Unit tests.** `resource.test.ts` has 9 tests. Two are new: M03-RF-0024's two balance units and the unknown window, and the uncertain window with a due reset.
-- **Mutations.** Three unit-level mutations each fail them:
+- **Unit tests.** `resource.test.ts` has 10 tests. Three are new: M03-RF-0024's two balance units and the unknown window; the uncertain window with a due reset; and a balance beside an unresolved window.
+- **Mutations.** Four unit-level mutations each fail them:
   - no balance branch;
   - no unknown branch;
-  - uncertain windows counted.
+  - uncertain windows counted;
+  - the balance checked before unresolved windows.
 - `pnpm --filter @sophia/studio test:browser`: 26 pass.
 - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass. `pnpm test`: the new tests pass, plus the 5 known failures on Windows, as on main.
 
