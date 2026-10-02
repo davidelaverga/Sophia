@@ -142,7 +142,7 @@ describe('media bridge assignment loop', () => {
     roomEvents[0]?.textMode?.(reader, true)
     bridge.session(E1)?.tick()
     await settle()
-    const owed = { owed: [{ result, attempts: 1, told: [], delivered: 0 }], unrecorded: [], done: [] }
+    const owed = { owed: [{ result, attempts: 1, told: [], delivered: 0, heard: false }], unrecorded: [], done: [] }
     assert.deepEqual(bridge.session(E1)?.handover(), owed)
     roomEvents[0]?.connection('disconnected', 'livekit: 1')
     await settle()
@@ -150,6 +150,26 @@ describe('media bridge assignment loop', () => {
     await settle()
     assert.equal(roomEvents.length, 2, 'joined again')
     assert.deepEqual(bridge.session(E1)?.handover(), owed, 'the replacement owes it, with the attempt it used')
+    await bridge.stop()
+  })
+
+  it('updates the live rooms without waiting for what an ended session still owes', async () => {
+    const reader = '11111111-1111-4111-8111-111111111111'
+    const result = { taskId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', resultRevision: 1, kind: 'research' as const }
+    // The reader's notice never gets an answer: the ended session waits up to its bound for it.
+    const { bridge, roomEvents } = harness({
+      people: [{ identity: reader, standing: 'editor' }],
+      sendChat: () => new Promise<boolean>(() => undefined),
+    })
+    await bridge.apply([assignment(E1, { results: [result] }), assignment(E2)])
+    await settle()
+    roomEvents[0]?.textMode?.(reader, true)
+    bridge.session(E1)?.tick()
+    await settle()
+    const started = Date.now()
+    await bridge.apply([assignment(E2, { inputEpoch: 2 })])
+    assert.ok(Date.now() - started < 1000, 'not held by the ended session')
+    assert.equal(bridge.session(E2)?.observed().inputEpoch, 2)
     await bridge.stop()
   })
 })

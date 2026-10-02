@@ -5,13 +5,17 @@
 // 1. It renders a fixture in the confined browser: the sandbox self-test, every kernel check and the page checks pass.
 // 2. Through bin/confine-chromium itself, the wrapper the browser starts through (the render user, no new privileges,
 //    fresh user, network, PID and mount namespaces, an empty environment, its resource limits), it runs a small Node
-//    program instead of the browser and checks that public TCP, DNS, the link-local metadata address and the API host
-//    are all unreachable, that the job's environment holds nothing of the supervisor's, and that the supervisor's
-//    environment, the runner token file and any secret files (each file inside a named directory too) are unreadable.
+//    program instead of the browser. It checks that the job has a network namespace of its own with no interface up
+//    and only its own four environment variables; that public TCP, DNS, the link-local metadata address and the API
+//    host are refused at once (no answer in time is not a refusal); and that the supervisor's environment, the runner
+//    token file and any secret (each entry inside a named directory too) are refused by permission (EACCES or EPERM;
+//    any other error shows nothing).
 // A check that was not performed is a failure, never a pass (M03-RF-0019): without SOPHIA_API_URL, an API host that
 // does not resolve here, or one this host cannot reach either (a refusal inside would prove nothing); without
-// SOPHIA_RENDER_RUNNER_TOKEN_FILE; and for a named secret that does not exist here.
-// Prints one JSON line per check, and exits 0 only when every check passes. Usage:
+// SOPHIA_RENDER_RUNNER_TOKEN_FILE; for a named secret that does not exist here, that is not a file or a directory, or
+// that this probe cannot read either; and for a directory with more than 256 entries. Only the paths named are tried.
+// Prints one JSON line per check, and exits 0 only when every check passes (1 when one fails; 2, running nothing, on a
+// command line it does not understand). Usage:
 //   host-probe.mjs [--secret <path>]... [--node <path>]
 // SOPHIA_API_URL and SOPHIA_RENDER_RUNNER_TOKEN_FILE are read when set. The checks inside run under this Node binary
 // (or --node's), which the render user must be able to execute; when it cannot, the probe fails and says so.
@@ -23,6 +27,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { parseArgs } from 'node:util'
 import { renderHtmlToPdf, renderUserOf } from './index.mjs'
 import { sha256Hex } from './source-manifest.mjs'
 
@@ -72,61 +77,102 @@ function inConfinement(node, program, args, renderUser) {
   }
 }
 
-// Inside the namespace: each attempt must fail. An error text means it did; { found } (or null) means it succeeded. With -e there is no script path,
+// Inside the namespace, each attempt must be refused: an error code means it was; { ok } is a positive finding (the
+// job's environment, its network namespace); { found } (or anything else) says what was reached or why nothing was
+// shown. With -e there is no script path,
 // so the arguments start at argv[1]. The supervisor's PID can name another process in the fresh PID namespace (in a
 // container the supervisor is often PID 1, and so is the confined process), so an environment read there is the
 // supervisor's only when its bytes are the supervisor's own (compared by hash).
 const INSIDE = `
-import net from 'node:net'; import dns from 'node:dns/promises'; import fs from 'node:fs'
+import net from 'node:net'; import dns from 'node:dns/promises'; import fs from 'node:fs'; import os from 'node:os'
 import { createHash } from 'node:crypto'
-const [apiIp, apiPort, supervisorPid, supervisorEnvSha, jobEnvKeys, ...files] = process.argv.slice(1)
+const [apiIp, apiPort, supervisorPid, supervisorEnvSha, jobEnvKeys, supervisorNet, ...files] = process.argv.slice(1)
+const code = (e) => e.code || e.message
+// A refusal is an error the attempt meets at once; one that connects, or gets no answer in time, shows nothing closed.
 const tcp = (host, port) => new Promise((resolve) => {
   const s = net.connect({ host, port: Number(port), timeout: 3000 })
-  s.on('connect', () => { s.destroy(); resolve(null) })
-  s.on('timeout', () => { s.destroy(); resolve('timeout') })
-  s.on('error', (e) => resolve(e.code || e.message))
+  s.on('connect', () => { s.destroy(); resolve({ found: 'connected from the job context' }) })
+  s.on('timeout', () => { s.destroy(); resolve({ found: 'no refusal within 3 s, so not shown closed' }) })
+  s.on('error', (e) => resolve(code(e)))
 })
-const fail = async (fn) => { try { await fn(); return null } catch (e) { return e.code || e.message } }
+const lookup = async (name) => {
+  try { await dns.lookup(name); return { found: 'resolved from the job context' } } catch (e) { return code(e) }
+}
+// Only a permission refusal shows a path closed to the job; any other error (not there, not a file) shows nothing.
+const unreadable = (f) => {
+  try {
+    if (fs.statSync(f).isDirectory()) fs.readdirSync(f)
+    else {
+      const fd = fs.openSync(f, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK)
+      try { fs.readSync(fd, Buffer.alloc(1), 0, 1, null) } finally { fs.closeSync(fd) }
+    }
+    return { found: 'readable from the job context' }
+  } catch (e) {
+    return e.code === 'EACCES' || e.code === 'EPERM' ? e.code : { found: 'not shown closed: ' + code(e) }
+  }
+}
 const environ = () => {
   let bytes
-  try { bytes = fs.readFileSync('/proc/' + supervisorPid + '/environ') } catch (e) { return e.code || e.message }
-  return createHash('sha256').update(bytes).digest('hex') === supervisorEnvSha ? null : 'that PID here is another process'
+  try { bytes = fs.readFileSync('/proc/' + supervisorPid + '/environ') } catch (e) { return code(e) }
+  const same = createHash('sha256').update(bytes).digest('hex') === supervisorEnvSha
+  return same ? { found: 'the supervisor environment is readable' } : 'that PID here is another process'
+}
+// Evidence for the network checks: the job context has a network namespace of its own, with no interface up.
+const netns = () => {
+  let mine
+  try { mine = fs.readlinkSync('/proc/self/ns/net') } catch (e) { return { found: 'its namespace cannot be read: ' + code(e) } }
+  if (mine === supervisorNet) return { found: 'the job context shares the supervisor network namespace' }
+  const up = Object.keys(os.networkInterfaces()).filter((name) => name !== 'lo')
+  return up.length > 0 ? { found: 'the job context has interfaces: ' + up.join(', ') } : { ok: 'its own, with no interface up' }
 }
 const extra = Object.keys(process.env).filter((k) => !jobEnvKeys.split(',').includes(k))
 const out = {
-  'job_environment': extra.length > 0 ? { found: 'the job context holds ' + extra.join(', ') } : 'only ' + jobEnvKeys,
+  'job_environment': extra.length > 0 ? { found: 'the job context holds ' + extra.join(', ') } : { ok: 'only ' + jobEnvKeys },
+  'network_namespace': netns(),
   'public_tcp:1.1.1.1:443': await tcp('1.1.1.1', 443),
-  'dns:example.com': await fail(() => dns.lookup('example.com')),
+  'dns:example.com': await lookup('example.com'),
   'metadata:169.254.169.254:80': await tcp('169.254.169.254', 80),
   ['supervisor_environment:/proc/' + supervisorPid + '/environ']: environ(),
 }
 if (apiIp) out['api_host:' + apiIp + ':' + apiPort] = await tcp(apiIp, apiPort)
-for (const f of files) out['unreadable:' + f] = await fail(() => fs.statSync(f).isDirectory() ? fs.readdirSync(f) : fs.readFileSync(f))
+for (const f of files) out['unreadable:' + f] = unreadable(f)
 process.stdout.write(JSON.stringify(out))
 `
 
 /**
- * One check inside, from its answer: an error text is the refusal it needs; anything else is an attempt that succeeded.
- * Only a variable's name is ever reported, never its value.
+ * One check inside, from its answer: an error code is the refusal it needs, `{ ok }` a positive finding; anything else
+ * fails. Only a variable's name is ever reported, never its value, and never a file's contents.
  * @param {string} check
  * @param {unknown} answer
  * @returns {ProbeResult}
  */
 function outcome(check, answer) {
   if (typeof answer === 'string') return { check, ok: true, detail: `refused (${answer})` }
-  const found =
-    typeof answer === 'object' && answer !== null && 'found' in answer && typeof answer.found === 'string'
-      ? answer.found
-      : 'reachable or readable from the job context'
-  return { check, ok: false, detail: found }
+  const ok = typeof answer === 'object' && answer !== null && 'ok' in answer ? answer.ok : null
+  if (typeof ok === 'string') return { check, ok: true, detail: ok }
+  const found = typeof answer === 'object' && answer !== null && 'found' in answer ? answer.found : null
+  return { check, ok: false, detail: typeof found === 'string' ? found : 'reachable or readable from the job context' }
 }
 
+const USAGE = 'usage: host-probe.mjs [--secret <path>]... [--node <path>]'
+
 /**
- * The values of every `flag <value>` pair.
+ * The command line, read strictly: an unknown flag, a positional argument or a flag without a value stops the probe
+ * before anything runs, so a secret the operator meant to name is never silently left out.
  * @param {string[]} argv
- * @param {string} flag
+ * @returns {{ secrets: string[], node?: string }}
  */
-const valuesOf = (argv, flag) => argv.flatMap((a, i) => (argv[i - 1] === flag ? [a] : []))
+export function probeArgs(argv) {
+  const { values } = parseArgs({
+    args: argv,
+    options: { secret: { type: 'string', multiple: true }, node: { type: 'string' } },
+    strict: true,
+    allowPositionals: false,
+  })
+  const secrets = values.secret ?? []
+  if (secrets.includes('') || values.node === '') throw new Error('a flag was given an empty path')
+  return { secrets, ...(values.node ? { node: values.node } : {}) }
+}
 
 /**
  * @param {string} check
@@ -189,47 +235,112 @@ function tcpFromHere(host, port) {
 }
 
 /**
- * A directory and every file under it (as this process sees them), or null when there are more than the cap.
+ * A directory and every entry under it, as this process sees them, following symbolic links (each directory once),
+ * or null when there are more than the cap.
  * @param {string} dir
  * @returns {string[] | null}
  */
 function filesUnder(dir) {
   /** @type {string[]} */
   const found = [dir]
+  const seen = new Set([fs.realpathSync(dir)])
   const queue = [dir]
+  let entries = 0
   while (queue.length > 0) {
     const at = queue.shift() ?? ''
-    for (const entry of fs.readdirSync(at, { withFileTypes: true })) {
-      const full = path.join(at, entry.name)
+    for (const name of fs.readdirSync(at)) {
+      entries += 1
+      if (entries > MAX_SECRET_FILES) return null
+      const full = path.join(at, name)
       found.push(full)
-      if (entry.isDirectory()) queue.push(full)
-      if (found.length > MAX_SECRET_FILES) return null
+      const real = directoryOf(full)
+      if (real !== null && !seen.has(real)) {
+        seen.add(real)
+        queue.push(full)
+      }
     }
   }
   return found
 }
 
 /**
- * The files that must stay unreadable, split into those to try inside (a directory with every file under it, since
- * a directory that cannot be listed may still let its files be read by name) and the failures for those that cannot
- * be tried.
- * @param {string[]} files
+ * A path's real location when it is a directory (through a link too), else null.
+ * @param {string} p
  */
-function secretTargets(files) {
+function directoryOf(p) {
+  try {
+    return fs.statSync(p).isDirectory() ? fs.realpathSync(p) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Why a path cannot be tried inside, or null. Only a file or a directory can be shown closed, and only one this probe
+ * itself can read: a refusal inside proves nothing about a path the supervisor's own side cannot read either.
+ * @param {string} p
+ * @returns {string | null}
+ */
+function untriable(p) {
+  /** @type {fs.Stats} */
+  let stat
+  try {
+    stat = fs.statSync(p)
+  } catch (error) {
+    return `${p} cannot be reached on this host (${codeOf(error)})`
+  }
+  if (!stat.isFile() && !stat.isDirectory()) return 'not a file or a directory, so the probe cannot show it closed'
+  try {
+    if (stat.isDirectory()) fs.readdirSync(p)
+    else readOneByte(p)
+  } catch (error) {
+    return `this probe cannot read it either (${codeOf(error)}), so a refusal inside would prove nothing: run the probe as the supervisor`
+  }
+  return null
+}
+
+/**
+ * @param {string} file
+ */
+function readOneByte(file) {
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK)
+  try {
+    fs.readSync(fd, Buffer.alloc(1), 0, 1, null)
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+/** @param {unknown} error */
+const codeOf = (error) =>
+  (error instanceof Error && /** @type {NodeJS.ErrnoException} */ (error).code) ||
+  (error instanceof Error ? error.message : String(error))
+
+/**
+ * The paths that must stay unreadable, as absolute paths, split into those to try inside (a directory with every entry
+ * under it, since a directory that cannot be listed may still let its files be read by name) and the failures for
+ * those that cannot be tried.
+ * @param {string[]} named
+ */
+function secretTargets(named) {
   /** @type {string[]} */
   const present = []
   /** @type {ProbeResult[]} */
-  const missing = []
-  for (const f of files) {
-    if (!fs.existsSync(f)) missing.push(notRun(`unreadable:${f}`, `${f} does not exist on this host`))
-    else if (!fs.statSync(f).isDirectory()) present.push(f)
-    else {
-      const under = filesUnder(f)
-      if (under) present.push(...under)
-      else missing.push(notRun(`unreadable:${f}`, `more than ${MAX_SECRET_FILES} entries; name the files instead`))
+  const untried = []
+  for (const f of named.map((p) => path.resolve(p))) {
+    if (!fs.existsSync(f)) {
+      untried.push(notRun(`unreadable:${f}`, `${f} does not exist on this host`))
+      continue
+    }
+    const under = directoryOf(f) === null ? [f] : filesUnder(f)
+    if (!under) untried.push(notRun(`unreadable:${f}`, `more than ${MAX_SECRET_FILES} entries; name the files instead`))
+    for (const p of under ?? []) {
+      const why = untriable(p)
+      if (why) untried.push(notRun(`unreadable:${p}`, why))
+      else present.push(p)
     }
   }
-  return { present, missing }
+  return { present, untried }
 }
 
 /**
@@ -291,12 +402,17 @@ async function confinementChecks(env, secrets, node) {
   const unperformed = [
     'check' in target ? [target] : [],
     tokenFile ? [] : [notRun('runner_token_file', 'SOPHIA_RENDER_RUNNER_TOKEN_FILE is not set, so it was not tried')],
-    files.missing,
+    files.untried,
   ].flat()
+  if (process.platform !== 'linux') {
+    const why = `the confinement runs on Linux only (here: ${process.platform})`
+    return [notRun('confinement', why), ...unperformed]
+  }
   try {
     const renderUser = renderUserOf(env)
     const envSha = sha256Hex(fs.readFileSync('/proc/self/environ'))
-    const args = [api.ip, api.port, String(process.pid), envSha, JOB_ENV_KEYS.join(','), ...files.present]
+    const netns = fs.readlinkSync('/proc/self/ns/net')
+    const args = [api.ip, api.port, String(process.pid), envSha, JOB_ENV_KEYS.join(','), netns, ...files.present]
     return [...inConfinement(node, INSIDE, args, renderUser), ...unperformed]
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
@@ -327,10 +443,36 @@ export async function probeHost({ secrets = [], env = process.env, node = proces
   return results
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const argv = process.argv.slice(2)
-  const node = valuesOf(argv, '--node')[0]
-  const results = await probeHost({ secrets: valuesOf(argv, '--secret'), ...(node ? { node } : {}) })
+/** Whether this file is the command being run, however it was named (a symbolic link to it included). */
+function isMain() {
+  try {
+    return (
+      Boolean(process.argv[1]) &&
+      fs.realpathSync(process.argv[1] ?? '') === fs.realpathSync(fileURLToPath(import.meta.url))
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The command: one JSON line per check, exit 0 only when every check passes, 1 when one fails, 2 on a command line
+ * it does not understand (nothing runs).
+ * @param {string[]} argv
+ */
+async function main(argv) {
+  /** @type {{ secrets: string[], node?: string }} */
+  let options
+  try {
+    options = probeArgs(argv)
+  } catch (error) {
+    process.stderr.write(`host-probe: ${error instanceof Error ? error.message : String(error)}\n${USAGE}\n`)
+    process.exitCode = 2
+    return
+  }
+  const results = await probeHost(options)
   for (const r of results) process.stdout.write(`${JSON.stringify(r)}\n`)
   process.exitCode = results.every((r) => r.ok) ? 0 : 1
 }
+
+if (isMain()) await main(process.argv.slice(2))

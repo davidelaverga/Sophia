@@ -179,12 +179,20 @@ export function reportFilename(title: string, versionNumber: number | null, form
 export const shortHash = (sha256: string): string => sha256.slice(0, 8)
 
 /**
- * Whether the version a link names is missing from the report's versions. Only a list that is not being read again
- * says so: a cached list can predate the version (a notice's new version, opened while the old list is still kept),
- * and until it is read again the pane shows the version loading, never "not available".
+ * Whether the version a link names is missing from the report's versions. Only a list read again since the link named
+ * it says so (`reread`; a link to the current version needs none): a cached list can predate the version (a notice's
+ * new version, opened while an older list is still kept), and until it is read again the pane shows the version
+ * loading, never "not available". A read paused offline is not a read.
  */
-export const versionMissing = (versions: { isSuccess: boolean; isFetching: boolean }, found: boolean): boolean =>
-  versions.isSuccess && !versions.isFetching && !found
+export const versionMissing = (
+  versions: { isSuccess: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' },
+  found: boolean,
+  reread: boolean,
+): boolean => versions.isSuccess && versions.fetchStatus === 'idle' && reread && !found
+
+/** The version to read the list again for: one the link names that the list lacks, and not read again for yet. */
+export const rereadFor = (absent: boolean, reread: string | null, versionId: string | null): string | null =>
+  absent && versionId !== null && reread !== versionId ? versionId : null
 
 export interface Chip {
   label: string

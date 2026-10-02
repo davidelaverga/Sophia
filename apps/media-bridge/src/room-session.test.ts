@@ -255,7 +255,10 @@ let joinTokens: string[]
 /** What the session logged: event names and fields, never content. */
 let logs: Array<[string, Record<string, unknown>]>
 
-function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handover: Handover | null = null) {
+/** What a replacement session is given: the handover, one still on its way, or nothing. */
+type Handed = Handover | Promise<Handover> | null
+
+function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handover: Handed = null) {
   return new RoomSession(
     assignment(over),
     {
@@ -295,7 +298,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
 async function open(
   over: Partial<MediaAssignment> = {},
   people = [member(LUIS), member(DAVIDE)],
-  handover: Handover | null = null,
+  handover: Handed = null,
 ) {
   const s = newSession(over, people, handover)
   await s.start()
@@ -305,7 +308,7 @@ async function open(
   return { session: s, room, live }
 }
 
-async function ready(over: Partial<MediaAssignment> = {}, people?: RoomPerson[], handover: Handover | null = null) {
+async function ready(over: Partial<MediaAssignment> = {}, people?: RoomPerson[], handover: Handed = null) {
   const s = await open(over, people, handover)
   s.live.events.setupComplete()
   return s
@@ -1676,7 +1679,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.deepEqual(service.announcedEvents, told(false, 1))
     const handover = session.handover()
     assert.deepEqual(handover, {
-      owed: [{ result: results[0], attempts: 1, told: [DAVIDE], delivered: 1 }],
+      owed: [{ result: results[0], attempts: 1, told: [DAVIDE], delivered: 1, heard: false }],
       unrecorded: [],
       done: [],
     })
@@ -1886,6 +1889,121 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       [TASK, other.taskId],
       'Luis has both before the first is tried again for Davide',
     )
+  })
+
+  it('notices still on their way when the close stops waiting are owed to the replacement, never done', async () => {
+    const { session, room } = await ready({ results })
+    room.sendChat = () => new Promise<boolean>(() => undefined)
+    room.events.textMode?.(LUIS, true)
+    room.events.textMode?.(DAVIDE, true)
+    session.tick()
+    await settle()
+    await session.close()
+    const handover = session.handover()
+    assert.deepEqual(
+      [handover.owed.map((o) => [o.result.taskId, o.told, o.heard]), handover.done],
+      [[[TASK, [], false]], []],
+      'no outcome is known for them',
+    )
+    const next = await ready({ results }, undefined, handover)
+    next.room.events.textMode?.(LUIS, true)
+    next.room.events.textMode?.(DAVIDE, true)
+    next.session.tick()
+    await settle()
+    assert.deepEqual(next.room.notices.map((n) => n.identity).toSorted(), [DAVIDE, LUIS].toSorted())
+    assert.deepEqual(service.announcedEvents, told(false, 2))
+  })
+
+  it('a heard notice whose late reader is still waiting at the close is recorded as heard, and the reader is owed it', async () => {
+    const fake = service
+    let refusals = 1
+    const record = fake.announced
+    fake.announced = async (e) => {
+      if (refusals > 0) {
+        refusals -= 1
+        throw new Error('503 from the API')
+      }
+      await record(e)
+    }
+    const { session, room, live } = await ready({ results })
+    session.tick()
+    await settle()
+    // Davide turns to text while it is being said; his notice never gets an answer from the lost room.
+    room.sendChat = () => new Promise<boolean>(() => undefined)
+    room.events.textMode?.(DAVIDE, true)
+    live.events.audio(speech(), OUT)
+    await settle()
+    await session.close()
+    const handover = session.handover()
+    assert.deepEqual(handover.unrecorded, told(true, 0), 'heard: recorded at the close, refused, handed over')
+    assert.deepEqual(
+      handover.owed.map((o) => [o.told, o.heard]),
+      [[[], true]],
+    )
+    const next = await ready({ results }, undefined, handover)
+    next.room.events.textMode?.(DAVIDE, true)
+    next.session.tick()
+    await settle()
+    assert.equal(next.live.notices.length, 0, 'the room heard it: never said again')
+    assert.deepEqual(
+      next.room.notices.map((n) => n.identity),
+      [DAVIDE],
+    )
+    assert.deepEqual(fake.announcedEvents.at(-1), told(true, 1)[0])
+  })
+
+  it('a room that heard it: a reader whose notice failed gets it again as text, and the room is not told twice', async () => {
+    const { session, room, live } = await ready({ results })
+    room.events.textMode?.(DAVIDE, true)
+    room.unreachable.add(DAVIDE)
+    session.tick()
+    await settle()
+    live.events.audio(speech(), OUT)
+    await settle()
+    live.events.turnComplete()
+    await settle()
+    assert.deepEqual(service.announcedEvents, told(true, 0))
+    room.unreachable.delete(DAVIDE)
+    clock += 5000
+    session.tick()
+    await settle()
+    assert.equal(live.notices.length, 1, 'said once')
+    assert.deepEqual(
+      room.notices.map((n) => n.identity),
+      [DAVIDE],
+    )
+    assert.deepEqual(service.announcedEvents.at(-1), told(true, 1)[0])
+  })
+
+  it('a result whose attempts ran out with nothing delivered is not done: a replacement may say it again', async () => {
+    const { session, live } = await ready({ results })
+    for (let i = 0; i < 4; i += 1) {
+      session.tick()
+      live.events.turnComplete()
+    }
+    assert.equal(live.notices.length, 3)
+    await session.close()
+    const handover = session.handover()
+    assert.deepEqual(handover, { owed: [], unrecorded: [], done: [] })
+    const next = await ready({ results }, undefined, handover)
+    next.session.tick()
+    assert.equal(next.live.notices.length, 1)
+  })
+
+  it('a replacement announces nothing until it has what the lost session handed over', async () => {
+    let hand: (h: Handover) => void = noop
+    const handover = new Promise<Handover>((resolve) => {
+      hand = resolve
+    })
+    const { session, live } = await ready({ results }, undefined, handover)
+    session.tick()
+    await settle()
+    assert.equal(live.notices.length, 0, 'waiting for the handover')
+    hand({ owed: [], unrecorded: [], done: [`${TASK}:1`] })
+    await settle()
+    session.tick()
+    await settle()
+    assert.equal(live.notices.length, 0, 'the lost session’s room already had it')
   })
 
   it('a notice no reader could receive is not recorded, and is sent again', async () => {

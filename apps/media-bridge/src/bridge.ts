@@ -44,18 +44,26 @@ export class MediaBridge {
   }
 
   /**
-   * Bring the sessions in line with the API: close what ended (first, so a room's next exchange can join). A session
-   * replaced on a live exchange (its room was lost) hands what it still owes the room to the one that replaces it.
+   * Bring the sessions in line with the API. What ended leaves its room first, so a room's next exchange can join; no
+   * update waits on what a closing session still owes. A session replaced on a live exchange (its room was lost) hands
+   * what it still owes the room to the one that replaces it, which announces nothing until it has it.
    */
   async apply(assignments: readonly MediaAssignment[]): Promise<void> {
     const live = new Set(assignments.map((a) => a.exchangeId))
-    const handovers = new Map<string, Handover>()
+    const leaving: Promise<void>[] = []
+    const handovers = new Map<string, Promise<Handover>>()
     for (const [exchangeId, session] of this.sessions) {
       if (live.has(exchangeId) && !session.lost) continue
       this.sessions.delete(exchangeId)
-      await session.close()
-      if (live.has(exchangeId)) handovers.set(exchangeId, session.handover())
+      const closed = session.close()
+      leaving.push(session.left())
+      if (live.has(exchangeId))
+        handovers.set(
+          exchangeId,
+          closed.then(() => session.handover()),
+        )
     }
+    await Promise.all(leaving)
     for (const assignment of assignments) {
       const session = this.sessions.get(assignment.exchangeId)
       if (session) {

@@ -157,13 +157,17 @@ const resultKey = (r: Pick<Result, 'taskId' | 'resultRevision'>) => `${r.taskId}
 
 /**
  * What a closing session hands the session that replaces it on the same exchange (a room link lost and joined again):
- * each result still owed to someone, with the attempts it used and the members who already have its chat notice;
- * every announcement the API has not recorded; and the results already announced (`done`, by key), which the
- * replacement never announces again, even while a listing read before their record still shows them. A process
- * restart forgets it.
+ * - `owed`: each result still owed to someone, or whose delivery was still under way when the close stopped waiting,
+ *   with the attempts it used, the members confirmed to have its chat notice, and whether the room heard it (then only
+ *   readers are owed it);
+ * - `unrecorded`: every announcement the API has not recorded;
+ * - `done`: the results already delivered (by key), which the replacement never announces again, even while a listing
+ *   read before their record still shows them. A result whose attempts ran out with nothing delivered is not done: the
+ *   replacement may say it, as any later session may.
+ * A process restart forgets it.
  */
 export interface Handover {
-  owed: { result: Result; attempts: number; told: string[]; delivered: number }[]
+  owed: { result: Result; attempts: number; told: string[]; delivered: number; heard: boolean }[]
   unrecorded: Announced[]
   done: string[]
 }
@@ -360,10 +364,19 @@ export class RoomSession {
   private readonly owed = new Map<string, Result>()
   /** Deliveries and their records still settling: a close waits for them (bounded) before anything is handed over. */
   private readonly settling = new Set<Promise<unknown>>()
+  /** Results with a delivery under way, and how many: unknown outcomes, owed again if the session closes first. */
+  private readonly inFlight = new Map<string, { result: Result; count: number }>()
+  /** Results the room heard Sophia say: never said again, only sent to readers who have not had them. */
+  private readonly heard = new Set<string>()
+  /** A session that replaces a lost one announces nothing until it has what that one handed over. */
+  private awaitingHandover = false
+  /** Leaving the room, once closing: a room's next exchange may join after it, whatever is still settling. */
+  private leaving: Promise<void> | null = null
   /** Members who said they read Sophia (text mode); dropped when they leave. */
   private readonly readers = new Set<string>()
-  /** Chat notices sent, by result and identity, and how many reached a member, by result. */
+  /** Chat notices sent or on their way, by result and identity; those confirmed delivered; how many, by result. */
   private readonly carded = new Set<string>()
+  private readonly confirmed = new Set<string>()
   private readonly cardsDelivered = new Map<string, number>()
   private readonly noticeAttempts = new Map<string, number>()
   /**
@@ -388,7 +401,7 @@ export class RoomSession {
   private typedStartedAt: number | null = null
   private readonly typedSeen = new Set<string>()
 
-  constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | null = null) {
+  constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | Promise<Handover> | null = null) {
     this.exchangeId = assignment.exchangeId
     this.assignment = assignment
     this.deps = deps
@@ -399,7 +412,17 @@ export class RoomSession {
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
     this.providerSession = this.connection
-    if (handover) this.takeOver(handover)
+    if (handover instanceof Promise) {
+      this.awaitingHandover = true
+      void handover
+        .then(
+          (h) => this.takeOver(h),
+          () => undefined,
+        )
+        .then(() => {
+          this.awaitingHandover = false
+        })
+    } else if (handover) this.takeOver(handover)
   }
 
   /**
@@ -409,12 +432,16 @@ export class RoomSession {
    */
   private takeOver({ owed, unrecorded, done }: Handover): void {
     for (const key of done) this.announced.add(key)
-    for (const { result, attempts, told, delivered } of owed) {
+    for (const { result, attempts, told, delivered, heard } of owed) {
       const key = resultKey(result)
       this.owed.set(key, result)
       this.noticeAttempts.set(key, attempts)
-      for (const identity of told) this.carded.add(`${key}:${identity}`)
+      for (const identity of told) {
+        this.carded.add(`${key}:${identity}`)
+        this.confirmed.add(`${key}:${identity}`)
+      }
       this.cardsDelivered.set(key, delivered)
+      if (heard) this.heard.add(key)
     }
     for (const event of unrecorded) {
       const key = resultKey(event)
@@ -425,14 +452,19 @@ export class RoomSession {
 
   /** What this session still owes its room, once it is closed: see Handover. */
   handover(): Handover {
-    const owed = [...this.owed].map(([key, result]) => ({
+    // A delivery still under way when the close stopped waiting has no known outcome: it is owed again.
+    const owing = new Map(this.owed)
+    for (const [key, { result }] of this.inFlight) owing.set(key, result)
+    const owed = [...owing].map(([key, result]) => ({
       result,
       attempts: this.noticeAttempts.get(key) ?? 0,
-      told: [...this.carded].filter((c) => c.startsWith(`${key}:`)).map((c) => c.slice(key.length + 1)),
+      told: [...this.confirmed].filter((c) => c.startsWith(`${key}:`)).map((c) => c.slice(key.length + 1)),
       delivered: this.cardsDelivered.get(key) ?? 0,
+      heard: this.heard.has(key),
     }))
     const unrecorded = [...this.receipts.values()].map((r) => r.event)
-    return { owed, unrecorded, done: [...this.announced].filter((key) => !this.owed.has(key)) }
+    const delivered = (key: string) => this.heard.has(key) || (this.cardsDelivered.get(key) ?? 0) > 0
+    return { owed, unrecorded, done: [...this.announced].filter((key) => !owing.has(key) && delivered(key)) }
   }
 
   /** Join the room first (so guests are seen before anything is heard), then connect Google. */
@@ -571,9 +603,20 @@ export class RoomSession {
     this.connection += 1
     this.live?.close()
     this.live = null
+    this.leaving = this.leaveRoom()
+    await this.leaving
+    await owed
+  }
+
+  private async leaveRoom(): Promise<void> {
     await this.room?.close().catch((err: unknown) => this.deps.log('room.close_failed', { error: message(err) }))
     this.room = null
-    await owed
+  }
+
+  /** Close, resolving once the room is left; what the session still owes may still be settling (close() waits). */
+  left(): Promise<void> {
+    const closing = this.close()
+    return this.leaving ?? closing
   }
 
   /**
@@ -585,6 +628,12 @@ export class RoomSession {
     const notice = this.notice
     this.notice = null
     if (notice) this.unheard(notice)
+    // A heard notice whose record waits on its readers' notices is recorded as heard now, with the readers so far.
+    for (const [key, { result }] of this.inFlight) {
+      if (!this.heard.has(key)) continue
+      const event = { exchangeId: this.exchangeId, taskId: result.taskId, resultRevision: result.resultRevision }
+      this.record(key, { ...event, heard: true, textRecipients: this.cardsDelivered.get(key) ?? 0 }, false)
+    }
     const flush = async () => {
       if (notice) {
         const textRecipients = await notice.cards
@@ -1350,7 +1399,7 @@ export class RoomSession {
    */
   private announce(now: number): void {
     const input = this.state.input(now)
-    if (input === 'paused' || input === 'settling') return
+    if (this.awaitingHandover || input === 'paused' || input === 'settling') return
     const members = this.members()
     // Nobody to tell: it waits for someone to arrive, rather than being said to an empty room.
     if (members.length === 0) return
@@ -1359,28 +1408,33 @@ export class RoomSession {
     const next = this.nextResult(asText, now)
     const noticeOf = next && RESULT_NOTICES.get(next.kind)
     if (!next || !noticeOf) return
-    if (asText) return this.announceAsText(next, readers)
+    if (asText || this.heard.has(resultKey(next))) return this.announceAsText(next, readers)
+    this.announceAloud(next, noticeOf(next.taskId), readers, now)
+  }
+
+  /** Sophia says it to the room once she is idle; the readers get its chat notice as it is sent. */
+  private announceAloud(next: Result, notice: string, readers: readonly string[], now: number): void {
     const live = this.live
     if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
     const key = resultKey(next)
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
-    this.notice = { key, result: next, event, cards: this.track(this.sendCards(next, readers)) }
+    this.notice = { key, result: next, event, cards: this.track(key, next, this.sendCards(next, readers)) }
     this.state.systemTurn()
-    live.sendNotice(noticeOf(next.taskId))
+    live.sendNotice(notice)
   }
 
   /**
    * The next result to announce: listed by the API or still owed, and not announced yet. An owed result a newer
-   * revision of its task has superseded is not said. In a room where everyone reads, one waiting for its text retry
-   * lets the next go first.
+   * revision of its task has superseded is not said. One going to readers only (everyone reads, or the room heard it)
+   * that waits for its text retry lets the next go first.
    */
   private nextResult(asText: boolean, now: number): Result | undefined {
     this.pruneOwed()
     return [...this.assignment.results, ...this.owed.values()].find((r) => {
       const key = resultKey(r)
       if (!RESULT_NOTICES.has(r.kind) || this.announced.has(key)) return false
-      return !asText || (this.textRetryAt.get(key) ?? 0) <= now
+      return !(asText || this.heard.has(key)) || (this.textRetryAt.get(key) ?? 0) <= now
     })
   }
 
@@ -1397,11 +1451,16 @@ export class RoomSession {
     for (const [key, r] of this.owed) if ((newest.get(r.taskId) ?? 0) > r.resultRevision) this.owed.delete(key)
   }
 
-  /** Work a close waits for: a delivery, or the record that follows it. */
-  private track<T>(work: Promise<T>): Promise<T> {
+  /** A delivery of a result, which a close waits for and a handover owes again while it is under way. */
+  private track<T>(key: string, result: Result, work: Promise<T>): Promise<T> {
     this.settling.add(work)
+    const entry = this.inFlight.get(key) ?? { result, count: 0 }
+    entry.count += 1
+    this.inFlight.set(key, entry)
     const settled = () => {
       this.settling.delete(work)
+      entry.count -= 1
+      if (entry.count === 0 && this.inFlight.get(key) === entry) this.inFlight.delete(key)
     }
     work.then(settled, settled)
     return work
@@ -1418,29 +1477,33 @@ export class RoomSession {
   }
 
   /**
-   * Everyone present reads: the chat notices alone announce it, and nobody heard it. It is done once every reader
+   * Chat notices alone: everyone present reads, or the room already heard Sophia say it. It is done once every reader
    * present has the notice; what reached some is recorded meanwhile, and the rest are tried again after a wait.
    */
   private announceAsText(next: Result, readers: readonly string[]): void {
     const key = resultKey(next)
     this.announced.add(key)
-    void this.track(this.sendCards(next, readers)).then((delivered) => {
+    void this.track(key, next, this.sendCards(next, readers)).then((delivered) => {
       const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
-      if (delivered > 0) this.record(key, { ...event, heard: false, textRecipients: delivered })
-      if (readers.every((identity) => this.carded.has(`${key}:${identity}`))) {
-        this.owed.delete(key)
-        return
-      }
-      const attempts = (this.noticeAttempts.get(key) ?? 0) + 1
-      this.noticeAttempts.set(key, attempts)
-      // What reached some is recorded, so the API stops listing it: the rest are owed it from here.
-      if (attempts < NOTICE_ATTEMPTS) {
-        this.announced.delete(key)
-        this.owed.set(key, next)
-        this.textRetryAt.set(key, this.deps.now() + TEXT_RETRY_MS)
-      } else this.owed.delete(key)
-      this.deps.log('announce.not_delivered', { exchangeId: this.exchangeId, taskId: next.taskId, attempts })
+      if (delivered > 0) this.record(key, { ...event, heard: this.heard.has(key), textRecipients: delivered })
+      if (readers.every((identity) => this.confirmed.has(`${key}:${identity}`))) this.owed.delete(key)
+      else this.retryText(key, next)
     })
+  }
+
+  /**
+   * Readers present have not had the result's chat notice. What reached some is recorded, so the API stops listing it:
+   * the rest are owed it from here, tried again after a wait until its attempts run out.
+   */
+  private retryText(key: string, result: Result): void {
+    const attempts = (this.noticeAttempts.get(key) ?? 0) + 1
+    this.noticeAttempts.set(key, attempts)
+    if (attempts < NOTICE_ATTEMPTS) {
+      this.announced.delete(key)
+      this.owed.set(key, result)
+      this.textRetryAt.set(key, this.deps.now() + TEXT_RETRY_MS)
+    } else this.owed.delete(key)
+    this.deps.log('announce.not_delivered', { exchangeId: this.exchangeId, taskId: result.taskId, attempts })
   }
 
   /**
@@ -1461,7 +1524,8 @@ export class RoomSession {
       if (this.carded.has(sent)) return false
       this.carded.add(sent)
       const delivered = await this.room?.sendChat?.(identity, { ...card, id: randomUUID() }).catch(() => false)
-      if (!delivered) this.carded.delete(sent)
+      if (delivered === true) this.confirmed.add(sent)
+      else this.carded.delete(sent)
       return delivered === true
     }
     const delivered = (await Promise.all(readers.map(send))).filter(Boolean).length
@@ -1500,11 +1564,15 @@ export class RoomSession {
     if (!notice) return
     this.notice = null
     this.owed.delete(notice.key)
+    this.heard.add(notice.key)
     // A member who turned to text while it was being said gets the notice too; then it is recorded, once both settle.
+    // A reader present whose notice did not get through is owed it as text; the room is never told it again.
     const late = this.sendCards(notice.result, this.presentReaders())
-    void this.track(Promise.all([notice.cards, late])).then(([first, total]) =>
-      this.record(notice.key, { ...notice.event, heard: true, textRecipients: Math.max(first, total) }),
-    )
+    void this.track(notice.key, notice.result, Promise.all([notice.cards, late])).then(([first, total]) => {
+      this.record(notice.key, { ...notice.event, heard: true, textRecipients: Math.max(first, total) })
+      const missing = this.presentReaders().filter((identity) => !this.confirmed.has(`${notice.key}:${identity}`))
+      if (missing.length > 0) this.retryText(notice.key, notice.result)
+    })
   }
 
   /**
@@ -1562,7 +1630,7 @@ export class RoomSession {
     const attempts = this.unheard(notice)
     if (attempts < NOTICE_ATTEMPTS) this.announced.delete(notice.key)
     this.deps.log('announce.not_heard', { exchangeId: this.exchangeId, taskId: notice.event.taskId, attempts })
-    void this.track(notice.cards).then((textRecipients) => {
+    void this.track(notice.key, notice.result, notice.cards).then((textRecipients) => {
       if (textRecipients > 0) this.record(notice.key, { ...notice.event, heard: false, textRecipients })
     })
   }

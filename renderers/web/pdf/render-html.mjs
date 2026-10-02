@@ -37,7 +37,8 @@ const DONOR = {
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 /**
  * The files whose code decides a render and judges it: every module this one imports, transitively, and the
- * confinement wrapper the browser starts through. A test holds this list to the import closure (M03-RF-0018).
+ * confinement wrapper the browser starts through. Tests hold this list to the import closure and to what a judgement
+ * actually loads (M03-RF-0018).
  */
 export const KERNEL_FILES = [
   'render-html.mjs',
@@ -47,8 +48,17 @@ export const KERNEL_FILES = [
   'pdf-text.mjs',
   'bin/confine-chromium',
 ]
-/** Third-party code that judges too: pdf.js reads the printed pages back. Playwright is reported on its own. */
-export const JUDGE_PACKAGES = ['pdfjs-dist']
+/**
+ * Third-party code that judges too, with the files of it a judgement loads (a test holds these lists to what it
+ * actually loads): pdf.js reads the printed pages back in-process, its worker code included, and in Node fills in its
+ * geometry with @napi-rs/canvas, its own optional dependency, resolved from pdf.js (`via`). Playwright drives the
+ * browser and is reported on its own. A native binary loaded beneath these files is named by its package's version.
+ * @type {ReadonlyArray<{ name: string, via?: string, files: readonly string[] }>}
+ */
+export const JUDGE_PACKAGES = [
+  { name: 'pdfjs-dist', files: ['legacy/build/pdf.mjs', 'legacy/build/pdf.worker.mjs'] },
+  { name: '@napi-rs/canvas', via: 'pdfjs-dist', files: ['index.js', 'js-binding.js', 'geometry.js', 'load-image.js'] },
+]
 
 // Right-aligned page numbers so the author never computes pagination (the donor's footer); the header stays empty.
 const FOOTER_TEMPLATE =
@@ -83,26 +93,46 @@ export class RenderFailure extends Error {
 }
 
 /**
- * A package's version from its own package.json, as the kernel in `dir` resolves it ("unknown" if it names none,
- * which still changes the identity).
- * @param {string} name
+ * A judging package as the kernel in `dir` resolves it: its version ("unknown" if its package.json names none) and the
+ * bytes of the files a judgement loads from it, each named; a package or file that is not there is named "absent".
+ * Any of these changing changes the identity.
+ * @param {{ name: string, via?: string, files: readonly string[] }} judge
  * @param {string} dir
  */
-function packageVersion(name, dir) {
-  const resolve = createRequire(path.join(dir, 'render-html.mjs')).resolve
-  const pkg = /** @type {unknown} */ (JSON.parse(fs.readFileSync(resolve(`${name}/package.json`), 'utf8')))
+function judgeLines({ name, via, files }, dir) {
+  const kernel = path.join(dir, 'render-html.mjs')
+  /** @type {string} */
+  let manifest
+  /** @type {unknown} */
+  let pkg
+  try {
+    const from = via ? createRequire(kernel).resolve(`${via}/package.json`) : kernel
+    manifest = createRequire(from).resolve(`${name}/package.json`)
+    pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'))
+  } catch {
+    return [`${name}@absent\n`]
+  }
   const version = typeof pkg === 'object' && pkg !== null && 'version' in pkg ? pkg.version : null
-  return typeof version === 'string' ? version : 'unknown'
+  const root = path.dirname(manifest)
+  const bytes = (/** @type {string} */ f) => {
+    const file = path.join(root, f)
+    return fs.existsSync(file) ? sha256Hex(fs.readFileSync(file)) : 'absent'
+  }
+  return [
+    `${name}@${typeof version === 'string' ? version : 'unknown'}\n`,
+    ...files.map((f) => `${name}/${f}\0${bytes(f)}\n`),
+  ]
 }
 
 /**
- * The kernel's identity: its own files' bytes, in a fixed order, and the versions of the packages that judge with
- * it. Two kernels that would print or judge differently never report the same identity.
+ * The kernel's identity: its own files' bytes, in a fixed order, and the packages that judge with it (judgeLines). Two
+ * kernels that would print or judge differently never report the same identity; inputs from the host (fonts, the Node
+ * runtime, the browser binary beyond its version) are a host's qualification evidence instead.
  * @param {string} [dir] where the kernel's files are (this package; a test passes a copy)
  */
 export function rendererSha256(dir = HERE) {
   const files = KERNEL_FILES.map((f) => `${f}\0${sha256Hex(fs.readFileSync(path.join(dir, f)))}\n`)
-  const packages = JUDGE_PACKAGES.map((name) => `${name}@${packageVersion(name, dir)}\n`)
+  const packages = JUDGE_PACKAGES.flatMap((judge) => judgeLines(judge, dir))
   return sha256Hex([...files, ...packages].join(''))
 }
 
@@ -580,6 +610,13 @@ async function main(argv) {
   return receipt.status === 'succeeded' ? 0 : 1
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exitCode = await main(process.argv.slice(2))
+/** Whether this file is the command being run: never an error, whatever the process's first argument is. */
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1] ?? '') === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
 }
+
+if (isMain()) process.exitCode = await main(process.argv.slice(2))

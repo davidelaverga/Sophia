@@ -589,8 +589,9 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     // Readers got it as text while the room did not hear it; a later retry the room heard adds "heard" and keeps
     // the readers (RF-0017). A replay or a late receipt never takes anything back.
     assert.equal((await announce(a, { resultRevision: 1, heard: false, textRecipients: 2 })).status, 204)
-    assert.equal((await announce(a, { resultRevision: 1, heard: true, textRecipients: 1 })).status, 204, 'heard later')
     assert.equal((await announce(a, { resultRevision: 1, heard: false, textRecipients: 2 })).status, 204, 'a replay')
+    // Last, with fewer readers than before: the union keeps both "heard" and the largest count.
+    assert.equal((await announce(a, { resultRevision: 1, heard: true, textRecipients: 1 })).status, 204, 'heard later')
     assert.equal((await announce(b, { resultRevision: 1 })).status, 204, 'an older bridge: heard')
     assert.equal((await announce(b, { resultRevision: 1, heard: false, textRecipients: 1 })).status, 204, 'a reader')
     const nobody = await announce(c, { resultRevision: 1, heard: false, textRecipients: 0 })

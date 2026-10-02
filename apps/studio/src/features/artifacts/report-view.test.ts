@@ -14,6 +14,7 @@ import {
   reportFilename,
   researchState,
   sourceWords,
+  rereadFor,
   spendText,
   versionMissing,
 } from './report-view.ts'
@@ -190,11 +191,22 @@ describe('how a cited source was retrieved', () => {
 })
 
 describe('a version the link names', () => {
-  it('is missing only once a list that is not being read again lacks it (a cached list can predate it)', () => {
-    assert.equal(versionMissing({ isSuccess: true, isFetching: false }, false), true)
-    assert.equal(versionMissing({ isSuccess: true, isFetching: true }, false), false, 'a stale list is being read')
-    assert.equal(versionMissing({ isSuccess: true, isFetching: false }, true), false)
-    assert.equal(versionMissing({ isSuccess: false, isFetching: true }, false), false, 'nothing read yet')
+  it('is missing only once a list read again since the link named it lacks it (a cached list can predate it)', () => {
+    const idle = { isSuccess: true, fetchStatus: 'idle' as const }
+    assert.equal(versionMissing(idle, false, true), true)
+    assert.equal(versionMissing(idle, false, false), false, 'the list is read again first')
+    assert.equal(versionMissing({ ...idle, fetchStatus: 'fetching' }, false, true), false, 'being read again')
+    assert.equal(versionMissing({ ...idle, fetchStatus: 'paused' }, false, true), false, 'a read paused offline')
+    assert.equal(versionMissing(idle, true, true), false)
+    assert.equal(versionMissing({ isSuccess: false, fetchStatus: 'fetching' }, false, true), false, 'nothing read yet')
+  })
+
+  it('reads the list again once for a version it lacks, and never for the current version', () => {
+    assert.equal(rereadFor(true, null, 'v4'), 'v4')
+    assert.equal(rereadFor(true, 'v4', 'v4'), null, 'once')
+    assert.equal(rereadFor(true, 'v4', 'v5'), 'v5', 'again for another version')
+    assert.equal(rereadFor(false, null, 'v4'), null, 'the list holds it')
+    assert.equal(rereadFor(true, null, null), null, 'the current version')
   })
 })
 

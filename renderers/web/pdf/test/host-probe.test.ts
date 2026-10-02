@@ -165,7 +165,7 @@ describe('the renderer host probe (OP-C)', () => {
   it('a named directory with more entries than the probe tries fails, never passes, on any host', async () => {
     const big = path.join(scratch, 'big-secrets')
     fs.mkdirSync(big)
-    for (let i = 0; i < 256; i++) fs.writeFileSync(path.join(big, `s${String(i)}`), '')
+    for (let i = 0; i <= 256; i++) fs.writeFileSync(path.join(big, `s${String(i)}`), '')
     const results = await probeHost({
       env: { ...env, SOPHIA_CHROMIUM_PATH: path.join(scratch, 'no-browser') },
       node,
@@ -174,6 +174,10 @@ describe('the renderer host probe (OP-C)', () => {
     const check = results.find((r) => r.check === `unreadable:${big}`)
     assert.deepEqual([check?.ok, check?.detail], [false, 'not run: more than 256 entries; name the files instead'])
     assert.ok(!results.some((r) => r.check.startsWith(`unreadable:${big}/`)))
+    // Exactly 256 entries are each tried.
+    fs.rmSync(path.join(big, 's256'))
+    const tried = await probeHost({ env: quick, node, secrets: [big] })
+    assert.ok(!tried.some((r) => r.detail.startsWith('not run: more than')))
   })
 
   it('when the confinement cannot run, the checks it could not perform are still reported, on any host', async () => {
@@ -183,8 +187,65 @@ describe('the renderer host probe (OP-C)', () => {
     })
     const byName = new Map(results.map((r) => [r.check, r]))
     assert.equal(byName.get('confinement')?.ok, false)
-    assert.match(byName.get('confinement')?.detail ?? '', /^the confinement did not run/)
+    assert.match(
+      byName.get('confinement')?.detail ?? '',
+      /^(the confinement did not run|not run: the confinement runs on Linux only)/,
+    )
     for (const check of ['api_host', 'runner_token_file']) assert.match(byName.get(check)?.detail ?? '', /^not run: /)
+  })
+
+  it('tries only files and directories it can read itself: anything else is not run, on any host', async () => {
+    const socket = path.join(scratch, 's.sock')
+    const server = net.createServer()
+    await new Promise<void>((resolve) => server.listen(socket, resolve))
+    try {
+      const results = await probeHost({ env: quick, node, secrets: [socket] })
+      assert.match(notPassed(results, `unreadable:${socket}`), /^not run: not a file or a directory/)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
+  it(
+    'a secret this probe cannot read either is not run: a refusal inside would prove nothing',
+    { skip: root ? 'root reads every file' : false },
+    async () => {
+      const closed = path.join(scratch, 'closed-to-the-probe')
+      fs.writeFileSync(closed, 'x', { mode: 0o000 })
+      fs.chmodSync(closed, 0o000)
+      const results = await probeHost({ env: quick, node, secrets: [closed] })
+      assert.match(notPassed(results, `unreadable:${closed}`), /^not run: this probe cannot read it either/)
+    },
+  )
+
+  it('the command runs nothing on a command line it does not understand, and runs through a link, on any host', () => {
+    const missing = path.join(scratch, 'not-here')
+    const cli = (args: string[], program = PROBE) =>
+      spawnSync(process.execPath, [program, ...args], { env: quick, encoding: 'utf8', timeout: 120_000 })
+    for (const args of [['--secrets', missing], ['--secret'], [missing], ['--secret', ''], ['--node=']]) {
+      const run = cli(args)
+      assert.deepEqual([run.status, run.stdout], [2, ''], args.join(' '))
+      assert.match(run.stderr, /usage: host-probe\.mjs/)
+    }
+    const link = path.join(scratch, 'probe-link.mjs')
+    fs.symlinkSync(PROBE, link)
+    for (const run of [cli([`--secret=${missing}`]), cli(['--secret', missing], link)]) {
+      assert.equal(run.status, 1, run.stderr)
+      const lines = run.stdout
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as { check: string; ok: boolean; detail: string })
+      assert.match(notPassed(lines, `unreadable:${missing}`), /^not run: .* does not exist on this host$/)
+    }
+  })
+
+  it('a path the job context fails to open for any reason but permission is not shown closed', { skip }, async () => {
+    // The probe's own process entry: readable here, absent from the job context's fresh PID namespace (ENOENT).
+    const elsewhere = path.join(scratch, 'elsewhere')
+    fs.symlinkSync(`/proc/${String(process.pid)}/cmdline`, elsewhere)
+    const results = await probeHost({ env: supervisorEnv(), node, secrets: [elsewhere] })
+    assert.deepEqual(failed(results), [...tokenFailure, `unreadable:${elsewhere}`])
+    assert.match(notPassed(results, `unreadable:${elsewhere}`), /^not shown closed: ENOENT$/)
   })
 
   it(
@@ -217,6 +278,7 @@ describe('the renderer host probe (OP-C)', () => {
         'kernel_checks',
         'sandbox',
         'job_environment',
+        'network_namespace',
         'public_tcp',
         'dns',
         'metadata',
@@ -251,6 +313,24 @@ describe('the renderer host probe (OP-C)', () => {
       assert.deepEqual(failed(lines), [...tokenFailure, `unreadable:${file}`])
     },
   )
+
+  it('follows a link to a directory inside a named one, and tries what is under it', { skip }, async () => {
+    const named = path.join(scratch, 'linked-secrets')
+    const target = path.join(scratch, 'link-target')
+    for (const dir of [named, target]) {
+      fs.mkdirSync(dir, { mode: 0o711 })
+      fs.chmodSync(dir, 0o711)
+    }
+    const inner = path.join(target, 'inner')
+    fs.writeFileSync(inner, 'not a secret', { mode: 0o644 })
+    fs.chmodSync(inner, 0o644)
+    fs.symlinkSync(target, path.join(named, 'link'))
+    const results = await probeHost({ env: supervisorEnv(), node, secrets: [named] })
+    const viaLink = path.join(named, 'link', 'inner')
+    // Without a render user the job context owns both directories, so it lists them as well.
+    const listed = root ? [] : [`unreadable:${named}`, `unreadable:${path.join(named, 'link')}`]
+    assert.deepEqual(failed(results), [...tokenFailure, ...listed, `unreadable:${viaLink}`])
+  })
 
   it(
     'tries every file in a named directory: one the job context cannot list still fails on a file it can read',

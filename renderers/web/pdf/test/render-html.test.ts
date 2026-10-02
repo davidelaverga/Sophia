@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, describe, it } from 'node:test'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import {
   chromiumPath,
@@ -157,10 +158,32 @@ const page = (count: number, images = 0) => ({ words: count, images })
 
 const KERNEL_DIR = fileURLToPath(new URL('..', import.meta.url))
 
-/** Every module a file names: static, side-effect, re-export, dynamic and require, in either quote. */
+/** Every module a file names with a literal: static, side-effect, re-export, dynamic and require, in either quote. */
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)(['"])([^'"\n]+)\1/g
-/** Every file a module starts or reads by its own location. */
-const STARTED = /new URL\(\s*(['"])(\.\.?\/[^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g
+/** Every file a module starts or reads by its own location, with or without './', across lines. */
+const STARTED = /new URL\(\s*(['"])((?:\.{1,2}\/)?[^'"\n:]+)\1\s*,\s*import\.meta\.url\s*,?\s*\)/g
+/**
+ * Anything else that loads code or names a file by the module's location. A kernel file holding one that is neither a
+ * literal form above nor a reviewed site below fails the identity test, so a loader the parser cannot follow is never
+ * silently outside the identity.
+ */
+const LOADER =
+  /import\.meta|createRequire|getBuiltinModule|\brequire(?:\.resolve)?\s*\(|\bimport\s*\(|\bnew\s+Worker\b|child_process|(?<![.\w])(?:spawn|spawnSync|fork|exec|execFile|execSync|execFileSync)\s*\(|\beval\s*\(|\bnew\s+Function\b|\$\(dirname|^\s*(?:\.|source)\s+\S/m
+/** The reviewed sites: each resolves a package's metadata, or names this module's own location for hashing or main. */
+const KNOWN_LOADERS: Record<string, readonly string[]> = {
+  'render-html.mjs': [
+    "import { createRequire } from 'node:module'",
+    'const HERE = path.dirname(fileURLToPath(import.meta.url))',
+    'const from = via ? createRequire(kernel).resolve(`${via}/package.json`) : kernel',
+    'manifest = createRequire(from).resolve(`${name}/package.json`)',
+    "return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1] ?? '') === fileURLToPath(import.meta.url)",
+  ],
+  'confine.mjs': [
+    "import { createRequire } from 'node:module'",
+    'const require = createRequire(import.meta.url)',
+    "const pkg = path.dirname(require.resolve('playwright-core/package.json'))",
+  ],
+}
 
 /** What a file's text names: modules (relative, package or node:) and the files it starts. */
 function namedBy(text: string): { modules: string[]; started: string[] } {
@@ -168,6 +191,17 @@ function namedBy(text: string): { modules: string[]; started: string[] } {
     modules: [...text.matchAll(SPECIFIER)].map((m) => m[2] ?? ''),
     started: [...text.matchAll(STARTED)].map((m) => m[2] ?? ''),
   }
+}
+
+/** The lines of a file that load code in a way the parser does not follow, and are not reviewed sites. */
+function unexplainedLoaders(file: string, text: string): string[] {
+  const parsed = text.replaceAll(STARTED, 'STARTED').replaceAll(/\bimport\s*\(\s*(['"])[^'"\n]+\1\s*\)/g, 'IMPORTED')
+  const known = new Set(KNOWN_LOADERS[file] ?? [])
+  return parsed
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => !line.startsWith('*') && !line.startsWith('//') && !line.startsWith('#!'))
+    .filter((line) => LOADER.test(line) && !known.has(line))
 }
 
 /** A path the kernel names, relative to the kernel's directory; it never leaves it. */
@@ -188,29 +222,67 @@ const packageOf = (specifier: string) =>
     .join('/')
 
 /**
- * The kernel's own files, from render-html.mjs through everything it imports or starts, transitively, and the
- * packages they import (node: builtins aside).
+ * The kernel's own files, from render-html.mjs through everything it imports or starts, transitively; the packages
+ * they import (node: builtins aside); and every loader line the parser could not follow.
  */
-function importClosure(): { files: Set<string>; packages: Set<string> } {
+function importClosure(): { files: Set<string>; packages: Set<string>; unexplained: string[] } {
   const files = new Set<string>()
   const packages = new Set<string>()
+  const unexplained: string[] = []
   const queue = ['render-html.mjs']
   while (queue.length > 0) {
     const file = queue.shift() ?? ''
     if (files.has(file)) continue
     files.add(file)
-    const { modules, started } = namedBy(fs.readFileSync(path.join(KERNEL_DIR, file), 'utf8'))
+    const text = fs.readFileSync(path.join(KERNEL_DIR, file), 'utf8')
+    const { modules, started } = namedBy(text)
     for (const specifier of modules) {
       if (specifier.startsWith('.')) queue.push(kernelPath(file, specifier))
       else if (!specifier.startsWith('node:')) packages.add(packageOf(specifier))
     }
     for (const name of started) queue.push(kernelPath(file, name))
+    unexplained.push(...unexplainedLoaders(file, text).map((line) => `${file}: ${line}`))
   }
-  return { files, packages }
+  return { files, packages, unexplained }
+}
+
+/**
+ * Every file a judgement loads, recorded by a module hook in a child process that loads the kernel and reads a
+ * one-page PDF back: the kernel's own files (relative to it) and, per package, the files loaded from it.
+ */
+function judgementLoads(): { own: string[]; packages: Map<string, string[]> } {
+  const program = `
+import { registerHooks } from 'node:module'
+import { pathToFileURL } from 'node:url'
+const loaded = []
+registerHooks({ load(url, context, nextLoad) { loaded.push(url); return nextLoad(url, context) } })
+const dir = pathToFileURL(process.argv[1] + '/')
+await import(new URL('render-html.mjs', dir).href)
+const { pageTexts } = await import(new URL('pdf-text.mjs', dir).href)
+const pdf = '%PDF-1.4\\n1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj\\n2 0 obj <</Type/Pages/Kids[3 0 R]/Count 1>> endobj\\n' +
+  '3 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>> endobj\\ntrailer <</Root 1 0 R>>\\n%%EOF'
+const pages = await pageTexts(Buffer.from(pdf), 10)
+if (pages?.length !== 1) throw new Error('the PDF was not read')
+process.stdout.write(JSON.stringify(loaded.filter((u) => u.startsWith('file:'))))
+`
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', program, '--', KERNEL_DIR], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  })
+  assert.equal(run.status, 0, run.stderr)
+  const own: string[] = []
+  const packages = new Map<string, string[]>()
+  for (const url of JSON.parse(run.stdout) as string[]) {
+    const file = fileURLToPath(url)
+    const inPackage = /node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?((?:@[^/]+\/)?[^/]+)\/(.*)$/.exec(file)
+    if (inPackage) packages.set(inPackage[1] ?? '', [...(packages.get(inPackage[1] ?? '') ?? []), inPackage[2] ?? ''])
+    else own.push(path.relative(fs.realpathSync(KERNEL_DIR), file).split(path.sep).join('/'))
+  }
+  return { own, packages }
 }
 
 describe('the kernel identity (M03-RF-0018)', () => {
-  it('reads every way a module names code', () => {
+  it('reads every literal way a module names code, and flags every other loader', () => {
     const text = [
       `import a from './a.mjs'`,
       `import "./side-effect.mjs"`,
@@ -219,26 +291,63 @@ describe('the kernel identity (M03-RF-0018)', () => {
       `const d = require("@scope/pkg/deep.js")`,
       `import e from 'node:fs'`,
       `const f = fileURLToPath(new URL("./bin/f", import.meta.url))`,
+      `const g = new URL(\n  'g.json',\n  import.meta.url,\n)`,
     ].join('\n')
     assert.deepEqual(namedBy(text), {
       modules: ['./a.mjs', './side-effect.mjs', '../up/b.mjs', './c.mjs', '@scope/pkg/deep.js', 'node:fs'],
-      started: ['./bin/f'],
+      started: ['./bin/f', 'g.json'],
     })
     assert.equal(packageOf('@scope/pkg/deep.js'), '@scope/pkg')
     assert.equal(packageOf('pdfjs-dist/legacy/build/pdf.mjs'), 'pdfjs-dist')
+    // A reviewer's list of loaders the parser cannot follow: each is flagged, so the test fails until it is reviewed.
+    for (const line of [
+      'const x = await import(`./judge-rules.mjs`)',
+      "const x = await import(/* note */ './judge-rules.mjs')",
+      "const load = createRequire(import.meta.url); load('./judge-rules.cjs')",
+      "const x = await import(import.meta.resolve('./judge-rules.mjs'))",
+      "fs.readFileSync(path.join(import.meta.dirname, 'judge-rules.json'))",
+      "new Worker(path.join(HERE, 'x.mjs'))",
+      "spawn(process.execPath, ['x.mjs'])",
+      '. "$(dirname "$0")/x.sh"',
+    ]) {
+      assert.deepEqual(unexplainedLoaders('pdf-text.mjs', line), [line], line)
+    }
+    assert.deepEqual(unexplainedLoaders('pdf-text.mjs', `const g = new URL(\n  './g.json',\n  import.meta.url,\n)`), [])
+    assert.deepEqual(unexplainedLoaders('pdf-text.mjs', `/** @type {import('./confine.mjs').X} */ (null)`), [])
   })
 
   it('covers every module the kernel runs, the wrapper it starts the browser through, and the packages that judge', () => {
-    const { files, packages } = importClosure()
+    const { files, packages, unexplained } = importClosure()
     assert.ok(files.has('pdf-text.mjs'), 'the page judge is part of the kernel')
     assert.ok(files.has('bin/confine-chromium'))
     assert.deepEqual([...files].toSorted(), [...KERNEL_FILES].toSorted())
+    assert.deepEqual(unexplained, [], 'every loader is followed by the parser or reviewed')
     // Playwright drives the browser and is reported on its own (its version and the browser's); every other package
     // the kernel imports judges, and is part of the identity.
     assert.ok(packages.has('playwright-core'))
     assert.deepEqual(
       [...packages].filter((name) => name !== 'playwright-core').toSorted(),
-      [...JUDGE_PACKAGES].toSorted(),
+      JUDGE_PACKAGES.filter((judge) => !judge.via)
+        .map((judge) => judge.name)
+        .toSorted(),
+    )
+  })
+
+  it('a judgement loads nothing the identity leaves out: the kernel’s files and each judging package’s files', () => {
+    // Importing the kernel never depends on what the importing process was started with.
+    const imported = spawnSync(
+      process.execPath,
+      ['--input-type=module', '-e', `await import(${JSON.stringify(KERNEL)})`, '--', 'file:///not/a/path'],
+      { encoding: 'utf8', timeout: 60_000 },
+    )
+    assert.equal(imported.status, 0, imported.stderr)
+    const { own, packages } = judgementLoads()
+    assert.ok(own.includes('pdf-text.mjs'))
+    for (const file of own) assert.ok(KERNEL_FILES.includes(file), file)
+    packages.delete('playwright-core')
+    assert.deepEqual(
+      Object.fromEntries([...packages].map(([name, files]) => [name, [...new Set(files)].toSorted()])),
+      Object.fromEntries(JUDGE_PACKAGES.map((judge) => [judge.name, [...judge.files].toSorted()])),
     )
   })
 
@@ -249,38 +358,46 @@ describe('the kernel identity (M03-RF-0018)', () => {
         fs.mkdirSync(path.dirname(path.join(copy, f)), { recursive: true })
         fs.copyFileSync(path.join(KERNEL_DIR, f), path.join(copy, f))
       }
-      // The copy resolves its judging packages from its own node_modules, at the versions installed here.
-      const manifests = JUDGE_PACKAGES.map((name) => {
-        const installed = JSON.parse(
-          fs.readFileSync(path.join(KERNEL_DIR, 'node_modules', name, 'package.json'), 'utf8'),
-        ) as { version: string }
-        const file = path.join(copy, 'node_modules', name, 'package.json')
-        fs.mkdirSync(path.dirname(file), { recursive: true })
-        fs.writeFileSync(file, JSON.stringify({ name, version: installed.version }))
-        return { file, name, version: installed.version }
+      // The copy resolves each judging package from its own node_modules: the installed manifest and loaded files.
+      const kernelRequire = createRequire(path.join(KERNEL_DIR, 'render-html.mjs'))
+      const copied = JUDGE_PACKAGES.map((judge) => {
+        const from = judge.via ? kernelRequire.resolve(`${judge.via}/package.json`) : path.join(KERNEL_DIR, 'x.mjs')
+        const installed = path.dirname(createRequire(from).resolve(`${judge.name}/package.json`))
+        const root = path.join(copy, 'node_modules', judge.name)
+        for (const f of ['package.json', ...judge.files]) {
+          fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true })
+          fs.copyFileSync(path.join(installed, f), path.join(root, f))
+        }
+        return { judge, root }
       })
       const identity = rendererSha256()
       assert.equal(rendererSha256(copy), identity, 'the same bytes, the same identity')
       // Codex's probe: a judge that calls a page blank up to 1000 words is another judge.
-      const judge = path.join(copy, 'pdf-text.mjs')
-      const original = fs.readFileSync(judge, 'utf8')
+      const judgeFile = path.join(copy, 'pdf-text.mjs')
+      const original = fs.readFileSync(judgeFile, 'utf8')
       assert.ok(original.includes('p.words <= 1 &&'))
-      fs.writeFileSync(judge, original.replace('p.words <= 1 &&', 'p.words <= 1000 &&'))
+      fs.writeFileSync(judgeFile, original.replace('p.words <= 1 &&', 'p.words <= 1000 &&'))
       assert.notEqual(rendererSha256(copy), identity)
-      fs.writeFileSync(judge, original)
-      for (const f of KERNEL_FILES) {
-        const file = path.join(copy, f)
+      fs.writeFileSync(judgeFile, original)
+      const changed = (file: string, label: string) => {
         const bytes = fs.readFileSync(file)
         fs.writeFileSync(file, Buffer.concat([bytes, Buffer.from('\n')]))
-        assert.notEqual(rendererSha256(copy), identity, f)
+        assert.notEqual(rendererSha256(copy), identity, label)
         fs.writeFileSync(file, bytes)
       }
-      for (const { file, name, version } of manifests) {
-        fs.writeFileSync(file, JSON.stringify({ name, version: `${version}-other` }))
-        assert.notEqual(rendererSha256(copy), identity, name)
-        fs.writeFileSync(file, JSON.stringify({ name }))
-        assert.notEqual(rendererSha256(copy), identity, `${name} without a version`)
-        fs.writeFileSync(file, JSON.stringify({ name, version }))
+      for (const f of KERNEL_FILES) changed(path.join(copy, f), f)
+      for (const { judge, root } of copied) {
+        for (const f of judge.files) changed(path.join(root, f), `${judge.name}/${f}`)
+        const manifest = path.join(root, 'package.json')
+        const installed = fs.readFileSync(manifest)
+        const pkg = JSON.parse(installed.toString('utf8')) as { version: string }
+        fs.writeFileSync(manifest, JSON.stringify({ ...pkg, version: `${pkg.version}-other` }))
+        assert.notEqual(rendererSha256(copy), identity, `${judge.name}'s version`)
+        fs.writeFileSync(manifest, installed)
+        const moved = `${root}-moved`
+        fs.renameSync(root, moved)
+        assert.notEqual(rendererSha256(copy), identity, `${judge.name} absent`)
+        fs.renameSync(moved, root)
       }
       assert.equal(rendererSha256(copy), identity, 'restored')
     } finally {

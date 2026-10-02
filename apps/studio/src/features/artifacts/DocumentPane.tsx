@@ -23,7 +23,7 @@ import {
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
-import { formatBytes, shortHash, versionMissing } from './report-view.ts'
+import { formatBytes, rereadFor, shortHash, versionMissing } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
@@ -58,6 +58,18 @@ function usePaneData(identity: Identity, link: ReportLink) {
     queryFn: () => listArtifactVersions(identity.token, link.artifactId),
   })
   const version = pick(versions.data, link.versionId)
+  // A link to a version the list does not hold (one published since it was read) reads the list again, once per
+  // version, before the pane may say it is not available.
+  const [reread, setReread] = useState<string | null>(null)
+  const absent = versions.isSuccess && link.versionId !== null && version === undefined
+  const { refetch } = versions
+  useEffect(() => {
+    const target = rereadFor(absent, reread, link.versionId)
+    if (target === null) return
+    setReread(target)
+    void refetch()
+  }, [absent, reread, link.versionId, refetch])
+  const versionSettled = link.versionId === null || reread === link.versionId
   const text = useQuery({
     // A source's bytes never change (content-addressed), so a version's text is read once.
     queryKey: ['report-text', version?.sourceId, identity.name],
@@ -82,7 +94,7 @@ function usePaneData(identity: Identity, link: ReportLink) {
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
   })
-  return { versions, version, text, sources, parsed, rendition, showPdf, pdf }
+  return { versions, version, versionSettled, text, sources, parsed, rendition, showPdf, pdf }
 }
 
 type PaneData = ReturnType<typeof usePaneData>
@@ -386,7 +398,7 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
 
 function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: string) => void }) {
   if (data.versions.isError) return <p className="muted">This report isn’t available to you.</p>
-  if (versionMissing(data.versions, data.version !== undefined))
+  if (versionMissing(data.versions, data.version !== undefined, data.versionSettled))
     return <p className="muted">This version isn’t available.</p>
   if (data.text.isError) {
     return (
