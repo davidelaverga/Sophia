@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/panel-ux` from main `8816d66`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the panel, checks and docs at `668c02b` (tree `efb58e4a2233`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** `apps/studio/src/features/resources/`, its fixture and checks, one dependency (`@lobehub/icons-static-svg`, exact) with its lock and the recorded `workspace_lock_sha256`, CONTRIBUTING and LFE-06's records. **No contract, schema or API changed. The panel isn't in the Studio yet.**
 
 ## Outcome (UI)
