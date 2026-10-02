@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-00/unified-continuation` from main `9b6d526`, 2026-10-02.
-- **End:** the docs at `06df8f4` (tree `99ab66ff00be`), the head the checks below ran on. The commit after it changes only this line.
+- **End:** the docs at `57e2e20` (tree `d83f38f48c36`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** this repository's documentation. **No hosted service was changed.** Render, Vercel and the GitHub API were only read.
 
 ## Outcome
