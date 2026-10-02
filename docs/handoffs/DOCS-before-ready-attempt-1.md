@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `contributing/before-ready` from main `ba983e7` (#23's merge), 2026-09-30; first commit `431f6d5`.
-- **End:** the docs at `ba9de57` (tree `46a64af19212`), with main merged in. The commit after it changes only this line. Changed: `CONTRIBUTING.md` (its top list) and this file.
+- **End:** the docs at `b1e95a0` (tree `ddbd9a4f1909`), with main merged in. The commit after it changes only this line. Changed: `CONTRIBUTING.md` (its top list) and this file.
 - **Writable scope:** this repository. **No hosted service was changed.**
 
 ## Outcome
