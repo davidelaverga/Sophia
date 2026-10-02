@@ -41,6 +41,7 @@ Missing or unverified:
 
 - **A fixture page, not the dev stack.** It is the real components with no API, Supabase or LiveKit, so the job needs no secrets and doesn't depend on a hosted service.
 - **One new dependency:** `@playwright/test` 1.63.0, exact, in the Studio's devDependencies. The CI job installs Chromium with its system packages.
+- **The workspace lock changed with it,** so `config/runtime-unit.json` records its new `workspace_lock_sha256` (`6cd0f40b…`). CI's runtime-unit and PostgreSQL jobs compare it on the first push and failed until it was recorded.
 - **Classes from earlier reviews checked before the push:**
   - the regression tests are in the repository and run in CI;
   - the fixtures are labelled and outside the production build;
