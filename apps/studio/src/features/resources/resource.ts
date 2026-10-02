@@ -231,7 +231,7 @@ export function capacity(obs: QuotaObservation | undefined, now: Date): Capacity
   const known = fromKnown(views.filter((v) => v.applies === 'known'))
   if (!known) return none('Capacity unknown: no window is known to apply here')
   const limiting = obs.windows.find((w) => w.window_id === known.limiting?.id)
-  return { ...known, pace: limiting ? pace(limiting, obs.observed_at, now) : null }
+  return { ...known, pace: limiting ? pace(limiting, obs, now) : null }
 }
 
 export const capacityLine = (obs: QuotaObservation | undefined, now: Date) => capacity(obs, now).line

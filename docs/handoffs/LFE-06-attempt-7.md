@@ -8,7 +8,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/scan-pace` from main `14687b8`, 2026-10-02.
-- **End:** content commit `8b27617`; its checks ran on it.
+- **End:** pending: the commit after the content commit fills it in.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `pace.ts` and `order.ts`, their tests, the meter, the tile, the capacity block, the panel and the stylesheet;
   - the resource fixture (`spent=1`) and its checks;
@@ -29,7 +29,7 @@
 - **An offline tile steps back.** Its mark is greyed, its words dimmer, and it says how long it has been gone ("Offline · 26 h").
 - **The window's pace.** A meter carries a thin mark at how much of its window had passed when it was read. A fill past the mark is spending faster than the window.
 
-  The window's length is never made up. The schema has no length, so only a window whose id gives it has a pace: 5-hour, 7-day and daily. A spend limit has no mark.
+  The window's length is never made up. The observation has no length field, so only a source whose window ids name a fixed length gets a pace: Claude Code's status line (`five_hour`, `seven_day`). Codex reports each window's own duration, which must be kept rather than assumed (`04_OWNER_RESOURCES.md` §7), and the observation can't carry it yet, so Codex has no mark. A spend limit has none either.
 
   When the account runs out before the reset at that pace, the sheet says so under the headline: "At this pace, used up ~20 min before it resets." It says nothing in these cases:
   - in the first 5 % of a window;
@@ -47,10 +47,11 @@
   - the spend limit's range on `spent=1`;
   - the attention order, the warm edge and the offline tile;
   - sorting by owner and tool, with the glide.
-- **Thirteen new mutations** each made their check fail, every run on a fresh fixture server:
+- **Fourteen new mutations** each made their check fail, every run on a fresh fixture server:
   - the pace read at the page time;
   - a projection while on pace;
   - a pace for an unknown length;
+  - Codex's five-hour window assumed;
   - no projection;
   - no mark on the tile;
   - a range of 100 for 120 %;
@@ -65,6 +66,11 @@
   The first run of "what waits not first" survived: in the base fixture the waiting tile was also the most used. The check now runs on `busy=1`, where Codex is more used and the waiting Claude Code must still come first. The 35 mutations of attempts 5 and 6 still fail their checks.
 - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass. `pnpm test`: 584 pass, plus the 5 known Windows failures, as on main.
 
+## Codex's review of `dcf5f3e`
+
+- **P2, fixed: the pace assumed Codex's `five_hour` lasted five hours.** The continuation asks to keep each Codex window's reported duration. `pace()` now takes the reading and knows lengths only per source: Claude Code's status line. The fixture's `busy=1` brings Davide's Claude Code to 95 % with 80 % of its window passed, to show the mark and the projection ("~47 min before it resets"). A new mutation that gives Codex a five-hour length again fails its check.
+- With Claude Code at 95 %, the waiting tile was again the most used on `busy=1`. The attention check moved to `spent=1`, where Codex at 120 % outranks it.
+
 ## Decisions and changes
 
 - **The pace mark is drawn from the reading's time, not the page's.** The value was true when it was read, so it is compared with how much of the window had passed then.
@@ -74,7 +80,7 @@
 ## Remaining obligations
 
 - **Luis:** evaluate this UI before it merges.
-- **Davide:** the resource and action shapes (SCM-01/02). A window length in the observation would give every window a pace.
+- **Davide:** the resource and action shapes (SCM-01/02). A window duration in the observation (Codex reports one) would give every window a pace.
 
 ## Next bounded action
 

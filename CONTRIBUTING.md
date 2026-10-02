@@ -448,9 +448,11 @@ when you change the room:
   Tiles sort by attention by default (what waits, then online by use, then
   unknown, then offline; `order.ts`); an offline tile steps back and says
   how long it has been gone. A meter marks how much of its window had passed
-  when it was read (`pace.ts`), only for a window whose length its name
-  gives, and the sheet says when the account runs out before the reset at
-  that pace (`busy=1`; `spent=1` passes a spend limit).
+  when it was read (`pace.ts`), only where the length is certain (Claude
+  Code's `five_hour` and `seven_day`; Codex reports its own durations, which
+  the observation can't carry yet), and the sheet says when the account runs
+  out before the reset at that pace (`busy=1`; `spent=1` passes a spend
+  limit).
 
 ## The personal space
 

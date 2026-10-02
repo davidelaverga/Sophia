@@ -1,19 +1,18 @@
 // A window's pace: how much of it had passed when it was read, against how much of it was used. A meter shows the
 // first as a mark; when the account runs out before the window resets at that pace, the sheet says how long before.
-// Only a percentage window whose length its name gives (5-hour, 7-day, daily) has a pace: none is made up.
-import type { QuotaWindow } from './resource.ts'
+// Only a window whose length is certain has a pace: none is made up. The observation carries no length, so that is a
+// source whose window ids name a fixed one. Claude Code's status line documents `five_hour` and `seven_day`. Codex
+// reports each window's own duration, which must be kept rather than assumed (04_OWNER_RESOURCES §7), and the
+// observation can't carry it yet: no pace for Codex until it does.
+import type { QuotaObservation, QuotaWindow } from './resource.ts'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-/** The windows whose length is known from their id. */
-const LENGTH: Record<string, number> = {
-  five_hour: 5 * HOUR,
-  seven_day: 7 * DAY,
-  seven_day_opus: 7 * DAY,
-  seven_day_sonnet: 7 * DAY,
-  daily_requests: DAY,
+/** Per source, the windows whose id names their length. */
+const LENGTH: Record<string, Record<string, number> | undefined> = {
+  'claude-code-statusline': { five_hour: 5 * HOUR, seven_day: 7 * DAY },
 }
 
 /** Too early in a window to project from: the first 5 % of it. */
@@ -42,18 +41,21 @@ function runsOutAt(used: number, passed: number, length: number, readAt: number)
   return readAt + (100 - used) / perMs
 }
 
+/** The reading a window comes from: when it was read, and which source named its windows. */
+export type Reading = Pick<QuotaObservation, 'observed_at' | 'source_channel'>
+
 /**
- * The pace of an observed percentage window known to apply, read at `observedAt`; null for any other window, a
- * window without a reset, or one whose length isn't known.
+ * The pace of an observed percentage window known to apply; null for any other window, a window without a reset, or
+ * one whose length isn't certain.
  */
-export function pace(w: QuotaWindow, observedAt: string, now: Date): Pace | null {
-  const length = LENGTH[w.window_id]
+export function pace(w: QuotaWindow, reading: Reading, now: Date): Pace | null {
+  const length = LENGTH[reading.source_channel]?.[w.window_id]
   const percent = w.unit === 'percent_used' || w.unit === 'spend_percent_used'
   if (!length || !percent || w.state !== 'observed' || w.applicability !== 'known') return null
   if (w.value === null || w.resets_at === null) return null
   const reset = Date.parse(w.resets_at)
   if (reset <= now.getTime()) return null
-  const readAt = Date.parse(observedAt)
+  const readAt = Date.parse(reading.observed_at)
   const passed = Math.min(1, Math.max(0, (readAt - (reset - length)) / length))
   const out = runsOutAt(w.value, passed, length, readAt)
   const before = out === null ? 0 : reset - out

@@ -256,7 +256,6 @@ const rgb = (hex = '') => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 
 test('a meter turns amber from 75 % used and red from 90 %', async ({ page }) => {
   await page.goto(`${PAGE}?busy=1`)
   await expect(tile(page, 'Davide · Codex').getByRole('meter')).toHaveClass(/is-full/) // the 92 % heads it
-  await expect(tile(page, 'Davide · Claude Code').getByRole('meter')).not.toHaveClass(/is-warn|is-full/) // 63 %
   await open(page, 'Davide · Codex')
   const codex = capacity(page, 'Davide · Codex')
   await codex.getByRole('button', { name: 'All 2 windows' }).click()
@@ -271,25 +270,29 @@ test('a meter turns amber from 75 % used and red from 90 %', async ({ page }) =>
   )
   expect(await fill('5-hour window')).toBe(rgb(rose))
   expect(await fill('7-day window')).toBe(rgb(amber))
+  await page.goto(PAGE)
+  await expect(tile(page, 'Davide · Claude Code').getByRole('meter')).not.toHaveClass(/is-warn|is-full/) // 63 %
 })
 
 test('the window’s pace: a mark for the time passed, and how long before the reset it runs out', async ({ page }) => {
   await page.goto(`${PAGE}?busy=1`)
-  // Codex's 5-hour window, read 2 min ago with 40 min to go: 258 of its 300 minutes had passed.
-  const mark = tile(page, 'Davide · Codex').locator('.capacity-meter-pace')
-  await expect(mark).toHaveAttribute('style', 'left: 86%;')
-  await expect(tile(page, 'Davide · Codex').getByRole('meter')).toHaveAttribute(
+  // Claude Code's 5-hour window, read 1 min ago with 59 min to go: 240 of its 300 minutes had passed.
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude.locator('.capacity-meter-pace')).toHaveAttribute('style', 'left: 80%;')
+  await expect(claude.getByRole('meter')).toHaveAttribute(
     'aria-valuetext',
-    '5-hour window: 92% used, resets in 40 min · 86% of the window passed',
+    '5-hour window: 95% used, resets in 59 min · 80% of the window passed',
   )
-  await open(page, 'Davide · Codex')
+  // Codex reports each window's own duration, which the reading doesn't carry yet: no pace is assumed for it.
+  await expect(tile(page, 'Davide · Codex').locator('.capacity-meter-pace')).toHaveCount(0)
+  await open(page, 'Davide · Claude Code')
   await expect(
-    capacity(page, 'Davide · Codex').getByText('At this pace, used up ~20 min before it resets.'),
+    capacity(page, 'Davide · Claude Code').getByText('At this pace, used up ~47 min before it resets.'),
   ).toBeVisible()
-  await page.keyboard.press('Escape')
-  await open(page, 'Davide · Claude Code') // 63 % with 82 % of the window passed: on pace, nothing said
-  await expect(capacity(page, 'Davide · Claude Code').getByText(/At this pace/)).toHaveCount(0)
+  await page.goto(PAGE) // 63 % with 81 % of the window passed: on pace, nothing said
+  await open(page, 'Davide · Claude Code')
   await expect(capacity(page, 'Davide · Claude Code').locator('.capacity-pace')).toHaveCount(0)
+  await expect(capacity(page, 'Davide · Claude Code').locator('.capacity-meter-pace').first()).toBeVisible()
 })
 
 test('a spend limit passed keeps its meter’s range true', async ({ page }) => {
@@ -303,7 +306,7 @@ test('a spend limit passed keeps its meter’s range true', async ({ page }) => 
 test('by attention, what needs someone comes first; a waiting tile stands out, an offline one steps back', async ({
   page,
 }) => {
-  await page.goto(`${PAGE}?more=1&busy=1`)
+  await page.goto(`${PAGE}?more=1&spent=1`)
   await expect(grid(page).getByRole('button')).toHaveCount(5)
   const names = () =>
     grid(page)
@@ -311,7 +314,7 @@ test('by attention, what needs someone comes first; a waiting tile stands out, a
       .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
   expect(await names()).toEqual([
     'Davide · Claude Code', // a request waits: first, though Codex is more used
-    'Davide · Codex', // online, 92 % used
+    'Davide · Codex', // online, its spend limit at 120 %
     'Luis · Gemini CLI', // online, a balance
     'Luis · Claude Code', // host unknown
     'Davide · Grok', // offline

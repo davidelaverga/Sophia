@@ -34,7 +34,7 @@ function Windows({ observation, now }: { observation: QuotaObservation; now: Dat
                   label={`${v.name} window`}
                   percent={v.percent}
                   value={v.value}
-                  passed={pace(w, observation.observed_at, now)?.passed}
+                  passed={pace(w, observation, now)?.passed}
                 />
               )}
             </dd>
