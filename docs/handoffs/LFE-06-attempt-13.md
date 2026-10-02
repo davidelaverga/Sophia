@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/capacity-line`, stacked on `lfe-06/declutter` (#56) at its tip, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `b31ea8b`; its checks ran on it.
 - **Writable scope:** `CapacityBlock.tsx`, `Sparkline.tsx`, the stylesheet, the checks and LFE-06's records. **No contract, schema or API changed.**
 
 ## Outcome (UI)
