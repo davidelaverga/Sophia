@@ -153,8 +153,21 @@ test('BASE-03 @phone · leaving, a lost connection and the way back stay in reac
   await back.click()
   await expect(leave(page)).toBeInViewport()
 
+  // The panel covers the room on a phone: wherever it is open, the lost call is said and the way back is in reach.
+  await toggle(page, 'Chat').click()
+  const panel = page.getByRole('complementary', { name: 'Chat' })
   await page.evaluate(() => window.fixture?.drop()) // the connection is lost
-  await expect(page.getByRole('alert').filter({ hasText: 'You were disconnected from the room.' })).toBeInViewport()
+  const lost = 'You were disconnected from the room.'
+  const foot = panel.locator('.composer .outcome') // the chat's foot says it while the chat is in view
+  await expect(foot).toHaveText(lost)
+  await expect(foot).toBeInViewport()
+  await expect(panel.getByRole('button', { name: /^Chat with Sophia/ })).toBeInViewport()
+  await tab(page, 'Brief').click()
+  const line = page.getByRole('complementary', { name: 'Brief' }).locator('.side-panel-note') // the panel's own line
+  await expect(line).toHaveText(lost)
+  await expect(line).toBeInViewport()
+
+  await page.getByRole('complementary', { name: 'Brief' }).getByRole('button', { name: 'Close' }).click()
   const retry = page.getByRole('button', { name: /^Try again/ })
   await expect(retry).toBeInViewport()
   await retry.click()

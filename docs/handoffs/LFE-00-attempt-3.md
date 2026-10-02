@@ -47,6 +47,7 @@ Missing or unverified:
 
 ## Remaining obligations
 
+- **The lost-connection check closed the panel before the call dropped** (Codex, P2 on #41), so it read only the dock. [Attempt 4](LFE-00-attempt-4.md) drops it with the panel open.
 - **Davide confirms the one-writer map** ([attempt 1](LFE-00-attempt-1.md#remaining-obligations)).
 - BASE-01 to BASE-03 in a live call, and BASE-04, when a hosted candidate exists.
 
