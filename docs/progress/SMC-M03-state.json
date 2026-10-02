@@ -310,7 +310,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CX-0012 verified M03-RF-0021..0023 on ebcbbc0 and reviewed the whole head with no P0–P2; M03-RF-0024 (P3, LFE-06's resource headline) is handed to LFE-06 and reaches this branch with main. PDF hosting: CC-0017 found the runtime-host co-location blocked as proposed (measured); Davide chooses Markdown now, a separate small renderer, or the runtime on Standard. Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CX-0012 verified M03-RF-0021..0023 on ebcbbc0 and reviewed the whole head with no P0–P2; M03-RF-0024 (P3, LFE-06's resource headline) was fixed by LFE-06 in #49 and is merged here at 3ec41b2. PDF hosting: CC-0017 found the runtime-host co-location blocked as proposed (measured); Davide chooses Markdown now, a separate small renderer, or the runtime on Standard. Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
