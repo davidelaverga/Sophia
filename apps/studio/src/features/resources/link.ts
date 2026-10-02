@@ -6,12 +6,14 @@ const PREFIX = '#resource-'
 
 export const linkHash = (id: string) => `${PREFIX}${encodeURIComponent(id)}`
 
-/** The resource an address's fragment names, when it is one of these; null otherwise. */
-export function linkedResource(hash: string, ids: readonly string[]): string | null {
+/**
+ * The resource an address's fragment names, or null. It is kept as it is until the resources are read: a fragment is
+ * checked against them when they arrive, not when the view opens before them.
+ */
+export function linkedId(hash: string): string | null {
   if (!hash.startsWith(PREFIX)) return null
   try {
-    const id = decodeURIComponent(hash.slice(PREFIX.length))
-    return ids.includes(id) ? id : null
+    return decodeURIComponent(hash.slice(PREFIX.length)) || null
   } catch {
     return null
   }

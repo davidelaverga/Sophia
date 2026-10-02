@@ -470,6 +470,27 @@ test('live · a host that goes offline flashes its tile and steps back', async (
   await expect(codex).toHaveAttribute('data-host', 'offline')
 })
 
+test('a sheet’s address opens it once the resources are read, not only when they came first', async ({ page }) => {
+  await page.goto(`${PAGE}?loading=1#resource-davide-codex`)
+  await expect(page.locator('.resource-placeholders')).toBeVisible()
+  await page.evaluate(() => window.resourcesFixture?.load?.())
+  await expect(sheet(page, 'Davide · Codex')).toBeVisible()
+})
+
+test('a copy the browser refuses is said, with what to do instead', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new DOMException('Denied', 'NotAllowedError')) },
+    })
+  })
+  await page.goto(`${PAGE}?viewer=davide`)
+  await open(page, 'Davide · Claude Code')
+  await page.getByRole('button', { name: 'Copy link' }).click()
+  await expect(page.getByRole('button', { name: 'Couldn’t copy: the link is in the address bar' })).toBeVisible()
+  await page.getByRole('button', { name: 'Copy session id' }).click()
+  await expect(page.getByRole('button', { name: 'Couldn’t copy: claude-worker' })).toBeVisible()
+})
+
 test('live · while the resources are read, placeholders hold their places', async ({ page }) => {
   await page.goto(`${PAGE}?loading=1`)
   const busy = page.locator('.resource-placeholders')

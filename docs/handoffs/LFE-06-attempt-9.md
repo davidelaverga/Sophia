@@ -45,6 +45,15 @@
 - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass. `pnpm test`: 587 pass, plus the 5 known Windows failures.
 - **Not yet run:** attempts 5 to 8's 61 mutations against this branch. Some of their patterns moved (the tile's capacity is now its own component). They run before this merges.
 
+## Codex's review of #52 (`3997fd0`), fixed here
+
+Two P2s, fixed on this branch because only it has a load to wait for:
+
+- **A sheet's address waited for nothing.** In production the resources arrive after the view opens. The fragment was checked against an empty list and dropped. It is now kept as it is (`linkedId`) and opens the sheet when its resource arrives. The fixture's `loading=1` now waits for `resourcesFixture.load()`, and the check loads with the address already there.
+- **A refused copy passed in silence.** Both copies ("Copy link" and "Copy session id") share `useCopy`. When the browser refuses, they say so for four seconds, with what to do instead: "Couldn't copy: the link is in the address bar", "Couldn't copy: claude-worker". The check refuses the clipboard instead of granting it.
+
+Two more mutations (the address checked before the resources, a refused copy in silence) fail their checks.
+
 ## Remaining obligations
 
 - **Luis:** evaluate this UI before it merges.

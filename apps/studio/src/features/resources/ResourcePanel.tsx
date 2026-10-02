@@ -7,7 +7,7 @@ import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
-import { linkedResource, showInAddress } from './link.ts'
+import { linkedId, showInAddress } from './link.ts'
 import { glideName, moving } from './motion.ts'
 import { ORDER_LABEL, ordered, ORDERS, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
@@ -340,12 +340,8 @@ export function ResourcePanel(given: Props) {
   const now = useClock(given.now)
   const props = { ...given, now }
   const { resources, observations, actions, viewerId } = props
-  const [open, setOpen] = useState<string | null>(() =>
-    linkedResource(
-      window.location.hash,
-      resources.map((r) => r.id),
-    ),
-  )
+  // The address's resource is kept until the resources are read; it opens when it is among them.
+  const [open, setOpen] = useState<string | null>(() => linkedId(window.location.hash))
   const selected = resources.find((r) => r.id === open)
   const show = (id: string | null) => {
     setOpen(id)
