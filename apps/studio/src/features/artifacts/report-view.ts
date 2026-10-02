@@ -240,6 +240,13 @@ export function versionReadFailure(
 export const focusFree = (at: { isConnected: boolean } | null, body: unknown): boolean =>
   at === null || at === body || !at.isConnected
 
+/**
+ * Knowledge's format filter is offered only once a report the reader can see has a PDF. While none has (no renderer
+ * runs), "With PDF" could only come back empty. A filter already chosen stays, so it can be cleared.
+ */
+export const formatsOffered = (format: string, cards: readonly { formats: readonly string[] }[]): boolean =>
+  format !== 'any' || cards.some((c) => c.formats.includes('pdf'))
+
 /** The report's current version when another is on screen: the head names it and shows it on request. */
 export function currentOffer<T extends { id: string }>(versions: readonly T[] | undefined, shown: T | undefined) {
   const current = versions?.[0]

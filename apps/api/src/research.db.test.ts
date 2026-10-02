@@ -171,6 +171,8 @@ describe('start_research over /v1/media/tool-calls', () => {
     // A viewer's refusal (not_started:forbidden) is the database suite's: here the floor is the editor's.
     const pdf = await tool(w, { question: 'As a PDF, please.', outputs: ['markdown', 'pdf'], newRequest: true })
     assert.deepEqual([pdf.status, pdf.output.code], ['refused', 'not_started:pdf_unavailable'], 'no renderer running')
+    // Nothing is offered in its place: whether a Markdown report would be admitted is that request's own answer.
+    assert.equal(pdf.output.reason, 'PDF reports are not available, so nothing was started.')
     const runner = new pg.Client({ connectionString: db.ownerUrl })
     await runner.connect()
     const label = `start-research-${String(Date.now())}`
@@ -526,13 +528,22 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     await renderer('stale')
     const none = await render()
     assert.deepEqual([none.status, none.output.code], ['refused', 'not_started:native_capability_unavailable'])
+    assert.equal(none.output.reason, 'PDF reports are not available, so nothing was started.')
+    // A Markdown-only task with no renderer gets the same answer, never one implying another task would have a PDF.
+    const markdown = await tool(w, { question: 'A Markdown-only question.', newRequest: true })
+    const plain = await render({ callId: 'pdf-md' }, { taskId: markdown.output.taskId })
+    assert.deepEqual([plain.status, plain.output.code], ['refused', 'not_started:native_capability_unavailable'])
     await renderer('now')
     const queued = await render({ callId: 'pdf-1' })
     assert.deepEqual([queued.status, queued.output.taskId, queued.output.stage], ['admitted', taskId, 'queued'])
     assert.match(String(queued.output.renderJobId), /^[0-9a-f-]{36}$/)
     assert.deepEqual(await render({ callId: 'pdf-1' }), queued, 'a provider retry is the same call')
+    // The renderer going quiet changes neither a replay's answer nor a specific refusal (the database answers first).
+    await renderer('stale')
+    assert.deepEqual(await render({ callId: 'pdf-1' }), queued, 'a replay without a renderer')
     const twice = await render()
     assert.deepEqual([twice.status, twice.output.code], ['refused', 'not_started:invalid_state'], 'one at a time')
+    await renderer('now')
     assert.equal((await render({}, { taskId: 'not-a-task' })).status, 'clarify')
     // A viewer's refusal is the database suite's (forbidden): here the floor is the editor's.
   })
@@ -567,9 +578,18 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     const w = await world()
     await tool(w, { question: 'Which sandboxes do PDF rendering services use?' })
     const status = (guide?: 'v1.1' | 'v1.2') => tool(w, {}, E, { name: 'project_status', guide })
+    await renderer('stale')
     const v12 = await status('v1.2')
     assert.deepEqual(Object.keys(v12.output.operations).slice(-2), ['start_research', 'render_research'])
     assert.equal(v12.output.operations.start_research.available, true)
+    // No PDF renderer: render_research is not offered, so no PDF is promised for later.
+    assert.deepEqual(v12.output.operations.render_research, {
+      available: false,
+      reason: 'PDF reports are not available: no PDF renderer is running.',
+    })
+    await renderer('now')
+    assert.equal((await status('v1.2')).output.operations.render_research.available, true)
+    await renderer('stale')
     assert.equal(v12.output.work[v12.output.work.length - 1]?.kind, 'research')
     for (const older of [await status('v1.1'), await status()]) {
       assert.equal('start_research' in older.output.operations, false, 'a v1.1 guide never hears of them')

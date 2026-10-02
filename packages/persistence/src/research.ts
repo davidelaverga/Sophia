@@ -3,6 +3,7 @@
 // the sophia.runtime_research_* functions authenticate the capability, the lease and the binding themselves, and
 // every operation but settle is fenced by the goal's status and the session's current authority.
 import type pg from 'pg'
+import { DomainError } from '@sophia/domain'
 import type {
   NativeTaskReceipt,
   ResearchCapture,
@@ -89,8 +90,16 @@ export const runtimeResearchReserve = (c: pg.PoolClient, who: RuntimeCaller, req
 export const runtimeResearchSettle = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchSettleRequest) =>
   operation<ResearchSettlement>(c, 'runtime_research_settle', who, request)
 
-export const runtimeResearchCapture = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchCaptureRequest) =>
-  operation<ResearchCapture>(c, 'runtime_research_capture', who, request)
+/**
+ * Keep what a search or a read returned. A page read with no text at all (one that renders only with JavaScript) is
+ * refused as a request, never as a service fault: there is nothing to keep or cite, and asking again changes nothing.
+ */
+export async function runtimeResearchCapture(c: pg.PoolClient, who: RuntimeCaller, request: ResearchCaptureRequest) {
+  if (request.kind === 'web_read' && request.text === '') {
+    throw new DomainError('invalid_request', 'The page had no text, so nothing was kept: cite it only as unread')
+  }
+  return operation<ResearchCapture>(c, 'runtime_research_capture', who, request)
+}
 
 export const runtimeResearchDraft = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchDraftRequest) =>
   operation<ResearchDraft>(c, 'runtime_research_draft', who, request)

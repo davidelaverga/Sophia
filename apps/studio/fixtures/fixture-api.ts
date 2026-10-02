@@ -126,7 +126,8 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   }
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
-    return json(reportList(project.reportVersions, project.description, url.searchParams.get('cursor')))
+    const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
+    return json(reportList(project.reportVersions, project.description, url.searchParams.get('cursor'), filter))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)

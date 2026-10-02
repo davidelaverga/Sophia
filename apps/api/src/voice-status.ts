@@ -18,6 +18,8 @@ export interface VoiceStatusInput {
   now: number
   /** The guide version the bridge runs: v1.2 adds the research operations (SMC-M03 S6). Absent means v1.1. */
   guide?: 'v1.1' | 'v1.2' | undefined
+  /** Whether a PDF renderer is running (0031). Without one, render_research is not offered. Absent means unknown. */
+  pdf?: boolean | undefined
 }
 
 /** `speaker` for the current speaker, else `member-N` in order of first appearance. */
@@ -96,7 +98,7 @@ function missionView(ctx: MissionContext, who: Alias) {
  * Per model-facing operation of the bridge's guide, whether it is available to this speaker now, and why not. The
  * research operations are an editor's, like control_work; whether research is switched on is answered by the call.
  */
-function operations(ctx: MissionContext, guide: VoiceStatusInput['guide']) {
+function operations(ctx: MissionContext, guide: VoiceStatusInput['guide'], pdf: VoiceStatusInput['pdf']) {
   const c = ctx.capabilities
   const always = { available: true, reason: null }
   const m01 = {
@@ -107,7 +109,12 @@ function operations(ctx: MissionContext, guide: VoiceStatusInput['guide']) {
     decide_mission_change: c.decide,
     control_work: c.controlWork,
   }
-  return guide === 'v1.2' ? { ...m01, start_research: c.controlWork, render_research: c.controlWork } : m01
+  if (guide !== 'v1.2') return m01
+  const render =
+    c.controlWork.available && pdf === false
+      ? { available: false, reason: 'PDF reports are not available: no PDF renderer is running.' }
+      : c.controlWork
+  return { ...m01, start_research: c.controlWork, render_research: render }
 }
 
 function targetView(target: ConfirmationTarget | null, speakerId: string, now: number) {
@@ -121,7 +128,7 @@ function targetView(target: ConfirmationTarget | null, speakerId: string, now: n
 }
 
 /** The project_status output for one speaker. */
-export function voiceStatus({ context: ctx, speakerId, discussion, target, now, guide }: VoiceStatusInput) {
+export function voiceStatus({ context: ctx, speakerId, discussion, target, now, guide, pdf }: VoiceStatusInput) {
   const who = aliases(speakerId)
   const notes = ctx.entries.slice(-NOTES)
   const policy = ctx.notePolicy
@@ -151,7 +158,7 @@ export function voiceStatus({ context: ctx, speakerId, discussion, target, now, 
       explicitProposals: policy.explicitProposals,
       exactTextRetention: policy.exactTextRetention,
     },
-    operations: operations(ctx, guide),
+    operations: operations(ctx, guide, pdf),
     confirmationTarget: targetView(target, speakerId, now),
     missing: ctx.missing,
   }

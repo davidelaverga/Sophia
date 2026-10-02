@@ -17,6 +17,9 @@ import {
 } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
 
+/** No PDF renderer is running (0031): nothing was started, and no other format is promised in its place. */
+const PDF_UNAVAILABLE = 'PDF reports are not available, so nothing was started.'
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max
@@ -88,7 +91,7 @@ function preferencesOf(value: unknown): NonNullable<ResearchAdmissionRequest['pr
 function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | MediaToolResult {
   if (!isText(args.question, 2000)) return clarify('What should I research?')
   const outputs = formatsOf(args.outputs)
-  if (!outputs) return clarify('Should the report be Markdown, or Markdown and a PDF?')
+  if (!outputs) return clarify('Which format should the report be in?')
   const inputSourceIds = listOf(args.inputSourceIds, isUuid)
   if (!inputSourceIds) return clarify('Which of the project’s sources should the research use?')
   const urls = listOf(args.urls, isWebAddress)
@@ -111,15 +114,10 @@ function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | Me
 export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> {
   const request = requestOf(ctx.args)
   if ('status' in request) return request
-  // A PDF needs a renderer that is running now (S5b, 0031); without one the report can still be Markdown.
+  // A PDF needs a renderer that is running now (S5b, 0031). The refusal offers nothing: whether a Markdown report would
+  // be admitted (role, gate, runtime, allowance) is that request's own answer.
   if (request.outputs.includes('pdf') && !(await withActor(ctx.pool, ctx.actorId, 'read', pdfRendererReady))) {
-    return {
-      status: 'refused',
-      output: {
-        code: 'not_started:pdf_unavailable',
-        reason: 'PDF reports are not available right now. I can write the report in Markdown instead.',
-      },
-    }
+    return { status: 'refused', output: { code: 'not_started:pdf_unavailable', reason: PDF_UNAVAILABLE } }
   }
   const specialist = specialistFor(request.outputs)
   if (!specialist)
@@ -153,7 +151,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
 /** Why render_research printed nothing, in the speaker's words; the database's own message where it is specific. */
 const RENDITION_REFUSALS: Partial<Record<string, string>> = {
   forbidden: 'Only editors and admins can ask for the PDF.',
-  native_capability_unavailable: 'No PDF renderer is running right now, so nothing was started.',
+  native_capability_unavailable: PDF_UNAVAILABLE,
   research_limit_reached: 'The PDF was already tried three times for this version of the report.',
   source_ineligible: 'This report draws on a source that was withdrawn, so it is not printed again.',
   stale_revision: 'A newer version of this report exists.',
@@ -174,6 +172,22 @@ function renditionRefusal(err: unknown): MediaToolResult {
     status: 'refused',
     output: { code: `not_started:${err.code}`, reason: RENDITION_REFUSALS[err.code] ?? err.message },
   }
+}
+
+/**
+ * A Markdown-only report asked for its PDF while no renderer runs: no report can have one, so that is the answer, never a
+ * reason that suggests another task would. Decided after the database (whose replay and specific refusals answer first);
+ * when the renderer can't be checked, the database's own answer stands.
+ */
+async function noRenderer(ctx: ToolContext, err: unknown): Promise<MediaToolResult | undefined> {
+  const markdownOnly =
+    err instanceof DomainError &&
+    err.code === 'invalid_request' &&
+    err.message.startsWith('This research task does not produce a PDF')
+  if (!markdownOnly) return undefined
+  const ready = await withActor(ctx.pool, ctx.actorId, 'read', pdfRendererReady).catch(() => true)
+  if (ready) return undefined
+  return { status: 'refused', output: { code: 'not_started:native_capability_unavailable', reason: PDF_UNAVAILABLE } }
 }
 
 /**
@@ -207,6 +221,6 @@ export async function renderResearch(ctx: ToolContext): Promise<MediaToolResult>
       },
     }
   } catch (err: unknown) {
-    return renditionRefusal(err)
+    return (await noRenderer(ctx, err)) ?? renditionRefusal(err)
   }
 }

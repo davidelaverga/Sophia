@@ -508,6 +508,24 @@ describe('runtime research operations', () => {
       { ref: results.refs[0], url: 'https://hosts.example.org/a' },
       'the URL is resolved here',
     )
+    // A page with no text at all (one that renders only with JavaScript) is a request refused, never a service fault.
+    assert.equal(
+      await codeOf(
+        service((c) =>
+          runtimeResearchCapture(c, w.who, {
+            ...at,
+            reservationId: read.reservationId,
+            kind: 'web_read',
+            provider: 'jina',
+            providerHttpStatus: 200,
+            coverage: 'complete',
+            limitations: [],
+            text: '',
+          }),
+        ),
+      ),
+      'invalid_request',
+    )
     const page = await service((c) =>
       runtimeResearchCapture(c, w.who, {
         ...at,

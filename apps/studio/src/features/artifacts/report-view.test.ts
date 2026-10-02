@@ -8,6 +8,7 @@ import {
   escapeStepsDown,
   failedOutright,
   focusFree,
+  formatsOffered,
   focusReturn,
   pdfMissing,
   factChips,
@@ -404,5 +405,17 @@ describe('opening a report', () => {
     })
     assert.equal(openedLink(null, { artifactId: A, versionId: 'v1' }).versionId, 'v1')
     assert.equal(openedLink(null, { artifactId: A }).size, 'side')
+  })
+})
+
+describe('Knowledge’s format filter', () => {
+  const md = { formats: ['markdown'] }
+  const pdf = { formats: ['markdown', 'pdf'] }
+  it('is offered once a report has a PDF, and kept while a format is chosen so it can be cleared', () => {
+    assert.equal(formatsOffered('any', [md, md]), false, 'no PDF anywhere: "With PDF" could only be empty')
+    assert.equal(formatsOffered('any', []), false)
+    assert.equal(formatsOffered('any', [md, pdf]), true)
+    assert.equal(formatsOffered('pdf', []), true, 'a chosen filter stays, so it can be cleared')
+    assert.equal(formatsOffered('markdown_only', [md]), true)
   })
 })

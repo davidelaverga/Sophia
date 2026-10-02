@@ -204,40 +204,60 @@ const OLDER: ReportList['reports'][number] = {
   currentVersionNumber: 1,
   versionCount: 1,
   updatedAt: AT,
-  formats: ['markdown'],
+  // Printed before PDFs were turned off: Knowledge offers its format filter once such a report is in the list.
+  formats: ['markdown', 'pdf'],
   latestChange: { note: null, retained: null },
 }
 
+/** A text's searchable words: letters and digits only, lower case. */
+const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
+
 /**
  * Knowledge's Reports, as `GET /knowledge/reports` answers it: the fixture report's card (`published` versions in) on
- * the first page, and an older report on the second.
+ * the first page, and an older report, with a PDF, on the second. Words and a format filter as the API does (each word
+ * a prefix, all of them required, over the title, the description and the latest notes; `pdf` or `markdown_only`), in
+ * one page; a project is listed only with at least one report.
  */
-export function reportList(published: number, d: Description, cursor: string | null): ReportList {
+export function reportList(
+  published: number,
+  d: Description,
+  cursor: string | null,
+  filter: { q: string | null; format: string | null } = { q: null, format: null },
+): ReportList {
+  const s = summaryOf(d)
+  const current: ReportList['reports'][number] = {
+    artifactId: REPORT,
+    projectId: PROJECT,
+    projectTitle: 'Fixture project',
+    title: 'Fixture report',
+    summary: s.summary,
+    summaryAuthorId: s.summaryAuthorId,
+    summaryRevision: s.summaryRevision,
+    summaryUpdatedAt: s.summaryUpdatedAt,
+    currentVersionId: versionId(published),
+    currentVersionNumber: published,
+    versionCount: published,
+    updatedAt: AT,
+    formats: ['markdown'],
+    latestChange: { note: null, retained: null },
+  }
+  const words = wordsOf(filter.q ?? '').slice(0, 8)
+  const format = filter.format ?? 'any'
+  if (words.length > 0 || format !== 'any') {
+    const kept = [current, OLDER].filter((r) => {
+      const text = wordsOf(
+        `${r.title} ${r.summary ?? ''} ${r.latestChange.note ?? ''} ${r.latestChange.retained ?? ''}`,
+      )
+      const pdf = r.formats.includes('pdf')
+      const found = words.every((w) => text.some((t) => t.startsWith(w)))
+      return found && (format === 'any' || (format === 'pdf') === pdf)
+    })
+    const projects = kept.length > 0 ? [{ projectId: PROJECT, title: 'Fixture project', count: kept.length }] : []
+    return { reports: kept, projects, nextCursor: null }
+  }
   const projects = [{ projectId: PROJECT, title: 'Fixture project', count: 2 }]
   if (cursor === 'page-2') return { reports: [OLDER], projects, nextCursor: null }
-  const s = summaryOf(d)
-  return {
-    reports: [
-      {
-        artifactId: REPORT,
-        projectId: PROJECT,
-        projectTitle: 'Fixture project',
-        title: 'Fixture report',
-        summary: s.summary,
-        summaryAuthorId: s.summaryAuthorId,
-        summaryRevision: s.summaryRevision,
-        summaryUpdatedAt: s.summaryUpdatedAt,
-        currentVersionId: versionId(published),
-        currentVersionNumber: published,
-        versionCount: published,
-        updatedAt: AT,
-        formats: ['markdown'],
-        latestChange: { note: null, retained: null },
-      },
-    ],
-    projects,
-    nextCursor: 'page-2',
-  }
+  return { reports: [current], projects, nextCursor: 'page-2' }
 }
 
 /** The edit a request's body carries, or null when it carries none. */

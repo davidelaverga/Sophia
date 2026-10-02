@@ -8,6 +8,7 @@ import type { MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import { DomainError, type ErrorCode } from '@sophia/domain'
 import {
   decideMissionChange,
+  pdfRendererReady,
   presentMissionProposal,
   proposeMissionChange,
   readConfirmationTarget,
@@ -115,6 +116,8 @@ export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> 
       context: await readMissionContext(c, ctx.projectId, { actorId: ctx.actorId, channel: 'voice' }),
       discussion: await readDiscussion(c, ctx.projectId),
       target: await readConfirmationTarget(c, ctx.call.exchangeId),
+      // Only a v1.2 guide hears of render_research, so only it needs to know whether a PDF renderer runs.
+      pdf: ctx.call.guide === 'v1.2' ? await pdfRendererReady(c) : undefined,
     }))
     if (!read.context) return { status: 'refused', output: { readState: 'unavailable', reason: 'Not permitted' } }
     const output = voiceStatus({

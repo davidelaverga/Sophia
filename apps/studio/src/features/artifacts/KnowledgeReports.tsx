@@ -10,6 +10,7 @@ import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
+import { formatsOffered } from './report-view.ts'
 import { SummaryEditor } from './SummaryEditor.tsx'
 import './artifacts.css'
 
@@ -72,15 +73,42 @@ function useMore(reports: ReturnType<typeof useReports>, count: number) {
   return { list, more }
 }
 
-export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
+/** The filters: project, format and words. Clearing them goes back to every report, the focus on the search field. */
+function useFilters(projectId: string) {
   const [project, setProject] = useState<string>(projectId)
   const [format, setFormat] = useState<Format>('any')
   const [typed, setTyped] = useState('')
+  const search = useRef<HTMLInputElement>(null)
   const q = useSettled(typed)
-  const reports = useReports(identity, { project, format, q })
+  const clear = () => {
+    setFormat('any')
+    setTyped('')
+    // The button that cleared them goes with the empty list.
+    search.current?.focus()
+  }
+  const filtered = format !== 'any' || q.trim() !== ''
+  return { project, setProject, format, setFormat, typed, setTyped, q, search, clear, filtered }
+}
+
+/**
+ * Whether the format filter shows. While a new filter's reports load there are no cards to judge by, so the filter that
+ * showed stays: the group, and a press's focus in it, never goes and comes back under the person.
+ */
+function useFormatOffer(format: Format, cards: readonly ReportCard[], loading: boolean): boolean {
+  const [shown, setShown] = useState(false)
+  const offered = formatsOffered(format, cards)
+  const now = loading ? shown || offered : offered
+  if (now !== shown) setShown(now)
+  return now
+}
+
+export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
+  const f = useFilters(projectId)
+  const reports = useReports(identity, { project: f.project, format: f.format, q: f.q })
   const cards = reports.data?.pages.flatMap((p) => p.reports) ?? []
   const counts = reports.data?.pages[0]?.projects ?? []
   const { list, more } = useMore(reports, cards.length)
+  const formats = useFormatOffer(f.format, cards, reports.isPending)
   return (
     <section ref={list} className="knowledge" aria-labelledby="knowledge-title">
       <header className="view-head">
@@ -88,43 +116,51 @@ export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
         <span className="eyebrow">Reports</span>
       </header>
       <div className="knowledge-filters">
-        <ProjectFilter projectId={projectId} project={project} counts={counts} onProject={setProject} />
-        {/* A filter, not tabs: no panel of its own, so pressed buttons, as the project filter beside it. */}
-        <div className="segmented" role="group" aria-label="Format">
-          {FORMATS.map(([f, label]) => (
-            <button key={f} type="button" aria-pressed={format === f} onClick={() => setFormat(f)}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <ProjectFilter projectId={projectId} project={f.project} counts={counts} onProject={f.setProject} />
+        {formats && <FormatFilter format={f.format} onFormat={f.setFormat} />}
         <input
+          ref={f.search}
           type="search"
           className="knowledge-search"
           placeholder="Search titles, descriptions and notes"
           aria-label="Search reports"
-          value={typed}
+          value={f.typed}
           maxLength={200}
-          onChange={(e) => setTyped(e.target.value)}
+          onChange={(e) => f.setTyped(e.target.value)}
         />
       </div>
       <ReportCards
         cards={cards}
         state={reports.isPending ? 'loading' : reports.isError ? 'failed' : 'ready'}
-        showProject={project === 'all'}
+        showProject={f.project === 'all'}
         editable={(card) => canEdit && card.projectId === projectId}
         identity={identity}
+        filtered={f.filtered}
+        onClear={f.clear}
       />
-      {reports.hasNextPage && (
-        <button
-          type="button"
-          className="pill knowledge-more"
-          onClick={more}
-          aria-disabled={reports.isFetchingNextPage || undefined}
-        >
-          {reports.isFetchingNextPage ? 'Loading…' : 'More reports'}
-        </button>
-      )}
+      {reports.hasNextPage && <MoreReports loading={reports.isFetchingNextPage} onMore={more} />}
     </section>
+  )
+}
+
+function MoreReports({ loading, onMore }: { loading: boolean; onMore: () => void }) {
+  return (
+    <button type="button" className="pill knowledge-more" onClick={onMore} aria-disabled={loading || undefined}>
+      {loading ? 'Loading…' : 'More reports'}
+    </button>
+  )
+}
+
+/** A filter, not tabs: no panel of its own, so pressed buttons, as the project filter beside it. */
+function FormatFilter({ format, onFormat }: { format: Format; onFormat: (format: Format) => void }) {
+  return (
+    <div className="segmented" role="group" aria-label="Format">
+      {FORMATS.map(([value, label]) => (
+        <button key={value} type="button" aria-pressed={format === value} onClick={() => onFormat(value)}>
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -172,11 +208,24 @@ interface CardsProps {
   showProject: boolean
   editable: (card: ReportCard) => boolean
   identity: Identity
+  /** A format or words narrow the list: an empty one says so, with the way back, never "no reports yet". */
+  filtered: boolean
+  onClear: () => void
 }
 
-function ReportCards({ cards, state, showProject, editable, identity }: CardsProps) {
+function ReportCards({ cards, state, showProject, editable, identity, filtered, onClear }: CardsProps) {
   if (state === 'loading') return <div className="goal skeleton" aria-busy="true" />
   if (state === 'failed') return <p className="muted">The reports couldn’t be loaded. Try again in a moment.</p>
+  if (cards.length === 0 && filtered) {
+    return (
+      <p className="empty">
+        No reports match these filters.{' '}
+        <button type="button" className="text-button" onClick={onClear}>
+          Clear the filters
+        </button>
+      </p>
+    )
+  }
   if (cards.length === 0) {
     return <p className="empty">No reports here yet. Ask Sophia to research something, by voice or in the chat.</p>
   }

@@ -311,11 +311,6 @@ test('LFE-02.1 · a description edit never overwrites a teammate’s newer one, 
   page,
 }) => {
   await enter(page, '/room.html?place=knowledge')
-  // The format filter is a filter, not tabs: pressed buttons.
-  await expect(page.getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Any' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
   const card = page.getByRole('listitem').filter({ hasText: 'Fixture report' })
   await expect(card.getByText('A labelled fixture report, as Sophia described it.')).toBeVisible()
   const edit = card.getByRole('button', { name: 'Edit', exact: true })
@@ -345,6 +340,43 @@ test('LFE-02.1 · More reports keeps the focus while the page loads, then hands 
   // The last page: the button goes, and the focus is on the report it brought, never dropped to the page.
   await expect(page.getByRole('button', { name: 'An older fixture report' })).toBeFocused()
   await expect(page.getByRole('button', { name: 'More reports' })).toHaveCount(0)
+})
+
+test('No-PDF release · Knowledge offers no PDF filter while no report has a PDF; an empty search says so', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?place=knowledge')
+  await expect(page.getByRole('button', { name: 'Fixture report' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Format' })).toHaveCount(0) // no report on the first page has a PDF
+  const search = page.getByRole('searchbox', { name: 'Search reports' })
+  await search.fill('nothing like this')
+  await expect(page.getByText('No reports match these filters.')).toBeVisible()
+  await expect(page.getByText(/No reports here yet/)).toHaveCount(0) // the reports exist: they are filtered out
+  await page.getByRole('button', { name: 'Clear the filters' }).click()
+  await expect(page.getByRole('button', { name: 'Fixture report' })).toBeVisible()
+  await expect(search).toHaveValue('')
+  await expect(search).toBeFocused() // the button went with the empty list
+
+  // Once a report with a PDF is in the list, the filter is offered: a filter, not tabs, so pressed buttons.
+  await page.getByRole('button', { name: 'More reports' }).click()
+  await expect(page.getByRole('button', { name: 'An older fixture report' })).toBeVisible()
+  const formats = page.getByRole('group', { name: 'Format' })
+  await expect(formats.getByRole('button', { name: 'Any format' })).toHaveAttribute('aria-pressed', 'true')
+  await formats.getByRole('button', { name: 'With PDF' }).click()
+  await expect(formats.getByRole('button', { name: 'With PDF' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'An older fixture report' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Fixture report', exact: true })).toHaveCount(0)
+  // A filter whose reports are still loading keeps the group, so the press keeps its focus (never dropped to the page).
+  // Each search is waited for (the list says it), so Any format asks for words never asked for under it.
+  await search.fill('nothing like this')
+  await expect(page.getByText('No reports match these filters.')).toBeVisible()
+  await search.fill('old')
+  await expect(page.getByRole('button', { name: 'An older fixture report' })).toBeVisible()
+  const any = formats.getByRole('button', { name: 'Any format' })
+  await any.click()
+  await expect(any).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'An older fixture report' })).toBeVisible()
+  await expect(any).toBeFocused()
 })
 
 test('LFE-02.1 · a read again that fails keeps the report being read, never "not available"', async ({ page }) => {
