@@ -10,6 +10,7 @@
 ## Outcome
 
 - **The v2.0 continuation is installed** in [`docs/execution/2026-10-01-unified/`](../execution/2026-10-01-unified/00_START_HERE.md): 307 files, byte for byte. Its [installation record](../execution/README.md) is outside the folder, as with the mission packs.
+- **[SOURCE_MAP §2d](../SOURCE_MAP.md#2d-upstream-sources-named-by-the-v20-continuation-lfe-00) records the upstream sources the continuation names** (Codex on `9580398`, one P1). These are Paperclip at `5edf55d7` and the Grok Bot and Workspace Agent pages, with the pack documents that cite each. It also points to the register's inherited namespaces. No file here relies on them yet.
 - **Every place that still named v0.4 as the authority now points to v2.0:** `AGENTS.md` (a "Current continuation" rule), the root `README.md`, [`docs/README.md`](../README.md) and [`docs/SOURCE_MAP.md`](../SOURCE_MAP.md). `docs/pack/` stays byte-identical, as history.
 - **[LFE-00 progress](../progress/LFE-00.md) records where things stand:**
   - main, and what merged since the pack read `aadd192`;
