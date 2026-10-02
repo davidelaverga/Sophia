@@ -14,6 +14,7 @@ import {
   countdown,
   formSlot,
   plannedSession,
+  scheduleLines,
   sessionFromForm,
   sessionLabel,
 } from './access-view.ts'
@@ -160,16 +161,13 @@ interface NoteProps {
 }
 
 /**
- * The form's one line: a refusal or no answer (with its retry), an overlap before it happens, or what was just put
- * on the calendar.
+ * The form's one line: a refusal or no answer (with its retry), or what was just put on the calendar and an overlap
+ * before it happens, both when both are true (scheduleLines).
  */
 function ScheduleNote({ state, clash, onRetry }: NoteProps) {
-  const now = Date.now()
   if (state.status === 'rejected' || state.status === 'unknown')
     return <AdmissionNote state={state} onRetry={onRetry} />
-  if (clash) return `Overlaps “${clash.title}” · ${sessionLabel(clash, now)}.`
-  if (state.status === 'done') return `Scheduled: ${sessionLabel(state.result, now)}.`
-  return null
+  return scheduleLines(state.status === 'done' ? state.result : null, clash, Date.now()).join(' ') || null
 }
 
 interface ListProps {

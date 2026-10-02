@@ -4,6 +4,7 @@ import {
   accountOf,
   LINK_FAILED,
   linkDecision,
+  offerStands,
   otherAccountBack,
   providerCheckPassed,
   readAuthCallback,
@@ -81,6 +82,14 @@ describe('a link that carries a session', () => {
   it('asks first where nobody is signed in (or only a guest’s anonymous session)', () => {
     assert.equal(linkDecision(null, 'ben'), 'ask')
     assert.equal(linkDecision(null, null), 'ask')
+  })
+
+  it('keeps the offer through a guest’s session or none, and ends it when an account signs in', () => {
+    assert.equal(offerStands(true, null), true)
+    assert.equal(offerStands(true, { user: { is_anonymous: true } }), true, 'a refocus re-reads a guest session')
+    assert.equal(offerStands(true, { user: { is_anonymous: false } }), false)
+    assert.equal(offerStands(true, { user: {} }), false)
+    assert.equal(offerStands(false, null), false)
   })
 })
 

@@ -75,7 +75,7 @@ export function App() {
   }
   if (state.status === 'loading') return <Centered title="Sophia" busy />
   if (state.status === 'link_offer') {
-    return <LinkOffer account={state.account} onAccept={acceptLink} onDecline={declineLink} />
+    return <LinkOffer account={state.account} slow={state.slow} onAccept={acceptLink} onDecline={declineLink} />
   }
   if (state.status === 'signed_out') return <SignIn onChooseDev={switchIdentity} notice={state.notice} />
   // A guest's session left over from a room's door is no account: the Studio asks them to sign in.
