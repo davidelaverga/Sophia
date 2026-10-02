@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/history-models`, stacked on `lfe-06/live` (#53) at `e16ad0f`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `b404611`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `models.ts`, `ModelChip`, `history.ts` and `Sparkline`, with their tests; the tile, sheet, capacity block, panel and stylesheet;
   - the resource fixture (models on more sessions, earlier readings) and its checks;
