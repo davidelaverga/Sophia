@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `follow-ups/explore-and-base03` from main `b3c9f72`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the changes and docs at `92159cc` (tree `44fa99d8e523`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** `apps/studio/src/features/explore/`, its fixture and checks, one room check, CONTRIBUTING and the LFE records. **No contract, schema, API, dependency or hosted service was changed.**
 
 ## Outcome
