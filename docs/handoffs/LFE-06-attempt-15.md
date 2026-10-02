@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/windows-once`, stacked on `lfe-06/polish` (#58) at its tip, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `1022733`; its checks ran on it.
 - **Writable scope:** `resource.ts` (the capacity says which window its line comes from), `CapacityBlock.tsx`, the checks and LFE-06's records. **No contract, schema or API changed.**
 
 ## Outcome (UI)
