@@ -86,6 +86,29 @@ describe('a resource’s capacity', () => {
     assert.equal(capacityLine(observation([uncertain]), now), 'Capacity unknown: no window is known to apply here')
   })
 
+  it('heads with an observed balance as reported, and keeps unknown apart from no window (M03-RF-0024)', () => {
+    const tokens = window({ window_id: 'daily', unit: 'tokens_remaining', value: 100000, resets_at: null })
+    const credits = window({ window_id: 'credits', unit: 'credits_remaining', value: 42, resets_at: null })
+    assert.equal(capacityLine(observation([tokens]), now), 'daily window: 100000 tokens left')
+    assert.equal(capacityLine(observation([credits]), now), 'credits window: 42 credits left')
+    assert.equal(
+      capacityLine(observation([window({ value: 40 }), tokens]), now),
+      '5-hour window: 40% used, resets in 2 h',
+    )
+    assert.equal(capacityLine(observation([window({ value: null, state: 'unknown' })]), now), 'Capacity unknown')
+    assert.equal(capacityLine(observation([]), now), 'No window observed')
+  })
+
+  it('lets a window that may not apply shape nothing, not even a pending reset', () => {
+    const due = window({ resets_at: at(-5), applicability: 'unknown' })
+    assert.equal(capacityLine(observation([due]), now), 'Capacity unknown: no window is known to apply here')
+    const partial = window({ value: 30, applicability: 'partial' })
+    assert.equal(
+      capacityLine(observation([partial, window({ value: null, state: 'unknown' })]), now),
+      'Capacity unknown',
+    )
+  })
+
   it('treats a reading past its valid_until as expired, with its age, never as current capacity', () => {
     const old = { ...observation([window({ value: 40 })]), valid_until: at(-10) }
     assert.equal(capacityLine(old, now), 'Capacity unknown: the last reading expired 10 min ago')
