@@ -404,7 +404,7 @@ when you change the room:
   update; a message out of view marks Chat until it is seen; letters never
   turn a device on; leaving text mode hands the focus to the microphone; on
   a phone, mute, a refused device, leave, a lost connection and the way back
-  stay in reach. They drive the Studio's own `ProjectShell`, with its feed,
+  (the dock's Try again, or Chat with Sophia in the open panel) stay in reach. They drive the Studio's own `ProjectShell`, with its feed,
   query cache and room controller, on a fixture page (`fixtures/room.html`,
   labelled "Fixture — no API, no call"). Only two boundaries are faked: the
   API, answered at fetch with a live event stream, and LiveKit, whose module
@@ -419,8 +419,9 @@ when you change the room:
   LFE-03): on `fixtures/explore.html`, labelled "Simulated — no image
   service", the real `DirectionGallery` over a direction whose jobs went four
   ways. Choosing asks for that choice only; an image is drawn only from bytes
-  that match its record, read once and only when its tile nears the screen;
-  a viewer sees who chooses; the keyboard and a phone reach everything. Explore in the Studio still says it is coming: it shows
+  that match its record, read once and only when its tile nears the screen,
+  and read again on Try again after a failed read; one choice is saved at a
+  time; a viewer sees who chooses; the keyboard and a phone reach everything. Explore in the Studio still says it is coming: it shows
   the gallery once S1-06 serves real candidates.
 
 ## The personal space

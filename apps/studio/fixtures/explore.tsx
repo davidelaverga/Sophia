@@ -2,7 +2,8 @@
 // simulated data. Its two ports are the fixture's own: the bytes are read from fixtures/images, and a choice is
 // recorded and applied here. No image service, provider or API is reached, and the page says so on screen. The query
 // string picks the scenario: `role=viewer` (who may not choose), `tamper=<asset id>` (bytes that don't match),
-// `many=1` (24 candidates, past the screen).
+// `many=1` (24 candidates, past the screen), `slow=1` (a choice is saved only once a check settles it),
+// `flaky=<asset id>` (its reads fail, as a network would, until a check heals it).
 // `window.explore` lets a check read what was asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -17,6 +18,10 @@ import { direction, FILE } from './explore-data.ts'
 interface ExploreFixture {
   /** What the page was asked, in order: `read:<asset>`, `choose:<candidate>@<revision>`. */
   asked: readonly string[]
+  /** `slow=1`: lets the choice being saved finish. */
+  settle: () => void
+  /** `flaky=…`: the network comes back. */
+  heal: () => void
 }
 
 declare global {
@@ -28,11 +33,23 @@ declare global {
 const query = new URLSearchParams(window.location.search)
 const role: Membership['role'] = query.get('role') === 'viewer' ? 'viewer' : 'editor'
 const tampered = query.get('tamper')
+let flaky = query.get('flaky')
 const asked: string[] = []
-window.explore = { asked }
+let settling: (() => void) | null = null
+window.explore = {
+  asked,
+  settle: () => {
+    settling?.()
+    settling = null
+  },
+  heal: () => {
+    flaky = null
+  },
+}
 
 async function read(asset: ImageAsset): Promise<ArrayBuffer> {
   asked.push(`read:${asset.id}`)
+  if (flaky === asset.id) throw new Error('the network dropped the read')
   const file = FILE[asset.sha256]
   if (!file) throw new Error(`no simulated bytes for ${asset.id}`)
   const bytes = await (await fetch(file)).arrayBuffer()
@@ -47,7 +64,8 @@ function Explore() {
   const [current, setCurrent] = useState(() => direction(null, query.get('many') === '1'))
   const choose = async (candidateId: string, expectedRevision: number) => {
     asked.push(`choose:${candidateId}@${expectedRevision}`)
-    await Promise.resolve()
+    if (query.get('slow') === '1') await new Promise<void>((done) => (settling = done))
+    else await Promise.resolve()
     setCurrent((d) => ({ ...d, chosenId: candidateId, revision: d.revision + 1 }))
   }
   return <DirectionGallery direction={current} role={role} read={read} onChoose={choose} />

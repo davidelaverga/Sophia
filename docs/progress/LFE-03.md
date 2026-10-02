@@ -19,7 +19,7 @@ Package: [frontend/LFE-03](../execution/2026-10-01-unified/frontend/LFE-03.md). 
 - **The gallery and the detail.** `DirectionGallery` and `DirectionDetail` show every candidate a direction's jobs returned, with its state in words. The detail shows the candidate's provenance and the choice.
 - **The shapes are a proposal.** `direction.ts` holds `Direction` and `Candidate` for S1-06's read contract, for Davide to confirm or change. The bytes and the choice are ports (`ReadBytes`, `Choose`), not endpoints. There is no generation port.
 - **Where it runs.** The gallery runs on `apps/studio/fixtures/explore.html`, labelled "Simulated — no image service". It isn't in the Studio yet.
-- **[Handoff](../handoffs/LFE-03-attempt-1.md).**
+- **[Handoff](../handoffs/LFE-03-attempt-1.md)**, and [the follow-ups to Codex's review](../handoffs/STUDIO-follow-ups-42-43-attempt-1.md): one choice at a time, failed reads tried again, exact source identities.
 
 ## Acceptance cases
 

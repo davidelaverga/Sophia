@@ -1,13 +1,12 @@
 // One candidate up close: its picture, what it came from, and the choice. Choosing keeps every alternative and asks
 // for nothing else: no new image, no edit (IMG-01).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Membership } from '@sophia/contracts'
 import { Icon, Tag } from '@sophia/ui'
 import { CandidateImage } from './CandidateImage.tsx'
 import { choice, provenance, ROUTE, STATE, type Candidate, type Direction } from './direction.ts'
+import type { SerialChoice } from './useSerialChoice.ts'
 import { useVerifiedImage, type Shown, type VerifiedImages } from './useVerifiedImage.ts'
-
-export type Choose = (candidateId: string, expectedRevision: number) => Promise<void>
 
 interface Props {
   direction: Direction
@@ -16,44 +15,44 @@ interface Props {
   role: Membership['role'] | undefined
   /** The gallery's checks: an image its tile already read isn't read again. */
   images: VerifiedImages
-  onChoose: Choose
+  /** Moves with each Try again: images that couldn't be read are read again. */
+  attempt: number
+  onRetry: () => void
+  /** The gallery's one choice at a time. */
+  serial: SerialChoice
   onBack: () => void
 }
 
-interface ChooseProps extends Omit<Props, 'n' | 'images' | 'onBack'> {
+interface ChooseProps {
+  direction: Direction
+  candidate: Candidate
+  role: Membership['role'] | undefined
+  serial: SerialChoice
   /** Its bytes as checked: nothing is offered or refused while the check is under way. */
   shown: Shown | null
   /** The button goes once the choice holds: the focus needs somewhere to go. */
   onChosen: () => void
 }
 
-function ChooseButton({ direction, candidate, role, onChoose, shown, onChosen }: ChooseProps) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+function ChooseButton({ direction, candidate, role, serial, shown, onChosen }: ChooseProps) {
   const can = choice(role, candidate, direction, shown?.kind === 'shown')
   if (direction.chosenId === candidate.id) return <Tag tone="teal">Chosen</Tag>
   if (shown?.kind === 'checking') return null
   if (!can.can) return <p className="direction-why">{can.why}</p>
+  const mine = serial.choosing === candidate.id
+  if (serial.choosing !== null && !mine) return <p className="direction-why">Another choice is being saved first.</p>
   const choose = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await onChoose(candidate.id, direction.revision)
-      onChosen()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'The choice wasn’t confirmed. Nothing else was asked.')
-    } finally {
-      setBusy(false)
-    }
+    if (await serial.choose(candidate.id)) onChosen()
   }
+  const failed = serial.failed?.candidateId === candidate.id ? serial.failed.text : null
   return (
     <>
-      <button type="button" className="pill primary" disabled={busy} onClick={() => void choose()}>
-        {busy ? 'Choosing…' : 'Choose this one'}
+      <button type="button" className="pill primary" disabled={mine} onClick={() => void choose()}>
+        {mine ? 'Choosing…' : 'Choose this one'}
       </button>
-      {error && (
+      {failed && (
         <p className="outcome" role="alert">
-          {error}
+          {failed}
         </p>
       )}
     </>
@@ -61,11 +60,11 @@ function ChooseButton({ direction, candidate, role, onChoose, shown, onChosen }:
 }
 
 export function DirectionDetail(props: Props) {
-  const { direction, candidate, n, images, onBack } = props
+  const { direction, candidate, n, images, attempt, onRetry, onBack } = props
   const back = useRef<HTMLButtonElement>(null)
   useEffect(() => back.current?.focus({ preventScroll: true }), [])
   const state = STATE[candidate.state]
-  const shown = useVerifiedImage(candidate.asset, images, true)
+  const shown = useVerifiedImage(candidate.asset, images, true, attempt)
   return (
     <section
       className="direction-detail"
@@ -89,11 +88,16 @@ export function DirectionDetail(props: Props) {
         <CandidateImage candidate={candidate} n={n} shown={shown} />
         <div className="direction-detail-side">
           <div className="direction-choice" role="status">
+            {shown?.kind === 'unreadable' && (
+              <button type="button" className="pill" onClick={onRetry}>
+                Try again
+              </button>
+            )}
             <ChooseButton {...props} shown={shown} onChosen={() => back.current?.focus({ preventScroll: true })} />
           </div>
           <dl className="direction-facts">
-            {provenance(candidate, direction).map(([term, value]) => (
-              <div key={term}>
+            {provenance(candidate, direction).map(([term, value], i) => (
+              <div key={`${term}-${i}`}>
                 <dt>{term}</dt>
                 <dd>{value}</dd>
               </div>

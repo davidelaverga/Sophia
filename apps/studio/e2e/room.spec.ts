@@ -180,3 +180,21 @@ test('BASE-03 @phone · leaving, a lost connection and the way back stay in reac
     'connect',
   ])
 })
+
+test('BASE-03 @phone · after a lost call, Chat with Sophia in the open panel brings the call back, in text', async ({
+  page,
+}) => {
+  await enter(page, IN_CALL)
+  await toggle(page, 'Chat').click()
+  const panel = page.getByRole('complementary', { name: 'Chat' })
+  await page.evaluate(() => window.fixture?.drop()) // the connection is lost while the panel covers the room
+  const before = (await asked(page)).length
+  await panel.getByRole('button', { name: /^Chat with Sophia/ }).tap()
+  await expect(panel.getByRole('button', { name: 'Microphone' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(panel.getByRole('button', { name: /^Text mode/ })).toBeInViewport()
+  await expect(panel.locator('.composer .outcome')).toHaveCount(0) // the lost call is no longer said
+  const since = (await asked(page)).slice(before)
+  // Out of the call, text mode is remembered; the join applies it as it connects, before any microphone arrives.
+  expect(since.slice(0, 2)).toEqual(['connect', 'text:on'])
+  expect(since, 'no microphone turns on').not.toContain('microphone:on')
+})

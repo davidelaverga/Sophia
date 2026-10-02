@@ -76,14 +76,18 @@ export function stateLine(c: Candidate): string {
   return c.state === 'running' ? 'The provider is working on it.' : 'Waiting its turn.'
 }
 
-/** The facts behind a candidate, in reading order: what was asked, what answered, what was kept. */
+/**
+ * The facts behind a candidate, in reading order: what was asked, what answered, what was kept. Sources are named by
+ * their exact identities, so two briefs at the same revision, or a reference replaced under the same label, differ.
+ */
 export function provenance(c: Candidate, d: Direction): [string, string][] {
   const rows: [string, string][] = [
     ['Route', ROUTE[c.route].label],
     ['Model', c.model ?? 'Not reported'],
-    ['Brief', `revision ${d.brief.revision}`],
-    ['References', d.references.length ? d.references.map((r) => r.label).join(', ') : 'None'],
+    ['Brief', `revision ${d.brief.revision} · source ${d.brief.sourceId}`],
   ]
+  if (d.references.length === 0) rows.push(['Reference', 'None'])
+  for (const r of d.references) rows.push(['Reference', `${r.label} · ${r.assetId} · ${r.sha256}`])
   if (c.asset) {
     rows.push(['Asset', c.asset.id], ['SHA-256', c.asset.sha256])
     rows.push(['Size', `${c.asset.width} × ${c.asset.height}`])

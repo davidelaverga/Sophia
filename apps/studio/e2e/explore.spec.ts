@@ -127,3 +127,34 @@ test('each image is read once, and only when its tile comes near the screen', as
   expect(new Set(all).size, 'no image read twice, up close included').toBe(all.length)
   expect(all).toContain('read:00000000-0000-4000-8000-000000000363')
 })
+
+test('while one choice is being saved, no other can be made, even after going back', async ({ page }) => {
+  await page.goto(`${PAGE}?slow=1`)
+  await tile(page, 2).click()
+  await choose(page).click()
+  await expect(page.getByRole('button', { name: 'Choosing…' })).toBeDisabled()
+  await back(page).click()
+  await tile(page, 1).click()
+  await expect(page.getByText('Another choice is being saved first.')).toBeVisible()
+  await expect(choose(page)).toHaveCount(0)
+
+  await page.evaluate(() => window.explore?.settle())
+  await expect(choose(page)).toBeVisible() // saved: candidate 1 may be chosen now, on the new revision
+  expect(await choices(page)).toEqual([`choose:${B}@1`])
+  await back(page).click()
+  await expect(tile(page, 2)).toHaveAccessibleName('Candidate 2, OpenAI, Ready, chosen')
+})
+
+test('an image the network failed to read can be tried again, and is then usable', async ({ page }) => {
+  await page.goto(`${PAGE}?flaky=${B_ASSET}`)
+  await expect(tile(page, 2).getByText('This image couldn’t be read.')).toBeVisible()
+  await tile(page, 2).click() // read again up close, and the network fails once more
+  const detail = page.getByRole('region', { name: /^Candidate 2/ })
+  await expect(detail.getByText('This image couldn’t be read.')).toBeVisible()
+  await page.evaluate(() => window.explore?.heal()) // the network is back
+  await detail.getByRole('button', { name: 'Try again' }).click()
+  await expect(detail.getByRole('img', { name: 'Candidate 2, from OpenAI' })).toBeVisible()
+  await expect(choose(page)).toBeVisible()
+  await back(page).click()
+  await expect(tile(page, 2).getByRole('img')).toBeVisible() // the tile shows it too
+})

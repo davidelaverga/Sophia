@@ -52,9 +52,16 @@ describe('an image direction', () => {
     assert.deepEqual(provenance(refused, direction), [
       ['Route', 'Google'],
       ['Model', 'Not reported'],
-      ['Brief', 'revision 3'],
-      ['References', 'Grid'],
+      ['Brief', 'revision 3 · source s'],
+      ['Reference', `Grid · r · ${'cd'.repeat(32)}`],
     ])
+    const two = {
+      ...direction,
+      references: [...direction.references, { assetId: 'q', label: 'Grid', sha256: 'ef'.repeat(32) }],
+    }
+    const references = provenance(refused, two).filter(([term]) => term === 'Reference')
+    assert.equal(references.length, 2, 'one row per reference, told apart by identity')
+    assert.deepEqual(provenance(refused, { ...direction, references: [] }).at(-1), ['Reference', 'None'])
     const rows = new Map(provenance({ ...ready, model: 'gpt-image-2.5-sunburst-2026-09-08' }, direction))
     assert.equal(rows.get('Model'), 'gpt-image-2.5-sunburst-2026-09-08')
     assert.equal(rows.get('Asset'), 'asset-b')

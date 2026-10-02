@@ -17,7 +17,10 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** One check per asset, shared by its tile and its detail; `dispose` drops them all and frees their pictures. */
+/**
+ * One check per asset, shared by its tile and its detail; `dispose` drops them all and frees their pictures. A read
+ * that failed isn't kept: the next check reads again. A mismatch is kept: those bytes won't change.
+ */
 export class VerifiedImages {
   private readonly checks = new Map<string, Promise<Checked>>()
   private readonly urls = new Set<string>()
@@ -37,6 +40,9 @@ export class VerifiedImages {
     if (known) return known
     const started = this.verify(asset, this.generation)
     this.checks.set(key, started)
+    void started.then(
+      (done) => done.kind === 'unreadable' && this.checks.get(key) === started && this.checks.delete(key),
+    )
     return started
   }
 
@@ -79,17 +85,25 @@ export function useVerifiedImages(read: ReadBytes): VerifiedImages {
   return images
 }
 
-/** `wanted`: read the bytes now; until then the image waits, unread. */
-export function useVerifiedImage(asset: ImageAsset | null, images: VerifiedImages, wanted: boolean): Shown | null {
+/**
+ * `wanted`: read the bytes now; until then the image waits, unread. `attempt` moves with each Try again: an image that
+ * couldn't be read is read again, and one already shown stays as it is.
+ */
+export function useVerifiedImage(
+  asset: ImageAsset | null,
+  images: VerifiedImages,
+  wanted: boolean,
+  attempt: number,
+): Shown | null {
   const [shown, setShown] = useState<Shown>({ kind: 'checking' })
   useEffect(() => {
     if (!asset || !wanted) return undefined
     const run = { live: true }
-    setShown({ kind: 'checking' })
+    setShown((now) => (now.kind === 'shown' ? now : { kind: 'checking' }))
     void images.check(asset).then((next) => run.live && setShown(next))
     return () => {
       run.live = false
     }
-  }, [asset, images, wanted])
+  }, [asset, images, wanted, attempt])
   return asset ? shown : null
 }
