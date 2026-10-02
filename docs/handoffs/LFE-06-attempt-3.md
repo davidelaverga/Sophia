@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/capacity-balances` from main `3e46e48`, 2026-10-02.
-- **End:** the fix and docs at `ab846ae` (tree `84c16230d04f`), the head the checks below ran on. The commit after it changes only this line.
+- **End:** the fix and docs at `ea7cad9` (tree `500fa449f54c`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** `capacityLine` in `apps/studio/src/features/resources/resource.ts`, its unit tests and LFE-06's records. **Nothing else changed.**
 
 ## Outcome
