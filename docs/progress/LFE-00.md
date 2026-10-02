@@ -52,11 +52,11 @@ Reserve a new ID only after refreshing every open branch.
 | BASE-03 Phone panel in an active call keeps mute, sending, errors, leave and return reachable | fixture: passes in CI (Chromium, 390×844 touch). Live and hosted: not run |
 | BASE-04 Research and personal route changes coexist in a reviewed combined candidate | not run: it needs PR32's candidate (LFE-02) |
 
-LFE-00.3 put BASE-01 to BASE-03 in the repository ([`apps/studio/e2e/room.spec.ts`](../../apps/studio/e2e/room.spec.ts), CI job `studio-browser`). They cover the six behaviours LFE-00.3 names: Chat/Brief switching, drafts, unread state, mobile media controls, text-mode exit and keyboard capture. They are fixture evidence: the real Studio components on a labelled fixture page with a fake call and no API ([handoff](../handoffs/LFE-00-attempt-2.md)). They don't show a live call, LiveKit or a hosted Studio.
+LFE-00.3 put BASE-01 to BASE-03 in the repository ([`apps/studio/e2e/room.spec.ts`](../../apps/studio/e2e/room.spec.ts), CI job `studio-browser`). They cover the six behaviours LFE-00.3 names: Chat/Brief switching, drafts, unread state, mobile media controls, text-mode exit and keyboard capture. They are fixture evidence: the Studio's own project shell, feed, query cache and room controller on a labelled fixture page, with only the API and LiveKit faked ([attempt 2](../handoffs/LFE-00-attempt-2.md), [attempt 3](../handoffs/LFE-00-attempt-3.md)). They don't show a live call, LiveKit or a hosted Studio.
 
 ## Next tickets (LFE-00.4)
 
-1. **LFE-00.3** (Luis): done on fixtures, in CI ([attempt 2](../handoffs/LFE-00-attempt-2.md)). The same cases in a live call wait for a hosted candidate.
+1. **LFE-00.3** (Luis): done on fixtures, in CI ([attempt 2](../handoffs/LFE-00-attempt-2.md); [attempt 3](../handoffs/LFE-00-attempt-3.md) runs them over the real controller and cache). The same cases in a live call wait for a hosted candidate.
 2. **LFE-02** (Luis with PR32's author): review the report and PDF UI on PR32. Integrate it after the handoff.
 3. **LFE-03** (Luis): Explore's image-direction UI on labelled fixtures, independently of S1-06's backend.
 4. **LFE-01** (Davide): the personal space is merged but not live. Davide decides whether it goes to production. A real owner-scoped Companion is bound before messaging is enabled; there is no rehearsal in production.
