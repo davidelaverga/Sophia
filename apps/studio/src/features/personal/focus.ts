@@ -50,7 +50,7 @@ export function focusIfDropped(el: HTMLElement | null): boolean {
 }
 
 /**
- * A focus move that waits (an answer, a slide, the voice heard), taken as the act begins: at the end it moves the focus
+ * A focus move that waits (an answer, the voice heard), taken as the act begins: at the end it moves the focus
  * only if the person left it where the act did, or it was dropped. The control that had it may still be on screen,
  * about to go; whoever moved on meanwhile keeps the focus where they put it.
  */

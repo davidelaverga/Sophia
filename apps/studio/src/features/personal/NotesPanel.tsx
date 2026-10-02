@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
-import { focusLater, focusSoon } from './focus.ts'
+import { focusSoon } from './focus.ts'
 import { membersLabel } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 
@@ -17,6 +17,8 @@ interface Props {
   projectsRead: Read
   onClose: () => void
   onCarry: (note: PersonalNote, project: ProjectSummary) => void
+  /** Whether a note's carry is on its way: it stays crossed, out of reach, until it settles (back if it failed). */
+  carrying: (noteId: string) => boolean
   onStartProject: () => void
 }
 
@@ -84,9 +86,9 @@ function CarryTo(props: {
 }
 
 /**
- * One carry at a time: a second pick while a note crosses would carry it twice. Once it crossed, the panel takes the
- * focus its buttons had (they leave with the note), unless the person moved on during the slide. The panel going away
- * mid-slide (the notes closed, a lock) carries nothing.
+ * One carry at a time: a second pick while a note crosses would carry it twice. The panel takes the focus its buttons
+ * had as it starts to cross, before they go out of reach with it, so the focus is never dropped; whoever moves on
+ * during the slide keeps it there. The panel going away mid-slide (the notes closed, a lock) carries nothing.
  */
 function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry']) {
   const [carrying, setCarrying] = useState<string | null>(null)
@@ -102,23 +104,24 @@ function useCarry(panel: RefObject<HTMLElement | null>, onCarry: Props['onCarry'
   const carry = (note: PersonalNote, project: ProjectSummary) => {
     if (busy.current) return
     busy.current = true
+    panel.current?.focus({ preventScroll: true })
     setCrossing(note.id)
-    const land = focusLater()
     setTimeout(() => {
       busy.current = false
       if (!here.current) return
       setCrossing(null)
       setCarrying(null)
       onCarry(note, project)
-      land(panel.current)
     }, CROSSING_MS)
   }
   return { carrying, setCarrying, crossing, carry }
 }
 
-export function NotesPanel({ notes, projects, projectsRead, onClose, onCarry, onStartProject }: Props) {
+export function NotesPanel(props: Props) {
+  const { notes, projects, projectsRead, onClose, onCarry, onStartProject } = props
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
+  const crossed = (id: string) => crossing === id || props.carrying(id)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
@@ -132,7 +135,7 @@ export function NotesPanel({ notes, projects, projectsRead, onClose, onCarry, on
       </header>
       {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
       {notes?.map((note) => (
-        <div key={note.id} className={`c2-t${crossing === note.id ? ' crossing' : ''}`}>
+        <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
           <p>
             {note.text}
             {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
