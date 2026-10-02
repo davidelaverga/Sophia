@@ -54,6 +54,7 @@ describe('a resource’s capacity', () => {
       value: '40% used',
       reset: 'resets in 2 h',
       percent: 40,
+      applies: 'known',
     })
     const unknown = windowView(window({ value: null, state: 'unknown' }), now)
     assert.equal(unknown.value, 'Unknown')
@@ -73,6 +74,24 @@ describe('a resource’s capacity', () => {
     assert.equal(capacityLine(undefined, now), 'Capacity unknown')
     assert.equal(capacityLine(observation([], 'unavailable'), now), 'Capacity unknown')
     assert.equal(capacityLine(observation([window({ resets_at: at(-5) })]), now), 'Refresh pending')
+  })
+
+  it('lets only a window known to apply limit the resource, and says when one may not apply', () => {
+    const uncertain = window({ window_id: 'seven_day_opus', value: 88, scope: 'model', applicability: 'unknown' })
+    assert.equal(windowView(uncertain, now).value, '88% used · may not apply here')
+    assert.equal(
+      capacityLine(observation([window({ value: 40 }), uncertain]), now),
+      '5-hour window: 40% used, resets in 2 h',
+    )
+    assert.equal(capacityLine(observation([uncertain]), now), 'Capacity unknown: no window is known to apply here')
+  })
+
+  it('treats a reading past its valid_until as expired, with its age, never as current capacity', () => {
+    const old = { ...observation([window({ value: 40 })]), valid_until: at(-10) }
+    assert.equal(capacityLine(old, now), 'Capacity unknown: the last reading expired 10 min ago')
+    assert.equal(windowView(window({ value: 40 }), now, true).value, 'Expired')
+    assert.equal(windowView(window({ value: 40 }), now, true).percent, null)
+    assert.equal(capacityLine({ ...old, valid_until: at(30) }, now), '5-hour window: 40% used, resets in 2 h')
   })
 })
 

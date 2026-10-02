@@ -3,6 +3,9 @@
 // waiting on Davide. Simulated: no tool, host or account was read, and the fixture page says so on screen.
 import type { QuotaObservation, QuotaWindow, RequiredAction, Resource } from '../src/features/resources/resource.ts'
 
+/** `stale=1`: Codex's reading stopped holding 10 minutes ago. */
+export const expiredAt = () => new Date(NOW.getTime() - 10 * 60_000).toISOString()
+
 /** The moment the page is read at: every age and reset counts from here. */
 export const NOW = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
@@ -93,8 +96,13 @@ export const observations: QuotaObservation[] = [
     observed_at: at(-1),
     valid_until: null,
     coverage: 'partial',
-    // The 7-day reset is already due: refresh pending until the tool reports again, not fresh capacity.
-    windows: [percent('five_hour', 63, 55), percent('seven_day', 71, -60)],
+    // The 7-day reset is already due: refresh pending until the tool reports again, not fresh capacity. The model's
+    // own window may not apply to this resource: it is shown, and doesn't limit it.
+    windows: [
+      percent('five_hour', 63, 55),
+      percent('seven_day', 71, -60),
+      { ...percent('seven_day_opus', 88, 2 * 1440), scope: 'model', applicability: 'unknown' },
+    ],
     missing_capabilities: ['spend limit'],
   },
   {
