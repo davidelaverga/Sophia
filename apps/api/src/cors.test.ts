@@ -30,6 +30,22 @@ describe('CORS for a deployed Studio', () => {
     assert.match(String(res.headers['access-control-allow-headers']), /idempotency-key/)
   })
 
+  it('allows every header the Studio sends, the personal space’s epoch included (A10)', async () => {
+    const headers = ['authorization', 'content-type', 'idempotency-key', 'x-sophia-personal-epoch']
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/personal/turns',
+      headers: {
+        origin: STUDIO,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': headers.join(', '),
+      },
+    })
+    assert.equal(res.statusCode, 204)
+    const allowed = String(res.headers['access-control-allow-headers']).split(/,\s*/)
+    for (const header of headers) assert.ok(allowed.includes(header), header)
+  })
+
   it('allows every method the Studio sends, including PUT for note capture and consent (A08)', async () => {
     const res = await app.inject({
       method: 'OPTIONS',

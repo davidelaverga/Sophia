@@ -2,6 +2,8 @@
 import { checkRoleSafety, createPool } from '@sophia/persistence'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import type { Companion } from './companion.ts'
+import { rehearsalCompanion } from './companion-rehearsal.ts'
 import { parseOrigins } from './cors.ts'
 import type { InviteConfig } from './invite-token.ts'
 import { s3ByteStore, type ByteStore } from './byte-store.ts'
@@ -76,6 +78,17 @@ function mediaBridgeHash(): Buffer | undefined {
   return Buffer.from(hex, 'hex')
 }
 const mediaBridgeTokenSha256 = mediaBridgeHash()
+/**
+ * Who answers in the personal space: SOPHIA_COMPANION=rehearse runs the keyless scripted rehearsal (development only;
+ * a production start refuses it). Unset, there is no companion yet and personal messages are refused.
+ */
+function personalCompanion(): Companion | null {
+  const mode = optional('SOPHIA_COMPANION')
+  if (!mode) return null
+  if (mode !== 'rehearse') throw new Error('SOPHIA_COMPANION is rehearse or unset')
+  if (process.env.NODE_ENV === 'production') throw new Error('The rehearsal companion is for development only')
+  return rehearsalCompanion()
+}
 const app = buildApp({
   pool,
   logger: true,
@@ -83,6 +96,7 @@ const app = buildApp({
   ...(invites ? { invites } : {}),
   mailer: inviteMailer(),
   byteStore: byteStore(),
+  companion: personalCompanion(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

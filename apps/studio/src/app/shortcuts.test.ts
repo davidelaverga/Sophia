@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keyLabel, onScreen, shortcutKey, strayFrom, typesText, type KeyLike } from './shortcuts.ts'
+import { keyLabel, onScreen, shortcutKey, strayFrom, typesText, typingSink, type KeyLike } from './shortcuts.ts'
 
 const press = (key: string, over: Partial<KeyLike> = {}): KeyLike => ({
   key,
@@ -101,5 +101,28 @@ describe('what is on screen', () => {
     assert.equal(onScreen({ checkVisibility: () => true, getClientRects: () => [] }), true)
     assert.equal(onScreen({ getClientRects: () => [{}] }), true)
     assert.equal(onScreen({ getClientRects: () => [] }), false, 'a hidden ancestor leaves it no box')
+  })
+})
+
+/** A field that takes stray typing: on screen or not, and inside something the page made inert or not. */
+const field = (shown: boolean, inert = false) => ({
+  getClientRects: () => (shown ? [{}] : []),
+  closest: (selector: string) => (selector === '[inert]' && inert ? {} : null),
+})
+
+describe('where stray typing goes', () => {
+  it('goes to the first field on screen, not the first in the page (a project kept for its call has one too)', () => {
+    const behind = field(false)
+    const here = field(true)
+    assert.equal(typingSink([behind, here]), here)
+    assert.equal(typingSink([behind]), null)
+    assert.equal(typingSink([]), null)
+  })
+
+  it('never goes to a field behind something inert (the notes covering the conversation on a narrow screen)', () => {
+    const covered = field(true, true)
+    assert.equal(typingSink([covered]), null)
+    const open = field(true)
+    assert.equal(typingSink([covered, open]), open)
   })
 })

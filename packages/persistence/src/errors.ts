@@ -68,6 +68,15 @@ const RULES: readonly Rule[] = [
     code: 'forbidden',
   },
   { sqlstate: '42501', code: 'forbidden', publicMessage: 'Not permitted' },
+  // Before the other "Stale" refusals: a retry of a personal write the person has since erased (0021, personal_prior).
+  {
+    sqlstate: '40001',
+    when: (m) => m.startsWith('Stale request: what it wrote has since been erased'),
+    code: 'request_erased',
+  },
+  // The personal space's limits (0021): each refusal has its own code.
+  { sqlstate: '54000', when: (m) => m.startsWith('Notes are full'), code: 'notes_full' },
+  { sqlstate: '54000', when: (m) => m.startsWith('Carried notes are full'), code: 'carried_full' },
   // Compare-and-set losers: a newer revision, epoch or stable head won.
   { sqlstate: '40001', when: (m) => m.startsWith('Stale') || m === 'Stable head changed', code: 'stale_revision' },
   { sqlstate: '40001', when: (m) => m.startsWith('Confirmation required'), code: 'confirmation_required' },
@@ -76,6 +85,8 @@ const RULES: readonly Rule[] = [
   { sqlstate: '23505', code: 'invalid_state' },
   { sqlstate: '22023', when: (m) => m.endsWith('not found'), code: 'not_found' },
   { sqlstate: '22023', code: 'invalid_request' },
+  // Text the database can't hold (a NUL character): the caller's input, never an outage.
+  { sqlstate: '22021', code: 'invalid_request', publicMessage: 'Text contains a character that cannot be kept' },
 ]
 
 /** Connection-level failures: the database is unreachable or refusing new sessions. */

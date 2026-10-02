@@ -1,0 +1,41 @@
+{
+  "schema": "sophia.pack-manifest.v2",
+  "title": "Sophia unified continuation pack",
+  "version": "2.0",
+  "snapshot_as_of": "2026-10-01",
+  "finalized_on": "2026-10-02",
+  "status": "planning_continuation_not_implementation_or_release",
+  "source_repository": "davidelaverga/Sophia",
+  "source_main": "aadd192d66bb60dea6c2ba212cea5e192d704858",
+  "planning_home_proposed": "docs/execution/2026-10-01-unified/",
+  "supersedes_forward_planning": [
+    "2026-09-24 v0.3 Part1",
+    "2026-09-24 cumulative v0.4 Part2",
+    "2026-09-30 management coordination pack",
+    "2026-10-01 current execution/Luis v1.0 overlay"
+  ],
+  "preserves": [
+    "historical archive bytes in repository",
+    "actual source and release evidence",
+    "in-flight mission ownership",
+    "repository security and operational authority rules"
+  ],
+  "counts": {
+    "original_goals": 24,
+    "scm_missions": 9,
+    "goal_records_including_aliases": 44,
+    "canonical_goals": 31,
+    "routing_aliases": 13,
+    "frontend_packages": 17,
+    "new_personal_assistant_goals": 5,
+    "product_acceptance_specifications": 323,
+    "in_memory_design_tests": 26
+  },
+  "entry": "00_START_HERE.md",
+  "reader": "READER.html",
+  "validation": "VALIDATION.md",
+  "repo_modified": false,
+  "deployed": false,
+  "provider_calls_made": false,
+  "font_files_included": false
+}

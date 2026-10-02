@@ -2,8 +2,11 @@
 // with Sophia's light at rest above the words.
 import { useCallback, useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
+import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
+import { CodeField } from './CodeField.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
+import { startOver } from './link-accept.ts'
 import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
@@ -49,6 +52,8 @@ export function SlowNote() {
 
 interface OfferProps {
   account: string
+  /** Continue was pressed, and signing in outlasted the wait: it goes on, and the person can start over. */
+  slow?: boolean | undefined
   onAccept: () => Promise<void>
   onDecline: () => void
 }
@@ -56,9 +61,13 @@ interface OfferProps {
 /**
  * A link carried a session and nobody is signed in: the account is named, as the Auth service reads it, and nothing
  * is signed in until the person says it is theirs. Someone else's link would otherwise sign them into that account.
+ * Once they pressed Continue, nothing declines it while it is under way (link-accept.ts): a slow sign-in says so after
+ * a while (SlowNote), and past the wait offers to start over (`startOver`): the same place loads again, so a link
+ * that landed on an invitation (/join) goes on with it, and the attempt is left with the page.
  */
-export function LinkOffer({ account, onAccept, onDecline }: OfferProps) {
+export function LinkOffer({ account, slow, onAccept, onDecline }: OfferProps) {
   const [signing, setSigning] = useState(false)
+  const busy = signing || !!slow
   const accept = async () => {
     setSigning(true)
     await onAccept()
@@ -69,12 +78,23 @@ export function LinkOffer({ account, onAccept, onDecline }: OfferProps) {
       <p>
         This link signs you in to Sophia as <strong>{account}</strong>. Continue only if that address is yours.
       </p>
-      <button type="button" className="pill primary" disabled={signing} onClick={() => void accept()}>
-        {signing ? 'Signing in…' : 'Continue'}
+      <button type="button" className="pill primary" disabled={busy} onClick={() => void accept()}>
+        {busy ? 'Signing in…' : 'Continue'}
       </button>
-      <button type="button" className="text-button" disabled={signing} onClick={onDecline}>
+      <button type="button" className="text-button" disabled={busy} onClick={onDecline}>
         That’s not me
       </button>
+      {signing && !slow && <SlowNote />}
+      {slow && (
+        <>
+          <p className="form-error" role="alert">
+            {LINK_SLOW}
+          </p>
+          <button type="button" className="pill" onClick={() => startOver(window.location)}>
+            Start over
+          </button>
+        </>
+      )}
     </Centered>
   )
 }
@@ -200,13 +220,11 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
 
 /** The emailed code signs in on this browser whichever device the email was read on. */
 export function CodeForm({ email }: { email: string }) {
-  const [code, setCode] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const check = async (code: string) => {
     setState({ step: 'sending' })
     try {
-      await verifyEmailCode(email, code.trim())
+      await verifyEmailCode(email, code)
       // Signed in: the auth listener replaces this screen with the project.
     } catch (err: unknown) {
       setState({ step: 'error', message: err instanceof Error ? err.message : 'That code did not work.' })
@@ -214,24 +232,12 @@ export function CodeForm({ email }: { email: string }) {
   }
   return (
     <>
-      <form className="field" onSubmit={(e) => void submit(e)}>
-        <label htmlFor="email-code" className="sr-only">
-          Code from the email
-        </label>
-        <input
-          id="email-code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]{6,10}"
-          required
-          placeholder="Code from the email"
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-        />
-        <button type="submit" className="pill primary" disabled={state.step === 'sending'}>
-          {state.step === 'sending' ? 'Checking…' : 'Sign in with code'}
-        </button>
-      </form>
+      <CodeField
+        id="email-code"
+        action="Sign in with code"
+        busy={state.step === 'sending'}
+        onCheck={(code) => void check(code)}
+      />
       {state.step === 'error' && (
         <p className="form-error" role="alert">
           {state.message}

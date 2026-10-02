@@ -1,0 +1,30 @@
+# The v2.0 continuation's own checks, run at LFE-00 (2026-10-02, Windows 11, Git Bash, Python 3.12.10)
+
+$ cd docs/execution/2026-10-01-unified && sha256sum -c SHA256SUMS.txt
+306 files OK, 0 failed
+
+$ python scripts/validate.py   # on a throwaway copy: it rewrites tests/documentation-validation.json and tests/design-model-output.txt
+{
+  "status": "passed",
+  "metrics": {
+    "json_files_parsed": 71,
+    "markdown_files": 224,
+    "local_links_checked": 747,
+    "external_links_recorded_not_network_tested": 41,
+    "goal_records": 44,
+    "canonical_goals": 31,
+    "routing_aliases": 13,
+    "original_goals_mapped": 24,
+    "scm_missions_mapped": 9,
+    "frontend_packages": 17,
+    "product_acceptance_cases_not_run": 323,
+    "schema_examples_checked": 23,
+    "schema_examples_expected_invalid": 12,
+    "font_files": 0,
+    "in_memory_design_tests": 26,
+    "in_memory_design_test_exit_code": 0,
+    "application_provider_database_deployment_tests_run": 0
+  },
+  "errors": []
+}
+(exit 0)

@@ -189,6 +189,25 @@ export function clashWith(
   return sessions.find((s) => Date.parse(s.startsAt) < end && Date.parse(s.endsAt) > start) ?? null
 }
 
+/**
+ * What the calendar form says under its button, short of a refusal: what was just scheduled, and an overlap of the time
+ * now in the form. After scheduling, the form moves on to the next slot, which can overlap another session: both are
+ * said, so the overlap never hides that the press worked (and nobody schedules it twice).
+ */
+export function scheduleLines(
+  done: Pick<RoomSession, 'startsAt' | 'endsAt'> | null,
+  clash: RoomSession | null,
+  now: number,
+  timeZone?: string,
+): string[] {
+  const lines: string[] = []
+  if (done) lines.push(`Scheduled: ${sessionLabel(done, now, timeZone)}.`)
+  if (clash) {
+    lines.push(`${done ? 'Next: overlaps' : 'Overlaps'} “${clash.title}” · ${sessionLabel(clash, now, timeZone)}.`)
+  }
+  return lines
+}
+
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /** The form's date and time fields for a moment, in the browser's zone: "2026-09-30" and "04:00". */

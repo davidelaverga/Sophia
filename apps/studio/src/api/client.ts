@@ -130,6 +130,10 @@ interface CallInit {
   body?: unknown
   /** An Idempotency-Key: the call is an admission, retried with the same key after no reply. */
   key?: string
+  /** Headers the route asks for besides the key (the epoch a personal write is made against). */
+  headers?: Readonly<Record<string, string>>
+  /** The caller's own signal: once it aborts, the call stops (as one past its time does). */
+  signal?: AbortSignal
 }
 
 /**
@@ -141,7 +145,7 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
   // What a failure allows: an admission is retried with its key, a read is asked again, and a write without a key
   // (a lobby decision, cancelling a session) that got no answer may have happened, so it is never repeated as if not.
   const retry = init.key ? 'same_admission_key' : method === 'GET' ? 'safe_read' : 'never'
-  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, async (signal) => {
+  const call = async (signal: AbortSignal) => {
     let res: Response
     try {
       res = await fetch(apiUrl(path), {
@@ -150,6 +154,7 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
           ...(init.token ? auth(init.token) : {}),
           ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
           ...(init.key ? { 'idempotency-key': init.key } : {}),
+          ...init.headers,
         },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
         signal,
@@ -159,7 +164,8 @@ export function callApi<T>(path: `/api/${string}`, init: CallInit, parse: (value
     }
     if (!res.ok) throw await toError(res)
     return readBody(res, parse, retry)
-  })
+  }
+  return inTime(method === 'GET' ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS, call, init.signal)
 }
 
 export const admitGoalCommand = (token: string, projectId: string, key: string, cmd: GoalCommand): Promise<Receipt> =>

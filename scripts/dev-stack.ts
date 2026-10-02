@@ -99,7 +99,8 @@ function syntheticBackend(): Backend {
   }
   const rooms = localRoomServer()
   return {
-    apiEnv: { ...dev.api, ...rooms },
+    // The personal space answers with the keyless rehearsal companion (scripted, never live evidence).
+    apiEnv: { ...dev.api, ...rooms, SOPHIA_COMPANION: 'rehearse' },
     // The worker takes declined guests out of the call (amendment A07): it needs the same LiveKit server.
     workerEnv: { ...dev.worker, ...rooms },
     runtimeEnv: { ...dev.runtime, SOPHIA_PROJECT_ID: dev.project.projectId },

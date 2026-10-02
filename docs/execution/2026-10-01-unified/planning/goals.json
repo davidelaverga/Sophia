@@ -1,0 +1,1003 @@
+{
+  "schema": "sophia.unified-goals.v2",
+  "as_of": "2026-10-01",
+  "source_main": "aadd192d66bb60dea6c2ba212cea5e192d704858",
+  "goals": [
+    {
+      "id": "S1-01",
+      "title": "Create the new repository and reproducible runtime source unit",
+      "kind": "alias",
+      "targets": [
+        "BASE"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S1-01.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-01-T01",
+        "S1-01-T02",
+        "S1-01-T03",
+        "S1-01-T04",
+        "S1-01-T05"
+      ]
+    },
+    {
+      "id": "S1-02",
+      "title": "Admit a project command and replay its state in the UI",
+      "kind": "alias",
+      "targets": [
+        "BASE",
+        "SCM-01"
+      ],
+      "depends_on": [],
+      "owner": "Luis",
+      "path": "goals/S1-02.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-02-T01",
+        "S1-02-T02",
+        "S1-02-T03",
+        "S1-02-T04",
+        "S1-02-T05"
+      ]
+    },
+    {
+      "id": "S1-03",
+      "title": "Run, steer, stop and recover a native dsh worker",
+      "kind": "alias",
+      "targets": [
+        "SCM-01",
+        "SCM-03"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S1-03.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-03-T01",
+        "S1-03-T02",
+        "S1-03-T03",
+        "S1-03-T04",
+        "S1-03-T05",
+        "S1-03-T06",
+        "S1-03-T07"
+      ]
+    },
+    {
+      "id": "S1-04",
+      "title": "Build the shared Studio shell and real room transport",
+      "kind": "alias",
+      "targets": [
+        "BASE"
+      ],
+      "depends_on": [],
+      "owner": "Luis",
+      "path": "goals/S1-04.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-04-T01",
+        "S1-04-T02",
+        "S1-04-T03",
+        "S1-04-T04",
+        "S1-04-T05"
+      ]
+    },
+    {
+      "id": "S1-05",
+      "title": "Connect Gemini 3.8 Live to real work and selected vision",
+      "kind": "alias",
+      "targets": [
+        "SMC-M03",
+        "SCM-06",
+        "S2-05"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S1-05.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-05-T01",
+        "S1-05-T02",
+        "S1-05-T03",
+        "S1-05-T04",
+        "S1-05-T05",
+        "S1-05-T06",
+        "S1-05-T07"
+      ]
+    },
+    {
+      "id": "S1-06",
+      "title": "Generate, compare and retain Google/OpenAI image assets",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Davide",
+      "path": "goals/S1-06.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "bindings/IMAGE_GENERATION.md",
+        "architecture/04_ARTIFACTS_AND_CREATION.md"
+      ],
+      "acceptance_ids": [
+        "S1-06-T01",
+        "S1-06-T02",
+        "S1-06-T03",
+        "S1-06-T04",
+        "S1-06-T05",
+        "S1-06-T06"
+      ]
+    },
+    {
+      "id": "S1-07",
+      "title": "Produce runnable UI source that Luis can edit",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Luis",
+      "path": "goals/S1-07.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/04_ARTIFACTS_AND_CREATION.md",
+        "bindings/FRONTEND_SOURCE_CONTRACT.md"
+      ],
+      "acceptance_ids": [
+        "S1-07-T01",
+        "S1-07-T02",
+        "S1-07-T03",
+        "S1-07-T04",
+        "S1-07-T05",
+        "S1-07-T06"
+      ]
+    },
+    {
+      "id": "S1-08",
+      "title": "Import existing context and compile the next useful brief",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Davide",
+      "path": "goals/S1-08.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/05_CONTEXT_PRIVACY_AND_LEARNING.md",
+        "assistants/02_PRIVACY_AND_PUBLICATION.md"
+      ],
+      "acceptance_ids": [
+        "S1-08-T01",
+        "S1-08-T02",
+        "S1-08-T03",
+        "S1-08-T04",
+        "S1-08-T05",
+        "S1-08-T06"
+      ]
+    },
+    {
+      "id": "S1-09",
+      "title": "Connect the three owner-operated engineering resources",
+      "kind": "alias",
+      "targets": [
+        "SCM-02"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S1-09.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-09-T01",
+        "S1-09-T02",
+        "S1-09-T03",
+        "S1-09-T04",
+        "S1-09-T05",
+        "S1-09-T06"
+      ]
+    },
+    {
+      "id": "S1-10",
+      "title": "Enable goal-scoped peer messages and responsive handbacks",
+      "kind": "alias",
+      "targets": [
+        "SCM-03"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S1-10.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-10-T01",
+        "S1-10-T02",
+        "S1-10-T03",
+        "S1-10-T04",
+        "S1-10-T05",
+        "S1-10-T06"
+      ]
+    },
+    {
+      "id": "S1-11",
+      "title": "Make the technical lead plan, review and steer the project",
+      "kind": "alias",
+      "targets": [
+        "SCM-04",
+        "SCM-05"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S1-11.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-11-T01",
+        "S1-11-T02",
+        "S1-11-T03",
+        "S1-11-T04",
+        "S1-11-T05",
+        "S1-11-T06"
+      ]
+    },
+    {
+      "id": "S1-12",
+      "title": "Review and steer the complete application from Sophia",
+      "kind": "alias",
+      "targets": [
+        "SCM-06"
+      ],
+      "depends_on": [],
+      "owner": "Luis",
+      "path": "goals/S1-12.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S1-12-T01",
+        "S1-12-T02",
+        "S1-12-T03",
+        "S1-12-T04",
+        "S1-12-T05",
+        "S1-12-T06"
+      ]
+    },
+    {
+      "id": "S1-13",
+      "title": "Deliver useful reports, PDFs and decks through isolated render jobs",
+      "kind": "goal",
+      "depends_on": [
+        "SMC-M03"
+      ],
+      "owner": "Davide",
+      "path": "goals/S1-13.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "bindings/RENDERERS.md",
+        "architecture/04_ARTIFACTS_AND_CREATION.md"
+      ],
+      "acceptance_ids": [
+        "S1-13-T01",
+        "S1-13-T02",
+        "S1-13-T03",
+        "S1-13-T04",
+        "S1-13-T05",
+        "S1-13-T06"
+      ]
+    },
+    {
+      "id": "S1-14",
+      "title": "Complete the founder project episode and release Sprint 1",
+      "kind": "goal",
+      "depends_on": [
+        "SMC-M03",
+        "S1-06",
+        "S1-07",
+        "S1-08",
+        "S1-13",
+        "SCM-06"
+      ],
+      "owner": "Davide and Luis",
+      "path": "goals/S1-14.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "01_PRODUCT_AND_RELEASES.md",
+        "operations/RELEASE_AND_RECOVERY.md"
+      ],
+      "acceptance_ids": [
+        "S1-14-T01",
+        "S1-14-T02",
+        "S1-14-T03",
+        "S1-14-T04",
+        "S1-14-T05",
+        "S1-14-T06",
+        "S1-14-T07"
+      ]
+    },
+    {
+      "id": "S2-01",
+      "title": "Semantic attention and milestone cooperation",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-06"
+      ],
+      "owner": "Luis",
+      "path": "goals/S2-01.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/03_STUDIO_AND_MEDIA.md",
+        "coordination/08_CONTINUITY_AND_LEARNING.md"
+      ],
+      "acceptance_ids": [
+        "S2-01-T01",
+        "S2-01-T02",
+        "S2-01-T03",
+        "S2-01-T04",
+        "S2-01-T05"
+      ]
+    },
+    {
+      "id": "S2-02",
+      "title": "Exact source-backed artifact revision",
+      "kind": "goal",
+      "depends_on": [
+        "S1-07",
+        "SCM-06"
+      ],
+      "owner": "Luis",
+      "path": "goals/S2-02.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/04_ARTIFACTS_AND_CREATION.md",
+        "bindings/FRONTEND_SOURCE_CONTRACT.md"
+      ],
+      "acceptance_ids": [
+        "S2-02-T01",
+        "S2-02-T02",
+        "S2-02-T03",
+        "S2-02-T04",
+        "S2-02-T05",
+        "S2-02-T06"
+      ]
+    },
+    {
+      "id": "S2-03",
+      "title": "Scenarios and executable application review",
+      "kind": "goal",
+      "depends_on": [
+        "S1-07"
+      ],
+      "owner": "Davide",
+      "path": "goals/S2-03.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/04_ARTIFACTS_AND_CREATION.md",
+        "bindings/FRONTEND_SOURCE_CONTRACT.md"
+      ],
+      "acceptance_ids": [
+        "S2-03-T01",
+        "S2-03-T02",
+        "S2-03-T03",
+        "S2-03-T04",
+        "S2-03-T05"
+      ]
+    },
+    {
+      "id": "S2-04",
+      "title": "In-app native requests and mobile control",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-02",
+        "SCM-03"
+      ],
+      "owner": "Davide",
+      "path": "goals/S2-04.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "bindings/OMNIGENT.md",
+        "architecture/03_STUDIO_AND_MEDIA.md"
+      ],
+      "acceptance_ids": [
+        "S2-04-T01",
+        "S2-04-T02",
+        "S2-04-T03",
+        "S2-04-T04",
+        "S2-04-T05",
+        "S2-04-T06"
+      ]
+    },
+    {
+      "id": "S2-05",
+      "title": "Consented discussion-following and richer voice",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Davide and Luis",
+      "path": "goals/S2-05.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "bindings/VOICE_AND_VISION.md",
+        "architecture/03_STUDIO_AND_MEDIA.md"
+      ],
+      "acceptance_ids": [
+        "S2-05-T01",
+        "S2-05-T02",
+        "S2-05-T03",
+        "S2-05-T04",
+        "S2-05-T05",
+        "S2-05-T06"
+      ]
+    },
+    {
+      "id": "S2-06",
+      "title": "Scoped project connectors and between-session continuity",
+      "kind": "goal",
+      "depends_on": [
+        "S1-08"
+      ],
+      "owner": "Luis",
+      "path": "goals/S2-06.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/05_CONTEXT_PRIVACY_AND_LEARNING.md",
+        "bindings/CONTEXT_AND_CONNECTORS.md"
+      ],
+      "acceptance_ids": [
+        "S2-06-T01",
+        "S2-06-T02",
+        "S2-06-T03",
+        "S2-06-T04",
+        "S2-06-T05"
+      ]
+    },
+    {
+      "id": "S3-01",
+      "title": "Authorized multi-week project continuity",
+      "kind": "alias",
+      "targets": [
+        "SCM-07"
+      ],
+      "depends_on": [],
+      "owner": "Davide",
+      "path": "goals/S3-01.md",
+      "status": "folded_not_restarted",
+      "acceptance_ids": [
+        "S3-01-T01",
+        "S3-01-T02",
+        "S3-01-T03",
+        "S3-01-T04",
+        "S3-01-T05",
+        "S3-01-T06"
+      ]
+    },
+    {
+      "id": "S3-02",
+      "title": "A useful Sophia-native application implementer",
+      "kind": "goal",
+      "depends_on": [
+        "S1-07",
+        "SCM-06"
+      ],
+      "owner": "Davide",
+      "path": "goals/S3-02.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/02_RUNTIME_AND_RESEARCH.md",
+        "architecture/04_ARTIFACTS_AND_CREATION.md"
+      ],
+      "acceptance_ids": [
+        "S3-02-T01",
+        "S3-02-T02",
+        "S3-02-T03",
+        "S3-02-T04",
+        "S3-02-T05"
+      ]
+    },
+    {
+      "id": "S3-03",
+      "title": "Adaptive execution and procedure improvement",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-05",
+        "SCM-08"
+      ],
+      "owner": "Davide and Luis",
+      "path": "goals/S3-03.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/08_CONTINUITY_AND_LEARNING.md"
+      ],
+      "acceptance_ids": [
+        "S3-03-T01",
+        "S3-03-T02",
+        "S3-03-T03",
+        "S3-03-T04",
+        "S3-03-T05",
+        "S3-03-T06"
+      ]
+    },
+    {
+      "id": "S3-04",
+      "title": "Repeated external-team use and clean migration",
+      "kind": "goal",
+      "depends_on": [
+        "S1-14",
+        "SCM-07"
+      ],
+      "owner": "Davide and Luis",
+      "path": "goals/S3-04.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "architecture/06_OPERATIONS_AND_RELEASES.md",
+        "bindings/CONTEXT_AND_CONNECTORS.md"
+      ],
+      "acceptance_ids": [
+        "S3-04-T01",
+        "S3-04-T02",
+        "S3-04-T03",
+        "S3-04-T04",
+        "S3-04-T05",
+        "S3-04-T06"
+      ]
+    },
+    {
+      "id": "SCM-00",
+      "title": "Bind the continuation to the real baseline",
+      "kind": "goal",
+      "depends_on": [],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-00.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-00-T01",
+        "SCM-00-T02",
+        "SCM-00-T03",
+        "SCM-00-T04"
+      ]
+    },
+    {
+      "id": "SCM-01",
+      "title": "Make one Paperclip-managed dsh outcome real",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-00"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-01.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-01-T01",
+        "SCM-01-T02",
+        "SCM-01-T03",
+        "SCM-01-T04",
+        "SCM-01-T05",
+        "SCM-01-T06",
+        "SCM-01-T07",
+        "SCM-01-T08"
+      ]
+    },
+    {
+      "id": "SCM-02",
+      "title": "Connect three owner-native resources with real capacity state",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-00"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-02.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-02-T01",
+        "SCM-02-T02",
+        "SCM-02-T03",
+        "SCM-02-T04",
+        "SCM-02-T05",
+        "SCM-02-T06",
+        "SCM-02-T07",
+        "SCM-02-T08"
+      ]
+    },
+    {
+      "id": "SCM-03",
+      "title": "Make peers and work controls responsive and durable",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-01",
+        "SCM-02"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-03.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-03-T01",
+        "SCM-03-T02",
+        "SCM-03-T03",
+        "SCM-03-T04",
+        "SCM-03-T05",
+        "SCM-03-T06",
+        "SCM-03-T07",
+        "SCM-03-T08"
+      ]
+    },
+    {
+      "id": "SCM-04",
+      "title": "Give the project a planning and review technical lead",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-03"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-04.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-04-T01",
+        "SCM-04-T02",
+        "SCM-04-T03",
+        "SCM-04-T04",
+        "SCM-04-T05",
+        "SCM-04-T06",
+        "SCM-04-T07",
+        "SCM-04-T08"
+      ]
+    },
+    {
+      "id": "SCM-05",
+      "title": "Allocate around capacity and transfer remaining work safely",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-04"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-05.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-05-T01",
+        "SCM-05-T02",
+        "SCM-05-T03",
+        "SCM-05-T04",
+        "SCM-05-T05",
+        "SCM-05-T06",
+        "SCM-05-T07",
+        "SCM-05-T08"
+      ]
+    },
+    {
+      "id": "SCM-06",
+      "title": "Review the real candidate together and unblock the right owner",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-05"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-06.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-06-T01",
+        "SCM-06-T02",
+        "SCM-06-T03",
+        "SCM-06-T04",
+        "SCM-06-T05",
+        "SCM-06-T06",
+        "SCM-06-T07",
+        "SCM-06-T08"
+      ]
+    },
+    {
+      "id": "SCM-07",
+      "title": "Continue the project between sessions without losing authority",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-06"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-07.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-07-T01",
+        "SCM-07-T02",
+        "SCM-07-T03",
+        "SCM-07-T04",
+        "SCM-07-T05",
+        "SCM-07-T06"
+      ]
+    },
+    {
+      "id": "SCM-08",
+      "title": "Promote one evaluated procedural improvement",
+      "kind": "goal",
+      "depends_on": [
+        "SCM-07"
+      ],
+      "owner": "Davide; Luis mapped UI",
+      "path": "goals/SCM-08.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "coordination/01_CONTROL_SUPPORT_MATRIX.md",
+        "coordination/03_PAPERCLIP_INTEGRATION.md"
+      ],
+      "acceptance_ids": [
+        "SCM-08-T01",
+        "SCM-08-T02",
+        "SCM-08-T03",
+        "SCM-08-T04",
+        "SCM-08-T05"
+      ]
+    },
+    {
+      "id": "BASE",
+      "title": "Preserve current source and bind the next slices",
+      "kind": "goal",
+      "depends_on": [],
+      "owner": "Davide and Luis",
+      "path": "goals/BASE.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "02_CURRENT_BASELINE.md",
+        "05_CODE_AND_INTEGRATION_MAP.md"
+      ],
+      "acceptance_ids": [
+        "BASE-T01",
+        "BASE-T02",
+        "BASE-T03"
+      ]
+    },
+    {
+      "id": "SMC-M03",
+      "title": "Finish the active research/report/Knowledge mission",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Current research implementer under Davide; Luis UI integration",
+      "path": "goals/SMC-M03.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "02_CURRENT_BASELINE.md",
+        "05_CODE_AND_INTEGRATION_MAP.md"
+      ],
+      "acceptance_ids": [
+        "M03-T01",
+        "M03-T02",
+        "M03-T03",
+        "M03-T04",
+        "M03-T05"
+      ]
+    },
+    {
+      "id": "PS-01",
+      "title": "Integrate owner-private space and asynchronous work without fake Companion",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Luis data/UI; Davide privacy/runtime",
+      "path": "goals/PS-01.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "02_CURRENT_BASELINE.md",
+        "05_CODE_AND_INTEGRATION_MAP.md"
+      ],
+      "acceptance_ids": [
+        "PS-T01",
+        "PS-T02",
+        "PS-T03",
+        "PS-T04"
+      ]
+    },
+    {
+      "id": "PA-00",
+      "title": "Qualify owner connection, template and two-way message transport",
+      "kind": "goal",
+      "depends_on": [
+        "BASE"
+      ],
+      "owner": "Davide integration/auth; Luis enrollment UI",
+      "path": "goals/PA-00.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "assistants/01_PRODUCT_AND_SCOPE.md",
+        "assistants/02_PRIVACY_AND_PUBLICATION.md",
+        "assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md",
+        "assistants/07_MCP_API_AND_STORAGE_BINDINGS.md"
+      ],
+      "acceptance_ids": [
+        "PA00-T01",
+        "PA00-T02",
+        "PA00-T03",
+        "PA00-T04",
+        "PA00-T05",
+        "PA00-T06"
+      ]
+    },
+    {
+      "id": "PA-01",
+      "title": "Deliver private knowledge collection with messages and real bytes",
+      "kind": "goal",
+      "depends_on": [
+        "PA-00"
+      ],
+      "owner": "Davide data/auth/adapter; Luis private job UI",
+      "path": "goals/PA-01.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "assistants/01_PRODUCT_AND_SCOPE.md",
+        "assistants/02_PRIVACY_AND_PUBLICATION.md",
+        "assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md",
+        "assistants/07_MCP_API_AND_STORAGE_BINDINGS.md"
+      ],
+      "acceptance_ids": [
+        "PA01-T01",
+        "PA01-T02",
+        "PA01-T03",
+        "PA01-T04",
+        "PA01-T05",
+        "PA01-T06",
+        "PA01-T07",
+        "PA01-T08",
+        "PA01-T09",
+        "PA01-T10"
+      ],
+      "capability_dependencies": [
+        {
+          "provider_goal": "PS-01",
+          "required_slice": "Owner-only storage/read/auth and privacy-bound UI integrated; no live Companion required."
+        },
+        {
+          "provider_goal": "SMC-M03",
+          "required_slice": "Qualified reusable byte-store/read interface, extended to private namespaces; no requirement to finish all M03 output families."
+        }
+      ]
+    },
+    {
+      "id": "PA-02",
+      "title": "Review personally and share an exact contribution with the team",
+      "kind": "goal",
+      "depends_on": [
+        "PA-01"
+      ],
+      "owner": "Luis review/share UI; Davide publication/context",
+      "path": "goals/PA-02.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "assistants/01_PRODUCT_AND_SCOPE.md",
+        "assistants/02_PRIVACY_AND_PUBLICATION.md",
+        "assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md",
+        "assistants/07_MCP_API_AND_STORAGE_BINDINGS.md"
+      ],
+      "acceptance_ids": [
+        "PA02-T01",
+        "PA02-T02",
+        "PA02-T03",
+        "PA02-T04",
+        "PA02-T05",
+        "PA02-T06",
+        "PA02-T07",
+        "PA02-T08"
+      ],
+      "capability_dependencies": [
+        {
+          "provider_goal": "S1-08",
+          "required_slice": "Project-safe source publication, current member/policy checks and source eligibility; unrelated connector/import workflows need not be complete."
+        }
+      ]
+    },
+    {
+      "id": "PA-03",
+      "title": "Qualify useful computer-environment work and app review",
+      "kind": "goal",
+      "depends_on": [
+        "PA-02"
+      ],
+      "owner": "Davide capability/task backend; Luis review UI",
+      "path": "goals/PA-03.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "assistants/01_PRODUCT_AND_SCOPE.md",
+        "assistants/02_PRIVACY_AND_PUBLICATION.md",
+        "assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md",
+        "assistants/07_MCP_API_AND_STORAGE_BINDINGS.md"
+      ],
+      "acceptance_ids": [
+        "PA03-T01",
+        "PA03-T02",
+        "PA03-T03",
+        "PA03-T04",
+        "PA03-T05",
+        "PA03-T06"
+      ]
+    },
+    {
+      "id": "PA-04",
+      "title": "Enable bounded cross-owner project-assistant peers",
+      "kind": "goal",
+      "depends_on": [
+        "PA-02",
+        "SCM-03"
+      ],
+      "owner": "Davide coordination/auth; Luis shared contribution UI",
+      "path": "goals/PA-04.md",
+      "status": "planned_continuation",
+      "required_docs": [
+        "assistants/01_PRODUCT_AND_SCOPE.md",
+        "assistants/02_PRIVACY_AND_PUBLICATION.md",
+        "assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md",
+        "assistants/07_MCP_API_AND_STORAGE_BINDINGS.md"
+      ],
+      "acceptance_ids": [
+        "PA04-T01",
+        "PA04-T02",
+        "PA04-T03",
+        "PA04-T04",
+        "PA04-T05",
+        "PA04-T06"
+      ]
+    },
+    {
+      "id": "SMC-M01",
+      "title": "Retain mission ledger and living brief",
+      "kind": "alias",
+      "targets": [
+        "BASE"
+      ],
+      "depends_on": [],
+      "owner": "Davide/Luis",
+      "path": "goals/SMC-M01.md",
+      "status": "retained_foundation",
+      "acceptance_ids": []
+    },
+    {
+      "id": "SMC-M02",
+      "title": "Retain merged runtime upgrade",
+      "kind": "alias",
+      "targets": [
+        "BASE"
+      ],
+      "depends_on": [],
+      "owner": "Davide/Luis",
+      "path": "goals/SMC-M02.md",
+      "status": "retained_foundation",
+      "acceptance_ids": []
+    },
+    {
+      "id": "S1-05A",
+      "title": "Retain application/runtime/media crossing",
+      "kind": "alias",
+      "targets": [
+        "BASE"
+      ],
+      "depends_on": [],
+      "owner": "Davide/Luis",
+      "path": "goals/S1-05A.md",
+      "status": "retained_foundation",
+      "acceptance_ids": []
+    }
+  ]
+}

@@ -60,7 +60,7 @@ No hosted effect, deployment, migration, paid call or credential use happened in
 ## 5. Luis's open work
 
 - **#24** is merged into this branch. The delivery UI builds on its `SidePanel`.
-- **#30** conflicts with #23's review fixes on `main` (`App.tsx`, `route.ts`, `route.test.ts`, `CONTRIBUTING.md`, and `ProjectHome.tsx` deleted vs changed). Those resolutions are Luis's. This branch merges #30 once Luis updates it on `main`. It owns `0021` and `A10`; M03 starts at `0022` and `A11`.
+- **#30** conflicts with #23's review fixes on `main` (`App.tsx`, `route.ts`, `route.test.ts`, `CONTRIBUTING.md`, and `ProjectHome.tsx` deleted vs changed). Those resolutions are Luis's. This branch merges #30 once Luis updates it on `main`. It owns `0021` and `A10`; M03 starts at `0022` and `A11`. (#30 landed on `main` and was merged here on 2026-10-02, §32)
 - The cross-project Knowledge library (L6) lands in #30's Work place after that merge.
 
 ## 6. S1 part 1: readers first
@@ -142,7 +142,7 @@ Known gap, unchanged from M02: a `workflow` child's own model calls are not obse
 
 The research specialists' tool policy now names the research tools S4 builds. Until S4 registers them, a research attempt is offered only `todo_write` (`research-route.test.mjs`); the policy changes the presets' digests, so the bundle archive is re-recorded: linux-x64 `sha256:b085f3f9f7c225ceac3390fa3df2883263759ba6b3c3882ea793bd225ecb00a1` (replacing §9's `c119dbae…`). darwin-arm64 is still pending Codex.
 
-Moved to S4 with the research tools ([binding §8](SMC-M03-contract-binding.md)): the preset patch files and `bundlePatchFiles()`, the research-base and output plugins, prompt sections, and the registry's `prompt_sections`. The API's admission resolution against the registry is S4's as planned. SOURCE_MAP §2d and DESTINATION_MAP record S2's upstream sources and paths.
+Moved to S4 with the research tools ([binding §8](SMC-M03-contract-binding.md)): the preset patch files and `bundlePatchFiles()`, the research-base and output plugins, prompt sections, and the registry's `prompt_sections`. The API's admission resolution against the registry is S4's as planned. SOURCE_MAP §2e and DESTINATION_MAP record S2's upstream sources and paths.
 
 A test fix found by this part's full run: `tool-recovery.test.mjs` (M02-T10) read the native session log as soon as the service had observed the second turn's end, and once, with the runtime-service suite inside the run, the log did not hold that event yet (`['error']` for `['error', 'completed']`; it passed 3/3 alone). The service sees an event when dsh appends it and the log file is written after, so the test now waits until the log holds both turn ends before asserting. No product code changed.
 
@@ -150,7 +150,7 @@ Run on this host after merging `main` (Luis's side-panel commits, `3c37f48`), wi
 
 ## 11. S3 part 1: source adapters and guards
 
-The modules S4's research tools call, built and tested on their own. Nothing registers them yet: native `web_search`/`web_fetch` stay hidden, and no source call can happen until S4 admits research. The vendors' documentation is blocked from this container, so the adapters follow the vendors' source code (SOURCE_MAP §2d); the live behavior is Codex's to check.
+The modules S4's research tools call, built and tested on their own. Nothing registers them yet: native `web_search`/`web_fetch` stay hidden, and no source call can happen until S4 admits research. The vendors' documentation is blocked from this container, so the adapters follow the vendors' source code (SOURCE_MAP §2e); the live behavior is Codex's to check.
 
 | Module (`packages/dsh-bundle/src/`) | What it does | Evidence (`tests/unit/sources.test.mjs`, 22 tests, no network) |
 |---|---|---|
@@ -570,7 +570,7 @@ Hosted state from CX-0008: the database ledger is 0001–0020 on PostgreSQL 17.6
 | Step | What | Check after | Recovery |
 |---|---|---|---|
 | 0 | M02 OP-0003 verified (step-A Stops settled, zero non-final s1-03 bindings); the candidate pinned; a PostgreSQL 17.6 copy for rehearsal | the ledger and hashes match CX-0008 | none needed |
-| 1 Schema (OP-A) | 0022–0035, each file in its own transaction, on the rehearsal copy first, then production. Luis's 0021 is not in this candidate and is not needed by it | ledger 0001–0020, 0022–0035 with the candidate's hashes. The rehearsal runs on PostgreSQL 17.6 (production's version; the suites here run on 16) with the services' **deployed** sources (the commits CX-0008 observed): the old API's `/ready` stays 200, and an old-API, old-bridge and old-worker smoke (assignments, a tool call, a note, a brief's dispatch) passes. 0022's readers were checked old against new (CX-0002); later files add functions and replace some with the same signatures, which the smoke covers | a failed file rolls back alone; fix forward with a new file. No down-migration. The old services keep running on the new schema |
+| 1 Schema (OP-A) | 0021 when it is not on the ledger yet, then 0022–0035, in order, each file in its own transaction, on the rehearsal copy first, then production. 0021 is the personal space (PS-01, Luis's #30), on `main` and merged into this branch (§32): the merged API's `/ready` requires its functions as well as 0035's, so it is applied first unless PS-01's own release has applied it | ledger 0001–0035 with the candidate's hashes. The rehearsal runs on PostgreSQL 17.6 (production's version; the suites here run on 16) with the services' **deployed** sources (the commits CX-0008 observed): the old API's `/ready` stays 200, and an old-API, old-bridge and old-worker smoke (assignments, a tool call, a note, a brief's dispatch) passes. 0022's readers were checked old against new (CX-0002); later files add functions and replace some with the same signatures, which the smoke covers | a failed file rolls back alone; fix forward with a new file. No down-migration. The old services keep running on the new schema |
 | 2 API | the M03 API (`/ready` requires 0035's function), research gate closed, no storage settings yet | `/ready` 200; `/v1/media/tool-surface` answers v1.1's six without `?guide` and eight with `?guide=v1.2` | the previous API deploy, only while no M03 record exists (no research task, rendition or announcement with text recipients). After research is enabled, the recovery target is this release, not pre-M03 |
 | 3 Bridge | the M03 bridge with `SOPHIA_GUIDE_VERSION=v1.1` | `guide.loaded` logs version v1.1 and M01's identities; Sophia binds | the previous bridge deploy (it asks without `?guide` and gets v1.1's six). **The bridge rolls back before the API**: a v1.2 bridge against an API without `?guide` stays unavailable, failing closed |
 | 4 Studio | the M03 Studio with the CSP naming the storage host (still report-only, with no reporting destination) | the policy is observed, not inferred: a scripted browser session on the deployed Studio listens for `securitypolicyviolation` events (and the console) while it opens a report, draws a PDF and downloads both files, and records none. A download that works is not a clean-CSP verdict | the previous Vercel deployment, while no research record exists; after that, this release |
@@ -605,3 +605,16 @@ Trade-offs, documented rather than changed:
 - A Markdown that two versions share downloads under the latest version's number, also from the older version's history entry (the bytes are the same).
 
 Run (linux-x64): see the CC-0012 request for the counts at the pinned candidate.
+
+## 32. `main` merged (2026-10-02): the personal space and LFE-00
+
+PR #32 conflicted with `main`, which had moved 160 commits past `aadd192`. They bring Luis's personal space (PS-01: #30 and #35, with migration 0021 and amendment A10, and #37), the Studio follow-ups (#33, #34, #38) and LFE-00's v2.0 continuation (#39) with its Chromium preservation checks (#40). `origin/main` at `55ddc1e` is merged into this branch, keeping both sides throughout:
+- **API.** CORS allows the personal space's epoch header and the report description's PATCH. `app.ts` mounts both route sets, and `/ready` requires both sets of functions (0021's and 0022–0035's). `server.ts` builds both the companion and the byte store.
+- **Studio.** The route hook keeps `main`'s places (home, personal, work) and its replace-in-history, and an open report still follows a change of view in the same project. `ProjectShell` imports both the call switches and the report viewer. The icon set holds both sides' icons. `main`'s fake room for the preservation checks gains the result notices this branch's room carries (an empty list).
+- **Contracts.** A10 and A11 apply together. `validate.ts` and the validator generator list both sides' parsers. The OpenAPI document, types and validators are regenerated by `pnpm --filter @sophia/contracts run generate`.
+- **Lock and runtime unit.** `pnpm-lock.yaml` is `main`'s, brought to both sides' manifests by `pnpm install`. `config/runtime-unit.json` keeps this branch's unit (`sophia-runtime-m03-dev`), re-recorded by `pnpm artifacts:record`: only the workspace lock's SHA-256 changes; the bundle archive (`6a01ce0e…`), the profile lock and the runtime tree are unchanged, and `pnpm artifacts` reproduces every identity.
+- **Docs.** The destination map's rows carry both goals; `main`'s SOURCE_MAP §2d (the continuation's sources) keeps its number and anchor, and this mission's upstream sources move to §2e.
+
+The release matrix's step 1 now applies 0021 first when PS-01's own release has not (§30). `AGENTS.md` on `main` keeps M03's in-flight ownership (#31, #32) binding under the v2.0 continuation.
+
+Run on the merge (linux-x64): see the CC-0013 request for the counts. `main`'s Chromium preservation checks (`pnpm --filter @sophia/studio test:browser`, 5 cases) pass here on the merged tree, against this container's Chromium build.

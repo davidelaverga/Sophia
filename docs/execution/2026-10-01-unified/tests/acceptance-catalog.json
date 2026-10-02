@@ -1,0 +1,3236 @@
+{
+  "schema": "sophia.unified-acceptance.v2",
+  "scope": "Specifications only. All product cases are unexecuted by this pack; earlier reports remain separately attributed.",
+  "cases": [
+    {
+      "id": "S1-01-T01",
+      "goal": "S1-01",
+      "scenario": "Positive: A clean second checkout resolves the same lock and artifact identities.",
+      "expected": "A clean second checkout resolves the same lock and artifact identities.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-01-T02",
+      "goal": "S1-01",
+      "scenario": "Positive: The profile includes dsh-base and the Sophia bundle, not another root loop.",
+      "expected": "The profile includes dsh-base and the Sophia bundle, not another root loop.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-01-T03",
+      "goal": "S1-01",
+      "scenario": "Positive: The document source map and code destination map are committed, with unbuilt paths still labelled.",
+      "expected": "The document source map and code destination map are committed, with unbuilt paths still labelled.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-01-T04",
+      "goal": "S1-01",
+      "scenario": "Adverse: A missing/incompatible Sophia bundle does not become a healthy runtime.",
+      "expected": "A missing/incompatible Sophia bundle does not become a healthy runtime.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-01-T05",
+      "goal": "S1-01",
+      "scenario": "Adverse: A comments-only or wrong-row patch is diagnosed rather than silently accepted as the intended configuration.",
+      "expected": "A comments-only or wrong-row patch is diagnosed rather than silently accepted as the intended configuration.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-02-T01",
+      "goal": "S1-02",
+      "scenario": "Positive: Both real member sessions can access the shared project; a different account cannot.",
+      "expected": "Both real member sessions can access the shared project; a different account cannot.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-02-T02",
+      "goal": "S1-02",
+      "scenario": "Positive: Same request/payload returns the same command; different payload under the same key conflicts.",
+      "expected": "Same request/payload returns the same command; different payload under the same key conflicts.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-02-T03",
+      "goal": "S1-02",
+      "scenario": "Positive: A disconnect between commit and acknowledgement recovers the existing result.",
+      "expected": "A disconnect between commit and acknowledgement recovers the existing result.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-02-T04",
+      "goal": "S1-02",
+      "scenario": "Adverse: A stale expected revision cannot overwrite a newer accepted change.",
+      "expected": "A stale expected revision cannot overwrite a newer accepted change.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-02-T05",
+      "goal": "S1-02",
+      "scenario": "Adverse: A UI render or notification click cannot manufacture work completion.",
+      "expected": "A UI render or notification click cannot manufacture work completion.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T01",
+      "goal": "S1-03",
+      "scenario": "Positive: A live worker receives a mid-work steer at a supported boundary; later evidence distinguishes delivery from incorporation.",
+      "expected": "A live worker receives a mid-work steer at a supported boundary; later evidence distinguishes delivery from incorporation.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T02",
+      "goal": "S1-03",
+      "scenario": "Positive: A controlled restart reconstructs command/native correlation and outstanding work.",
+      "expected": "A controlled restart reconstructs command/native correlation and outstanding work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T03",
+      "goal": "S1-03",
+      "scenario": "Positive: A real Stop prevents new dispatch and candidate publication under the stopped epoch.",
+      "expected": "A real Stop prevents new dispatch and candidate publication under the stopped epoch.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T04",
+      "goal": "S1-03",
+      "scenario": "Adverse: Duplicate delivery does not repeat an admitted domain effect.",
+      "expected": "Duplicate delivery does not repeat an admitted domain effect.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T05",
+      "goal": "S1-03",
+      "scenario": "Adverse: A late peer message cannot revive a stopped task.",
+      "expected": "A late peer message cannot revive a stopped task.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T06",
+      "goal": "S1-03",
+      "scenario": "Adverse: A forbidden host tool remains forbidden inside a PTC program.",
+      "expected": "A forbidden host tool remains forbidden inside a PTC program.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-03-T07",
+      "goal": "S1-03",
+      "scenario": "Adverse: Hold retains pending context without permitting a native wake or goal driver to execute it before an explicit valid Resume.",
+      "expected": "Hold retains pending context without permitting a native wake or goal driver to execute it before an explicit valid Resume.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-04-T01",
+      "goal": "S1-04",
+      "scenario": "Positive: Changing Luis’s local view does not move Davide’s view or retask work.",
+      "expected": "Changing Luis’s local view does not move Davide’s view or retask work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-04-T02",
+      "goal": "S1-04",
+      "scenario": "Positive: Two actual participants can talk, see membership and pass the input role.",
+      "expected": "Two actual participants can talk, see membership and pass the input role.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-04-T03",
+      "goal": "S1-04",
+      "scenario": "Positive: Required actions and persistent work controls remain accessible on narrow screens.",
+      "expected": "Required actions and persistent work controls remain accessible on narrow screens.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-04-T04",
+      "goal": "S1-04",
+      "scenario": "Adverse: Losing the UI connection does not cancel admitted background work.",
+      "expected": "Losing the UI connection does not cancel admitted background work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-04-T05",
+      "goal": "S1-04",
+      "scenario": "Adverse: An unauthorized participant cannot reuse a room token for a different project.",
+      "expected": "An unauthorized participant cannot reuse a room token for a different project.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T01",
+      "goal": "S1-05",
+      "scenario": "Positive: Each founder takes the floor and receives a coherent audible response; both hear the same Sophia.",
+      "expected": "Each founder takes the floor and receives a coherent audible response; both hear the same Sophia.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T02",
+      "goal": "S1-05",
+      "scenario": "Positive: A real dsh job continues while conversation continues, then yields one appropriate result notice.",
+      "expected": "A real dsh job continues while conversation continues, then yields one appropriate result notice.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T03",
+      "goal": "S1-05",
+      "scenario": "Positive: Selected visual context and exact source identity agree.",
+      "expected": "Selected visual context and exact source identity agree.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T04",
+      "goal": "S1-05",
+      "scenario": "Positive: A provider reconnect does not duplicate an admitted effect.",
+      "expected": "A provider reconnect does not duplicate an admitted effect.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T05",
+      "goal": "S1-05",
+      "scenario": "Adverse: Barge-in flushes old output; stale frames/audio are dropped.",
+      "expected": "Barge-in flushes old output; stale frames/audio are dropped.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T06",
+      "goal": "S1-05",
+      "scenario": "Adverse: Late tool results are not attributed to a new speaker.",
+      "expected": "Late tool results are not attributed to a new speaker.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-05-T07",
+      "goal": "S1-05",
+      "scenario": "Adverse: Ending speech or observation does not stop an unrelated authorized build.",
+      "expected": "Ending speech or observation does not stop an unrelated authorized build.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-06-T01",
+      "goal": "S1-06",
+      "scenario": "Positive: At least one real Google and one real OpenAI generation are stored and viewable.",
+      "expected": "At least one real Google and one real OpenAI generation are stored and viewable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-06-T02",
+      "goal": "S1-06",
+      "scenario": "Positive: An image edit uses the selected source image and produces a new candidate.",
+      "expected": "An image edit uses the selected source image and produces a new candidate.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-06-T03",
+      "goal": "S1-06",
+      "scenario": "Positive: Selecting an image does not discard alternatives or trigger more paid generations.",
+      "expected": "Selecting an image does not discard alternatives or trigger more paid generations.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-06-T04",
+      "goal": "S1-06",
+      "scenario": "Adverse: Refusal, no image output or timeout produces a truthful failed/uncertain result.",
+      "expected": "Refusal, no image output or timeout produces a truthful failed/uncertain result.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-06-T05",
+      "goal": "S1-06",
+      "scenario": "Adverse: A retry after ambiguous acceptance is not blindly charged as another identical job.",
+      "expected": "A retry after ambiguous acceptance is not blindly charged as another identical job.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-06-T06",
+      "goal": "S1-06",
+      "scenario": "Adverse: Unrelated source edits preserve the selected asset reference.",
+      "expected": "Unrelated source edits preserve the selected asset reference.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-07-T01",
+      "goal": "S1-07",
+      "scenario": "Positive: The exported source builds in a fresh environment and matches the shown prototype.",
+      "expected": "The exported source builds in a fresh environment and matches the shown prototype.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-07-T02",
+      "goal": "S1-07",
+      "scenario": "Positive: Luis changes source and obtains a new preview without overwriting a newer accepted version.",
+      "expected": "Luis changes source and obtains a new preview without overwriting a newer accepted version.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-07-T03",
+      "goal": "S1-07",
+      "scenario": "Positive: Normal and failure/empty states have real local interaction and truthful simulation labels.",
+      "expected": "Normal and failure/empty states have real local interaction and truthful simulation labels.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-07-T04",
+      "goal": "S1-07",
+      "scenario": "Adverse: Build failure leaves the last useful preview visible.",
+      "expected": "Build failure leaves the last useful preview visible.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-07-T05",
+      "goal": "S1-07",
+      "scenario": "Adverse: A user build script cannot access API/native login secrets or other project files.",
+      "expected": "A user build script cannot access API/native login secrets or other project files.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-07-T06",
+      "goal": "S1-07",
+      "scenario": "Adverse: A stack mismatch is recorded in the handoff, not hidden by a promise of zero rework.",
+      "expected": "A stack mismatch is recorded in the handoff, not hidden by a promise of zero rework.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-08-T01",
+      "goal": "S1-08",
+      "scenario": "Positive: The team corrects an imported project summary before making it accepted context.",
+      "expected": "The team corrects an imported project summary before making it accepted context.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-08-T02",
+      "goal": "S1-08",
+      "scenario": "Positive: A next-session brief uses an earlier accepted decision or lesson with its source.",
+      "expected": "A next-session brief uses an earlier accepted decision or lesson with its source.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-08-T03",
+      "goal": "S1-08",
+      "scenario": "Positive: Private material remains excluded until its owner releases the exact contribution.",
+      "expected": "Private material remains excluded until its owner releases the exact contribution.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-08-T04",
+      "goal": "S1-08",
+      "scenario": "Adverse: An old model answer cannot override a newer project decision.",
+      "expected": "An old model answer cannot override a newer project decision.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-08-T05",
+      "goal": "S1-08",
+      "scenario": "Adverse: Revoked content cannot re-enter through a cached packet, offloaded page or resumed worker.",
+      "expected": "Revoked content cannot re-enter through a cached packet, offloaded page or resumed worker.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-08-T06",
+      "goal": "S1-08",
+      "scenario": "Adverse: Missing export attachments are reported, not reconstructed as facts.",
+      "expected": "Missing export attachments are reported, not reconstructed as facts.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-09-T01",
+      "goal": "S1-09",
+      "scenario": "Positive: All three actual resources are registered and each returns a useful bounded task result.",
+      "expected": "All three actual resources are registered and each returns a useful bounded task result.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-09-T02",
+      "goal": "S1-09",
+      "scenario": "Positive: A real permission request appears for the correct owner and resolves from native evidence.",
+      "expected": "A real permission request appears for the correct owner and resolves from native evidence.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-09-T03",
+      "goal": "S1-09",
+      "scenario": "Positive: A locked but awake host does not require screenshot/click automation for supported programmatic operations.",
+      "expected": "A locked but awake host does not require screenshot/click automation for supported programmatic operations.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-09-T04",
+      "goal": "S1-09",
+      "scenario": "Adverse: An edit grant does not permit arbitrary cross-owner host launch.",
+      "expected": "An edit grant does not permit arbitrary cross-owner host launch.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-09-T05",
+      "goal": "S1-09",
+      "scenario": "Adverse: A sleeping/offline host is reported, not treated as still progressing.",
+      "expected": "A sleeping/offline host is reported, not treated as still progressing.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-09-T06",
+      "goal": "S1-09",
+      "scenario": "Adverse: Subscription or permission failure does not silently route through another person’s credentials.",
+      "expected": "Subscription or permission failure does not silently route through another person’s credentials.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-10-T01",
+      "goal": "S1-10",
+      "scenario": "Positive: A real Codex/Claude peer question and answer changes or confirms the ongoing approach before final completion.",
+      "expected": "A real Codex/Claude peer question and answer changes or confirms the ongoing approach before final completion.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-10-T02",
+      "goal": "S1-10",
+      "scenario": "Positive: A second Claude resource performs independent useful work or review under the same goal arrangement.",
+      "expected": "A second Claude resource performs independent useful work or review under the same goal arrangement.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-10-T03",
+      "goal": "S1-10",
+      "scenario": "Positive: The technical lead sees relevant outcomes without paraphrasing each peer packet.",
+      "expected": "The technical lead sees relevant outcomes without paraphrasing each peer packet.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-10-T04",
+      "goal": "S1-10",
+      "scenario": "Adverse: Redelivered mail is deduplicated.",
+      "expected": "Redelivered mail is deduplicated.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-10-T05",
+      "goal": "S1-10",
+      "scenario": "Adverse: A stale assignment/epoch cannot receive new instructions.",
+      "expected": "A stale assignment/epoch cannot receive new instructions.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-10-T06",
+      "goal": "S1-10",
+      "scenario": "Adverse: Messages cannot expand permissions or race the designated shared-effect owner.",
+      "expected": "Messages cannot expand permissions or race the designated shared-effect owner.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-11-T01",
+      "goal": "S1-11",
+      "scenario": "Positive: Review work progress wakes the lead immediately and returns an evidence-linked decision.",
+      "expected": "Review work progress wakes the lead immediately and returns an evidence-linked decision.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-11-T02",
+      "goal": "S1-11",
+      "scenario": "Positive: One periodic review examines the project’s three resources without triple context duplication.",
+      "expected": "One periodic review examines the project’s three resources without triple context duplication.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-11-T03",
+      "goal": "S1-11",
+      "scenario": "Positive: A meaningful change/preservation instruction reaches the proper goal coordinator/worker and is visible to the team.",
+      "expected": "A meaningful change/preservation instruction reaches the proper goal coordinator/worker and is visible to the team.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-11-T04",
+      "goal": "S1-11",
+      "scenario": "Adverse: Two coincident triggers do not create duplicate lead turns.",
+      "expected": "Two coincident triggers do not create duplicate lead turns.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-11-T05",
+      "goal": "S1-11",
+      "scenario": "Adverse: A single ordinary test failure does not force a mission pivot.",
+      "expected": "A single ordinary test failure does not force a mission pivot.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-11-T06",
+      "goal": "S1-11",
+      "scenario": "Adverse: A no-change review updates status without an unnecessary spoken interruption.",
+      "expected": "A no-change review updates status without an unnecessary spoken interruption.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-12-T01",
+      "goal": "S1-12",
+      "scenario": "Positive: A complete working application preview is usable inside the supported preview boundary.",
+      "expected": "A complete working application preview is usable inside the supported preview boundary.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-12-T02",
+      "goal": "S1-12",
+      "scenario": "Positive: An ambiguous target is clarified; an unambiguous authorized edit does not require redundant ceremony.",
+      "expected": "An ambiguous target is clarified; an unambiguous authorized edit does not require redundant ceremony.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-12-T03",
+      "goal": "S1-12",
+      "scenario": "Positive: The team sees the actual worker amendment and checks its resulting candidate.",
+      "expected": "The team sees the actual worker amendment and checks its resulting candidate.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-12-T04",
+      "goal": "S1-12",
+      "scenario": "Adverse: A stale comment stays on the old preview unless deliberately retargeted.",
+      "expected": "A stale comment stays on the old preview unless deliberately retargeted.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-12-T05",
+      "goal": "S1-12",
+      "scenario": "Adverse: An unembeddable external site gets an explicit supported review route rather than bypassed headers.",
+      "expected": "An unembeddable external site gets an explicit supported review route rather than bypassed headers.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-12-T06",
+      "goal": "S1-12",
+      "scenario": "Adverse: S1 does not label instruction-based preservation as guaranteed surgical editing.",
+      "expected": "S1 does not label instruction-based preservation as guaranteed surgical editing.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-13-T01",
+      "goal": "S1-13",
+      "scenario": "Positive: One substantive report and one deck are generated from retained source and readable in the app.",
+      "expected": "One substantive report and one deck are generated from retained source and readable in the app.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-13-T02",
+      "goal": "S1-13",
+      "scenario": "Positive: The files open correctly and include the intended images and sources.",
+      "expected": "The files open correctly and include the intended images and sources.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-13-T03",
+      "goal": "S1-13",
+      "scenario": "Positive: The normal memory/authority route works; no special bypass admission is used.",
+      "expected": "The normal memory/authority route works; no special bypass admission is used.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-13-T04",
+      "goal": "S1-13",
+      "scenario": "Adverse: A renderer failure preserves prior output and returns diagnostic evidence.",
+      "expected": "A renderer failure preserves prior output and returns diagnostic evidence.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-13-T05",
+      "goal": "S1-13",
+      "scenario": "Adverse: The small legacy PDF smoke wrapper is not presented as a complete rich renderer.",
+      "expected": "The small legacy PDF smoke wrapper is not presented as a complete rich renderer.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-13-T06",
+      "goal": "S1-13",
+      "scenario": "Adverse: An editable-source claim is not made for flattened raster output.",
+      "expected": "An editable-source claim is not made for flattened raster output.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T01",
+      "goal": "S1-14",
+      "scenario": "Positive: Both humans and all three engineers contribute useful work on the intended path.",
+      "expected": "Both humans and all three engineers contribute useful work on the intended path.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T02",
+      "goal": "S1-14",
+      "scenario": "Positive: The native prototype source is integrated rather than recreated from a screenshot.",
+      "expected": "The native prototype source is integrated rather than recreated from a screenshot.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T03",
+      "goal": "S1-14",
+      "scenario": "Positive: The application is reviewed from Sophia; the team knows what happened, what needs action and which version was checked.",
+      "expected": "The application is reviewed from Sophia; the team knows what happened, what needs action and which version was checked.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T04",
+      "goal": "S1-14",
+      "scenario": "Positive: A relevant accepted lesson appears in a later brief.",
+      "expected": "A relevant accepted lesson appears in a later brief.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T05",
+      "goal": "S1-14",
+      "scenario": "Adverse: No release claim depends on fixture-only account, media or deployment success.",
+      "expected": "No release claim depends on fixture-only account, media or deployment success.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T06",
+      "goal": "S1-14",
+      "scenario": "Adverse: Stop prevents stale publication/revival.",
+      "expected": "Stop prevents stale publication/revival.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S1-14-T07",
+      "goal": "S1-14",
+      "scenario": "Adverse: Known missing capability, uncertain cost or unresolved external effect remains visible.",
+      "expected": "Known missing capability, uncertain cost or unresolved external effect remains visible.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-01-T01",
+      "goal": "S2-01",
+      "scenario": "Positive: A real useful milestone is captured and shown without replacing a newer candidate.",
+      "expected": "A real useful milestone is captured and shown without replacing a newer candidate.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-01-T02",
+      "goal": "S2-01",
+      "scenario": "Positive: An optional invitation can be declined while a separate required action remains unresolved.",
+      "expected": "An optional invitation can be declined while a separate required action remains unresolved.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-01-T03",
+      "goal": "S2-01",
+      "scenario": "Positive: A no-op review produces no distracting card.",
+      "expected": "A no-op review produces no distracting card.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-01-T04",
+      "goal": "S2-01",
+      "scenario": "Adverse: A stale screenshot cannot appear as the live milestone.",
+      "expected": "A stale screenshot cannot appear as the live milestone.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-01-T05",
+      "goal": "S2-01",
+      "scenario": "Adverse: A dismissed card cannot approve a permission or mission change.",
+      "expected": "A dismissed card cannot approve a permission or mission change.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-02-T01",
+      "goal": "S2-02",
+      "scenario": "Positive: One requested component changes while protected sibling source hashes remain unchanged.",
+      "expected": "One requested component changes while protected sibling source hashes remain unchanged.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-02-T02",
+      "goal": "S2-02",
+      "scenario": "Positive: The target is corrected in co-review before a consequential ambiguous edit.",
+      "expected": "The target is corrected in co-review before a consequential ambiguous edit.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-02-T03",
+      "goal": "S2-02",
+      "scenario": "Positive: The image-based PPTX is revised through retained HTML and re-exported with notes.",
+      "expected": "The image-based PPTX is revised through retained HTML and re-exported with notes.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-02-T04",
+      "goal": "S2-02",
+      "scenario": "Adverse: A stale source edit loses CAS without overwriting the newer accepted artifact.",
+      "expected": "A stale source edit loses CAS without overwriting the newer accepted artifact.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-02-T05",
+      "goal": "S2-02",
+      "scenario": "Adverse: An out-of-scope diff is rejected and the previous preview stays available.",
+      "expected": "An out-of-scope diff is rejected and the previous preview stays available.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-02-T06",
+      "goal": "S2-02",
+      "scenario": "Adverse: An arbitrary PDF import is not called natively editable.",
+      "expected": "An arbitrary PDF import is not called natively editable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-03-T01",
+      "goal": "S2-03",
+      "scenario": "Positive: Loading, empty, failure and success scenarios run and can be inspected from Sophia.",
+      "expected": "Loading, empty, failure and success scenarios run and can be inspected from Sophia.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-03-T02",
+      "goal": "S2-03",
+      "scenario": "Positive: A real application flow runs with assertions and a source-bound trace.",
+      "expected": "A real application flow runs with assertions and a source-bound trace.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-03-T03",
+      "goal": "S2-03",
+      "scenario": "Positive: One visual observation becomes a failing then passing executable check.",
+      "expected": "One visual observation becomes a failing then passing executable check.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-03-T04",
+      "goal": "S2-03",
+      "scenario": "Adverse: A replayed model stream is not reported as a fresh live model test.",
+      "expected": "A replayed model stream is not reported as a fresh live model test.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-03-T05",
+      "goal": "S2-03",
+      "scenario": "Adverse: A simulated payment/database response cannot pass an integrated acceptance criterion.",
+      "expected": "A simulated payment/database response cannot pass an integrated acceptance criterion.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-04-T01",
+      "goal": "S2-04",
+      "scenario": "Positive: The correct owner resolves one supported request from mobile and its native resolution is observed.",
+      "expected": "The correct owner resolves one supported request from mobile and its native resolution is observed.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-04-T02",
+      "goal": "S2-04",
+      "scenario": "Positive: An unsupported native request remains visible with an accurate handoff.",
+      "expected": "An unsupported native request remains visible with an accurate handoff.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-04-T03",
+      "goal": "S2-04",
+      "scenario": "Positive: A mobile steer reaches the currently authorized worker through the lead.",
+      "expected": "A mobile steer reaches the currently authorized worker through the lead.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-04-T04",
+      "goal": "S2-04",
+      "scenario": "Adverse: A stale tap after Stop cannot grant a superseded operation.",
+      "expected": "A stale tap after Stop cannot grant a superseded operation.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-04-T05",
+      "goal": "S2-04",
+      "scenario": "Adverse: A member cannot answer a different owner request by reusing its URL.",
+      "expected": "A member cannot answer a different owner request by reusing its URL.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-04-T06",
+      "goal": "S2-04",
+      "scenario": "Adverse: A lost native response is not silently retried as a fresh grant.",
+      "expected": "A lost native response is not silently retried as a fresh grant.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-05-T01",
+      "goal": "S2-05",
+      "scenario": "Positive: Participants can follow discussion, invoke Sophia and withdraw their own contribution visibly.",
+      "expected": "Participants can follow discussion, invoke Sophia and withdraw their own contribution visibly.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-05-T02",
+      "goal": "S2-05",
+      "scenario": "Positive: A useful optional card appears without unwanted speech.",
+      "expected": "A useful optional card appears without unwanted speech.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-05-T03",
+      "goal": "S2-05",
+      "scenario": "Positive: One background job completes while the room conversation continues.",
+      "expected": "One background job completes while the room conversation continues.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-05-T04",
+      "goal": "S2-05",
+      "scenario": "Adverse: Quoted or negated use of Sophia’s name is not an unconditional speech command.",
+      "expected": "Quoted or negated use of Sophia’s name is not an unconditional speech command.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-05-T05",
+      "goal": "S2-05",
+      "scenario": "Adverse: Revoked listening state cannot replay cached audio into a new provider session.",
+      "expected": "Revoked listening state cannot replay cached audio into a new provider session.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-05-T06",
+      "goal": "S2-05",
+      "scenario": "Adverse: Only one authorized Sophia output is played.",
+      "expected": "Only one authorized Sophia output is played.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-06-T01",
+      "goal": "S2-06",
+      "scenario": "Positive: One selected connected source refresh changes a proposed brief without overwriting a newer accepted decision.",
+      "expected": "One selected connected source refresh changes a proposed brief without overwriting a newer accepted decision.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-06-T02",
+      "goal": "S2-06",
+      "scenario": "Positive: A returning member sees actual outstanding obligations and the source of the current build state.",
+      "expected": "A returning member sees actual outstanding obligations and the source of the current build state.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-06-T03",
+      "goal": "S2-06",
+      "scenario": "Positive: A useful lesson is used in a later brief, with evidence and current eligibility.",
+      "expected": "A useful lesson is used in a later brief, with evidence and current eligibility.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-06-T04",
+      "goal": "S2-06",
+      "scenario": "Adverse: An expired connection does not cause private web scraping or a different payer fallback.",
+      "expected": "An expired connection does not cause private web scraping or a different payer fallback.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S2-06-T05",
+      "goal": "S2-06",
+      "scenario": "Adverse: A deleted source does not survive through an old cached brief or generated knowledge page.",
+      "expected": "A deleted source does not survive through an old cached brief or generated knowledge page.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-01-T01",
+      "goal": "S3-01",
+      "scenario": "Positive: The project advances across sessions without repeated human reconstruction of its accepted brief.",
+      "expected": "The project advances across sessions without repeated human reconstruction of its accepted brief.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-01-T02",
+      "goal": "S3-01",
+      "scenario": "Positive: A real dependency waits for acceptance rather than a native done claim.",
+      "expected": "A real dependency waits for acceptance rather than a native done claim.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-01-T03",
+      "goal": "S3-01",
+      "scenario": "Positive: Returning users understand what changed, what remains uncertain and the next choice.",
+      "expected": "Returning users understand what changed, what remains uncertain and the next choice.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-01-T04",
+      "goal": "S3-01",
+      "scenario": "Adverse: A second supervisor cannot revive or double-dispatch the same goal.",
+      "expected": "A second supervisor cannot revive or double-dispatch the same goal.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-01-T05",
+      "goal": "S3-01",
+      "scenario": "Adverse: A denied permission cannot be routed around through another account.",
+      "expected": "A denied permission cannot be routed around through another account.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-01-T06",
+      "goal": "S3-01",
+      "scenario": "Adverse: An expired refresh response does not trigger an old-token retry storm.",
+      "expected": "An expired refresh response does not trigger an old-token retry storm.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-02-T01",
+      "goal": "S3-02",
+      "scenario": "Positive: A Sophia-native worker delivers a supported end-to-end feature and its requested revision.",
+      "expected": "A Sophia-native worker delivers a supported end-to-end feature and its requested revision.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-02-T02",
+      "goal": "S3-02",
+      "scenario": "Positive: The same project can use a native or external engineer without migrating its records.",
+      "expected": "The same project can use a native or external engineer without migrating its records.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-02-T03",
+      "goal": "S3-02",
+      "scenario": "Positive: Checks run against the actual returned source.",
+      "expected": "Checks run against the actual returned source.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-02-T04",
+      "goal": "S3-02",
+      "scenario": "Adverse: A prototype screenshot is not accepted as functioning application code.",
+      "expected": "A prototype screenshot is not accepted as functioning application code.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-02-T05",
+      "goal": "S3-02",
+      "scenario": "Adverse: A missing development grant does not lead to production credential use.",
+      "expected": "A missing development grant does not lead to production credential use.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-03-T01",
+      "goal": "S3-03",
+      "scenario": "Positive: A harder question obtains stronger judgment and routine continuation de-escalates within the existing grant.",
+      "expected": "A harder question obtains stronger judgment and routine continuation de-escalates within the existing grant.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-03-T02",
+      "goal": "S3-03",
+      "scenario": "Positive: A changed profile produces an inspectable configuration receipt.",
+      "expected": "A changed profile produces an inspectable configuration receipt.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-03-T03",
+      "goal": "S3-03",
+      "scenario": "Positive: One procedure improvement is promoted with evidence or rejected without loss of the baseline.",
+      "expected": "One procedure improvement is promoted with evidence or rejected without loss of the baseline.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-03-T04",
+      "goal": "S3-03",
+      "scenario": "Adverse: More model calls are not described as independent verification.",
+      "expected": "More model calls are not described as independent verification.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-03-T05",
+      "goal": "S3-03",
+      "scenario": "Adverse: An aesthetically preferred result cannot erase failed acceptance criteria.",
+      "expected": "An aesthetically preferred result cannot erase failed acceptance criteria.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-03-T06",
+      "goal": "S3-03",
+      "scenario": "Adverse: Multiple calls to the same judge are not counted as independent expert votes.",
+      "expected": "Multiple calls to the same judge are not counted as independent expert votes.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-04-T01",
+      "goal": "S3-04",
+      "scenario": "Positive: An external team repeatedly creates, directs and reviews useful work through Sophia.",
+      "expected": "An external team repeatedly creates, directs and reviews useful work through Sophia.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-04-T02",
+      "goal": "S3-04",
+      "scenario": "Positive: A human engineer can continue the project from the delivered source and records.",
+      "expected": "A human engineer can continue the project from the delivered source and records.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-04-T03",
+      "goal": "S3-04",
+      "scenario": "Positive: Legacy retirement preserves required data meaning and completes cleanup responsibilities.",
+      "expected": "Legacy retirement preserves required data meaning and completes cleanup responsibilities.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-04-T04",
+      "goal": "S3-04",
+      "scenario": "Adverse: Fixture-only usage is not counted as customer adoption.",
+      "expected": "Fixture-only usage is not counted as customer adoption.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-04-T05",
+      "goal": "S3-04",
+      "scenario": "Adverse: A failed migration does not mutate the live legacy source.",
+      "expected": "A failed migration does not mutate the live legacy source.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "S3-04-T06",
+      "goal": "S3-04",
+      "scenario": "Adverse: A partial export clearly reports omitted private or inaccessible material.",
+      "expected": "A partial export clearly reports omitted private or inaccessible material.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-00-T01",
+      "goal": "SCM-00",
+      "scenario": "Current main versus PR29",
+      "expected": "Baseline distinguishes current main, candidates and reported deployment; no stale prerequisite replay.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-00-T02",
+      "goal": "SCM-00",
+      "scenario": "Stale native bindings",
+      "expected": "Consume prior PR29 settlement; reopen only an actual new problem without losing results.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-00-T03",
+      "goal": "SCM-00",
+      "scenario": "Existing living brief",
+      "expected": "Source overlap and tests retain the side/full/mobile brief, manual-edit priority and typed/voice recipient rules.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-00-T04",
+      "goal": "SCM-00",
+      "scenario": "Ownership and pins",
+      "expected": "Refresh current reservations and owners; no implicit rewrite of frozen assets or another current branch.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T01",
+      "goal": "SCM-01",
+      "scenario": "Forged actor/company",
+      "expected": "A valid service credential plus an invalid/stale Sophia envelope cannot dispatch.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T02",
+      "goal": "SCM-01",
+      "scenario": "Lost issue-create reply",
+      "expected": "The same command reconciles the same core issue; no blind duplicate create.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T03",
+      "goal": "SCM-01",
+      "scenario": "Observer restart",
+      "expected": "Native process may still live; recovery binds the existing attempt before any new dispatch.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T04",
+      "goal": "SCM-01",
+      "scenario": "Pre-aborted cancellation",
+      "expected": "No native/model effect; register signal handling before start.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T05",
+      "goal": "SCM-01",
+      "scenario": "Stop and delayed result",
+      "expected": "Epoch fence rejects stale publication; unknown stop cannot be reported as verified.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T06",
+      "goal": "SCM-01",
+      "scenario": "Review versus acceptance",
+      "expected": "Useful review completion does not accept the implementation or deploy anything.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T07",
+      "goal": "SCM-01",
+      "scenario": "Paperclip outage",
+      "expected": "Conversation/living brief and direct safety controls remain usable; new operational work is honestly unavailable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-01-T08",
+      "goal": "SCM-01",
+      "scenario": "Usage scope",
+      "expected": "Cumulative session totals are not charged repeatedly as per-run totals; unknown cost is not zero.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T01",
+      "goal": "SCM-02",
+      "scenario": "Cross-owner host launch",
+      "expected": "Editor rights cannot launch another owner’s unenrolled host or repository.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T02",
+      "goal": "SCM-02",
+      "scenario": "Native bundle ordering",
+      "expected": "MCP exists before start; late per-turn tool definitions are not treated as installation.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T03",
+      "goal": "SCM-02",
+      "scenario": "Permission child/owner",
+      "expected": "Wrong parent, wrong actor and stale fingerprint cannot answer a request.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T04",
+      "goal": "SCM-02",
+      "scenario": "Host asleep",
+      "expected": "Reported unavailable/waiting, never fabricated progressing.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T05",
+      "goal": "SCM-02",
+      "scenario": "Shared entitlement",
+      "expected": "Two sessions on one account do not provide double capacity; same vendor/different owner stays separate.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T06",
+      "goal": "SCM-02",
+      "scenario": "Missing window/reset",
+      "expected": "Unknown not unlimited; passed reset timestamp not fresh balance.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T07",
+      "goal": "SCM-02",
+      "scenario": "Refresh uncertainty",
+      "expected": "Lost rotating-refresh reply is reconciled/reauthorized, not retried forever with old token.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-02-T08",
+      "goal": "SCM-02",
+      "scenario": "Revoke with live process",
+      "expected": "Dispatch eligibility ends immediately; stop outcome remains pending/unknown until observed.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T01",
+      "goal": "SCM-03",
+      "scenario": "Cross-project/unenrolled peer",
+      "expected": "Rejected by software before message delivery.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T02",
+      "goal": "SCM-03",
+      "scenario": "Active peer delivery",
+      "expected": "No extra courier issue or redundant lead model call; one native input identity.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T03",
+      "goal": "SCM-03",
+      "scenario": "Idle peer wake",
+      "expected": "Exactly one eligible episode; duplicate callbacks cannot buy a second run.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T04",
+      "goal": "SCM-03",
+      "scenario": "Three-part amendment",
+      "expected": "Placement, preserved local views and exact label all remain in the recipient message.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T05",
+      "goal": "SCM-03",
+      "scenario": "Stop versus in-flight send",
+      "expected": "Old-epoch delivery is drained or quarantined; no automatic native restart.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T06",
+      "goal": "SCM-03",
+      "scenario": "Permission wait plus Stop",
+      "expected": "Stop does not wait for the permission answer or quota model.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T07",
+      "goal": "SCM-03",
+      "scenario": "Delivered versus checked",
+      "expected": "Input-consumed receipt cannot mark the source edit as compliant.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-03-T08",
+      "goal": "SCM-03",
+      "scenario": "Floor versus work authority",
+      "expected": "Valid editor guidance works independently of shared-view guide; viewer suggestions are not automatic steers.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T01",
+      "goal": "SCM-04",
+      "scenario": "Mission versus command",
+      "expected": "Discussion/proposal alone creates no unauthorized execution.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T02",
+      "goal": "SCM-04",
+      "scenario": "Parent versus dependency",
+      "expected": "Parent grouping alone does not block; cancelled prerequisite does not satisfy success dependency.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T03",
+      "goal": "SCM-04",
+      "scenario": "Review deadlock",
+      "expected": "Reviewer can assess candidate before implementation terminal completion; no circular wait.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T04",
+      "goal": "SCM-04",
+      "scenario": "Adverse reviewer verdict",
+      "expected": "Review task done; implementation requires changes; no false product acceptance.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T05",
+      "goal": "SCM-04",
+      "scenario": "Timer/no-change",
+      "expected": "Repeated unchanged due events are coalesced without repeated model calls.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T06",
+      "goal": "SCM-04",
+      "scenario": "Manual review",
+      "expected": "Explicit review is honored or truthfully blocked, never discarded by Jev.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T07",
+      "goal": "SCM-04",
+      "scenario": "Recipe restore",
+      "expected": "Changed/missing configuration holds rather than uses an unrecorded default.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-04-T08",
+      "goal": "SCM-04",
+      "scenario": "Replan cap",
+      "expected": "Caps and cumulative allowance survive new sessions and accepted revisions; no repeated unchanged proposal spam.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T01",
+      "goal": "SCM-05",
+      "scenario": "Unknown arithmetic",
+      "expected": "Missing values remain unknown, never zero usage/full headroom.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T02",
+      "goal": "SCM-05",
+      "scenario": "Double counting",
+      "expected": "New observation reconciles only unreflected demand; private concurrent use invalidates estimates.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T03",
+      "goal": "SCM-05",
+      "scenario": "All windows",
+      "expected": "Healthy weekly capacity cannot bypass exhausted short or applicable scoped window.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T04",
+      "goal": "SCM-05",
+      "scenario": "Choice race",
+      "expected": "Duplicate Confirm and Reassign resolve once against one exact command.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T05",
+      "goal": "SCM-05",
+      "scenario": "Hard-limit override",
+      "expected": "Risk confirmation cannot authorize overage, change reserve or use another owner’s token.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T06",
+      "goal": "SCM-05",
+      "scenario": "Old writer still active",
+      "expected": "No new writer lease on a database status change alone.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T07",
+      "goal": "SCM-05",
+      "scenario": "Outstanding side effect",
+      "expected": "Unknown migration/deploy/upload is inspected, not repeated after handover.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-05-T08",
+      "goal": "SCM-05",
+      "scenario": "Reset and Stop",
+      "expected": "Fake-clock reset triggers refresh; only observed reset changes availability and stopped work stays stopped.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T01",
+      "goal": "SCM-06",
+      "scenario": "Living brief regression",
+      "expected": "Manual edits win, side/full/mobile flows work and only saved changes trigger indicators.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T02",
+      "goal": "SCM-06",
+      "scenario": "Stale review target",
+      "expected": "Feedback against an obsolete candidate cannot silently modify a newer one.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T03",
+      "goal": "SCM-06",
+      "scenario": "Preservation scope",
+      "expected": "Source diff plus rendered/behavioral tests check meaningful preservation; prompt-only assertion is not proof.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T04",
+      "goal": "SCM-06",
+      "scenario": "Permission decision",
+      "expected": "Exact owner/request/fingerprint required; unsupported request stays native.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T05",
+      "goal": "SCM-06",
+      "scenario": "Typed tool continuation",
+      "expected": "Private text recipient stays private across WHEN_IDLE/asynchronous results; no shared audio leak.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T06",
+      "goal": "SCM-06",
+      "scenario": "No duplicate narration",
+      "expected": "UI update, event, tool response and result notice do not each speak.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T07",
+      "goal": "SCM-06",
+      "scenario": "End and background result",
+      "expected": "Result persists in project without reopening voice.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-06-T08",
+      "goal": "SCM-06",
+      "scenario": "Reader-first publication",
+      "expected": "Populated artifact records cannot break snapshot; preview/download point to same immutable bytes.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-07-T01",
+      "goal": "SCM-07",
+      "scenario": "Mandate expiry",
+      "expected": "New work is denied after expiry; in-flight effects settle according to the declared policy.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-07-T02",
+      "goal": "SCM-07",
+      "scenario": "Host reconnection",
+      "expected": "Same binding reconciled before any new native attempt.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-07-T03",
+      "goal": "SCM-07",
+      "scenario": "Source/member narrowing",
+      "expected": "Affected stored packet/native history is not resumed with ineligible content.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-07-T04",
+      "goal": "SCM-07",
+      "scenario": "Notification dedupe",
+      "expected": "One notice per meaningful event/recipient; revoked access prevents delivery.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-07-T05",
+      "goal": "SCM-07",
+      "scenario": "No raw chat dependency",
+      "expected": "Return summary works without ephemeral typed history; does not retain it secretly.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-07-T06",
+      "goal": "SCM-07",
+      "scenario": "Stop survives wakes",
+      "expected": "Timer, reset, peer reply and reconnect cannot resurrect cancelled work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-08-T01",
+      "goal": "SCM-08",
+      "scenario": "Protected targets",
+      "expected": "Identity, voice, safety, consent and personal data cannot enter automatic patch targets.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-08-T02",
+      "goal": "SCM-08",
+      "scenario": "Exact patch binding",
+      "expected": "Promoted bytes match reviewed patch and base; a changed base conflicts.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-08-T03",
+      "goal": "SCM-08",
+      "scenario": "Real validation",
+      "expected": "Held-out execution evidence is distinct from simulated/hypothetical replay.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-08-T04",
+      "goal": "SCM-08",
+      "scenario": "Recipe persistence",
+      "expected": "New version affects only newly admitted eligible episodes and never resets allowance.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "SCM-08-T05",
+      "goal": "SCM-08",
+      "scenario": "Rollback",
+      "expected": "Previous recipe and source identity remain available and can be selected explicitly.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "BASE-T01",
+      "goal": "BASE",
+      "scenario": "No historical rebuild",
+      "expected": "Existing source and release evidence are consumed without re-running PR29 cutover.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "BASE-T02",
+      "goal": "BASE",
+      "scenario": "One navigation authority",
+      "expected": "All current launch paths resolve within v2.0; historical packs are reference-only.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "BASE-T03",
+      "goal": "BASE",
+      "scenario": "Candidate conflict",
+      "expected": "Open PR source is not described as merged; shared-file scope is explicitly assigned.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "M03-T01",
+      "goal": "SMC-M03",
+      "scenario": "Exact rendition",
+      "expected": "Downloaded Markdown/PDF hashes and source revision agree; a partial result is not called full PDF delivery.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "M03-T02",
+      "goal": "SMC-M03",
+      "scenario": "Typed versus spoken notice",
+      "expected": "Correct recipient and input mode survive asynchronous completion and reconnect; no duplicate speech.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "M03-T03",
+      "goal": "SMC-M03",
+      "scenario": "Provider effects and spend",
+      "expected": "All actual route calls use current grants/reservations including compaction/finalization; no hidden fallback.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "M03-T04",
+      "goal": "SMC-M03",
+      "scenario": "Source withdrawal",
+      "expected": "Revoked source cannot return via old draft, cached packet or resumed execution.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "M03-T05",
+      "goal": "SMC-M03",
+      "scenario": "Hosted gate",
+      "expected": "Real authorized renderer, byte-store and provider evidence is distinct from local Chromium/stubs.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PS-T01",
+      "goal": "PS-01",
+      "scenario": "Owner/admin isolation",
+      "expected": "Other personal owners and project administrators cannot read private content or metadata.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PS-T02",
+      "goal": "PS-01",
+      "scenario": "No runtime",
+      "expected": "No fake Companion replies or silently retained unanswered conversational turns.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PS-T03",
+      "goal": "PS-01",
+      "scenario": "Call/lock boundary",
+      "expected": "Personal content is not announced or fetched into shared call while locked; the selected navigation contract is preserved.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PS-T04",
+      "goal": "PS-01",
+      "scenario": "Separate share types",
+      "expected": "Existing Carry/Take back remains correct; package sharing cannot widen it implicitly.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA00-T01",
+      "goal": "PA-00",
+      "scenario": "OAuth owner mismatch",
+      "expected": "Connection cannot bind a different owner or team admin through an arbitrary field.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA00-T02",
+      "goal": "PA-00",
+      "scenario": "Secret handling",
+      "expected": "No webhook/token in model-visible setup, traces, frontend bundles or errors.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA00-T03",
+      "goal": "PA-00",
+      "scenario": "Two-way round trip",
+      "expected": "Bot question, owner reply and changed result survive page reload and have correct attribution.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA00-T04",
+      "goal": "PA-00",
+      "scenario": "Wake receipt",
+      "expected": "Accepted activation is not completion; missing/unknown delivery is not blind retried.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA00-T05",
+      "goal": "PA-00",
+      "scenario": "No automatic spend",
+      "expected": "Existing owner policy and billable-tool limits are recorded; no paid fallback or purchase.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA00-T06",
+      "goal": "PA-00",
+      "scenario": "Denied setup",
+      "expected": "OAuth incompatibility is explicit; no wildcard redirect, cookie scraping or arbitrary secret-header bypass.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T01",
+      "goal": "PA-01",
+      "scenario": "Selected-source package",
+      "expected": "Useful report and coverage cite actually accessed material; missing attachment remains missing.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T02",
+      "goal": "PA-01",
+      "scenario": "Private question",
+      "expected": "Job title, question, inventory and package do not enter team feed/context/search/notifications.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T03",
+      "goal": "PA-01",
+      "scenario": "Owner answer",
+      "expected": "Recorded guidance is fetched and reflected in a revised package; fetched is not labelled verified incorporation by itself.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T04",
+      "goal": "PA-01",
+      "scenario": "Cross-owner read",
+      "expected": "Direct IDs/object paths and list counts leak no other-owner content or metadata.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T05",
+      "goal": "PA-01",
+      "scenario": "Duplicate claim",
+      "expected": "Duplicate notification/submission cannot duplicate admitted work/output; potential provider duplicate usage remains acknowledged.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T06",
+      "goal": "PA-01",
+      "scenario": "Lost response",
+      "expected": "Same key gives same result or erased/revoked outcome; different payload conflicts.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T07",
+      "goal": "PA-01",
+      "scenario": "Unsafe upload",
+      "expected": "Traversal, wrong digest, oversized/executable/active content and unsafe URL fetch are refused.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T08",
+      "goal": "PA-01",
+      "scenario": "Offline local dependency",
+      "expected": "Only permitted copied cloud input continues; inaccessible local source produces waiting_for_device.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T09",
+      "goal": "PA-01",
+      "scenario": "Revocation",
+      "expected": "Old connection/job epoch cannot read/write/wake; no claim provider computation was killed.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA01-T10",
+      "goal": "PA-01",
+      "scenario": "Erasure retry",
+      "expected": "Old request cannot recreate erased personal content; private digests/titles are not retained accidentally.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T01",
+      "goal": "PA-02",
+      "scenario": "Exact content review",
+      "expected": "Only inspected selected bytes and metadata reach the named workspace.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T02",
+      "goal": "PA-02",
+      "scenario": "Bot attempts share",
+      "expected": "Connector credential cannot call publication, even with an approved field or copied owner ID.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T03",
+      "goal": "PA-02",
+      "scenario": "Concurrent edit",
+      "expected": "Changed package/selection invalidates preview; stale approval cannot publish new unseen content.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T04",
+      "goal": "PA-02",
+      "scenario": "Membership race",
+      "expected": "Owner removed between preview and commit cannot publish.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T05",
+      "goal": "PA-02",
+      "scenario": "Copy failure",
+      "expected": "Partial object copy remains invisible; retry yields one complete contribution.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T06",
+      "goal": "PA-02",
+      "scenario": "No live private link",
+      "expected": "Team cannot dereference shared record into unshared versions, raw paths, notes or personal message history.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T07",
+      "goal": "PA-02",
+      "scenario": "Erase versus withdraw",
+      "expected": "Private erasure does not silently delete shared version; explicit withdrawal prevents new controlled retrieval.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA02-T08",
+      "goal": "PA-02",
+      "scenario": "Mission meaning",
+      "expected": "Sharing an older plan is not acceptance and cannot overwrite a newer mission decision.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA03-T01",
+      "goal": "PA-03",
+      "scenario": "Exact preview",
+      "expected": "Findings name the candidate and verify the marker or explicitly report inability.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA03-T02",
+      "goal": "PA-03",
+      "scenario": "Computer distinction",
+      "expected": "Closed laptop does not disable cloud-only work; local/proxy dependency is truthfully unavailable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA03-T03",
+      "goal": "PA-03",
+      "scenario": "Human gate",
+      "expected": "Login/MFA/CAPTCHA/OS approval stays with the actual owner.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA03-T04",
+      "goal": "PA-03",
+      "scenario": "Evidence quality",
+      "expected": "Review returns reproducible findings, actual screenshots/logs and limitations, not a blanket pass.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA03-T05",
+      "goal": "PA-03",
+      "scenario": "Read-only scope",
+      "expected": "No original/production mutation or external contact is authorized by a review assignment.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA03-T06",
+      "goal": "PA-03",
+      "scenario": "No driver assumption",
+      "expected": "Local GUI feature is disabled/unqualified until its separate real route passes.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA04-T01",
+      "goal": "PA-04",
+      "scenario": "Two owners",
+      "expected": "Each authenticates and pays through their intended account; one cannot enroll or spend the other by mention.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA04-T02",
+      "goal": "PA-04",
+      "scenario": "Meaningful peer",
+      "expected": "Question and answer change or substantiate current work before final handback.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA04-T03",
+      "goal": "PA-04",
+      "scenario": "No private leak",
+      "expected": "Shared peer cannot access sender/recipient personal package history or unpublished knowledge.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA04-T04",
+      "goal": "PA-04",
+      "scenario": "Removed edge",
+      "expected": "Late message/source reference fails current audience checks after member/resource removal.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA04-T05",
+      "goal": "PA-04",
+      "scenario": "No wake storm",
+      "expected": "Ack and redundant FYI do not wake; exchanges/chain limits terminate reciprocal waits.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "PA04-T06",
+      "goal": "PA-04",
+      "scenario": "Single controller",
+      "expected": "Paperclip and private job engine do not independently continue the same project assignment.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-00-BASE-01",
+      "goal": "LFE-00",
+      "scenario": "Chat and Brief switch/close/reopen",
+      "expected": "Unsent text and a manual brief edit survive; no background update overwrites either.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-00-BASE-02",
+      "goal": "LFE-00",
+      "scenario": "Type normal words with panel focus or nowhere",
+      "expected": "Text reaches the typing sink; no microphone/camera/screen activation from a letter.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-00-BASE-03",
+      "goal": "LFE-00",
+      "scenario": "Open mobile panel in an active call",
+      "expected": "Mute, visible sending state, errors and leave/return controls remain reachable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-00-BASE-04",
+      "goal": "LFE-00",
+      "scenario": "Research and personal route changes coexist in a reviewed combined candidate",
+      "expected": "Report identity/parameters and call ownership are retained; no unreviewed merge is claimed.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-01-PS-01",
+      "goal": "LFE-01",
+      "scenario": "Viewer/admin tries to read another person’s private space",
+      "expected": "No content or metadata leak; project role does not widen personal access.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-01-PS-02",
+      "goal": "LFE-01",
+      "scenario": "Call begins while personal view is open",
+      "expected": "Curtain closes and personal cache/requests clear; ending call does not unlock automatically.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-01-PS-03",
+      "goal": "LFE-01",
+      "scenario": "Carry one note then erase personal space",
+      "expected": "Only the exact authorized project copy remains, visibly attributed and separately retractable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-01-PS-04",
+      "goal": "LFE-01",
+      "scenario": "Live Companion absent",
+      "expected": "No fake reply or silently retained unanswered message; production never enables rehearsal.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-02-ART-01",
+      "goal": "LFE-02",
+      "scenario": "Open version 2, expand and download",
+      "expected": "Displayed and saved bytes match that version; full/side transition does not remount/reset it.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-02-ART-02",
+      "goal": "LFE-02",
+      "scenario": "Receive new version while reading old one",
+      "expected": "Offer the new version without switching the current inspection or marking it accepted.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-02-ART-03",
+      "goal": "LFE-02",
+      "scenario": "PDF fails after Markdown succeeds",
+      "expected": "Show usable Markdown, explicit PDF state and only the supported retry; preserve prior PDF if any.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-02-ART-04",
+      "goal": "LFE-02",
+      "scenario": "Untrusted HTML or revoked citation in a report",
+      "expected": "Treat markup as data and deny revoked source reads; no silent external image load.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-03-IMG-01",
+      "goal": "LFE-03",
+      "scenario": "Select one of two returned alternatives",
+      "expected": "Exactly that asset is retained; selection triggers zero new generation calls.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-03-IMG-02",
+      "goal": "LFE-03",
+      "scenario": "One provider refuses or times out",
+      "expected": "The other result remains usable; unknown outcome is reconciled before duplicate paid retry.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-03-IMG-03",
+      "goal": "LFE-03",
+      "scenario": "Source image changes during edit",
+      "expected": "Stale edit is explicit; no overwrite of a newer chosen source.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-03-IMG-04",
+      "goal": "LFE-03",
+      "scenario": "Phone comparison and keyboard selection",
+      "expected": "All choices and provenance are reachable without hover or color-only states.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-04-SRC-01",
+      "goal": "LFE-04",
+      "scenario": "Save while a newer worker candidate arrives",
+      "expected": "Expected-base conflict preserves both sources; no optimistic overwrite.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-04-SRC-02",
+      "goal": "LFE-04",
+      "scenario": "Build script fails or attempts secret access",
+      "expected": "Confined build fails truthfully; previous preview and draft remain.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-04-SRC-03",
+      "goal": "LFE-04",
+      "scenario": "Open Source then inspect another file",
+      "expected": "No work control, acceptance or shared-focus change occurs.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-04-SRC-04",
+      "goal": "LFE-04",
+      "scenario": "Export and build in a fresh qualified workspace",
+      "expected": "Actual preview source, lock and assets reproduce; mocks remain clearly labeled.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-05-CTX-01",
+      "goal": "LFE-05",
+      "scenario": "Import an old assistant plan that conflicts with current mission",
+      "expected": "It remains a proposal/evidence until a current authorized decision resolves it.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-05-CTX-02",
+      "goal": "LFE-05",
+      "scenario": "Archive omits attachments or project grouping",
+      "expected": "Coverage is explicit; no false full-project import badge.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-05-CTX-03",
+      "goal": "LFE-05",
+      "scenario": "Withdraw a source while work is pending",
+      "expected": "Future packets and resumed contexts honor narrowed eligibility; UI shows any remaining cleanup.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-05-CTX-04",
+      "goal": "LFE-05",
+      "scenario": "Member links their coding session",
+      "expected": "No private native history or personal memories become team-visible by implication.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-06-RES-01",
+      "goal": "LFE-06",
+      "scenario": "Two Claude sessions use the same owner account",
+      "expected": "Capacity is accounted once; roles/sessions remain individually inspectable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-06-RES-02",
+      "goal": "LFE-06",
+      "scenario": "Quota/window/host observation absent",
+      "expected": "Show unknown or stale and its age, never full capacity or executing.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-06-RES-03",
+      "goal": "LFE-06",
+      "scenario": "Luis views Davide’s owner-only request",
+      "expected": "He can inspect authorized context but cannot answer it using its URL.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-06-RES-04",
+      "goal": "LFE-06",
+      "scenario": "Stop while native action waits",
+      "expected": "Control is admitted independently; late native answer cannot restart stopped work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-06-RES-05",
+      "goal": "LFE-06",
+      "scenario": "Worker idle or observer disconnected",
+      "expected": "No false completion, product acceptance or worker-restarted animation.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-07-PLAN-01",
+      "goal": "LFE-07",
+      "scenario": "Click Review twice while one review is active",
+      "expected": "Join the existing review reason; no duplicate expensive task.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-07-PLAN-02",
+      "goal": "LFE-07",
+      "scenario": "Confirm an old warning after candidate/scope changes",
+      "expected": "Re-evaluate or refuse the stale amendment; no quiet approval of new scope.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-07-PLAN-03",
+      "goal": "LFE-07",
+      "scenario": "Select reassignment with old writer stop uncertain",
+      "expected": "Show uncertainty and preserve source; no claim another writer safely owns it.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-07-PLAN-04",
+      "goal": "LFE-07",
+      "scenario": "Lead sees no useful intervention",
+      "expected": "No attention card or spoken interruption is manufactured.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-07-PLAN-05",
+      "goal": "LFE-07",
+      "scenario": "Account reserve would be exceeded",
+      "expected": "Ask the actual owner or offer eligible alternatives; Confirm steer alone cannot consume it.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-08-REV-01",
+      "goal": "LFE-08",
+      "scenario": "Selection from wrong iframe origin or stale preview",
+      "expected": "Reject the selection as authority; no dispatch to a new candidate.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-08-REV-02",
+      "goal": "LFE-08",
+      "scenario": "Say “the one below” and then correct it",
+      "expected": "Resolve a real current target before the requested change is sent.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-08-REV-03",
+      "goal": "LFE-08",
+      "scenario": "Ask to preserve primary interaction while changing a secondary action",
+      "expected": "Returned candidate is checked for both; no unconditional surgical claim.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-08-REV-04",
+      "goal": "LFE-08",
+      "scenario": "New candidate fails checks",
+      "expected": "Previous accepted/useful preview remains available.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-08-REV-05",
+      "goal": "LFE-08",
+      "scenario": "Typed feedback has asynchronous tool continuation during room voice",
+      "expected": "Correct recipient and mode persist; private text is not spoken into shared audio.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-09-ATT-01",
+      "goal": "LFE-09",
+      "scenario": "Decline optional milestone invitation",
+      "expected": "Only attention changes; separate required permission stays pending.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-09-ATT-02",
+      "goal": "LFE-09",
+      "scenario": "Tap a push after Stop or request supersession",
+      "expected": "Fetch current state and refuse stale effect; no offline queued approval.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-09-ATT-03",
+      "goal": "LFE-09",
+      "scenario": "No browser push permission or offline device",
+      "expected": "In-app action and current details remain recoverable; no false delivered/read claim.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-09-ATT-04",
+      "goal": "LFE-09",
+      "scenario": "Return after a quota reset and a member removal",
+      "expected": "Current eligibility governs visible context and suggested work; reset never reopens cancelled work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-09-ATT-05",
+      "goal": "LFE-09",
+      "scenario": "Panel covers mobile call controls",
+      "expected": "Visible sending, mute and leaving remain accessible throughout action resolution.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-10-EDIT-01",
+      "goal": "LFE-10",
+      "scenario": "Edit one component with protected sibling source",
+      "expected": "Only authorized source changes; actual checks catch shared-style behavioral regression.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-10-EDIT-02",
+      "goal": "LFE-10",
+      "scenario": "Stale expected base",
+      "expected": "Candidate conflict, never overwrite; retain manual draft and valid preview.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-10-SIM-01",
+      "goal": "LFE-10",
+      "scenario": "Scenario success uses mocked persistence",
+      "expected": "Display simulation label; not accepted as real database behavior.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-10-SIM-02",
+      "goal": "LFE-10",
+      "scenario": "Recorded agent/model replay passes",
+      "expected": "Evidence stays runtime-replay, not fresh provider/UI application proof.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-11-VOICE-01",
+      "goal": "LFE-11",
+      "scenario": "Quoted or negated wake/name",
+      "expected": "No unconditional action or speech command.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-11-VOICE-02",
+      "goal": "LFE-11",
+      "scenario": "Open an artifact for this viewer",
+      "expected": "App confirms location/identity; other member navigation unchanged.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-11-VOICE-03",
+      "goal": "LFE-11",
+      "scenario": "Revoke looking/listening then reconnect",
+      "expected": "Old frames/audio or cached context cannot silently become newly authorized input.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-11-VOICE-04",
+      "goal": "LFE-11",
+      "scenario": "Question while background work completes",
+      "expected": "One meaningful notice at an appropriate boundary; no duplicate speech from tool/UI/event.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-12-CONN-01",
+      "goal": "LFE-12",
+      "scenario": "Source connection expired",
+      "expected": "No scraping or alternate-account fallback; existing permitted work remains understandable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-12-CONN-02",
+      "goal": "LFE-12",
+      "scenario": "Export excludes private/ineligible material",
+      "expected": "Coverage is disclosed, no false complete archive claim.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-12-CONN-03",
+      "goal": "LFE-12",
+      "scenario": "Refreshed page conflicts with accepted direction",
+      "expected": "Proposal and conflict, not silent acceptance.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-12-CONN-04",
+      "goal": "LFE-12",
+      "scenario": "Source forgotten after derived knowledge exists",
+      "expected": "Eligibility narrows and derived display is corrected; cleanup status is truthful.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-13-LEARN-01",
+      "goal": "LFE-13",
+      "scenario": "Promote against changed recipe base",
+      "expected": "Conflict; never install unseen bytes.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-13-LEARN-02",
+      "goal": "LFE-13",
+      "scenario": "Select economical option outside current grant",
+      "expected": "No change of payer, permissions or hidden spending route.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-13-LEARN-03",
+      "goal": "LFE-13",
+      "scenario": "Rollback a promoted recipe",
+      "expected": "New eligible attempts use restored version; history and active attempt identity remain intact.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-13-LEARN-04",
+      "goal": "LFE-13",
+      "scenario": "External team completes fixture-only demo",
+      "expected": "Do not count as actual adoption or accepted live product work.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-14-PAUI-01",
+      "goal": "LFE-14",
+      "scenario": "Lock during private response",
+      "expected": "Personal job content/cache clears from this view and no team notice is emitted.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-14-PAUI-02",
+      "goal": "LFE-14",
+      "scenario": "Unknown wake",
+      "expected": "Show uncertainty and native inspection, not a duplicate automatic trigger or Running success.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-14-PAUI-03",
+      "goal": "LFE-14",
+      "scenario": "Owner reply lost",
+      "expected": "Same-key retry preserves typed content and correct job; no copied response in team chat.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-14-PAUI-04",
+      "goal": "LFE-14",
+      "scenario": "No Companion",
+      "expected": "Private job messaging works as an explicit work thread; personal AI conversation remains unavailable.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-15-SHUI-01",
+      "goal": "LFE-15",
+      "scenario": "Unselected attachment",
+      "expected": "No name/preview/body of the excluded attachment enters project source or event.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-15-SHUI-02",
+      "goal": "LFE-15",
+      "scenario": "Changed preview",
+      "expected": "An old approval refuses instead of publishing unseen edits.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-15-SHUI-03",
+      "goal": "LFE-15",
+      "scenario": "Copy pending/fails",
+      "expected": "Show pending/failed and private original remains; project sees no partial package.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-15-SHUI-04",
+      "goal": "LFE-15",
+      "scenario": "Owner deletes personal original",
+      "expected": "Explain independent shared copy and offer separate take-back; no claim of provider-global erasure.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-16-RVUI-01",
+      "goal": "LFE-16",
+      "scenario": "Wrong preview",
+      "expected": "Reject or label stale target; do not attach findings to latest by default.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-16-RVUI-02",
+      "goal": "LFE-16",
+      "scenario": "Local device offline",
+      "expected": "Show waiting for local dependency without marking unrelated cloud work stopped.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-16-RVUI-03",
+      "goal": "LFE-16",
+      "scenario": "Private question in peer feed",
+      "expected": "Reject at server; no metadata hint leaks through unread state.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    },
+    {
+      "id": "LFE-16-RVUI-04",
+      "goal": "LFE-16",
+      "scenario": "Withdraw external job",
+      "expected": "Label application withdrawal, not verified provider process cancellation.",
+      "status": "not_run",
+      "evidence_kind": null,
+      "source_commit": null,
+      "evidence_ref": null
+    }
+  ]
+}

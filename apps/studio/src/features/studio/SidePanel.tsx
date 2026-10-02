@@ -1,9 +1,10 @@
 // The room's side panel, as meeting apps have it: the chat and the brief beside the stage, one at a time, opened
 // from the stage's corner and closed from the panel's own header (or Esc). Both stay mounted while hidden, so an
 // unsent message or a brief edit in progress is never lost. On a phone the panel covers the room.
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip, type IconName } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
+import { ShortcutScope } from '../../app/shortcuts.ts'
 import { changedUnseen, focusOnOpen, focusStep, isNew, PANEL_TITLE, PANELS, seenNow, type Panel } from './side-panel.ts'
 
 interface PanelProps {
@@ -61,8 +62,10 @@ function usePanelFocus(open: Panel | null, opener: Panel | null, panel: RefObjec
  * control outside the panel keeps its own keys.
  */
 function useEscFromNowhere(open: Panel | null, onOpen: (panel: Panel | null) => void) {
+  // A project kept out of sight for its call takes no keys, Esc included (ShortcutScope).
+  const scoped = useContext(ShortcutScope)
   useEffect(() => {
-    if (!open) return undefined
+    if (!open || !scoped) return undefined
     const onKey = (e: KeyboardEvent) => {
       const at = e.target instanceof HTMLElement ? e.target : null
       const nowhere = !at || at === document.body || at === document.documentElement
@@ -70,7 +73,7 @@ function useEscFromNowhere(open: Panel | null, onOpen: (panel: Panel | null) => 
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onOpen])
+  }, [open, onOpen, scoped])
 }
 
 /**

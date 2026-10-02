@@ -6,6 +6,7 @@ import { DomainError } from '@sophia/domain'
 import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
 import type { ByteStore } from './byte-store.ts'
+import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
 import type { InviteConfig } from './invite-token.ts'
@@ -17,6 +18,7 @@ import { exchangeRoutes } from './routes/exchanges.ts'
 import { knowledgeRoutes } from './routes/knowledge.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
+import { personalRoutes } from './routes/personal.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
@@ -49,7 +51,8 @@ export interface AppDeps {
    * dead stream (apps/studio/src/api/stream.ts), so keep the two in step.
    */
   eventPollMs?: number
-  logger?: boolean
+  /** Fastify's logger: on, off, or options (a test gives it a stream to read what is logged). */
+  logger?: boolean | { stream: { write: (line: string) => void } }
   /** The LiveKit server for project rooms; without it, room tokens answer 503. */
   livekit?: LiveKitConfig
   /** Exact Studio origins allowed to call the API from a browser (a deployed Studio); none by default. */
@@ -62,9 +65,17 @@ export interface AppDeps {
   mediaBridgeTokenSha256?: Buffer
   /** The report byte store (SMC-M03, D5); without it, stored bytes answer 503 and inline texts are still read. */
   byteStore?: ByteStore | null
+  /**
+   * Who answers in the personal space (amendment A10): the keyless rehearsal in development, the runtime's Companion
+   * agent later. Without one, a personal message is refused (503) before anything is kept.
+   */
+  companion?: Companion | null
 }
 
-/** Functions the API requires in the database; /ready fails if any is missing. */
+/**
+ * Functions the API requires in the database; /ready fails if any is missing, so an instance on a database that a
+ * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call.
+ */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
   AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
@@ -97,7 +108,30 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.request_research_rendition(uuid,uuid,text,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.source_withdrawn(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.render_gate_failures(jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.media_record_announced(uuid,uuid,integer,boolean,integer)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.media_record_announced(uuid,uuid,integer,boolean,integer)') IS NOT NULL
+  AND to_regprocedure('sophia.personal_reply_state(text,timestamptz,timestamptz)') IS NOT NULL
+  AND to_regprocedure('sophia.personal_fence(bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.renew_personal_reply(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.renew_personal_greeting(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.begin_companion_call(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.end_companion_call(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.erased_companion_calls()') IS NOT NULL
+  AND to_regprocedure('sophia.next_personal_reply()') IS NOT NULL
+  AND to_regprocedure('sophia.forget_erased_companion_calls()') IS NOT NULL
+  AND to_regprocedure('sophia.send_personal_turn(text,text,boolean)') IS NOT NULL
+  AND to_regprocedure('sophia.retry_personal_turn(text,uuid,boolean)') IS NOT NULL
+  AND to_regprocedure('sophia.record_personal_reply(uuid,uuid,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.fail_personal_reply(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.record_personal_greeting(text,uuid,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.begin_personal_greeting(text,text,boolean)') IS NOT NULL
+  AND to_regprocedure('sophia.release_personal_greeting(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.claim_personal_reply(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.decide_personal_suggestion(text,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.keep_personal_note(text,text,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.forget_personal_note(text,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.carry_personal_note(text,uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.take_back_personal_release(text,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -127,7 +161,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.setErrorHandler(handleError)
   registerHealth(app, deps.pool)
 
-  projectRoutes(app, { pool: deps.pool })
+  projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
@@ -142,6 +176,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   rendererRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
   knowledgeRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
+  const companion = deps.companion
+    ? new CompanionRunner(deps.pool, deps.companion, (err) =>
+        app.log.error({ companion: companionFailure(err) }, 'companion answer failed'),
+      )
+    : null
+  personalRoutes(app, { pool: deps.pool, companion })
   return app
 }
 

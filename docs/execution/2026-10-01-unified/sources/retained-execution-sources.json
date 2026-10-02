@@ -1,0 +1,195 @@
+{
+  "date": "2026-10-01",
+  "main": "aadd192d66bb60dea6c2ba212cea5e192d704858",
+  "research_head": "5c1b7309f598d4b998cd94b67a285b3bb4704872",
+  "personal_data_head": "b4cbc9eba3d927481c99bdd9c91d043ca1623d05",
+  "personal_ui_head": "493454569a5e96d3d609a6f1ad9c450275fa5a30",
+  "sources": [
+    {
+      "id": "R01",
+      "title": "Current main and branch inventory",
+      "url": "https://github.com/davidelaverga/Sophia/tree/aadd192d66bb60dea6c2ba212cea5e192d704858",
+      "coverage": "Fresh connector metadata and selected source. No authenticated application test."
+    },
+    {
+      "id": "R02",
+      "title": "Repository entry contract",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/AGENTS.md",
+      "coverage": "Full text. Source ownership, exact toolchain, frozen-pack policy and existing checks."
+    },
+    {
+      "id": "R03",
+      "title": "Current Studio contribution rules",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/CONTRIBUTING.md",
+      "coverage": "Studio/UI and side-panel rules plus code conventions; selected range. Current main, not the historical visual reference."
+    },
+    {
+      "id": "R04",
+      "title": "Current StudioShell",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/apps/studio/src/features/studio/StudioShell.tsx",
+      "coverage": "Full text. Chat/Brief side panel; Explore and Build still have ComingLens placeholders."
+    },
+    {
+      "id": "R05",
+      "title": "Merged runtime reconciliation, PR29",
+      "url": "https://github.com/davidelaverga/Sophia/pull/29",
+      "coverage": "Fresh merged status. Release and bounded hosted results are author-reported in the PR, not independently rerun here."
+    },
+    {
+      "id": "R06",
+      "title": "Merged side-panel work, PR24",
+      "url": "https://github.com/davidelaverga/Sophia/pull/24",
+      "coverage": "Fresh merged status and detailed change/review narrative; checked against current StudioShell."
+    },
+    {
+      "id": "R07",
+      "title": "Research delivery, PR32",
+      "url": "https://github.com/davidelaverga/Sophia/pull/32",
+      "coverage": "Open work at research branch pin; description and source plan inspected. Reports/Knowledge and many source slices exist; not a hosted completion claim."
+    },
+    {
+      "id": "R08",
+      "title": "Owner-approved research plan",
+      "url": "https://github.com/davidelaverga/Sophia/blob/5c1b7309f598d4b998cd94b67a285b3bb4704872/docs/progress/SMC-M03-plan.md",
+      "coverage": "Selected substantive opening, source reality, decisions and registry sections. Model/provider statements are the plan’s reported bindings, not a new vendor qualification."
+    },
+    {
+      "id": "R09",
+      "title": "Research UI source directory",
+      "url": "https://github.com/davidelaverga/Sophia/tree/5c1b7309f598d4b998cd94b67a285b3bb4704872/apps/studio/src/features/artifacts",
+      "coverage": "Actual directory listing: DocumentPane, DocumentViewer, KnowledgeReports, MarkdownView, ReportHistory, SourcesList, SummaryEditor, WorkCard and helpers."
+    },
+    {
+      "id": "R10",
+      "title": "Personal data/API, PR35",
+      "url": "https://github.com/davidelaverga/Sophia/pull/35",
+      "coverage": "Full current PR metadata/body. Open, A10/0021, keyless companion only, live-runtime and product questions remain."
+    },
+    {
+      "id": "R11",
+      "title": "Personal Studio, PR30",
+      "url": "https://github.com/davidelaverga/Sophia/pull/30",
+      "coverage": "Full current PR metadata/body. Open, stacked on personal/data. New routes and cross-place call lifecycle are candidate behavior."
+    },
+    {
+      "id": "R12",
+      "title": "Main’s latest test-only change",
+      "url": "https://github.com/davidelaverga/Sophia/commit/aadd192d66bb60dea6c2ba212cea5e192d704858",
+      "coverage": "Commit/diff inspected. PR36 tolerates the SDK clock boundary while retaining the configured 600-second room-token TTL."
+    },
+    {
+      "id": "P04",
+      "title": "Cumulative v0.4 entry map",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/00_START_HERE.md",
+      "coverage": "Full text. Explicitly includes Part 1 and replaces it as the then-active map."
+    },
+    {
+      "id": "P05",
+      "title": "Cumulative change log",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/04_PART2_CHANGELOG.md",
+      "coverage": "Full text. Exact source/API/renderer bindings; all 24 goals have briefs."
+    },
+    {
+      "id": "P06",
+      "title": "All 24 original goals",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/GOAL_INDEX.md",
+      "coverage": "Full index. All later S2/S3 goal briefs read; core frontend/creation S1 briefs checked in v0.4 and original Part 1."
+    },
+    {
+      "id": "P07",
+      "title": "Production frontend bindings",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/architecture/13_FRONTEND_BINDINGS.md",
+      "coverage": "Full text. Source editor, state ownership, review, mobile, scenario and accessibility contracts."
+    },
+    {
+      "id": "P08",
+      "title": "Image generation goal",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S1-06.md",
+      "coverage": "Full text. Real Google/OpenAI candidates, retained assets, intentional comparison."
+    },
+    {
+      "id": "P09",
+      "title": "Editable prototype goal",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S1-07.md",
+      "coverage": "Full text. Runnable source, no-secret builds, Preview/Source/Diff and source-based handoff."
+    },
+    {
+      "id": "P10",
+      "title": "Precise artifact revision",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S2-02.md",
+      "coverage": "Full text. Protected source, candidate CAS, source-backed formats and explicit scope expansion."
+    },
+    {
+      "id": "P11",
+      "title": "Scenario and application evidence",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S2-03.md",
+      "coverage": "Full text. Storybook/MSW, Playwright and dsh replay are different evidence."
+    },
+    {
+      "id": "P12",
+      "title": "Semantic attention",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S2-01.md",
+      "coverage": "Full text. Required actions versus optional opportunities and quiet progress."
+    },
+    {
+      "id": "P13",
+      "title": "Mobile and native requests",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S2-04.md",
+      "coverage": "Full text. Current owner/fingerprint, PWA push, stale-response rules."
+    },
+    {
+      "id": "P14",
+      "title": "Consented discussion following",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S2-05.md",
+      "coverage": "Full text. Attributed tracks, individual consent, no default raw recording or universal double-model hop."
+    },
+    {
+      "id": "P15",
+      "title": "Connectors and return",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S2-06.md",
+      "coverage": "Full text. Selected imports/refresh, Notion/Supabase/Vercel later, source-bound return."
+    },
+    {
+      "id": "P16",
+      "title": "Long-horizon work",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S3-01.md",
+      "coverage": "Full text. One continuation owner, current mandate, recovery and meaningful return."
+    },
+    {
+      "id": "P17",
+      "title": "Native implementer",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S3-02.md",
+      "coverage": "Full text. Supported native application feature and same source/evidence contract."
+    },
+    {
+      "id": "P18",
+      "title": "Adaptive execution and learning",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S3-03.md",
+      "coverage": "Full text. Effective recipes, bounded comparison, fresh-use evidence and rollback."
+    },
+    {
+      "id": "P19",
+      "title": "External teams and migration",
+      "url": "https://github.com/davidelaverga/Sophia/blob/aadd192d66bb60dea6c2ba212cea5e192d704858/docs/pack/delivery/goals/S3-04.md",
+      "coverage": "Full text. Repeated actual use, portable work and honest migration coverage."
+    },
+    {
+      "id": "C01",
+      "title": "Management/coordination continuation",
+      "url": "../references/coordination/00_START_HERE.md",
+      "coverage": "Attached ZIP extracted and inventoried. Mission/crosswalk/Studio/control/ownership content used; preserved unchanged as reference."
+    },
+    {
+      "id": "A01",
+      "title": "Original Part 1",
+      "url": "Sophia_Implementation_Pack_v0.3_Part1_LINKS_FIXED_2026-09-24.zip",
+      "coverage": "Local archive: inventoried; product/architecture and frontend-relevant S1 requirements reread. Historical baseline, not competing instructions."
+    },
+    {
+      "id": "A02",
+      "title": "Original cumulative Part 2",
+      "url": "Sophia_Implementation_Pack_v0.4_Part2_2026-09-24.zip",
+      "coverage": "Library archive located but raw-byte materialization denied. Used its versioned docs/pack copy from current Sophia. Did not verify ZIP byte equality or rerun its reference programs."
+    }
+  ]
+}

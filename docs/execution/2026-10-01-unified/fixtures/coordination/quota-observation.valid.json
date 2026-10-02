@@ -1,0 +1,45 @@
+{
+  "schema_version": "sophia.capacity.observation.v1",
+  "observation_id": "fixture-quota-1",
+  "owner_id": "fixture-owner-A",
+  "entitlement_id": "fixture-account-A",
+  "resource_ids": [
+    "fixture-resource-A1",
+    "fixture-resource-A2"
+  ],
+  "provider": "synthetic_provider",
+  "native_runtime_version": "fixture-only",
+  "source_channel": "synthetic_test",
+  "observed_at": "2026-09-30T12:00:00Z",
+  "valid_until": "2026-09-30T12:05:00Z",
+  "coverage": "partial",
+  "windows": [
+    {
+      "window_id": "weekly",
+      "window_epoch": "fixture-week-1",
+      "unit": "percent_used",
+      "value": 70,
+      "resets_at": "2026-10-02T12:00:00Z",
+      "scope": "account",
+      "applies_to_models": [],
+      "applicability": "partial",
+      "state": "observed"
+    },
+    {
+      "window_id": "short",
+      "window_epoch": "fixture-short-1",
+      "unit": "percent_used",
+      "value": null,
+      "resets_at": null,
+      "scope": "account",
+      "applies_to_models": [],
+      "applicability": "unknown",
+      "state": "unknown"
+    }
+  ],
+  "missing_capabilities": [
+    "short-window-not-reported",
+    "model-bucket-mapping-unqualified"
+  ],
+  "sharing_policy_ref": "fixture-sharing-1"
+}

@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence-bound handover record",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.work.handover.v1"
+    },
+    "handover_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "from_attempt_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "to_attempt_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "from_resource_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "to_resource_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "phase": {
+      "enum": [
+        "proposed",
+        "preparing",
+        "fencing",
+        "reconciling",
+        "transferring",
+        "continuing",
+        "completed",
+        "blocked",
+        "cancelled"
+      ]
+    },
+    "source_snapshot_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "base_commit": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "patch_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    },
+    "check_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    },
+    "remaining_work_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "old_writer_state": {
+      "enum": [
+        "active",
+        "stop_requested",
+        "stopped_verified",
+        "isolated_verified",
+        "unknown"
+      ]
+    },
+    "old_writer_evidence_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outstanding_effects": {
+      "enum": [
+        "none",
+        "settled",
+        "unknown"
+      ]
+    },
+    "effects_evidence_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "new_writer_generation": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "target_grant_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "cumulative_allowance_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "receipt_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    }
+  },
+  "required": [
+    "schema_version",
+    "handover_id",
+    "project_id",
+    "work_id",
+    "from_attempt_id",
+    "to_attempt_id",
+    "from_resource_id",
+    "to_resource_id",
+    "phase",
+    "source_snapshot_ref",
+    "base_commit",
+    "patch_sha256",
+    "artifact_refs",
+    "check_refs",
+    "remaining_work_ref",
+    "old_writer_state",
+    "old_writer_evidence_ref",
+    "outstanding_effects",
+    "effects_evidence_ref",
+    "new_writer_generation",
+    "target_grant_ref",
+    "cumulative_allowance_ref",
+    "receipt_refs"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "enum": [
+              "transferring",
+              "continuing",
+              "completed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source_snapshot_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "remaining_work_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "old_writer_state": {
+            "enum": [
+              "stopped_verified",
+              "isolated_verified"
+            ]
+          },
+          "old_writer_evidence_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "outstanding_effects": {
+            "enum": [
+              "none",
+              "settled"
+            ]
+          },
+          "new_writer_generation": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "enum": [
+              "continuing",
+              "completed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "to_attempt_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outstanding_effects": {
+            "const": "settled"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "effects_evidence_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        }
+      }
+    }
+  ]
+}

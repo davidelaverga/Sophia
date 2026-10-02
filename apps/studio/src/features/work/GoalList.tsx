@@ -8,7 +8,7 @@ interface Props {
   snapshot: Snapshot | undefined
   projectId: string
   identity: Identity
-  /** The Work view: goals with their controls. */
+  /** The Tasks view: goals with their controls. */
   controls: boolean
   /** Editors and admins act on goals and invite; viewers read. */
   canAct: boolean
@@ -20,7 +20,7 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
   return (
     <section className="goals" aria-labelledby="goals-title">
       <header className="view-head">
-        <h2 id="goals-title">{controls ? 'Work' : 'Goals'}</h2>
+        <h2 id="goals-title">{controls ? 'Tasks' : 'Goals'}</h2>
         {snapshot && <span className="count">{snapshot.goals.length}</span>}
       </header>
       {!snapshot && <div className="goal skeleton" aria-busy="true" />}

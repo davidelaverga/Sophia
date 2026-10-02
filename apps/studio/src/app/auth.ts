@@ -7,17 +7,21 @@ import {
   LINK_FAILED,
   LINK_UNCHECKED,
   linkDecision,
+  offerStands,
   OTHER_ACCOUNT_NOTICE,
   OTHER_BROWSER_NOTICE,
   readAuthCallback,
   tokenSubject,
+  UNLOCK_OTHER_ACCOUNT_NOTICE,
   withoutAuthParams,
 } from './auth-callback.ts'
 import { sendFailure } from './auth-words.ts'
 import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
+import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata } from './profile.ts'
+import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -25,18 +29,20 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 // Read before the client starts: its own PKCE exchange rewrites the address when it succeeds.
 const callback = readAuthCallback(window.location.href)
 
-export const supabase: SupabaseClient | null =
-  url && key
-    ? createClient(url, key, {
-        auth: {
-          flowType: 'pkce',
-          // The client only exchanges ?code= itself; invitation tokens in the fragment are handled below.
-          detectSessionInUrl: () => false,
-          persistSession: true,
-          autoRefreshToken: true,
-        },
-      })
-    : null
+/** The Supabase project the Studio signs in with, when one is configured (the key is the publishable one). */
+export const authProject = url && key ? { url, key } : null
+
+export const supabase: SupabaseClient | null = authProject
+  ? createClient(authProject.url, authProject.key, {
+      auth: {
+        flowType: 'pkce',
+        // The client only exchanges ?code= itself; invitation tokens in the fragment are handled below.
+        detectSessionInUrl: () => false,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : null
 
 export type AuthMode = 'supabase' | 'dev' | 'none'
 export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length > 0 ? 'dev' : 'none'
@@ -44,14 +50,21 @@ export const authMode: AuthMode = supabase ? 'supabase' : devIdentities.length >
 /** `notice`: why the last sign-in link did not do what it offered, when it did not. */
 type SignedIn = { status: 'signed_in'; identity: Identity; notice?: string }
 type SignedOut = { status: 'signed_out'; notice?: string }
-/** A link carried a session and nobody is signed in: the person says whether `account` is theirs first. */
-type LinkOffer = { status: 'link_offer'; account: string }
+/**
+ * A link carried a session and nobody is signed in: the person says whether `account` is theirs first. `slow`: they
+ * said so, and signing in outlasted the wait; it goes on, and they can start over.
+ */
+type LinkOffer = { status: 'link_offer'; account: string; slow?: boolean }
 export type AuthState = { status: 'loading' } | SignedOut | SignedIn | LinkOffer
 
 type LinkTokens = { accessToken: string; refreshToken: string }
 
 /** A link's session, kept in memory (never in storage) while the person decides whether it is theirs. */
-let offered: LinkTokens | null = null
+let offered: LinkAcceptance | null = null
+
+/** Signing in with a link's session through the Auth client: true once signed in (link-accept.ts). */
+const signInWith = (client: SupabaseClient, link: LinkTokens) => async () =>
+  !(await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })).error
 
 /** An anonymous session is a guest's (a knock at a room's door), never an account: its role says so. */
 const fromSession = (s: Session | null): SignedIn | SignedOut =>
@@ -99,7 +112,7 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
     // Whose they are is asked with an end, so a silent Auth service leaves a sign-in screen, not a loading one.
     const outcome = await settleWithin(linkOutcome(client, callback), READ_TIMEOUT_MS, { notice: LINK_UNCHECKED })
     if ('offer' in outcome) {
-      offered = callback
+      offered = linkAcceptance(signInWith(client, callback), READ_TIMEOUT_MS)
       return { status: 'link_offer', account: outcome.offer }
     }
     notice = outcome.notice
@@ -107,6 +120,10 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
   const { data } = await client.auth.getSession() // waits for the client's own ?code= exchange
   if (callback.kind === 'code' && !data.session) notice = OTHER_BROWSER_NOTICE
   if (callback.kind !== 'none') window.history.replaceState(null, '', withoutAuthParams(window.location.href))
+  // Back from a provider an unlock left for, as another account: nobody is signed in, and nothing of it opens.
+  if (await refuseOtherAccount(client.auth, data.session?.user.id ?? null)) {
+    return { status: 'signed_out', notice: UNLOCK_OTHER_ACCOUNT_NOTICE }
+  }
   const state = fromSession(data.session)
   return notice ? { ...state, notice } : state
 }
@@ -114,12 +131,19 @@ async function sessionAfterRedirect(client: SupabaseClient): Promise<AuthState> 
 /** Current session now and on every change (including TOKEN_REFRESHED). Returns the unsubscribe. */
 function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) => void): () => void {
   let alive = true
+  // Back from a provider an unlock left for, nothing the client says is adopted before the redirect's state: the
+  // account it signed in may be another, which never opens (its SIGNED_IN comes on its own, a moment later).
+  let returning = pendingUnlock() !== null
   void sessionAfterRedirect(client).then((state) => {
+    returning = false
     if (alive) onState(state)
   })
-  // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it.
+  // The first state is the redirect's (above), which may be a link's offer: the initial event must not replace it,
+  // and neither may a guest's session or none (offerStands). An account that signs in ends the offer.
   const { data } = client.auth.onAuthStateChange((event, session) => {
-    if (event !== 'INITIAL_SESSION') onState(fromSession(session))
+    if (event === 'INITIAL_SESSION' || returning || offerStands(offered !== null, session)) return
+    if (session && !session.user.is_anonymous) offered = null
+    onState(fromSession(session))
   })
   return () => {
     alive = false
@@ -137,13 +161,25 @@ interface Auth {
   declineLink: () => void
 }
 
-/** Sign in with the session a link offered, once the person said the account is theirs. */
-async function acceptOffered(client: SupabaseClient): Promise<AuthState | null> {
-  const link = offered
+/**
+ * Sign in with the session a link offered, once the person said the account is theirs. An Auth service that doesn't
+ * answer in time leaves the offer saying so, with a way to start over, while the attempt goes on (link-accept.ts). Its
+ * result still reaches the press: signed in, the auth listener says so; refused, `later` gets it.
+ */
+async function acceptOffered(account: string, later: (state: AuthState) => void): Promise<AuthState | null> {
+  const offer = offered
+  if (!offer) return { status: 'signed_out' }
+  const outcome = await offer.accept()
+  if (outcome === 'late') {
+    void offer.outcome().then((result) => {
+      if (offered !== offer || result === 'in') return // started over, declined, or in: said elsewhere
+      offered = null
+      later({ status: 'signed_out', notice: LINK_FAILED })
+    })
+    return { status: 'link_offer', account, slow: true }
+  }
   offered = null
-  if (!link) return { status: 'signed_out' }
-  const { error } = await client.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
-  return error ? { status: 'signed_out', notice: LINK_FAILED } : null // signed in: the auth listener says so
+  return outcome === 'in' ? null : { status: 'signed_out', notice: LINK_FAILED } // in: the auth listener says so
 }
 
 export function useAuth(): Auth {
@@ -167,8 +203,13 @@ export function useAuth(): Auth {
       setState({ status: 'signed_out' })
     },
     acceptLink: async () => {
-      const next = supabase ? await acceptOffered(supabase) : { status: 'signed_out' as const }
-      if (next) setState(next)
+      if (state.status !== 'link_offer') return
+      const { account } = state
+      // Only over the same offer: an account signed in meanwhile (another tab) stays.
+      const over = (next: AuthState) =>
+        setState((now) => (now.status === 'link_offer' && now.account === account ? next : now))
+      const next = await acceptOffered(account, over)
+      if (next) over(next)
     },
     declineLink: () => {
       offered = null
@@ -195,6 +236,8 @@ export async function sendMagicLink(email: string): Promise<void> {
 
 /** Supabase provider ids ("azure" is Microsoft), in the order the sign-in row shows them. */
 export type OAuthProvider = 'google' | 'github' | 'azure'
+/** How a provider is named on screen. */
+export const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', github: 'GitHub', azure: 'Microsoft' }
 const KNOWN_PROVIDERS: readonly OAuthProvider[] = ['google', 'github', 'azure']
 
 /**
@@ -287,6 +330,7 @@ export async function removePasskey(id: string): Promise<void> {
 /** Leaves for the provider and comes back here with ?code=, which the client exchanges (PKCE). */
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
+  forgetPendingUnlock() // a sign-in of the person's own: no unlock's check refuses the account it brings back
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {

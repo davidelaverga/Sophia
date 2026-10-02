@@ -30,7 +30,13 @@ import {
   validateResearchRendition,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
+  validatePersonalEarlierTurns,
+  validatePersonalExport,
+  validatePersonalReceipt,
+  validatePersonalSpace,
+  validatePersonalTurnPage,
   validateProjectCreated,
+  validateProjectList,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -92,6 +98,12 @@ export const parseReportList = parser('ReportList', validateReportList)
 export const parseReportSourceList = parser('ReportSourceList', validateReportSourceList)
 export const parseReportSummary = parser('ReportSummary', validateReportSummary)
 export const parseResearchRendition = parser('ResearchRendition', validateResearchRendition)
+export const parsePersonalSpace = parser('PersonalSpace', validatePersonalSpace)
+export const parsePersonalTurnPage = parser('PersonalTurnPage', validatePersonalTurnPage)
+export const parsePersonalEarlierTurns = parser('PersonalEarlierTurns', validatePersonalEarlierTurns)
+export const parsePersonalExport = parser('PersonalExport', validatePersonalExport)
+export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalReceipt)
+export const parseProjectList = parser('ProjectList', validateProjectList)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

@@ -1,0 +1,1063 @@
+{
+  "schema": "sophia.unified-coverage.v2",
+  "original_goals": [
+    {
+      "id": "S1-01",
+      "title": "Repository/runtime foundation",
+      "disposition": "Retain achieved foundation",
+      "backend": [
+        "BASE"
+      ],
+      "frontend": [
+        "LFE-00"
+      ],
+      "note": "Use merged M02 unit and actual identities, not reinstall from old pack.",
+      "current_spec": "goals/S1-01.md",
+      "current_targets": [
+        "BASE"
+      ],
+      "acceptance_ids": [
+        "S1-01-T01",
+        "S1-01-T02",
+        "S1-01-T03",
+        "S1-01-T04",
+        "S1-01-T05"
+      ]
+    },
+    {
+      "id": "S1-02",
+      "title": "Commands, state and replay",
+      "disposition": "Extend existing implementation",
+      "backend": [
+        "BASE"
+      ],
+      "frontend": [
+        "LFE-00",
+        "LFE-06"
+      ],
+      "note": "Reuse current contracts/cache/SSE; coordination adds projection, not second client state system.",
+      "current_spec": "goals/S1-02.md",
+      "current_targets": [
+        "BASE",
+        "SCM-01"
+      ],
+      "acceptance_ids": [
+        "S1-02-T01",
+        "S1-02-T02",
+        "S1-02-T03",
+        "S1-02-T04",
+        "S1-02-T05"
+      ]
+    },
+    {
+      "id": "S1-03",
+      "title": "Native dsh controls",
+      "disposition": "Retain; extend narrow bindings",
+      "backend": [
+        "SCM-01",
+        "SCM-03"
+      ],
+      "frontend": [
+        "LFE-06"
+      ],
+      "note": "Existing dsh bridge remains native lifecycle owner.",
+      "current_spec": "goals/S1-03.md",
+      "current_targets": [
+        "SCM-01",
+        "SCM-03"
+      ],
+      "acceptance_ids": [
+        "S1-03-T01",
+        "S1-03-T02",
+        "S1-03-T03",
+        "S1-03-T04",
+        "S1-03-T05",
+        "S1-03-T06",
+        "S1-03-T07"
+      ]
+    },
+    {
+      "id": "S1-04",
+      "title": "Shared Studio and room",
+      "disposition": "Merged shell; extend",
+      "backend": [
+        "BASE"
+      ],
+      "frontend": [
+        "LFE-00"
+      ],
+      "note": "Do not rebuild room, side panel, dock or access flows.",
+      "current_spec": "goals/S1-04.md",
+      "current_targets": [
+        "BASE"
+      ],
+      "acceptance_ids": [
+        "S1-04-T01",
+        "S1-04-T02",
+        "S1-04-T03",
+        "S1-04-T04",
+        "S1-04-T05"
+      ]
+    },
+    {
+      "id": "S1-05",
+      "title": "Gemini voice and vision",
+      "disposition": "Retain; finish feature-specific gaps",
+      "backend": [
+        "SMC-M03",
+        "SCM-06"
+      ],
+      "frontend": [
+        "LFE-02",
+        "LFE-08",
+        "LFE-11"
+      ],
+      "note": "Current shared Gemini path; new actual tools need versioned parity.",
+      "current_spec": "goals/S1-05.md",
+      "current_targets": [
+        "SMC-M03",
+        "SCM-06",
+        "S2-05"
+      ],
+      "acceptance_ids": [
+        "S1-05-T01",
+        "S1-05-T02",
+        "S1-05-T03",
+        "S1-05-T04",
+        "S1-05-T05",
+        "S1-05-T06",
+        "S1-05-T07"
+      ]
+    },
+    {
+      "id": "S1-06",
+      "title": "Google/OpenAI image assets",
+      "disposition": "Retained independent creative goal",
+      "backend": [
+        "S1-06"
+      ],
+      "frontend": [
+        "LFE-03"
+      ],
+      "note": "Real generation is backend work; Luis owns gallery and selection.",
+      "current_spec": "goals/S1-06.md",
+      "current_targets": [
+        "S1-06"
+      ],
+      "acceptance_ids": [
+        "S1-06-T01",
+        "S1-06-T02",
+        "S1-06-T03",
+        "S1-06-T04",
+        "S1-06-T05",
+        "S1-06-T06"
+      ]
+    },
+    {
+      "id": "S1-07",
+      "title": "Editable runnable UI prototypes",
+      "disposition": "Retained independent creative goal",
+      "backend": [
+        "S1-07"
+      ],
+      "frontend": [
+        "LFE-04"
+      ],
+      "note": "Deliver actual source, CodeMirror and no-secret build/preview.",
+      "current_spec": "goals/S1-07.md",
+      "current_targets": [
+        "S1-07"
+      ],
+      "acceptance_ids": [
+        "S1-07-T01",
+        "S1-07-T02",
+        "S1-07-T03",
+        "S1-07-T04",
+        "S1-07-T05",
+        "S1-07-T06"
+      ]
+    },
+    {
+      "id": "S1-08",
+      "title": "Existing context and useful work packets",
+      "disposition": "Split by current implementation",
+      "backend": [
+        "SMC-M01",
+        "S1-08"
+      ],
+      "frontend": [
+        "LFE-05"
+      ],
+      "note": "Living brief already exists; external import coverage is not solved by personal carry.",
+      "current_spec": "goals/S1-08.md",
+      "current_targets": [
+        "S1-08"
+      ],
+      "acceptance_ids": [
+        "S1-08-T01",
+        "S1-08-T02",
+        "S1-08-T03",
+        "S1-08-T04",
+        "S1-08-T05",
+        "S1-08-T06"
+      ]
+    },
+    {
+      "id": "S1-09",
+      "title": "Three owner-native engineers",
+      "disposition": "Operational sequence superseded",
+      "backend": [
+        "SCM-01",
+        "SCM-02"
+      ],
+      "frontend": [
+        "LFE-06"
+      ],
+      "note": "Three real contributed resources retained; Omnigent architecture 11 remains referenced.",
+      "current_spec": "goals/S1-09.md",
+      "current_targets": [
+        "SCM-02"
+      ],
+      "acceptance_ids": [
+        "S1-09-T01",
+        "S1-09-T02",
+        "S1-09-T03",
+        "S1-09-T04",
+        "S1-09-T05",
+        "S1-09-T06"
+      ]
+    },
+    {
+      "id": "S1-10",
+      "title": "Direct goal-scoped peers",
+      "disposition": "Operational sequence superseded",
+      "backend": [
+        "SCM-03"
+      ],
+      "frontend": [
+        "LFE-06",
+        "LFE-07"
+      ],
+      "note": "Messages need not create separate tasks; receipts stay truthful.",
+      "current_spec": "goals/S1-10.md",
+      "current_targets": [
+        "SCM-03"
+      ],
+      "acceptance_ids": [
+        "S1-10-T01",
+        "S1-10-T02",
+        "S1-10-T03",
+        "S1-10-T04",
+        "S1-10-T05",
+        "S1-10-T06"
+      ]
+    },
+    {
+      "id": "S1-11",
+      "title": "Technical-lead planning and review",
+      "disposition": "Operational sequence superseded",
+      "backend": [
+        "SCM-04",
+        "SCM-05"
+      ],
+      "frontend": [
+        "LFE-07"
+      ],
+      "note": "dsh lead + Paperclip operations; capacity adds choices.",
+      "current_spec": "goals/S1-11.md",
+      "current_targets": [
+        "SCM-04",
+        "SCM-05"
+      ],
+      "acceptance_ids": [
+        "S1-11-T01",
+        "S1-11-T02",
+        "S1-11-T03",
+        "S1-11-T04",
+        "S1-11-T05",
+        "S1-11-T06"
+      ]
+    },
+    {
+      "id": "S1-12",
+      "title": "Review and steer the actual application",
+      "disposition": "Rebound to current sources",
+      "backend": [
+        "SCM-06"
+      ],
+      "frontend": [
+        "LFE-08"
+      ],
+      "note": "Real candidate, change/preserve request; no prompt-only surgical guarantee.",
+      "current_spec": "goals/S1-12.md",
+      "current_targets": [
+        "SCM-06"
+      ],
+      "acceptance_ids": [
+        "S1-12-T01",
+        "S1-12-T02",
+        "S1-12-T03",
+        "S1-12-T04",
+        "S1-12-T05",
+        "S1-12-T06"
+      ]
+    },
+    {
+      "id": "S1-13",
+      "title": "Reports, PDFs and decks",
+      "disposition": "Research portion underway; deck retained",
+      "backend": [
+        "SMC-M03",
+        "S1-13"
+      ],
+      "frontend": [
+        "LFE-02"
+      ],
+      "note": "PR32 covers reports/partial PDF; HTML/deck/PPTX needs its own output work.",
+      "current_spec": "goals/S1-13.md",
+      "current_targets": [
+        "S1-13"
+      ],
+      "acceptance_ids": [
+        "S1-13-T01",
+        "S1-13-T02",
+        "S1-13-T03",
+        "S1-13-T04",
+        "S1-13-T05",
+        "S1-13-T06"
+      ]
+    },
+    {
+      "id": "S1-14",
+      "title": "Complete founder product episode",
+      "disposition": "Retained full-product acceptance",
+      "backend": [
+        "RELEASE-TEAM"
+      ],
+      "frontend": [
+        "LFE-08"
+      ],
+      "note": "SCM first outcome does not silently close creative/format promises.",
+      "current_spec": "goals/S1-14.md",
+      "current_targets": [
+        "S1-14"
+      ],
+      "acceptance_ids": [
+        "S1-14-T01",
+        "S1-14-T02",
+        "S1-14-T03",
+        "S1-14-T04",
+        "S1-14-T05",
+        "S1-14-T06",
+        "S1-14-T07"
+      ]
+    },
+    {
+      "id": "S2-01",
+      "title": "Semantic attention and cooperation",
+      "disposition": "Refined by coordination",
+      "backend": [
+        "SCM-07",
+        "S2-01"
+      ],
+      "frontend": [
+        "LFE-09"
+      ],
+      "note": "Optional opportunities differ from required actions and silent progress.",
+      "current_spec": "goals/S2-01.md",
+      "current_targets": [
+        "S2-01"
+      ],
+      "acceptance_ids": [
+        "S2-01-T01",
+        "S2-01-T02",
+        "S2-01-T03",
+        "S2-01-T04",
+        "S2-01-T05"
+      ]
+    },
+    {
+      "id": "S2-02",
+      "title": "Exact source-backed revisions",
+      "disposition": "Retained precise-edit goal",
+      "backend": [
+        "S2-02"
+      ],
+      "frontend": [
+        "LFE-10"
+      ],
+      "note": "General review-to-steer is not exact editing; enforce source boundaries.",
+      "current_spec": "goals/S2-02.md",
+      "current_targets": [
+        "S2-02"
+      ],
+      "acceptance_ids": [
+        "S2-02-T01",
+        "S2-02-T02",
+        "S2-02-T03",
+        "S2-02-T04",
+        "S2-02-T05",
+        "S2-02-T06"
+      ]
+    },
+    {
+      "id": "S2-03",
+      "title": "Scenarios and executable review",
+      "disposition": "Retained scenario/evidence goal",
+      "backend": [
+        "S2-03"
+      ],
+      "frontend": [
+        "LFE-10"
+      ],
+      "note": "Storybook/MSW/Playwright; separate dsh replay.",
+      "current_spec": "goals/S2-03.md",
+      "current_targets": [
+        "S2-03"
+      ],
+      "acceptance_ids": [
+        "S2-03-T01",
+        "S2-03-T02",
+        "S2-03-T03",
+        "S2-03-T04",
+        "S2-03-T05"
+      ]
+    },
+    {
+      "id": "S2-04",
+      "title": "Mobile and native requests",
+      "disposition": "Shared implementation with SCM",
+      "backend": [
+        "SCM-06",
+        "S2-04"
+      ],
+      "frontend": [
+        "LFE-09"
+      ],
+      "note": "One required-action object; no independent mobile approval state.",
+      "current_spec": "goals/S2-04.md",
+      "current_targets": [
+        "S2-04"
+      ],
+      "acceptance_ids": [
+        "S2-04-T01",
+        "S2-04-T02",
+        "S2-04-T03",
+        "S2-04-T04",
+        "S2-04-T05",
+        "S2-04-T06"
+      ]
+    },
+    {
+      "id": "S2-05",
+      "title": "Discussion following and richer voice",
+      "disposition": "Retained richer voice goal",
+      "backend": [
+        "S2-05"
+      ],
+      "frontend": [
+        "LFE-11"
+      ],
+      "note": "Consent and actual media/runtime evidence before activation.",
+      "current_spec": "goals/S2-05.md",
+      "current_targets": [
+        "S2-05"
+      ],
+      "acceptance_ids": [
+        "S2-05-T01",
+        "S2-05-T02",
+        "S2-05-T03",
+        "S2-05-T04",
+        "S2-05-T05",
+        "S2-05-T06"
+      ]
+    },
+    {
+      "id": "S2-06",
+      "title": "Connectors and return",
+      "disposition": "Partially covered, connectors retained",
+      "backend": [
+        "SCM-07",
+        "S2-06"
+      ],
+      "frontend": [
+        "LFE-05",
+        "LFE-12"
+      ],
+      "note": "Return/mandate reuse; management connectors remain later.",
+      "current_spec": "goals/S2-06.md",
+      "current_targets": [
+        "S2-06"
+      ],
+      "acceptance_ids": [
+        "S2-06-T01",
+        "S2-06-T02",
+        "S2-06-T03",
+        "S2-06-T04",
+        "S2-06-T05"
+      ]
+    },
+    {
+      "id": "S3-01",
+      "title": "Multi-week continuity",
+      "disposition": "Bounded continuation via SCM",
+      "backend": [
+        "SCM-07"
+      ],
+      "frontend": [
+        "LFE-09",
+        "LFE-13"
+      ],
+      "note": "No unlimited mandate or invented ongoing process.",
+      "current_spec": "goals/S3-01.md",
+      "current_targets": [
+        "SCM-07"
+      ],
+      "acceptance_ids": [
+        "S3-01-T01",
+        "S3-01-T02",
+        "S3-01-T03",
+        "S3-01-T04",
+        "S3-01-T05",
+        "S3-01-T06"
+      ]
+    },
+    {
+      "id": "S3-02",
+      "title": "Sophia-native app implementer",
+      "disposition": "Retained native-worker expansion",
+      "backend": [
+        "S3-02"
+      ],
+      "frontend": [
+        "LFE-13"
+      ],
+      "note": "Do not mistake read-only review or prototype for full app implementer.",
+      "current_spec": "goals/S3-02.md",
+      "current_targets": [
+        "S3-02"
+      ],
+      "acceptance_ids": [
+        "S3-02-T01",
+        "S3-02-T02",
+        "S3-02-T03",
+        "S3-02-T04",
+        "S3-02-T05"
+      ]
+    },
+    {
+      "id": "S3-03",
+      "title": "Adaptive execution and procedural learning",
+      "disposition": "Shared recipe/learning work",
+      "backend": [
+        "SCM-05",
+        "SCM-08",
+        "S3-03"
+      ],
+      "frontend": [
+        "LFE-07",
+        "LFE-13"
+      ],
+      "note": "Extend current specialist/recipe identity; no parallel cheap-recovery framework.",
+      "current_spec": "goals/S3-03.md",
+      "current_targets": [
+        "S3-03"
+      ],
+      "acceptance_ids": [
+        "S3-03-T01",
+        "S3-03-T02",
+        "S3-03-T03",
+        "S3-03-T04",
+        "S3-03-T05",
+        "S3-03-T06"
+      ]
+    },
+    {
+      "id": "S3-04",
+      "title": "Repeated external-team use and clean migration",
+      "disposition": "Retained adoption/export/migration",
+      "backend": [
+        "S3-04"
+      ],
+      "frontend": [
+        "LFE-12",
+        "LFE-13"
+      ],
+      "note": "Portable source/decisions and repeated real team use.",
+      "current_spec": "goals/S3-04.md",
+      "current_targets": [
+        "S3-04"
+      ],
+      "acceptance_ids": [
+        "S3-04-T01",
+        "S3-04-T02",
+        "S3-04-T03",
+        "S3-04-T04",
+        "S3-04-T05",
+        "S3-04-T06"
+      ]
+    }
+  ],
+  "coordination_missions": [
+    {
+      "id": "SCM-00",
+      "current_spec": "goals/SCM-00.md",
+      "acceptance_ids": [
+        "SCM-00-T01",
+        "SCM-00-T02",
+        "SCM-00-T03",
+        "SCM-00-T04"
+      ]
+    },
+    {
+      "id": "SCM-01",
+      "current_spec": "goals/SCM-01.md",
+      "acceptance_ids": [
+        "SCM-01-T01",
+        "SCM-01-T02",
+        "SCM-01-T03",
+        "SCM-01-T04",
+        "SCM-01-T05",
+        "SCM-01-T06",
+        "SCM-01-T07",
+        "SCM-01-T08"
+      ]
+    },
+    {
+      "id": "SCM-02",
+      "current_spec": "goals/SCM-02.md",
+      "acceptance_ids": [
+        "SCM-02-T01",
+        "SCM-02-T02",
+        "SCM-02-T03",
+        "SCM-02-T04",
+        "SCM-02-T05",
+        "SCM-02-T06",
+        "SCM-02-T07",
+        "SCM-02-T08"
+      ]
+    },
+    {
+      "id": "SCM-03",
+      "current_spec": "goals/SCM-03.md",
+      "acceptance_ids": [
+        "SCM-03-T01",
+        "SCM-03-T02",
+        "SCM-03-T03",
+        "SCM-03-T04",
+        "SCM-03-T05",
+        "SCM-03-T06",
+        "SCM-03-T07",
+        "SCM-03-T08"
+      ]
+    },
+    {
+      "id": "SCM-04",
+      "current_spec": "goals/SCM-04.md",
+      "acceptance_ids": [
+        "SCM-04-T01",
+        "SCM-04-T02",
+        "SCM-04-T03",
+        "SCM-04-T04",
+        "SCM-04-T05",
+        "SCM-04-T06",
+        "SCM-04-T07",
+        "SCM-04-T08"
+      ]
+    },
+    {
+      "id": "SCM-05",
+      "current_spec": "goals/SCM-05.md",
+      "acceptance_ids": [
+        "SCM-05-T01",
+        "SCM-05-T02",
+        "SCM-05-T03",
+        "SCM-05-T04",
+        "SCM-05-T05",
+        "SCM-05-T06",
+        "SCM-05-T07",
+        "SCM-05-T08"
+      ]
+    },
+    {
+      "id": "SCM-06",
+      "current_spec": "goals/SCM-06.md",
+      "acceptance_ids": [
+        "SCM-06-T01",
+        "SCM-06-T02",
+        "SCM-06-T03",
+        "SCM-06-T04",
+        "SCM-06-T05",
+        "SCM-06-T06",
+        "SCM-06-T07",
+        "SCM-06-T08"
+      ]
+    },
+    {
+      "id": "SCM-07",
+      "current_spec": "goals/SCM-07.md",
+      "acceptance_ids": [
+        "SCM-07-T01",
+        "SCM-07-T02",
+        "SCM-07-T03",
+        "SCM-07-T04",
+        "SCM-07-T05",
+        "SCM-07-T06"
+      ]
+    },
+    {
+      "id": "SCM-08",
+      "current_spec": "goals/SCM-08.md",
+      "acceptance_ids": [
+        "SCM-08-T01",
+        "SCM-08-T02",
+        "SCM-08-T03",
+        "SCM-08-T04",
+        "SCM-08-T05"
+      ]
+    }
+  ],
+  "frontend_packages": [
+    {
+      "id": "LFE-00",
+      "current_spec": "frontend/LFE-00.md",
+      "backend": [
+        "BASE"
+      ]
+    },
+    {
+      "id": "LFE-01",
+      "current_spec": "frontend/LFE-01.md",
+      "backend": [
+        "PS-01",
+        "B-PERSONAL"
+      ]
+    },
+    {
+      "id": "LFE-02",
+      "current_spec": "frontend/LFE-02.md",
+      "backend": [
+        "SMC-M03",
+        "B-ARTIFACTS"
+      ]
+    },
+    {
+      "id": "LFE-03",
+      "current_spec": "frontend/LFE-03.md",
+      "backend": [
+        "S1-06",
+        "B-IMAGES"
+      ]
+    },
+    {
+      "id": "LFE-04",
+      "current_spec": "frontend/LFE-04.md",
+      "backend": [
+        "S1-07",
+        "B-PROTOTYPE"
+      ]
+    },
+    {
+      "id": "LFE-05",
+      "current_spec": "frontend/LFE-05.md",
+      "backend": [
+        "S1-08",
+        "B-CONTEXT"
+      ]
+    },
+    {
+      "id": "LFE-06",
+      "current_spec": "frontend/LFE-06.md",
+      "backend": [
+        "SCM-01",
+        "SCM-02",
+        "SCM-03"
+      ]
+    },
+    {
+      "id": "LFE-07",
+      "current_spec": "frontend/LFE-07.md",
+      "backend": [
+        "SCM-04",
+        "SCM-05"
+      ]
+    },
+    {
+      "id": "LFE-08",
+      "current_spec": "frontend/LFE-08.md",
+      "backend": [
+        "SCM-06",
+        "B-PREVIEW"
+      ]
+    },
+    {
+      "id": "LFE-09",
+      "current_spec": "frontend/LFE-09.md",
+      "backend": [
+        "SCM-06",
+        "SCM-07",
+        "B-PUSH"
+      ]
+    },
+    {
+      "id": "LFE-10",
+      "current_spec": "frontend/LFE-10.md",
+      "backend": [
+        "S2-02",
+        "S2-03",
+        "B-MUTATIONS"
+      ]
+    },
+    {
+      "id": "LFE-11",
+      "current_spec": "frontend/LFE-11.md",
+      "backend": [
+        "S2-05",
+        "B-PARTICIPATION"
+      ]
+    },
+    {
+      "id": "LFE-12",
+      "current_spec": "frontend/LFE-12.md",
+      "backend": [
+        "S2-06",
+        "S3-04",
+        "B-CONNECTORS"
+      ]
+    },
+    {
+      "id": "LFE-13",
+      "current_spec": "frontend/LFE-13.md",
+      "backend": [
+        "SCM-07",
+        "SCM-08",
+        "S3-02",
+        "S3-03",
+        "S3-04"
+      ]
+    },
+    {
+      "id": "LFE-14",
+      "current_spec": "frontend/LFE-14.md",
+      "backend": [
+        "PA-00",
+        "PA-01",
+        "PS-01"
+      ]
+    },
+    {
+      "id": "LFE-15",
+      "current_spec": "frontend/LFE-15.md",
+      "backend": [
+        "PA-02"
+      ]
+    },
+    {
+      "id": "LFE-16",
+      "current_spec": "frontend/LFE-16.md",
+      "backend": [
+        "PA-03",
+        "PA-04"
+      ]
+    }
+  ],
+  "new_goals": [
+    {
+      "id": "SMC-M03",
+      "current_spec": "goals/SMC-M03.md"
+    },
+    {
+      "id": "PS-01",
+      "current_spec": "goals/PS-01.md"
+    },
+    {
+      "id": "PA-00",
+      "current_spec": "goals/PA-00.md"
+    },
+    {
+      "id": "PA-01",
+      "current_spec": "goals/PA-01.md"
+    },
+    {
+      "id": "PA-02",
+      "current_spec": "goals/PA-02.md"
+    },
+    {
+      "id": "PA-03",
+      "current_spec": "goals/PA-03.md"
+    },
+    {
+      "id": "PA-04",
+      "current_spec": "goals/PA-04.md"
+    }
+  ],
+  "scope_inventory": [
+    {
+      "scope": "Room/voice/text and current living brief",
+      "goals": [
+        "BASE",
+        "SMC-M03",
+        "S2-05"
+      ],
+      "disposition": "Merged foundation preserved; broader follow/vision remains retained work."
+    },
+    {
+      "scope": "Research reports, PDF, Knowledge and resource accounting",
+      "goals": [
+        "SMC-M03"
+      ],
+      "disposition": "Continue existing PR32; source-ready does not prove live/hosted."
+    },
+    {
+      "scope": "Google/OpenAI image generation and selection",
+      "goals": [
+        "S1-06"
+      ],
+      "disposition": "Retain both real routes with intentional comparison and actual bytes."
+    },
+    {
+      "scope": "Editable runnable prototype and source handoff",
+      "goals": [
+        "S1-07"
+      ],
+      "disposition": "Luis Preview/Source/Diff, source CAS and isolated build retained."
+    },
+    {
+      "scope": "Prior knowledge, coverage and correction",
+      "goals": [
+        "S1-08",
+        "PA-01",
+        "PA-02"
+      ],
+      "disposition": "Manual selected import plus private assistant collection; no ambient personal recall."
+    },
+    {
+      "scope": "Three owner-native resources",
+      "goals": [
+        "SCM-02"
+      ],
+      "disposition": "Davide Codex/Claude, Luis Claude; no replacement by Grok."
+    },
+    {
+      "scope": "Peer dialogue, Hold/Stop and recovery",
+      "goals": [
+        "SCM-03",
+        "PA-01",
+        "PA-04"
+      ],
+      "disposition": "Native controls and external async capabilities remain distinct."
+    },
+    {
+      "scope": "Lead plans, evidence review and resource windows",
+      "goals": [
+        "SCM-04",
+        "SCM-05"
+      ],
+      "disposition": "Paperclip lifecycle plus dsh semantics, no duplicate scheduler."
+    },
+    {
+      "scope": "Actual app co-review and change/preserve",
+      "goals": [
+        "SCM-06",
+        "PA-03"
+      ],
+      "disposition": "Native steering and optional external visual review have independent evidence."
+    },
+    {
+      "scope": "Report/HTML/deck/PPTX families",
+      "goals": [
+        "S1-13"
+      ],
+      "disposition": "M03 PDF reused; deck/raster PPTX still explicit."
+    },
+    {
+      "scope": "Full founder release",
+      "goals": [
+        "S1-14"
+      ],
+      "disposition": "Narrow SCM outcome does not close original full product scope."
+    },
+    {
+      "scope": "Precise source editing and scenarios",
+      "goals": [
+        "S2-02",
+        "S2-03"
+      ],
+      "disposition": "Not reduced to prompt-only preservation or model replay."
+    },
+    {
+      "scope": "Attention/mobile and native owner requests",
+      "goals": [
+        "S2-01",
+        "S2-04"
+      ],
+      "disposition": "Required/optional/quiet/control semantics preserved."
+    },
+    {
+      "scope": "Consented following and navigation",
+      "goals": [
+        "S2-05"
+      ],
+      "disposition": "Actual track attribution, grants and visible controls; no always-listening default."
+    },
+    {
+      "scope": "Later structured connectors and exports",
+      "goals": [
+        "S2-06",
+        "S3-04"
+      ],
+      "disposition": "Not displaced by personal Bot ingestion."
+    },
+    {
+      "scope": "Standing mandate and return",
+      "goals": [
+        "SCM-07"
+      ],
+      "disposition": "One bounded continuation owner; no schedule is installed by documents."
+    },
+    {
+      "scope": "Native app implementer",
+      "goals": [
+        "S3-02"
+      ],
+      "disposition": "Actual data/UI feature, not a prototype or read-only review."
+    },
+    {
+      "scope": "Measured adaptive recipes and learning",
+      "goals": [
+        "S3-03",
+        "SCM-08"
+      ],
+      "disposition": "Current registry, evidence, exact approval and rollback."
+    },
+    {
+      "scope": "Personal foundation and private job sharing",
+      "goals": [
+        "PS-01",
+        "PA-01",
+        "PA-02"
+      ],
+      "disposition": "Separate from live Companion; exact private-to-team publication."
+    },
+    {
+      "scope": "One Bot template and tool/message integration",
+      "goals": [
+        "PA-00",
+        "PA-01"
+      ],
+      "disposition": "No provider provisioning or zero-setup claim."
+    },
+    {
+      "scope": "Cross-owner Bot cooperation",
+      "goals": [
+        "PA-04"
+      ],
+      "disposition": "Retained later; purpose/access value rather than duplicate generic research."
+    },
+    {
+      "scope": "Deferred organizational route",
+      "goals": [],
+      "disposition": "Workspace Agents retained in deferred ledger; no v1 activation."
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Immutable admitted execution recipe",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.execution.recipe.v1"
+    },
+    "snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "recipe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "recipe_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "runtime_unit": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "adapter_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "preset_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "preset_definition_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "requested": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "resolved": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "billing_route_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "required": [
+        "provider",
+        "requested",
+        "resolved",
+        "observed",
+        "reasoning_effort",
+        "billing_route_ref"
+      ]
+    },
+    "capability_set_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "context_manifest_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "eligibility_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "grant_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "cumulative_allowance_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "allowed_tools": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    },
+    "skill_hashes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "child_policy": {
+      "enum": [
+        "disabled",
+        "bounded_inherited"
+      ]
+    },
+    "configuration_change_boundary": {
+      "enum": [
+        "new_episode",
+        "qualified_safe_boundary"
+      ]
+    },
+    "qualification_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "recipe_id",
+    "recipe_version",
+    "runtime_unit",
+    "adapter_version",
+    "preset_id",
+    "preset_definition_sha256",
+    "model",
+    "capability_set_ref",
+    "context_manifest_ref",
+    "eligibility_revision",
+    "grant_ref",
+    "cumulative_allowance_ref",
+    "allowed_tools",
+    "skill_hashes",
+    "child_policy",
+    "configuration_change_boundary",
+    "qualification_ref",
+    "created_at"
+  ]
+}

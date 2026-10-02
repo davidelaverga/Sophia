@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Revision-bound human work decision",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.work.decision.v1"
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "work_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "kind": {
+      "enum": [
+        "steer_capacity",
+        "plan_change",
+        "candidate_acceptance",
+        "owner_required_action",
+        "handover"
+      ]
+    },
+    "command_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidate_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "snapshot_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "uniqueItems": true,
+      "maxItems": 200
+    },
+    "decider_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "state": {
+      "enum": [
+        "proposed",
+        "accepted",
+        "declined",
+        "expired",
+        "superseded"
+      ]
+    },
+    "choices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 6
+    },
+    "selected_choice": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resolved_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resolution_receipt_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "decision_id",
+    "revision",
+    "project_id",
+    "work_id",
+    "work_revision",
+    "kind",
+    "command_id",
+    "candidate_ref",
+    "snapshot_refs",
+    "decider_id",
+    "state",
+    "choices",
+    "selected_choice",
+    "created_at",
+    "expires_at",
+    "resolved_at",
+    "resolution_receipt_ref"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "accepted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "selected_choice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "resolved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolution_receipt_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "steer_capacity"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        }
+      }
+    }
+  ]
+}
