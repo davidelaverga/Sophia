@@ -53,9 +53,12 @@ function useLeaveBehindClosedDoor(blocked: Blocked | null, room: ProjectRoom) {
   }, [closed])
 }
 
-/** The tab names the project and counts who waits at its door, so a tab in the background still calls. */
-function useTabTitle(snapshot: Snapshot | undefined) {
-  const waiting = snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0
+/**
+ * The tab names the project and counts what waits: who is at its door, and the requests waiting on this person in
+ * their tools (`resourcesWaiting`), so a tab in the background still calls.
+ */
+function useTabTitle(snapshot: Snapshot | undefined, resourcesWaiting = 0) {
+  const waiting = (snapshot?.lobby.filter((e) => e.status === 'waiting').length ?? 0) + resourcesWaiting
   useDocumentTitle(snapshot ? projectTitle(snapshot.title, waiting) : null)
 }
 
@@ -134,6 +137,8 @@ interface Props {
    * it is coming. The resource fixture fills it (fixtures/resources.tsx).
    */
   resources?: React.ReactNode
+  /** Requests waiting on this person in their own tools (ResourcePanel's actions): counted in the tab's title. */
+  resourcesWaiting?: number
 }
 
 /**
@@ -185,7 +190,7 @@ function useJoinOnOpen(room: ProjectRoom, joinOnOpen: boolean, onHandled: (() =>
 
 /** What the shell does for the rest of the app: its tab title while on screen, its call reported, a join on arrival. */
 function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: ProjectRoom) {
-  useTabTitle(props.background ? undefined : snapshot)
+  useTabTitle(props.background ? undefined : snapshot, props.resourcesWaiting)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   useReportCall(props.projectId, snapshot?.title, room, looking, props.onCall)
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)

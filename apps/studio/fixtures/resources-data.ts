@@ -163,6 +163,19 @@ export const actions: RequiredAction[] = [
   },
 ]
 
+/** A request that comes to wait while the page is open (resourcesFixture.addRequest): Codex asks Davide to edit. */
+export const arriving = (n: number): RequiredAction => ({
+  id: `action-arriving-${n}`,
+  workId: 'work-2',
+  resourceId: 'davide-codex',
+  sessionId: 'codex-reviewer',
+  ownerId: 'davide',
+  operation: 'Edit a file: apps/studio/src/features/report/ReportPane.tsx',
+  deadline: at(30),
+  state: 'open',
+  openTarget: null,
+})
+
 /**
  * `more=1`: two more tools, to see the panel past the three enrollments the continuation names. A Grok session on
  * Davide's xAI account with no reading yet, and a Gemini CLI session on Luis's Google account that reports a balance.

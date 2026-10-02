@@ -416,6 +416,72 @@ test('arrow keys move across the tiles; Tab leaves the grid in one step', async 
   await expect(grid(page).getByRole('button').and(page.locator(':focus'))).toHaveCount(0)
 })
 
+test('live · ages and countdowns move on while the page is open, and a tick flashes nothing', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(PAGE)
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude).toContainText('resets in 55 min')
+  await page.clock.fastForward('01:00')
+  await expect(claude).toContainText('resets in 54 min')
+  // Read once, inside the time a flash would last: the words moved, not the state, so no tile says it changed.
+  await page.waitForTimeout(300)
+  expect(await grid(page).locator('[data-changed]').count()).toBe(0)
+  await open(page, 'Davide · Codex')
+  await expect(sheet(page, 'Davide · Codex').getByText('Host online')).toBeVisible()
+  await expect(sheet(page, 'Davide · Codex').locator('.resource-host time')).toHaveText('3 min ago')
+})
+
+test('live · a request that comes to wait flashes its tile, says so, and counts in the tab', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  await expect(page).toHaveTitle('(1) Fixture project · Sophia') // Davide's Claude Code waits on him
+  await page.evaluate(() => window.resourcesFixture?.addRequest?.())
+  await expect(page).toHaveTitle('(2) Fixture project · Sophia')
+  const codex = tile(page, 'Davide · Codex')
+  await expect(codex).toHaveAttribute('data-changed', 'true')
+  await expect(codex.getByText('1 waiting')).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'waits on you' }).getByRole('button')).toHaveCount(2)
+  await expect(codex).not.toHaveAttribute('data-changed') // said once, then it rests
+  await expect(tile(page, 'Davide · Claude Code')).not.toHaveAttribute('data-changed') // nothing changed there
+  // Another one for the same tool: the light runs along its line again.
+  const sweep = () =>
+    page
+      .getByRole('button', { name: /2 requests wait on you|1 request waits on you Codex/ })
+      .locator('.attention-label')
+      .evaluate((el) => el.getAnimations()[0]?.playState ?? 'none')
+  await expect.poll(sweep).toBe('finished')
+  await page.evaluate(() => window.resourcesFixture?.addRequest?.())
+  await expect(page.getByRole('button', { name: /2 requests wait on you/ })).toBeVisible()
+  expect(await sweep()).toBe('running')
+})
+
+test('live · what waits on someone else is not counted in this viewer’s tab', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+  await page.evaluate(() => window.resourcesFixture?.addRequest?.())
+  await expect(tile(page, 'Davide · Codex').getByText('1 waiting')).toBeVisible()
+  await expect(page).toHaveTitle('Fixture project · Sophia')
+})
+
+test('live · a host that goes offline flashes its tile and steps back', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.evaluate(() => window.resourcesFixture?.setHost?.('davide-codex', 'offline'))
+  const codex = tile(page, 'Davide · Codex')
+  await expect(codex).toHaveAttribute('data-changed', 'true')
+  await expect(codex).toHaveAttribute('data-host', 'offline')
+})
+
+test('live · while the resources are read, placeholders hold their places', async ({ page }) => {
+  await page.goto(`${PAGE}?loading=1`)
+  const busy = page.locator('.resource-placeholders')
+  await expect(busy).toHaveAttribute('aria-busy', 'true')
+  await expect(busy.locator('.resource-placeholder')).toHaveCount(6)
+  await expect(page.getByRole('status').filter({ hasText: 'Reading the resources…' })).toBeAttached()
+  await expect(page.locator('.view-head .count')).toHaveText('–')
+  await expect(page.getByRole('list', { name: 'Resources' })).toHaveCount(0)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(busy.locator('.resource-placeholder > span').first()).toHaveCSS('animation-name', 'none')
+})
+
 test('the viewer’s own resource says so', async ({ page }) => {
   await page.goto(PAGE)
   await expect(tile(page, 'Luis · Claude Code').getByText('You', { exact: true })).toBeVisible()

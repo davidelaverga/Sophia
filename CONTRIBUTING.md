@@ -455,7 +455,11 @@ when you change the room:
   limit). Owners show as the app's `Avatar`; each tool has its own colour.
   The filter and order are kept per viewer in this browser (`prefs.ts`); a
   sheet's address is `#resource-<id>` (`link.ts`); arrow keys move across
-  the tiles, one Tab stop for the grid.
+  the tiles, one Tab stop for the grid. The view's clock moves on once a
+  minute (`clock.ts`); a tile whose state changes flashes once; the tab
+  counts requests waiting on the viewer (`ProjectShell`'s `resourcesWaiting`);
+  `loading=1` shows placeholders. The fixture is live: `addRequest()` and
+  `setHost(id, state)` on `window.resourcesFixture`.
 
 ## The personal space
 
