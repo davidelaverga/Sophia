@@ -24,16 +24,15 @@ interface TileProps {
   chosen: boolean
   focusable: boolean
   images: VerifiedImages
-  attempt: number
   onOpen: () => void
   onKey: (e: React.KeyboardEvent) => void
   tile: (el: HTMLButtonElement | null) => void
 }
 
-function CandidateTile({ candidate, n, chosen, focusable, images, attempt, onOpen, onKey, tile }: TileProps) {
+function CandidateTile({ candidate, n, chosen, focusable, images, onOpen, onKey, tile }: TileProps) {
   const state = STATE[candidate.state]
   const [watch, near] = useNearScreen()
-  const shown = useVerifiedImage(candidate.asset, images, near, attempt)
+  const shown = useVerifiedImage(candidate.asset, images, near)
   return (
     <li>
       <button
@@ -89,7 +88,6 @@ function useRovingTiles(count: number) {
 
 export function DirectionGallery({ direction, role, read, onChoose }: Props) {
   const images = useVerifiedImages(read)
-  const [attempt, setAttempt] = useState(0)
   const serial = useSerialChoice(direction.revision, onChoose)
   const [open, setOpen] = useState<string | null>(null)
   const { candidates } = direction
@@ -98,8 +96,6 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
   const detail = candidates[opened]
   const back = () => {
     setOpen(null)
-    // The tiles check again: one whose read failed shows what was read up close meanwhile (from the shared checks).
-    setAttempt((a) => a + 1)
     refocus(opened)
   }
   return (
@@ -115,7 +111,6 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
               chosen={direction.chosenId === c.id}
               focusable={i === focus}
               images={images}
-              attempt={attempt}
               onOpen={() => {
                 setFocus(i)
                 setOpen(c.id)
@@ -135,8 +130,6 @@ export function DirectionGallery({ direction, role, read, onChoose }: Props) {
           n={opened + 1}
           role={role}
           images={images}
-          attempt={attempt}
-          onRetry={() => setAttempt((a) => a + 1)}
           serial={serial}
           onBack={back}
         />

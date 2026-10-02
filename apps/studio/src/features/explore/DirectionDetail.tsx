@@ -15,9 +15,6 @@ interface Props {
   role: Membership['role'] | undefined
   /** The gallery's checks: an image its tile already read isn't read again. */
   images: VerifiedImages
-  /** Moves with each Try again: images that couldn't be read are read again. */
-  attempt: number
-  onRetry: () => void
   /** The gallery's one choice at a time. */
   serial: SerialChoice
   onBack: () => void
@@ -60,11 +57,11 @@ function ChooseButton({ direction, candidate, role, serial, shown, onChosen }: C
 }
 
 export function DirectionDetail(props: Props) {
-  const { direction, candidate, n, images, attempt, onRetry, onBack } = props
+  const { direction, candidate, n, images, onBack } = props
   const back = useRef<HTMLButtonElement>(null)
   useEffect(() => back.current?.focus({ preventScroll: true }), [])
   const state = STATE[candidate.state]
-  const shown = useVerifiedImage(candidate.asset, images, true, attempt)
+  const shown = useVerifiedImage(candidate.asset, images, true)
   return (
     <section
       className="direction-detail"
@@ -89,7 +86,12 @@ export function DirectionDetail(props: Props) {
         <div className="direction-detail-side">
           <div className="direction-choice" role="status">
             {shown?.kind === 'unreadable' && (
-              <button type="button" className="pill" onClick={onRetry}>
+              // Reads this image again, and only this one.
+              <button
+                type="button"
+                className="pill"
+                onClick={() => candidate.asset && void images.check(candidate.asset)}
+              >
                 Try again
               </button>
             )}

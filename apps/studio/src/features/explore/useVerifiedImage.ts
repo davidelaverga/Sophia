@@ -17,12 +17,16 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+const keyOf = (asset: ImageAsset) => `${asset.id}:${asset.sha256}`
+
 /**
  * One check per asset, shared by its tile and its detail; `dispose` drops them all and frees their pictures. A read
- * that failed isn't kept: the next check reads again. A mismatch is kept: those bytes won't change.
+ * that failed isn't kept: the next check of that asset (opening it, or its Try again) reads again, and every view of
+ * that asset hears how it went. Nothing reads any other asset meanwhile. A mismatch is kept: those bytes won't change.
  */
 export class VerifiedImages {
   private readonly checks = new Map<string, Promise<Checked>>()
+  private readonly views = new Map<string, Set<(checked: Checked) => void>>()
   private readonly urls = new Set<string>()
   /** Moves on each dispose: a check that settles after it keeps no picture. */
   private generation = 0
@@ -35,15 +39,26 @@ export class VerifiedImages {
   }
 
   check(asset: ImageAsset): Promise<Checked> {
-    const key = `${asset.id}:${asset.sha256}`
+    const key = keyOf(asset)
     const known = this.checks.get(key)
     if (known) return known
     const started = this.verify(asset, this.generation)
     this.checks.set(key, started)
-    void started.then(
-      (done) => done.kind === 'unreadable' && this.checks.get(key) === started && this.checks.delete(key),
-    )
+    void started.then((done) => {
+      if (this.checks.get(key) !== started) return
+      if (done.kind === 'unreadable') this.checks.delete(key)
+      for (const view of this.views.get(key) ?? []) view(done)
+    })
     return started
+  }
+
+  /** Hears every check of this asset that settles from now on, whichever view asked; returns the way to stop. */
+  watch(asset: ImageAsset, view: (checked: Checked) => void): () => void {
+    const key = keyOf(asset)
+    const views = this.views.get(key) ?? new Set()
+    views.add(view)
+    this.views.set(key, views)
+    return () => views.delete(view)
   }
 
   hold(): void {
@@ -86,24 +101,21 @@ export function useVerifiedImages(read: ReadBytes): VerifiedImages {
 }
 
 /**
- * `wanted`: read the bytes now; until then the image waits, unread. `attempt` moves with each Try again: an image that
- * couldn't be read is read again, and one already shown stays as it is.
+ * `wanted`: read the bytes now; until then the image waits, unread. Once wanted, this view also hears any later check
+ * of the same asset: a tile shows what its detail read, and both show a Try again's outcome.
  */
-export function useVerifiedImage(
-  asset: ImageAsset | null,
-  images: VerifiedImages,
-  wanted: boolean,
-  attempt: number,
-): Shown | null {
+export function useVerifiedImage(asset: ImageAsset | null, images: VerifiedImages, wanted: boolean): Shown | null {
   const [shown, setShown] = useState<Shown>({ kind: 'checking' })
   useEffect(() => {
     if (!asset || !wanted) return undefined
     const run = { live: true }
-    setShown((now) => (now.kind === 'shown' ? now : { kind: 'checking' }))
+    const stop = images.watch(asset, (next) => run.live && setShown(next))
+    setShown({ kind: 'checking' })
     void images.check(asset).then((next) => run.live && setShown(next))
     return () => {
       run.live = false
+      stop()
     }
-  }, [asset, images, wanted, attempt])
+  }, [asset, images, wanted])
   return asset ? shown : null
 }
