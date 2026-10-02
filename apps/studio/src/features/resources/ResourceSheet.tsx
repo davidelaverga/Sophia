@@ -19,6 +19,7 @@ import {
   type Support,
 } from './resource.ts'
 import { CopyLink } from './CopyLink.tsx'
+import { EffortMeter } from './EffortMeter.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
@@ -50,16 +51,14 @@ function Since({ at, now }: { at: string | null; now: Date }) {
   )
 }
 
-function SessionRow({ session }: { session: Session }) {
-  const effort = session.effort && `${session.effort} effort`
+function SessionRow({ session, tool }: { session: Session; tool: Resource['tool'] }) {
   const work = session.assignment
   return (
     <li className="resource-session">
       <span className="resource-role">{session.role}</span>
       <span className="resource-model">
-        {session.model && <ModelChip model={session.model} />}
-        {effort && <span className="resource-effort">{effort}</span>}
-        {!session.model && !effort && 'Model not reported'}
+        {session.model ? <ModelChip model={session.model} /> : 'Model not reported'}
+        {session.effort && <EffortMeter effort={session.effort} tool={tool} mode={session.mode} />}
       </span>
       {work ? (
         <span className="resource-work">
@@ -158,7 +157,7 @@ export function ResourceSheet({ resource, observation, earlier, actions, viewerI
           <h3 id="sessions-title">Sessions</h3>
           <ul className="resource-sessions" aria-label="Sessions">
             {resource.sessions.map((s) => (
-              <SessionRow key={s.id} session={s} />
+              <SessionRow key={s.id} session={s} tool={resource.tool} />
             ))}
           </ul>
         </section>

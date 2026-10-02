@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
 // Resources view, on the labelled simulated fixture page (fixtures/resources.html). Each resource is a tile; its
@@ -60,7 +60,7 @@ test('LFE-06.1 · the three enrollments as tiles; a sheet holds the owner, host,
   await expect(tile(page, 'Davide · Codex')).toContainText('Review the report pane') // what it does, on the tile
   const codex = await open(page, 'Davide · Codex')
   await expect(codex.getByText('Host online')).toBeVisible()
-  await expect(codex.getByText('Model not reported')).toBeVisible() // nothing reported, nothing made up
+  await expect(codex.locator('.model-chip')).toHaveText('GPT-6.1 Sol')
   const session = codex.getByRole('listitem').filter({ hasText: 'Review the report pane' })
   await expect(session.getByText('Working', { exact: true })).toBeVisible()
   const controls = codex.getByRole('list', { name: 'Controls' }).getByRole('listitem')
@@ -78,10 +78,11 @@ test('LFE-06.1 · the three enrollments as tiles; a sheet holds the owner, host,
   const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
   await expect(worker.locator('.model-chip')).toHaveText('Opus 5.5') // as people say it
   await expect(worker.locator('.model-chip')).toHaveAttribute('title', 'claude-opus-5-5') // its exact id on hover
-  await expect(worker.getByText('high effort')).toBeVisible()
+  await expect(worker.getByRole('meter', { name: 'Effort' })).toHaveAttribute('aria-valuetext', 'Ultracode')
   await page.getByRole('button', { name: 'Close' }).click()
   const luis = await open(page, 'Luis · Claude Code')
   await expect(luis.getByText('Host unknown')).toBeVisible()
+  await expect(luis.getByText('Model not reported')).toBeVisible() // nothing reported, nothing made up
   const age = luis.locator('time')
   await expect(age).toHaveText('3 h ago') // the host's age, and the exact time on hover
   await expect(age).toHaveAttribute('title', 'Fri, 02 Oct 2026 09:00:00 GMT')
@@ -178,7 +179,7 @@ test('what waits on an owner is one line on top, and it opens that resource', as
     'Online 1 waiting Opus 5.5 Implement the PDF retry · 2 sessions 5-hour window: 63% used, resets in 55 min',
   )
   await expect(tile(page, 'Luis · Claude Code')).toHaveAccessibleDescription(
-    'Unknown You Haiku 4.5 No assignment Capacity unknown',
+    'Unknown You No assignment Capacity unknown',
   )
   await expect(tile(page, 'Davide · Codex').getByText(/waiting/)).toHaveCount(0) // none waiting
   await line.click()
@@ -512,12 +513,12 @@ test('each session’s model shows as people say it, in its family’s colour; n
   const chip = (name: string) => tile(page, name).locator('.model-chip')
   await expect(chip('Davide · Claude Code')).toHaveText('Opus 5.5')
   await expect(chip('Luis · Gemini CLI')).toHaveText('Gemini 2.5 Pro')
-  await expect(chip('Luis · Claude Code')).toHaveText('Haiku 4.5')
+  await expect(chip('Davide · Codex')).toHaveText('GPT-6.1 Sol')
   await expect(chip('Davide · Grok')).toHaveText('Grok 4')
-  await expect(chip('Davide · Codex')).toHaveCount(0) // Codex reported no model: none is made up
+  await expect(chip('Luis · Claude Code')).toHaveCount(0) // its host reported no model: none is made up
   const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--model').trim())
   const colours = await Promise.all(
-    ['Davide · Claude Code', 'Luis · Gemini CLI', 'Luis · Claude Code', 'Davide · Grok'].map(colour),
+    ['Davide · Claude Code', 'Luis · Gemini CLI', 'Davide · Codex', 'Davide · Grok'].map(colour),
   )
   expect(new Set(colours).size, 'four families, four colours').toBe(4)
   const neutral = await page.evaluate(() =>
@@ -551,6 +552,39 @@ test('a window’s readings over time, in its sheet: one window, since its reset
   await page.keyboard.press('Escape')
   await open(page, 'Luis · Claude Code') // only the latest reading, and an unknown one: nothing to draw
   await expect(capacity(page, 'Luis · Claude Code').locator('.capacity-history')).toHaveCount(0)
+})
+
+const effortOf = (row: Locator) => row.locator('.effort')
+const animationOf = (el: Locator, pseudo = '') =>
+  el.evaluate((n, p) => getComputedStyle(n, p || null).animationName, pseudo)
+
+test('each session’s effort in its tool’s own look: Claude alive in ultracode, GPT at ultra', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  await open(page, 'Davide · Claude Code') // ultracode: the setting itself, the bar full and alive
+  const claude = effortOf(sheet(page, 'Davide · Claude Code').getByRole('listitem').filter({ hasText: 'worker' }))
+  await expect(claude).toHaveAttribute('data-look', 'claude')
+  await expect(claude).toHaveAttribute('data-alive', 'true')
+  await expect(claude.getByRole('meter', { name: 'Effort' })).toHaveAttribute('aria-valuenow', '5')
+  await expect(claude.locator('.effort-label')).toHaveText('Ultracode') // alone: not a level beside it
+  await expect(claude.getByText('High')).toHaveCount(0)
+  expect(await animationOf(claude.locator('.effort-fill'))).toBe('effort-glint')
+  await page.keyboard.press('Escape')
+  await open(page, 'Davide · Codex') // GPT's ultra, its top level
+  const codex = effortOf(sheet(page, 'Davide · Codex').getByRole('listitem').filter({ hasText: 'reviewer' }))
+  await expect(codex).toHaveAttribute('data-look', 'gpt')
+  await expect(codex.getByRole('meter', { name: 'Effort' })).toHaveAttribute('aria-valuetext', 'Ultra')
+  expect(await animationOf(codex.locator('.effort-fill'), '::after')).toBe('effort-sparks, effort-twinkle')
+  await page.keyboard.press('Escape')
+  await open(page, 'Luis · Gemini CLI') // high, and no look of its own: a plain bar, still
+  const gemini = effortOf(sheet(page, 'Luis · Gemini CLI').getByRole('listitem').filter({ hasText: 'worker' }))
+  await expect(gemini).toHaveAttribute('data-look', 'plain')
+  await expect(gemini).not.toHaveAttribute('data-alive')
+  expect(await animationOf(gemini.locator('.effort-fill'))).toBe('none')
+  await page.keyboard.press('Escape')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await open(page, 'Davide · Claude Code')
+  expect(await animationOf(claude.locator('.effort-fill'))).toBe('none')
+  expect(await animationOf(claude.locator('.effort-track'), '::after')).toBe('none')
 })
 
 test('the viewer’s own resource says so', async ({ page }) => {

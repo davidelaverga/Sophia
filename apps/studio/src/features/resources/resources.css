@@ -324,6 +324,107 @@
   flex-basis: 100%;
 }
 
+/* A session's effort in its tool's own look (EffortMeter): Claude's dotted scale, GPT's gradient, a plain bar for the
+   others. At the tool's top level (Claude's max, the ultracode mode; GPT's ultra) it comes alive, quietly. */
+.effort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.effort-track {
+  position: relative;
+  width: 96px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(236, 235, 241, 0.04);
+}
+.effort-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 55%, transparent);
+}
+.effort-label {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.effort[data-alive] .effort-label {
+  color: var(--text-2);
+}
+.effort[data-look='claude'][data-alive] .effort-label {
+  color: #b3a3f5;
+}
+/* Claude: a scale of dots, grey turning lavender; at max a glint runs along them and a few dots twinkle. */
+.effort[data-look='claude'] .effort-track {
+  background:
+    radial-gradient(circle, rgba(236, 235, 241, 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
+    rgba(236, 235, 241, 0.02);
+}
+.effort[data-look='claude'] .effort-fill {
+  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3), #b3a3f5);
+  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+}
+.effort[data-look='claude'][data-alive] .effort-fill {
+  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3) 0%, #b3a3f5 38%, #f4f0ff 50%, #b3a3f5 62%) 0 0 / 250% 100%;
+  animation: effort-glint 2.6s linear infinite;
+}
+.effort[data-look='claude'][data-alive] .effort-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 25%, #e4dcff 0.9px, transparent 1.4px),
+    radial-gradient(circle at 62% 75%, #e4dcff 0.9px, transparent 1.4px),
+    radial-gradient(circle at 86% 25%, #e4dcff 0.9px, transparent 1.4px);
+  animation: effort-twinkle 1.8s ease-in-out infinite alternate;
+}
+/* GPT: a gradient from deep blue to violet; at ultra, sparks drift along it. */
+.effort[data-look='gpt'] .effort-fill {
+  background: linear-gradient(90deg, #2f4fd6, #7b61ff 60%, #b08cff);
+}
+.effort[data-look='gpt'][data-alive] .effort-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 10% 35%, #fff 0.6px, transparent 1.2px),
+    radial-gradient(circle at 32% 70%, #fff 0.5px, transparent 1.1px),
+    radial-gradient(circle at 55% 30%, #fff 0.6px, transparent 1.2px),
+    radial-gradient(circle at 78% 65%, #fff 0.5px, transparent 1.1px);
+  background-size: 50% 100%;
+  animation:
+    effort-sparks 4s linear infinite,
+    effort-twinkle 1.4s ease-in-out infinite alternate;
+}
+@keyframes effort-glint {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+@keyframes effort-twinkle {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes effort-sparks {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
 /* Nothing shown: said, with the ways back. */
 .resources-none {
   display: flex;
@@ -885,7 +986,10 @@
   .event.waiting.open .dot::after,
   .attention-label,
   .resource-sheet > *,
-  .resource-placeholder > span {
+  .resource-placeholder > span,
+  .effort[data-look][data-alive] .effort-fill,
+  .effort[data-look][data-alive] .effort-fill::after,
+  .effort[data-look][data-alive] .effort-track::after {
     animation: none;
   }
   .attention-label {
