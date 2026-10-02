@@ -1,8 +1,9 @@
-// One account's capacity, once, however many sessions use it: the limiting window in a line, and every window up
-// close on request, each with its own state, value and reset. Never a total across providers.
+// One account's capacity, once, however many sessions use it: the limiting window in a line with its meter, and every
+// window up close on request, each with its own state, value and reset. Never a total across providers.
 import { useId, useState } from 'react'
-import { Tag } from '@sophia/ui'
-import { ago, capacityLine, expired, windowView, type QuotaObservation } from './resource.ts'
+import { Icon, Tag } from '@sophia/ui'
+import { Meter } from './Meter.tsx'
+import { ago, capacity, expired, windowView, type QuotaObservation } from './resource.ts'
 
 /** A window that isn't observed says so as a tag, in words: never as a number. */
 const NOT_OBSERVED_TONE = { unknown: 'muted', refresh_pending: 'amber', expired: 'amber' } as const
@@ -27,6 +28,9 @@ function Windows({ observation, now }: { observation: QuotaObservation; now: Dat
             <dd>
               {v.state === 'observed' ? <span>{v.value}</span> : <Tag tone={NOT_OBSERVED_TONE[v.state]}>{v.value}</Tag>}
               {v.reset && <span className="capacity-reset">{v.reset}</span>}
+              {v.state === 'observed' && v.applies === 'known' && v.percent !== null && (
+                <Meter label={`${v.name} window`} percent={v.percent} value={v.value} />
+              )}
             </dd>
           </div>
         )
@@ -35,37 +39,58 @@ function Windows({ observation, now }: { observation: QuotaObservation; now: Dat
   )
 }
 
-export function CapacityBlock({ observation, sessions, reservePercent, now }: Props) {
+function Meta({ observation, sessions, reservePercent, now }: Props) {
+  const parts = [
+    sessions > 1 ? `shared by ${sessions} sessions` : null,
+    observation ? ago(observation.observed_at, now) : 'never observed',
+    reservePercent !== null ? `${reservePercent}% kept back` : null,
+  ]
+  return <p className="capacity-meta">{parts.filter(Boolean).join(' · ')}</p>
+}
+
+/** Every window of a reading, on request: "All 3 windows", or "Show window" for one. */
+function WindowsDisclosure({ observation, now }: { observation: QuotaObservation; now: Date }) {
   const [open, setOpen] = useState(false)
   const details = useId()
-  const known = observation && observation.coverage !== 'unavailable'
+  const count = observation.windows.length
+  return (
+    <>
+      <button
+        type="button"
+        className="text-button capacity-toggle"
+        aria-expanded={open}
+        aria-controls={details}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? 'Hide windows' : count === 1 ? 'Show window' : `All ${count} windows`}
+        <Icon name="chevron" />
+      </button>
+      <div id={details} hidden={!open}>
+        <Windows observation={observation} now={now} />
+      </div>
+    </>
+  )
+}
+
+export function CapacityBlock(props: Props) {
+  const { observation, now } = props
+  const { line, limiting, known } = capacity(observation, now)
+  const readable = observation && observation.coverage !== 'unavailable' && observation.windows.length > 0
+  const missing = observation?.missing_capabilities ?? []
   return (
     <div className="capacity" role="group" aria-label="Capacity">
-      <p className="capacity-line">{capacityLine(observation, now)}</p>
-      <p className="capacity-meta">
-        {sessions > 1 ? `${sessions} sessions share this account · ` : ''}
-        {observation ? `observed ${ago(observation.observed_at, now)}` : 'never observed'}
-        {reservePercent !== null ? ` · the owner keeps ${reservePercent}% back` : ''}
-      </p>
-      {known && observation.windows.length > 0 && (
-        <>
-          <button
-            type="button"
-            className="text-button"
-            aria-expanded={open}
-            aria-controls={details}
-            onClick={() => setOpen((o) => !o)}
-          >
-            {open ? 'Hide the windows' : 'Every window'}
-          </button>
-          <div id={details} hidden={!open}>
-            <Windows observation={observation} now={now} />
-          </div>
-        </>
+      <p className="capacity-line">{line}</p>
+      {/* A meter for a percentage; an empty, hatched track for what isn't known; nothing beside a balance. */}
+      {(limiting || !known) && (
+        <Meter
+          label={limiting ? `${limiting.name} window` : 'Capacity'}
+          percent={limiting?.percent ?? null}
+          value={line}
+        />
       )}
-      {observation && observation.missing_capabilities.length > 0 && (
-        <p className="capacity-missing">Not visible from this tool: {observation.missing_capabilities.join(', ')}.</p>
-      )}
+      <Meta {...props} />
+      {readable && <WindowsDisclosure observation={observation} now={now} />}
+      {missing.length > 0 && <p className="capacity-missing">Not reported: {missing.join(', ')}.</p>}
     </div>
   )
 }

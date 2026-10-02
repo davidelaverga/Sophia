@@ -26,6 +26,22 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   2. a pending reset, or an unknown window, while any window is unresolved;
   3. an observed balance, as reported;
   4. "No window observed" only for a reading with no windows.
+- **Attempt 4** ([handoff](../handoffs/LFE-06-attempt-4.md)): Luis's UX, quality-of-life and coherence pass.
+  - The panel now sits in the Studio's existing Resources view (`ProjectShell`'s `resources`; the fixture fills it), in the Work view's language: a list under the view's head, rows ruled like goals, and what waits on an owner in a side column like the pulse.
+  - Each tool shows its own mark.
+  - The owner copies a waiting request's session id.
+  - Measured at 1280×720: the request waiting on an owner moves from y 489, last on the page, to y 80, at the head of the side column.
+- **Attempt 5** ([handoff](../handoffs/LFE-06-attempt-5.md)): Luis found attempt 4 too loaded ("no sé dónde mirar"), with no search for ten or twenty resources, and preferred tiles.
+  - Each resource is a tile of four lines: tool and host, owner, what it does, capacity. Its detail opens in the app's sheet.
+  - A search (`/`) and four filters with counts find one among many. What waits on an owner is one line on top, only while something waits.
+  - Measured at 1280×720 with the three resources: 78 words on the view (206 before attempt 4); the waiting line at y 118.
+- **Attempt 6** ([handoff](../handoffs/LFE-06-attempt-6.md)): subtle motion and interaction, at Luis's request.
+  - A filter glides the tiles to their new places. Tiles arrive one after another, and meters fill as they appear.
+  - A tile's light follows the pointer in its tool's colour.
+  - What waits keeps a slow pulse, and a light runs once along the waiting line.
+  - Nothing moves when reduced motion is asked for.
+  - A meter turns amber from 75 % used and red from 90 %.
+  - Codex's review: a tile now tells assistive technology all its lines (P1); the search's `/` is in its tip; the windows' chevron is still with reduced motion.
 
 ## Acceptance cases
 

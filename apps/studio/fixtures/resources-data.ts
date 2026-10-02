@@ -72,6 +72,12 @@ const percent = (window_id: string, value: number, resetsIn: number): QuotaWindo
   state: 'observed',
 })
 
+/** `busy=1`: Codex's account nearly used up: its 5-hour window at 92 % (red), its 7-day at 78 % (amber). */
+export const busyCodex = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: [percent('five_hour', 92, 40), percent('seven_day', 78, 3 * 1440)],
+})
+
 export const observations: QuotaObservation[] = [
   {
     observation_id: 'obs-codex',
@@ -131,5 +137,66 @@ export const actions: RequiredAction[] = [
     deadline: at(40),
     state: 'open',
     openTarget: null,
+  },
+]
+
+/**
+ * `more=1`: two more tools, to see the panel past the three enrollments the continuation names. A Grok session on
+ * Davide's xAI account with no reading yet, and a Gemini CLI session on Luis's Google account that reports a balance.
+ */
+export const moreResources: Resource[] = [
+  {
+    id: 'davide-grok',
+    owner: people.davide,
+    tool: 'grok',
+    entitlementId: 'ent-davide-xai',
+    host: { state: 'offline', observedAt: at(-26 * 60) },
+    sessions: [{ id: 'grok-researcher', role: 'researcher', model: null, effort: null, assignment: null }],
+    controls: { steer: 'unqualified', hold: 'unqualified', stop: 'unqualified', permissions: 'unsupported' },
+    reservePercent: null,
+  },
+  {
+    id: 'luis-gemini',
+    owner: people.luis,
+    tool: 'gemini-cli',
+    entitlementId: 'ent-luis-google',
+    host: { state: 'online', observedAt: at(-4) },
+    sessions: [
+      {
+        id: 'gemini-worker',
+        role: 'worker',
+        model: 'gemini-2.5-pro',
+        effort: null,
+        assignment: { workId: 'work-3', title: 'Draft the onboarding copy', state: 'queued' },
+      },
+    ],
+    controls: { steer: 'unqualified', hold: 'supported', stop: 'supported', permissions: 'unqualified' },
+    reservePercent: 10,
+  },
+]
+
+export const moreObservations: QuotaObservation[] = [
+  {
+    observation_id: 'obs-gemini',
+    owner_id: 'luis',
+    entitlement_id: 'ent-luis-google',
+    resource_ids: ['luis-gemini'],
+    provider: 'google',
+    source_channel: 'gemini-cli-stats',
+    observed_at: at(-4),
+    valid_until: null,
+    coverage: 'complete_for_route',
+    windows: [
+      {
+        window_id: 'daily_requests',
+        unit: 'credits_remaining',
+        value: 820,
+        resets_at: at(9 * 60),
+        scope: 'account',
+        applicability: 'known',
+        state: 'observed',
+      },
+    ],
+    missing_capabilities: [],
   },
 ]

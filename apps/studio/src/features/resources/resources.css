@@ -1,166 +1,671 @@
-/* The project's resources (ResourcePanel): one card per enrolled tool, then what waits on an owner. */
-.resources {
-  display: grid;
-  gap: 16px;
-  width: 100%;
-  max-width: 1040px;
-  margin: 0 auto;
+/* The Resources view (ResourcePanel): tiles to scan, a search and four filters for when they are many, one line on
+   top only while a request waits, and each resource's detail in the app's sheet. Tokens and forms are the app's. */
+
+.resources-summary {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12.5px;
 }
-.resources-head {
-  display: grid;
-  gap: 4px;
-}
-.resources-head h2 {
-  font-size: 18px;
-}
-.resource-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  align-items: start;
-  gap: 12px;
-}
-.resource {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--plane-2);
-}
-.resource-head {
+
+/* While a request waits: one line under the head, each a way into its resource's sheet. */
+.resources-attention {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 18px;
+  padding-top: 12px;
 }
-.resource-head h3 {
-  margin-right: auto;
+.attention-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+}
+.attention-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: underline;
+  text-decoration-color: rgba(239, 191, 134, 0.4);
+  text-underline-offset: 3px;
+}
+.attention-item:hover {
+  text-decoration-color: var(--amber);
+}
+.attention-tool {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Search and filters on one line; on a phone the search takes the line and the filters the next. */
+.resources-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 16px 0 14px;
+}
+.resource-search {
+  flex: 1 1 240px;
+  max-width: 360px;
+  align-items: center;
+}
+.resource-search input {
+  flex: 1;
+  min-width: 0;
+}
+.filter-count {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-4);
+}
+.resource-filters button[aria-selected='true'] .filter-count {
+  color: var(--text-3);
+}
+
+/* The tiles: one object repeated, same edges and lines from one to the next; the capacity line sits at the foot. */
+.resource-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.resource-grid > li {
+  display: grid;
+}
+.resource-tile {
+  --tool-accent: var(--halo);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+  box-shadow: var(--lift);
+  color: var(--text);
+  text-align: left;
+  animation: arrive 0.4s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+  transition:
+    border-color var(--fast) var(--ease),
+    background var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.resource-tile:hover {
+  border-color: var(--line-2);
+  background: color-mix(in srgb, var(--text) 3%, var(--plane-2));
+}
+.resource-tile:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.resource-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.resource-tile-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-tile-host {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.resource-tile-owner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.resource-tile-activity {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-tile-capacity {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.resource-tile-capacity-line {
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nothing shown: said, with the ways back. */
+.resources-none {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding: 28px 0;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* A resource up close, in the app's sheet: sections under small mono heads, ruled from one another. */
+.resource-sheet-head {
+  height: auto;
+  min-height: 36px;
+  padding: 4px 0 8px;
+}
+.resource-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.resource-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.resource-sheet-head h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+.resource-vendor,
+.resource-role,
+.capacity-windows dt,
+.sheet-section h3 {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.resource-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.resource-initial {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--line-2);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+.resource-host {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 14px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.sheet-section {
+  display: grid;
+  gap: 10px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.resource-age,
+.resource-model,
+.capacity-meta,
+.capacity-reset,
+.waiting-operation,
+.waiting-session,
+.waiting-foot .muted {
+  font-family: var(--mono);
+  font-size: 12px;
 }
 .resource-age,
 .capacity-meta,
 .capacity-reset,
-.required-action-meta {
-  font-family: var(--mono);
-  font-size: 11px;
+.waiting-session,
+.waiting-foot .muted {
   color: var(--text-3);
+}
+.resource-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+.online > .resource-dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
+}
+.offline > .resource-dot {
+  background: var(--rose);
+  box-shadow: 0 0 0 3px rgba(238, 159, 176, 0.12);
 }
 .resource-sessions {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .resource-session {
   display: grid;
-  gap: 2px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line-2);
-}
-.resource-role {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 12px;
 }
 .resource-model {
-  font-family: var(--mono);
-  font-size: 12px;
   color: var(--text-2);
+  overflow-wrap: anywhere;
 }
 .resource-work {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
   font-size: 13px;
 }
+.resource-work.idle {
+  color: var(--text-3);
+}
+
+/* Capacity: a line, a thin meter only for a known percentage, and every window on request. No box. */
 .capacity {
   display: grid;
-  gap: 4px;
-  padding: 10px;
-  border-radius: var(--r-2);
-  background: rgba(236, 235, 241, 0.03);
+  gap: 6px;
 }
 .capacity-line {
   font-size: 13px;
+  color: var(--text);
 }
-.capacity .text-button {
+.capacity-meter {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--line-2);
+}
+.capacity-meter.is-unknown {
+  background: repeating-linear-gradient(-45deg, var(--line-2) 0 3px, transparent 3px 7px);
+}
+.capacity-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--teal);
+}
+.capacity-meter.is-warn .capacity-meter-fill {
+  background: var(--amber);
+}
+.capacity-meter.is-full .capacity-meter-fill {
+  background: var(--rose);
+}
+.capacity-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   justify-self: start;
+  font-size: 12.5px;
+}
+.capacity-toggle .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--fast) var(--ease);
+}
+.capacity-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
 }
 .capacity-windows {
   display: grid;
-  gap: 6px;
-  margin: 6px 0 0;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--line);
 }
 .capacity-windows div {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: 10px;
-}
-.capacity-windows dt {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
 }
 .capacity-windows dd {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   margin: 0;
   font-size: 12.5px;
 }
-.capacity-missing,
-.resource-controls {
-  font-size: 12px;
+.capacity-windows dd .capacity-meter {
+  flex-basis: 100%;
+}
+.capacity-missing {
   color: var(--text-3);
+  font-size: 12.5px;
 }
-.required-actions {
-  display: grid;
-  gap: 8px;
-}
-.required-actions h3 {
-  font-size: 14px;
-}
-.required-actions ul {
-  display: grid;
-  gap: 8px;
+
+/* The route's controls: small mono labels with a glyph; a tip says what each does. */
+.resource-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.required-action {
+.control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.control.supported {
+  color: var(--text-2);
+}
+.control.supported .control-glyph {
+  color: var(--teal);
+}
+.control.unsupported .control-glyph {
+  color: var(--rose);
+}
+
+/* What waits on the owner, first in the sheet: the pulse's timeline, an amber dot for what waits. */
+.event.waiting {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 4px 0 8px;
+}
+.event.waiting .dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+}
+.event.waiting:not(.open) .dot {
+  background: var(--text-4);
+  box-shadow: none;
+}
+.waiting-body {
   display: grid;
   gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-left: 2px solid var(--amber);
-  border-radius: var(--r-2);
-  background: var(--plane-2);
 }
-.required-action-head {
+.waiting-operation {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.waiting-line {
+  color: var(--text);
+  font-size: 13px;
+}
+.waiting-foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px 10px;
 }
-.required-action-owner {
+.waiting-copy {
   font-size: 12.5px;
-  color: var(--text-2);
 }
-.required-action-operation {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  overflow-wrap: anywhere;
+
+/* A tool's mark: on a small tile at a head, bare in a line of text. */
+[data-tool='claude-code'] {
+  --tool-accent: #d97757;
 }
-.required-action-line {
-  font-size: 13px;
+[data-tool='gemini-cli'] {
+  --tool-accent: #8e75b2;
 }
-.required-action .pill {
-  justify-self: start;
+.tool-logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
 }
+.tool-logo.lg {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 8%, var(--plane-2));
+}
+.tool-logo.sm {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.tool-logo img,
+.tool-logo-mark {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.tool-logo.sm img,
+.tool-logo.sm .tool-logo-mark {
+  width: 14px;
+  height: 14px;
+}
+.tool-logo-mark {
+  background: var(--text);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
 @media (max-width: 560px) {
-  .resource-list {
+  .resource-search {
+    max-width: none;
+  }
+  .resource-filters {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .resource-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .resources-summary {
+    display: none;
+  }
+  .resource-session {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resource-work {
+    grid-column: 1;
+  }
+}
+
+/* Motion, kept small. A tile's light follows the pointer, in its tool's colour, on its face and along its edge. */
+@media (hover: hover) {
+  .resource-tile::before,
+  .resource-tile::after {
+    content: '';
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--base) var(--ease);
+  }
+  .resource-tile::before {
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(
+      260px circle at var(--mx, 50%) var(--my, 0),
+      color-mix(in srgb, var(--tool-accent) 9%, transparent),
+      transparent 70%
+    );
+  }
+  .resource-tile::after {
+    inset: -1px;
+    padding: 1px;
+    background: radial-gradient(
+      180px circle at var(--mx, 50%) var(--my, 0),
+      color-mix(in srgb, var(--tool-accent) 55%, transparent),
+      transparent 70%
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+  }
+  .resource-tile:hover::before,
+  .resource-tile:hover::after {
+    opacity: 1;
+  }
+  .resource-tile:hover {
+    transform: translateY(-1px);
+  }
+  .resource-tile:hover .tool-logo.lg {
+    border-color: color-mix(in srgb, var(--tool-accent) 35%, var(--line-2));
+  }
+}
+.resource-tile:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* A filter's change glides each tile to its new place (motion.ts). */
+.resource-grid > li {
+  view-transition-class: resource-tile;
+}
+::view-transition-group(.resource-tile) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* A meter fills to its value as it appears. */
+.capacity-meter-fill {
+  transform-origin: left;
+  animation: meter-fill 0.8s var(--ease) 0.15s both;
+}
+@keyframes meter-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* What waits keeps a slow pulse, as a live thing does: a ring that widens and fades, the room's ignite. */
+.attention-dot {
+  position: relative;
+}
+.attention-dot::after,
+.event.waiting.open .dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--amber);
+  animation: waiting-ping 2.4s var(--ease) infinite;
+}
+@keyframes waiting-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  70%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+/* When a request comes to wait, a light runs once along its line, then it rests. */
+.attention-label {
+  background: linear-gradient(100deg, var(--text) 40%, var(--amber) 50%, var(--text) 60%) 100% 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: attention-sweep 1.4s var(--ease) 0.3s both;
+}
+@keyframes attention-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* The sheet's sections arrive one after another. */
+.resource-sheet > :not(.sheet-top) {
+  animation: arrive 0.4s var(--ease) both;
+}
+.resource-sheet > :nth-child(3) {
+  animation-delay: 40ms;
+}
+.resource-sheet > :nth-child(4) {
+  animation-delay: 80ms;
+}
+.resource-sheet > :nth-child(5) {
+  animation-delay: 120ms;
+}
+.resource-sheet > :nth-child(n + 6) {
+  animation-delay: 160ms;
+}
+
+/* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
+@media (prefers-reduced-motion: reduce) {
+  .resource-tile,
+  .capacity-meter-fill,
+  .attention-dot::after,
+  .event.waiting.open .dot::after,
+  .attention-label,
+  .resource-sheet > * {
+    animation: none;
+  }
+  .attention-label {
+    background: none;
+    color: inherit;
+  }
+  .resource-tile:hover,
+  .resource-tile:active {
+    transform: none;
+  }
+  .capacity-toggle .icon {
+    transition: none;
   }
 }

@@ -426,13 +426,25 @@ when you change the room:
   S1-06 serves real candidates.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
-  or account read", the real `ResourcePanel` over the three enrollments.
+  or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves
+  nothing waiting), the Studio's own `ProjectShell` on its Resources view,
+  with the real `ResourcePanel` in it (`ProjectShell`'s `resources`;
+  production keeps the view's "coming" note until SCM-01/02 serve resources).
+  Each resource is a tile of four lines; its detail opens in the app's sheet
+  and Escape returns to the tile. A search (`/` reaches it) and four filters
+  (All, Waiting, Online, Mine, each with its count) find one among tens. One
+  line on top says what waits on an owner, only while something does. Each
+  tool shows as itself (`ToolLogo`, marks from `@lobehub/icons-static-svg`).
   Capacity that isn't observed, or a reading past its `valid_until`, says
-  "Capacity unknown", never a number; a reset already due is "Refresh
-  pending"; a window that may not apply never limits; one account's sessions share one
-  capacity; providers are never added up; only a request's owner is told
-  where to answer it, and nothing on the panel answers, steers or stops. It
-  isn't in the Studio yet: it shows there once SCM-01/02 serve resources.
+  "Capacity unknown" over an empty track, never a number; a meter is drawn
+  only for a percentage known to apply; a balance heads as a count; providers
+  are never added up. Only a request's owner is told where to answer it and
+  gets its session's id to copy; controls are shown, never offered. Its
+  motion is small and checked: a filter glides the tiles (View Transitions),
+  tiles arrive in turn, a tile's light follows the pointer, and what waits
+  keeps a slow pulse. With reduced motion asked for, nothing moves. A meter
+  turns amber from 75 % used and red from 90 % (`usageTone`; `busy=1` shows
+  both). A tile's name is whose tool it is; its lines are its description.
 
 ## The personal space
 
