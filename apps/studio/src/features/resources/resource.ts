@@ -203,7 +203,11 @@ export interface Capacity {
   known: boolean
   /** The limiting window's pace (pace.ts), when its length is known. */
   pace: Pace | null
+  /** The window the line comes from (the limiting one, or a balance): the sheet doesn't list it again. */
+  windowId: string | null
 }
+
+const unresolved = (line: string) => ({ line, limiting: null, known: false, windowId: null })
 
 /**
  * What the windows known to apply say together: the most used percentage; else that a reset is pending, or that the
@@ -214,12 +218,12 @@ function fromKnown(known: WindowView[]): Omit<Capacity, 'pace'> | null {
   const limiting = known
     .filter((v) => v.percent !== null)
     .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
-  if (limiting) return { line: headline(limiting), limiting, known: true }
+  if (limiting) return { line: headline(limiting), limiting, known: true, windowId: limiting.id }
   // A balance can't be weighed against a window that isn't resolved: the unresolved one says so first.
-  if (known.some((v) => v.state === 'refresh_pending')) return { line: 'Refresh pending', limiting: null, known: false }
-  if (known.some((v) => v.state === 'unknown')) return { line: 'Capacity unknown', limiting: null, known: false }
+  if (known.some((v) => v.state === 'refresh_pending')) return unresolved('Refresh pending')
+  if (known.some((v) => v.state === 'unknown')) return unresolved('Capacity unknown')
   const balance = known.find((v) => v.state === 'observed')
-  return balance ? { line: balanceLine(balance), limiting: null, known: true } : null
+  return balance ? { line: balanceLine(balance), limiting: null, known: true, windowId: balance.id } : null
 }
 
 /**
@@ -227,7 +231,7 @@ function fromKnown(known: WindowView[]): Omit<Capacity, 'pace'> | null {
  * past its `valid_until` is "Capacity unknown": never full, never empty, and an expired one says how long ago it
  * stopped holding. "No window observed" is kept for a reading with no windows at all.
  */
-const none = (line: string): Capacity => ({ line, limiting: null, known: false, pace: null })
+const none = (line: string): Capacity => ({ line, limiting: null, known: false, pace: null, windowId: null })
 
 export function capacity(obs: QuotaObservation | undefined, now: Date): Capacity {
   if (!obs || obs.coverage === 'unavailable') return none('Capacity unknown')
