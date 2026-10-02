@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `follow-ups/capacity-validity` from main `cb78c86`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the fix and docs at `cecea8b` (tree `503ae03ae79b`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** `apps/studio/src/features/resources/`, its fixture and checks, CONTRIBUTING and LFE-06's records. **Nothing else changed.**
 
 ## Outcome
