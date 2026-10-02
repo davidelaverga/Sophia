@@ -423,6 +423,14 @@ when you change the room:
   and read again on Try again after a failed read; one choice is saved at a
   time; a viewer sees who chooses; the keyboard and a phone reach everything. Explore in the Studio still says it is coming: it shows
   the gallery once S1-06 serves real candidates.
+- **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
+  the room's fixture page, whose API also answers the fixture report
+  (`fixtures/report-data.ts`), Knowledge and a research notice. A report
+  being read is never swapped for a newer version; over the room on a phone
+  or as a full page it keeps mute, the door and the top bar's menus in
+  reach; Esc keeps to the shortcut scope; a notice marks Chat; the focus is
+  handed back and never taken; a description never overwrites a newer one.
+  Change the viewer and they must still pass.
 
 ## The personal space
 
