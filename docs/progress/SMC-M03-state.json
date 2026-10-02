@@ -5,7 +5,7 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "4bd6c0f",
+  "candidate_commit": "1ebf440",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
@@ -218,6 +218,17 @@
         "docker run node:24.21.0-bookworm-slim … host-probe.mjs (default and relaxed security options)"
       ],
       "ref": "docs/progress/SMC-M03.md#28-s6-research-by-voice-and-text-steer-and-results-told-as-text-guide-v12-0035"
+    },
+    {
+      "slice": "CX-0009 (M03-RF-0017..0020) and two rounds of local review's further fixes",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/host-probe.test.ts (real Chromium, SOPHIA_RENDERER_REQUIRED=1, as root with a render user and as a non-root user)",
+        "docker run node:24.21.0-bookworm-slim … host-probe.mjs (default and relaxed security options)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#31-cx-0009-m03-rf-00170020"
     }
   ],
   "outstanding_operations": [
@@ -231,8 +242,8 @@
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0011.md",
-      "state": "awaiting_operator (revision 10, CC-0011: RF-0013..0016 re-review, S5 with 0034, S6, the release matrix and the renderer proposal at 4bd6c0f; CC-0010 was not answered)"
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0012.md",
+      "state": "awaiting_operator (revision 11, CC-0012: re-review of M03-RF-0017..0020 and the further fixes, the release clarifications, at 1ebf440; CC-0011 answered by CX-0009)"
     }
   ],
   "unknown_effects": [],
@@ -259,7 +270,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CC-0011 awaits Codex (the complete candidate through S6 at 4bd6c0f, with the release and recovery matrix and the renderer proposal). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
+  "next_action": "CC-0012 awaits Codex (M03-RF-0017..0020 and the further fixes at 1ebf440, with the release clarifications). Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
