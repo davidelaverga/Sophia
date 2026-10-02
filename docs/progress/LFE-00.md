@@ -56,7 +56,7 @@ LFE-00.3 put BASE-01 to BASE-03 in the repository ([`apps/studio/e2e/room.spec.t
 
 ## Next tickets (LFE-00.4)
 
-1. **LFE-00.3** (Luis): done on fixtures, in CI ([attempt 2](../handoffs/LFE-00-attempt-2.md); [attempt 3](../handoffs/LFE-00-attempt-3.md) runs them over the real controller and cache). The same cases in a live call wait for a hosted candidate.
+1. **LFE-00.3** (Luis): done on fixtures, in CI ([attempt 2](../handoffs/LFE-00-attempt-2.md); [attempt 3](../handoffs/LFE-00-attempt-3.md) runs them over the real controller and cache; [attempt 4](../handoffs/LFE-00-attempt-4.md) checks a lost call with the panel open). The same cases in a live call wait for a hosted candidate.
 2. **LFE-02** (Luis with PR32's author): review the report and PDF UI on PR32. Integrate it after the handoff.
 3. **LFE-03** (Luis): Explore's image-direction UI on labelled fixtures, independently of S1-06's backend.
 4. **LFE-01** (Davide): the personal space is merged but not live. Davide decides whether it goes to production. A real owner-scoped Companion is bound before messaging is enabled; there is no rehearsal in production.
