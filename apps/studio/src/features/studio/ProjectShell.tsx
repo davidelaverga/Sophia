@@ -131,6 +131,11 @@ interface Props {
   /** Opened by "Join the room": join as soon as the room can. */
   joinOnOpen?: boolean
   onJoinHandled?: () => void
+  /**
+   * The Resources view's content, once something serves the project's resources (SCM-01/02); until then the view says
+   * it is coming. The resource fixture fills it (fixtures/resources.tsx).
+   */
+  resources?: React.ReactNode
 }
 
 /**
@@ -242,6 +247,7 @@ export function ProjectShell(props: Props) {
           onShow={onShow}
           onInvite={invite}
           background={!!props.background}
+          resources={props.resources}
         />
       )}
     </div>
@@ -321,6 +327,7 @@ interface BodyProps {
   onInvite: () => void
   /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
   background: boolean
+  resources: React.ReactNode
 }
 
 /**
@@ -329,7 +336,7 @@ interface BodyProps {
  * A report opens in the same viewer on every view (DocumentViewer), never beside the side panel.
  */
 function ProjectBody(props: BodyProps) {
-  const { view, projectId, identity, room, membership, snapshot, pulse, onShow, onInvite, background } = props
+  const { view, projectId, identity, room, membership, snapshot, pulse, onShow, background } = props
   // The side panel's state lives here, past a visit to another view (useRoomPanel). Out of sight for its call, its open
   // tab isn't in view: what arrives there meanwhile is new when the person comes back.
   const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
@@ -363,25 +370,13 @@ function ProjectBody(props: BodyProps) {
     )
   }
   const work = view === 'work'
+  // A served Resources view takes the page's whole width: its tiles fill it.
+  const resources = view === 'resources' ? props.resources : undefined
   return withViewer(
     <>
       {lobby}
       <main className={`page${work ? ' split' : ''}`}>
-        {view === 'goals' || work ? (
-          <GoalList
-            snapshot={snapshot}
-            projectId={projectId}
-            identity={identity}
-            controls={work}
-            canAct={canInvite(membership)}
-            onOpenStudio={() => onShow('studio')}
-            onInvite={onInvite}
-          />
-        ) : view === 'knowledge' ? (
-          <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
-        ) : (
-          <PendingView view={view} onShow={onShow} />
-        )}
+        {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
       <MiniDock room={room} looking={looking} onOpen={() => onShow('studio')} />
@@ -418,6 +413,27 @@ function WithViewer({ projectId, identity, view, room, panel, looking, children 
       {children}
     </DocumentViewerProvider>
   )
+}
+
+/** A page other than the room: Goals and Work list the goals, Knowledge its reports; the views still to come say so. */
+function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite }: BodyProps) {
+  if (view === 'knowledge') {
+    return <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
+  }
+  if (view === 'goals' || view === 'work') {
+    return (
+      <GoalList
+        snapshot={snapshot}
+        projectId={projectId}
+        identity={identity}
+        controls={view === 'work'}
+        canAct={canInvite(membership)}
+        onOpenStudio={() => onShow('studio')}
+        onInvite={onInvite}
+      />
+    )
+  }
+  return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
 }
 
 /** A person's short name in the room ('you' for yourself), for the observation indicator. */

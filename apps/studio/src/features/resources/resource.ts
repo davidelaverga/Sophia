@@ -3,8 +3,25 @@
 // action shapes are the Studio's proposal for SCM-01/02; the capacity observation follows the continuation's
 // `sophia.capacity.observation.v1` schema (docs/execution/2026-10-01-unified/contracts/coordination).
 
-export type Tool = 'claude-code' | 'codex'
-export const TOOL: Record<Tool, string> = { 'claude-code': 'Claude Code', codex: 'Codex' }
+/** The native coding tools a resource can enroll; each shows as itself (ToolLogo). */
+export type Tool = 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'github-copilot' | 'cursor'
+export const TOOL: Record<Tool, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  grok: 'Grok',
+  'gemini-cli': 'Gemini CLI',
+  'github-copilot': 'GitHub Copilot',
+  cursor: 'Cursor',
+}
+/** Who makes the tool: said beside its name, never as a claim about the account behind it. */
+export const VENDOR: Record<Tool, string> = {
+  'claude-code': 'Anthropic',
+  codex: 'OpenAI',
+  grok: 'xAI',
+  'gemini-cli': 'Google',
+  'github-copilot': 'GitHub',
+  cursor: 'Anysphere',
+}
 
 export type ControlName = 'steer' | 'hold' | 'stop' | 'permissions'
 /** As the control-support matrix says it: qualified for this route, not qualified yet, or not offered by it. */
@@ -93,6 +110,7 @@ function until(at: string, now: Date): string {
 }
 
 const WINDOW_NAME: Record<string, string> = {
+  daily_requests: 'Daily requests',
   five_hour: '5-hour',
   seven_day: '7-day',
   seven_day_opus: '7-day, one model',
@@ -164,35 +182,72 @@ export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView
 }
 
 const headline = (v: WindowView) => `${v.name} window: ${v.value}${v.reset ? `, ${v.reset}` : ''}`
+/** A balance is a count, not a window filling up: its name and what is left. */
+const balanceLine = (v: WindowView) => `${v.name}: ${v.value}${v.reset ? `, ${v.reset}` : ''}`
+
+export interface Capacity {
+  /** The capacity in one line, in words. */
+  line: string
+  /** The percentage window the line comes from, for a meter; null when the line isn't a percentage. */
+  limiting: WindowView | null
+  /** Whether the line reports something observed (a percentage or a balance), not an unknown or pending capacity. */
+  known: boolean
+}
 
 /**
  * What the windows known to apply say together: the most used percentage; else that a reset is pending, or that the
  * capacity is unknown, while any window is unresolved; else an observed balance, as it was reported (no percentage is
  * made of it). Windows that may not apply never shape it, not even as pending.
  */
-function fromKnown(known: WindowView[]): string | null {
+function fromKnown(known: WindowView[]): Capacity | null {
   const limiting = known
     .filter((v) => v.percent !== null)
     .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
-  if (limiting) return headline(limiting)
+  if (limiting) return { line: headline(limiting), limiting, known: true }
   // A balance can't be weighed against a window that isn't resolved: the unresolved one says so first.
-  if (known.some((v) => v.state === 'refresh_pending')) return 'Refresh pending'
-  if (known.some((v) => v.state === 'unknown')) return 'Capacity unknown'
+  if (known.some((v) => v.state === 'refresh_pending')) return { line: 'Refresh pending', limiting: null, known: false }
+  if (known.some((v) => v.state === 'unknown')) return { line: 'Capacity unknown', limiting: null, known: false }
   const balance = known.find((v) => v.state === 'observed')
-  return balance ? headline(balance) : null
+  return balance ? { line: balanceLine(balance), limiting: null, known: true } : null
 }
 
 /**
- * The account's capacity in one line, from the windows known to apply. No observation, one that can't see the
- * account, or one past its `valid_until` is "Capacity unknown": never full, never empty, and an expired one says how
- * long ago it stopped holding. "No window observed" is kept for a reading with no windows at all.
+ * The account's capacity, from the windows known to apply. No observation, one that can't see the account, or one
+ * past its `valid_until` is "Capacity unknown": never full, never empty, and an expired one says how long ago it
+ * stopped holding. "No window observed" is kept for a reading with no windows at all.
  */
-export function capacityLine(obs: QuotaObservation | undefined, now: Date): string {
-  if (!obs || obs.coverage === 'unavailable') return 'Capacity unknown'
-  if (expired(obs, now)) return `Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`
-  if (obs.windows.length === 0) return 'No window observed'
+export function capacity(obs: QuotaObservation | undefined, now: Date): Capacity {
+  if (!obs || obs.coverage === 'unavailable') return { line: 'Capacity unknown', limiting: null, known: false }
+  if (expired(obs, now)) {
+    return {
+      line: `Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`,
+      limiting: null,
+      known: false,
+    }
+  }
+  if (obs.windows.length === 0) return { line: 'No window observed', limiting: null, known: false }
   const views = obs.windows.map((w) => windowView(w, now))
-  return fromKnown(views.filter((v) => v.applies === 'known')) ?? 'Capacity unknown: no window is known to apply here'
+  return (
+    fromKnown(views.filter((v) => v.applies === 'known')) ?? {
+      line: 'Capacity unknown: no window is known to apply here',
+      limiting: null,
+      known: false,
+    }
+  )
+}
+
+export const capacityLine = (obs: QuotaObservation | undefined, now: Date) => capacity(obs, now).line
+
+export const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
+
+/** Beside the view's count: how many hosts are online and how many requests wait. Never a capacity total. */
+export function summary(resources: Resource[], actions: RequiredAction[]): string {
+  const online = resources.filter((r) => r.host.state === 'online').length
+  const waiting = actions.filter((a) => a.state === 'open').length
+  return [
+    `${online} ${online === 1 ? 'host' : 'hosts'} online`,
+    waiting ? `${plural(waiting, 'request')} waiting` : 'nothing waiting',
+  ].join(' · ')
 }
 
 const ACTION_STATE: Record<RequiredAction['state'], string> = {
@@ -221,8 +276,66 @@ export function actionLine(a: RequiredAction, viewerId: string, r: Resource): st
   return `Answer it in ${tool}, session ${a.sessionId}.`
 }
 
+/** How full a window is, as its meter's colour: amber from 75 % used, red from 90 %. */
+export type UsageTone = 'ok' | 'warn' | 'full'
+export const WARN_AT = 75
+export const FULL_AT = 90
+
+export function usageTone(percent: number): UsageTone {
+  if (percent >= FULL_AT) return 'full'
+  return percent >= WARN_AT ? 'warn' : 'ok'
+}
+
 export const SUPPORT: Record<Support, string> = {
   supported: 'supported',
   unqualified: 'not qualified yet',
   unsupported: 'not offered',
+}
+
+/** The resource list's filters: everything, what has a request waiting, what is online, what is the viewer's own. */
+export type Filter = 'all' | 'waiting' | 'online' | 'mine'
+export const FILTERS: Filter[] = ['all', 'waiting', 'online', 'mine']
+export const FILTER_LABEL: Record<Filter, string> = { all: 'All', waiting: 'Waiting', online: 'Online', mine: 'Mine' }
+
+const waitingOn = (r: Resource, actions: RequiredAction[]) =>
+  actions.some((a) => a.resourceId === r.id && a.state === 'open')
+
+export function inFilter(filter: Filter, r: Resource, actions: RequiredAction[], viewerId: string): boolean {
+  if (filter === 'waiting') return waitingOn(r, actions)
+  if (filter === 'online') return r.host.state === 'online'
+  if (filter === 'mine') return r.owner.id === viewerId
+  return true
+}
+
+/** Text to compare in a search: no case, no accents ("Mérida" finds "merida"). */
+const fold = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+
+/**
+ * Whether a resource answers a search: every word must be found in its tool, maker, owner, sessions' roles and models,
+ * or what they work on. Case and accents don't matter; an empty search finds everything.
+ */
+export function matches(r: Resource, query: string): boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean)
+  if (words.length === 0) return true
+  const haystack = fold(
+    [
+      TOOL[r.tool],
+      VENDOR[r.tool],
+      r.owner.name,
+      ...r.sessions.flatMap((s) => [s.role, s.model ?? '', s.assignment?.title ?? '']),
+    ].join(' '),
+  )
+  return words.every((w) => haystack.includes(w))
+}
+
+/** What a resource is doing, in a tile's one line: its first assignment, and how many sessions share the account. */
+export function activity(r: Resource): string {
+  const n = r.sessions.length
+  const first = r.sessions.find((s) => s.assignment)?.assignment
+  if (!first) return n > 1 ? `${n} sessions, none assigned` : 'No assignment'
+  return n > 1 ? `${first.title} · ${n} sessions` : first.title
 }
