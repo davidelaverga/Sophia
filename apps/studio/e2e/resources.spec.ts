@@ -384,7 +384,7 @@ test('the view opens as its viewer left it: filter and order', async ({ page }) 
   // The order glides into place a frame later, and is kept once it has: reload after that, as a person would.
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('sophia.resources.v1.luis')))
-    .toBe(JSON.stringify({ filter: 'mine', order: 'tool' }))
+    .toBe(JSON.stringify({ filter: 'mine', order: 'tool', custom: [] }))
   await page.reload()
   await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('tool')
@@ -696,6 +696,59 @@ test('@phone · one tile to a row: no neighbours to greet', async ({ page }) => 
   await expect(grid(page).getByRole('button').nth(1)).toHaveAttribute('aria-label', 'Luis · Claude Code')
   await page.waitForTimeout(300)
   expect(await page.locator('.resource-tile[data-buddy]').count()).toBe(0)
+})
+
+/** The tiles' names, in the order the grid shows them. */
+const order = (page: Page) =>
+  grid(page)
+    .getByRole('button')
+    .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
+
+test('a tile dragged onto another takes its place, in the viewer’s own order, kept', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Davide · Codex'))
+  await expect
+    .poll(() => order(page))
+    .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
+  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('custom')
+  await expect(page.getByRole('status').filter({ hasText: 'Moved Luis · Claude Code to 2 of 5' })).toBeAttached()
+  await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('data-buddy', 'right') // brought together, they greet
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('sophia.resources.v1.luis')))
+    .toContain('"custom":["davide-claude","luis-claude","davide-codex","luis-gemini","davide-grok"]')
+  await page.reload()
+  await expect
+    .poll(() => order(page))
+    .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
+})
+
+test('Alt and an arrow move the focused tile, and the focus follows it', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Davide · Grok').focus()
+  await page.keyboard.press('Alt+ArrowLeft')
+  await expect
+    .poll(() => order(page))
+    .toEqual(['Davide · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok', 'Luis · Claude Code'])
+  await expect(tile(page, 'Davide · Grok')).toBeFocused()
+  await page.keyboard.press('Alt+Home')
+  await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
+  await expect(tile(page, 'Davide · Grok')).toBeFocused()
+  await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0') // it stays the grid's one Tab stop
+  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('custom')
+  await page.keyboard.press('ArrowRight') // without Alt, the focus moves and the tiles stay
+  await expect(tile(page, 'Davide · Claude Code')).toBeFocused()
+  await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
+})
+
+test('arranging within a filter keeps the hidden tiles where they were', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await filter(page, 'Mine 2').click()
+  await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Luis · Gemini CLI'))
+  await expect.poll(() => order(page)).toEqual(['Luis · Claude Code', 'Luis · Gemini CLI'])
+  await filter(page, 'All 5').click()
+  await expect
+    .poll(() => order(page))
+    .toEqual(['Davide · Claude Code', 'Davide · Codex', 'Luis · Claude Code', 'Luis · Gemini CLI', 'Davide · Grok'])
 })
 
 test('the viewer’s own resource says so', async ({ page }) => {

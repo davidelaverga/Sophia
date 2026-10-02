@@ -22,8 +22,8 @@ function memory(throwing = false) {
 describe('what the view remembers', () => {
   it('keeps each viewer’s filter and order apart', () => {
     const store = memory()
-    savePrefs('luis', { filter: 'mine', order: 'tool' }, store)
-    assert.deepEqual(readPrefs('luis', store), { filter: 'mine', order: 'tool' })
+    savePrefs('luis', { filter: 'mine', order: 'custom', custom: ['b', 'a'] }, store)
+    assert.deepEqual(readPrefs('luis', store), { filter: 'mine', order: 'custom', custom: ['b', 'a'] })
     assert.deepEqual(readPrefs('davide', store), DEFAULT_PREFS)
   })
 
@@ -32,8 +32,8 @@ describe('what the view remembers', () => {
     assert.deepEqual(readPrefs('luis', store), DEFAULT_PREFS)
     store.kept.set(prefsKey('luis'), '{not json')
     assert.deepEqual(readPrefs('luis', store), DEFAULT_PREFS)
-    store.kept.set(prefsKey('luis'), JSON.stringify({ filter: 'everything', order: 'tool' }))
-    assert.deepEqual(readPrefs('luis', store), { filter: 'all', order: 'tool' })
+    store.kept.set(prefsKey('luis'), JSON.stringify({ filter: 'everything', order: 'tool', custom: ['a', 3] }))
+    assert.deepEqual(readPrefs('luis', store), { filter: 'all', order: 'tool', custom: ['a'] })
     assert.deepEqual(readPrefs('luis', memory(true)), DEFAULT_PREFS)
     assert.deepEqual(readPrefs('luis', null), DEFAULT_PREFS)
     assert.doesNotThrow(() => savePrefs('luis', DEFAULT_PREFS, memory(true)))

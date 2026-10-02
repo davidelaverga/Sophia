@@ -29,6 +29,8 @@ interface Props {
   onOpen: () => void
   /** A Claude Code neighbour in its row, and which way this tile's mark looks at it (buddies.ts). */
   buddy?: Buddy | undefined
+  /** Dragging it onto another tile moves it there (TileGrid). */
+  drag?: React.HTMLAttributes<HTMLButtonElement> & { draggable: boolean }
   /** The grid's roving focus: only the current tile is in the Tab order; arrow keys move between them. */
   current: boolean
   onFocus: () => void
@@ -100,7 +102,7 @@ function TileCapacity({ capacity: { line, limiting, known, pace }, id }: { capac
 }
 
 export function ResourceTile(props: Props) {
-  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy } = props
+  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
   const { tool, owner, host } = resource
   const held = capacity(observation, now)
   // The model of the session at work, else the first one reported.
@@ -131,6 +133,7 @@ export function ResourceTile(props: Props) {
       onFocus={onFocus}
       onClick={onOpen}
       onPointerMove={followPointer}
+      {...drag}
     >
       <span className="resource-tile-head">
         <ToolLogo tool={tool} />
