@@ -6,6 +6,7 @@ import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
 import { CodeField } from './CodeField.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
+import { startOver } from './link-accept.ts'
 import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
@@ -61,7 +62,8 @@ interface OfferProps {
  * A link carried a session and nobody is signed in: the account is named, as the Auth service reads it, and nothing
  * is signed in until the person says it is theirs. Someone else's link would otherwise sign them into that account.
  * Once they pressed Continue, nothing declines it while it is under way (link-accept.ts): a slow sign-in says so after
- * a while (SlowNote), and past the wait offers to start over, which leaves the page and the attempt with it.
+ * a while (SlowNote), and past the wait offers to start over (`startOver`): the same place loads again, so a link
+ * that landed on an invitation (/join) goes on with it, and the attempt is left with the page.
  */
 export function LinkOffer({ account, slow, onAccept, onDecline }: OfferProps) {
   const [signing, setSigning] = useState(false)
@@ -88,7 +90,7 @@ export function LinkOffer({ account, slow, onAccept, onDecline }: OfferProps) {
           <p className="form-error" role="alert">
             {LINK_SLOW}
           </p>
-          <button type="button" className="pill" onClick={() => window.location.assign('/')}>
+          <button type="button" className="pill" onClick={() => startOver(window.location)}>
             Start over
           </button>
         </>
