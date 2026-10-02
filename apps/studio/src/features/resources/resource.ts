@@ -163,24 +163,36 @@ export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView
   return { name, state, value: `${valueOf(w, v)}${APPLIES[applies]}`, reset, percent, applies }
 }
 
+const headline = (v: WindowView) => `${v.name} window: ${v.value}${v.reset ? `, ${v.reset}` : ''}`
+
 /**
- * The account's capacity in one line: its most used observed window known to apply, and when it resets. No
- * observation, one that can't see the account, or one past its `valid_until` is "Capacity unknown": never full,
- * never empty, and an expired one says how long ago it stopped holding.
+ * What the windows known to apply say together: the most used percentage; else that a reset is pending, or that the
+ * capacity is unknown, while any window is unresolved; else an observed balance, as it was reported (no percentage is
+ * made of it). Windows that may not apply never shape it, not even as pending.
+ */
+function fromKnown(known: WindowView[]): string | null {
+  const limiting = known
+    .filter((v) => v.percent !== null)
+    .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
+  if (limiting) return headline(limiting)
+  // A balance can't be weighed against a window that isn't resolved: the unresolved one says so first.
+  if (known.some((v) => v.state === 'refresh_pending')) return 'Refresh pending'
+  if (known.some((v) => v.state === 'unknown')) return 'Capacity unknown'
+  const balance = known.find((v) => v.state === 'observed')
+  return balance ? headline(balance) : null
+}
+
+/**
+ * The account's capacity in one line, from the windows known to apply. No observation, one that can't see the
+ * account, or one past its `valid_until` is "Capacity unknown": never full, never empty, and an expired one says how
+ * long ago it stopped holding. "No window observed" is kept for a reading with no windows at all.
  */
 export function capacityLine(obs: QuotaObservation | undefined, now: Date): string {
   if (!obs || obs.coverage === 'unavailable') return 'Capacity unknown'
   if (expired(obs, now)) return `Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`
+  if (obs.windows.length === 0) return 'No window observed'
   const views = obs.windows.map((w) => windowView(w, now))
-  const limiting = views
-    .filter((v) => v.percent !== null && v.applies === 'known')
-    .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
-  if (!limiting) {
-    if (views.some((v) => v.state === 'refresh_pending')) return 'Refresh pending'
-    if (views.some((v) => v.percent !== null)) return 'Capacity unknown: no window is known to apply here'
-    return 'No window observed'
-  }
-  return `${limiting.name} window: ${limiting.value}${limiting.reset ? `, ${limiting.reset}` : ''}`
+  return fromKnown(views.filter((v) => v.applies === 'known')) ?? 'Capacity unknown: no window is known to apply here'
 }
 
 const ACTION_STATE: Record<RequiredAction['state'], string> = {

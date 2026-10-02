@@ -20,13 +20,19 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Required actions** name their owner and session. Only the owner is told where to answer, in the native tool.
 - **The shapes:** the resource and action types are the Studio's proposal for SCM-01/02. The capacity observation follows the continuation's schema field names.
 - **Where it runs.** On `apps/studio/fixtures/resources.html`, labelled "Simulated — no tool, host or account read". It isn't in the Studio yet. [Handoff](../handoffs/LFE-06-attempt-1.md).
+- **Attempt 2** ([handoff](../handoffs/LFE-06-attempt-2.md)): a reading past its `valid_until` is unknown, and a window that may not apply never limits.
+- **Attempt 3** ([handoff](../handoffs/LFE-06-attempt-3.md)): M03-RF-0024, handed over by M03 on #31, plus #48's P2. The capacity line is decided by the windows known to apply, in this order:
+  1. a percentage;
+  2. a pending reset, or an unknown window, while any window is unresolved;
+  3. an observed balance, as reported;
+  4. "No window observed" only for a reading with no windows.
 
 ## Acceptance cases
 
 | ID | Status |
 |---|---|
 | RES-01 Two Claude sessions use the same owner account | fixture: passes in CI. Two sessions listed apart, one capacity block, "2 sessions share this account" |
-| RES-02 Quota/window/host observation absent | fixture: passes in CI. "Capacity unknown" with no number; a due reset is "Refresh pending"; a reading past its `valid_until` is unknown with its age; a window that may not apply never limits; ages shown; no total across providers ([attempt 2](../handoffs/LFE-06-attempt-2.md)) |
+| RES-02 Quota/window/host observation absent | fixture: passes in CI. "Capacity unknown" with no number; a due reset is "Refresh pending"; a reading past its `valid_until` is unknown with its age; a window that may not apply never limits; a balance never heads while another window is unresolved; ages shown; no total across providers ([attempt 2](../handoffs/LFE-06-attempt-2.md), [attempt 3](../handoffs/LFE-06-attempt-3.md)) |
 | RES-03 Luis views Davide's owner-only request | fixture: passes in CI. Luis sees the request and that only Davide answers it; nothing to press for either |
 | RES-04 Stop while native action waits | not run: controls are LFE-06.4 |
 | RES-05 Worker idle or observer disconnected | not run: needs live observation (SCM-02) |
