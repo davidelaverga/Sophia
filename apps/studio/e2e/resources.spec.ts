@@ -61,6 +61,18 @@ test('RES-02 · unknown capacity stays unknown, a reset already due is pending, 
 
   await expect(capacity(page, 'Davide · Codex').getByText(/owner keeps 20% back/)).toBeVisible() // reserve apart
   await expect(page.getByText(/total|combined|overall/i)).toHaveCount(0)
+  await expect(claude.getByText('88% used · may not apply here')).toBeVisible() // shown, and not the headline
+})
+
+test('RES-02 · a reading past its valid_until is unknown, with its age, and its windows say expired', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?stale=1`)
+  const codex = capacity(page, 'Davide · Codex')
+  await expect(codex.getByText('Capacity unknown: the last reading expired 10 min ago')).toBeVisible()
+  await codex.getByRole('button', { name: 'Every window' }).click()
+  await expect(codex.getByText('Expired', { exact: true })).toHaveCount(2)
+  await expect(codex.getByText(/\d+% used/)).toHaveCount(0) // the old values are not capacity
 })
 
 test('RES-03 · Luis sees Davide’s request and who answers it, with nothing to press', async ({ page }) => {

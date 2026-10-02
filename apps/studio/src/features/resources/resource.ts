@@ -92,49 +92,94 @@ function until(at: string, now: Date): string {
   return `in ${Math.round(minutes / (24 * 60))} d`
 }
 
-const WINDOW_NAME: Record<string, string> = { five_hour: '5-hour', seven_day: '7-day', spend_limit: 'Spend limit' }
+const WINDOW_NAME: Record<string, string> = {
+  five_hour: '5-hour',
+  seven_day: '7-day',
+  seven_day_opus: '7-day, one model',
+  spend_limit: 'Spend limit',
+}
 export const windowName = (id: string) => WINDOW_NAME[id] ?? id.replaceAll('_', ' ')
 
 export interface WindowView {
   name: string
-  state: QuotaWindow['state']
+  /** `expired`: the whole reading is past its `valid_until`, whatever this window said. */
+  state: QuotaWindow['state'] | 'expired'
   /** The value in words: never a number the observation didn't give. */
   value: string
   reset: string | null
   percent: number | null
+  /** Whether the collector could tell this window applies to this resource: only a known one can limit it. */
+  applies: QuotaWindow['applicability']
 }
 
-/** A window as it stands now: a reset already due is refresh pending, never fresh capacity; unknown stays unknown. */
-export function windowView(w: QuotaWindow, now: Date): WindowView {
-  const due = w.resets_at !== null && Date.parse(w.resets_at) <= now.getTime()
-  const state = w.state === 'unknown' || w.value === null ? 'unknown' : due ? 'refresh_pending' : w.state
-  const reset =
-    w.resets_at === null ? null : due ? `reset was due ${ago(w.resets_at, now)}` : `resets ${until(w.resets_at, now)}`
-  const name = windowName(w.window_id)
-  if (state === 'unknown') return { name, state, value: 'Unknown', reset, percent: null }
-  if (state === 'refresh_pending') return { name, state, value: 'Refresh pending', reset, percent: null }
-  const v = w.value ?? 0
-  const value = {
+/** Whether a reading is past the time its collector said it holds until. */
+export const expired = (obs: QuotaObservation, now: Date) =>
+  obs.valid_until !== null && Date.parse(obs.valid_until) <= now.getTime()
+
+const APPLIES: Record<QuotaWindow['applicability'], string> = {
+  known: '',
+  partial: ' · applies in part',
+  unknown: ' · may not apply here',
+}
+
+type ViewState = WindowView['state']
+const NOT_A_VALUE: Partial<Record<ViewState, string>> = {
+  expired: 'Expired',
+  unknown: 'Unknown',
+  refresh_pending: 'Refresh pending',
+}
+
+/** Expired over everything; then unknown; then a reset already due; else what the window said. */
+function stateOf(w: QuotaWindow, due: boolean, stale: boolean): ViewState {
+  if (stale) return 'expired'
+  if (w.state === 'unknown' || w.value === null) return 'unknown'
+  return due ? 'refresh_pending' : w.state
+}
+
+function valueOf(w: QuotaWindow, v: number): string {
+  return {
     percent_used: `${v}% used`,
     spend_percent_used: `${v}% of the spend limit used`,
     credits_remaining: `${v} credits left`,
     tokens_remaining: `${v} tokens left`,
   }[w.unit]
-  const percent = w.unit === 'percent_used' || w.unit === 'spend_percent_used' ? v : null
-  return { name, state, value, reset, percent }
 }
 
 /**
- * The account's capacity in one line: its most used observed window, and when it resets. No observation, or one
- * that can't see the account, is "Capacity unknown": never full, never empty.
+ * A window as it stands now: a reset already due is refresh pending, never fresh capacity; unknown stays unknown; a
+ * reading past its `valid_until` is expired; a value whose applicability isn't known says so.
+ */
+export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView {
+  const due = w.resets_at !== null && Date.parse(w.resets_at) <= now.getTime()
+  const applies = w.applicability
+  const state = stateOf(w, due, stale)
+  const reset =
+    w.resets_at === null ? null : due ? `reset was due ${ago(w.resets_at, now)}` : `resets ${until(w.resets_at, now)}`
+  const name = windowName(w.window_id)
+  const withheld = NOT_A_VALUE[state]
+  if (withheld) return { name, state, value: withheld, reset, percent: null, applies }
+  const v = w.value ?? 0
+  const percent = w.unit === 'percent_used' || w.unit === 'spend_percent_used' ? v : null
+  return { name, state, value: `${valueOf(w, v)}${APPLIES[applies]}`, reset, percent, applies }
+}
+
+/**
+ * The account's capacity in one line: its most used observed window known to apply, and when it resets. No
+ * observation, one that can't see the account, or one past its `valid_until` is "Capacity unknown": never full,
+ * never empty, and an expired one says how long ago it stopped holding.
  */
 export function capacityLine(obs: QuotaObservation | undefined, now: Date): string {
   if (!obs || obs.coverage === 'unavailable') return 'Capacity unknown'
+  if (expired(obs, now)) return `Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`
   const views = obs.windows.map((w) => windowView(w, now))
   const limiting = views
-    .filter((v) => v.percent !== null)
+    .filter((v) => v.percent !== null && v.applies === 'known')
     .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
-  if (!limiting) return views.some((v) => v.state === 'refresh_pending') ? 'Refresh pending' : 'No window observed'
+  if (!limiting) {
+    if (views.some((v) => v.state === 'refresh_pending')) return 'Refresh pending'
+    if (views.some((v) => v.percent !== null)) return 'Capacity unknown: no window is known to apply here'
+    return 'No window observed'
+  }
   return `${limiting.name} window: ${limiting.value}${limiting.reset ? `, ${limiting.reset}` : ''}`
 }
 
