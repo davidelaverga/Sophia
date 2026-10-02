@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `follow-ups/per-asset-refresh` from main `648a37c`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the fix and docs at `e6257fa` (tree `20acab0f9e63`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** `apps/studio/src/features/explore/`, its fixture and checks. **Nothing else changed.**
 
 ## Outcome
