@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/resource-panel` from main `6510504`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the panel, checks and docs at `029b6ba` (tree `431420101a79`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** the Studio's new `features/resources/`, its fixture and checks, CONTRIBUTING and LFE-06's records. **No contract, schema, API, dependency or hosted service was changed. Nothing in the Studio shows the panel yet.**
 
 ## Outcome
