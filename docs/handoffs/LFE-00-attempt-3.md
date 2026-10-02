@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-00/real-controller` from main `55ddc1e`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the checks and docs at `c34cf69` (tree `c85a1b165ac2`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** the Studio's browser checks and fixtures, CONTRIBUTING and LFE-00's records. **No product code, schema, dependency or hosted service was changed.**
 
 ## Outcome
