@@ -1,0 +1,1243 @@
+{
+  "schema": "sophia.unified-frontend.v2",
+  "items": [
+    {
+      "id": "LFE-00",
+      "title": "Preserve the merged room and reconcile active frontend work",
+      "phase": "Now",
+      "basis": [
+        "R01",
+        "R02",
+        "R03",
+        "R04",
+        "R05",
+        "R06",
+        "R07",
+        "R10",
+        "R11"
+      ],
+      "current": "Main already includes the room, Chat/Brief side panel, input/capture controls and runtime reconciliation. Research and personal-space branches are separate candidates; yesterday’s blanket deferral and runtime-blocker notes are stale.",
+      "backend": [
+        "BASE"
+      ],
+      "prepare_after": [],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/studio/StudioShell.tsx [existing]",
+        "apps/studio/src/features/studio/SidePanel.tsx [existing]",
+        "apps/studio/src/app/route.ts [existing; PR30 modifies]",
+        "apps/studio/src/app/App.tsx [existing; PR30 modifies]",
+        "CONTRIBUTING.md [existing]",
+        "docs/execution/2026-10-01-unified/ [new documentation home]"
+      ],
+      "sessions": [
+        [
+          "Bind without restarting",
+          "Refresh main and PR29/24/30/32/35. Record which source is merged, which is open and which deployment evidence is merely reported. Consume PR29’s existing outcome; do not ask Codex to repeat its settled work."
+        ],
+        [
+          "Agree the two shared integrations",
+          "Assign one writer for route.ts, useProjectRoute.ts, App.tsx, SidePanel and the shared call switches in each merge window. The research author owns its new report components until an explicit handoff; Luis owns their visual integration. Retain original ancestry rather than cherry-picking arbitrary selected UI files."
+        ],
+        [
+          "Make preservation executable",
+          "Build a small labeled browser fixture suite for Chat/Brief switching, drafts, unread state, mobile media controls, text-mode exit and keyboard capture. Reuse existing pure helpers. Do not replace the query cache, room controller or theme."
+        ],
+        [
+          "Publish the next work ticket",
+          "Install the index and scope map; launch LFE-02 review with the research author and LFE-03 creative UI preparation independently. LFE-01 remains a separate candidate-review lane, not a prerequisite for team work."
+        ]
+      ],
+      "tests": [
+        [
+          "BASE-01",
+          "Chat and Brief switch/close/reopen",
+          "Unsent text and a manual brief edit survive; no background update overwrites either."
+        ],
+        [
+          "BASE-02",
+          "Type normal words with panel focus or nowhere",
+          "Text reaches the typing sink; no microphone/camera/screen activation from a letter."
+        ],
+        [
+          "BASE-03",
+          "Open mobile panel in an active call",
+          "Mute, visible sending state, errors and leave/return controls remain reachable."
+        ],
+        [
+          "BASE-04",
+          "Research and personal route changes coexist in a reviewed combined candidate",
+          "Report identity/parameters and call ownership are retained; no unreviewed merge is claimed."
+        ]
+      ],
+      "not_scope": "No room redesign, production deploy, reimplementation of PR24, or reopening the harness choice. This is a short integration setup, not weeks of infrastructure approval.",
+      "first": "Open main’s actual StudioShell and the three active PR summaries; claim shared-file scopes before writing.",
+      "path": "frontend/LFE-00.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-01",
+      "title": "Integrate personal space as a separate, owner-private lane",
+      "phase": "Parallel candidate",
+      "basis": [
+        "R10",
+        "R11",
+        "R03"
+      ],
+      "current": "PR35 supplies personal data/API and PR30 supplies the three-place UI. Both are open. The Companion adapter is rehearsal-only, and the prior team-first priority has not been shown to be rescinded by Davide.",
+      "backend": [
+        "PS-01",
+        "B-PERSONAL"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/personal/ [PR30 candidate]",
+        "apps/studio/src/app/App.tsx [shared; PR30 candidate changes]",
+        "apps/studio/src/app/reauth.ts [PR30 candidate]",
+        "apps/api/src/companion.ts [PR35 candidate; runtime owner]",
+        "db/migrations/ [PR35 owns migration 0021; use its actual filename]",
+        "packages/contracts/amendments/ [PR35 owns A10; use its actual filename]"
+      ],
+      "sessions": [
+        [
+          "Review the existing candidate, do not rebuild",
+          "Use PR35’s API/data and PR30’s UI sources. Confirm the owner’s scope/priority disposition. If retained, review data first and retarget UI only after its base lands; do not treat this document as merge authorization."
+        ],
+        [
+          "Keep the privacy promises visible",
+          "Preserve explicit note Keep/Let go, exact Carry and Take back, the device privacy curtain, separate reauthentication client and same-person check. Proposed project placement: a small attributed “Carried into this project” source entry in Knowledge with a read-only reference in the brief when relevant; no automatic mission acceptance or private recall."
+        ],
+        [
+          "Qualify navigation and the live boundary",
+          "Keep the proposed call visible across Home/Personal/Work and end it on another project exactly as the selected candidate specifies. Hidden project takes no keys and marks no items seen. Davide binds a real owner-scoped Companion and its budget before production messaging is enabled; no synthetic project or rehearsal in production."
+        ],
+        [
+          "Finish the actual product questions",
+          "Coordinate displayed member-name persistence and the privacy/data page. Explain that erasing private space does not erase carried project copies; provide the owner’s separate take-back action. Test merge with the report viewer and the project panel."
+        ]
+      ],
+      "tests": [
+        [
+          "PS-01",
+          "Viewer/admin tries to read another person’s private space",
+          "No content or metadata leak; project role does not widen personal access."
+        ],
+        [
+          "PS-02",
+          "Call begins while personal view is open",
+          "Curtain closes and personal cache/requests clear; ending call does not unlock automatically."
+        ],
+        [
+          "PS-03",
+          "Carry one note then erase personal space",
+          "Only the exact authorized project copy remains, visibly attributed and separately retractable."
+        ],
+        [
+          "PS-04",
+          "Live Companion absent",
+          "No fake reply or silently retained unanswered message; production never enables rehearsal."
+        ]
+      ],
+      "not_scope": "No automatic release of private memories to the room, no billing via a member subscription without a defined route, no priority change by implication.",
+      "first": "Review PR35 → PR30 with their owners; record the live-runtime and product-priority decisions separately from code readiness.",
+      "path": "frontend/LFE-01.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-02",
+      "title": "Adopt research delivery and finish the artifact-reading experience",
+      "phase": "Now",
+      "basis": [
+        "R07",
+        "R08",
+        "R09",
+        "P05"
+      ],
+      "current": "PR32 already creates DocumentPane, DocumentViewer, MarkdownView, WorkCard, SourcesList, ReportHistory, SummaryEditor and KnowledgeReports. Its PDF publication/viewer and final voice/text release pieces were still in progress at inspection.",
+      "backend": [
+        "SMC-M03",
+        "B-ARTIFACTS"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/artifacts/DocumentPane.tsx [PR32]",
+        "apps/studio/src/features/artifacts/DocumentViewer.tsx [PR32]",
+        "apps/studio/src/features/artifacts/KnowledgeReports.tsx [PR32]",
+        "apps/studio/src/features/artifacts/report-link.ts [PR32]",
+        "apps/studio/src/features/artifacts/WorkCard.tsx [PR32]",
+        "apps/studio/src/features/artifacts/PdfView.tsx [planned in PR32; verify landing]"
+      ],
+      "sessions": [
+        [
+          "Adopt the in-flight implementation",
+          "Review PR32’s latest exact diff and its author’s remaining slices. Keep its safe Markdown, byte/hash check, source provenance and version facts. Agree where Luis can add UI tests now and when component ownership transfers; no second Knowledge or report-store implementation."
+        ],
+        [
+          "Unify reader placement",
+          "Use one document identity and one mounted viewer for card → side → full → back. Respect Chat/Brief panel arbitration and report deep links; do not reset scroll or selected version on every progress event. Persisted report description/version notes remain source-backed, not model claims masquerading as diff checks."
+        ],
+        [
+          "Complete requested-format states with the owner",
+          "Connect PDF view/download/retry only once PR32’s rendition/publication route is real. Markdown-ready/PDF-failed is a useful partial result, not a completed PDF request. Preserve the last readable version on failed retry; no arbitrary HTML execution in a report."
+        ],
+        [
+          "Verify the real read flow",
+          "Inspect keyboard, screen reader announcements, phone overlay, hash mismatch, revoked source, historical version and exact download. Retain separate provider/hosted acceptance with Codex; local seeded reports do not prove live generation."
+        ]
+      ],
+      "tests": [
+        [
+          "ART-01",
+          "Open version 2, expand and download",
+          "Displayed and saved bytes match that version; full/side transition does not remount/reset it."
+        ],
+        [
+          "ART-02",
+          "Receive new version while reading old one",
+          "Offer the new version without switching the current inspection or marking it accepted."
+        ],
+        [
+          "ART-03",
+          "PDF fails after Markdown succeeds",
+          "Show usable Markdown, explicit PDF state and only the supported retry; preserve prior PDF if any."
+        ],
+        [
+          "ART-04",
+          "Untrusted HTML or revoked citation in a report",
+          "Treat markup as data and deny revoked source reads; no silent external image load."
+        ]
+      ],
+      "not_scope": "No new renderer or storage system. Deck/PPTX is a retained S1-13 output family, not delivered by PR32’s research PDF work.",
+      "first": "Ask the SMC-M03 implementer for the current remaining UI slice; add review/tests on an agreed branch, not a competing report feature.",
+      "path": "frontend/LFE-02.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-03",
+      "title": "Make Explore a real image-direction workspace",
+      "phase": "Create",
+      "basis": [
+        "P08",
+        "P07",
+        "R04"
+      ],
+      "current": "Explore still displays a ComingLens. Google/OpenAI image jobs are a retained independent backend capability, not implemented by Paperclip.",
+      "backend": [
+        "S1-06",
+        "B-IMAGES"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/explore/ [new]",
+        "apps/studio/src/features/studio/StudioShell.tsx [existing integration]",
+        "apps/studio/src/api/images.ts [proposed client; contract first]",
+        "packages/creative/src/images/ [backend scope]"
+      ],
+      "sessions": [
+        [
+          "Build one gallery over real identities",
+          "Define DirectionGallery/DirectionDetail using asset and candidate IDs, source/version, state, actual provider/configuration when available, retained reference material and display permissions. The UI fixture explicitly says simulated; do not hard-code global IDs or manufacture images from placeholders."
+        ],
+        [
+          "Generate and compare intentionally",
+          "Bind the actual image-job use case. A clear authorized voice/text request can admit work; comparing vendors is an intentional request, not an automatic duplicate charge. Support queued/running/partial/refused/unknown/retry states and one stable command identity."
+        ],
+        [
+          "Select and carry forward",
+          "Select one candidate without deleting alternatives or regenerating it. An edit targets the chosen source image/version. Retain selected bytes/tokens/reference choices for the prototype handoff. Switching lenses does not accept the design or start a worker."
+        ],
+        [
+          "Close one creative episode",
+          "Show one real Google candidate and one real OpenAI candidate under the approved model routes, choose one and inspect an edited version. Backend/provider binding is Davide’s task; frontend comparison, storage identity display and a11y are Luis’s."
+        ]
+      ],
+      "tests": [
+        [
+          "IMG-01",
+          "Select one of two returned alternatives",
+          "Exactly that asset is retained; selection triggers zero new generation calls."
+        ],
+        [
+          "IMG-02",
+          "One provider refuses or times out",
+          "The other result remains usable; unknown outcome is reconciled before duplicate paid retry."
+        ],
+        [
+          "IMG-03",
+          "Source image changes during edit",
+          "Stale edit is explicit; no overwrite of a newer chosen source."
+        ],
+        [
+          "IMG-04",
+          "Phone comparison and keyboard selection",
+          "All choices and provenance are reachable without hover or color-only states."
+        ]
+      ],
+      "not_scope": "No reopening of image-provider strategy, automatic vendor waterfall, or claim that a picture is a runnable prototype.",
+      "first": "Implement the gallery and selection fixture beside the real image contract work; replace ComingLens only when the visible state truthfully represents the configured route.",
+      "path": "frontend/LFE-03.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-04",
+      "title": "Let Luis build and edit runnable prototype source inside Sophia",
+      "phase": "Create",
+      "basis": [
+        "P09",
+        "P07"
+      ],
+      "current": "Build still has a placeholder. The original plan assigns this capability to Luis and requires actual source handoff, not screenshot reconstruction.",
+      "backend": [
+        "S1-07",
+        "B-PROTOTYPE"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/source-editor/ [new]",
+        "apps/studio/src/features/explore/ [shared candidate selection]",
+        "packages/creative/src/prototype-bundle.ts [backend integration]",
+        "apps/execution-host/src/workspace-supervisor.ts [proposed; verify current execution home]"
+      ],
+      "sessions": [
+        [
+          "Bind one supported source bundle",
+          "React/TypeScript/Vite is the retained first prototype stack; adapt its handoff to the target repo rather than claiming universal zero-rework integration. Bundle source, dependency lock, selected assets, design tokens, interaction states and explicit mock-service boundaries."
+        ],
+        [
+          "Implement Preview / Source / Diff",
+          "Use bounded lazy CodeMirror 6 for permitted files, not a new full IDE. The three views select one candidate. Opening Source is read-only and does not Hold work. Editing is an explicit writer takeover: ask the host to settle the affected writer before enabling save."
+        ],
+        [
+          "Save without losing another writer’s work",
+          "Submit a patch against exact file/base hashes. A conflict keeps Luis’s draft and the incoming candidate, with a compare/rebase choice. Build in the no-secret isolated service; a failed build never replaces the last useful preview. Selection and local drafts are not canonical acceptance."
+        ],
+        [
+          "Hand the implementation team actual source",
+          "Export a manifest and source package that builds fresh. Hand it to the technical lead with behavior, preserved design, service gaps and checks. Verify the returned app uses these components/assets rather than a re-created screenshot approximation."
+        ]
+      ],
+      "tests": [
+        [
+          "SRC-01",
+          "Save while a newer worker candidate arrives",
+          "Expected-base conflict preserves both sources; no optimistic overwrite."
+        ],
+        [
+          "SRC-02",
+          "Build script fails or attempts secret access",
+          "Confined build fails truthfully; previous preview and draft remain."
+        ],
+        [
+          "SRC-03",
+          "Open Source then inspect another file",
+          "No work control, acceptance or shared-focus change occurs."
+        ],
+        [
+          "SRC-04",
+          "Export and build in a fresh qualified workspace",
+          "Actual preview source, lock and assets reproduce; mocks remain clearly labeled."
+        ]
+      ],
+      "not_scope": "No unrestricted shell in the browser, native credential exposure, arbitrary repository edit guarantee or dependency on finishing the entire management stack.",
+      "first": "Begin source/preview fixtures against the artifact identity from PR32; coordinate the sandbox and writer-takeover contract with Davide before live save.",
+      "path": "frontend/LFE-04.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-05",
+      "title": "Bring existing project context in without silently accepting it",
+      "phase": "Create/continue",
+      "basis": [
+        "P07",
+        "P15"
+      ],
+      "current": "The living brief and mission decisions exist. Full prior ChatGPT/Claude project import, scoped review and omission coverage remain separate from the personal-space carried-note feature.",
+      "backend": [
+        "S1-08",
+        "B-CONTEXT"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/intake/ [new]",
+        "apps/studio/src/features/mission/MissionPanel.tsx [existing]",
+        "apps/studio/src/features/artifacts/KnowledgeReports.tsx [PR32 reference, not a generic source importer]",
+        "packages/source-connectors/ [backend scope]"
+      ],
+      "sessions": [
+        [
+          "Stage selected context",
+          "Let the user select exported conversations/instructions/files or an explicit handoff. Show included, omitted, duplicate, unsupported and unreadable material. Stage privately before an explicit release to the project; do not imply a linked coding resource grants every account conversation."
+        ],
+        [
+          "Propose rather than overwrite",
+          "Display the reconstructed direction and conflicting old decisions beside the current accepted mission. An import is evidence, not automatic acceptance. Manual brief edits remain authoritative; accepting a proposal uses its current revision."
+        ],
+        [
+          "Expose use and correction",
+          "A compact “Used for this work” surface shows eligible source references and missing coverage. Correction/Forget updates future eligibility and explains cleanup state. Do not present a deleted UI row as proof that every retained runtime copy was purged."
+        ],
+        [
+          "Unify explicit crossings",
+          "A carried personal note and an imported archive can share source presentation, but retain their distinct permissions/withdrawal contracts. “Send to Sophia” is an explicit selected-context handoff experiment, not promised two-way synchronization with all vendor Projects."
+        ]
+      ],
+      "tests": [
+        [
+          "CTX-01",
+          "Import an old assistant plan that conflicts with current mission",
+          "It remains a proposal/evidence until a current authorized decision resolves it."
+        ],
+        [
+          "CTX-02",
+          "Archive omits attachments or project grouping",
+          "Coverage is explicit; no false full-project import badge."
+        ],
+        [
+          "CTX-03",
+          "Withdraw a source while work is pending",
+          "Future packets and resumed contexts honor narrowed eligibility; UI shows any remaining cleanup."
+        ],
+        [
+          "CTX-04",
+          "Member links their coding session",
+          "No private native history or personal memories become team-visible by implication."
+        ]
+      ],
+      "not_scope": "No undocumented account scraping, new mandatory memory vendor, or automatic private-to-team retrieval.",
+      "first": "Create a selected-import manifest fixture and bind its current-decision conflicts to the existing mission tools, not a new brief database.",
+      "path": "frontend/LFE-05.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-06",
+      "title": "Make all three resources and their work visible and controllable",
+      "phase": "Coordinate",
+      "basis": [
+        "C01",
+        "P07",
+        "R03"
+      ],
+      "current": "Current work UI and replay primitives exist; the owner-resource and Paperclip integrations are new SCM work. Do not expose upstream administration in the browser.",
+      "backend": [
+        "SCM-01",
+        "SCM-02",
+        "SCM-03"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/resources/ [new]",
+        "apps/studio/src/features/work/ [existing; extend]",
+        "apps/studio/src/features/work/attention/ [proposed]",
+        "apps/studio/src/api/coordination.ts [proposed; validated contracts]"
+      ],
+      "sessions": [
+        [
+          "Bind identity and readiness",
+          "Render Davide Codex, Davide Claude and Luis Claude as separately enrolled resources. Show owner, native route, host availability, actual model/effort where observed, current assignment, freshness and supported controls. Two sessions from one account must not show duplicated independent allowance."
+        ],
+        [
+          "Show actual capacity",
+          "Use each applicable window, reset and source age. Unknown is not 100 percent; a forecast reset is refresh-pending until observed. Separate account availability from project contribution/reserve and API spending. No arithmetic across different providers’ percentages."
+        ],
+        [
+          "Surface the exact action owner",
+          "A persistent action names owner, native session, requested operation and state. Initial action opens the correct native destination; no unsupported Approve button. Opening/seeing a card does not resolve it. Preserve deny, expired, superseded and unknown outcomes."
+        ],
+        [
+          "Connect guidance and controls",
+          "Use current assignment IDs and epochs for guidance, Hold and Stop. Show recorded/queued/native-observed/result-checked distinctly. Stop remains available during quota exhaustion or a permission wait; connection loss never becomes a fabricated successful stop."
+        ],
+        [
+          "Prove two-user operation",
+          "Exercise both members and three real resources under SCM, then reconnect the observer. Browsing or having the input floor does not change project-edit or account-owner rights."
+        ]
+      ],
+      "tests": [
+        [
+          "RES-01",
+          "Two Claude sessions use the same owner account",
+          "Capacity is accounted once; roles/sessions remain individually inspectable."
+        ],
+        [
+          "RES-02",
+          "Quota/window/host observation absent",
+          "Show unknown or stale and its age, never full capacity or executing."
+        ],
+        [
+          "RES-03",
+          "Luis views Davide’s owner-only request",
+          "He can inspect authorized context but cannot answer it using its URL."
+        ],
+        [
+          "RES-04",
+          "Stop while native action waits",
+          "Control is admitted independently; late native answer cannot restart stopped work."
+        ],
+        [
+          "RES-05",
+          "Worker idle or observer disconnected",
+          "No false completion, product acceptance or worker-restarted animation."
+        ]
+      ],
+      "not_scope": "No browser-held Omnigent/Paperclip admin token, provider credentials, generic API proxy or resource count presented as productivity.",
+      "first": "Build resource/action/status fixtures against SCM-02’s contracts while its adapters are implemented; retain the existing project feed.",
+      "path": "frontend/LFE-06.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-07",
+      "title": "Let people review the lead’s plan, steer and reallocate intelligently",
+      "phase": "Coordinate",
+      "basis": [
+        "C01",
+        "P07",
+        "P18"
+      ],
+      "current": "SCM-04/05 define operational planning and capacity-aware amendments. This frontend package implements those outcomes, not another scheduler.",
+      "backend": [
+        "SCM-04",
+        "SCM-05"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-06"
+      ],
+      "paths": [
+        "apps/studio/src/features/work/planning/ [new]",
+        "apps/studio/src/features/work/guidance/ [new]",
+        "apps/studio/src/features/resources/ [shared]",
+        "packages/coordination/src/ [backend source; no duplicate frontend logic]"
+      ],
+      "sessions": [
+        [
+          "Show the smallest useful plan",
+          "Display outcome, scope, next checkpoint, selected team/roles, dependencies and reserved decisions. Keep assumptions distinct from accepted choices, without mandatory probability scoring. Edits address exact plan revisions."
+        ],
+        [
+          "Make progress review tangible",
+          "Review work progress creates or joins the actual bounded lead review and immediately shows a pending receipt. Its result distinguishes observation, interpretation, uncertainty and proposed intervention. Routine continue updates last-reviewed quietly; material changes show evidence and a way to challenge."
+        ],
+        [
+          "Implement the capacity warning",
+          "Bind warning to the exact pending amendment, affected resource/windows, observation age and current contribution grant. Actions: Confirm steer, Let project lead reassign, Cancel amendment. Confirmation accepts a risk, not a hard-limit override, paid overage or another owner’s reserve."
+        ],
+        [
+          "Explain a handover rather than hide it",
+          "Show destination selected, source saved, old writer settling, remaining scope assigned and destination verified. A ready alternative is not automatically authorized. Let the host choose transfer only added work, bounded support, next-boundary handoff or waiting for reset; the UI never decides the strategy itself."
+        ]
+      ],
+      "tests": [
+        [
+          "PLAN-01",
+          "Click Review twice while one review is active",
+          "Join the existing review reason; no duplicate expensive task."
+        ],
+        [
+          "PLAN-02",
+          "Confirm an old warning after candidate/scope changes",
+          "Re-evaluate or refuse the stale amendment; no quiet approval of new scope."
+        ],
+        [
+          "PLAN-03",
+          "Select reassignment with old writer stop uncertain",
+          "Show uncertainty and preserve source; no claim another writer safely owns it."
+        ],
+        [
+          "PLAN-04",
+          "Lead sees no useful intervention",
+          "No attention card or spoken interruption is manufactured."
+        ],
+        [
+          "PLAN-05",
+          "Account reserve would be exceeded",
+          "Ask the actual owner or offer eligible alternatives; Confirm steer alone cannot consume it."
+        ]
+      ],
+      "not_scope": "No mandatory Jev service, model-based bookkeeping, native usage credit “team wallet” or fixed vendor hierarchy.",
+      "first": "Use SCM-04’s review/plan result fixtures and SCM-05’s exact steer decision schema; own the user-facing interaction and tests.",
+      "path": "frontend/LFE-07.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-08",
+      "title": "Review the actual app and steer a precise change",
+      "phase": "Coordinate/create join",
+      "basis": [
+        "C01",
+        "P07",
+        "P09"
+      ],
+      "current": "Actual report viewing is under PR32; application co-review remains new. The first review can use an existing real source-linked app before the complete native prototype platform is ready.",
+      "backend": [
+        "SCM-06",
+        "B-PREVIEW"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-06",
+        "LFE-07"
+      ],
+      "paths": [
+        "apps/studio/src/features/review/ [new]",
+        "apps/studio/src/features/source-editor/ [shared if available]",
+        "apps/studio/src/features/artifacts/DocumentViewer.tsx [PR32; adapt shared identity, not all DOM behavior]",
+        "apps/studio/src/features/voice/ [existing controls]"
+      ],
+      "sessions": [
+        [
+          "Open a verifiable candidate",
+          "Use a team-owned isolated preview origin with explicit frame policy and a narrow message bridge. Retain source/base, deployment/preview identity, known mocks and checks. An arbitrary URL blocked by frame policy opens through a truthful separate tab, not header stripping."
+        ],
+        [
+          "Resolve the target with the person",
+          "Selection carries expected origin/window/nonce/preview/source version and available exact text or file/element evidence. Vision helps layout, not authority. Clarify material ambiguity and gather clustered feedback; a clear authorized command need not require five confirmation clicks."
+        ],
+        [
+          "Send change and preservation together",
+          "Create one ReviewIntent with changed targets, preserved behavior/style, criteria revision and contributor. The lead maps it to current work. Received/delivered/observed/checked are separate; the user retains the old useful preview."
+        ],
+        [
+          "Review returned evidence",
+          "Inspect actual source diff and relevant runtime/rendered checks. Candidate-ready, independent-review-passed, accepted and deployed remain separate. Barge-in, Stop Looking and End exchange do not silently cancel the build; a result never reopens an ended exchange."
+        ]
+      ],
+      "tests": [
+        [
+          "REV-01",
+          "Selection from wrong iframe origin or stale preview",
+          "Reject the selection as authority; no dispatch to a new candidate."
+        ],
+        [
+          "REV-02",
+          "Say “the one below” and then correct it",
+          "Resolve a real current target before the requested change is sent."
+        ],
+        [
+          "REV-03",
+          "Ask to preserve primary interaction while changing a secondary action",
+          "Returned candidate is checked for both; no unconditional surgical claim."
+        ],
+        [
+          "REV-04",
+          "New candidate fails checks",
+          "Previous accepted/useful preview remains available."
+        ],
+        [
+          "REV-05",
+          "Typed feedback has asynchronous tool continuation during room voice",
+          "Correct recipient and mode persist; private text is not spoken into shared audio."
+        ]
+      ],
+      "not_scope": "No claim of guaranteed arbitrary-repository surgical editing; no dependency on inventing new image-generation capability for the first application review.",
+      "first": "Bind the first real app preview and selection contract with the technical lead/backend owner, then implement review against that exact source.",
+      "path": "frontend/LFE-08.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-09",
+      "title": "Deliver selective cooperation, mobile actions and useful return",
+      "phase": "Cooperate",
+      "basis": [
+        "C01",
+        "P12",
+        "P13",
+        "P16"
+      ],
+      "current": "Required actions and basic progress belong earlier in LFE-06/07. This package refines attention, milestone opportunities, PWA mobile and standing-work return rather than introducing a second inbox.",
+      "backend": [
+        "SCM-06",
+        "SCM-07",
+        "B-PUSH"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-06",
+        "LFE-07"
+      ],
+      "paths": [
+        "apps/studio/src/features/work/attention/ [extend]",
+        "apps/studio/src/features/mobile/ [new]",
+        "apps/studio/src/features/return/ [new]",
+        "apps/studio/src/features/voice/ [existing media switches]"
+      ],
+      "sessions": [
+        [
+          "Use four semantic surfaces",
+          "Quiet Work Pulse, persistent required HumanAction, optional source-linked CooperationOpportunity and always-reachable control/Inspector. A shared action ID appears in every place; viewer dismissal/seen is never task resolution."
+        ],
+        [
+          "Offer milestones worth inspecting",
+          "The existing lead review can return no opportunity or a concrete captured source/choice with intended audience, relevance window and no-response continuation. Show why a person’s taste or knowledge matters now. An expired/stale screenshot cannot replace a newer candidate."
+        ],
+        [
+          "Qualify mobile control",
+          "Responsive web/PWA first. Fetch current action after authentication; bind supported native answers to owner and request fingerprint. Native login/OS/2FA stays a named handoff. Minimal opt-in push carries no secret or operation body; denied push leaves the durable inbox usable."
+        ],
+        [
+          "Return without replaying the whole conversation",
+          "Show accepted changes, pending owner decisions, useful candidate and mandate state from eligible records. Permit manual review, comment, steer, Hold/Stop and revoke within current authority. No raw chat retention is added merely for a return summary."
+        ]
+      ],
+      "tests": [
+        [
+          "ATT-01",
+          "Decline optional milestone invitation",
+          "Only attention changes; separate required permission stays pending."
+        ],
+        [
+          "ATT-02",
+          "Tap a push after Stop or request supersession",
+          "Fetch current state and refuse stale effect; no offline queued approval."
+        ],
+        [
+          "ATT-03",
+          "No browser push permission or offline device",
+          "In-app action and current details remain recoverable; no false delivered/read claim."
+        ],
+        [
+          "ATT-04",
+          "Return after a quota reset and a member removal",
+          "Current eligibility governs visible context and suggested work; reset never reopens cancelled work."
+        ],
+        [
+          "ATT-05",
+          "Panel covers mobile call controls",
+          "Visible sending, mute and leaving remain accessible throughout action resolution."
+        ]
+      ],
+      "not_scope": "No native mobile rewrite or guaranteed remote control of a sleeping owner computer. No model wake merely for a percent-bar change.",
+      "first": "Build the three distinct card types over shared action IDs and current UI rules; extend to one real opt-in notification path after its backend is qualified.",
+      "path": "frontend/LFE-09.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-10",
+      "title": "Add enforced targeted editing and executable UI scenarios",
+      "phase": "Precision",
+      "basis": [
+        "P10",
+        "P11",
+        "P07"
+      ],
+      "current": "SCM-06 review-to-steer does not complete exact mutation or scenario testing. These retained S2 goals need a dedicated deliverable and the source services underneath it.",
+      "backend": [
+        "S2-02",
+        "S2-03",
+        "B-MUTATIONS"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-04",
+        "LFE-08"
+      ],
+      "paths": [
+        "apps/studio/src/features/review/ [extend]",
+        "apps/studio/.storybook/ [new if not introduced earlier]",
+        "packages/scenarios/ [new]",
+        "tests/preview-e2e/ [new]",
+        "packages/artifacts/src/mutations/ [backend proposed destination]"
+      ],
+      "sessions": [
+        [
+          "Make the promised edit boundary visible",
+          "For supported UI/HTML/slide-source components, bind exact base/targets/protected source. For imported flattened files, offer inspection or explicit conversion rather than a lossless native-edit claim. Shared CSS/API changes require an expanded impact decision."
+        ],
+        [
+          "Connect isolated revision and publication",
+          "Stage only allowed writable source where the format supports it; validate entire diff, sibling hashes and meaningful rendered behavior before CAS publication. Binary packaging metadata or legitimate page shifts are not source-preservation failures."
+        ],
+        [
+          "Expose scenarios as scenarios",
+          "Add Storybook where useful and MSW-controlled loading/empty/failure/success states tied to the candidate. Make simulated services explicit. Keep test tooling out of the production user’s critical path."
+        ],
+        [
+          "Join visual observation to executable evidence",
+          "Run Playwright against the real preview; store source/deployment identity, assertions, console/network and trace. A timestamped video observation can inspire a test, but dsh replay or a mock service cannot satisfy the integrated behavior criterion."
+        ]
+      ],
+      "tests": [
+        [
+          "EDIT-01",
+          "Edit one component with protected sibling source",
+          "Only authorized source changes; actual checks catch shared-style behavioral regression."
+        ],
+        [
+          "EDIT-02",
+          "Stale expected base",
+          "Candidate conflict, never overwrite; retain manual draft and valid preview."
+        ],
+        [
+          "SIM-01",
+          "Scenario success uses mocked persistence",
+          "Display simulation label; not accepted as real database behavior."
+        ],
+        [
+          "SIM-02",
+          "Recorded agent/model replay passes",
+          "Evidence stays runtime-replay, not fresh provider/UI application proof."
+        ]
+      ],
+      "not_scope": "No whole-artifact regeneration merely because target resolution was ambiguous, no unsupported arbitrary-file editing guarantee.",
+      "first": "Choose one supported source-backed prototype component, implement its revision and one failing/passing application scenario end to end.",
+      "path": "frontend/LFE-10.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-11",
+      "title": "Extend consented voice, selected vision and hands-free navigation",
+      "phase": "Cooperate",
+      "basis": [
+        "P14",
+        "P07",
+        "R03"
+      ],
+      "current": "The current Gemini/LiveKit path and shared room controls exist. Discussion-following, broader navigation and video inspection require explicit capability additions, not a rewrite of the room.",
+      "backend": [
+        "S2-05",
+        "B-PARTICIPATION"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-08"
+      ],
+      "paths": [
+        "apps/studio/src/features/voice/ [extend existing]",
+        "apps/studio/src/features/studio/ [registered navigation targets]",
+        "apps/media-bridge/src/participation/ [backend proposed]",
+        "apps/studio/src/features/review/ [selected visual source]"
+      ],
+      "sessions": [
+        [
+          "Keep invocation complete and simple",
+          "Ordinary direct conversation remains on the existing Gemini route. Add navigation intents only for actual registered destinations/objects; viewing, discussing, sharing focus and changing work stay distinct effects."
+        ],
+        [
+          "Prove a navigation result",
+          "“Open the latest report” resolves exact eligible artifact/version and intended viewer. The application returns a rendered/location receipt or truthful failure before Sophia says it opened it. A second participant’s lens stays local unless they explicitly follow shared focus."
+        ],
+        [
+          "Add opt-in discussion following",
+          "Use authenticated track attribution and per-person consent; represent silence/card/admitted speech separately. No default retention of ambient transcripts, psychological profiling or hidden voice identity. Withdrawing consent or guest changes affects the actual media input path."
+        ],
+        [
+          "Validate media and control combinations",
+          "Test EN/IT/ES correction, negation, numbers, overlap, barge-in and reconnect. A selected image/video segment has visible looking status and immediate Stop Looking. Neither ending visual input nor speech interruption becomes Stop work."
+        ]
+      ],
+      "tests": [
+        [
+          "VOICE-01",
+          "Quoted or negated wake/name",
+          "No unconditional action or speech command."
+        ],
+        [
+          "VOICE-02",
+          "Open an artifact for this viewer",
+          "App confirms location/identity; other member navigation unchanged."
+        ],
+        [
+          "VOICE-03",
+          "Revoke looking/listening then reconnect",
+          "Old frames/audio or cached context cannot silently become newly authorized input."
+        ],
+        [
+          "VOICE-04",
+          "Question while background work completes",
+          "One meaningful notice at an appropriate boundary; no duplicate speech from tool/UI/event."
+        ]
+      ],
+      "not_scope": "No new cascade fallback, always-listening consent assumption, guessed emotion control or mandatory Jev service.",
+      "first": "Add one concrete voice-navigation target to the current application action registry and prove its UI receipt before expanding coverage.",
+      "path": "frontend/LFE-11.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-12",
+      "title": "Complete connected context, exports and project-level continuity",
+      "phase": "Later retained",
+      "basis": [
+        "P15",
+        "P19",
+        "C01"
+      ],
+      "current": "Notion/Supabase/Vercel management connectors were deliberately deferred. Current native engineers retain their authorized service access; the new product UI must not block that path.",
+      "backend": [
+        "S2-06",
+        "S3-04",
+        "B-CONNECTORS"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-02",
+        "LFE-05",
+        "LFE-09"
+      ],
+      "paths": [
+        "apps/studio/src/features/connections/ [new]",
+        "apps/studio/src/features/return/ [extend]",
+        "apps/studio/src/features/export/ [new]",
+        "packages/source-connectors/ [backend scope]"
+      ],
+      "sessions": [
+        [
+          "Scope the visible connections",
+          "Show selected pages/projects/environments, actual owner, expiry and read versus effect capabilities. A first-party connector does not become a second accepted mission/source store or duplicate the native engineer’s credentials."
+        ],
+        [
+          "Refresh without rewriting decisions",
+          "Implement selected Notion intake/publication, then qualified Supabase/Vercel management views. A refresh proposes relevant changes with source coverage; it does not silently overwrite current accepted choices. Unsupported vendor Project sync stays explicit import/handoff."
+        ],
+        [
+          "Export something another engineer can use",
+          "Export selected actual source, asset/version manifest, accepted decisions, tests, remaining work and unresolved external effects. Distinguish user artifacts from private execution logs. Report omitted/inaccessible content and protect revoked sources."
+        ],
+        [
+          "Complete the return view",
+          "Integrate state-of-build and source freshness, meaningful cycle-close lessons with Accept/Edit/Reflect and no-change outcomes. Keep the panel/project controls stable while data refreshes."
+        ]
+      ],
+      "tests": [
+        [
+          "CONN-01",
+          "Source connection expired",
+          "No scraping or alternate-account fallback; existing permitted work remains understandable."
+        ],
+        [
+          "CONN-02",
+          "Export excludes private/ineligible material",
+          "Coverage is disclosed, no false complete archive claim."
+        ],
+        [
+          "CONN-03",
+          "Refreshed page conflicts with accepted direction",
+          "Proposal and conflict, not silent acceptance."
+        ],
+        [
+          "CONN-04",
+          "Source forgotten after derived knowledge exists",
+          "Eligibility narrows and derived display is corrected; cleanup status is truthful."
+        ]
+      ],
+      "not_scope": "No requirement to finish connectors before team coordination, no new knowledge vendor or automatic external publication.",
+      "first": "Start with the smallest retained source-refresh and export workflow needed by a real team, after the creative/coordination episode is usable.",
+      "path": "frontend/LFE-12.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-13",
+      "title": "Expose adaptive execution and evaluated improvement without a dashboard takeover",
+      "phase": "Later retained",
+      "basis": [
+        "P16",
+        "P17",
+        "P18",
+        "P19",
+        "C01"
+      ],
+      "current": "The long-horizon and procedural-learning goals remain later outcomes. The basic capacity warning is already earlier; this package adds evidence-backed configuration, promotion and real-team use.",
+      "backend": [
+        "SCM-07",
+        "SCM-08",
+        "S3-02",
+        "S3-03",
+        "S3-04"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-07",
+        "LFE-09",
+        "LFE-12"
+      ],
+      "paths": [
+        "apps/studio/src/features/resources/ [extend]",
+        "apps/studio/src/features/work/ [extend]",
+        "apps/studio/src/features/learning/ [proposed later]",
+        "docs/onboarding/ [later real-team materials]"
+      ],
+      "sessions": [
+        [
+          "Show effective arrangements",
+          "Expose a small evaluated solo/pair/cross-harness portfolio with cost/speed preferences, actual observed model/effort and current permission. A provider alias is not evidence of running settings; native and external workers use the same source/acceptance language."
+        ],
+        [
+          "Make a standing mandate understandable",
+          "Show authorized scope, duration, resource contribution and next required decisions. Pause/revoke is always reachable; a reset or worker restart does not extend the mandate. Show only meaningful strategy changes."
+        ],
+        [
+          "Review one procedural proposal",
+          "Present exact base/version/diff, evidence, limitations and rollback for an allowlisted skill/recipe change. Approval is not implied by liking a result. Active work retains its previous recipe; personal identity/voice/safety/raw memories are excluded."
+        ],
+        [
+          "Learn from repeated real use",
+          "A named external team, including a nontechnical contributor, repeats useful work and exports/takes over a project. Record actual errors, useful human contributions and costs. Label missing or inconclusive evidence rather than manufacturing conversion metrics."
+        ]
+      ],
+      "tests": [
+        [
+          "LEARN-01",
+          "Promote against changed recipe base",
+          "Conflict; never install unseen bytes."
+        ],
+        [
+          "LEARN-02",
+          "Select economical option outside current grant",
+          "No change of payer, permissions or hidden spending route."
+        ],
+        [
+          "LEARN-03",
+          "Rollback a promoted recipe",
+          "New eligible attempts use restored version; history and active attempt identity remain intact."
+        ],
+        [
+          "LEARN-04",
+          "External team completes fixture-only demo",
+          "Do not count as actual adoption or accepted live product work."
+        ]
+      ],
+      "not_scope": "No perpetual self-improver, unbounded autonomous mandate, forced positive feedback score or automatic personal-memory mutation.",
+      "first": "Use evidence from actual completed team work; do not build this interface ahead of a useful first creation-and-coordination release.",
+      "path": "frontend/LFE-13.md",
+      "status": "current_continuation",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-14",
+      "title": "Connect an owner assistant and cooperate privately",
+      "phase": "Optional personal contribution",
+      "backend": [
+        "PA-00",
+        "PA-01",
+        "PS-01"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [],
+      "paths": [
+        "apps/studio/src/features/personal/assistant-connections/ [proposed]",
+        "apps/studio/src/features/personal/jobs/ [proposed]"
+      ],
+      "current": "Extend the selected personal candidate without creating a second global store or requiring a production Companion. All assistant messages are private.",
+      "sessions": [
+        [
+          "Connection and capability cards",
+          "Show actual owner/provider, enrolled role/skill version and capability-specific readiness. Secure setup stays outside model-visible text. Explain native account steps and known billing/control limitations; no zero-setup claim."
+        ],
+        [
+          "Private job conversation",
+          "Render purpose, selected scope, questions/replies/guidance, meaningful blockers and candidate state under one job identity. Fetched/incorporated/checked labels reflect evidence. The team call never announces private messages."
+        ],
+        [
+          "Recovery and device behavior",
+          "Preserve unsent guidance, cursor and returned candidates across reconnect. A closed view does not cancel work; revoke/withdraw is explicit. Show native action/dependency and safe return to the provider instead of unsupported approval controls."
+        ],
+        [
+          "Prove isolation and accessibility",
+          "Exercise two owners/admin, cache clearing on lock, keyboard/focus, phone layout, denied reads and normalized errors. No shared SSE, unread badges or trace metadata leaks."
+        ]
+      ],
+      "tests": [
+        [
+          "PAUI-01",
+          "Lock during private response",
+          "Personal job content/cache clears from this view and no team notice is emitted."
+        ],
+        [
+          "PAUI-02",
+          "Unknown wake",
+          "Show uncertainty and native inspection, not a duplicate automatic trigger or Running success."
+        ],
+        [
+          "PAUI-03",
+          "Owner reply lost",
+          "Same-key retry preserves typed content and correct job; no copied response in team chat."
+        ],
+        [
+          "PAUI-04",
+          "No Companion",
+          "Private job messaging works as an explicit work thread; personal AI conversation remains unavailable."
+        ]
+      ],
+      "path": "frontend/LFE-14.md",
+      "status": "planned",
+      "human_owner": "Luis",
+      "capability_dependencies": [
+        {
+          "provider_package": "LFE-01",
+          "required_slice": "Selected integrated owner-private shell, lock/cache and auth behavior. Private Companion messaging may remain unavailable."
+        }
+      ]
+    },
+    {
+      "id": "LFE-15",
+      "title": "Review personal knowledge and share exactly selected content",
+      "phase": "Optional personal contribution",
+      "backend": [
+        "PA-02"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-14"
+      ],
+      "paths": [
+        "apps/studio/src/features/personal/packages/ [proposed]",
+        "apps/studio/src/features/intake/ [shared publication presentation]"
+      ],
+      "current": "Use owner-only package versions and existing safe artifact components only with personal readers. Share is a real publication boundary.",
+      "sessions": [
+        [
+          "Inspect package and coverage",
+          "Show findings, source types/dates, original versus model claims, missing and contradictory material. Do not load remote tracking images or auto-index into team search."
+        ],
+        [
+          "Edit and preview exact share",
+          "Allow selecting/redacting text, attachments and metadata. Show the final sanitized version plus destination and hash-bound selection before confirmation. A newer private version invalidates an old preview."
+        ],
+        [
+          "Publish and verify receipt",
+          "Call human-only publication; handle pending-copy/conflict/denied/unknown. Announce shared only after target bytes/readers exist. The Bot has no equivalent control."
+        ],
+        [
+          "Correct and withdraw",
+          "Display private edit versus shared update, separate erasure/withdrawal, current access and cleanup limits. Test member removal and changed source between preview and commit."
+        ]
+      ],
+      "tests": [
+        [
+          "SHUI-01",
+          "Unselected attachment",
+          "No name/preview/body of the excluded attachment enters project source or event."
+        ],
+        [
+          "SHUI-02",
+          "Changed preview",
+          "An old approval refuses instead of publishing unseen edits."
+        ],
+        [
+          "SHUI-03",
+          "Copy pending/fails",
+          "Show pending/failed and private original remains; project sees no partial package."
+        ],
+        [
+          "SHUI-04",
+          "Owner deletes personal original",
+          "Explain independent shared copy and offer separate take-back; no claim of provider-global erasure."
+        ]
+      ],
+      "path": "frontend/LFE-15.md",
+      "status": "planned",
+      "human_owner": "Luis"
+    },
+    {
+      "id": "LFE-16",
+      "title": "Expose qualified computer reviews and project peers honestly",
+      "phase": "Later optional assistant expansion",
+      "backend": [
+        "PA-03",
+        "PA-04"
+      ],
+      "prepare_after": [
+        "LFE-00"
+      ],
+      "activate_after": [
+        "LFE-15",
+        "LFE-08"
+      ],
+      "paths": [
+        "apps/studio/src/features/review/ [shared]",
+        "apps/studio/src/features/resources/ [shared]"
+      ],
+      "current": "These are optional additional contributor capabilities after private import. Native three-engineer controls are not replaced.",
+      "sessions": [
+        [
+          "Computer capability selection",
+          "Distinguish cloud browser, local files, desktop-proxied network and optional local GUI. Bind exact preview/account scope; unsupported controls remain absent."
+        ],
+        [
+          "Evidence-backed findings",
+          "Show exact candidate/journey, actual artifacts, reproduction and limitations. Do not turn a screenshot into source-verification or a blanket pass."
+        ],
+        [
+          "Peer conversation projection",
+          "Show assigned roles and relevant authorized findings/questions over shared work IDs, no private jobs or raw provider logs. Prevent admin impersonation and hidden payer changes."
+        ],
+        [
+          "Removal and uncertainty",
+          "Race removed membership, late messages and stale candidate; maintain current access and previous useful output. Stop requested versus remote stopped remain distinct."
+        ]
+      ],
+      "tests": [
+        [
+          "RVUI-01",
+          "Wrong preview",
+          "Reject or label stale target; do not attach findings to latest by default."
+        ],
+        [
+          "RVUI-02",
+          "Local device offline",
+          "Show waiting for local dependency without marking unrelated cloud work stopped."
+        ],
+        [
+          "RVUI-03",
+          "Private question in peer feed",
+          "Reject at server; no metadata hint leaks through unread state."
+        ],
+        [
+          "RVUI-04",
+          "Withdraw external job",
+          "Label application withdrawal, not verified provider process cancellation."
+        ]
+      ],
+      "path": "frontend/LFE-16.md",
+      "status": "planned",
+      "human_owner": "Luis"
+    }
+  ]
+}

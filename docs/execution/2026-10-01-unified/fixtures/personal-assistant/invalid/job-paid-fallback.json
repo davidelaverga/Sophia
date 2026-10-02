@@ -1,0 +1,21 @@
+{
+  "job_id": "job-onboarding",
+  "owner_id": "alice",
+  "connection_id": "conn-alice",
+  "audience": "personal",
+  "purpose": "Prepare selected onboarding evidence; do not share.",
+  "generation": 1,
+  "mandate_revision": 1,
+  "controller_kind": "sophia_personal_job",
+  "status": "ready",
+  "selected_source_refs": [
+    "source-export-1"
+  ],
+  "excluded_scope": [
+    "Other client folders"
+  ],
+  "expires_at": "2026-10-02T10:00:00Z",
+  "no_paid_fallback": false,
+  "max_substantive_exchanges": 6,
+  "personal_companion_required": false
+}

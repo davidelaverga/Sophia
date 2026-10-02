@@ -1,0 +1,188 @@
+{
+  "schema": "sophia.part2.control-support.v1",
+  "status": "starting_matrix_not_qualification",
+  "rows": [
+    {
+      "id": "CTRL-01",
+      "operation": "model",
+      "scope_boundary": "attempt/new_episode",
+      "dsh_status": "existing_source",
+      "owner_native_status": "unqualified",
+      "required_evidence": "requested/resolved/observed route, no silent fallback",
+      "evidence_refs": [],
+      "qualified": false,
+      "source_note": "Merged M02 base; M03-specific research changes are an open candidate. Composition-level live qualification is still false."
+    },
+    {
+      "id": "CTRL-02",
+      "operation": "effort",
+      "scope_boundary": "request via admitted recipe",
+      "dsh_status": "existing_source",
+      "owner_native_status": "unqualified",
+      "required_evidence": "exact supported field and usage",
+      "evidence_refs": [],
+      "qualified": false,
+      "source_note": "Merged M02 base; M03-specific research changes are an open candidate. Composition-level live qualification is still false."
+    },
+    {
+      "id": "CTRL-03",
+      "operation": "context",
+      "scope_boundary": "packet/eligibility boundary",
+      "dsh_status": "existing_source",
+      "owner_native_status": "planned",
+      "required_evidence": "current eligible source closure",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-04",
+      "operation": "preset",
+      "scope_boundary": "attempt creation/resume",
+      "dsh_status": "existing_source",
+      "owner_native_status": "planned",
+      "required_evidence": "definition/tool/skill digest",
+      "evidence_refs": [],
+      "qualified": false,
+      "source_note": "Merged M02 base; M03-specific research changes are an open candidate. Composition-level live qualification is still false."
+    },
+    {
+      "id": "CTRL-05",
+      "operation": "output_budget",
+      "scope_boundary": "per model/tool result",
+      "dsh_status": "candidate_source",
+      "owner_native_status": "unqualified",
+      "required_evidence": "bound applied; full source recoverable",
+      "evidence_refs": [],
+      "qualified": false,
+      "source_note": "M03 candidate enforces priced research output ceiling and bounded source/tool results; not deployed or a general proof for every role."
+    },
+    {
+      "id": "CTRL-06",
+      "operation": "compaction",
+      "scope_boundary": "native boundary",
+      "dsh_status": "existing_source",
+      "owner_native_status": "unqualified",
+      "required_evidence": "native behavior and retained evidence pointers",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-07",
+      "operation": "children",
+      "scope_boundary": "child admission",
+      "dsh_status": "planned",
+      "owner_native_status": "unqualified",
+      "required_evidence": "inherited grant and cumulative allowance",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-08",
+      "operation": "quota",
+      "scope_boundary": "owner entitlement/window",
+      "dsh_status": "not_applicable_to_existing_api_route",
+      "owner_native_status": "unqualified",
+      "required_evidence": "observed age and applicable windows",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-09",
+      "operation": "steer",
+      "scope_boundary": "active native boundary",
+      "dsh_status": "existing_source",
+      "owner_native_status": "planned",
+      "required_evidence": "native input evidence distinct from compliance",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-10",
+      "operation": "queue",
+      "scope_boundary": "next eligible episode",
+      "dsh_status": "existing_source",
+      "owner_native_status": "planned",
+      "required_evidence": "same original input; one wake",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-11",
+      "operation": "context_update",
+      "scope_boundary": "record only when non-waking unqualified",
+      "dsh_status": "planned",
+      "owner_native_status": "unqualified",
+      "required_evidence": "zero unintended model wakes",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-12",
+      "operation": "hold",
+      "scope_boundary": "fence then settle",
+      "dsh_status": "existing_source",
+      "owner_native_status": "planned",
+      "required_evidence": "held intent versus native stop evidence",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-13",
+      "operation": "stop",
+      "scope_boundary": "immediate control",
+      "dsh_status": "existing_source",
+      "owner_native_status": "planned",
+      "required_evidence": "old epoch retired, late publication rejected",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-14",
+      "operation": "adapter_cancel",
+      "scope_boundary": "pre-dispatch opt-in then signal",
+      "dsh_status": "upstream_contract",
+      "owner_native_status": "upstream_contract",
+      "required_evidence": "onCancellationReady/signal; settle before returning",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-15",
+      "operation": "permission",
+      "scope_boundary": "exact owner request",
+      "dsh_status": "planned",
+      "owner_native_status": "planned",
+      "required_evidence": "owner/child/fingerprint/expiry and native resolution",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-16",
+      "operation": "handover",
+      "scope_boundary": "checkpoint and writer settlement",
+      "dsh_status": "planned",
+      "owner_native_status": "planned",
+      "required_evidence": "source/effects settled; new generation",
+      "evidence_refs": [],
+      "qualified": false
+    },
+    {
+      "id": "CTRL-17",
+      "operation": "review",
+      "scope_boundary": "candidate/criteria revision",
+      "dsh_status": "planned",
+      "owner_native_status": "planned",
+      "required_evidence": "independent verdict, distinct human acceptance",
+      "evidence_refs": [],
+      "qualified": false
+    }
+  ],
+  "continuation_snapshot": {
+    "as_of": "2026-10-01",
+    "main": "aadd192d66bb60dea6c2ba212cea5e192d704858",
+    "m02": "merged_source_with_bounded_prior_reported_hosted_evidence",
+    "m03": "open_candidate_bb25f0588ad7a78d73039a838498d4a36225e473",
+    "interpretation": "Retained rows are source/control binding targets, not blanket current live acceptance. Use coordination/01_CONTROL_SUPPORT_MATRIX.md and actual current source before activation.",
+    "grok_controls": "See assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md; routine acceptance is not execution completion or proven remote Stop."
+  }
+}

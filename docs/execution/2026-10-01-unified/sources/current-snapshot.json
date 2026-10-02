@@ -1,0 +1,52 @@
+{
+  "as_of": "2026-10-01",
+  "repository": "davidelaverga/Sophia",
+  "main": "aadd192d66bb60dea6c2ba212cea5e192d704858",
+  "main_observation": "fresh connector branch read",
+  "pack_tree": "3c5dbc412cd2660231159c2d5a0a99c2ead54e26",
+  "runtime": {
+    "id": "sophia-runtime-m02-dev",
+    "dsh_version": "0.2.0-rc.2",
+    "dsh_sha": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "metadata_contains_stale_readiness_prose": true
+  },
+  "prs": [
+    {
+      "number": 29,
+      "merged": true,
+      "merge_sha": "41ac3e70b25ac4d7d98599385faeb6f12b60b479",
+      "hosted_evidence": "author-reported bounded episode; not rerun"
+    },
+    {
+      "number": 32,
+      "state": "open",
+      "draft": true,
+      "head": "bb25f0588ad7a78d73039a838498d4a36225e473",
+      "reserved_migrations": "0022–0031",
+      "amendment": "A11",
+      "live_provider_verified": false
+    },
+    {
+      "number": 35,
+      "state": "open",
+      "draft": false,
+      "head": "b4cbc9eba3d927481c99bdd9c91d043ca1623d05",
+      "reserved_migrations": "0021",
+      "amendment": "A10",
+      "companion": "rehearsal-only"
+    },
+    {
+      "number": 30,
+      "state": "open",
+      "draft": false,
+      "head": "8f385a1481d2ba51471874b4d32869fe5e4ef3ad",
+      "base": "personal/data",
+      "stacked_on": 35
+    }
+  ],
+  "paperclip_selected_sha": "5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb",
+  "omnigent_selected_sha": "7496d36bde584d0a7d11c1d92a6d126f128bc1cd",
+  "application_tests_run_by_pack": false,
+  "hosted_state_independently_inspected": false,
+  "repo_writes_performed": false
+}

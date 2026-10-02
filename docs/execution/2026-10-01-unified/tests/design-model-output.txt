@@ -1,0 +1,31 @@
+test_ack_does_not_wake (test_design_model.FlowTests.test_ack_does_not_wake) ... ok
+test_activation_not_completion (test_design_model.FlowTests.test_activation_not_completion) ... ok
+test_admin_not_owner (test_design_model.FlowTests.test_admin_not_owner) ... ok
+test_bot_cannot_publish (test_design_model.FlowTests.test_bot_cannot_publish) ... ok
+test_changed_hash (test_design_model.FlowTests.test_changed_hash) ... ok
+test_claim_duplicate_idempotent (test_design_model.FlowTests.test_claim_duplicate_idempotent) ... ok
+test_copy_failure_not_visible (test_design_model.FlowTests.test_copy_failure_not_visible) ... ok
+test_copy_pending_not_visible (test_design_model.FlowTests.test_copy_pending_not_visible) ... ok
+test_erasure_tombstone_no_recreate (test_design_model.FlowTests.test_erasure_tombstone_no_recreate) ... ok
+test_exchange_budget (test_design_model.FlowTests.test_exchange_budget) ... ok
+test_late_write_after_withdraw (test_design_model.FlowTests.test_late_write_after_withdraw) ... ok
+test_member_removed_at_commit (test_design_model.FlowTests.test_member_removed_at_commit) ... ok
+test_message_key_conflict (test_design_model.FlowTests.test_message_key_conflict) ... ok
+test_new_private_edit_does_not_update_share (test_design_model.FlowTests.test_new_private_edit_does_not_update_share) ... ok
+test_owner_only (test_design_model.FlowTests.test_owner_only) ... ok
+test_package_private_and_idempotent (test_design_model.FlowTests.test_package_private_and_idempotent) ... ok
+test_private_erase_keeps_shared_snapshot (test_design_model.FlowTests.test_private_erase_keeps_shared_snapshot) ... ok
+test_question_and_reply_private (test_design_model.FlowTests.test_question_and_reply_private) ... ok
+test_reply_to_missing_message (test_design_model.FlowTests.test_reply_to_missing_message) ... ok
+test_second_claim_refused (test_design_model.FlowTests.test_second_claim_refused) ... ok
+test_shared_snapshot_omits_private_metadata (test_design_model.FlowTests.test_shared_snapshot_omits_private_metadata) ... ok
+test_shared_withdrawal (test_design_model.FlowTests.test_shared_withdrawal) ... ok
+test_stale_package_version (test_design_model.FlowTests.test_stale_package_version) ... ok
+test_uncertain_provider_not_restarted (test_design_model.FlowTests.test_uncertain_provider_not_restarted) ... ok
+test_unknown_activation_no_blind_retry (test_design_model.FlowTests.test_unknown_activation_no_blind_retry) ... ok
+test_wrong_owner_cannot_preview (test_design_model.FlowTests.test_wrong_owner_cannot_preview) ... ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 0.003s
+
+OK

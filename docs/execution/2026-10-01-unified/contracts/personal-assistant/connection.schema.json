@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sophia:pa:connection:v1",
+  "title": "Proposed Sophia connection — not deployed API",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "connection_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "provider": {
+      "const": "grok_bot"
+    },
+    "subject_basis": {
+      "type": "string",
+      "enum": [
+        "oauth_owner",
+        "provider_attested_bot"
+      ]
+    },
+    "display_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_auth",
+        "connected",
+        "limited",
+        "revoked"
+      ]
+    },
+    "epoch": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "support": {
+            "type": "string",
+            "enum": [
+              "documented",
+              "qualified",
+              "unsupported",
+              "unknown"
+            ]
+          },
+          "evidence_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "operation",
+          "support",
+          "evidence_ref",
+          "scope"
+        ]
+      }
+    },
+    "usage_mode": {
+      "type": "string",
+      "enum": [
+        "included_only_owner_configured",
+        "explicit_customer_paid"
+      ]
+    },
+    "usage_evidence": {
+      "type": "string",
+      "enum": [
+        "owner_attested",
+        "provider_observed",
+        "unknown"
+      ]
+    },
+    "credential_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "required": [
+    "connection_id",
+    "owner_id",
+    "provider",
+    "subject_basis",
+    "display_label",
+    "status",
+    "epoch",
+    "capabilities",
+    "usage_mode",
+    "usage_evidence",
+    "credential_ref"
+  ]
+}

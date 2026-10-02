@@ -1,0 +1,119 @@
+{
+  "schema": "sophia.model-catalog.v1",
+  "status": "design_ready_live_unverified",
+  "checked_at": "2026-09-24",
+  "routes": [
+    {
+      "id": "voice-primary",
+      "provider": "google-gemini-api",
+      "model": "gemini-3.8-live",
+      "role": "live_conversation",
+      "endpoint_family": "live",
+      "credential_ref": "GOOGLE_API_KEY",
+      "source_ids": [
+        "G-01",
+        "G-02",
+        "G-06"
+      ],
+      "default": true
+    },
+    {
+      "id": "vision-analysis",
+      "provider": "google-gemini-api",
+      "model": "gemini-3.8-flash",
+      "role": "bounded_multimodal_analysis",
+      "endpoint_family": "interactions",
+      "credential_ref": "GOOGLE_API_KEY",
+      "source_ids": [
+        "G-01",
+        "G-08",
+        "G-09"
+      ],
+      "default": true,
+      "thinking_levels": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    {
+      "id": "native-work",
+      "provider": "deepseek-official",
+      "model": "deepseek-flash",
+      "role": "dsh_work",
+      "endpoint_family": "messages",
+      "credential_ref": "DEEPSEEK_API_KEY",
+      "source_ids": [
+        "DSH-14",
+        "DS-01"
+      ],
+      "default": true,
+      "efforts": [
+        "off",
+        "low",
+        "high",
+        "max"
+      ]
+    },
+    {
+      "id": "image-google",
+      "provider": "google-gemini-api",
+      "model": "gemini-3.1-flash-image",
+      "role": "image_default",
+      "endpoint_family": "interactions",
+      "credential_ref": "GOOGLE_API_KEY",
+      "source_ids": [
+        "G-01",
+        "G-07",
+        "G-08"
+      ],
+      "default": true
+    },
+    {
+      "id": "image-openai",
+      "provider": "openai",
+      "model": "gpt-image-2.5-sunburst-2026-09-08",
+      "role": "image_comparator",
+      "endpoint_family": "images",
+      "credential_ref": "OPENAI_API_KEY",
+      "source_ids": [
+        "OA-01",
+        "OA-03"
+      ],
+      "default": false
+    },
+    {
+      "id": "image-google-pro",
+      "provider": "google-gemini-api",
+      "model": "gemini-3-pro-image",
+      "role": "image_comparator",
+      "endpoint_family": "interactions",
+      "credential_ref": "GOOGLE_API_KEY",
+      "source_ids": [
+        "G-01",
+        "G-07"
+      ],
+      "default": false
+    },
+    {
+      "id": "image-openai-flare",
+      "provider": "openai",
+      "model": "gpt-image-2.5-flare-2026-09-08",
+      "role": "image_comparator",
+      "endpoint_family": "images",
+      "credential_ref": "OPENAI_API_KEY",
+      "source_ids": [
+        "OA-02",
+        "OA-03"
+      ],
+      "default": false
+    }
+  ],
+  "policy": {
+    "comparison_is_explicit": true,
+    "automatic_cross_vendor_failover": false,
+    "provider_credentials_in_browser": false,
+    "native_vendor_tokens_in_sophia": false,
+    "exact_cost_claim_requires_usage_evidence": true
+  }
+}

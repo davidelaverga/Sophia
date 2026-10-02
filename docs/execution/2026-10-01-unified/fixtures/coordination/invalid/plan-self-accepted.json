@@ -1,0 +1,50 @@
+{
+  "schema": "work-plan",
+  "example": {
+    "schema_version": "sophia.work.plan.v1",
+    "plan_id": "fixture-plan-1",
+    "project_id": "fixture-project-A",
+    "revision": 1,
+    "mission_revision": 2,
+    "source_manifest_ref": "fixture-project-manifest",
+    "state": "accepted",
+    "decision_ref": null,
+    "items": [
+      {
+        "id": "fixture-work-build",
+        "purpose": "Implement the accepted small interface change",
+        "deliverable_ref": "fixture-deliverable-1",
+        "criteria_ref": "fixture-criteria-1",
+        "parent_id": null,
+        "blocked_by": [],
+        "assignee_kind": "assignment",
+        "assignee_id": "fixture-worker",
+        "source_scope_ref": "fixture-source-scope-A",
+        "review_policy_ref": "fixture-review-required",
+        "recipe_ref": "fixture-worker-recipe",
+        "activation": {
+          "kind": "immediate",
+          "producer_work_id": null
+        }
+      },
+      {
+        "id": "fixture-work-review",
+        "purpose": "Review the exact candidate when it is ready, independently of final implementation acceptance",
+        "deliverable_ref": "fixture-review-verdict",
+        "criteria_ref": "fixture-criteria-1",
+        "parent_id": "fixture-work-build",
+        "blocked_by": [],
+        "assignee_kind": "assignment",
+        "assignee_id": "fixture-reviewer",
+        "source_scope_ref": "fixture-readonly-candidate",
+        "review_policy_ref": "fixture-verdict-only",
+        "recipe_ref": "fixture-review-recipe",
+        "activation": {
+          "kind": "candidate_ready",
+          "producer_work_id": "fixture-work-build"
+        }
+      }
+    ]
+  },
+  "reason": "Accepted plan needs decision evidence; shape alone does not prove authority."
+}

@@ -1,0 +1,206 @@
+[
+  {
+    "id": "D01",
+    "original_decision": "Create a new `sophia-next` monorepo. Keep existing Sophia as a donor and live legacy product.",
+    "rationale": "No in-place completion of the old middleware/Builder control architecture. No destructive migration in the bootstrap.",
+    "current_disposition": "Achieved in davidelaverga/Sophia; do not create sophia-next again."
+  },
+  {
+    "id": "D02",
+    "original_decision": "Node 24 and pnpm 11.7.0; ESM TypeScript for the new application. Pin dsh source to `46a7f68…`, version `0.1.7-rc.1`.",
+    "rationale": "Matches the inspected upstream toolchain. The exact Node patch and OCI digest are frozen during S1-01; they are not fabricated here.",
+    "current_disposition": "Runtime pin superseded by merged M02 dsh0.2.0-rc.2 at 639ed015397290b3745d163aafe02ffee4aa3f84; exact Node24.21.0 and pnpm11.7.0 retained."
+  },
+  {
+    "id": "D03",
+    "original_decision": "Start the official `dsh` CLI with `sophia-runtime`, stacking dsh-base and our bundle.",
+    "rationale": "Use the supported launcher and actual plugin boundaries; no custom root agent loop. [DSH-01–DSH-05]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D04",
+    "original_decision": "Use a Sophia Cordis control plugin over the public Agent API, not the stock SDK as our complete control transport.",
+    "rationale": "Stock SDK cannot express our mid-turn Stop. The new bridge maps typed commands to actual lifecycle operations. [DSH-06–DSH-10]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D05",
+    "original_decision": "One project-scoped dsh runtime container/home at a time; separate per-task build containers.",
+    "rationale": "Project recovery and model history remain isolated. A room visit does not own project lifetime. Raw user build scripts never run inside the API or media service.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D06",
+    "original_decision": "Fastify API, Supabase Auth/Postgres/Storage, SQL jobs/outbox and replayable SSE. No Redis or second workflow engine in S1.",
+    "rationale": "One small application authority; no writable Git plan mirror competing with accepted database state.",
+    "current_disposition": "Existing admission/outbox retained. Paperclip is now the selected operational service for new managed work, not a second scheduler for old attempts."
+  },
+  {
+    "id": "D07",
+    "original_decision": "Custom React/Vite Studio; retain the actual V2-R1 visual/semantic reference.",
+    "rationale": "Do not expose the dsh web UI or Omnigent dashboard as Sophia's product. Lenses remain local views over common records.",
+    "current_disposition": "Current merged Luis Chat/Brief side panel supersedes earlier visual placement; custom React/Vite product retained."
+  },
+  {
+    "id": "D08",
+    "original_decision": "LiveKit Cloud for the room; raw `@livekit/rtc-node` in a Sophia media bridge. Do not install LiveKit AgentSession as another reasoning runtime.",
+    "rationale": "Keep transport, speaker identity and media lifecycle while owning the Gemini connection and tool rules. [LK-01–LK-04]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D09",
+    "original_decision": "Google Gemini API (not Vertex for this first route), `gemini-3.8-live`, `@google/genai` 2.24.0.",
+    "rationale": "Explicit latest user decision. The inspected FunctionResponse generator property is not supported in Vertex; the chosen API avoids pretending parity. [GG-01, G-06]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D10",
+    "original_decision": "Live is the conversational voice model; dsh guide is the text route; both use the same context compiler and action API.",
+    "rationale": "No compulsory dsh call for every spoken sentence. Long reasoning and engineering go to dsh/engineers; one visible Sophia, not two simultaneous narrators.",
+    "current_disposition": "Current voice and typed room conversation both use Gemini Live; future private Companion is a separate explicit decision."
+  },
+  {
+    "id": "D11",
+    "original_decision": "S1 voice uses an explicit admitted-input floor and open exchange. S2 adds consented per-participant discussion following.",
+    "rationale": "Reliable attribution comes from authenticated tracks, not guessing a voiceprint or trusting a name spoken by a model.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D12",
+    "original_decision": "Selected visual frames through Live; exact text through scoped artifact/source tools. No whole-desktop control for coordination.",
+    "rationale": "Observation, precision, edit authority and execution are separate.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D13",
+    "original_decision": "DeepSeek V4.1 Flash via `deepseek-flash` is the native research/prototype/lead baseline. Low effort for routine work; high for lead alignment and difficult work.",
+    "rationale": "Preserves the user's workhorse direction. Alias identity is recorded, not described as an immutable model snapshot. [DSH-14, DS-01]",
+    "current_disposition": "Historical workhorse preference. Current base route is recorded luna/high; active M03 candidate Sol/medium. No automatic model switch."
+  },
+  {
+    "id": "D14",
+    "original_decision": "Google Flash Image default; OpenAI Sunburst first comparison; Google Pro and OpenAI Flare available in the experiment catalog.",
+    "rationale": "Two actual adapters, immutable assets, explicit comparison choice; no automatic all-model fan-out.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D15",
+    "original_decision": "Google image jobs use Interactions with `store:false`; OpenAI uses the direct Images API.",
+    "rationale": "Avoid unnecessary hosted conversation state and a second text model merely to request an image. [G-07, G-08, OA-03]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D16",
+    "original_decision": "Omnigent is a pinned native engineer bridge; owner-started/adopted sessions on the two Macs in S1.",
+    "rationale": "All three resources are included, without granting the central service arbitrary cross-owner host launch. [OM-01]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D17",
+    "original_decision": "Peer messages use a Sophia durable mailbox and narrow MCP-facing tools; adapters wake/deliver through supported native mechanisms. Native dsh teams use their own mailbox.",
+    "rationale": "No screenshot loop, no permanent coordinator polling, no required lead-model relay. A2A federation is an extension, not a prerequisite.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D18",
+    "original_decision": "Five-minute coalesced semantic review while relevant work is active, plus events and manual review.",
+    "rationale": "Initial real supervision now; timers do not invent evidence or permission requests. One continuation owner per route.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D19",
+    "original_decision": "S1 co-review creates a source-bound change/preserve amendment. Exact component-edit enforcement is S2.",
+    "rationale": "Makes early review valuable without misrepresenting instruction-based preservation as surgical enforcement.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D20",
+    "original_decision": "Native prototype source is React/TypeScript/Vite; reuse compatible components/assets during handoff.",
+    "rationale": "Luis works in Preview/Source/Diff. Target repository mismatch is an explicit integration issue, not silent screenshot recreation.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D21",
+    "original_decision": "Render hosts public API and Omnigent. One private Docker execution VM hosts the runtime supervisor, media bridge and isolated jobs. Vercel hosts the static Studio.",
+    "rationale": "Long-lived media and isolation have a concrete home. The added VM is an explicit operating cost; no unsupported Docker-in-Render assumption.",
+    "current_disposition": "Topology is subject to actual release records and qualified isolated hosts; no automatic migration to an illustrative VM arrangement."
+  },
+  {
+    "id": "D22",
+    "original_decision": "Accepted state in Postgres; source objects and scoped Markdown knowledge; direct lookup plus Postgres text search first.",
+    "rationale": "Mem0 is not the source of current project authority; no initial provider/vector migration is required. Personal memory import is separate.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D23",
+    "original_decision": "Selective ChatGPT/Claude import and chosen local repository/session bindings in S1; explicit send-to-Sophia tool trial.",
+    "rationale": "No undocumented reverse Projects API or whole-account scrape.",
+    "current_disposition": "Extend selected import with owner-private Bot jobs and explicit package sharing; no whole-account scrape."
+  },
+  {
+    "id": "D24",
+    "original_decision": "Learning begins with one accepted lesson used in the next relevant brief.",
+    "rationale": "Procedure candidates are compared and promoted later. Forecast scoring is optional; no-change is legitimate.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D25",
+    "original_decision": "Notion/Supabase/Vercel management connectors are S2 additions; existing native engineer tools deploy in S1.",
+    "rationale": "Product persistence is not postponed. Shared deployment ownership is still required even when credentials already exist.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D26",
+    "original_decision": "One owner-approved Omnigent device grant per founder; normal engineer accounts, separate operator admin.",
+    "rationale": "The native host/session owner checks remain intact. A single machine subject is not both founders. [OM-01, OM-09, OM-10, OM-11]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D27",
+    "original_decision": "Create a dormant session-scoped bundle, install assignment MCP, PATCH selected model/effort, then launch on the owner host and observe before prompting.",
+    "rationale": "The native Claude adapter ignores per-turn tool/system-prompt injection. Exact multipart and JSON shapes differ. [OM-03, OM-04, OM-07, OM-12]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D28",
+    "original_decision": "S1 external Hold is controlled native Stop plus retained project/source handoff; Resume creates a fresh configured native attempt.",
+    "rationale": "Upstream Stop is non-sticky and its receipt is not settlement. Drain/fence/reconcile prevents late messages reviving work. [OM-05]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D29",
+    "original_decision": "Native ambiguous writes become outcome_unknown, not automatic retries. Rotating-refresh uncertainty requires reconnection.",
+    "rationale": "Native message correlation is not end-to-end deduplication; refresh reuse may revoke the grant. [OM-03, OM-09]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D30",
+    "original_decision": "Private Postgres schema, non-admin API/worker roles, normalized command equality, target outbox records and decimal-string event cursors.",
+    "rationale": "The product state outlives every native session. Reference SQL is a foundational candidate, not all service implementations. [DB-01, DB-02]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D31",
+    "original_decision": "Actual Studio reference → production component/API map; one TanStack Query cache and a lazy CodeMirror source editor.",
+    "rationale": "Preserve the product’s established experience without importing fixture outcomes as truth. [UI-01, UI-02]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D32",
+    "original_decision": "Reuse the three audited JavaScript renderer kernels; remove Python ToolRuntime orchestration from that path. Preserve notes, source and preview PNGs.",
+    "rationale": "Rich PDF and image-based PPTX are concrete capabilities. Native editable PPTX objects are not provided by this compiler. [OLD-03–OLD-09]",
+    "current_disposition": "M03 PDF kernel/service template already authored; complete remaining deck/HTML path and keep raster-export honesty."
+  },
+  {
+    "id": "D33",
+    "original_decision": "No automatic live Claude /model changes in S1/S2. Configure model/effort before launch and verify actual settings.",
+    "rationale": "The audited adapter’s live switch changes the owner’s global future-session default. [OM-12]",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  },
+  {
+    "id": "D34",
+    "original_decision": "S1 supported app preview is team-owned, source-linked and explicitly frame-enabled for Studio.",
+    "rationale": "Fix the preview configuration through the engineer; do not strip a third party’s security headers. Remote browser takeover is later browser work.",
+    "current_disposition": "Retained constraint; use current source and v2.0 implementation location."
+  }
+]

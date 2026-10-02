@@ -1,0 +1,70 @@
+[
+  {
+    "schema": "sophia.design-record.v1",
+    "recordId": "example-command-1",
+    "projectId": "example-project",
+    "kind": "command",
+    "evidenceKind": "synthetic_example",
+    "payload": {
+      "clientRequestId": "example-browser-request-1",
+      "kind": "work.steer",
+      "goalRevision": 2,
+      "expectedSourceVersion": "example-preview-v3",
+      "change": "Make the secondary entry action visible.",
+      "preserve": [
+        "primary entry action",
+        "existing project access behavior"
+      ],
+      "actor_source": "authenticated server request, not model arguments"
+    }
+  },
+  {
+    "schema": "sophia.design-record.v1",
+    "recordId": "example-event-1",
+    "projectId": "example-project",
+    "kind": "event",
+    "evidenceKind": "synthetic_example",
+    "payload": {
+      "type": "command.admitted",
+      "commandId": "example-command-1",
+      "sequence": 41,
+      "stage": "admitted",
+      "note": "Does not claim delivery or code change."
+    }
+  },
+  {
+    "schema": "sophia.design-record.v1",
+    "recordId": "example-review-1",
+    "projectId": "example-project",
+    "kind": "review_intent",
+    "evidenceKind": "synthetic_example",
+    "payload": {
+      "sourceVersion": "example-source-v3",
+      "previewId": "example-preview-v3",
+      "frameRef": "example-frame-1",
+      "change": "Make the secondary entry action visible.",
+      "preserve": [
+        "primary action",
+        "overall layout"
+      ],
+      "sourceContributionId": "example-comment-9"
+    }
+  },
+  {
+    "schema": "sophia.design-record.v1",
+    "recordId": "example-peer-1",
+    "projectId": "example-project",
+    "kind": "peer",
+    "evidenceKind": "synthetic_example",
+    "payload": {
+      "senderAssignmentId": "example-ui-worker",
+      "targetAssignmentId": "example-goal-coordinator",
+      "kind": "question",
+      "replyTo": null,
+      "contentRef": "example-scoped-question",
+      "goalRevision": 2,
+      "authorityEpoch": 3,
+      "note": "The message requests a judgment; it does not grant deployment authority."
+    }
+  }
+]

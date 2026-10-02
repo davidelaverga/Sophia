@@ -1,0 +1,189 @@
+{
+  "schema": "sophia.pack-validation.v2",
+  "as_of": "2026-10-01",
+  "scope": "Documentation structure, proposed schema examples and an in-memory specification model only. No application, database, provider, OAuth, cloud computer, paid task or deployment acceptance. External URLs are recorded, not crawled.",
+  "status": "passed",
+  "metrics": {
+    "json_files_parsed": 71,
+    "markdown_files": 224,
+    "local_links_checked": 747,
+    "external_links_recorded_not_network_tested": 41,
+    "goal_records": 44,
+    "canonical_goals": 31,
+    "routing_aliases": 13,
+    "original_goals_mapped": 24,
+    "scm_missions_mapped": 9,
+    "frontend_packages": 17,
+    "product_acceptance_cases_not_run": 323,
+    "schema_examples_checked": 23,
+    "schema_examples_expected_invalid": 12,
+    "font_files": 0,
+    "in_memory_design_tests": 26,
+    "in_memory_design_test_exit_code": 0,
+    "application_provider_database_deployment_tests_run": 0
+  },
+  "schema_cases": [
+    {
+      "file": "fixtures/personal-assistant/connection.valid.json",
+      "schema": "contracts/personal-assistant/connection.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/job.valid.json",
+      "schema": "contracts/personal-assistant/job.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/message.valid.json",
+      "schema": "contracts/personal-assistant/message.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/package.valid.json",
+      "schema": "contracts/personal-assistant/package.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/share.valid.json",
+      "schema": "contracts/personal-assistant/share.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/job-team-audience.json",
+      "schema": "contracts/personal-assistant/job.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/job-paid-fallback.json",
+      "schema": "contracts/personal-assistant/job.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/message-forged-publish.json",
+      "schema": "contracts/personal-assistant/message.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/share-missing-confirmation.json",
+      "schema": "contracts/personal-assistant/share.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/personal-assistant/invalid/package-bad-hash.json",
+      "schema": "contracts/personal-assistant/package.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/command.valid.json",
+      "schema": "contracts/coordination/command.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/decision.valid.json",
+      "schema": "contracts/coordination/decision.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/handover.valid.json",
+      "schema": "contracts/coordination/handover.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/quota-observation.valid.json",
+      "schema": "contracts/coordination/quota-observation.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/recipe.valid.json",
+      "schema": "contracts/coordination/recipe.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/work-plan.valid.json",
+      "schema": "contracts/coordination/work-plan.schema.json",
+      "expected_valid": true,
+      "observed_valid": true,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/accept-without-receipt.json",
+      "schema": "contracts/coordination/decision.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/handover-unknown-effects.json",
+      "schema": "contracts/coordination/handover.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/handover-with-live-unknown-writer.json",
+      "schema": "contracts/coordination/handover.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/plan-self-accepted.json",
+      "schema": "contracts/coordination/work-plan.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/secret-in-recipe.json",
+      "schema": "contracts/coordination/recipe.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/stop-delayed.json",
+      "schema": "contracts/coordination/command.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    },
+    {
+      "file": "fixtures/coordination/invalid/unknown-as-zero.json",
+      "schema": "contracts/coordination/quota-observation.schema.json",
+      "expected_valid": false,
+      "observed_valid": false,
+      "passed": true
+    }
+  ],
+  "errors": []
+}

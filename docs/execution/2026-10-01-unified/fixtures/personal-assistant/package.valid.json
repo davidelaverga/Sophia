@@ -1,0 +1,28 @@
+{
+  "package_id": "pkg-1",
+  "owner_id": "alice",
+  "job_id": "job-onboarding",
+  "generation": 1,
+  "version": 1,
+  "audience": "personal",
+  "report": "# Selected knowledge\nTwo dated views remain in conflict.",
+  "sources": [
+    {
+      "source_id": "source-export-1",
+      "kind": "user_note",
+      "label": "Selected export",
+      "access_state": "read",
+      "source_time": "2026-09-20",
+      "reason": null,
+      "private_locator": null,
+      "content_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "attachments": [],
+  "coverage": "One selected export read; unavailable attachment explicitly omitted.",
+  "limitations": [
+    "Historical note is not current market evidence."
+  ],
+  "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "state": "ready_for_owner"
+}

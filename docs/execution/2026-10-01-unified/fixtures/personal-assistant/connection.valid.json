@@ -1,0 +1,20 @@
+{
+  "connection_id": "conn-alice",
+  "owner_id": "alice",
+  "provider": "grok_bot",
+  "subject_basis": "oauth_owner",
+  "display_label": "My project assistant",
+  "status": "connected",
+  "epoch": 1,
+  "capabilities": [
+    {
+      "operation": "private_messages",
+      "support": "documented",
+      "evidence_ref": null,
+      "scope": "personal"
+    }
+  ],
+  "usage_mode": "included_only_owner_configured",
+  "usage_evidence": "owner_attested",
+  "credential_ref": "secret-ref-not-a-token"
+}

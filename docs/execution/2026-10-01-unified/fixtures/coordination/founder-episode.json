@@ -1,0 +1,138 @@
+{
+  "schema": "sophia.part2.synthetic-episode.v1",
+  "synthetic": true,
+  "description": "Desired end-to-end contract, not a live test report",
+  "events": [
+    {
+      "seq": 1,
+      "type": "mission.read",
+      "user_meaning": "Current accepted mission and living brief read",
+      "evidence_ref": "fixture-mission-2"
+    },
+    {
+      "seq": 2,
+      "type": "plan.proposed",
+      "user_meaning": "A small implementation and review plan is proposed",
+      "evidence_ref": "fixture-plan-1"
+    },
+    {
+      "seq": 3,
+      "type": "plan.accepted",
+      "user_meaning": "Authorized member accepts the exact plan",
+      "evidence_ref": "fixture-accepted-plan-decision"
+    },
+    {
+      "seq": 4,
+      "type": "work.recorded",
+      "user_meaning": "The request is durable, not yet running",
+      "evidence_ref": "fixture-command-1"
+    },
+    {
+      "seq": 5,
+      "type": "work.queued",
+      "user_meaning": "One core issue and its binding exist",
+      "evidence_ref": "fixture-issue-1"
+    },
+    {
+      "seq": 6,
+      "type": "work.native_observed",
+      "user_meaning": "One enrolled native attempt is actually working",
+      "evidence_ref": "fixture-attempt-1"
+    },
+    {
+      "seq": 7,
+      "type": "peer.recorded",
+      "user_meaning": "Worker asks a specific design question of an eligible peer",
+      "evidence_ref": "fixture-peer-1"
+    },
+    {
+      "seq": 8,
+      "type": "peer.native_input_observed",
+      "user_meaning": "Native receipt establishes delivery, not agreement",
+      "evidence_ref": "fixture-peer-native-1"
+    },
+    {
+      "seq": 9,
+      "type": "required_action.open",
+      "user_meaning": "The actual native request belongs to resource owner B",
+      "evidence_ref": "fixture-permission-1"
+    },
+    {
+      "seq": 10,
+      "type": "required_action.resolved",
+      "user_meaning": "Native evidence confirms owner response",
+      "evidence_ref": "fixture-permission-receipt-1"
+    },
+    {
+      "seq": 11,
+      "type": "steer.decision_required",
+      "user_meaning": "A larger change needs the explicit capacity choice",
+      "evidence_ref": "fixture-steer-decision-1"
+    },
+    {
+      "seq": 12,
+      "type": "handover.preparing",
+      "user_meaning": "Source and remaining work are captured",
+      "evidence_ref": "fixture-source-snapshot-4"
+    },
+    {
+      "seq": 13,
+      "type": "handover.old_writer_stopped",
+      "user_meaning": "Actual stop/effect readback permits transfer",
+      "evidence_ref": "fixture-native-stop-receipt"
+    },
+    {
+      "seq": 14,
+      "type": "handover.continuing",
+      "user_meaning": "A new attempt verifies the source and continues",
+      "evidence_ref": "fixture-attempt-2"
+    },
+    {
+      "seq": 15,
+      "type": "candidate.ready",
+      "user_meaning": "Actual candidate/check references available, not accepted",
+      "evidence_ref": "fixture-candidate-4"
+    },
+    {
+      "seq": 16,
+      "type": "review.completed",
+      "user_meaning": "Independent verdict requests one targeted correction",
+      "evidence_ref": "fixture-review-1"
+    },
+    {
+      "seq": 17,
+      "type": "candidate.revised",
+      "user_meaning": "Corrected candidate keeps required behavior",
+      "evidence_ref": "fixture-candidate-5"
+    },
+    {
+      "seq": 18,
+      "type": "review.completed",
+      "user_meaning": "Required checks pass on this version",
+      "evidence_ref": "fixture-review-2"
+    },
+    {
+      "seq": 19,
+      "type": "candidate.accepted",
+      "user_meaning": "Named human accepts this exact candidate",
+      "evidence_ref": "fixture-acceptance-1"
+    },
+    {
+      "seq": 20,
+      "type": "exchange.ended",
+      "user_meaning": "Voice ended; work history remains",
+      "evidence_ref": "fixture-exchange-1"
+    },
+    {
+      "seq": 21,
+      "type": "project.returned",
+      "user_meaning": "Current results and next decision read from canonical records",
+      "evidence_ref": "fixture-return-1"
+    }
+  ],
+  "deployment": {
+    "authorized": false,
+    "performed": false
+  },
+  "raw_transcript_retained": false
+}

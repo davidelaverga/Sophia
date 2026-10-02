@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "RenderJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "sophia.render-job.v1"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "artifactId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sourceVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sourceManifestHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "authorityEpoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format": {
+          "enum": [
+            "pdf",
+            "pptx"
+          ]
+        },
+        "language": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "path",
+            "sha256"
+          ]
+        },
+        "slides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "html": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "html",
+              "title",
+              "notes"
+            ]
+          }
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "path",
+              "sha256"
+            ]
+          }
+        },
+        "requiredChecks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "jobId",
+        "projectId",
+        "artifactId",
+        "sourceVersionId",
+        "sourceManifestHash",
+        "authorityEpoch",
+        "format",
+        "language",
+        "assets",
+        "requiredChecks"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "pdf"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "entry"
+            ],
+            "not": {
+              "required": [
+                "slides"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "pptx"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "slides"
+            ],
+            "properties": {
+              "slides": {
+                "minItems": 1
+              }
+            },
+            "not": {
+              "required": [
+                "entry"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "RenderResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "sophia.render-result.v1"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sourceVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sourceManifestHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "rendererUnitId": {
+          "type": "string"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sourceId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "sourceId",
+              "sha256",
+              "bytes"
+            ]
+          }
+        },
+        "previewSourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "outcome": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "unknown"
+                ]
+              },
+              "evidenceRef": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "outcome",
+              "evidenceRef"
+            ]
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exportEditability": {
+          "enum": [
+            "source_editable",
+            "raster_pptx_with_source"
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "jobId",
+        "sourceVersionId",
+        "sourceManifestHash",
+        "status",
+        "rendererUnitId",
+        "outputs",
+        "previewSourceIds",
+        "checks",
+        "warnings",
+        "exportEditability"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/RenderJob"
+    },
+    {
+      "$ref": "#/$defs/RenderResult"
+    }
+  ]
+}

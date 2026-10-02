@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sophia:pa:job:v1",
+  "title": "Proposed Sophia job — not deployed API",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "owner_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "connection_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "audience": {
+      "const": "personal"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "mandate_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "controller_kind": {
+      "const": "sophia_personal_job"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "ready",
+        "active",
+        "waiting_for_owner",
+        "waiting_for_device",
+        "waiting_for_peer",
+        "candidate_ready",
+        "closed",
+        "withdrawn",
+        "failed"
+      ]
+    },
+    "selected_source_refs": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "excluded_scope": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      }
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "no_paid_fallback": {
+      "const": true
+    },
+    "max_substantive_exchanges": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "personal_companion_required": {
+      "const": false
+    }
+  },
+  "required": [
+    "job_id",
+    "owner_id",
+    "connection_id",
+    "audience",
+    "purpose",
+    "generation",
+    "mandate_revision",
+    "controller_kind",
+    "status",
+    "selected_source_refs",
+    "excluded_scope",
+    "expires_at",
+    "no_paid_fallback",
+    "max_substantive_exchanges",
+    "personal_companion_required"
+  ]
+}

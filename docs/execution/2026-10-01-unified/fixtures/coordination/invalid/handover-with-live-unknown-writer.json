@@ -1,0 +1,37 @@
+{
+  "schema": "handover",
+  "example": {
+    "schema_version": "sophia.work.handover.v1",
+    "handover_id": "fixture-handover-1",
+    "project_id": "fixture-project-A",
+    "work_id": "fixture-work-1",
+    "from_attempt_id": "fixture-attempt-1",
+    "to_attempt_id": "fixture-attempt-2",
+    "from_resource_id": "fixture-resource-A1",
+    "to_resource_id": "fixture-resource-B1",
+    "phase": "continuing",
+    "source_snapshot_ref": "fixture-source-snapshot-4",
+    "base_commit": "dddddddddddddddddddddddddddddddddddddddd",
+    "patch_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "artifact_refs": [
+      "fixture-candidate-3"
+    ],
+    "check_refs": [
+      "fixture-check-4"
+    ],
+    "remaining_work_ref": "fixture-remaining-4",
+    "old_writer_state": "unknown",
+    "old_writer_evidence_ref": "fixture-native-stop-receipt",
+    "outstanding_effects": "settled",
+    "effects_evidence_ref": "fixture-effects-readback",
+    "new_writer_generation": 8,
+    "target_grant_ref": "fixture-owner-B-grant",
+    "cumulative_allowance_ref": "fixture-work-allowance-1",
+    "receipt_refs": [
+      "fixture-native-stop-receipt",
+      "fixture-effects-readback",
+      "fixture-target-base-check"
+    ]
+  },
+  "reason": "Transfer cannot proceed without stopped/isolated writer evidence."
+}

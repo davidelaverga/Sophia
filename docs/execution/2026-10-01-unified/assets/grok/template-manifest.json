@@ -1,0 +1,18 @@
+{
+  "schema": "sophia.template-source.v1",
+  "version": "1.0",
+  "publication_status": "not_published",
+  "provider_bot_id": null,
+  "public_template_url": null,
+  "instructions": "PROJECT_ASSISTANT.md",
+  "routine": "ROUTINE_INSTRUCTION.md",
+  "skills": [
+    "skills/knowledge-package.md",
+    "skills/browser-review.md",
+    "skills/research-report-review.md"
+  ],
+  "custom_mcp_included": false,
+  "subscription_provisioning": "owner_native_only",
+  "has_customer_memories": false,
+  "qualification_required": true
+}

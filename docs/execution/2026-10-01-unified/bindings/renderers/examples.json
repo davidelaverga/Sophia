@@ -1,0 +1,36 @@
+[
+  {
+    "schema": "sophia.render-job.v1",
+    "jobId": "01000000-0000-0000-0000-000000000001",
+    "projectId": "01000000-0000-0000-0000-000000000002",
+    "artifactId": "01000000-0000-0000-0000-000000000003",
+    "sourceVersionId": "01000000-0000-0000-0000-000000000004",
+    "sourceManifestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "authorityEpoch": 1,
+    "format": "pptx",
+    "language": "it-IT",
+    "slides": [
+      {
+        "id": "intro",
+        "html": {
+          "path": "slides/01-intro.html",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "title": "Introduction",
+        "notes": "Speaker notes retained from the source."
+      }
+    ],
+    "assets": [
+      {
+        "path": "assets/direction.webp",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ],
+    "requiredChecks": [
+      "parse",
+      "assets",
+      "layout",
+      "representative_visual_review"
+    ]
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sophia.invalid/schemas/design-record-v1",
+  "title": "Sophia initial documentation specimen",
+  "type": "object",
+  "required": [
+    "schema",
+    "recordId",
+    "projectId",
+    "kind",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "sophia.design-record.v1"
+    },
+    "recordId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "command",
+        "event",
+        "context",
+        "peer",
+        "human_action",
+        "review_intent"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "evidenceKind": {
+      "const": "synthetic_example"
+    }
+  }
+}

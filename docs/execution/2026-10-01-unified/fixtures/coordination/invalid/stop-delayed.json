@@ -1,0 +1,29 @@
+{
+  "schema": "command",
+  "example": {
+    "schema_version": "sophia.coordination.command.v1",
+    "command_id": "fixture-command-1",
+    "idempotency_key": "fixture-key-1",
+    "project_id": "fixture-project-A",
+    "work_id": "fixture-work-1",
+    "work_revision": 3,
+    "actor": {
+      "kind": "human",
+      "id": "fixture-member-A",
+      "authority_ref": "fixture-authority-4"
+    },
+    "kind": "stop",
+    "delivery": "next_eligible_episode",
+    "target_assignment_id": "fixture-assignment-1",
+    "target_attempt_id": "fixture-attempt-1",
+    "controller_generation": 2,
+    "grant_revision": 4,
+    "eligibility_revision": 7,
+    "content_ref": "fixture-source-amendment-1",
+    "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "caused_by_command_id": null,
+    "created_at": "2026-09-30T12:00:00Z",
+    "expires_at": "2026-09-30T12:15:00Z"
+  },
+  "reason": "Stop must be immediate control, not quota/review queued."
+}

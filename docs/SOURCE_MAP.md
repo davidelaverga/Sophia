@@ -1,9 +1,12 @@
 # Document and source map
 
 This file answers two questions: which document governs a decision, and which
-upstream source a Sophia file is grounded in. Design authority is the v0.4
-pack. Upstream sources establish mechanisms and never override a Sophia
-decision.
+upstream source a Sophia file is grounded in. Forward planning authority is the
+v2.0 continuation in
+[`docs/execution/2026-10-01-unified/`](execution/2026-10-01-unified/00_START_HERE.md)
+since 2026-10-02. The v0.4 pack below is history, and what was built from it
+stays as built. Upstream sources establish mechanisms and never override a
+Sophia decision.
 
 ## 1. The implementation pack
 
@@ -17,10 +20,16 @@ decision.
 
 Do not edit files under `docs/pack/`. Record repository-specific decisions in
 the files outside it (this map, [DESTINATION_MAP](DESTINATION_MAP.md),
-[RUNTIME_UNIT](RUNTIME_UNIT.md), handoffs). The next pack installment
-replaces `docs/pack/` wholesale.
+[RUNTIME_UNIT](RUNTIME_UNIT.md), handoffs). The v2.0 continuation did not
+replace it: it is installed beside it, in `docs/execution/`
+([installation record](execution/README.md)).
 
-### Which document governs what
+### Which v0.4 document governed what
+
+These are the v0.4 documents, history since v2.0. The continuation restates what
+it retains in its own
+[architecture](execution/2026-10-01-unified/architecture/INDEX.md) and
+[bindings](execution/2026-10-01-unified/bindings/README.md).
 
 | Document | Governs | Read by goals |
 |---|---|---|
@@ -121,6 +130,25 @@ The runtime unit `sophia-runtime-m02-dev` pins `deepseek-ai/deepseek-harness@639
 | DSH-23 | `packages/llm/llm-pi-ai/src/catalog.ts` (`resolveEntry`) and pi-ai 0.87.1 `dist/providers/data/openai.json` | A declared `models` entry is laid over the installed catalog entry; pi-ai 0.87.1 ships `openai/gpt-6-luna` with `compat`, `cost`, `inputLimits` and `thinkingLevelMap` | `packages/dsh-bundle/cordis.patch.yml` (route entry), `tests/integration/request-shape.test.mjs` |
 | DSH-24 | `packages/core/agent-loop/src/agent.ts`, `tool-calls.ts`; `packages/core/session/src/repair.ts` (`ToolCallRecovery`); commit `6a6f350` | A step that fails with pending tool calls records `tool/result` for each: committed results kept, started calls `TOOL_OUTCOME_UNKNOWN`, never-started calls `TOOL_NOT_STARTED`; the original error ends the turn | `tests/integration/tool-recovery.test.mjs` |
 | DSH-25 | `packages/preset/agent-preset-registry/README.md` | `ctx.agentPresets`: definitions are plugin rows; `modeSelectionEnabled` retired; after a restart a session's preset id resolves to the **current** definition and only a missing one is rejected. dsh-base composes no registry row | `packages/dsh-bundle/src/control-bridge.ts` (`setupFor`, `presetIdentity`), `packages/dsh-bundle/cordis.patch.yml`, `scripts/lib/gate.mjs` (`checkPresetRoster`) |
+
+## 2d. Upstream sources named by the v2.0 continuation (LFE-00)
+
+The [v2.0 continuation](execution/2026-10-01-unified/00_START_HERE.md) keeps its evidence in its own [source register](execution/2026-10-01-unified/sources/REGISTER.md). That register also resolves the inherited ID namespaces: V04 in [retained-v04-sources.json](execution/2026-10-01-unified/sources/retained-v04-sources.json), SCM in [retained-scm-sources.json](execution/2026-10-01-unified/sources/retained-scm-sources.json) and [its index](execution/2026-10-01-unified/sources/SCM_SOURCE_INDEX.md), and EX (the frontend briefs' R01–R12) in [retained-execution-sources.json](execution/2026-10-01-unified/sources/retained-execution-sources.json). Its R-* entries are this repository at `aadd192` and its pull requests as they stood then. The upstream sources outside this repository that it adds are below.
+
+No file in this repository relies on these yet. When a goal starts relying on one, record its exact upstream file and the Sophia files grounded in it here, as in §2–2c. The provider pages are not pinned: recheck them when PA-00 or the SCM binding uses them, as the register says.
+
+| Source id | Upstream source | What the continuation takes from it | Cited in |
+|---|---|---|---|
+| P-PLUGIN | `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb`, `doc/plugins/PLUGIN_AUTHORING_GUIDE.md` (lines 1–270) | The trusted alpha plugin surface: namespaced routes and SQL, managed objects, no core-table mutation | [02_CURRENT_BASELINE](execution/2026-10-01-unified/02_CURRENT_BASELINE.md) |
+| P-ADAPTER | the same commit, `packages/adapter-utils/src/types.ts` | Adapter types through cancellation, recovery, usage and quota | [02_CURRENT_BASELINE](execution/2026-10-01-unified/02_CURRENT_BASELINE.md) |
+| GB-WORK | [Grok Bot work model](https://cursor.com/docs/grok-bot/work) | Cloud or shared-account computer, local commands kept separate, roles and skills, native handoffs, result evidence | [assistants/01](execution/2026-10-01-unified/assistants/01_PRODUCT_AND_SCOPE.md), [assistants/04](execution/2026-10-01-unified/assistants/04_COMPUTER_USE_AND_RESOURCES.md), [assistants/05](execution/2026-10-01-unified/assistants/05_SETUP_AND_QUALIFICATION.md), [assistants/06](execution/2026-10-01-unified/assistants/06_PEER_COOPERATION.md) |
+| GB-ROUTINES | [Routine webhook and activation](https://cursor.com/help/grok-bot/routines) | An authenticated POST with JSON; 200 means started, not completed. No external cancellation or idempotency is claimed | [assistants/03](execution/2026-10-01-unified/assistants/03_TOOLS_MESSAGES_AND_LIFECYCLE.md) |
+| GB-BILLING | [Plans and billing](https://cursor.com/help/grok-bot/plans) | Included allowances; on-demand off stops at the included allowance. No per-job quota API is established | [assistants/01](execution/2026-10-01-unified/assistants/01_PRODUCT_AND_SCOPE.md), [assistants/04](execution/2026-10-01-unified/assistants/04_COMPUTER_USE_AND_RESOURCES.md) |
+| GB-TEMPLATE | [Template packaging](https://x.ai/bot/guides/templates-for-grok-bot) | A reviewed recipe with selected context and skills; MCP set up separately; no programmatic provisioning | [assistants/01](execution/2026-10-01-unified/assistants/01_PRODUCT_AND_SCOPE.md), [assistants/05](execution/2026-10-01-unified/assistants/05_SETUP_AND_QUALIFICATION.md) |
+| GB-OAUTH | [Custom MCP OAuth support boundary](https://forum.cursor.com/t/grok-bot-custom-mcp-oauth-fails-before-sign-in-redirect-uri-not-allowed/171877) | Staff answers on a redirect-URI registration issue: no safe arbitrary secret-header workaround | [assistants/05](execution/2026-10-01-unified/assistants/05_SETUP_AND_QUALIFICATION.md) |
+| GB-COMPUTER | [Local versus cloud computer](https://cursor.com/docs/grok-bot/work#your-local-computer-is-separate) | Local execution policy is separate and depends on the device | [assistants/01](execution/2026-10-01-unified/assistants/01_PRODUCT_AND_SCOPE.md), [assistants/04](execution/2026-10-01-unified/assistants/04_COMPUTER_USE_AND_RESOURCES.md) |
+| GB-CUA | [Optional Cua Driver integration](https://cua.ai/docs/use-cua-with/grok-bot) | Local or hosted installs and their permissions, an act-and-verify loop | [assistants/04](execution/2026-10-01-unified/assistants/04_COMPUTER_USE_AND_RESOURCES.md) |
+| WA-TRIGGER | [Workspace Agent triggers](https://developers.openai.com/workspace-agents/trigger-runs) | Asynchronous triggers with idempotency, beta status polling; retained for the deferred ledger only | the register only |
 
 ## 3. Facts learned at the pin (not in the pack)
 
