@@ -35,6 +35,11 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - Each resource is a tile of four lines: tool and host, owner, what it does, capacity. Its detail opens in the app's sheet.
   - A search (`/`) and four filters with counts find one among many. What waits on an owner is one line on top, only while something waits.
   - Measured at 1280×720 with the three resources: 78 words on the view (206 before attempt 4); the waiting line at y 118.
+- **Attempt 6** ([handoff](../handoffs/LFE-06-attempt-6.md)): subtle motion and interaction, at Luis's request.
+  - A filter glides the tiles to their new places. Tiles arrive one after another, and meters fill as they appear.
+  - A tile's light follows the pointer in its tool's colour.
+  - What waits keeps a slow pulse, and a light runs once along the waiting line.
+  - Nothing moves when reduced motion is asked for.
 
 ## Acceptance cases
 

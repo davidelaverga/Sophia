@@ -2,6 +2,7 @@
 // and how full its account is. Four lines, never more; everything else opens in its sheet (ResourceSheet).
 import { Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
+import { followPointer } from './motion.ts'
 import { activity, capacity, TOOL, type QuotaObservation, type Resource } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
@@ -28,6 +29,7 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
       onClick={onOpen}
+      onPointerMove={followPointer}
     >
       <span className="resource-tile-head">
         <ToolLogo tool={tool} />

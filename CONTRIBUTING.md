@@ -439,7 +439,10 @@ when you change the room:
   "Capacity unknown" over an empty track, never a number; a meter is drawn
   only for a percentage known to apply; a balance heads as a count; providers
   are never added up. Only a request's owner is told where to answer it and
-  gets its session's id to copy; controls are shown, never offered.
+  gets its session's id to copy; controls are shown, never offered. Its
+  motion is small and checked: a filter glides the tiles (View Transitions),
+  tiles arrive in turn, a tile's light follows the pointer, and what waits
+  keeps a slow pulse. With reduced motion asked for, nothing moves.
 
 ## The personal space
 

@@ -92,7 +92,9 @@
   display: grid;
 }
 .resource-tile {
-  --tool-accent: var(--text-3);
+  --tool-accent: var(--halo);
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -105,9 +107,11 @@
   color: var(--text);
   text-align: left;
   animation: arrive 0.4s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
   transition:
     border-color var(--fast) var(--ease),
-    background var(--fast) var(--ease);
+    background var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
 }
 .resource-tile:hover {
   border-color: var(--line-2);
@@ -522,5 +526,159 @@
 @media (hover: none) {
   .field-key {
     display: none;
+  }
+}
+
+/* Motion, kept small. A tile's light follows the pointer, in its tool's colour, on its face and along its edge. */
+@media (hover: hover) {
+  .resource-tile::before,
+  .resource-tile::after {
+    content: '';
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--base) var(--ease);
+  }
+  .resource-tile::before {
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(
+      260px circle at var(--mx, 50%) var(--my, 0),
+      color-mix(in srgb, var(--tool-accent) 9%, transparent),
+      transparent 70%
+    );
+  }
+  .resource-tile::after {
+    inset: -1px;
+    padding: 1px;
+    background: radial-gradient(
+      180px circle at var(--mx, 50%) var(--my, 0),
+      color-mix(in srgb, var(--tool-accent) 55%, transparent),
+      transparent 70%
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+  }
+  .resource-tile:hover::before,
+  .resource-tile:hover::after {
+    opacity: 1;
+  }
+  .resource-tile:hover {
+    transform: translateY(-1px);
+  }
+  .resource-tile:hover .tool-logo.lg {
+    border-color: color-mix(in srgb, var(--tool-accent) 35%, var(--line-2));
+  }
+}
+.resource-tile:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* A filter's change glides each tile to its new place (motion.ts). */
+.resource-grid > li {
+  view-transition-class: resource-tile;
+}
+::view-transition-group(.resource-tile) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* A meter fills to its value as it appears. */
+.capacity-meter-fill {
+  transform-origin: left;
+  animation: meter-fill 0.8s var(--ease) 0.15s both;
+}
+@keyframes meter-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* What waits keeps a slow pulse, as a live thing does: a ring that widens and fades, the room's ignite. */
+.attention-dot {
+  position: relative;
+}
+.attention-dot::after,
+.event.waiting.open .dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--amber);
+  animation: waiting-ping 2.4s var(--ease) infinite;
+}
+@keyframes waiting-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  70%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+/* When a request comes to wait, a light runs once along its line, then it rests. */
+.attention-label {
+  background: linear-gradient(100deg, var(--text) 40%, var(--amber) 50%, var(--text) 60%) 100% 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: attention-sweep 1.4s var(--ease) 0.3s both;
+}
+@keyframes attention-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* The search's key steps aside while the search has the focus. */
+.field-key {
+  transition: opacity var(--fast) var(--ease);
+}
+.resource-search:focus-within .field-key {
+  opacity: 0;
+}
+
+/* The sheet's sections arrive one after another. */
+.resource-sheet > :not(.sheet-top) {
+  animation: arrive 0.4s var(--ease) both;
+}
+.resource-sheet > :nth-child(3) {
+  animation-delay: 40ms;
+}
+.resource-sheet > :nth-child(4) {
+  animation-delay: 80ms;
+}
+.resource-sheet > :nth-child(5) {
+  animation-delay: 120ms;
+}
+.resource-sheet > :nth-child(n + 6) {
+  animation-delay: 160ms;
+}
+
+/* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
+@media (prefers-reduced-motion: reduce) {
+  .resource-tile,
+  .capacity-meter-fill,
+  .attention-dot::after,
+  .event.waiting.open .dot::after,
+  .attention-label,
+  .resource-sheet > * {
+    animation: none;
+  }
+  .attention-label {
+    background: none;
+    color: inherit;
+  }
+  .resource-tile:hover,
+  .resource-tile:active {
+    transform: none;
   }
 }

@@ -2,7 +2,7 @@
 // ask and until when. Only the owner is told how to answer, in the native tool, and gets the session's id to copy;
 // there is no Approve here (phase one), and seeing a request answers nothing.
 import { useRef, useState } from 'react'
-import { Tag } from '@sophia/ui'
+import { SwapLabel, Tag } from '@sophia/ui'
 import { actionLine, actionState, expiry, TOOL, type RequiredAction, type Resource } from './resource.ts'
 
 const TONE = {
@@ -14,7 +14,9 @@ const TONE = {
   unknown: 'amber',
 } as const
 
-/** The session's id, to find it in the native tool: copied, and said so for a moment. */
+const COPY = { copy: 'Copy session id', copied: 'Copied' } as const
+
+/** The session's id, to find it in the native tool: copied, and said so for a moment (the words crossfade). */
 function CopySession({ sessionId }: { sessionId: string }) {
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -30,7 +32,7 @@ function CopySession({ sessionId }: { sessionId: string }) {
   }
   return (
     <button type="button" className="text-button waiting-copy" onClick={() => void copy()}>
-      {copied ? 'Copied' : 'Copy session id'}
+      <SwapLabel value={copied ? 'copied' : 'copy'} labels={COPY} />
     </button>
   )
 }

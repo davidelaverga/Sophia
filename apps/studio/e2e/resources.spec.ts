@@ -314,3 +314,79 @@ test('@phone · every tile and the sheet read at a phone’s width, with nothing
   const box = await (await open(page, 'Davide · Claude Code')).boundingBox()
   expect(box?.width ?? 0, 'the sheet fits').toBeLessThanOrEqual(width[1] ?? 0)
 })
+
+/** Counts the glides the page starts (View Transitions), on the page itself. */
+async function countGlides(page: Page) {
+  await page.addInitScript(() => {
+    const original = document.startViewTransition.bind(document)
+    let count = 0
+    Object.defineProperty(window, 'glides', { get: () => count })
+    Object.defineProperty(document, 'startViewTransition', {
+      value: (...args: Parameters<typeof original>) => {
+        count += 1
+        return original(...args)
+      },
+    })
+  })
+}
+const glides = (page: Page) => page.evaluate(() => Number(Reflect.get(window, 'glides')))
+const animation = (page: Page, selector: string, pseudo = '') =>
+  page
+    .locator(selector)
+    .first()
+    .evaluate((el, p) => getComputedStyle(el, p || null).animationName, pseudo)
+
+test('motion · a filter glides the tiles to their places; typing a search moves nothing', async ({ page }) => {
+  await countGlides(page)
+  await page.goto(`${PAGE}?more=1`)
+  await filter(page, 'Mine 2').click()
+  await expect(grid(page).getByRole('button')).toHaveCount(2)
+  expect(await glides(page)).toBe(1)
+  await search(page).fill('luis')
+  expect(await glides(page)).toBe(1)
+  const names = await grid(page)
+    .getByRole('listitem')
+    .evaluateAll((items) => items.map((li) => getComputedStyle(li).viewTransitionName))
+  expect(new Set(names).size, 'one name per tile').toBe(names.length)
+})
+
+test('motion · tiles arrive one after another, meters fill, and what waits keeps a pulse', async ({ page }) => {
+  await page.goto(PAGE)
+  const delays = await grid(page)
+    .getByRole('button')
+    .evaluateAll((tiles) => tiles.map((t) => getComputedStyle(t).animationDelay))
+  expect(delays).toEqual(['0s', '0.04s', '0.08s'])
+  expect(await animation(page, '.capacity-meter-fill')).toBe('meter-fill')
+  expect(await animation(page, '.attention-dot', '::after')).toBe('waiting-ping')
+  expect(await animation(page, '.attention-label')).toBe('attention-sweep')
+})
+
+test('motion · a tile’s light follows the pointer', async ({ page }) => {
+  await page.goto(PAGE)
+  const codex = tile(page, 'Davide · Codex')
+  const { x, y } = (await codex.boundingBox()) ?? { x: 0, y: 0 }
+  const light = () => codex.evaluate((el) => ['--mx', '--my'].map((v) => parseFloat(el.style.getPropertyValue(v))))
+  await page.mouse.move(x + 30, y + 20)
+  const [x1 = 0, y1 = 0] = await light()
+  await page.mouse.move(x + 70, y + 45)
+  const [x2 = 0, y2 = 0] = await light()
+  expect(Math.abs(x1 - 30), 'where the pointer is').toBeLessThanOrEqual(1)
+  expect(Math.abs(y1 - 20)).toBeLessThanOrEqual(1)
+  expect(Math.abs(x2 - x1 - 40), 'and it follows').toBeLessThanOrEqual(1)
+  expect(Math.abs(y2 - y1 - 25)).toBeLessThanOrEqual(1)
+})
+
+test('motion · with less motion asked for, the same changes come at once and nothing keeps moving', async ({
+  page,
+}) => {
+  await countGlides(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(`${PAGE}?more=1`)
+  expect(await animation(page, '.resource-tile')).toBe('none')
+  expect(await animation(page, '.capacity-meter-fill')).toBe('none')
+  expect(await animation(page, '.attention-dot', '::after')).toBe('none')
+  expect(await animation(page, '.attention-label')).toBe('none')
+  await filter(page, 'Mine 2').click()
+  await expect(grid(page).getByRole('button')).toHaveCount(2)
+  expect(await glides(page)).toBe(0)
+})

@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { glideName, moving } from './motion.ts'
 import { ResourceSheet } from './ResourceSheet.tsx'
 import { ResourceTile } from './ResourceTile.tsx'
 import {
@@ -57,7 +58,9 @@ function Attention({
         return (
           <button key={r.id} type="button" className="attention-item" onClick={() => onOpen(r.id)}>
             <ToolLogo tool={r.tool} size="sm" />
-            {plural(n, 'request')} {n === 1 ? 'waits' : 'wait'} on {who}
+            <span className="attention-label">
+              {plural(n, 'request')} {n === 1 ? 'waits' : 'wait'} on {who}
+            </span>
             <span className="attention-tool">{TOOL[r.tool]}</span>
           </button>
         )
@@ -192,7 +195,7 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
     <>
       <div className="resources-toolbar">
         <Search query={view.query} onChange={view.setQuery} />
-        <Filters filter={view.filter} counts={view.counts} onChange={view.setFilter} />
+        <Filters filter={view.filter} counts={view.counts} onChange={(f) => moving(() => view.setFilter(f))} />
       </div>
       <p className="sr-only" aria-live="polite">
         {view.shown.length} of {plural(resources.length, 'resource')} shown
@@ -201,13 +204,14 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
         <None
           query={view.query}
           filter={view.filter}
-          onClear={() => view.setQuery('')}
-          onAll={() => view.setFilter('all')}
+          onClear={() => moving(() => view.setQuery(''))}
+          onAll={() => moving(() => view.setFilter('all'))}
         />
       ) : (
         <ul id="resource-grid" className="resource-grid" aria-label="Resources">
-          {view.shown.map((r) => (
-            <li key={r.id}>
+          {view.shown.map((r, i) => (
+            // Each arrives a beat after the one before (the first eight), and glides when a filter moves it.
+            <li key={r.id} style={{ '--i': Math.min(i, 8), viewTransitionName: glideName(r.id) }}>
               <ResourceTile
                 resource={r}
                 observation={observationOf(observations, r)}
