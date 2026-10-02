@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine. Luis chose Playwright in CI.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-00/preservation-checks` from main `81e48cc`, 2026-10-02.
-- **End:** the checks and docs at `282a433` (tree `d47381155bbd`), the head the checks below ran on. The commit after it changes only this line.
+- **End:** the checks and docs at `9990a71` (tree `54e6f5805c95`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** the Studio's tests and fixtures, CI, CONTRIBUTING and LFE-00's records. **No hosted service, schema or product code was changed.**
 
 ## Outcome
