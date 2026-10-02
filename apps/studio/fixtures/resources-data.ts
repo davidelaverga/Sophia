@@ -56,7 +56,7 @@ export const resources: Resource[] = [
         effort: 'high',
         assignment: { workId: 'work-1', title: 'Implement the PDF retry', state: 'waiting' },
       },
-      { id: 'claude-reviewer', role: 'reviewer', model: 'claude-opus-5-5', effort: null, assignment: null },
+      { id: 'claude-reviewer', role: 'reviewer', model: 'claude-sonnet-5-5', effort: null, assignment: null },
     ],
     controls: { steer: 'supported', hold: 'supported', stop: 'supported', permissions: 'unqualified' },
     reservePercent: null,
@@ -67,7 +67,7 @@ export const resources: Resource[] = [
     tool: 'claude-code',
     entitlementId: 'ent-luis-anthropic',
     host: { state: 'unknown', observedAt: at(-180) },
-    sessions: [{ id: 'luis-worker', role: 'worker', model: null, effort: null, assignment: null }],
+    sessions: [{ id: 'luis-worker', role: 'worker', model: 'claude-haiku-4-5', effort: null, assignment: null }],
     controls: { steer: 'unqualified', hold: 'unqualified', stop: 'unqualified', permissions: 'unqualified' },
     reservePercent: null,
   },
@@ -163,6 +163,24 @@ export const actions: RequiredAction[] = [
   },
 ]
 
+/**
+ * Earlier readings of Davide's two accounts, as a store that keeps more than the latest would serve them: every 40
+ * minutes before the latest, each window climbing to where it is now. Same windows, same resets: one window's history.
+ */
+export function earlierReadings(latest: readonly QuotaObservation[]): QuotaObservation[] {
+  const climbing = [0.3, 0.45, 0.6, 0.72, 0.86]
+  return latest
+    .filter((o) => o.entitlement_id === 'ent-davide-anthropic' || o.entitlement_id === 'ent-davide-openai')
+    .flatMap((o) =>
+      climbing.map((share, i) => ({
+        ...o,
+        observation_id: `${o.observation_id}-earlier-${i}`,
+        observed_at: new Date(Date.parse(o.observed_at) - (climbing.length - i) * 40 * 60_000).toISOString(),
+        windows: o.windows.map((w) => (w.value === null ? w : { ...w, value: Math.round(w.value * share) })),
+      })),
+    )
+}
+
 /** A request that comes to wait while the page is open (resourcesFixture.addRequest): Codex asks Davide to edit. */
 export const arriving = (n: number): RequiredAction => ({
   id: `action-arriving-${n}`,
@@ -187,7 +205,7 @@ export const moreResources: Resource[] = [
     tool: 'grok',
     entitlementId: 'ent-davide-xai',
     host: { state: 'offline', observedAt: at(-26 * 60) },
-    sessions: [{ id: 'grok-researcher', role: 'researcher', model: null, effort: null, assignment: null }],
+    sessions: [{ id: 'grok-researcher', role: 'researcher', model: 'grok-4', effort: null, assignment: null }],
     controls: { steer: 'unqualified', hold: 'unqualified', stop: 'unqualified', permissions: 'unsupported' },
     reservePercent: null,
   },

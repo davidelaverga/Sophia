@@ -23,6 +23,7 @@ import {
   arriving,
   busyClaude,
   busyCodex,
+  earlierReadings,
   spentCodex,
   expiredAt,
   moreObservations,
@@ -104,6 +105,7 @@ function Live() {
           viewerId={viewer.id}
           now={NOW}
           loading={live.loading}
+          history={earlierReadings(read)}
         />
       }
     />

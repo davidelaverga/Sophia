@@ -4,6 +4,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
+import { ModelChip } from './ModelChip.tsx'
 import { followPointer } from './motion.ts'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { activity, ago, capacity, TOOL, type Capacity, type QuotaObservation, type Resource } from './resource.ts'
@@ -99,6 +100,9 @@ export function ResourceTile(props: Props) {
   const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref } = props
   const { tool, owner, host } = resource
   const held = capacity(observation, now)
+  // The model of the session at work, else the first one reported.
+  const model = (resource.sessions.find((s) => s.assignment && s.model) ?? resource.sessions.find((s) => s.model))
+    ?.model
   const id = useId()
   const changed = useChanged(`${host.state}|${waiting}|${held.limiting?.percent ?? ''}|${held.known}`)
   const said = (part: string) => `${id}-${part}`
@@ -133,7 +137,8 @@ export function ResourceTile(props: Props) {
       </span>
       <Owner owner={owner} mine={mine} waiting={waiting} said={said} />
       <span id={said('activity')} className="resource-tile-activity" title={activity(resource)}>
-        {activity(resource)}
+        {model && <ModelChip model={model} />}
+        <span className="resource-tile-activity-words">{activity(resource)}</span>
       </span>
       <TileCapacity capacity={held} id={said('capacity')} />
     </button>

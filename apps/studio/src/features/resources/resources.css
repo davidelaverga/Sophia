@@ -88,6 +88,7 @@
 }
 .resource-tile {
   --tool-accent: var(--halo);
+  --rim: inset 0 1px 0 color-mix(in srgb, var(--tool-accent) 35%, transparent);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -98,7 +99,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--plane-2);
-  box-shadow: var(--lift);
+  box-shadow: var(--rim);
   color: var(--text);
   text-align: left;
   animation: arrive 0.4s var(--ease) both;
@@ -150,12 +151,6 @@
   gap: 6px;
   color: var(--text-2);
   font-size: 12.5px;
-}
-.resource-tile-activity {
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .resource-tile-capacity {
   display: grid;
@@ -213,6 +208,120 @@
   padding: 0 6px;
   font-size: 13px;
   color: var(--text);
+}
+
+/* A model as people say it, in its family's colour (models.ts). */
+.model-chip {
+  --model: var(--text-3);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--model) 7%, transparent);
+  color: color-mix(in srgb, var(--model) 30%, var(--text-2));
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--model);
+}
+.model-chip[data-family='opus'] {
+  --model: #d97757;
+}
+.model-chip[data-family='sonnet'] {
+  --model: #e6a273;
+}
+.model-chip[data-family='haiku'] {
+  --model: #efc893;
+}
+.model-chip[data-family='gpt'] {
+  --model: #6f8cff;
+}
+.model-chip[data-family='gemini-pro'] {
+  --model: #a68bd6;
+}
+.model-chip[data-family='gemini-flash'] {
+  --model: #4f9cf9;
+}
+.model-chip[data-family='grok'] {
+  --model: #c3c7d4;
+}
+.resource-tile-activity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.resource-tile-activity-words {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-model {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.resource-effort {
+  color: var(--text-3);
+}
+
+/* A window's readings over time: a thin line and a faint area, the latest marked, in the colour its use reached. */
+.capacity-history {
+  --tone: var(--teal);
+  position: relative;
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+}
+.capacity-history.is-warn {
+  --tone: var(--amber);
+}
+.capacity-history.is-full {
+  --tone: var(--rose);
+}
+.capacity-history svg {
+  display: block;
+  width: 100%;
+  height: 24px;
+  overflow: visible;
+}
+.capacity-history-line {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.capacity-history-area {
+  fill: color-mix(in srgb, var(--tone) 8%, transparent);
+}
+.capacity-history-now {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent);
+}
+.capacity-history figcaption {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.capacity-windows dd .capacity-history {
+  flex-basis: 100%;
 }
 
 /* Nothing shown: said, with the ways back. */
@@ -538,7 +647,7 @@
   height: 32px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 8%, var(--plane-2));
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 10%, var(--plane-2));
 }
 .tool-logo.sm {
   width: 14px;
@@ -726,7 +835,7 @@
 @keyframes tile-changed {
   0% {
     box-shadow:
-      var(--lift),
+      var(--rim),
       0 0 0 1px color-mix(in srgb, var(--tool-accent) 80%, transparent),
       0 0 24px color-mix(in srgb, var(--tool-accent) 35%, transparent);
   }

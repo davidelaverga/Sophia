@@ -459,7 +459,10 @@ when you change the room:
   minute (`clock.ts`); a tile whose state changes flashes once; the tab
   counts requests waiting on the viewer (`ProjectShell`'s `resourcesWaiting`);
   `loading=1` shows placeholders. The fixture is live: `addRequest()` and
-  `setHost(id, state)` on `window.resourcesFixture`.
+  `setHost(id, state)` on `window.resourcesFixture`. Each session's model
+  shows as people say it, in its family's colour (`models.ts`); a sheet draws
+  each window's readings over time from earlier observations (`history.ts`,
+  the panel's `history`), one window at a time, never across a reset.
 
 ## The personal space
 

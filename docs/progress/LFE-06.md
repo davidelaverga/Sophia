@@ -53,6 +53,9 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 9** ([handoff](../handoffs/LFE-06-attempt-9.md)): the view feels live.
   - Ages and countdowns move on while the page is open; a tile whose state changes flashes once.
   - The tab counts requests waiting on the viewer (through `ProjectShell`, beside who waits at the door); placeholders hold the tiles while reading.
+- **Attempt 10** ([handoff](../handoffs/LFE-06-attempt-10.md)): usage history and model colours.
+  - Each session's model as people say it, in its family's colour; a quiet rim in the tool's colour.
+  - A sheet draws each window's readings over time, from earlier observations the API doesn't keep yet.
 
 ## Acceptance cases
 
