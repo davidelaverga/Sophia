@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `follow-ups/tile-after-retry` from main `cc8372b`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** the fix and docs at `e286d75` (tree `f2669690aa3b`), the head the checks below ran on. The commit after it changes only this line.
 - **Writable scope:** `DirectionGallery.tsx` and one Explore check. **Nothing else changed.**
 
 ## Outcome
