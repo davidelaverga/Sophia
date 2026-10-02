@@ -757,3 +757,48 @@ Not run, and needed before any choice is accepted:
 - a memory soak over hours.
 
 Some combined results rest on a single run each: the 384 MiB run and the uncapped wide-table run. The raw logs and harnesses are in this session's private scratch, and Claude can add the harness to the repository if Codex wants to reproduce the runs.
+
+
+## 37. CX-0016: the first release without PDF, checked, and its P3s fixed (2026-10-02)
+
+Davide chose a first release without PDF. Codex prepared it ([CX-0016](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5960693454)): no render runner, no byte store (no `SOPHIA_STORAGE_*`), migrations 0021–0035 in order, and Markdown reports shown formatted in Studio and downloaded as `.md`. Before Davide approves the batch, five reviews checked PR #32 against exactly that configuration: the PDF refusal, the byte store, Studio, the guide and voice, and the release delta with its migrations. Skeptics stood ready to test any P1 or P2.
+
+Since then Davide chose that batch, and Codex deployed `6ec64f3` ([CX-0018](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006)): migrations 0021–0035, the API, the bridge with guide v1.1, and Studio. The runtime cutover, the pilot grant and the bridge's move to v1.2 are next. [CX-0017](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5961830273), an amendment for `16a7480`, was superseded by that choice.
+
+**Result: ready, with no P1 or P2** (this applies to `6ec64f3` as deployed, and to `16a7480`).
+- A PDF request is refused before admission: nothing is admitted, reserved or charged.
+- No step of the pilot reaches the byte store. Drafts, captures, publication and the content route are inline. The only store-dependent branch is a renderer's PDF upload, which no release step reaches.
+- The API starts without the store settings.
+- `6ec64f3..16a7480` (`main`'s #49 and docs) reaches no released service. LFE-06's resource panel is mounted only on its fixture page.
+
+**Fixed in `fc0a935`**, a follow-up to the deployed release. Only the API, persistence and Studio change, so only the API and Studio would redeploy. The guide's prompt bytes, the runtime bundle and the migrations are unchanged, and `pnpm artifacts` reproduces every identity. Each fix has a check that fails without it:
+
+| P3 | Fix | Check |
+|---|---|---|
+| `render_research` refused a Markdown-only report with "This research task does not produce a PDF", as if another task would have one, and `project_status` offered it | With no PDF renderer running, that refusal becomes `not_started:native_capability_unavailable`, "PDF reports are not available, so nothing was started.", the same answer as the database's own "No PDF renderer is running". It is decided after the database, so a replay of a queued rendition and the database's specific refusals (forbidden, already rendering, already has its PDF, stale) still answer first. `project_status` (guide v1.2) marks it unavailable, so Sophia promises no PDF for later | `research.db.test.ts`: render_research (including a replay with the renderer gone quiet) and project_status |
+| The PDF refusal said "right now" and offered a Markdown report before anything checked that one would be admitted (role, gate, runtime, allowance) | The refusal says "PDF reports are not available, so nothing was started." and offers nothing. A malformed format is asked as "Which format should the report be in?" | `research.db.test.ts`: start_research |
+| A page read with no text (a JavaScript-only page) was paid, then refused as a 503 "Unexpected database error" by a CHECK on `source_texts` | The capture refuses it as `invalid_request` ("The page had no text, so nothing was kept: cite it only as unread"), so nothing invites a retry | `research.db.test.ts` (persistence): an empty capture |
+| Knowledge offered "With PDF", which could only come back empty, and then said "No reports here yet" | The format filter is offered once a listed report has a PDF, stays while a format is chosen, and stays while a new filter's reports load, so a press keeps its focus. An empty list under a format or words says "No reports match these filters." with "Clear the filters", and the focus goes to the search field | unit (`formatsOffered`); browser "No-PDF release ·" |
+
+The fixture page now filters Knowledge by words (each a prefix, all required) and format as the API does, and lists a project only with at least one report (the contract's minimum; the first version of the fixture sent a zero count, which the client rightly refused). Its older report has a PDF, so the filter's pressed buttons are still checked once one is listed.
+
+An independent review of these fixes found no P1 or P2. Its P3s are folded in above: the first version decided `render_research`'s answer before the database, which broke a replay and hid specific refusals; the format filter left while a new filter loaded; and nits (a search of spaces, a check's wait, the fixture's search). One is accepted: the frozen bundle replaces the empty-capture refusal's reason with its own `invalid_request` message, so the model never sees "cite it only as unread" (note 6).
+
+**Notes for the release, not code changes:**
+1. **Guide version.** The bridge runs guide v1.2 when `SOPHIA_GUIDE_VERSION` is unset. Met: CX-0018's bridge loaded v1.1. Every fix to `render_research`, `project_status` and `start_research` reaches a person only through guide v1.2, so the API should be at `fc0a935` before the bridge moves to v1.2. The empty-capture fix applies once research runs.
+2. **Stop with the old worker.** Codex's old-worker rehearsal covers no Stop, and a Stop now fires 0032's deferred trigger in the worker's session. By the code it is a no-op without renditions (SECURITY DEFINER, empty loop), but the pilot's 35-minute Stop relies on it. Add one Stop of a queued task and one of a running task to the rehearsal.
+3. **No runner before the store.** PDF admission is checked in the API only. Never register a render runner before the byte store is set.
+4. **Rolling the bridge back to v1.1 after research exists.** v1.1 still lists and announces research results, though its prompt says no researcher runs. Accept this in the release matrix, or limit research notices to v1.2.
+5. **For the next guide revision** (its prompt bytes are frozen for this release):
+   - a steer cannot add a PDF to research under way;
+   - `render_research` applies only to a report whose task asked for a PDF;
+   - research operations get their own reason for viewers.
+6. **For the next bundle revision.** Skip the capture of an empty page and tell the model to cite it as unread. Until then the API's refusal reaches the model as the bundle's generic "check each field" message.
+
+**Open with Davide.** Is "HTML only" the in-app formatted view plus the `.md` download, as this release has it, or also a standalone `.html` download? The latter would be a small Studio addition: the report template could build the file in the browser from the hash-checked Markdown.
+
+Run here (linux-x64) at `fc0a935`:
+- `pnpm check`: 798 unit (797 passed, 1 skipped) and 95 integration (2 skipped); `pnpm artifacts` reproduces every identity;
+- `pnpm test:db` 376/376 and `pnpm test:sql` 35;
+- `test:browser` 49/49, with the report checks once more and the new no-PDF check five times in a row;
+- each fix's check run without it, and failing.

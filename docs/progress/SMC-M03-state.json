@@ -5,14 +5,14 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "ebcbbc0",
+  "candidate_commit": "fc0a935",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
     "source": "in_progress",
     "merge": "not_requested",
-    "release": "not_requested",
-    "hosted_verification": "not_run",
+    "release": "authorized_in_progress",
+    "hosted_verification": "partial: 6ec64f3 deployed without PDF (CX-0018: migrations 0021-0035, API, bridge on guide v1.1, Studio); runtime cutover, pilot grant, bridge v1.2 and the bounded test pending",
     "product_acceptance": "not_requested"
   },
   "owners": {
@@ -268,28 +268,40 @@
         "the real dsh runtime under the RuntimeSupervisor against the fixture service and the mock model"
       ],
       "ref": "docs/progress/SMC-M03.md#36-cx-0015-the-pdf-renderer-on-the-existing-runtime-host-measured-blocked-as-proposed-2026-10-02"
+    },
+    {
+      "slice": "CX-0016: the no-PDF release's readiness (five reviews) and its P3s fixed in fc0a935",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (49 checks; 23 report checks, each new one failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#37-cx-0016-the-first-release-without-pdf-checked-and-its-p3s-fixed-2026-10-02"
     }
   ],
   "outstanding_operations": [
     {
       "operation_id": "SMC-M03-OP-0001",
       "kind": "inspect_request",
-      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526",
-      "state": "awaiting_owner (CX-0015 proposed the renderer on the existing runtime host; CC-0017: blocked as proposed, measured. Davide chooses: Markdown now, a separate small renderer, or the runtime on Standard)",
-      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5956497250"
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5960693454",
+      "state": "in_progress (revision 4: Davide chose the 6ec64f3 batch without PDF; CX-0018 applied 0021-0035 and deployed the API, the bridge on guide v1.1 and Studio; the runtime cutover, pilot grant, bridge v1.2 and the bounded test are pending. CX-0017, the 16a7480 amendment, was superseded)",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006"
     },
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0016.md",
-      "state": "answered (revision 15, CX-0012: M03-RF-0021..0023 verified on ebcbbc0 and f8b9c35..ebcbbc0 reviewed, no P0–P2; M03-RF-0024 (P3) is LFE-06's code from main, handed to LFE-06). The next request comes with M03's next change",
-      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951619757"
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0018.md",
+      "state": "requested (revision 16: the no-PDF readiness, no P1 or P2, covering 6ec64f3 as deployed; re-review of 6ec64f3..fc0a935, the P3 fixes, on exactly fc0a935)",
+      "result": null
     }
   ],
   "unknown_effects": [],
-  "hosted_tuple_ref": null,
-  "migration_ledger_ref": null,
-  "approval_refs": [],
+  "hosted_tuple_ref": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006",
+  "migration_ledger_ref": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006",
+  "approval_refs": [
+    "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006 (CX-0018: Davide chose the 6ec64f3 batch, as Codex recorded it)"
+  ],
   "remaining_allowance_ref": null,
   "file_ownership": [
     {
@@ -310,7 +322,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CX-0012 verified M03-RF-0021..0023 on ebcbbc0 and reviewed the whole head with no P0–P2; M03-RF-0024 (P3, LFE-06's resource headline) was fixed by LFE-06 in #49 and is merged here at 3ec41b2. PDF hosting: CC-0017 found the runtime-host co-location blocked as proposed (measured); Davide chooses Markdown now, a separate small renderer, or the runtime on Standard. Open for Davide: Forget for published reports; which renderer host OP-C probes, with its price and data-recipient terms; the pilot's allowance and limits; entering the research keys on the runtime host. Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CX-0018 deployed 6ec64f3 without PDF (migrations 0021-0035, API, bridge on guide v1.1, Studio); the runtime cutover, pilot grant, bridge v1.2 and the bounded test are Codex's, under Davide's approval. CC-0018: the readiness review found no P1 or P2; its P3s are fixed in fc0a935 (API, persistence and Studio only), to deploy before the bridge moves to v1.2 if Davide approves; Codex re-reviews 6ec64f3..fc0a935. Open for Davide: a standalone .html download or not; Forget for published reports; the PDF host (CC-0017's options). Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
