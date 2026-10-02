@@ -3,10 +3,10 @@
 // (fixture-api.ts), and LiveKit (fake-livekit.ts, which the fixtures' Vite config puts in its place). It reaches no
 // server and says so on screen. The query string picks the scenario: `call=on` (join on opening), `exchange=open`
 // (Sophia's conversation is open and this viewer holds the floor), `refuse=camera` (the browser refuses it),
-// `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room); the report viewer's own
-// parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
-// move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice,
-// or read what happened.
+// `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room), `hold=sources` (the
+// report's sources come only once the check lets them through); the report viewer's own parameters (`report=…`) open
+// the fixture report (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the
+// call, publish the report's next version, deliver a result notice, or read what happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -18,7 +18,7 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { asked, deliverNotice, dropCall } from './fake-livekit.ts'
-import { installFixtureApi, publish, served, unexpected } from './fixture-api.ts'
+import { installFixtureApi, publish, releaseSources, served, unexpected } from './fixture-api.ts'
 import { researchNotice, SOPHIAS_DESCRIPTION, TEAMMATE } from './report-data.ts'
 
 interface Fixture {
@@ -34,8 +34,10 @@ interface Fixture {
   notice: () => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
-  /** Reads of the report's versions fail from now on. */
-  failVersions: () => void
+  /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
+  failVersions: (how?: 'unavailable' | 'not_found' | false) => void
+  /** The report's sources, held since the page opened (`hold=sources`), come now. */
+  releaseSources: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
   away: () => void
   /** Back to the project, as the places' call control brings it back: its address names no report. */
@@ -61,7 +63,8 @@ const project = {
   reportVersions: 1,
   waiting: query.get('lobby') === 'waiting',
   description: SOPHIAS_DESCRIPTION,
-  versionsFail: false,
+  versionsFail: false as false | 'unavailable' | 'not_found',
+  sourcesHeld: query.get('hold') === 'sources',
 }
 installFixtureApi(project)
 
@@ -79,9 +82,10 @@ window.fixture = {
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
-  failVersions: () => {
-    project.versionsFail = true
+  failVersions: (how = 'unavailable') => {
+    project.versionsFail = how
   },
+  releaseSources: () => releaseSources(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry
     sight.set?.(false)

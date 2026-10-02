@@ -34,8 +34,13 @@ interface Project {
   waiting: boolean
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
-  /** Reads of the report's versions fail from now on, as an API that went away does. */
-  versionsFail: boolean
+  /**
+   * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
+   * `not_found`, as it refuses a report this person may not read; false, they succeed.
+   */
+  versionsFail: false | 'unavailable' | 'not_found'
+  /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
+  sourcesHeld: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -124,7 +129,7 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
     return json(reportList(project.reportVersions, project.description, url.searchParams.get('cursor')))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
-  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return json(citedSources)
+  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source) : null
   if (text) return json(text)
@@ -132,14 +137,42 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   return null
 }
 
+/** The API's error bodies for a failed read of the versions, with their status (packages/domain/src/errors.ts). */
+const VERSIONS_FAILURE = {
+  unavailable: { status: 503, served: 'versions:failed', message: 'Sophia is unavailable', retry: 'safe_read' },
+  not_found: { status: 422, served: 'versions:refused', message: 'Artifact not found', retry: 'never' },
+} as const
+
 /** The report's versions, or a failed read once the page asked for that (`window.fixture.failVersions`). */
 function versionsRead(project: Project): Response {
   if (project.versionsFail) {
-    served.push('versions:failed')
-    return new Response(null, { status: 503 })
+    const failure = VERSIONS_FAILURE[project.versionsFail]
+    served.push(failure.served)
+    const body = {
+      code: project.versionsFail,
+      message: failure.message,
+      requestId: '00000000-0000-4000-8000-0000000000ba',
+      retry: failure.retry,
+    }
+    return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
   return json(versions(project.reportVersions))
+}
+
+/** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
+const heldSources: (() => void)[] = []
+
+/** What a version cites; while the page holds them, a read that answers once let through. */
+function sourcesRead(project: Project): Response | Promise<Response> {
+  if (!project.sourcesHeld) return json(citedSources)
+  return new Promise((resolve) => heldSources.push(() => resolve(json(citedSources))))
+}
+
+/** Lets the held reads of sources through, and every later one. */
+export function releaseSources(project: Project): void {
+  project.sourcesHeld = false
+  for (const release of heldSources.splice(0)) release()
 }
 
 export function installFixtureApi(project: Project): void {

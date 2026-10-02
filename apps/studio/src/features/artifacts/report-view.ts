@@ -212,6 +212,34 @@ export const pinTo = (
 export const failedOutright = (read: { isError: boolean; data?: unknown }): boolean =>
   read.isError && read.data === undefined
 
+/** The API's refusals of a read this person may not make (their contract codes; `not_found` is a 422). */
+const REFUSALS = new Set(['not_found', 'forbidden'])
+
+/**
+ * Why the version asked for cannot be shown once the read of the versions has failed: refused to this person, or a
+ * read that failed (any other error), which is said with a way to read again, never left "loading" (M03-RF-0021).
+ * Nothing is said while the read is under way or paused offline, or for a version the list read earlier holds (it
+ * stays on screen); nor, for a version that list lacks, until the list has been read again for it (`settled`).
+ */
+export function versionReadFailure(
+  versions: { isError: boolean; error: unknown; data?: unknown; fetchStatus: 'fetching' | 'paused' | 'idle' },
+  found: boolean,
+  settled: boolean,
+): 'refused' | 'failed' | null {
+  if (!versions.isError || versions.fetchStatus !== 'idle' || found) return null
+  if (versions.data !== undefined && !settled) return null
+  const { error } = versions
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : null
+  return typeof code === 'string' && REFUSALS.has(code) ? 'refused' : 'failed'
+}
+
+/**
+ * Whether the focus is nobody's: nothing holds it, the page does, or what held it is gone (a button that went once
+ * pressed). Only then is it handed on; a control the person moved to keeps it.
+ */
+export const focusFree = (at: { isConnected: boolean } | null, body: unknown): boolean =>
+  at === null || at === body || !at.isConnected
+
 /** The report's current version when another is on screen: the head names it and shows it on request. */
 export function currentOffer<T extends { id: string }>(versions: readonly T[] | undefined, shown: T | undefined) {
   const current = versions?.[0]

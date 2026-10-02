@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 import type { ReportSource } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { safeHref } from './markdown.ts'
-import { hostOf, sourceWords } from './report-view.ts'
+import { focusFree, hostOf, sourceWords } from './report-view.ts'
 
 interface Props {
   sources: readonly ReportSource[] | undefined
@@ -34,14 +34,15 @@ const citationWords = (n: number | null) => (n === null ? 'Not cited in the text
 
 /**
  * The row a citation pointed at takes the focus once, as it comes into view: the citation's button went with the
- * Document tab, and the reader goes on from the source they asked for. Never again on a later render.
+ * Document tab, and the reader goes on from the source they asked for. Never again on a later render, and never from
+ * a control the person moved to while the sources were coming (M03-RF-0022): the row is shown, and the focus stays.
  */
 function useFocusedRow(focused: boolean) {
   const row = useRef<HTMLLIElement>(null)
   useEffect(() => {
     if (!focused) return
     row.current?.scrollIntoView({ block: 'nearest' })
-    row.current?.focus({ preventScroll: true })
+    if (focusFree(document.activeElement, document.body)) row.current?.focus({ preventScroll: true })
   }, [focused])
   return row
 }

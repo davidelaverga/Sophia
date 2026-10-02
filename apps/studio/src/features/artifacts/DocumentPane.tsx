@@ -28,6 +28,7 @@ import {
   currentOffer,
   escapeStepsDown,
   failedOutright,
+  focusFree,
   focusReturn,
   formatBytes,
   pdfMissing,
@@ -35,6 +36,7 @@ import {
   rereadFor,
   shortHash,
   versionMissing,
+  versionReadFailure,
 } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
@@ -84,9 +86,11 @@ function usePaneData(identity: Identity, link: ReportLink) {
   })
   const version = pick(versions.data, link.versionId)
   // A link to a version the list does not hold (one published since it was read) reads the list again, once per
-  // version, before the pane may say it is not available.
+  // version, before the pane may say it is not available, or that it could not be read: an error left by an earlier
+  // read is not this version's.
   const [reread, setReread] = useState<string | null>(null)
-  const absent = versions.isSuccess && link.versionId !== null && version === undefined
+  const absent =
+    versions.data !== undefined && versions.fetchStatus === 'idle' && link.versionId !== null && version === undefined
   const { refetch } = versions
   useEffect(() => {
     const target = rereadFor(absent, reread, link.versionId)
@@ -237,8 +241,7 @@ function useFocusHandoff(opener: React.RefObject<HTMLElement | null>) {
       // Read at the close, on purpose: the same report opened again from elsewhere names its latest opener.
       // oxlint-disable-next-line react-hooks/exhaustive-deps
       const from = opener.current ?? atMount
-      const at = document.activeElement
-      const free = at === null || at === document.body || !at.isConnected
+      const free = focusFree(document.activeElement, document.body)
       focusReturn(free, from, from ? panelToggleOf(from) : null, shownNow)?.focus({ preventScroll: true })
     }
   }, [opener])
@@ -281,24 +284,27 @@ function usePaneBehaviour({ link, opener, onVersion, onStepDown, onEnlarge }: Pr
       title.current?.focus({ preventScroll: true })
     }
   }, [link.size, title])
-  // The current version's offer: "Show it" goes with the offer once pressed, so the focus goes to the title.
+  // "Show it" goes with the offer once pressed, as the unavailable report's buttons go: the focus goes to the title.
+  const toTitle = () => title.current?.focus({ preventScroll: true })
+  const recover: Recover = {
+    show: (versionId) => {
+      onVersion(versionId)
+      toTitle()
+    },
+    retry: () => {
+      void data.versions.refetch()
+      toTitle()
+    },
+  }
   const current = currentOffer(data.versions.data, data.version)
-  const offer = current
-    ? {
-        number: current.versionNumber,
-        onShow: () => {
-          onVersion(current.id)
-          title.current?.focus({ preventScroll: true })
-        },
-      }
-    : null
-  return { title, top: usePaneTop(), offer }
+  const offer = current ? { number: current.versionNumber, onShow: () => recover.show(current.id) } : null
+  return { title, top: usePaneTop(), offer, recover }
 }
 
 export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
   const data = usePaneData(identity, link)
-  const { title, top, offer } = usePaneBehaviour(props, data)
+  const { title, top, offer, recover } = usePaneBehaviour(props, data)
   const width = usePaneWidth()
   const status = useTransientStatus()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
@@ -344,6 +350,7 @@ export function DocumentPane(props: Props) {
         focusSource={focusSource}
         onCite={cite}
         onVersion={onVersion}
+        recover={recover}
       />
       <p className="report-status" role="status" data-error={status.error || undefined}>
         {status.text}
@@ -360,35 +367,55 @@ interface BodyProps {
   focusSource: string | null
   onCite: (sourceId: string) => void
   onVersion: (versionId: string) => void
+  recover: Recover
 }
 
 /**
  * Why nothing of the report can be shown, whatever the tab: not readable to this person, or the version gone (then the
  * current one, when the report has one, is a press away).
  */
-function unavailable(data: PaneData): { text: string; current?: ArtifactVersion | undefined } | null {
-  if (failedOutright(data.versions)) return { text: 'This report isn’t available to you.' }
+function unavailable(data: PaneData): Blocked | null {
+  const failure = versionReadFailure(data.versions, data.version !== undefined, data.versionSettled)
+  if (failure === 'refused') return { text: 'This report isn’t available to you.' }
+  if (failure === 'failed') {
+    // Nothing of the report was read, or its list was, but without this version.
+    const what = data.versions.data === undefined ? 'The report' : 'This version'
+    return { text: `${what} couldn’t be loaded.`, retry: true }
+  }
   if (versionMissing(data.versions, data.version !== undefined, data.versionSettled)) {
     return { text: 'This version isn’t available.', current: data.versions.data?.[0] }
   }
   return null
 }
 
-function Unavailable({
-  text,
-  current,
-  onShow,
-}: {
+interface Blocked {
   text: string
   current?: ArtifactVersion | undefined
-  onShow: (id: string) => void
-}) {
+  /** The read failed: it can be tried again. */
+  retry?: boolean
+}
+
+/**
+ * Showing another version (the head's "Show it", an unavailable report's current one) and reading the list again. Each
+ * button goes once pressed, so each hands the focus to the title.
+ */
+interface Recover {
+  show: (versionId: string) => void
+  retry: () => void
+}
+
+function Unavailable({ text, current, retry, recover }: Blocked & { recover: Recover }) {
   return (
-    <p className="muted">
+    <p className="muted" role="alert">
       {text}{' '}
       {current && (
-        <button type="button" className="text-button" onClick={() => onShow(current.id)}>
+        <button type="button" className="text-button" onClick={() => recover.show(current.id)}>
           Show the current version{current.versionNumber ? `, v${current.versionNumber}` : ''}
+        </button>
+      )}
+      {retry && (
+        <button type="button" className="text-button" onClick={recover.retry}>
+          Try again
         </button>
       )}
     </p>
@@ -405,7 +432,7 @@ function PaneBody(props: BodyProps) {
       aria-labelledby={`report-tab-${props.tab}`}
       data-pdf={(!blocked && props.data.showPdf) || undefined}
     >
-      {blocked ? <Unavailable {...blocked} onShow={props.onVersion} /> : <TabContent {...props} />}
+      {blocked ? <Unavailable {...blocked} recover={props.recover} /> : <TabContent {...props} />}
     </div>
   )
 }

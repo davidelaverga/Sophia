@@ -7,6 +7,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const V1 = '00000000-0000-4000-8000-0000000000d1'
 const V2 = '00000000-0000-4000-8000-0000000000d2'
+const CITED = '00000000-0000-4000-8000-0000000000c9'
 const IN_CALL = '/room.html?call=on&exchange=open'
 const FIRST = 'The first version of a labelled fixture report.'
 const SECOND = 'The second version of a labelled fixture report, published while the first was read.'
@@ -28,6 +29,19 @@ const onTop = (locator: Locator) =>
     return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
   })
 const door = (page: Page) => page.getByRole('complementary', { name: 'Waiting to come in' })
+
+/** A link to a version of the fixture report followed in the page: the address moves, as Back and Forward move it. */
+const follow = (page: Page, versionId: string) =>
+  page.evaluate(
+    ([report, version]) => {
+      window.history.pushState(null, '', `/room.html?report=${report}&version=${version}`)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    },
+    [REPORT, versionId],
+  )
+
+/** The pane with no version to hand: no title of its own. */
+const untitled = (page: Page) => page.getByRole('complementary', { name: 'Report', exact: true })
 
 /** Opens the page and, in a call, waits for it: connected, and the microphone arrived. */
 async function enter(page: Page, url: string) {
@@ -73,7 +87,7 @@ test('ART-02 · a report opened on its current version keeps it when a newer one
 test('LFE-02.1 · a citation shows its source with the focus on it, once', async ({ page }) => {
   await enter(page, `/room.html?report=${REPORT}`)
   await pane(page).getByRole('button', { name: 'Source 1' }).click()
-  const row = pane(page).locator('#source-00000000-0000-4000-8000-0000000000c9')
+  const row = pane(page).locator(`#source-${CITED}`)
   await expect(pane(page).getByRole('tab', { name: /^Sources/ })).toHaveAttribute('aria-selected', 'true')
   await expect(row).toBeFocused() // the citation's button went with the Document tab: its source has the focus
   await expect(row.getByText('Citation 1')).toBeAttached() // said, though the number is drawn for the eye
@@ -84,6 +98,34 @@ test('LFE-02.1 · a citation shows its source with the focus on it, once', async
     .click()
   await expect(row).not.toHaveAttribute('data-focused')
   await expect(row).not.toBeFocused()
+})
+
+test('M03-RF-0022 · a citation whose source comes late hands it the focus while nothing else has it', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}&hold=sources`)
+  await pane(page).getByRole('button', { name: 'Source 1' }).click()
+  await expect(pane(page).getByText('Loading the sources…')).toBeVisible()
+  await page.evaluate(() => window.fixture?.releaseSources())
+  await expect(pane(page).locator(`#source-${CITED}`)).toBeFocused() // the citation's button went: nobody had it
+})
+
+test('M03-RF-0022 · a citation whose source comes late never takes the focus from where the person moved it', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}&hold=sources`)
+  await pane(page).getByRole('button', { name: 'Source 1' }).click()
+  await expect(pane(page).getByText('Loading the sources…')).toBeVisible()
+  await page.getByRole('button', { name: 'Account' }).click()
+  const signOut = page.getByRole('menu', { name: 'Account' }).getByRole('menuitem', { name: 'Sign out' })
+  await signOut.focus() // the person moved on before the source came
+  await page.evaluate(() => window.fixture?.releaseSources())
+  const row = pane(page).locator(`#source-${CITED}`)
+  await expect(row).toHaveAttribute('data-focused', 'true') // shown, as the citation asked
+  await expect(signOut).toBeFocused()
+  // Still Sign out's once the row has settled: the row would take it as its effect runs, after it is drawn.
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 100))))
+  await expect(signOut).toBeFocused()
 })
 
 test('LFE-02.1 · History keeps the focus on what was pressed: a version shown, a comparison opened and closed', async ({
@@ -115,7 +157,7 @@ test('LFE-02.1 · History keeps the focus on what was pressed: a version shown, 
 
 test('LFE-02.1 · a version that is gone is said on every tab, never a list that looks current', async ({ page }) => {
   await enter(page, `/room.html?report=${REPORT}&version=00000000-0000-4000-8000-0000000000d9`)
-  const gone = page.getByRole('complementary', { name: 'Report' }) // no version: no title of its own
+  const gone = untitled(page)
   await expect(gone.getByText('This version isn’t available.')).toBeVisible()
   await gone.getByRole('tab', { name: /^History/ }).click()
   await expect(gone.getByText('This version isn’t available.')).toBeVisible()
@@ -124,6 +166,7 @@ test('LFE-02.1 · a version that is gone is said on every tab, never a list that
   await expect(gone.getByText('This version isn’t available.')).toBeVisible()
   await gone.getByRole('button', { name: 'Show the current version, v1' }).click() // never a dead end
   await expect(pane(page).getByText('A labelled fixture page')).toBeVisible() // v1's sources, on the tab in view
+  await expect(page.locator('#report-pane-title')).toBeFocused() // the button went once pressed: the title has it
 })
 
 test('LFE-02.1 · a report open in a project kept for its call stays closed once the person comes back from home', async ({
@@ -315,6 +358,58 @@ test('LFE-02.1 · a read again that fails keeps the report being read, never "no
     .toBe(4)
   await expect(pane(page).getByText(FIRST)).toBeVisible()
   await expect(pane(page).getByText('This report isn’t available to you.')).toHaveCount(0)
+  await expect(pane(page).getByText('couldn’t be loaded')).toHaveCount(0)
+})
+
+test('M03-RF-0021 · a version the list read earlier lacks, with the list failing to load, is said, with Try again', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}`)
+  await expect(pane(page).getByText(FIRST)).toBeVisible() // the list read holds v1 only
+  await page.evaluate(() => {
+    window.fixture?.publishReport()
+    window.fixture?.failVersions()
+  })
+  await follow(page, V2)
+  // The list is read again for v2, four times (three retries), then the pane says so: never "Loading" for good.
+  await expect(untitled(page).getByRole('alert')).toContainText('This version couldn’t be loaded.', { timeout: 20_000 })
+  expect((await fixture(page)).served.filter((s) => s === 'versions:failed')).toHaveLength(4)
+  await expect(untitled(page).getByText('This report isn’t available to you.')).toHaveCount(0) // not a refusal
+
+  await page.evaluate(() => window.fixture?.failVersions(false))
+  await untitled(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(pane(page).getByText(SECOND)).toBeVisible()
+  await expect(page.locator('#report-pane-title')).toBeFocused() // the button went once pressed: the title has it
+})
+
+test('M03-RF-0021 · a version asked for after a read again failed is read for, not said failed from that error', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}`)
+  await expect(pane(page).getByText(FIRST)).toBeVisible()
+  await page.evaluate(() => window.fixture?.failVersions())
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect
+    .poll(async () => (await fixture(page)).served.filter((s) => s === 'versions:failed').length, { timeout: 20_000 })
+    .toBe(4)
+  await expect(pane(page).getByText(FIRST)).toBeVisible() // the failed read left its error; v1 stays
+  await page.evaluate(() => {
+    window.fixture?.publishReport()
+    window.fixture?.failVersions(false)
+  })
+  await follow(page, V2)
+  await expect(pane(page).getByText(SECOND)).toBeVisible() // read for v2, which the API now lists
+  await expect(pane(page).getByText('couldn’t be loaded')).toHaveCount(0)
+})
+
+test('M03-RF-0021 · a report the API refuses is said as refused, never as a read to try again', async ({ page }) => {
+  await enter(page, `/room.html?report=${REPORT}`)
+  await expect(pane(page).getByText(FIRST)).toBeVisible()
+  await page.evaluate(() => window.fixture?.failVersions('not_found')) // the person may no longer read it (a 422)
+  await follow(page, V2)
+  await expect(untitled(page).getByText('This report isn’t available to you.')).toBeVisible({ timeout: 20_000 })
+  expect((await fixture(page)).served.filter((s) => s === 'versions:refused')).toHaveLength(4)
+  await expect(untitled(page).getByRole('button', { name: 'Try again' })).toHaveCount(0)
 })
 
 test('LFE-02.1 · Esc held down steps down once, and pinning names the version in place, not as a new entry', async ({

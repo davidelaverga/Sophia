@@ -353,7 +353,22 @@ function configOf(env) {
   }
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Whether this file is the command being run, however it was named (the package's bin link included): never an error,
+ * whatever the process's first argument is, so importing the package's entry never fails on it (M03-RF-0023).
+ */
+function isMain() {
+  try {
+    return (
+      Boolean(process.argv[1]) &&
+      fs.realpathSync(process.argv[1] ?? '') === fs.realpathSync(fileURLToPath(import.meta.url))
+    )
+  } catch {
+    return false
+  }
+}
+
+if (isMain()) {
   const controller = new AbortController()
   process.once('SIGTERM', () => controller.abort())
   process.once('SIGINT', () => controller.abort())

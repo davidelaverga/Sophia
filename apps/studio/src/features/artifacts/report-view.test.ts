@@ -7,6 +7,7 @@ import {
   elapsedText,
   escapeStepsDown,
   failedOutright,
+  focusFree,
   focusReturn,
   pdfMissing,
   factChips,
@@ -24,6 +25,7 @@ import {
   spendText,
   summaryEdit,
   versionMissing,
+  versionReadFailure,
 } from './report-view.ts'
 
 const progress = {
@@ -204,6 +206,19 @@ const list = (fetchStatus: 'fetching' | 'paused' | 'idle', ...ids: string[]) => 
 })
 const v = (id: string) => ({ id })
 
+/** A read of the versions that failed with `error` (the API's code and status), holding `data` from an earlier read. */
+const failedRead = (
+  code: string,
+  status: number,
+  data?: unknown,
+  fetchStatus: 'fetching' | 'paused' | 'idle' = 'idle',
+) => ({
+  isError: true,
+  error: { code, status },
+  data,
+  fetchStatus,
+})
+
 describe('a version the link names', () => {
   it('is missing only once a list read again since the link named it lacks it (a cached list can predate it)', () => {
     const idle = { isSuccess: true, fetchStatus: 'idle' as const }
@@ -232,6 +247,23 @@ describe('a version the link names', () => {
     assert.equal(failedOutright({ isError: true, data: undefined }), true)
     assert.equal(failedOutright({ isError: true, data: [{ id: 'v2' }] }), false, 'the focus read failed: v2 stays')
     assert.equal(failedOutright({ isError: false, data: undefined }), false, 'still reading')
+  })
+
+  it('says a failed read of the versions when the version asked for is not to hand, never "loading" (M03-RF-0021)', () => {
+    const v1 = [{ id: 'v1' }]
+    const unavailable = failedRead('unavailable', 503, v1)
+    assert.equal(versionReadFailure(unavailable, false, true), 'failed', 'the list read again for it lacks it')
+    assert.equal(versionReadFailure(failedRead('outcome_unknown', 0), false, true), 'failed', 'no reply at all')
+    assert.equal(versionReadFailure(failedRead('http_404', 404), false, true), 'failed', 'no route: not a refusal')
+    // The API's refusals, by their code: `not_found` is a 422.
+    assert.equal(versionReadFailure(failedRead('not_found', 422), false, true), 'refused')
+    assert.equal(versionReadFailure(failedRead('forbidden', 403, v1), false, true), 'refused')
+    assert.equal(versionReadFailure(unavailable, true, true), null, 'the version read earlier stays on screen')
+    assert.equal(versionReadFailure(unavailable, false, false), null, 'not yet read again for it: an old error')
+    assert.equal(versionReadFailure(failedRead('unavailable', 503), false, false), 'failed', 'nothing read at all')
+    assert.equal(versionReadFailure(failedRead('unavailable', 503, v1, 'fetching'), false, true), null, 'read again')
+    assert.equal(versionReadFailure(failedRead('unavailable', 503, v1, 'paused'), false, true), null, 'offline')
+    assert.equal(versionReadFailure({ isError: false, error: null, fetchStatus: 'idle' }, false, true), null)
   })
 
   it('offers the current version when another is on screen, and nothing when it is the one shown', () => {
@@ -272,6 +304,14 @@ describe('the focus when the pane closes', () => {
     assert.equal(focusReturn(true, 'notice Open', null, visible), null, 'nothing on screen to return to')
     assert.equal(focusReturn(true, null, null, visible), null, 'a deep link: no opener')
     assert.equal(focusReturn(false, 'card row', 'Chat toggle', visible), null, 'the side panel took it')
+  })
+
+  it('is handed on only while nobody holds it: never from a control the person moved to (M03-RF-0022)', () => {
+    const body = { isConnected: true }
+    assert.equal(focusFree(null, body), true, 'nothing holds it')
+    assert.equal(focusFree(body, body), true, 'the page holds it')
+    assert.equal(focusFree({ isConnected: false }, body), true, 'what held it went (the citation, with its tab)')
+    assert.equal(focusFree({ isConnected: true }, body), false, 'Sign out, in the account menu, keeps it')
   })
 })
 
