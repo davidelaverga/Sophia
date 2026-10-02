@@ -40,7 +40,10 @@ Missing or unverified:
 
 ## Remaining obligations
 
-None. No hosted service, schema or schedule was touched.
+No hosted service, schema or schedule was touched. Still open from this attempt:
+
+- **Davide confirms the one-writer map** (LFE-00.2) or changes it. Until then it is a proposal.
+- **The preservation checks (LFE-00.3)** for BASE-01 to BASE-03. Done on fixtures in [attempt 2](LFE-00-attempt-2.md); BASE-04 waits for PR32's candidate.
 
 ## Next bounded action
 

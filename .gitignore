@@ -12,3 +12,6 @@ dist/
 !.env.example
 # Invitation emails written by the local dev stack (SOPHIA_MAIL_DIR), never sent.
 /.sophia-mail/
+# Playwright's run outputs (apps/studio/e2e): results and traces of a local run.
+/apps/studio/test-results/
+/apps/studio/playwright-report/
