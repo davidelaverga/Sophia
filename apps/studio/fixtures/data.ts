@@ -1,6 +1,15 @@
-// Labelled fixture data for the room's preservation checks (e2e/room.spec.ts): one project, this viewer's membership
-// and the project's brief, typed against the contracts. Nothing here is live, and the fixture page says so on screen.
-import type { DiscussionEntry, Membership, MissionContext, MissionNotePolicy, Snapshot } from '@sophia/contracts'
+// Labelled fixture data for the room's preservation checks (e2e/room.spec.ts): one project, its snapshot, events and
+// brief, this viewer's membership and a room token, typed against the contracts. Nothing here is live, and the
+// fixture page says so on screen.
+import type {
+  DiscussionEntry,
+  Event,
+  Membership,
+  MissionContext,
+  MissionNotePolicy,
+  RoomToken,
+  Snapshot,
+} from '@sophia/contracts'
 import type { Identity } from '../src/app/dev-identity.ts'
 
 export const PROJECT = '00000000-0000-4000-8000-0000000000aa'
@@ -130,4 +139,26 @@ export function mission(revision: number): MissionContext {
     compiler: 'sophia.mission-context.v1',
     digest: '0'.repeat(64),
   }
+}
+
+/** The event a background update sends: the project moved to `sequence`, so the page refetches its snapshot. */
+export const projectEvent = (sequence: number): Event => ({
+  eventId: `00000000-0000-4000-8000-1${String(sequence).padStart(11, '0')}`,
+  projectId: PROJECT,
+  sequence: String(sequence),
+  type: 'project.updated',
+  occurredAt: AT,
+  entityType: 'project',
+  entityId: PROJECT,
+  entityRevision: sequence,
+  references: [],
+  summaryCode: 'fixture.update',
+})
+
+/** A room token for the fake LiveKit (fake-livekit.ts): no server is behind it. */
+export const roomToken: RoomToken = {
+  roomId: ROOM,
+  serverUrl: 'wss://livekit.fixture.invalid',
+  token: 'fixture-no-livekit',
+  expiresAt: '2099-01-01T00:00:00.000Z',
 }

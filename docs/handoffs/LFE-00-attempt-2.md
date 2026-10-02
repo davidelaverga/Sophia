@@ -53,6 +53,7 @@ Missing or unverified:
 
 ## Remaining obligations
 
+- **The fixture replaced the room controller and bypassed the query cache** (Codex, two P2s on #40's last push). [Attempt 3](LFE-00-attempt-3.md) closes both.
 - **Davide confirms the one-writer map** ([attempt 1](LFE-00-attempt-1.md#remaining-obligations)).
 - BASE-01 to BASE-03 in a live call, and BASE-04, when a hosted candidate exists.
 
