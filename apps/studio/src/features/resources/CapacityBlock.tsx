@@ -2,10 +2,10 @@
 // close on request, each with its own state, value and reset. Never a total across providers.
 import { useId, useState } from 'react'
 import { Tag } from '@sophia/ui'
-import { ago, capacityLine, windowView, type QuotaObservation } from './resource.ts'
+import { ago, capacityLine, expired, windowView, type QuotaObservation } from './resource.ts'
 
 /** A window that isn't observed says so as a tag, in words: never as a number. */
-const NOT_OBSERVED_TONE = { unknown: 'muted', refresh_pending: 'amber' } as const
+const NOT_OBSERVED_TONE = { unknown: 'muted', refresh_pending: 'amber', expired: 'amber' } as const
 
 interface Props {
   observation: QuotaObservation | undefined
@@ -16,10 +16,11 @@ interface Props {
 }
 
 function Windows({ observation, now }: { observation: QuotaObservation; now: Date }) {
+  const stale = expired(observation, now)
   return (
     <dl className="capacity-windows">
       {observation.windows.map((w) => {
-        const v = windowView(w, now)
+        const v = windowView(w, now, stale)
         return (
           <div key={w.window_id}>
             <dt>{v.name}</dt>

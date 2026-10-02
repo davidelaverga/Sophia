@@ -427,8 +427,9 @@ when you change the room:
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read", the real `ResourcePanel` over the three enrollments.
-  Capacity that isn't observed says "Capacity unknown", never a number; a
-  reset already due is "Refresh pending"; one account's sessions share one
+  Capacity that isn't observed, or a reading past its `valid_until`, says
+  "Capacity unknown", never a number; a reset already due is "Refresh
+  pending"; a window that may not apply never limits; one account's sessions share one
   capacity; providers are never added up; only a request's owner is told
   where to answer it, and nothing on the panel answers, steers or stops. It
   isn't in the Studio yet: it shows there once SCM-01/02 serve resources.

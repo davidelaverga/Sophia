@@ -26,7 +26,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 | ID | Status |
 |---|---|
 | RES-01 Two Claude sessions use the same owner account | fixture: passes in CI. Two sessions listed apart, one capacity block, "2 sessions share this account" |
-| RES-02 Quota/window/host observation absent | fixture: passes in CI. "Capacity unknown" with no number; a due reset is "Refresh pending"; ages shown; no total across providers |
+| RES-02 Quota/window/host observation absent | fixture: passes in CI. "Capacity unknown" with no number; a due reset is "Refresh pending"; a reading past its `valid_until` is unknown with its age; a window that may not apply never limits; ages shown; no total across providers ([attempt 2](../handoffs/LFE-06-attempt-2.md)) |
 | RES-03 Luis views Davide's owner-only request | fixture: passes in CI. Luis sees the request and that only Davide answers it; nothing to press for either |
 | RES-04 Stop while native action waits | not run: controls are LFE-06.4 |
 | RES-05 Worker idle or observer disconnected | not run: needs live observation (SCM-02) |
