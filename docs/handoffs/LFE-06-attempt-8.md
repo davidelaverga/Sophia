@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/identity-qol`, stacked on `lfe-06/scan-pace` (#51) at `8a34a09`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `1e30716`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `OwnerAvatar`, `CopyLink`, `prefs.ts`, `link.ts` and their tests, plus the panel, tile, sheet, motion and stylesheet;
   - `src/app/Avatar.tsx`: it now takes only the fields it shows (name, display name, picture), so an owner can use it; its only other caller passes a whole identity, as before;
