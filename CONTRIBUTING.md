@@ -401,8 +401,9 @@ when you change the room:
   keeps their name on their lines instead of "A member".
 - **The preservation checks run in a browser** (`apps/studio/e2e/`, LFE-00's
   BASE-01 to BASE-03): drafts survive switching, closing and a background
-  update; letters never turn a device on; on a phone, mute, errors, leave
-  and the way back stay in reach. They drive the real `StudioShell` on a
+  update; a message out of view marks Chat until it is seen; letters never
+  turn a device on; leaving text mode hands the focus to the microphone; on
+  a phone, mute, errors, leave and the way back stay in reach. They drive the real `StudioShell` on a
   fixture page (`fixtures/room.html`, labelled "Fixture — no API, no call")
   with a fake call and seeded data. The page answers only the brief; any other request
   fails the check, and other origins are aborted. CI runs them in Chromium

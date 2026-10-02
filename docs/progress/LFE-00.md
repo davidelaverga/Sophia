@@ -47,12 +47,12 @@ Reserve a new ID only after refreshing every open branch.
 
 | ID | Status |
 |---|---|
-| BASE-01 Chat and Brief switch, close and reopen; drafts survive | fixture: passes in CI (Chromium, desktop). Live and hosted: not run |
-| BASE-02 Letters typed with panel focus or nowhere reach the typing sink; no device turns on | fixture: passes in CI (Chromium, desktop). Live and hosted: not run |
+| BASE-01 Chat and Brief switch, close and reopen; drafts survive | fixture: passes in CI (Chromium, desktop), with unread state. Live and hosted: not run |
+| BASE-02 Letters typed with panel focus or nowhere reach the typing sink; no device turns on | fixture: passes in CI (Chromium, desktop), with text-mode exit. Live and hosted: not run |
 | BASE-03 Phone panel in an active call keeps mute, sending, errors, leave and return reachable | fixture: passes in CI (Chromium, 390×844 touch). Live and hosted: not run |
 | BASE-04 Research and personal route changes coexist in a reviewed combined candidate | not run: it needs PR32's candidate (LFE-02) |
 
-LFE-00.3 put BASE-01 to BASE-03 in the repository ([`apps/studio/e2e/room.spec.ts`](../../apps/studio/e2e/room.spec.ts), CI job `studio-browser`). They are fixture evidence: the real Studio components on a labelled fixture page with a fake call and no API ([handoff](../handoffs/LFE-00-attempt-2.md)). They don't show a live call, LiveKit or a hosted Studio.
+LFE-00.3 put BASE-01 to BASE-03 in the repository ([`apps/studio/e2e/room.spec.ts`](../../apps/studio/e2e/room.spec.ts), CI job `studio-browser`). They cover the six behaviours LFE-00.3 names: Chat/Brief switching, drafts, unread state, mobile media controls, text-mode exit and keyboard capture. They are fixture evidence: the real Studio components on a labelled fixture page with a fake call and no API ([handoff](../handoffs/LFE-00-attempt-2.md)). They don't show a live call, LiveKit or a hosted Studio.
 
 ## Next tickets (LFE-00.4)
 

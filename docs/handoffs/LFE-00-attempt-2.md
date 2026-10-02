@@ -10,12 +10,13 @@
 ## Outcome
 
 - **BASE-01 to BASE-03 run in Chromium on every push** ([`apps/studio/e2e/room.spec.ts`](../../apps/studio/e2e/room.spec.ts), CI job `studio-browser`):
-  - **BASE-01:** unsent chat text and a brief edit survive switching tabs, a background update to the project and its brief, closing the panel and reopening it.
-  - **BASE-02:** with the panel closed, `d`, `e` and `j` do nothing. With the focus on a panel tab or nowhere, letters reach the message bar. The room is asked for nothing.
+  - **BASE-01:** unsent chat text and a brief edit survive switching tabs, a background update to the project and its brief, closing the panel and reopening it. A message that arrives while the chat is out of view (panel closed, or Brief open) marks Chat "something new" until it is seen; one that arrives while the chat is open doesn't.
+  - **BASE-02:** with the panel closed, `d`, `e` and `j` do nothing. With the focus on a panel tab or nowhere, letters reach the message bar. The room is asked for nothing. Leaving text mode asks the room once (`text:off`) and hands the focus to the microphone beside it.
   - **BASE-03, at 390×844 on a touch screen:** in a call with the panel open, mute (pressed: sending), the media error and the room's error are in the viewport. Mute is tapped and turns off. After Close, Leave the room is in reach, and after leaving, Join the room brings the call back.
+- **Together they cover the six behaviours LFE-00.3 names:** Chat/Brief switching, drafts, unread state, mobile media controls, text-mode exit and keyboard capture. Unread state and text-mode exit came in after Codex's review of the first push (P2).
 - **They drive the real Studio components** (`StudioShell`, the side panel, dock, chat and brief) on a fixture page, [`apps/studio/fixtures/room.html`](../../apps/studio/fixtures/room.html). It is labelled "Fixture — no API, no call" and served by its own Vite config. It has:
-  - a fake call that records what the room is asked (`microphone:off`, `leave`, `join`…);
-  - a query cache seeded with a fixture snapshot and membership;
+  - a fake call that records what the room is asked (`microphone:off`, `text:off`, `leave`, `join`…);
+  - a query cache seeded with a fixture snapshot and membership, and a way for another member to write;
   - a fetch that answers only the brief.
 - **Nothing reaches a network.** Any other request is recorded, and each check fails if one happened; requests to other origins are aborted.
 - **[CONTRIBUTING](../../CONTRIBUTING.md#the-rooms-side-panel)** says how to run the checks and what they cover. [LFE-00 progress](../progress/LFE-00.md#acceptance-cases) records BASE-01 to BASE-03 as fixture evidence in CI.
@@ -28,10 +29,10 @@ Missing or unverified:
 
 ## Evidence
 
-- `pnpm --filter @sophia/studio test:browser`: 3 of 3 pass locally (Chromium 1.63.0).
-- **Each case fails when what it protects breaks.** Six mutations of the product code each made their case fail, every run on a fresh fixture server:
-  - BASE-01: only the open tab mounted;
-  - BASE-02: the panel no longer a typing scope; a lone `d` as the microphone key;
+- `pnpm --filter @sophia/studio test:browser`: 5 of 5 pass locally (Chromium 1.63.0).
+- **Each case fails when what it protects breaks.** Ten mutations of the product code each made their case fail, every run on a fresh fixture server:
+  - BASE-01: only the open tab mounted; the chat never out of view; the chat never in view;
+  - BASE-02: the panel no longer a typing scope; a lone `d` as the microphone key; text mode not turned off; the focus dropped after leaving it;
   - BASE-03: the panel without its call switches; the panel without its device note; Join disabled.
   The code was restored after each one.
 - The production build has none of it: `pnpm --filter @sophia/studio run build`, then a search of `dist/` for the fixture's label, identity and token finds nothing.

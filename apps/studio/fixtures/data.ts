@@ -1,10 +1,11 @@
 // Labelled fixture data for the room's preservation checks (e2e/room.spec.ts): one project, this viewer's membership
 // and the project's brief, typed against the contracts. Nothing here is live, and the fixture page says so on screen.
-import type { Membership, MissionContext, MissionNotePolicy, Snapshot } from '@sophia/contracts'
+import type { DiscussionEntry, Membership, MissionContext, MissionNotePolicy, Snapshot } from '@sophia/contracts'
 import type { Identity } from '../src/app/dev-identity.ts'
 
 export const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const ME = '00000000-0000-4000-8000-0000000000a1'
+const OTHER = '00000000-0000-4000-8000-0000000000a2'
 const ROOM = '00000000-0000-4000-8000-0000000000ab'
 const SOURCE = '00000000-0000-4000-8000-0000000000ac'
 const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
@@ -15,11 +16,24 @@ export const identity: Identity = { name: 'fixture@sophia.test', role: 'admin', 
 
 export const membership: Membership = { actorId: ME, role: 'admin' }
 
+/** A message another member wrote in the room's discussion, the `n`th. */
+const said = (text: string, n: number): DiscussionEntry => ({
+  id: `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`,
+  actorId: OTHER,
+  intent: 'discuss',
+  origin: 'composer',
+  text,
+  sourceId: SOURCE,
+  sha256: '0'.repeat(64),
+  createdAt: AT,
+})
+
 /**
  * The project as a snapshot at `revision`: a later revision is a background update reaching the viewer. `exchange`:
- * a conversation with Sophia is open and this viewer holds the floor, so the chat's message bar is there.
+ * a conversation with Sophia is open and this viewer holds the floor, so the chat's message bar is there. `messages`:
+ * what other members wrote in the discussion, oldest first.
  */
-export function snapshot(revision: number, exchange: boolean): Snapshot {
+export function snapshot(revision: number, exchange: boolean, messages: readonly string[] = []): Snapshot {
   return {
     projectId: PROJECT,
     title: 'Fixture project',
@@ -54,7 +68,7 @@ export function snapshot(revision: number, exchange: boolean): Snapshot {
     },
     lobby: [],
     sessions: [],
-    discussion: [],
+    discussion: messages.map(said),
     work: [],
   }
 }

@@ -1,8 +1,9 @@
 // The room's fixture page for the preservation checks (e2e/room.spec.ts): the real StudioShell — the stage, the dock,
 // the Chat and Brief side panel — over a room this page holds (fake-room.ts) and a brief it answers itself
 // (fixture-api.ts). It reaches no API, LiveKit or provider, and says so on screen. The query string picks the scenario:
-// `call=on`, `exchange=open` (Sophia's conversation is open and this viewer holds the floor), `error=…`, `media=…`.
-// `window.fixture` lets a check send a background update or read what was asked.
+// `call=on`, `exchange=open` (Sophia's conversation is open and this viewer holds the floor), `text=on` (text mode),
+// `error=…`, `media=…`. `window.fixture` lets a check send a background update, have a member write, or read what
+// was asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -19,6 +20,8 @@ import { installFixtureApi, unexpected } from './fixture-api.ts'
 interface Fixture {
   /** A background update: the project and its brief move one revision, as the feed would bring them. */
   update: () => void
+  /** Another member writes in the room's discussion: a background update that brings a new message. */
+  say: (text: string) => void
   asked: readonly string[]
   unexpected: readonly string[]
 }
@@ -34,10 +37,12 @@ const scenario: Scenario = {
   inCall: query.get('call') === 'on',
   error: query.get('error'),
   mediaError: query.get('media'),
+  textMode: query.get('text') === 'on',
 }
 
 const exchange = query.get('exchange') === 'open'
 let revision = 1
+let messages: readonly string[] = []
 installFixtureApi(() => revision)
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } })
@@ -48,12 +53,17 @@ function Room() {
   const [current, setCurrent] = useState(() => snapshot(revision, exchange))
   const room = useFakeRoom(scenario)
   const panel = useRoomPanel(current, room, true)
+  const move = () => {
+    revision += 1
+    const next = snapshot(revision, exchange, messages)
+    client.setQueryData(snapshotKey(PROJECT, identity.name), next)
+    setCurrent(next)
+  }
   window.fixture = {
-    update: () => {
-      revision += 1
-      const next = snapshot(revision, exchange)
-      client.setQueryData(snapshotKey(PROJECT, identity.name), next)
-      setCurrent(next)
+    update: move,
+    say: (text) => {
+      messages = [...messages, text]
+      move()
     },
     asked,
     unexpected,

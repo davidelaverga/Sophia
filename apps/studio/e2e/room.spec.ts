@@ -16,6 +16,8 @@ const fixture = (page: Page) =>
   })
 /** A background update: the project and its brief move one revision. */
 const update = (page: Page) => page.evaluate(() => window.fixture?.update())
+/** Another member writes in the room's discussion. */
+const say = (page: Page, text: string) => page.evaluate((t) => window.fixture?.say(t), text)
 
 const toggle = (page: Page, name: 'Chat' | 'Brief') => page.getByRole('button', { name, exact: true })
 const tab = (page: Page, name: 'Chat' | 'Brief') => page.getByRole('tab', { name, exact: true })
@@ -54,6 +56,24 @@ test('BASE-01 · unsent words and a brief edit survive switching, a background u
   await expect(messageBar(page)).toHaveValue('Words not sent yet')
 })
 
+test('BASE-01 · a message that arrives out of view marks Chat until it is seen, and only then', async ({ page }) => {
+  await page.goto(IN_CALL)
+  await say(page, 'Seen as it arrives') // the panel is closed: this one is unread
+  await expect(page.getByRole('button', { name: 'Chat, something new', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Chat, something new', exact: true }).click()
+  await expect(page.getByText('Seen as it arrives')).toBeVisible()
+  await expect(toggle(page, 'Chat')).toBeVisible() // read: the mark is gone
+
+  await say(page, 'Read while the chat is open') // in view: nothing to mark
+  await expect(page.getByText('Read while the chat is open')).toBeVisible()
+  await tab(page, 'Brief').click()
+  await expect(toggle(page, 'Chat')).toBeVisible()
+  await say(page, 'Written while the brief is open') // the chat is out of view again
+  await expect(page.getByRole('button', { name: 'Chat, something new', exact: true })).toBeVisible()
+  await tab(page, 'Chat').click()
+  await expect(toggle(page, 'Chat')).toBeVisible()
+})
+
 test('BASE-02 · letters typed on a panel tab or with the focus nowhere reach the message bar; nothing turns on', async ({
   page,
 }) => {
@@ -72,6 +92,19 @@ test('BASE-02 · letters typed on a panel tab or with the focus nowhere reach th
   await page.keyboard.type('made')
   await expect(messageBar(page)).toHaveValue('dej made')
   expect((await fixture(page)).asked, 'what the room was asked to do').toEqual([])
+})
+
+test('BASE-02 · leaving text mode turns it off once and hands the focus to the microphone beside it', async ({
+  page,
+}) => {
+  await page.goto(`${IN_CALL}&text=on`)
+  await toggle(page, 'Chat').click() // text mode is read in the chat: the panel is open beside the dock
+  const textMode = page.getByRole('button', { name: /^Text mode/ })
+  await expect(textMode).toHaveAttribute('aria-pressed', 'true')
+  await textMode.click()
+  await expect(textMode).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Microphone' })).toBeFocused()
+  expect((await fixture(page)).asked).toEqual(['text:off'])
 })
 
 test('BASE-03 @phone · in a call with the panel open, mute, sending, errors and the way back stay in reach', async ({

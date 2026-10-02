@@ -15,6 +15,8 @@ export interface Scenario {
   error: string | null
   /** Why a device didn't start. */
   mediaError: string | null
+  /** Sophia answers in the chat and is not heard. */
+  textMode: boolean
 }
 
 const me = (devices: Pick<RoomParticipant, 'micOn' | 'cameraOn' | 'screenOn'>): RoomParticipant => ({
@@ -29,7 +31,7 @@ const me = (devices: Pick<RoomParticipant, 'micOn' | 'cameraOn' | 'screenOn'>): 
 export function useFakeRoom(scenario: Scenario): ProjectRoom {
   const [inCall, setInCall] = useState(scenario.inCall)
   const [devices, setDevices] = useState({ micOn: scenario.inCall, cameraOn: false, screenOn: false })
-  const [textMode, setText] = useState(false)
+  const [textMode, setText] = useState(scenario.textMode)
   const [chat, setChat] = useState<ChatTurn[]>([])
   const device = (name: 'microphone' | 'camera' | 'screen', key: keyof typeof devices) => (on: boolean) => {
     asked.push(`${name}:${on ? 'on' : 'off'}`)
