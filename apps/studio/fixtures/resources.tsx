@@ -4,7 +4,7 @@
 // unexpected. The query string picks who is looking, `viewer=davide` (default: Luis); `stale=1` (Codex's reading has
 // expired); `more=1` (Grok and Gemini CLI join the three enrollments); `quiet=1` (nothing waits on an owner);
 // `busy=1` (Codex's account at 92 % and 78 %, Davide's Claude Code at 95 %); `spent=1` (Codex's spend limit passed, at 120 %);
-// `loading=1` (the resources not read yet, until `resourcesFixture.load()`). Live, `resourcesFixture.addRequest()` brings a request to wait on Davide and
+// `loading=1` (the resources not read yet, until `resourcesFixture.load()`). Live, `resourcesFixture.addRequest()` brings a request to wait on Davide, `answerRequest()` answers the first, and
 // `setHost(id, state)` moves a host, as a live read would.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -39,6 +39,7 @@ declare global {
     resourcesFixture?: {
       unexpected: readonly string[]
       addRequest?: () => void
+      answerRequest?: () => void
       load?: () => void
       setHost?: (id: string, state: Resource['host']['state']) => void
     }
@@ -78,6 +79,8 @@ function Live() {
     window.resourcesFixture = {
       unexpected,
       load: () => setLive((l) => ({ ...l, loading: false })),
+      answerRequest: () =>
+        setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
       addRequest: () => setLive((l) => ({ ...l, actions: [...l.actions, arriving(l.actions.length + 1)] })),
       setHost: (id, state) =>
         setLive((l) => ({

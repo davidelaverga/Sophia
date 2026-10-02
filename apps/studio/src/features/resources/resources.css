@@ -717,8 +717,10 @@
   align-items: center;
   gap: 6px 10px;
 }
+/* Its label keeps the width of its longest words (SwapLabel): it starts where it sits, not centred in that width. */
 .waiting-copy {
   font-size: 12.5px;
+  text-align: left;
 }
 
 /* A tool's mark: on a small tile at a head, bare in a line of text. */

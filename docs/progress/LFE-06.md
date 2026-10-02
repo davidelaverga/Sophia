@@ -58,6 +58,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - A sheet draws each window's readings over time, from earlier observations the API doesn't keep yet.
 - **Attempt 11** ([handoff](../handoffs/LFE-06-attempt-11.md)): each session's effort in its tool's own look.
   - Claude Code's dotted bar, full and alive in ultracode (its mode, said alone); GPT's gradient sparkling at Ultra; a plain bar for the others.
+- **Attempt 12** ([handoff](../handoffs/LFE-06-attempt-12.md)): a request said once: three lines for its owner instead of five, the session named once, "Waiting" said by its heading.
 
 ## Acceptance cases
 
