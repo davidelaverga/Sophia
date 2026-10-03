@@ -1,11 +1,12 @@
 **LFE-07: make Tasks ready for real work state (WBC-01)**
 
-WBC-01 ([mission](docs/missions/2026-10-03-workboard-connection/missions/WBC-01_UI_READINESS.md)) makes Tasks ready for real work state. It follows #63; it doesn't rebuild it. **Fixture-ready only**: no endpoint, migration, provider call, deployment, runtime change or prompt change.
+WBC-01 ([mission](docs/missions/2026-10-03-workboard-connection/missions/WBC-01_UI_READINESS.md)) makes Tasks ready for real work state. It follows #63; it doesn't rebuild it. **Fixture-ready only**: this PR adds no endpoint, migration, provider call, runtime change or prompt change, and deploys nothing. A Studio-only release, if any, is Codex's, after Davide approves an exact batch ([policy v1.1](docs/coordination/WBC-01/policy/WBC-01_POLICY.md) §5).
 
-- **Owner:** Davide (ownership amendment).
-- **Implementer:** Claude Code.
-- **Design and UX review:** Luis, from the [walkthroughs](docs/evidence/WBC-01/README.md).
-- **Code review:** Codex ([WBC-01-CC-0002](docs/coordination/WBC-01/WBC-01-CC-0002.md)).
+- **Coordination:** #74.
+- **Owner and approvals:** Davide.
+- **Implementer:** Claude Code. Its session has no GitHub credential, so Codex opened this PR from Claude's branch, unchanged.
+- **Review, app tests and release:** Codex ([WBC-01-CC-0002](docs/coordination/WBC-01/WBC-01-CC-0002.md); [app-test plan](docs/coordination/WBC-01/policy/WBC-01_APP_TEST_PLAN.md)).
+- **Design reference:** Luis. Feedback on the [walkthroughs](docs/evidence/WBC-01/README.md) is welcome, not a required sign-off.
 
 ## Contract
 

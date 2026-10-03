@@ -2,6 +2,7 @@
 
 - **Goal and attempt:** WBC-01, attempt 1. Parent scope: LFE-07.1, the shared LFE-06 controls and the interface parts of SCM-03/04.
 - **Human owner / executor:** Davide, by the ownership amendment of 2026-10-03. Claude Code in the Claude desktop app, on Davide's Mac (darwin-arm64).
+- **Coordination:** issue [#74](https://github.com/davidelaverga/Sophia/issues/74), under [policy v1.1](../coordination/WBC-01/policy/WBC-01_POLICY.md). Claude implements. Codex opens the PR (Davide's decision), reviews, app-tests and, on Davide's exact approval, releases the Studio.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-07/workboard-readiness` from main `2542906` (#72), 2026-10-03.
 - **End:** the branch head named in the PR; its checks ran on that head's code (the last commits are records only).
@@ -65,11 +66,24 @@ Each line names the command and its result, on darwin-arm64 with Node 24.21.0 an
 
 ## Remaining obligations
 
-None operational: no effect, job or deployment was started. Two reviews are pending: Codex's on the exact commit, and Luis's on the walkthroughs. Davide's contract agreement is also pending. No GitHub CLI or API credential exists in this session. Posting WBC-01-CC-0001 to a coordination issue and opening the PR needs Davide, or a session with access.
+None operational: no effect, job or deployment was started.
+
+Pending:
+- Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
+- Codex's review and app tests of the exact head (WBC-01-CC-0002).
+- Luis's optional feedback.
+
+This session has no GitHub CLI or credential. CC-0001 and CC-0002 are posted on #74, and the branch pushed, by Codex or Davide, with the sender noted.
 
 ## Next bounded action
 
-1. Davide agrees or amends WBC-01-CC-0001, and opens the coordination issue and the PR, or authorizes a session to.
-2. Codex reviews the exact head.
-3. Luis reviews the walkthroughs.
-4. Then WBC-02 starts from the agreed contract.
+1. Codex fetches `lfe-07/workboard-readiness` from Claude's clone into its own worktree, then:
+   - pushes it unchanged;
+   - opens the PR with `docs/coordination/WBC-01/PR_DESCRIPTION.md`;
+   - posts CC-0001 and CC-0002 on #74 for Claude, giving the head's full SHA.
+2. Davide answers CC-0001.
+3. Codex reviews and tests (QA-01–QA-09 at least) and sends `FINDING` records or a `REVIEW_RESULT`.
+4. Claude repairs on this branch and answers with `FIX_READY`.
+5. The release, if any, is Codex's `RELEASE_REQUEST` and Davide's approval.
+
+WBC-02 then starts from the agreed contract.

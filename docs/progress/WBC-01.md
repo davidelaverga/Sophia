@@ -2,7 +2,7 @@
 
 Mission: [WBC-01](../missions/2026-10-03-workboard-connection/missions/WBC-01_UI_READINESS.md), under the [workboard connection packet](../missions/2026-10-03-workboard-connection/00_START_HERE.md) (v1.0, 2026-10-03). Parent scope: LFE-07.1, the shared LFE-06 controls and the interface parts of SCM-03/04. A follow-up to merged PR #63, not a rebuild of it.
 
-**Status: fixture-ready.** Not source-ready for a live service, not integrated, not hosted, not accepted. No endpoint, migration, provider call, deployment, runtime or prompt change was made.
+**Status: fixture-ready.** Not source-ready for a live service, not integrated, not hosted, not accepted. This session made no endpoint, migration, provider call, deployment, runtime or prompt change. Under [coordination policy v1.1](../coordination/WBC-01/policy/WBC-01_POLICY.md), Codex may later release the Studio only, after Davide approves one exact batch. Claude deploys nothing.
 
 ## Owners and the handoff
 
@@ -10,11 +10,12 @@ Mission: [WBC-01](../missions/2026-10-03-workboard-connection/missions/WBC-01_UI
 |---|---|---|
 | Implementation owner | **Davide** (ownership amendment, 2026-10-03; the packet named Luis) | 2026-10-03 |
 | Implementer | Claude Code, this session (Davide's Mac, darwin-arm64) | 2026-10-03 |
-| Design and UX reviewer | **Luis**: reviews the desktop and phone walkthroughs before merge | pending |
-| Independent code reviewer | Codex, on the exact commit, through the coordination issue | pending |
-| Product and contract decisions | Davide | — |
+| Design reference | **Luis**. His visual and interaction decisions remain the baseline; his feedback on the walkthroughs is welcome, not a required sign-off (policy v1.1 §1) | — |
+| Pull request | Codex opens it from the branch as handed over (Davide's decision, 2026-10-03) | pending |
+| Independent review, app tests, release | Codex, in its own clean worktree, through [#74](https://github.com/davidelaverga/Sophia/issues/74) (policy v1.1 §3–§5; [app-test plan](../coordination/WBC-01/policy/WBC-01_APP_TEST_PLAN.md) QA-01–QA-16) | pending |
+| Product, contract and release approval | Davide | — |
 
-The amendment changes only who implements. Scope, preservation, acceptance and exclusions are the packet's.
+The amendment and policy v1.1 change who implements, reviews, tests and releases. Scope, preservation, acceptance and exclusions are the packet's.
 
 **Start.** Branch `lfe-07/workboard-readiness` from main `2542906` (PR #72), 2026-10-03. The packet inspected `c8dd5aa` and rechecked `2c13747` (PR #70). Two PRs merged since: #71 (`answers.ts`: an unconfirmed answer kept by the decision's revision and viewer while the page lives; a followed address waits for its plan) and #72 (an address at open waits for its plan; the Resources grid keeps its Tab stop by tile id). Both are retained; neither changes the work, decision or action contracts.
 
@@ -107,9 +108,9 @@ Not changed: the while-away line still announces its full text when pressed open
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
 
-## Walkthroughs for Luis
+## Walkthroughs
 
-Seventeen screens, desktop (1280×800) and phone (390×844), from the labelled fixture page: [docs/evidence/WBC-01/walkthrough/](../evidence/WBC-01/walkthrough/). They show the default board and each adverse case; they are fixture captures, not live behavior.
+Seventeen screens, desktop (1280×800) and phone (390×844, emulated in Chromium), from the labelled fixture page: [docs/evidence/WBC-01/](../evidence/WBC-01/README.md). They show the default board and each adverse case. They are fixture captures, not live behavior: Luis's reference and Codex's starting point, not app-test evidence.
 
 ## Backend handoff (WBC-02)
 
