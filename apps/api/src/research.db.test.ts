@@ -1679,6 +1679,22 @@ describe('start_research stores what the speaker asked beyond the topic as lines
     assert.equal(await storedQuestion(whole.output.taskId), `${fits}${block}`)
   })
 
+  it('says what a call adds to research already under way was not passed on, and how to add it', async () => {
+    const w = await world()
+    const first = await tool(w, { question: QUESTION })
+    assert.equal(first.status, 'admitted', JSON.stringify(first))
+    const more = await tool(w, { question: QUESTION, scope: { length: 'about 500 words', maxSearches: 2 } })
+    assert.deepEqual([more.status, more.output.existingTaskId], ['ok', first.output.taskId])
+    assert.equal(
+      more.output.note,
+      'Research you asked for in this conversation is already under way. Say if this is a separate question. ' +
+        'What this call adds to it (a length, sections, limits, what to change or keep) was not passed on: ' +
+        'to add it, steer that research with control_work.',
+    )
+    assert.equal(await storedQuestion(first.output.taskId), QUESTION, 'the research under way is as it was asked')
+    assert.equal(await tasksIn(w), 1)
+  })
+
   it('a retried call is the same request: its task again under its key, never another scope', async () => {
     const w = await world()
     const scope = { length: 'about 500 words', maxSearches: 2, maxReads: 3 }

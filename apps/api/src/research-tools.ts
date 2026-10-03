@@ -27,6 +27,12 @@ const PDF_UNAVAILABLE = 'PDF reports are not available, so nothing was started.'
  */
 const RECEIPT_STAYS =
   'This receipt is not updated later; project_status says whether it is waiting, running or finished.'
+/**
+ * Said with existingTaskId: admission returns the research under way and stores nothing of this call, so what the call
+ * adds to that research (its question, its scope) reaches no worker (CX-0030). Steer is how it does.
+ */
+const NOT_PASSED_ON =
+  'What this call adds to it (a length, sections, limits, what to change or keep) was not passed on: to add it, steer that research with control_work.'
 /** Said when the speaker asked for HTML: every report downloads as an HTML page Studio prints from its Markdown. */
 const HTML_NOTE = ' When it is ready, its card also downloads it as an HTML page.'
 
@@ -149,7 +155,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
         status: 'ok',
         output: {
           existingTaskId: result.existingTaskId,
-          note: `Research you asked for in this conversation is already under way. Say if this is a separate question.${more}`,
+          note: `Research you asked for in this conversation is already under way. Say if this is a separate question. ${NOT_PASSED_ON}${more}`,
         },
       }
     }

@@ -60,13 +60,22 @@ const unstated = (v: unknown) => v === undefined || v === null
 /** One line: control characters, line breaks and runs of spaces become one space, so the block keeps its shape. */
 const oneLine = (s: string) => s.replace(/[\s\p{Cc}]+/gu, ' ').trim()
 
-/** A text part on one line; undefined when it states nothing, null when it is not text or is longer than `max`. */
+/**
+ * A text part on one line; undefined when it states nothing, null when it is not text or longer than `max` characters
+ * (code points: an emoji is one, as in the declaration, though it is two in a JavaScript length).
+ */
 function textOf(v: unknown, max: number): string | undefined | null {
   if (unstated(v)) return undefined
   if (typeof v !== 'string') return null
   const line = oneLine(v)
   if (line === '') return undefined
-  return line.length <= max ? line : null
+  return Array.from(line).length <= max ? line : null
+}
+
+/** A section's name; a semicolon in it becomes a comma, so the Sections line lists as many names as were given. */
+function sectionOf(v: unknown): string | undefined | null {
+  const name = textOf(v, SECTION_MAX)
+  return typeof name === 'string' ? name.replaceAll(';', ',') : name
 }
 
 /** The sections named, in order; blank names state nothing. */
@@ -74,7 +83,7 @@ function sectionsOf(v: unknown): string[] | undefined | null {
   if (unstated(v)) return undefined
   if (!Array.isArray(v) || v.length > SECTIONS_MAX) return null
   const items: unknown[] = v
-  const names = items.map((s) => textOf(s, SECTION_MAX))
+  const names = items.map((s) => sectionOf(s))
   if (names.includes(null)) return null
   const named = names.filter((s) => typeof s === 'string')
   return named.length > 0 ? named : undefined

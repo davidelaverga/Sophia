@@ -49,6 +49,12 @@ describe('the scope a speaker stated, as lines of the question', () => {
     })
   })
 
+  it('keeps a semicolon inside a section name from splitting it in two', () => {
+    assert.deepEqual(admittedQuestion(Q, { sections: ['Pros; cons', 'Summary'] }), {
+      question: `${HEAD}- Sections: Pros, cons; Summary`,
+    })
+  })
+
   it('stores the question as before when no part is stated', () => {
     for (const scope of [undefined, null, {}, { change: ' \n\t', keep: null, sections: [], maxReads: null }])
       assert.deepEqual(admittedQuestion(Q, scope), { question: Q }, JSON.stringify(scope))
@@ -95,5 +101,16 @@ describe('the scope a speaker stated, as lines of the question', () => {
     assert.ok('ask' in over)
     assert.match(over.ask, /too long to keep whole/)
     assert.deepEqual(admittedQuestion(`${fits}q`, undefined), { question: `${fits}q` }, 'no lines, nothing added')
+  })
+
+  it('counts a part’s size in characters as the declaration does, an emoji as one', () => {
+    const emoji = '\u{1F600}'
+    assert.deepEqual(admittedQuestion(Q, { change: emoji.repeat(500) }), {
+      question: `${HEAD}- Change: ${emoji.repeat(500)}`,
+    })
+    assert.ok('ask' in admittedQuestion(Q, { change: emoji.repeat(501) }))
+    const name = '\u{20000}'.repeat(100)
+    assert.deepEqual(admittedQuestion(Q, { sections: [name] }), { question: `${HEAD}- Sections: ${name}` })
+    assert.ok('ask' in admittedQuestion(Q, { sections: [`${name}x`] }))
   })
 })
