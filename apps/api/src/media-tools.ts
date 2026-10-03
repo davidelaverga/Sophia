@@ -7,20 +7,23 @@
 // (TOOL_SURFACES): v1.1 is M01's six, v1.2 adds start_research and render_research, and steer on control_work
 // (SMC-M03 S6). No brief, lead or builder tool answers here. For a v1.2 guide, a control the work refused is
 // explained from where the task stands now, and a steer on work that ended is refused before anything is admitted
-// (CX-0026); a write whose commit is lost is unknown for every guide, never a refusal.
+// (CX-0026); a write whose commit is lost is unknown for every guide, never a refusal, and a retried control is
+// answered as the one already admitted.
 import type pg from 'pg'
 import type { MediaToolCall, MediaToolResult, Receipt } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   admitGoalCommand,
-  commandKeyUsed,
+  canCommand,
   readSnapshot,
   readTaskStandings,
   researchGateOpen,
+  sentCommand,
   submitContribution,
   toolSpeaker,
   withActor,
   withService,
+  type SentCommand,
   type TaskStanding,
 } from '@sophia/persistence'
 import {
@@ -91,23 +94,35 @@ function controlRequest(args: Record<string, unknown>): ControlRequest | MediaTo
 /** What the write did: a command admitted (with where the steered task stood), or a steer on work that ended. */
 type Admission = { receipt: Receipt; standing: TaskStanding | null } | { ended: TaskStanding; researchGate: boolean }
 
+type Goal = { id: string; revision: number; authorityEpoch: number }
+
 /**
- * Admit the control in one transaction. A steer reads the task first: one that ended while nothing of its goal is
- * under way is refused here, with nothing written, since the work would accept it for a goal its blocker or failure
- * left running (0026, 0036). A retry of a steer already admitted under this key is never refused: the work answers it
- * with its first receipt. Otherwise the brief is the speaker's own attributed contribution, and that source is the
- * steer's body.
+ * The steered task when this steer is refused before anything is written: it ended while nothing of its goal is under
+ * way, and the work would accept the steer for a goal its blocker or failure left running (0026, 0036). Never for a
+ * retry, which the work answers with its first receipt, nor for a speaker who may not command work: they hear the role
+ * first, as admission checks it first.
  */
-async function admitControl(
+async function endedSteer(
   c: pg.PoolClient,
-  ctx: ToolContext,
-  req: ControlRequest,
-  goal: { id: string; revision: number; authorityEpoch: number },
-): Promise<Admission> {
+  projectId: string,
+  standing: TaskStanding | null,
+  sent: SentCommand | null,
+): Promise<TaskStanding | null> {
+  if (sent || !standing || !endedWithNothingUnderWay(standing)) return null
+  return (await canCommand(c, projectId)) ? standing : null
+}
+
+/**
+ * Admit the control in one transaction. A steer reads the task first, and one on work that ended is refused here
+ * (endedSteer). The brief is the speaker's own attributed contribution, and that source is the steer's body. A
+ * retry under the same key sends what its first call expected of the goal, so the work answers it with that receipt.
+ */
+async function admitControl(c: pg.PoolClient, ctx: ToolContext, req: ControlRequest, goal: Goal): Promise<Admission> {
+  const sent = await sentCommand(c, ctx.projectId, ctx.key)
   const standing =
     req.action === 'steer' ? ((await readTaskStandings(c, ctx.projectId, [req.taskId]))[0] ?? null) : null
-  if (standing && endedWithNothingUnderWay(standing) && !(await commandKeyUsed(c, ctx.projectId, ctx.key)))
-    return { ended: standing, researchGate: await researchGateOpen(c, ctx.projectId) }
+  const ended = await endedSteer(c, ctx.projectId, standing, sent)
+  if (ended) return { ended, researchGate: await researchGateOpen(c, ctx.projectId) }
   const body = req.brief
     ? await submitContribution(
         c,
@@ -120,8 +135,8 @@ async function admitControl(
   const receipt = await admitGoalCommand(c, ctx.projectId, ctx.key, {
     kind: req.action,
     goalId: goal.id,
-    expectedGoalRevision: goal.revision,
-    expectedAuthorityEpoch: goal.authorityEpoch,
+    expectedGoalRevision: sent?.expectedGoalRevision ?? goal.revision,
+    expectedAuthorityEpoch: sent?.expectedAuthorityEpoch ?? goal.authorityEpoch,
     bodySourceId: body?.sourceId ?? null,
   })
   return { receipt, standing }

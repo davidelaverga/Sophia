@@ -3,8 +3,8 @@
 // binds, under that speaker's own role, through the same use cases as the member routes. Arguments come from the
 // model and are data: an id it names must exist in this project, and nothing it says grants authority or confirms a
 // decision. A write's outcome is reported as it is: committed, proposed, conflict, denied or unknown. A research
-// task's text is its worker's summary, so read_selected_source says so and adds what the service computed of the
-// report's versions (CX-0027); a brief reads exactly as before.
+// task's text is its worker's summary, so read_selected_source says so and adds the task's own state and what the
+// service computed of the report's versions (CX-0027); a brief reads exactly as before.
 import type pg from 'pg'
 import type { MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import { DomainError, type ErrorCode } from '@sophia/domain'
@@ -28,6 +28,7 @@ import {
   type ProposalWrite,
   type ResearchVersions,
 } from '@sophia/persistence'
+import { taskStateOf } from './control-words.ts'
 import { reportOf, WORKER_SUMMARY_ABOUT } from './report-facts.ts'
 import { cursorOffset, pageOf } from './source-page.ts'
 import { voiceStatus } from './voice-status.ts'
@@ -229,10 +230,18 @@ async function putToSpeaker(ctx: ToolContext, decisionId: string): Promise<boole
 
 /**
  * A research task's text is its worker's summary, not the report: said before it, with the service's facts of the
- * report's versions. `text`, its hash, `exact` and the paging stay as they were (the summary is what is stored).
+ * report's versions, and the task's own state beside `state`, whose phase a goal's Hold or Stop can hide (0022).
+ * `text`, its hash, `exact` and the paging stay as they were (the summary is what is stored).
  */
 const researchFacts = (research: ResearchVersions | undefined) =>
-  research ? { textIs: 'worker_summary', about: WORKER_SUMMARY_ABOUT, report: reportOf(research) } : {}
+  research
+    ? {
+        taskState: taskStateOf(research.standing),
+        textIs: 'worker_summary',
+        about: WORKER_SUMMARY_ABOUT,
+        report: reportOf(research),
+      }
+    : {}
 
 /** read_selected_source: exact eligible text, one page at a time, with its coverage and continuation. */
 export async function readSelectedSource(ctx: ToolContext): Promise<MediaToolResult> {

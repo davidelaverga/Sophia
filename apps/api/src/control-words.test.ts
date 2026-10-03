@@ -3,7 +3,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ReportVersion, TaskStanding } from '@sophia/persistence'
-import { refusedControl, steerAccepted, taskStateOf, type Control, type Refused } from './control-words.ts'
+import {
+  endedWithNothingUnderWay,
+  refusedControl,
+  steerAccepted,
+  taskStateOf,
+  type Control,
+  type Refused,
+} from './control-words.ts'
 
 const TASK = '00000000-0000-4000-8000-0000000000a1'
 const NEXT = '00000000-0000-4000-8000-0000000000a2'
@@ -74,6 +81,41 @@ describe('control_work’s explanation table', () => {
     const held = refused('steer', { ...heldFollowUp, published: v(1), latestTaskId: NEXT })
     assert.deepEqual([held.code, held.next], ['not_applied:on_hold', undefined])
     assert.equal(refused('hold', { ...heldFollowUp, goalStatus: 'ready' }).code, 'not_applied:not_started')
+  })
+
+  it('tells a steer to wait out a Hold still settling, and a brief that failed that it ended without a result', () => {
+    const settling = refused('steer', standing({ goalStatus: 'holding', phase: 'holding' }))
+    assert.deepEqual(
+      [settling.code, settling.reason],
+      [
+        'not_applied:on_hold',
+        'Not applied. It is being put on hold; resume it once the Hold has settled. Nothing was changed and nothing is waiting.',
+      ],
+    )
+    // Resume is refused while the Hold settles, so only a settled Hold is resumed first.
+    assert.match(refused('steer', standing({ goalStatus: 'held', phase: 'held' })).reason, /It is on hold: resume it/)
+    const brief = refused(
+      'steer',
+      standing({ kind: 'draft_brief', state: 'failed', phase: 'failed', latestTaskId: null }),
+    )
+    assert.deepEqual(
+      [brief.code, brief.reason],
+      [
+        'not_applied:ended_without_report',
+        'Not applied. This work ended without a result. Nothing was changed and nothing is waiting.',
+      ],
+    )
+  })
+
+  it('refuses a steer before admission only when the task ended and nothing of its goal is under way', () => {
+    const done = standing({ state: 'succeeded', phase: 'result_ready', goalStatus: 'completed' })
+    assert.equal(endedWithNothingUnderWay(done), true)
+    for (const state of ['pending', 'running', 'outcome_unknown'] as const) {
+      const follow = { taskId: NEXT, state, phase: 'running' as const }
+      assert.equal(endedWithNothingUnderWay({ ...done, inFlight: [follow] }), false, `a follow-up ${state}`)
+    }
+    assert.equal(endedWithNothingUnderWay(standing({ state: 'failed', phase: 'failed' })), true)
+    assert.equal(endedWithNothingUnderWay(standing()), false)
   })
 
   it('offers a follow-up only for a steer on research that ended, and says when none can start', () => {

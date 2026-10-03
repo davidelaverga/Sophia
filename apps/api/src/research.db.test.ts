@@ -1258,6 +1258,58 @@ const setGate = async (w: World, state: 'enabled' | 'disabled') => {
   }
 }
 
+/**
+ * Dispatch what is due and have the runtime answer the task's `kind` command at `stage`: its start delivered (running)
+ * or unconfirmed, a Hold checked (held).
+ */
+async function reported(
+  w: World,
+  taskId: string,
+  kind: 'create' | 'hold',
+  stage: 'delivered' | 'checked' | 'outcome_unknown',
+) {
+  const { task } = await withActor(pool, E, 'read', (c) => readNativeTask(c, w.projectId, taskId))
+  await dispatchDue()
+  const batch = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
+  const command = (batch.json.commands as Array<{ command: RuntimeCommand }>)
+    .map((q) => q.command)
+    .find((cmd) => cmd.binding.attemptId === task.attemptId && cmd.kind === kind)
+  assert.ok(command, `the ${kind} was dispatched`)
+  const lost = stage === 'outcome_unknown'
+  const res = await w.runtime('/v1/runtime/receipts', {
+    receipts: [
+      {
+        commandId: command.commandId,
+        attemptId: task.attemptId,
+        stage,
+        nativeSessionId: lost ? null : `sophia-${task.attemptId}`,
+        nativeSequence: lost ? null : 1,
+        evidenceRefs: [],
+        observedAt: new Date().toISOString(),
+        reason: lost ? 'No answer from the session.' : null,
+      },
+    ],
+  })
+  assert.equal(res.status, 204, JSON.stringify(res.json))
+}
+
+/** As the owner: the attempts the project's native steers go to. */
+async function steeredAttempts(w: World): Promise<string[]> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ attempt: string }>(
+      `SELECT b.attempt_id AS attempt FROM sophia.outbox o
+         JOIN sophia.execution_bindings b ON b.project_id=o.project_id AND b.id=o.binding_id
+        WHERE o.project_id=$1 AND o.destination='native.steer' ORDER BY o.id`,
+      [w.projectId],
+    )
+    return rows.map((r) => r.attempt)
+  } finally {
+    await owner.end()
+  }
+}
+
 describe('control_work says what a refused or accepted control did (CX-0026)', () => {
   it('a steer on a published report is not applied, admits nothing, and offers a follow-up only while one can start', async () => {
     const w = await world()
@@ -1368,6 +1420,119 @@ describe('control_work says what a refused or accepted control did (CX-0026)', (
       'Steer accepted. No confirmation comes back here; project_status says where the work stands.',
     )
     assert.equal((await steer('steer-2')).output.code, 'not_applied:ended_without_report')
+  })
+
+  it('a steer on finished research reaches its follow-up while that waits, and while its start is unconfirmed', async () => {
+    const w = await world()
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const follow = await tool(w, { question: 'Revise only the recommendations.', amendsTaskId: v1 })
+    assert.equal(follow.status, 'admitted', JSON.stringify(follow))
+    const next = String(follow.output.taskId)
+    const brief = 'Keep the comparison table.'
+    const waiting = await control(w, { taskId: v1, action: 'steer', brief })
+    assert.equal(waiting.status, 'ok', JSON.stringify(waiting))
+    assert.equal(
+      waiting.output.note,
+      `Steer accepted for waiting-to-start research (taskId ${next}). It is not applied yet, and no confirmation comes back here.`,
+    )
+    const { task } = await withActor(pool, E, 'read', (c) => readNativeTask(c, w.projectId, next))
+    const steers = await steersOf(w, brief)
+    assert.deepEqual([steers?.commands, steers?.said], [1, 1])
+    // 0012 queues it for every binding of the goal not settled, the root's included: publication leaves that one open.
+    assert.ok((await steeredAttempts(w)).includes(task.attemptId), 'the steer goes to the follow-up’s session')
+
+    // Its start then goes unconfirmed: it may be running, so a steer still goes to it, without calling it running.
+    await reported(w, next, 'create', 'outcome_unknown')
+    const unconfirmed = await control(w, { taskId: v1, action: 'steer', brief: 'Keep the sources too.' })
+    assert.equal(unconfirmed.status, 'ok', JSON.stringify(unconfirmed))
+    assert.equal(
+      unconfirmed.output.note,
+      `Steer accepted for research (taskId ${next}). It is not applied yet, and no confirmation comes back here.`,
+    )
+  })
+
+  it('a finished task reads as finished while its follow-up runs and is put on hold, which a steer must wait out', async () => {
+    const w = await world()
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const next = String(
+      (await tool(w, { question: 'Revise only the recommendations.', amendsTaskId: v1 })).output.taskId,
+    )
+    await reported(w, next, 'create', 'delivered')
+    const running = await control(w, { taskId: v1, action: 'steer', brief: 'Keep the comparison table.' })
+    assert.match(running.output.note, new RegExp(`^Steer accepted for running research \\(taskId ${next}\\)\\.`))
+    assert.equal((await control(w, { taskId: next, action: 'hold' })).status, 'ok')
+    // The goal's Hold shows in the task's phase (0022), not in what the root's own job did.
+    const root = (await readTask(w, v1)).output
+    assert.deepEqual([root.state, root.taskState], ['holding', 'finished'])
+    assert.deepEqual(Object.keys(root).slice(4, 6), ['state', 'taskState'])
+    assert.equal((await readTask(w, next)).output.taskState, 'on_hold')
+    const steer = await control(w, { taskId: v1, action: 'steer', brief: 'Shorten it.' })
+    assert.deepEqual([steer.status, steer.output.code], ['refused', 'not_applied:on_hold'])
+    assert.equal(
+      steer.output.reason,
+      'Not applied. It is being put on hold; resume it once the Hold has settled. Nothing was changed and nothing is waiting.',
+    )
+  })
+
+  it('a retried Hold, Resume or Stop is the control already admitted, never a refusal, for either guide', async () => {
+    const w = await world()
+    const taskId = String((await tool(w, { question: 'Which chargers are worth it?' })).output.taskId)
+    await reported(w, taskId, 'create', 'delivered')
+    const send = (action: string, callId: string, guide: 'v1.1' | 'v1.2') =>
+      tool(w, { taskId, action }, E, { name: 'control_work', guide, callId })
+    const held = await send('hold', 'hold-1', 'v1.2')
+    assert.deepEqual([held.status, held.output.stage], ['ok', 'admitted'], JSON.stringify(held))
+    // Each control moves the goal's authority epoch, so a retry read afresh would be another request (0012).
+    assert.deepEqual(await send('hold', 'hold-1', 'v1.2'), held, 'a provider retry of the Hold')
+    await reported(w, taskId, 'hold', 'checked')
+    const resumed = await send('resume', 'resume-1', 'v1.1')
+    assert.equal(resumed.status, 'ok', JSON.stringify(resumed))
+    assert.deepEqual(await send('resume', 'resume-1', 'v1.1'), resumed, 'a provider retry of the Resume')
+    const stopped = await send('stop', 'stop-1', 'v1.2')
+    assert.equal(stopped.status, 'ok', JSON.stringify(stopped))
+    assert.deepEqual(await send('stop', 'stop-1', 'v1.2'), stopped, 'a provider retry of the Stop')
+    assert.notEqual(held.output.commandId, stopped.output.commandId)
+  })
+
+  it('a viewer holding the floor hears the role first, before a steer on finished research is weighed', async () => {
+    const w = await world(ROLES, V)
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const steer = await tool(w, { taskId: v1, action: 'steer', brief: 'Shorten it.' }, V, {
+      name: 'control_work',
+      guide: 'v1.2',
+    })
+    assert.deepEqual(steer, {
+      status: 'refused',
+      output: { reason: 'Only editors and admins can start or control work. Viewers can talk with Sophia.' },
+    })
+  })
+
+  it('a control whose write fails with the database unreachable is unknown too, for either guide', async () => {
+    const w = await world()
+    const queued = String((await tool(w, { question: 'Which chargers are worth it?' })).output.taskId)
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      // The connection fails while the command is written: tx.ts reports it as unavailable.
+      await owner.query(`CREATE FUNCTION sophia.fail_as_unreachable() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'synthetic connection failure' USING ERRCODE = '08006'; END $$`)
+      await owner.query(`CREATE TRIGGER fail_command_write AFTER INSERT ON sophia.commands
+        FOR EACH ROW WHEN (NEW.project_id = '${w.projectId}') EXECUTE FUNCTION sophia.fail_as_unreachable()`)
+      const unknown = {
+        status: 'unknown',
+        output: {
+          code: 'unconfirmed:unavailable',
+          reason: 'I could not confirm whether it was applied; read project_status.',
+        },
+      }
+      assert.deepEqual(await control(w, { taskId: queued, action: 'steer', brief: 'Only GaN chargers.' }), unknown)
+      const stop = await tool(w, { taskId: queued, action: 'stop' }, E, { name: 'control_work', guide: 'v1.1' })
+      assert.deepEqual(stop, unknown)
+    } finally {
+      await owner.query('DROP TRIGGER IF EXISTS fail_command_write ON sophia.commands')
+      await owner.query('DROP FUNCTION IF EXISTS sophia.fail_as_unreachable()')
+      await owner.end()
+    }
   })
 
   it('a steer whose commit is lost is unknown, never a refusal', async () => {

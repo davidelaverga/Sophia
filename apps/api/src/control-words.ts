@@ -113,7 +113,7 @@ function ended(r: Refused, s: TaskStanding): NotApplied | null {
     return { ...notApplied('finished', why, followUp(r, s)), ...versions(s) }
   }
   if (s.state === 'failed') {
-    const why = `${subject} ended without a report${nowAt(s)}. ${NOTHING}`
+    const why = `${subject} ended without a ${s.kind === 'research' ? 'report' : 'result'}${nowAt(s)}. ${NOTHING}`
     return { ...notApplied('ended_without_report', why, followUp(r, s)), ...versions(s) }
   }
   if (s.state === 'cancelled') return notApplied('stopped', `${subject} was stopped. ${NOTHING}`)
@@ -128,6 +128,14 @@ const changed = () =>
     'Read project_status, then ask again if it still applies.',
   )
 
+/** Why a goal on hold refused the action: it already holds, or it needs a Resume, which waits for the Hold to settle. */
+function onHold(action: Control, status: 'holding' | 'held'): string {
+  if (action === 'hold') return 'It is already on hold.'
+  return status === 'held'
+    ? 'It is on hold: resume it first.'
+    : 'It is being put on hold; resume it once the Hold has settled.'
+}
+
 /** Work still under way that does not take this action in the state its goal is in. */
 function notNow(r: Refused, s: TaskStanding): NotApplied {
   const status = s.goalStatus
@@ -136,8 +144,7 @@ function notNow(r: Refused, s: TaskStanding): NotApplied {
     if (status === 'holding') return notApplied('settling', `The Hold is still settling; ask again shortly. ${NOTHING}`)
     if (status !== 'held') return notApplied('not_held', `It is not on hold. ${NOTHING}`)
   } else if (status === 'holding' || status === 'held') {
-    const what = r.action === 'hold' ? 'It is already on hold.' : 'It is on hold: resume it first.'
-    return notApplied('on_hold', `${what} ${NOTHING}`)
+    return notApplied('on_hold', `${onHold(r.action, status)} ${NOTHING}`)
   } else if (r.action === 'hold' && status === 'ready') {
     const work = s.kind === 'research' ? 'the research' : 'the work'
     return notApplied(
