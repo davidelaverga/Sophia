@@ -30,7 +30,7 @@ import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
 import type { Resource, Session } from '../src/features/resources/resource.ts'
-import { plan, secondPlan } from './work-data.ts'
+import { plan, secondView } from './work-data.ts'
 import { acted, actOn, carried, nextActivity, withActivity } from './work-live.ts'
 import {
   actions,
@@ -56,7 +56,7 @@ declare global {
       /** What owners asked of their sessions' effort, in order: for the checks to read. */
       asked?: { sessionId: string; level: string | null; when: string | null }[]
       /** Each act an owner sent on a session, in order. */
-      acted?: readonly { sessionId: string; kind: string; text?: string; workId: string; epoch?: number }[]
+      acted?: readonly { sessionId: string; kind: string; text?: string; workId: string }[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
@@ -115,7 +115,7 @@ if (query.get('since') === '1') {
 }
 
 /** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
-const planned = new Set([...plan('accepted').items, ...secondPlan.items].map((i) => i.id))
+const planned = new Set([...plan.items, ...secondView.proposed_plans.flatMap((p) => p.items)].map((i) => i.id))
 const tasks: TaskLinks = {
   has: (workId) => planned.has(workId),
   open: (workId) => window.location.assign(`work.html${carried(window.location.search)}${linkHash(workId, TASK)}`),

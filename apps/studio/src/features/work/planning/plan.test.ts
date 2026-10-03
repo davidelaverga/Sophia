@@ -1,276 +1,434 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { freshness, observedAgo, type RequiredAction, type Resource } from '../../resources/resource.ts'
+import { freshness, observedAgo, type Resource } from '../../resources/resource.ts'
+import { assignment, goal, item, plan, view } from './board-samples.ts'
+import type { BoardDecision, ItemView, Lifecycle, Wait } from './board-view.ts'
 import {
   actionable,
-  current,
+  allowed,
+  boardOf,
+  forViewer,
   forYou,
-  planRows,
+  LANE,
   relation,
-  status,
+  shownPlan,
   waitsOn,
   whoDoes,
-  type PlanItem,
-  type WorkPlan,
+  type GoalView,
 } from './plan.ts'
 
-const item = (id: string, over: Partial<PlanItem> = {}): PlanItem => ({
-  id,
-  purpose: `Do ${id}`,
-  parent_id: null,
-  blocked_by: [],
-  assignee_kind: 'assignment',
-  assignee_id: `assignment-${id}`,
-  activation: { kind: 'immediate', producer_work_id: null },
-  ...over,
-})
-
-const plan = (items: PlanItem[], over: Partial<WorkPlan> = {}): WorkPlan => ({
-  plan_id: 'plan-1',
-  revision: 2,
-  mission_revision: 3,
-  state: 'accepted',
-  items,
-  goal_id: 'goal-1',
-  next_checkpoint: null,
-  assumptions: [],
-  decisions: [],
-  ...over,
-})
-
-type Work = NonNullable<Resource['sessions'][number]['assignment']>['state']
-
-/** Davide's Claude Code, its one session on `workId` in `state`. */
-const resource = (workId: string, state: Work = 'running'): Resource => ({
+/** Davide's Claude Code, one session on `workId`, listed as the plan's assignment would name it. */
+const resource = (workId: string, sessionId = `s-${workId}`): Resource => ({
   id: `res-${workId}`,
   owner: { id: 'davide', name: 'Davide' },
   tool: 'claude-code',
   entitlementId: 'ent',
   host: { state: 'online', observedAt: null },
   sessions: [
-    { id: `s-${workId}`, role: 'worker', model: null, effort: null, assignment: { workId, title: 'x', state } },
+    { id: sessionId, role: 'worker', model: null, effort: null, assignment: { workId, title: 'x', state: 'running' } },
   ],
   controls: { steer: 'unqualified', hold: 'unqualified', stop: 'unqualified', permissions: 'unqualified' },
   reservePercent: null,
 })
 
-const people = { luis: { id: 'luis', name: 'Luis' } }
+const people = { luis: { id: 'luis', name: 'Luis' }, davide: { id: 'davide', name: 'Davide' } }
 
-/** An open request of a session, on Davide. */
-const request = (sessionId: string, workId = 'build'): RequiredAction => ({
-  id: `a-${sessionId}`,
-  workId,
-  resourceId: 'r',
-  sessionId,
-  ownerId: 'davide',
-  operation: 'Run a command',
-  deadline: null,
-  state: 'open',
-  openTarget: null,
+const wait = (kind: Wait['kind'], respondent: string | null, state: Wait['state'] = 'pending'): Wait => ({
+  kind,
+  reference_id: `ref-${kind}`,
+  respondent_id: respondent,
+  detail: `About ${kind}`,
+  state,
 })
 
-describe('the lead’s plan', () => {
-  it('is shown while in force or proposed; a superseded or withdrawn one is history', () => {
-    assert.equal(current(plan([], { state: 'accepted' }))?.state, 'accepted')
-    assert.equal(current(plan([], { state: 'proposed' }))?.state, 'proposed')
-    assert.equal(current(plan([], { state: 'superseded' })), null)
-    assert.equal(current(plan([], { state: 'withdrawn' })), null)
-    assert.equal(current(null), null)
+const readers = (viewerId: string | null = 'luis', resources: Resource[] = []) => ({ resources, people, viewerId })
+
+/** The rows of a one-goal board. */
+const rowsOf = (g: GoalView, viewerId: string | null = 'luis', resources: Resource[] = []) =>
+  boardOf(g, readers(viewerId, resources))?.rows ?? []
+
+/** Where one item stands, observed as `over` says, in a plan of it and anything else given. */
+function standing(
+  over: Partial<ItemView>,
+  viewerId: string | null = 'luis',
+  others = [item('build', { purpose: 'Implement the PDF retry' })],
+) {
+  const one = item('one')
+  const row = rowsOf(goal(plan([...others, one]), [view('one', over)]), viewerId).find((r) => r.item.id === 'one')
+  return [row?.status.mark, row?.status.text]
+}
+
+/** A review of the retry's candidate that also comes after it. */
+const blocked = item('one', {
+  blocked_by: ['build'],
+  activation: { kind: 'candidate_ready', producer_work_id: 'build' },
+})
+
+/** A plan of the retry and `i`, `i` observed as `over` says. */
+const retryAnd = (over: Partial<ItemView>, i = blocked) =>
+  goal(plan([item('build', { purpose: 'Implement the PDF retry' }), i]), [view('one', over)])
+
+/** A report from one attempt at one generation. */
+const report = (attempt: string, generation: number) => ({
+  observation_id: 'o',
+  attempt_id: attempt,
+  assignment_generation: generation,
+  said: 'Ran the tests',
+  observed_at: '2026-10-02T12:00:00Z',
+  connection: 'online' as const,
+})
+
+describe('the plan the board shows', () => {
+  it('is the accepted one; while none is, the proposed one, read only; a superseded or withdrawn one is history', () => {
+    const accepted = plan([item('a')])
+    const replacement = plan([item('a'), item('b')], {
+      plan_id: 'plan-2',
+      revision: 3,
+      state: 'proposed',
+      decision_ref: null,
+    })
+    assert.deepEqual(shownPlan(goal(accepted, [], { proposed_plans: [replacement] })), {
+      plan: accepted,
+      operable: true,
+    })
+    assert.deepEqual(shownPlan(goal(null, [], { proposed_plans: [replacement] })), {
+      plan: replacement,
+      operable: false,
+    })
+    assert.equal(shownPlan(goal(plan([item('a')], { state: 'superseded' }), [])), null)
+    assert.equal(shownPlan(goal(plan([item('a')], { state: 'withdrawn' }), [])), null)
+    assert.equal(shownPlan(null), null)
   })
 
-  it('finds who does an item through the session it is assigned to, and never makes one up', () => {
-    const who = whoDoes(item('build'), [resource('build')], people)
+  it('keeps a proposed plan’s items out of execution: no observation, no action, whatever the view says (UI-03)', () => {
+    const replacement = plan([item('a')], { state: 'proposed', decision_ref: null })
+    const g = goal(null, [view('a', { lifecycle: 'running', assignment: assignment('a'), available_actions: [] })], {
+      proposed_plans: [replacement],
+    })
+    const board = boardOf(g, readers('davide'))
+    assert.equal(board?.operable, false)
     assert.deepEqual(
-      [who.name, who.role, who.state, who.person?.name],
-      ['Davide’s Claude Code', 'worker', 'running', 'Davide'],
+      board?.rows.map((r) => [r.status.mark, r.view, r.actions]),
+      [['later', null, []]],
     )
-    assert.equal(whoDoes(item('docs'), [], people).name, 'Assigned, not running yet')
+  })
+})
+
+describe('who does an item', () => {
+  it('is its admitted assignment, exactly: the session its assignment names, never one found by its work', () => {
+    const one = item('build')
+    const observed = view('build', { lifecycle: 'running', assignment: assignment('build') })
+    const who = whoDoes(one, observed, [resource('build')], people)
+    assert.deepEqual(
+      [who.name, who.role, who.kind, who.person?.name, who.resource?.id, who.session?.id],
+      ['Davide’s Claude Code', 'worker', 'owner_native', 'Davide', 'res-build', 's-build'],
+    )
+    // Another session on the same work, not the one the assignment names: no session, not the first that matches.
+    assert.equal(whoDoes(one, observed, [resource('build', 's-older')], people).session, null)
+  })
+
+  it('names Sophia’s own reviewer as itself, with no person and no subscription behind it (UI-16)', () => {
+    const native = assignment('review', {
+      native_session_id: null,
+      executor: {
+        kind: 'sophia_native',
+        display_name: 'Sophia',
+        role: 'Source reviewer',
+        owner_id: null,
+        resource_id: null,
+      },
+    })
+    const who = whoDoes(
+      item('review'),
+      view('review', { lifecycle: 'running', assignment: native }),
+      [resource('review')],
+      people,
+    )
+    assert.deepEqual(
+      [who.name, who.role, who.kind, who.person, who.resource, who.session],
+      ['Sophia', 'Source reviewer', 'sophia_native', null, null, null],
+    )
+  })
+
+  it('without an assignment: the person the plan names, a named assignment not running yet, or no one', () => {
     assert.equal(
-      whoDoes(item('call', { assignee_kind: 'human', assignee_id: 'luis' }), [], people).person?.name,
+      whoDoes(item('call', { assignee_kind: 'human', assignee_id: 'luis' }), null, [], people).person?.name,
       'Luis',
     )
+    assert.equal(whoDoes(item('docs'), view('docs'), [resource('docs')], people).name, 'Assigned, not running yet')
     assert.equal(
-      whoDoes(item('free', { assignee_kind: 'unassigned', assignee_id: null }), [], people).name,
+      whoDoes(item('free', { assignee_kind: 'unassigned', assignee_id: null }), null, [], people).name,
       'Unassigned',
     )
   })
+})
 
-  it('says where each task stands: waiting on whom, working, or not started and what for, or free', () => {
-    const build = item('build', { purpose: 'Implement the PDF retry' })
-    const p = plan([build])
-    const say = (i: PlanItem, resources: Resource[] = [], actions: RequiredAction[] = []) => {
-      const s = status(i, whoDoes(i, resources, people), p, actions, people)
-      return [s.mark, s.text]
+describe('where an item stands', () => {
+  it('waits on whom a pending request names: the viewer first, then a person, then what it waits for (UI-07)', () => {
+    const waits = [wait('native_permission', 'luis'), wait('product_decision', 'davide')]
+    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: waits }, 'davide'), ['waiting', 'Waiting on Davide'])
+    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: waits }, 'mara'), ['waiting', 'Waiting on Luis'])
+    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: [wait('capacity', null)] }), [
+      'waiting',
+      'Waiting for capacity',
+    ])
+    // A resolved or expired request calls no one.
+    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: [wait('product_decision', 'luis', 'resolved')] }), [
+      'waiting',
+      'Waiting',
+    ])
+  })
+
+  it('in motion: working, held, ready for review, changes needed (UI-04)', () => {
+    const moving: [Lifecycle, string, string][] = [
+      ['running', 'working', 'Working'],
+      ['held', 'held', 'Held'],
+      ['ready_for_review', 'review', 'Ready for review'],
+      ['changes_required', 'changes', 'Changes needed'],
+    ]
+    for (const [lifecycle, mark, text] of moving)
+      assert.deepEqual(standing({ lifecycle, assignment: assignment('one') }), [mark, text])
+  })
+
+  it('not begun: queued, or up next with every condition, or unassigned, its conditions still said', () => {
+    const said = (over: Partial<ItemView>, i = blocked) =>
+      rowsOf(retryAnd(over, i)).find((r) => r.item.id === 'one')?.status.text
+    assert.equal(
+      said({ waiting_on: [wait('capacity', null)] }),
+      'After Implement the PDF retry, once there is a candidate to review, waiting for capacity',
+    )
+    assert.equal(
+      said({ waiting_on: [wait('product_decision', 'davide')] }),
+      'After Implement the PDF retry, once there is a candidate to review, waiting on Davide',
+    )
+    assert.equal(
+      said({ lifecycle: 'queued', assignment: assignment('one') }),
+      'Queued · after Implement the PDF retry, once there is a candidate to review',
+    )
+    const unassigned = item('one', { assignee_kind: 'unassigned', assignee_id: null, blocked_by: ['build'] })
+    assert.deepEqual(standing({}, 'luis', []).slice(0, 1), ['later'])
+    const row = rowsOf(retryAnd({}, unassigned)).find((r) => r.item.id === 'one')
+    assert.deepEqual([row?.status.mark, row?.status.text], ['free', 'After Implement the PDF retry'])
+  })
+
+  it('complete only by its own policy, satisfied with evidence; a closed one is closed, never done (UI-06)', () => {
+    const satisfied = { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e1'] }
+    assert.deepEqual(standing({ lifecycle: 'complete', completion: satisfied }), ['complete', 'Complete'])
+    assert.deepEqual(standing({ lifecycle: 'complete', completion: { ...satisfied, evidence_refs: [] } }), [
+      'unknown',
+      'Not shown as complete: no evidence',
+    ])
+    // A check that passed for v1 doesn't make v2 complete (UI-05).
+    const versions = [
+      {
+        source_id: 's',
+        version_id: 'v2',
+        sha256: 'b'.repeat(64),
+        media_type: 'text/markdown',
+        created_at: '2026-10-02T12:00:00Z',
+        state: 'current' as const,
+      },
+    ]
+    const oldCheck = { state: 'passed' as const, candidate_version_ref: 'v1', evidence_refs: ['check-v1'] }
+    assert.deepEqual(
+      standing({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: oldCheck }),
+      ['unknown', 'Not shown as complete: its check was of another version'],
+    )
+    for (const lifecycle of ['stopped', 'cancelled', 'failed', 'superseded'] as const) {
+      const [mark] = standing({ lifecycle, closed_reason: 'Stopped by Davide' })
+      assert.equal(mark, 'closed', lifecycle)
     }
-    // Waiting on someone only when an open request of its session names them; else waiting, on no one.
-    assert.deepEqual(say(build, [resource('build', 'waiting')], [request('s-build')]), ['waiting', 'Waiting on Davide'])
-    assert.deepEqual(say(build, [resource('build', 'waiting')]), ['waiting', 'Waiting'])
-    // A request left from the session's earlier work names no one for this one.
-    assert.deepEqual(say(build, [resource('build', 'waiting')], [request('s-build', 'earlier')]), [
-      'waiting',
-      'Waiting',
-    ])
-    assert.deepEqual(say(build, [resource('build', 'waiting')], [{ ...request('s-build'), state: 'resolved' }]), [
-      'waiting',
-      'Waiting',
-    ])
-    // Recorded and queued share a lane, each said as itself.
-    assert.deepEqual(say(build, [resource('build', 'recorded')]), ['queued', 'Recorded'])
-    assert.deepEqual(say(build, [resource('build', 'running')]), ['working', 'Working'])
-    assert.deepEqual(say(build, [resource('build', 'queued')]), ['queued', 'Queued'])
-    assert.deepEqual(say(item('docs', { blocked_by: ['build'] })), ['later', 'After Implement the PDF retry'])
-    const review = item('review', { activation: { kind: 'candidate_ready', producer_work_id: 'build' } })
-    assert.deepEqual(say(review), ['later', 'Once there is a candidate to review'])
-    assert.deepEqual(say(item('free', { assignee_kind: 'unassigned', assignee_id: null })), ['free', 'Free to take'])
-    assert.deepEqual(say(item('soon')), ['later', 'Not started'])
   })
 
-  it('knows what a task waits on: its blockers and the build whose candidate it reviews', () => {
-    assert.deepEqual(waitsOn(item('docs', { blocked_by: ['a', 'b'] })), ['a', 'b'])
-    assert.deepEqual(waitsOn(item('r', { activation: { kind: 'candidate_ready', producer_work_id: 'build' } })), [
-      'build',
-    ])
-    assert.deepEqual(waitsOn(item('now')), [])
+  it('unknown stays unknown, in Active, never Unassigned: no observation, an unknown state, an offline host', () => {
+    const unassigned = [item('free', { assignee_kind: 'unassigned', assignee_id: null })]
+    assert.deepEqual(
+      rowsOf(goal(plan(unassigned), [])).map((r) => [r.status.mark, r.status.text]),
+      [['unknown', 'Not observed']],
+    )
+    assert.deepEqual(standing({ lifecycle: 'unknown' }), ['unknown', 'State unknown'])
+    const offline = assignment('one', { observation_state: 'offline' })
+    assert.deepEqual(standing({ lifecycle: 'running', assignment: offline }), ['unknown', 'Host offline'])
+    assert.equal(LANE.unknown, 'active')
   })
 
-  it('orders tasks by what moves, keeps each child under its parent, and an orphan on its own', () => {
-    const p = plan([
+  it('puts each mark in its lane: Active, Up next, Unassigned, Complete, and Closed apart', () => {
+    assert.deepEqual(
+      Object.entries(LANE)
+        .filter(([, lane]) => lane !== 'active')
+        .map(([mark, lane]) => `${mark}:${lane}`),
+      ['queued:next', 'later:next', 'free:unassigned', 'complete:complete', 'closed:closed'],
+    )
+  })
+})
+
+describe('a row’s report, its actions and whom it is for', () => {
+  it('reports only from its current attempt and generation; an earlier attempt’s report is not its state (UI-02)', () => {
+    const current = assignment('one')
+    const of = (activity: ReturnType<typeof report>) =>
+      rowsOf(goal(plan([item('one')]), [view('one', { lifecycle: 'running', assignment: current, activity })]))[0]
+        ?.activity?.said ?? null
+    assert.equal(of(report('attempt-one-3', 3)), 'Ran the tests')
+    assert.equal(of(report('attempt-one-2', 2)), null)
+    assert.equal(of(report('attempt-one-2', 3)), null)
+  })
+
+  it('offers only what the view allows; a missing action is unavailable, not allowed', () => {
+    const actions = [
+      { kind: 'hold' as const, availability: 'allowed' as const, reason: 'Within the mandate', boundary: null },
+    ]
+    const [row] = rowsOf(goal(plan([item('one')]), [view('one', { lifecycle: 'running', available_actions: actions })]))
+    assert.ok(row)
+    assert.equal(allowed(row, 'hold'), true)
+    assert.equal(allowed(row, 'stop'), false)
+  })
+
+  it('is for the viewer when a pending request names them or they do it by hand; owning the account is not (UI-07)', () => {
+    const now = new Date('2026-10-02T12:00:00Z')
+    const running = view('build', { lifecycle: 'running', assignment: assignment('build') })
+    const rows = rowsOf(
+      goal(plan([item('build'), item('note', { assignee_kind: 'human', assignee_id: 'luis' })]), [
+        running,
+        view('note'),
+      ]),
+    )
+    assert.equal(forYou(rows, [], 'davide', now), false) // Davide owns the account; nothing asks him
+    assert.deepEqual(
+      rows.filter((r) => forViewer(r, 'luis')).map((r) => r.item.id),
+      ['note'],
+    )
+    const asking = rowsOf(
+      goal(plan([item('build')]), [
+        { ...running, lifecycle: 'waiting', waiting_on: [wait('product_decision', 'davide')] },
+      ]),
+    )
+    assert.equal(forYou(asking, [], 'davide', now), true)
+    assert.equal(forYou(asking, [], 'luis', now), false)
+  })
+})
+
+describe('the plan’s tree, its relations and its problems', () => {
+  it('keeps every item once, however deep, each under its parent, and an orphan on its own (UI-01)', () => {
+    const items = [
+      item('a'),
+      item('b', { parent_id: 'a' }),
+      item('c', { parent_id: 'b' }),
+      item('stray', { parent_id: 'gone' }),
+    ]
+    const board = boardOf(
+      goal(
+        plan(items),
+        items.map((i) => view(i.id)),
+      ),
+      readers(),
+    )
+    assert.deepEqual(
+      board?.rows.map((r) => [r.item.id, r.depth]),
+      [
+        ['a', 0],
+        ['b', 1],
+        ['c', 2],
+        ['stray', 0],
+      ],
+    )
+    assert.deepEqual(board?.problems, [])
+  })
+
+  it('shows a loop of parents, a loop of blockers, a missing blocker and a repeated id once each, and says so (UI-01)', () => {
+    const loop = [item('x', { parent_id: 'y' }), item('y', { parent_id: 'x' })]
+    const said = (items: ReturnType<typeof item>[], views: ItemView[] = []) => {
+      const board = boardOf(goal(plan(items), views), readers())
+      return { ids: board?.rows.map((r) => r.item.id).toSorted(), problems: board?.problems }
+    }
+    assert.deepEqual(said(loop), { ids: ['x', 'y'], problems: ['Some tasks are grouped in a loop'] })
+    const blockers = [
+      item('p', { blocked_by: ['q'] }),
+      item('q', { blocked_by: ['p'] }),
+      item('r', { blocked_by: ['gone'] }),
+    ]
+    assert.deepEqual(said(blockers).problems, [
+      'A task waits on work that isn’t in the plan',
+      'Some tasks wait on each other in a loop',
+    ])
+    assert.deepEqual(said([item('d'), item('d', { purpose: 'Again' })]), {
+      ids: ['d'],
+      problems: ['Two tasks share one id'],
+    })
+    const twice = said([item('e')], [view('e', { lifecycle: 'running' }), view('e', { lifecycle: 'complete' })])
+    assert.deepEqual(twice.problems, ['A task is observed twice'])
+    assert.equal(
+      boardOf(goal(plan([item('e')]), [view('e'), view('e')]), readers())?.rows[0]?.status.text,
+      'Not observed',
+    )
+  })
+
+  it('orders tasks by what needs someone, each child under its parent', () => {
+    const items = [
       item('free', { assignee_kind: 'unassigned', assignee_id: null }),
       item('later'),
       item('build'),
       item('review', { parent_id: 'build' }),
-      item('stray', { parent_id: 'gone' }),
-      item('pane'),
-    ])
-    const rows = planRows(p, [resource('build', 'waiting'), resource('pane', 'running')], people)
+      item('done'),
+    ]
+    const views = [
+      view('free'),
+      view('later'),
+      view('build', { lifecycle: 'waiting', waiting_on: [wait('native_permission', 'davide')] }),
+      view('review'),
+      view('done', {
+        lifecycle: 'complete',
+        completion: { policy_ref: 'p', status: 'satisfied', evidence_refs: ['e'] },
+      }),
+    ]
     assert.deepEqual(
-      rows.map((r) => [r.item.id, r.depth]),
-      [
-        ['build', 0],
-        ['review', 1],
-        ['pane', 0],
-        ['later', 0],
-        ['stray', 0],
-        ['free', 0],
-      ],
+      rowsOf(goal(plan(items), views)).map((r) => r.item.id),
+      ['build', 'review', 'later', 'free', 'done'],
     )
+  })
+
+  it('knows what a task waits on, and says a review that also waits on others with both', () => {
+    const review = item('r', { blocked_by: ['b'], activation: { kind: 'candidate_ready', producer_work_id: 'a' } })
+    const p = plan([item('a', { purpose: 'Build it' }), item('b', { purpose: 'Measure it' }), review])
+    assert.deepEqual(waitsOn(review), ['b', 'a'])
+    assert.equal(relation(review, p), 'Reviews Build it, after Measure it')
   })
 })
 
-describe('a task that has ended, and a session’s last report', () => {
-  it('says a finished run apart from a checked result, and both before anything else', () => {
-    const finished = item('a', { outcome: { state: 'finished', at: '2026-10-02T11:00:00Z' } })
-    const checked = item('b', { outcome: { state: 'checked', at: '2026-10-02T11:00:00Z' } })
-    const p = plan([finished, checked])
-    const running = whoDoes(finished, [resource('a', 'running')], people)
-    assert.deepEqual(status(finished, running, p), { mark: 'finished', text: 'Finished, not checked yet', rank: 5 })
-    assert.equal(status(checked, whoDoes(checked, [], people), p).mark, 'checked')
+describe('decisions and a session’s last report', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const decision: BoardDecision = {
+    decision_id: 'd',
+    revision: 1,
+    work_id: 'build',
+    plan_id: 'plan-1',
+    plan_revision: 2,
+    candidate_version_ref: null,
+    question: 'q',
+    decider_id: 'davide',
+    choices: [
+      { key: 'a', label: 'A' },
+      { key: 'b', label: 'B' },
+    ],
+    expires_at: '2026-10-02T13:00:00Z',
+    state: 'proposed',
+    selected_choice: null,
+    choice_receipt_id: null,
+    plan_reaction: 'not_needed',
+  }
+
+  it('answers a decision only while proposed and not past its expiry; one past it calls no one', () => {
+    assert.equal(actionable(decision, now), true)
+    assert.equal(actionable({ ...decision, expires_at: '2026-10-02T11:00:00Z' }, now), false)
+    assert.equal(actionable({ ...decision, state: 'accepted' }, now), false)
+    assert.equal(forYou([], [decision], 'davide', now), true)
+    assert.equal(forYou([], [{ ...decision, expires_at: '2026-10-02T11:00:00Z' }], 'davide', now), false)
   })
 
   it('says how long ago a report was seen, to the second while fresh, and how fresh it still is', () => {
-    const now = new Date('2026-10-02T12:00:00Z')
     assert.equal(observedAgo('2026-10-02T11:59:20Z', now), '40 s ago')
     assert.equal(observedAgo('2026-10-02T11:57:00Z', now), '3 min ago')
     assert.equal(freshness('2026-10-02T12:00:00Z', now), 1)
     assert.equal(freshness('2026-10-02T11:59:00Z', now), 0.5)
     assert.equal(freshness('2026-10-02T11:50:00Z', now), 0)
-  })
-})
-
-describe('the plan’s tree and its decisions', () => {
-  it('keeps every item, however deep, each once, even one caught in a loop of parents', () => {
-    const a = item('a')
-    const b = item('b', { parent_id: 'a' })
-    const c = item('c', { parent_id: 'b' })
-    const rows = planRows(plan([a, b, c]), [], people)
-    assert.deepEqual(
-      rows.map((r) => [r.item.id, r.depth]),
-      [
-        ['a', 0],
-        ['b', 1],
-        ['c', 2],
-      ],
-    )
-    const x = item('x', { parent_id: 'y' })
-    const y = item('y', { parent_id: 'x' })
-    assert.deepEqual(
-      planRows(plan([x, y]), [], people)
-        .map((r) => r.item.id)
-        .toSorted(),
-      ['x', 'y'],
-    )
-  })
-
-  it('says a review that also waits on others with both', () => {
-    const a = item('a', { purpose: 'Build it' })
-    const b = item('b', { purpose: 'Measure it' })
-    const review = item('r', {
-      blocked_by: ['b'],
-      activation: { kind: 'candidate_ready', producer_work_id: 'a' },
-    })
-    const p = plan([a, b, review])
-    assert.equal(relation(review, p), 'Reviews Build it, after Measure it')
-    assert.equal(
-      status(review, whoDoes(review, [], people), p).text,
-      'After Measure it, once there is a candidate to review',
-    )
-  })
-
-  it('finds a task’s session by the assignment it names before its work', () => {
-    const named = item('build', { assignee_id: 'asg-2' })
-    const first = resource('build', 'running')
-    const second: Resource = {
-      ...resource('build', 'queued'),
-      id: 'res-other',
-      sessions: [
-        {
-          id: 's-other',
-          role: 'worker',
-          model: null,
-          effort: null,
-          assignment: { workId: 'build', title: 'x', state: 'queued', id: 'asg-2' },
-        },
-      ],
-    }
-    assert.equal(whoDoes(named, [first, second], people).session?.id, 's-other')
-    assert.equal(whoDoes(item('build'), [first, second], people).session?.id, 's-build') // no id: its work
-    // Handing over: the new session isn't there yet, and the old one names another assignment: not taken.
-    const old: Resource = {
-      ...resource('build', 'running'),
-      sessions: [
-        {
-          id: 's-old',
-          role: 'worker',
-          model: null,
-          effort: null,
-          assignment: { workId: 'build', title: 'x', state: 'running', id: 'asg-1' },
-        },
-      ],
-    }
-    assert.equal(whoDoes(named, [old], people).session, null)
-  })
-
-  it('answers a decision only while proposed and not past its expiry', () => {
-    const now = new Date('2026-10-02T12:00:00Z')
-    const d = {
-      decision_id: 'd',
-      revision: 1,
-      question: 'q',
-      decider_id: 'davide',
-      state: 'proposed' as const,
-      choices: [],
-      selected_choice: null,
-      expires_at: '2026-10-02T13:00:00Z',
-    }
-    assert.equal(actionable(d, now), true)
-    assert.equal(actionable({ ...d, expires_at: '2026-10-02T11:00:00Z' }, now), false)
-    assert.equal(actionable({ ...d, state: 'accepted' }, now), false)
-    // For the rail's "for you": a decision of theirs to answer counts; one past its expiry calls no one.
-    const p = plan([], { decisions: [d] })
-    assert.equal(forYou([], p, 'davide', now), true)
-    assert.equal(
-      forYou([], plan([], { decisions: [{ ...d, expires_at: '2026-10-02T11:00:00Z' }] }), 'davide', now),
-      false,
-    )
   })
 })

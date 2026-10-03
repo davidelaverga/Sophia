@@ -1,53 +1,57 @@
-// Asking Sophia about a task, from its sheet: the questions its state invites, offered as one-press asks, or one's own.
-// Her answer writes itself in, word by word, under her light. The answer comes from wherever the page sends the ask
-// (`onAsk`); the panel never makes one up.
-import { useEffect, useRef, useState } from 'react'
-import type { Mark, PlanRow } from './plan.ts'
+// Asking Sophia about a task, from its sheet (WBC-01 G5): the questions its state invites, as one-press asks, or one's
+// own. It is an entry into the one shared conversation (ask.ts), with this task's exact references, never another
+// chatbot, a microphone or a message to the worker; an ordinary question amends nothing. Her answer shows as it is
+// received, chunk by chunk, or whole at once, never at a made-up typing speed. The board keeps each task's latest
+// question (useAsks), so turning the sheet, closing it or a reconnect forgets nothing and a late answer to an earlier
+// question is let go. Where she can't be asked from here (the view says so, or no conversation is connected), the
+// question is kept with why, and the way to the conversation is offered; no answer is made up.
+import { useState } from 'react'
+import { asking, heard, shownOf, unanswerable, type Ask, type Asked, type Question } from './ask.ts'
+import { actionOf, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
+import { resultsOf } from './results.ts'
 
-export type Ask = (row: PlanRow, question: string) => Promise<string>
+/** The board's questions, the latest per task. */
+export interface Asks {
+  of: (workId: string) => Asked | null
+  /** Asks; `unavailable` keeps the question with why instead of sending it. */
+  ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
+}
 
-/** The questions a task's state invites. Waiting, "say yes" is asked only by the one its request waits on (invited). */
-const INVITED: Record<Mark, string[]> = {
+export function useAsks(onAsk: Ask | undefined, newId: () => string = () => crypto.randomUUID()): Asks {
+  const [asked, setAsked] = useState<Readonly<Record<string, Asked>>>({})
+  return {
+    of: (workId) => asked[workId] ?? null,
+    ask: (q, unavailable) => {
+      const question: Question = { ...q, question_id: newId() }
+      if (!onAsk || unavailable !== null) {
+        const why = unavailable ?? 'Sophia can’t be asked from here yet.'
+        setAsked((a) => ({ ...a, [q.work_id]: unanswerable(question, why) }))
+        return
+      }
+      setAsked((a) => ({ ...a, [q.work_id]: asking(question) }))
+      onAsk(question, (event) =>
+        setAsked((a) => {
+          const latest = a[q.work_id]
+          return latest ? { ...a, [q.work_id]: heard(latest, event) } : a
+        }),
+      )
+    },
+  }
+}
+
+/** The questions a task's state invites. Waiting, "say yes" is asked only by the one its request waits on. */
+const INVITED: Readonly<Record<Mark, string[]>> = {
   waiting: ['Why is it waiting?', 'What does it wait for?'],
+  changes: ['What needs to change?'],
+  review: ['What is left to review?', 'Who should review it?'],
+  unknown: ['What do we know about it?'],
+  held: ['Why is it held?'],
   working: ['What is it doing now?', 'When will it have a candidate?'],
   queued: ['What is it queued behind?'],
   later: ['What does it wait for?', 'Can it start sooner?'],
   free: ['Who could take it?', 'Why isn’t anyone on it?'],
-  finished: ['What’s left to check it?', 'Who should check it?'],
-  checked: ['What did the check find?'],
-}
-
-/** An answer revealed word by word, as speech arrives; at once when less motion is asked for. */
-function useWords(text: string | null): string {
-  const [shown, setShown] = useState(0)
-  const words = text?.split(' ') ?? []
-  useEffect(() => {
-    setShown(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? Infinity : 0)
-    if (!text) return undefined
-    const timer = setInterval(() => setShown((n) => n + 1), 45)
-    return () => clearInterval(timer)
-  }, [text])
-  return words.slice(0, shown).join(' ')
-}
-
-/** A question to Sophia and her answer: only the latest question's answer is written, a late earlier one let go. */
-function useAsk(row: PlanRow, onAsk: Ask | undefined) {
-  const [question, setQuestion] = useState('')
-  const [asked, setAsked] = useState<string | null>(null)
-  const [answer, setAnswer] = useState<string | null>(null)
-  const latest = useRef(0)
-  const ask = (q: string) => {
-    if (!onAsk) return
-    const n = ++latest.current
-    setAsked(q)
-    setAnswer(null)
-    setQuestion('')
-    const answered = (a: string) => {
-      if (n === latest.current) setAnswer(a)
-    }
-    onAsk(row, q).then(answered, () => answered('I couldn’t reach the plan just now. Nothing was changed.'))
-  }
-  return { question, setQuestion, asked, answer, ask }
+  complete: ['What did the check find?'],
+  closed: ['Why did it stop?'],
 }
 
 /** The questions a task invites from this viewer. */
@@ -56,18 +60,61 @@ const invited = (row: PlanRow, viewerId: string | null) =>
     ? ['Why is it waiting?', 'What happens if I say yes?']
     : INVITED[row.status.mark]
 
-export function AskSophia({
-  row,
-  onAsk,
-  viewerId,
-}: {
+const FAILED = 'I couldn’t reach the conversation just now. Nothing was changed.'
+
+/** The question and what came back of it. */
+function Thread({ asked, onOpenConversation }: { asked: Asked; onOpenConversation?: (() => void) | undefined }) {
+  const said = shownOf(asked)
+  const quiet = asked.state === 'unavailable' || asked.state === 'failed'
+  const why = asked.state === 'failed' ? FAILED : `Not answered here: ${asked.reason ?? ''}`
+  return (
+    <div className="ask-thread" data-state={asked.state}>
+      <p className="ask-q">{asked.question.text}</p>
+      {quiet ? (
+        <p className="ask-a ask-none">
+          {why}{' '}
+          {onOpenConversation && (
+            <button type="button" className="text-button" onClick={onOpenConversation}>
+              Open the conversation
+            </button>
+          )}
+        </p>
+      ) : (
+        // Seen as it arrives; heard once, whole.
+        <p className="ask-a" data-thinking={said === '' || undefined} aria-hidden>
+          <span className="ask-light" />
+          {said === '' ? 'Thinking…' : said}
+        </p>
+      )}
+      <p className="sr-only" aria-live="polite">
+        {asked.state === 'answered' ? (asked.answer ?? '') : quiet ? why : 'Sophia is thinking'}
+      </p>
+    </div>
+  )
+}
+
+interface Props {
   row: PlanRow
-  onAsk?: Ask | undefined
+  plan: WorkPlan
+  asks?: Asks | undefined
   viewerId: string | null
-}) {
-  const { question, setQuestion, asked, answer, ask } = useAsk(row, onAsk)
-  const shown = useWords(answer)
-  if (!onAsk) return null
+  /** The way to the existing conversation, offered when she can't be asked from here. */
+  onOpenConversation?: (() => void) | undefined
+}
+
+export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Props) {
+  const [question, setQuestion] = useState('')
+  const action = actionOf(row, 'ask_sophia')
+  if (!asks || !action) return null
+  const asked = asks.of(row.item.id)
+  const ask = (text: string) => {
+    const unavailable = action.availability === 'allowed' ? null : action.reason
+    const about = resultsOf(row.view).current?.version_id ?? null
+    const ref = { work_id: row.item.id, plan_id: plan.plan_id, plan_revision: plan.revision }
+    asks.ask({ ...ref, candidate_version_ref: about, text }, unavailable)
+    // A question that can't go keeps its words in the field, to take to the conversation.
+    if (unavailable === null) setQuestion('')
+  }
   return (
     <section className="sheet-section ask-sophia">
       <h3>
@@ -98,19 +145,7 @@ export function AskSophia({
           Ask
         </button>
       </form>
-      {asked && (
-        <div className="ask-thread">
-          <p className="ask-q">{asked}</p>
-          {/* Seen word by word; heard once, whole. */}
-          <p className="ask-a" data-thinking={answer === null || undefined} aria-hidden>
-            <span className="ask-light" />
-            {answer === null ? 'Thinking…' : shown}
-          </p>
-          <p className="sr-only" aria-live="polite">
-            {answer ?? 'Sophia is thinking'}
-          </p>
-        </div>
-      )}
+      {asked && <Thread asked={asked} onOpenConversation={onOpenConversation} />}
     </section>
   )
 }

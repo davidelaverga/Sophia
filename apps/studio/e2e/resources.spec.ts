@@ -1479,7 +1479,8 @@ test('act · its owner acts on a session at work from its row, each step said; n
   await worker.getByRole('button', { name: 'Send', exact: true }).click()
   const steps = worker.locator('.act-steps')
   await expect(steps.locator('li[data-reached]')).toHaveCount(3) // recorded, queued, delivered, as observed
-  await expect(steps).toContainText('Delivered to its session. Not seen acting on it yet.')
+  // Delivered is not followed (WBC-01): nothing is said of what the session did with it.
+  await expect(steps).toContainText('Delivered to the session; not yet verified in the result.')
   expect(await page.evaluate(() => window.resourcesFixture?.acted)).toEqual([
     // It names the work it was meant for, as shown: its runtime refuses it for any other.
     { sessionId: 'claude-worker', kind: 'guidance', text: 'Use the staging report fixtures', workId: 'work-1' },
@@ -1487,7 +1488,9 @@ test('act · its owner acts on a session at work from its row, each step said; n
   // Stop asks first; keeping it working sends nothing, and the focus comes back to Stop, where J and K still work.
   const stop = worker.getByRole('button', { name: 'Stop', exact: true })
   await stop.click()
-  await expect(worker.getByText('Ends its session’s work at once.')).toBeVisible()
+  await expect(
+    worker.getByText('Stop this task? Completed work is kept. Running actions may need time to stop.'),
+  ).toBeVisible()
   await worker.getByRole('button', { name: 'Keep it working' }).click()
   await expect(stop).toBeFocused()
   expect(await page.evaluate(() => window.resourcesFixture?.acted?.length)).toBe(1)
@@ -1495,13 +1498,13 @@ test('act · its owner acts on a session at work from its row, each step said; n
   await stop.click()
   await worker.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
   await expect(stop).toBeFocused()
-  await expect(steps).toContainText('Delivered: asked to stop. Not seen stopping yet.')
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.')
   expect(await page.evaluate(() => window.resourcesFixture?.acted?.at(-1)?.kind)).toBe('stop')
   // Closed and opened again, its row still says its last act.
   await act.click()
   await expect(steps).toHaveCount(0)
   await act.click()
-  await expect(steps).toContainText('Delivered: asked to stop. Not seen stopping yet.')
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.')
   // A session with nothing at work has no Act.
   const reviewer = s.locator('.resource-session').filter({ hasText: 'No assignment' })
   await expect(reviewer.getByRole('button', { name: 'Act' })).toHaveCount(0)
@@ -1531,10 +1534,13 @@ test('act · a late step of an earlier act never speaks over the latest one', as
   // The guidance is delivered (1.7 s) while the Hold is only queued: the row says the Hold's step, not the guidance's.
   await page.clock.runFor(1500)
   const steps = worker.locator('.act-steps')
-  await expect(steps).toContainText('Queued…')
-  await expect(steps).not.toContainText('Delivered to its session')
-  await page.clock.runFor(1500) // then the Hold is delivered
-  await expect(steps).toContainText('Delivered: asked to hold at its next safe point. Not seen holding yet.')
+  await expect(steps).toContainText('Hold requested; waiting for the runtime to confirm.')
+  await expect(steps.locator('li[data-reached]')).toHaveCount(1) // recorded, not delivered yet
+  await expect(steps).not.toContainText('Delivered to the session')
+  await page.clock.runFor(1500) // then the Hold is delivered: requested, never said held before the runtime confirms
+  await expect(steps.locator('li[data-reached]')).toHaveCount(2)
+  await expect(steps).toContainText('Hold requested; waiting for the runtime to confirm.')
+  await expect(steps).not.toContainText('Held.')
 })
 
 test('@phone · its owner opens Act and the row keeps to one column', async ({ page }) => {

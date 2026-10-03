@@ -3,14 +3,22 @@
 import { useState } from 'react'
 import { Icon } from '@sophia/ui'
 import type { Resource } from '../../resources/resource.ts'
-import type { WorkPlan } from './plan.ts'
+import type { BoardDecision, WorkPlan } from './plan.ts'
 
 type Person = Resource['owner']
 
-/** What the plan assumes and what was decided: one quiet line, opened on request. */
-export function Folded({ plan, people }: { plan: WorkPlan; people: Record<string, Person> }) {
+const STATUS = { unresolved: null, supported: 'supported', contradicted: 'contradicted' } as const
+
+interface Props {
+  plan: WorkPlan
+  decisions: readonly BoardDecision[]
+  people: Record<string, Person>
+}
+
+/** What the plan assumes, kept apart from what was decided: one quiet line, opened on request. */
+export function Folded({ plan, decisions, people }: Props) {
   const [open, setOpen] = useState(false)
-  const decided = plan.decisions.filter((d) => d.state === 'accepted')
+  const decided = decisions.filter((d) => d.state === 'accepted')
   if (plan.assumptions.length === 0 && decided.length === 0) return null
   const said = [
     plan.assumptions.length > 0 && `${plan.assumptions.length} assumed`,
@@ -34,7 +42,10 @@ export function Folded({ plan, people }: { plan: WorkPlan; people: Record<string
           {plan.assumptions.length > 0 && (
             <ul className="plan-assumed" aria-label="Assumed">
               {plan.assumptions.map((a) => (
-                <li key={a.id}>{a.text}</li>
+                <li key={a.id} data-status={a.status}>
+                  {a.text}
+                  {STATUS[a.status] && <span className="muted"> · {STATUS[a.status]}</span>}
+                </li>
               ))}
             </ul>
           )}

@@ -5,8 +5,8 @@ import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { capacityOf, roomElsewhere, shortTileWords, shortWords, type Room } from '../../resources/room.ts'
 import type { Mark, PlanRow } from './plan.ts'
 
-/** The marks of a task whose session is at it. */
-const AT_IT: ReadonlySet<Mark> = new Set(['waiting', 'working', 'queued'])
+/** The marks of a task whose session is at it: running, waiting, queued for it, or held with its allowance kept. */
+const AT_IT: ReadonlySet<Mark> = new Set(['waiting', 'working', 'queued', 'held'])
 
 export interface Account {
   /** "runs out in ~34 min", for its sheet; null when it isn't short. */

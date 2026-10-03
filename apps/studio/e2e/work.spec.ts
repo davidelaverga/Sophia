@@ -47,18 +47,23 @@ test('four lanes, each task in the one its state says; the words only where the 
   page,
 }) => {
   await page.goto(PAGE)
-  expect(await titles(lane(page, 'In motion'))).toEqual(['Implement the PDF retry', 'Review the report pane'])
+  // WBC-01: Active, Up next, Unassigned, Complete. A finished run waiting for its check is Active, not done.
+  expect(await titles(lane(page, 'Active'))).toEqual([
+    'Implement the PDF retry',
+    'Write the retry’s failing test',
+    'Review the report pane',
+  ])
   expect(await titles(lane(page, 'Up next'))).toEqual([
     'Review the retry’s candidate',
     'Write the export’s release note',
   ])
-  expect(await titles(lane(page, 'Open'))).toEqual(['Measure render time on large reports'])
-  expect(await titles(lane(page, 'Done'))).toEqual(['Write the retry’s failing test', 'Reproduce the failed render'])
+  expect(await titles(lane(page, 'Unassigned'))).toEqual(['Measure render time on large reports'])
+  expect(await titles(lane(page, 'Complete'))).toEqual(['Reproduce the failed render'])
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
   await expect(lane(page, 'Up next').locator('.task-chip')).toHaveCount(0)
-  await expect(tile(page, 'work-0b').locator('.task-chip')).toHaveText('Not checked yet') // finished isn't accepted
-  await expect(tile(page, 'work-0a').locator('.task-chip')).toHaveText('Checked')
+  await expect(tile(page, 'work-0b').locator('.task-chip')).toHaveText('Ready for review') // finished isn't accepted
+  await expect(lane(page, 'Complete').locator('.task-chip')).toHaveCount(0) // the lane says it
   await expect(tile(page, 'work-1-review')).toContainText('Reviews Implement the PDF retry')
   await page.goto(`${PAGE}?viewer=davide`)
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on you')
@@ -110,7 +115,7 @@ test('lenses dim what they don’t show and move nothing; each says how many it 
   await expect(board(page).locator('.task-tile:not([data-dim])')).toHaveCount(3) // Luis's three
   await expect(tile(page, 'work-1')).toHaveAttribute('data-dim', 'true')
   expect(await place()).toEqual(before)
-  await lens('Open').click()
+  await lens('Unassigned').click()
   await expect(board(page).locator('.task-tile:not([data-dim])')).toHaveCount(1)
   await page.keyboard.press('ArrowLeft') // the arrows move between lenses
   await expect(lens('Waiting')).toHaveAttribute('aria-checked', 'true')
@@ -210,13 +215,20 @@ test('its decider answers in one press: sent, both held, then decided once the l
   await expect(ask).toContainText('expires in 2 h')
   const choices = ask.getByRole('group', { name: 'Your choice' }).getByRole('button')
   await choices.first().click()
-  await expect(ask.getByRole('status')).toHaveText('Sent: Ship it now. It shows as decided once the lead records it.')
+  await expect(ask.getByRole('status')).toHaveText('Your choice is recorded. The plan is updating.')
   await expect(choices.last()).toBeDisabled()
-  expect(await page.evaluate(() => window.workFixture?.answered)).toEqual([
-    { decision: 'd1', revision: 4, choice: 'ship' }, // the decision's own revision, not the plan's
-  ])
+  const [answer] = (await page.evaluate(() => window.workFixture?.answered)) ?? []
+  // The decision's own revision, not the plan's, bound to the work and plan revision it is about, as one operation.
+  expect(answer).toMatchObject({ decision_id: 'd1', revision: 4, choice: 'ship', work_id: 'work-1', plan_id: 'plan-1' })
+  expect(answer?.plan_revision).toBe(2)
+  expect(answer?.operation_id).toMatch(/^[\w-]{8,}$/)
+  // The service records the choice; the plan takes it in later, a separate state (UI-14).
   await page.evaluate(() => window.workFixture?.settle?.('d1'))
   await expect(board(page).locator('.decision-pill')).toHaveCount(0)
+  await expect(board(page).locator('.board-decided')).toContainText('Your choice is recorded. The plan is updating.')
+  await expect(page.locator('.plan-next')).toContainText('r2')
+  await page.evaluate(() => window.workFixture?.react?.('d1'))
+  await expect(board(page).locator('.board-decided')).toHaveCount(0)
   await expect(page.locator('.plan-next')).toContainText('r3')
   await board(page).getByRole('button', { name: '2 assumed · 2 decided' }).click()
   await expect(board(page).getByRole('list', { name: 'Decided' })).toContainText('Davide chose Ship it now')
@@ -227,7 +239,7 @@ test('an answer to a decision that changed is refused, said so, and can be given
   const ask = board(page).getByRole('region', { name: 'Davide decides' })
   await ask.getByRole('button', { name: 'Wait for the review' }).click()
   await expect(ask.getByRole('status')).toHaveText(
-    'This decision changed since you read it. Nothing was chosen: read it again.',
+    'This decision changed. Nothing was chosen; review the current choices.',
   )
   await expect(ask.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
 })
@@ -255,7 +267,7 @@ test('pressing a task opens it: who and what it last did, what it waits on and w
   await expect(tile(page, 'work-1')).toBeFocused() // back to the tile it was opened from
 })
 
-test('its owner acts from the sheet, each step said as it is observed; anyone else is told whose it is', async ({
+test('acting from the sheet: each step said as observed; a builder within the mandate, a viewer not at all', async ({
   page,
 }) => {
   await page.goto(`${PAGE}?viewer=davide`)
@@ -266,13 +278,27 @@ test('its owner acts from the sheet, each step said as it is observed; anyone el
   const steps = sheet.locator('.act-steps')
   await expect(steps.locator('li[data-reached]')).toHaveCount(1) // recorded
   await expect(steps.locator('li[data-reached]')).toHaveCount(3) // queued, then delivered
-  await expect(steps).toContainText('Delivered to its session. Not seen acting on it yet.')
-  await sheet.getByRole('button', { name: 'Stop' }).click()
-  await expect(sheet.getByRole('group', { name: 'Stop' })).toContainText('Ends its session’s work at once.')
-  await page.goto(PAGE) // Luis
+  await expect(steps).toContainText('Delivered to the session; not yet verified in the result.')
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  // WBC-01: Stop promises nothing it can't see.
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toContainText(
+    'Stop this task? Completed work is kept. Running actions may need time to stop.',
+  )
+  // Luis builds: he may guide Davide's session within Davide's mandate, and is told so (UI-08).
+  await page.goto(PAGE)
   await tile(page, 'work-1').click()
-  await expect(page.getByRole('dialog')).toContainText('Davide steers, holds or stops their own sessions.')
-  await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  const luis = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(luis.getByRole('textbox', { name: 'Guidance for its session' })).toBeVisible()
+  await expect(luis.locator('.act-boundary')).toHaveText('Within Davide’s contribution to this project.')
+  // Mara reads: nothing to send, and why.
+  await page.goto(`${PAGE}?viewer=mara`)
+  await tile(page, 'work-1').click()
+  const mara = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(mara.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  await expect(mara.locator('.act-note')).toHaveText(
+    'Guidance, Hold and Stop: Viewers ask and read; they don’t retask.',
+  )
+  await expect(mara.getByRole('button', { name: 'Why is it waiting?' })).toBeVisible() // she can still ask
 })
 
 test('Sophia is asked about a task from its sheet; her answer writes itself in, and is heard once, whole', async ({
@@ -291,6 +317,8 @@ test('the board by keys: the arrows across lanes, Enter opens', async ({ page })
   await page.goto(PAGE)
   await settled(page)
   await tile(page, 'work-1').focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(tile(page, 'work-0b')).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(tile(page, 'work-2')).toBeFocused()
   await page.keyboard.press('ArrowRight')
@@ -338,7 +366,7 @@ test('@phone · one lane under another, the goal’s actions under its words, no
   await page.goto(PAGE)
   await expect(board(page).locator('.task-tile')).toHaveCount(7)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
-  const a = await lane(page, 'In motion').boundingBox()
+  const a = await lane(page, 'Active').boundingBox()
   const b = await lane(page, 'Up next').boundingBox()
   expect(b?.y ?? 0).toBeGreaterThan((a?.y ?? 0) + (a?.height ?? 0) - 1)
 })
@@ -423,7 +451,9 @@ test('an answer not confirmed holds the other choice: only the same can be tried
     .or(board(page).getByRole('region', { name: 'Davide decides' }))
   const choices = ask.getByRole('group', { name: 'Your choice' })
   await choices.getByRole('button', { name: 'Ship it now' }).click()
-  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(ask.getByRole('status')).toHaveText(
+    'Checking whether your choice was recorded. Do not choose again yet.',
+  )
   await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
   await expect(choices.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
 })
@@ -435,17 +465,23 @@ test('an answer not confirmed holds when the decisions close and open, and when 
   const ask = board(page).getByRole('region', { name: 'Davide decides' })
   const choices = ask.getByRole('group', { name: 'Your choice' })
   await choices.getByRole('button', { name: 'Ship it now' }).click()
-  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(ask.getByRole('status')).toHaveText(
+    'Checking whether your choice was recorded. Do not choose again yet.',
+  )
   const pill = board(page).locator('.decision-pill')
   await pill.click()
   await expect(ask).toHaveCount(0)
   await pill.click()
-  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(ask.getByRole('status')).toHaveText(
+    'Checking whether your choice was recorded. Do not choose again yet.',
+  )
   await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
   await page.getByRole('tab', { name: /The report pane says/ }).click()
   await page.getByRole('tab', { name: /Reports export to PDF/ }).click()
   // A new board: the decider's own decisions open by themselves, and the answer is still there.
-  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(ask.getByRole('status')).toHaveText(
+    'Checking whether your choice was recorded. Do not choose again yet.',
+  )
   await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
   await expect(choices.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
 })

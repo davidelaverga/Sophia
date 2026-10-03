@@ -1,146 +1,206 @@
-// The technical lead's plan, as the Studio reads it (LFE-07.1): `sophia.work.plan.v1` (contracts/coordination/
-// work-plan.schema.json) as it is, plus what 07.1 shows that the schema doesn't carry yet, proposed for SCM-04: the
-// goal it serves, its next checkpoint, what it assumes and the decisions it reserves (06_LEAD_RECIPES §3 puts those
-// last two in the plan). Who does an item is found, not stored twice: the resource whose session has that work as its
-// assignment (LFE-06). Nothing here computes progress: no percentage, no timer.
-import { TOOL, WORK_STATE, type RequiredAction, type Resource, type Session } from '../../resources/resource.ts'
+// The lead's plan on the board (LFE-07.1, WBC-01): one goal's view (board-view.ts) as rows. A row is a plan item, its
+// definition from the accepted plan, joined to what is observed of it now: its exact assignment, what it waits on, its
+// last report from that same attempt, its candidates, review and completion, and what this viewer may do to it.
+//
+// Where a row stands is read from that observation and nothing else: no list order, no session that happens to share
+// its work id, no account owner standing in for whoever must answer. Unknown stays unknown (no write control), a
+// closed failure is never coloured as success, and Complete needs the item's own completion policy satisfied with
+// evidence. A proposed plan is shown beside the accepted one, or alone and read-only while none is accepted; it never
+// inherits execution authority. Nothing here computes progress: no percentage, no timer.
+import type { Resource, Session } from '../../resources/resource.ts'
+import type {
+  Activity,
+  ActionKind,
+  Assignment,
+  BoardDecision,
+  ExecutorKind,
+  GoalView,
+  ItemAction,
+  ItemView,
+  Lifecycle,
+  PlanItem,
+  Wait,
+  WaitKind,
+  WorkPlan,
+} from './board-view.ts'
+import { reviewIsOfAnother } from './results.ts'
 
-export interface PlanItem {
-  id: string
-  purpose: string
-  /** Grouping: the item this one belongs under. Not a blocker. */
-  parent_id: string | null
-  /** The items that must finish first. */
-  blocked_by: string[]
-  assignee_kind: 'assignment' | 'human' | 'unassigned'
-  assignee_id: string | null
-  activation: { kind: 'immediate' | 'dependencies_satisfied' | 'candidate_ready'; producer_work_id: string | null }
-  /**
-   * How it ended, once it has (proposed for SCM-04): its run finished, or its result was checked. A finished run is not
-   * accepted work (07_STUDIO_VOICE_AND_ARTIFACTS): the two are said apart.
-   */
-  outcome?: { state: 'finished' | 'checked'; at: string } | null
-}
-
-/** A decision the plan reserves for someone: decision.v1's shape, with the question it asks (proposed). */
-export interface PlanDecision {
-  decision_id: string
-  /** Its own revision (decision.v1): an answer names it, so one given to an older revision is refused as stale. */
-  revision: number
-  question: string
-  decider_id: string
-  state: 'proposed' | 'accepted' | 'declined' | 'expired' | 'superseded'
-  choices: { key: string; label: string }[]
-  selected_choice: string | null
-  /** When it stops waiting for an answer (decision.v1 requires one). */
-  expires_at: string
-}
-
-export interface WorkPlan {
-  plan_id: string
-  revision: number
-  mission_revision: number
-  state: 'proposed' | 'accepted' | 'superseded' | 'withdrawn'
-  items: PlanItem[]
-  /** Proposed for SCM-04: the goal it serves, its next checkpoint, what it assumes, what it reserves. */
-  goal_id: string
-  next_checkpoint: { label: string; item_id: string | null } | null
-  assumptions: { id: string; text: string }[]
-  decisions: PlanDecision[]
-}
-
-/** Whether a decision can still be answered: proposed, and not past its expiry. */
-export const actionable = (d: PlanDecision, now: Date) =>
-  d.state === 'proposed' && Date.parse(d.expires_at) > now.getTime()
-
-/**
- * Whether a plan holds something for the viewer: a task waiting on them (a request names them), or a decision of
- * theirs still to answer. A decision past its expiry calls no one.
- */
-export const forYou = (rows: readonly PlanRow[], plan: WorkPlan, viewerId: string | null, now: Date) =>
-  rows.some((r) => r.status.mark === 'waiting' && r.status.on?.id === viewerId) ||
-  plan.decisions.some((d) => d.decider_id === viewerId && actionable(d, now))
-
-/** A plan worth showing: the one in force, or one proposed. A superseded or withdrawn plan is history, not the plan. */
-export const current = (plan: WorkPlan | null | undefined) =>
-  plan && (plan.state === 'accepted' || plan.state === 'proposed') ? plan : null
+export type { BoardDecision, GoalView, PlanItem, WorkPlan } from './board-view.ts'
 
 type Person = Resource['owner']
 
+/** Whether a decision can still be answered: proposed, and not past its expiry. */
+export const actionable = (d: BoardDecision, now: Date) =>
+  d.state === 'proposed' && Date.parse(d.expires_at) > now.getTime()
+
+/** The plan in force, when one is accepted. A superseded or withdrawn plan is history, not the plan. */
+export const accepted = (goal: GoalView | null | undefined): WorkPlan | null =>
+  goal?.current_plan?.state === 'accepted' ? goal.current_plan : null
+
+/** Replacements proposed and not accepted yet. */
+export const proposed = (goal: GoalView | null | undefined): WorkPlan[] =>
+  (goal?.proposed_plans ?? []).filter((p) => p.state === 'proposed')
+
+/**
+ * The plan the board shows: the accepted one, operable; else the first proposed, read only. None when the goal has
+ * neither: it is then shown as a goal without a plan.
+ */
+export function shownPlan(goal: GoalView | null | undefined): { plan: WorkPlan; operable: boolean } | null {
+  const inForce = accepted(goal)
+  if (inForce) return { plan: inForce, operable: true }
+  const first = proposed(goal)[0]
+  return first ? { plan: first, operable: false } : null
+}
+
 export interface Doer {
-  /** "Davide’s Claude Code", "Luis", or "Unassigned". */
+  /** "Davide’s Claude Code", "Sophia", "Luis", "Unassigned". */
   name: string
+  /** "Source reviewer", "worker". */
   role: string | null
+  /** Who executes it, as its assignment says; null when no assignment is observed. */
+  kind: ExecutorKind | null
+  /** The owner's resource it runs on, when the assignment names one; Sophia's own workers have none. */
   resource: Resource | null
-  /** The person behind it: the resource's owner, or who does it by hand. */
+  /** The person behind it: the account's owner, or who does it by hand; null for Sophia's own workers. */
   person: Person | null
-  /** The session doing it, when one is. */
+  /** The native session the assignment names, when its resource lists it; never one found by its work id. */
   session: Session | null
-  /** What its session reports of this work; null before it starts or when no session reports it. */
-  state: NonNullable<Session['assignment']>['state'] | null
+  assignment: Assignment | null
 }
 
-const UNASSIGNED: Doer = { name: 'Unassigned', role: null, resource: null, person: null, session: null, state: null }
-
-/** Who does an item: the resource whose session has it as its assignment, or the person named; else said unassigned. */
-export function whoDoes(item: PlanItem, resources: readonly Resource[], people: Record<string, Person>): Doer {
-  if (item.assignee_kind === 'human' && item.assignee_id) {
-    const person = people[item.assignee_id] ?? null
-    return { ...UNASSIGNED, name: person?.name ?? 'Someone on the team', person }
-  }
-  if (item.assignee_kind !== 'assignment') return UNASSIGNED
-  // The session holding the assignment the item names, when sessions say theirs; else the one on its work. During a
-  // handover two can hold the same work: the named assignment decides, not the list's order.
-  const named = (s: Session) => item.assignee_id !== null && s.assignment?.id === item.assignee_id
-  // By its work only when its assignment doesn't say otherwise: a session that names another assignment was replaced.
-  const onIt = (s: Session) =>
-    s.assignment?.workId === item.id && (s.assignment.id === undefined || item.assignee_id === null)
-  for (const match of [named, onIt]) {
-    const found = findSession(resources, match)
-    if (found) return doing(found.resource, found.session)
-  }
-  return { ...UNASSIGNED, name: 'Assigned, not running yet' }
+const UNASSIGNED: Doer = {
+  name: 'Unassigned',
+  role: null,
+  kind: null,
+  resource: null,
+  person: null,
+  session: null,
+  assignment: null,
 }
 
-/** The first resource's session that matches. */
-function findSession(resources: readonly Resource[], match: (s: Session) => boolean) {
-  for (const resource of resources) {
-    const session = resource.sessions.find(match)
-    if (session) return { resource, session }
-  }
-  return null
-}
+/** The person an id names, or one made from the name the view gives; null when there is neither. */
+const personOf = (id: string | null, people: Record<string, Person>, name?: string): Person | null =>
+  id ? (people[id] ?? (name ? { id, name } : null)) : null
 
-/** A session doing an item, as a doer. */
-function doing(resource: Resource, session: Session): Doer {
-  return {
-    name: `${resource.owner.name}’s ${TOOL[resource.tool]}`,
-    role: session.role,
-    resource,
-    person: resource.owner,
-    session,
-    state: session.assignment?.state ?? null,
+/** Who does an item: its admitted assignment, exactly; else the person the plan names; else unassigned. */
+export function whoDoes(
+  item: PlanItem,
+  view: ItemView | null,
+  resources: readonly Resource[],
+  people: Record<string, Person>,
+): Doer {
+  const assignment = view?.assignment ?? null
+  if (assignment) {
+    const { executor } = assignment
+    const resource = resources.find((r) => r.id === executor.resource_id) ?? null
+    return {
+      name: executor.display_name,
+      role: executor.role,
+      kind: executor.kind,
+      resource,
+      person: executor.kind === 'sophia_native' ? null : personOf(executor.owner_id, people, executor.display_name),
+      session: resource?.sessions.find((s) => s.id === assignment.native_session_id) ?? null,
+      assignment,
+    }
   }
+  if (item.assignee_kind === 'human') {
+    const person = personOf(item.assignee_id, people)
+    return { ...UNASSIGNED, name: person?.name ?? 'Someone on the team', kind: 'human', person }
+  }
+  return item.assignee_kind === 'assignment' ? { ...UNASSIGNED, name: 'Assigned, not running yet' } : UNASSIGNED
 }
 
 /**
- * Where an item stands, as one mark and a few words: waiting on its owner, working, queued, not started yet (and what
- * for), free for someone to take, or done: finished, then checked. `rank` orders the plan by what moves: what waits on someone first.
+ * Where an item stands, as one mark and a few words. The mark decides its lane (`LANE`), and `rank` orders the plan by
+ * what needs someone: what waits first, what is closed last.
  */
-export type Mark = 'waiting' | 'working' | 'queued' | 'later' | 'free' | 'finished' | 'checked'
+export type Mark =
+  | 'waiting'
+  | 'changes'
+  | 'review'
+  | 'unknown'
+  | 'held'
+  | 'working'
+  | 'queued'
+  | 'later'
+  | 'free'
+  | 'complete'
+  | 'closed'
+export type Lane = 'active' | 'next' | 'unassigned' | 'complete' | 'closed'
+
 export interface Status {
   mark: Mark
   text: string
   rank: number
-  /** Whom a waiting task waits on: the owner an open request of its session names; null when none does. */
+  /** Whom a waiting task waits on first: the viewer when a request names them; null when no person answers it. */
   on?: Person | null
 }
 
-/** The marks in the order they draw attention: what waits on someone first, what no one has last. */
-const MARKS: readonly Mark[] = ['waiting', 'working', 'queued', 'later', 'free', 'finished', 'checked']
+const MARKS: readonly Mark[] = [
+  'waiting',
+  'changes',
+  'review',
+  'unknown',
+  'held',
+  'working',
+  'queued',
+  'later',
+  'free',
+  'complete',
+  'closed',
+]
+
+/** The lane each mark sits in: a view over the item's state, not four more operational states. */
+export const LANE: Readonly<Record<Mark, Lane>> = {
+  waiting: 'active',
+  changes: 'active',
+  review: 'active',
+  unknown: 'active',
+  held: 'active',
+  working: 'active',
+  queued: 'next',
+  later: 'next',
+  free: 'unassigned',
+  complete: 'complete',
+  closed: 'closed',
+}
+
 const at = (mark: Mark, text: string): Status => ({ mark, text, rank: MARKS.indexOf(mark) })
 
-/** The items an item waits on: its blockers, and the producer whose candidate it reviews. */
+/** One thing a row waits on, with the person who answers it, when one does. */
+export interface WaitRow {
+  wait: Wait
+  who: Person | null
+}
+
+/** What a wait is, when no person answers it. */
+const WAIT_KIND: Readonly<Record<WaitKind, string>> = {
+  product_decision: 'Waiting on a decision',
+  native_permission: 'Waiting on a permission',
+  dependency: 'Waiting on other work',
+  capacity: 'Waiting for capacity',
+  connection: 'Waiting for its connection',
+  external: 'Waiting on someone outside',
+}
+
+/** A wait, as a chip says it: "Waiting on Davide", or what it waits for. */
+export const waitSaid = (w: WaitRow) => (w.who ? `Waiting on ${w.who.name}` : WAIT_KIND[w.wait.kind])
+
+/** The waits still open: pending, or not known to have ended. Resolved and expired ones call no one. */
+export const open = (waits: readonly WaitRow[]) =>
+  waits.filter((w) => w.wait.state === 'pending' || w.wait.state === 'unknown')
+
+/** A waiting item: on the viewer first, when a pending request names them; else on the first person; else what. */
+function waiting(waits: readonly WaitRow[], viewerId: string | null): Status {
+  const pending = open(waits).filter((w) => w.wait.state === 'pending')
+  const first =
+    pending.find((w) => viewerId !== null && w.wait.respondent_id === viewerId) ??
+    pending.find((w) => w.who !== null) ??
+    pending[0]
+  return first ? { ...at('waiting', waitSaid(first)), on: first.who } : { ...at('waiting', 'Waiting'), on: null }
+}
+
+/** The items an item waits on in its plan: its blockers, and the producer whose candidate it reviews. */
 export const waitsOn = (item: PlanItem) => [
   ...item.blocked_by,
   ...(item.activation.kind === 'candidate_ready' && item.activation.producer_work_id
@@ -148,105 +208,271 @@ export const waitsOn = (item: PlanItem) => [
     : []),
 ]
 
+/** A phrase that continues a sentence: its first letter small, a name in it kept as it is. */
+const continuing = (said: string) => said.charAt(0).toLowerCase() + said.slice(1)
+
+const purposeIn = (plan: WorkPlan) => (id: string) => plan.items.find((i) => i.id === id)?.purpose ?? 'other work'
+
+/** What a task not begun hangs on, every condition, for its tile's foot: its relations, then its open waits. */
+export const hangsOn = (row: PlanRow, plan: WorkPlan): string | null =>
+  [relation(row.item, plan), ...(LANE[row.status.mark] === 'active' ? [] : open(row.waits).map(waitSaid))]
+    .filter((s) => s !== null)
+    .join(' · ') || null
+
 /** How a task hangs on others, in a few words: the build it reviews, and what it comes after. Null when it doesn't. */
 export function relation(item: PlanItem, plan: WorkPlan): string | null {
-  const purpose = (id: string) => plan.items.find((i) => i.id === id)?.purpose ?? 'other work'
+  const purpose = purposeIn(plan)
   const producer = item.activation.kind === 'candidate_ready' ? item.activation.producer_work_id : null
   const after = item.blocked_by.length > 0 ? `after ${item.blocked_by.map(purpose).join(' and ')}` : null
   if (producer) return after ? `Reviews ${purpose(producer)}, ${after}` : `Reviews ${purpose(producer)}`
   return after ? `A${after.slice(1)}` : null
 }
 
-/** Where a task stands once it has ended: checked, or finished and not checked yet. */
-const ended = (item: PlanItem): Status | null => {
-  if (item.outcome?.state === 'checked') return at('checked', 'Checked')
-  return item.outcome?.state === 'finished' ? at('finished', 'Finished, not checked yet') : null
+/** What a task not started yet waits for, every condition: its blockers, a candidate to review, and open waits. */
+export function startsWhen(item: PlanItem, plan: WorkPlan, waits: readonly WaitRow[]): string | null {
+  const purpose = purposeIn(plan)
+  const parts = [
+    item.blocked_by.length > 0 ? `after ${item.blocked_by.map(purpose).join(' and ')}` : null,
+    item.activation.kind === 'candidate_ready' ? 'once there is a candidate to review' : null,
+    ...open(waits).map((w) => continuing(waitSaid(w))),
+  ].filter((p) => p !== null)
+  const said = parts.join(', ')
+  return said ? said.charAt(0).toUpperCase() + said.slice(1) : null
 }
 
-/** Whom a waiting session waits on: the owner its open request names, if one does. */
-function waitingOn(
-  item: PlanItem,
-  doer: Doer,
-  actions: readonly RequiredAction[],
-  people: Record<string, Person>,
-): Person | null {
-  const request = actions.find((a) => a.sessionId === doer.session?.id && a.workId === item.id && a.state === 'open')
-  if (!request) return null
-  return people[request.ownerId] ?? (doer.person?.id === request.ownerId ? doer.person : null)
+const CLOSED: Readonly<Partial<Record<Lifecycle, string>>> = {
+  stopped: 'Stopped',
+  cancelled: 'Cancelled',
+  failed: 'Failed',
+  superseded: 'Superseded',
 }
 
-/** What a task not started yet waits for: its blockers, a candidate to review, or both. */
-function notYet(item: PlanItem, plan: WorkPlan): Status | null {
-  const purpose = (id: string) => plan.items.find((i) => i.id === id)?.purpose ?? 'other work'
-  const after = item.blocked_by.length > 0 ? `After ${item.blocked_by.map(purpose).join(' and ')}` : null
-  if (item.activation.kind === 'candidate_ready') {
-    return at('later', after ? `${after}, once there is a candidate to review` : 'Once there is a candidate to review')
-  }
-  return after ? at('later', after) : null
+const MOVING: Readonly<Partial<Record<Lifecycle, [Mark, string]>>> = {
+  running: ['working', 'Working'],
+  held: ['held', 'Held'],
+  ready_for_review: ['review', 'Ready for review'],
+  changes_required: ['changes', 'Changes needed'],
 }
 
-export function status(
-  item: PlanItem,
-  doer: Doer,
-  plan: WorkPlan,
-  actions: readonly RequiredAction[] = [],
-  people: Record<string, Person> = {},
-): Status {
-  const done = ended(item)
-  if (done) return done
-  if (doer.state === 'waiting') {
-    // Waiting on someone only when an open request names them: a session can wait on other things too.
-    const on = waitingOn(item, doer, actions, people)
-    return { ...at('waiting', on ? `Waiting on ${on.name}` : 'Waiting'), on }
-  }
-  if (doer.state === 'running') return at('working', 'Working')
-  // Recorded and queued share a lane, each said as itself.
-  if (doer.state) return at('queued', WORK_STATE[doer.state][1])
-  const later = notYet(item, plan)
-  if (later) return later
-  if (item.assignee_kind === 'unassigned') return at('free', 'Free to take')
-  return at('later', 'Not started')
+/** Complete, as the item's own policy says it: satisfied, with evidence. Anything less is not success. */
+export const completeByPolicy = (view: ItemView) =>
+  view.lifecycle === 'complete' && view.completion.status === 'satisfied' && view.completion.evidence_refs.length > 0
+
+/** A complete item, shown as complete only with its evidence, and with its check of the version it holds now. */
+function completed(view: ItemView): Status {
+  if (!completeByPolicy(view)) return at('unknown', 'Not shown as complete: no evidence')
+  return reviewIsOfAnother(view)
+    ? at('unknown', 'Not shown as complete: its check was of another version')
+    : at('complete', 'Complete')
+}
+
+/** Whether what is observed of an assignment can be trusted as its state now. */
+const observed = (view: ItemView) => !view.assignment || view.assignment.observation_state === 'observed'
+
+/** Where an item that has not begun stands: queued, up next with what it waits for, or unassigned. */
+function notBegun(item: PlanItem, view: ItemView, plan: WorkPlan, waits: readonly WaitRow[]): Status {
+  const when = startsWhen(item, plan, waits)
+  if (view.lifecycle === 'queued') return at('queued', when ? `Queued · ${continuing(when)}` : 'Queued')
+  if (!view.assignment && item.assignee_kind === 'unassigned') return at('free', when ?? 'Unassigned')
+  return at('later', when ?? 'Not started')
+}
+
+export interface Standing {
+  item: PlanItem
+  view: ItemView | null
+  plan: WorkPlan
+  waits: readonly WaitRow[]
+  viewerId: string | null
+}
+
+/** Where an item stands now, from its observation alone. */
+export function status({ item, view, plan, waits, viewerId }: Standing): Status {
+  if (!view) return at('unknown', 'Not observed')
+  const closed = CLOSED[view.lifecycle]
+  if (closed) return at('closed', closed)
+  if (view.lifecycle === 'complete') return completed(view)
+  if (view.lifecycle === 'unknown') return at('unknown', 'State unknown')
+  if (!observed(view))
+    return at('unknown', view.assignment?.observation_state === 'offline' ? 'Host offline' : 'Not observed')
+  if (view.lifecycle === 'waiting') return waiting(waits, viewerId)
+  const moving = MOVING[view.lifecycle]
+  return moving ? at(...moving) : notBegun(item, view, plan, waits)
 }
 
 export interface PlanRow {
   item: PlanItem
+  /** What is observed of it now; null when the view says nothing of it, or says it twice. */
+  view: ItemView | null
   doer: Doer
   status: Status
   /** 0 for a top item; 1 for one grouped under it, 2 under that, and so on. */
   depth: number
+  /** Everything it waits on, typed, with who answers each. */
+  waits: WaitRow[]
+  /** Its last report, from its current attempt and generation only; an earlier attempt's is not its state now. */
+  activity: Activity | null
+  /** What the viewer may do to it, as the view says; none on a plan that isn't in force. */
+  actions: ItemAction[]
+}
+
+/** What the view says the viewer may do; missing means unavailable, never allowed. */
+export const actionOf = (row: PlanRow, kind: ActionKind): ItemAction | null =>
+  row.actions.find((a) => a.kind === kind) ?? null
+export const allowed = (row: PlanRow, kind: ActionKind) => actionOf(row, kind)?.availability === 'allowed'
+
+/** The lane a row sits in. */
+export const laneOf = (row: PlanRow): Lane => LANE[row.status.mark]
+
+/** Whether a row is for the viewer: a pending request names them, or they do it by hand. Owning an account is not. */
+export const forViewer = (row: PlanRow, viewerId: string | null) =>
+  viewerId !== null &&
+  (row.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId) ||
+    (row.doer.kind === 'human' && row.doer.person?.id === viewerId))
+
+/**
+ * Whether a goal holds something for the viewer to answer: a pending request that names them, or a decision of theirs
+ * still to answer. A decision past its expiry calls no one; work they do by hand is theirs, not a request.
+ */
+export const forYou = (
+  rows: readonly PlanRow[],
+  decisions: readonly BoardDecision[],
+  viewerId: string | null,
+  now: Date,
+) =>
+  viewerId !== null &&
+  (rows.some((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId)) ||
+    decisions.some((d) => d.decider_id === viewerId && actionable(d, now)))
+
+/** Its last report, when it is its current attempt's, in its current generation. */
+const currentActivity = (view: ItemView | null): Activity | null => {
+  const activity = view?.activity ?? null
+  const assignment = view?.assignment ?? null
+  return activity &&
+    assignment &&
+    activity.assignment_generation === assignment.generation &&
+    activity.attempt_id === assignment.attempt_id
+    ? activity
+    : null
 }
 
 /** Each item once, depth first under its head, however deep; one caught in a loop of parents still comes, alone. */
-function groups(plan: WorkPlan): { item: PlanItem; depth: number }[][] {
-  const ids = new Set(plan.items.map((i) => i.id))
+function groups(items: readonly PlanItem[]): { item: PlanItem; depth: number }[][] {
+  const ids = new Set(items.map((i) => i.id))
   const seen = new Set<string>()
   const under = (item: PlanItem, depth: number): { item: PlanItem; depth: number }[] => {
     seen.add(item.id)
-    const children = plan.items.filter((c) => c.parent_id === item.id && !seen.has(c.id))
+    const children = items.filter((c) => c.parent_id === item.id && !seen.has(c.id))
     return [{ item, depth }, ...children.flatMap((c) => under(c, depth + 1))]
   }
-  const heads = plan.items.filter((i) => i.parent_id === null || !ids.has(i.parent_id)).map((h) => under(h, 0))
-  const caught = plan.items.filter((i) => !seen.has(i.id)).map((i) => (seen.has(i.id) ? [] : under(i, 0)))
+  const heads = items.filter((i) => i.parent_id === null || !ids.has(i.parent_id)).map((h) => under(h, 0))
+  const caught = items.filter((i) => !seen.has(i.id)).map((i) => (seen.has(i.id) ? [] : under(i, 0)))
   return [...heads, ...caught.filter((g) => g.length > 0)]
 }
 
-/**
- * The plan's rows, ordered by what moves: each top item with what it groups under it, however deep, and the groups by
- * their head's mark, what waits on someone first; plan order within a mark. One whose parent isn't in the plan stands
- * alone. A waiting task says whom it waits on from the open requests (`actions`).
- */
-export function planRows(
+/** The first item of each id: a repeated id is reported (planProblems), never drawn twice. */
+const unique = (items: readonly PlanItem[]) => items.filter((i, n) => items.findIndex((j) => j.id === i.id) === n)
+
+/** Each item's observation by its work id; one observed twice is ambiguous, so it has none. */
+function viewsOf(goal: GoalView): Map<string, ItemView | null> {
+  const views = new Map<string, ItemView | null>()
+  for (const view of goal.items) views.set(view.work_id, views.has(view.work_id) ? null : view)
+  return views
+}
+
+export interface Board {
+  plan: WorkPlan
+  /** Whether the plan is in force: a proposed plan is read, never operated. */
+  operable: boolean
+  rows: PlanRow[]
+  /** What doesn't hold together in it, in words; each item is still shown once. */
+  problems: string[]
+}
+
+interface Readers {
+  resources: readonly Resource[]
+  people: Record<string, Person>
+  viewerId: string | null
+}
+
+/** A proposed plan's item: nothing about it is observed, and it runs nowhere yet. */
+const PROPOSED: ItemView = {
+  work_id: '',
+  lifecycle: 'planned',
+  assignment: null,
+  waiting_on: [],
+  activity: null,
+  candidates: [],
+  review: { state: 'not_requested', candidate_version_ref: null, evidence_refs: [] },
+  completion: { policy_ref: 'proposed', status: 'not_evaluated', evidence_refs: [] },
+  closed_reason: null,
+  available_actions: [],
+}
+
+/** One item as a row of the shown plan. */
+function rowOf(
+  { item, depth }: { item: PlanItem; depth: number },
   plan: WorkPlan,
-  resources: readonly Resource[],
-  people: Record<string, Person>,
-  actions: readonly RequiredAction[] = [],
-): PlanRow[] {
-  const row = ({ item, depth }: { item: PlanItem; depth: number }): PlanRow => {
-    const doer = whoDoes(item, resources, people)
-    return { item, doer, status: status(item, doer, plan, actions, people), depth }
+  view: ItemView | null,
+  operable: boolean,
+  { resources, people, viewerId }: Readers,
+): PlanRow {
+  const live = operable ? view : null
+  const waits = (live?.waiting_on ?? []).map((wait) => ({ wait, who: personOf(wait.respondent_id, people) }))
+  const doer = whoDoes(item, live, resources, people)
+  const shown = operable ? status({ item, view: live, plan, waits, viewerId }) : notBegun(item, PROPOSED, plan, [])
+  return {
+    item,
+    view: live,
+    doer,
+    status: shown,
+    depth,
+    waits,
+    activity: currentActivity(live),
+    actions: live?.available_actions ?? [],
   }
-  return groups(plan)
-    .map((g) => g.map(row))
+}
+
+/**
+ * The shown plan's rows, ordered by what needs someone: each top item with what it groups under it, however deep, and
+ * the groups by their head's mark; plan order within a mark. One whose parent isn't in the plan stands alone.
+ */
+export function boardOf(goal: GoalView | null | undefined, readers: Readers): Board | null {
+  const shown = goal ? shownPlan(goal) : null
+  if (!goal || !shown) return null
+  const { plan, operable } = shown
+  const views = viewsOf(goal)
+  const rows = groups(unique(plan.items))
+    .map((g) => g.map((entry) => rowOf(entry, plan, views.get(entry.item.id) ?? null, operable, readers)))
     .toSorted((a, b) => (a[0]?.status.rank ?? 0) - (b[0]?.status.rank ?? 0))
     .flat()
+  return { plan, operable, rows, problems: planProblems(plan, goal) }
+}
+
+/** Whether following `next` from each item comes back to it: a loop of parents or of blockers. */
+function loops(items: readonly PlanItem[], next: (item: PlanItem) => readonly string[]): boolean {
+  const byId = new Map(items.map((i) => [i.id, i]))
+  const state = new Map<string, 'open' | 'done'>()
+  const visit = (id: string): boolean => {
+    if (state.get(id) === 'done') return false
+    if (state.get(id) === 'open') return true
+    state.set(id, 'open')
+    const item = byId.get(id)
+    const found = item ? next(item).some(visit) : false
+    state.set(id, 'done')
+    return found
+  }
+  return items.some((i) => visit(i.id))
+}
+
+/** What doesn't hold together in a plan and its view, in words a person can pass on to the lead. */
+export function planProblems(plan: WorkPlan, goal: GoalView): string[] {
+  const ids = new Set(plan.items.map((i) => i.id))
+  const views = goal.items.map((v) => v.work_id)
+  return [
+    ids.size !== plan.items.length && 'Two tasks share one id',
+    loops(plan.items, (i) => (i.parent_id ? [i.parent_id] : [])) && 'Some tasks are grouped in a loop',
+    plan.items.some((i) => waitsOn(i).some((w) => !ids.has(w))) && 'A task waits on work that isn’t in the plan',
+    loops(plan.items, waitsOn) && 'Some tasks wait on each other in a loop',
+    new Set(views).size !== views.length && 'A task is observed twice',
+  ].filter((p) => typeof p === 'string')
 }

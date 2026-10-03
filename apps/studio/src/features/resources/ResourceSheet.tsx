@@ -30,7 +30,7 @@ import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import type { Room } from './room.ts'
-import { actsSaid, canAct, SessionActs, type Acts } from './SessionActs.tsx'
+import { actsSaid, canAct, routeOffers, SessionActs, sessionTarget, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
@@ -300,6 +300,7 @@ function ActToggle({ open, controls, said, onToggle }: ToggleProps) {
 
 function SessionRow({ session, resource, live, now, control, tasks, acts }: SessionProps) {
   const work = session.assignment
+  const target = acts ? sessionTarget(acts.project, session) : null
   const [acting, setActing] = useState(false)
   const actsId = useId()
   return (
@@ -322,9 +323,9 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
       )}
       <SessionLive session={session} live={live} now={now} />
       <SessionEarlier session={session} now={now} />
-      {work && acts && acting && (
+      {target && acts && acting && (
         <div id={actsId} className="resource-session-acts">
-          <SessionActs resource={resource} session={session} acts={acts} />
+          <SessionActs target={target} offer={routeOffers(resource)} acts={acts} />
         </div>
       )}
     </li>

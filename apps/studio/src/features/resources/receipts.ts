@@ -1,0 +1,236 @@
+// Commands on work, and what is known of each (WBC-01 G4), kept apart in three dimensions (sophia.work.receipt.v1):
+// admission (recorded, refused, unknown), delivery (queued, delivered, unknown) and effect (pending, held, stopped,
+// resumed, unknown). Sending is the page's own state before any receipt, and never shown as a receipt. Receipts for
+// one operation can come twice, late or out of order: the highest revision wins, Recorded is never taken back, and a
+// settled effect is final. A receipt for other work, another assignment or another operation changes nothing here.
+// A lost reply is unknown, not unsent: it is tried again with the same operation, never a new one.
+//
+// Commands are kept by their scope, (project, work, assignment, generation): a session given another assignment
+// starts with none of the old one's commands or drafts. Pure: the words and rules are unit-tested.
+import { exactly, instant, list, oneOf, orNull, problemsOf, record, text, whole, type Check } from '../../api/shape.ts'
+
+export type ReceiptKind = 'guidance' | 'hold' | 'resume' | 'stop' | 'decision' | 'ask_sophia'
+export type Effect = 'not_applicable' | 'pending' | 'held' | 'stopped' | 'resumed' | 'choice_recorded' | 'unknown'
+
+/** What the service observed of one operation, at one revision of its receipt. Not an authorization. */
+export interface Receipt {
+  schema_version: 'sophia.work.receipt.v1'
+  operation_id: string
+  receipt_id: string
+  project_id: string
+  work_id: string
+  assignment_id: string | null
+  assignment_generation: number | null
+  kind: ReceiptKind
+  revision: number
+  observed_at: string
+  admission: 'recorded' | 'rejected' | 'unknown'
+  delivery: 'not_applicable' | 'not_sent' | 'queued' | 'delivered' | 'native_consumed' | 'unknown'
+  effect: Effect
+  rejection: 'conflict' | 'denied' | 'unavailable' | 'expired' | null
+  evidence_refs: string[]
+}
+
+const id = text(160)
+const ids = (max: number) => list(id, max)
+
+const receipt: Check = record({
+  schema_version: exactly('sophia.work.receipt.v1'),
+  operation_id: id,
+  receipt_id: id,
+  project_id: id,
+  work_id: id,
+  assignment_id: orNull(id),
+  assignment_generation: orNull(whole(1)),
+  kind: oneOf(['guidance', 'hold', 'resume', 'stop', 'decision', 'ask_sophia']),
+  revision: whole(1),
+  observed_at: instant,
+  admission: oneOf(['recorded', 'rejected', 'unknown']),
+  delivery: oneOf(['not_applicable', 'not_sent', 'queued', 'delivered', 'native_consumed', 'unknown']),
+  effect: oneOf(['not_applicable', 'pending', 'held', 'stopped', 'resumed', 'choice_recorded', 'unknown']),
+  rejection: orNull(oneOf(['conflict', 'denied', 'unavailable', 'expired'])),
+  evidence_refs: ids(100),
+})
+
+const SETTLED: Readonly<Partial<Record<Effect, ReceiptKind>>> = {
+  held: 'hold',
+  stopped: 'stop',
+  resumed: 'resume',
+  choice_recorded: 'decision',
+}
+
+function receiptRules(r: Receipt): string[] {
+  const problems: string[] = []
+  if (r.admission === 'rejected' && (r.delivery !== 'not_sent' || r.effect !== 'not_applicable' || !r.rejection)) {
+    problems.push('$: a rejected operation was not sent, has no effect, and says why')
+  }
+  const settledBy = SETTLED[r.effect]
+  if (settledBy) {
+    if (r.admission !== 'recorded' || r.evidence_refs.length === 0)
+      problems.push('$: a settled effect is recorded, with evidence')
+    if (r.kind !== settledBy) problems.push(`$: only a ${settledBy} settles as ${r.effect}`)
+  }
+  return problems
+}
+
+const isReceipt = (value: unknown, problems: readonly string[]): value is Receipt => problems.length === 0
+
+/** A receipt, accepted as given, or refused with every reason found. */
+export function readReceipt(value: unknown): { ok: true; value: Receipt } | { ok: false; problems: string[] } {
+  const problems = problemsOf(receipt, value)
+  if (!isReceipt(value, problems)) return { ok: false, problems }
+  const rules = receiptRules(value)
+  return rules.length > 0 ? { ok: false, problems: rules } : { ok: true, value }
+}
+
+export type CommandKind = 'guidance' | 'hold' | 'resume' | 'stop'
+
+/** Exactly what a command is for: the work, its assignment at one generation, and the attempt shown when it was sent. */
+export interface CommandTarget {
+  project_id: string
+  work_id: string
+  assignment_id: string | null
+  assignment_generation: number | null
+  attempt_id: string | null
+  /** The native session it reaches, where the page knows one; never how the command is matched. */
+  session_id: string | null
+}
+
+export interface Command {
+  /** The person's one submission: reused, with the same payload, through every retry. */
+  operation_id: string
+  kind: CommandKind
+  text?: string
+  target: CommandTarget
+}
+
+/** The scope a command and a draft belong to. */
+export const scopeOf = (t: CommandTarget) =>
+  [t.project_id, t.work_id, t.assignment_id ?? '-', String(t.assignment_generation ?? '-')].join('|')
+
+type Observation = Pick<Receipt, 'revision' | 'admission' | 'delivery' | 'effect' | 'rejection'>
+
+/** What is known of one command: on its way, its reply lost, or its latest receipt. */
+export interface Known {
+  command: Command
+  /** `sending` until a receipt comes; `lost` when no reply came in time and none has come since. */
+  local: 'sending' | 'lost' | null
+  receipt: Observation | null
+}
+
+export const sending = (command: Command): Known => ({ command, local: 'sending', receipt: null })
+
+const FINAL: ReadonlySet<Effect> = new Set(['held', 'stopped', 'resumed', 'choice_recorded'])
+
+/** Whether a receipt speaks of this command: the same operation, work, assignment and generation. */
+function speaksOf(known: Known, r: Receipt): boolean {
+  const { command } = known
+  const { target } = command
+  return (
+    r.operation_id === command.operation_id &&
+    r.kind === command.kind &&
+    r.work_id === target.work_id &&
+    r.assignment_id === target.assignment_id &&
+    r.assignment_generation === target.assignment_generation
+  )
+}
+
+/** A receipt folded into what is known: a stale, repeated or foreign one changes nothing, and nothing regresses. */
+export function fold(known: Known, value: unknown): Known {
+  const read = readReceipt(value)
+  if (!read.ok || !speaksOf(known, read.value)) return known
+  const r = read.value
+  const before = known.receipt
+  if (before && r.revision <= before.revision) return known
+  return {
+    command: known.command,
+    local: null,
+    receipt: {
+      revision: r.revision,
+      admission: before?.admission === 'recorded' && r.admission === 'unknown' ? 'recorded' : r.admission,
+      delivery: r.delivery,
+      effect: before && FINAL.has(before.effect) ? before.effect : r.effect,
+      rejection: r.rejection,
+    },
+  }
+}
+
+/** No reply in time: unknown, unless a receipt already said more. */
+export const lost = (known: Known): Known => (known.receipt ? known : { ...known, local: 'lost' })
+
+/** A retry of a lost command: on its way again, the same operation. */
+export const retried = (known: Known): Known => (known.local === 'lost' ? { ...known, local: 'sending' } : known)
+
+const DELIVERED: ReadonlySet<Receipt['delivery']> = new Set(['delivered', 'native_consumed'])
+
+/** Whether a command still needs watching: not refused, and not yet as far as it can be confirmed. */
+export function unresolved(k: Known): boolean {
+  const r = k.receipt
+  if (k.local !== null || !r || r.admission === 'unknown') return true
+  if (r.admission === 'rejected') return false
+  return k.command.kind === 'guidance' ? !DELIVERED.has(r.delivery) : !FINAL.has(r.effect)
+}
+
+/** Whether a command's outcome is in doubt: its reply lost, or a dimension the runtime couldn't confirm. */
+export const uncertain = (k: Known) =>
+  k.local === 'lost' ||
+  k.receipt?.admission === 'unknown' ||
+  k.receipt?.delivery === 'unknown' ||
+  k.receipt?.effect === 'unknown'
+
+const REFUSED: Readonly<Record<NonNullable<Receipt['rejection']>, string>> = {
+  conflict: 'This changed before it was sent. Nothing was sent.',
+  denied: 'Not allowed here. Nothing was sent.',
+  unavailable: 'Not available right now. Nothing was sent.',
+  expired: 'Too late for this now. Nothing was sent.',
+}
+
+const CONTROL: Readonly<Record<Exclude<CommandKind, 'guidance'>, { name: string; settled: string }>> = {
+  hold: { name: 'Hold', settled: 'Held. Work and remaining allowance are retained.' },
+  resume: { name: 'Resume', settled: 'Resumed.' },
+  stop: { name: 'Stop', settled: 'Stopped. Completed work is kept.' },
+}
+
+function guidanceSaid(r: Observation): string {
+  if (DELIVERED.has(r.delivery)) return 'Delivered to the session; not yet verified in the result.'
+  return r.delivery === 'unknown'
+    ? 'Guidance recorded. Its delivery isn’t confirmed.'
+    : 'Guidance recorded; delivery pending.'
+}
+
+function controlSaid(kind: Exclude<CommandKind, 'guidance'>, r: Observation): string {
+  const { name, settled } = CONTROL[kind]
+  if (FINAL.has(r.effect)) return settled
+  if (r.effect === 'unknown' || r.delivery === 'unknown')
+    return `${name} requested. The runtime’s state is not confirmed yet.`
+  return `${name} requested; waiting for the runtime to confirm.`
+}
+
+/** What is known of a command, in the words a person reads under it. */
+export function knownSaid(k: Known): string {
+  const r = k.receipt
+  if (k.local === 'sending') return 'Sending…'
+  if (!r || r.admission === 'unknown')
+    return 'Not confirmed whether it was recorded. Try again: it reuses the same request.'
+  if (r.admission === 'rejected') return REFUSED[r.rejection ?? 'unavailable']
+  return k.command.kind === 'guidance' ? guidanceSaid(r) : controlSaid(k.command.kind, r)
+}
+
+/** The three steps a command's bars show, by kind: guidance is delivered; a control takes effect. */
+const SETTLED_STEP: Readonly<Record<Exclude<CommandKind, 'guidance'>, string>> = {
+  hold: 'Held',
+  resume: 'Resumed',
+  stop: 'Stopped',
+}
+
+export const stepsOf = (kind: CommandKind): [string, string, string] =>
+  kind === 'guidance' ? ['Recorded', 'Queued', 'Delivered'] : ['Recorded', 'Delivered', SETTLED_STEP[kind]]
+
+/** How many of the three steps are observed: -1 before admission. */
+export function reached(k: Known): number {
+  const r = k.receipt
+  if (!r || r.admission !== 'recorded') return -1
+  if (k.command.kind === 'guidance') return DELIVERED.has(r.delivery) ? 2 : r.delivery === 'queued' ? 1 : 0
+  if (FINAL.has(r.effect)) return 2
+  return DELIVERED.has(r.delivery) ? 1 : 0
+}

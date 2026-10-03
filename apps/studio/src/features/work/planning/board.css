@@ -618,29 +618,227 @@
   }
 }
 
-/* Done: a finished run and a checked result, said apart and set back. */
-.task-tile[data-mark='finished'],
-.task-tile[data-mark='checked'] {
+/* Complete by its policy: set back, its title quieter. Ready for review and changes needed are in motion. */
+.task-tile[data-mark='complete'] {
   background: rgba(236, 235, 241, 0.02);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
-.task-tile[data-mark='checked'] .task-tile-title {
+.task-tile[data-mark='complete'] .task-tile-title {
   color: var(--text-2);
 }
-.plan-mark[data-mark='finished'] {
-  border-color: var(--teal);
+.task-tile[data-mark='changes'] {
+  --edge: rgba(238, 159, 176, 0.28);
 }
-.plan-mark[data-mark='checked'] {
-  border-color: var(--teal);
-  background: var(--teal);
+.task-tile[data-mark='unknown'] {
+  outline: 1px dashed var(--line-2);
+  outline-offset: -1px;
 }
-.task-chip[data-mark='checked'] {
-  background: rgba(127, 214, 196, 0.1);
+.task-chip[data-mark='review'] {
+  background: rgba(127, 214, 196, 0.06);
   color: var(--teal);
 }
-.task-chip[data-mark='finished'] {
-  background: rgba(127, 214, 196, 0.05);
+.task-chip[data-mark='changes'] {
+  background: rgba(238, 159, 176, 0.12);
+  color: var(--rose);
+}
+.task-chip[data-mark='held'],
+.task-chip[data-mark='unknown'] {
   color: var(--text-2);
+}
+.task-chip[data-mark='closed'] {
+  color: var(--text-3);
+}
+
+/* Sophia's own worker, as her light: no person, no subscription behind it. */
+.plan-sophia {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, var(--core), var(--halo) 58%, rgba(156, 130, 245, 0.18) 72%);
+  box-shadow: 0 0 10px rgba(156, 130, 245, 0.35);
+}
+.task-sheet-who .plan-sophia {
+  width: 40px;
+  height: 40px;
+}
+/* The connection, said apart from the report's age, only when it isn't online. */
+.task-tile-connection,
+.task-sheet-connection {
+  color: var(--amber);
+  font-size: var(--type-small);
+  white-space: nowrap;
+}
+.task-tile-connection::before,
+.task-sheet-connection::before {
+  content: '· ';
+  color: var(--text-4);
+}
+
+/* Closed work: folded under the lanes, each with why; never coloured as done. */
+.board-closed {
+  margin-top: 14px;
+}
+.board-closed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.board-closed-toggle .icon {
+  transition: transform var(--base) var(--ease);
+}
+.board-closed-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.board-closed-list {
+  margin-top: 8px;
+}
+.board-closed-list .task-link-name {
+  color: var(--text-2);
+}
+
+/* A replacement proposed for the plan in force, and what doesn't hold together: quiet lines over the lanes. */
+.board-proposal-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-align: left;
+}
+.board-proposal-toggle .field-label {
+  color: var(--amber);
+}
+.board-proposal-changes {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0 0 0 12px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  list-style: none;
+}
+.board-proposal-changes .field-label {
+  margin-right: 6px;
+}
+.board-proposal,
+.board-notice {
+  margin: 0 0 10px;
+}
+.board-notice {
+  padding: 8px 12px;
+  border-radius: var(--r-3);
+  background: rgba(239, 191, 134, 0.08);
+  color: var(--amber);
+  font-size: var(--type-small);
+}
+.board-decided {
+  margin-bottom: 10px;
+}
+.plan-ask-about {
+  font-size: var(--type-small);
+}
+
+/* A task's sheet: everything it waits for, why a closed task closed, and its result. */
+.task-waits {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-waits li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  font-size: var(--type-body);
+}
+.task-waits li[data-mine] {
+  background: rgba(239, 191, 134, 0.1);
+}
+.task-wait-who {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.task-waits li[data-mine] .task-wait-who {
+  color: var(--amber);
+}
+.task-sheet-closed {
+  display: grid;
+  gap: 2px;
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.task-result-versions {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-result-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.task-result-which {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.task-result-version[data-earlier] .field-label {
+  color: var(--amber);
+}
+.task-result-id {
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: var(--type-small);
+}
+.task-result-review,
+.task-result-note {
+  font-size: var(--type-body);
+}
+.task-result-text {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+}
+.task-result-text figcaption {
+  margin-bottom: 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.task-result-text pre {
+  margin: 0;
+  color: var(--text-2);
+  font-family: var(--sans);
+  font-size: var(--type-body);
+  white-space: pre-wrap;
+}
+.ask-none {
+  color: var(--text-2);
+}
+
+/* What waits on the viewer in the other goals: one quiet line under the rail. */
+.goal-elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 10px;
+  font-size: var(--type-small);
+}
+.goal-elsewhere .field-label {
+  color: var(--amber);
 }
 
 /* The threads to what a hovered task waits on: drawn in, then a spark travels them. */

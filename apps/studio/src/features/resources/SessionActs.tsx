@@ -1,102 +1,165 @@
-// Acting on a session where it shows (LFE-06.6): guidance to it, Hold, Stop, from a resource's sheet or a task's. Each
-// is offered only where its tool supports it (the resource's controls) and only to its owner; Stop asks first, as the
-// app does before cutting work off. What happens is said step by step as it is observed (07_STUDIO_VOICE_AND_ARTIFACTS:
-// recorded → queued → delivered), never "applied": delivered isn't seen acting on it yet. Each session's last act is
-// kept by the view (useActs), so it is still said after its row closes or the sheet turns, and a late step of an
-// earlier act never speaks over a later one.
+// Commands on work where it shows (LFE-06.6, WBC-01 G4): guidance, Hold, Resume and Stop, from a resource's row or a
+// task's sheet. The caller decides what to offer: a resource's owner what its route supports (Resources), anyone what
+// the board's view allows them (a task's sheet). Stop asks first, and promises nothing it can't see.
+//
+// What happens is said as it is observed, in three dimensions (receipts.ts): Sending before any receipt, then
+// recorded or refused, then delivered, then, for a control, its effect once the runtime confirms it. A reply that
+// never came is unknown and is tried again with the same operation. Every command and draft is kept by the view
+// (useActs) under its scope, (project, work, assignment, generation): it is still said after the row closes or the
+// sheet turns, a late or foreign receipt changes nothing, and a session's next assignment starts with none of the old
+// one's. The latest command speaks; earlier ones still unresolved stay listed under it.
 import { useEffect, useRef, useState } from 'react'
-import { ConfirmButton } from '@sophia/ui'
+import { ConfirmButton, Tip } from '@sophia/ui'
+import {
+  fold,
+  knownSaid,
+  lost,
+  reached,
+  retried,
+  scopeOf,
+  sending,
+  stepsOf,
+  uncertain,
+  unresolved,
+  type Command,
+  type CommandKind,
+  type CommandTarget,
+  type Known,
+} from './receipts.ts'
 import type { Resource, Session } from './resource.ts'
 
-export type ActKind = 'guidance' | 'hold' | 'stop'
-/** `sending`: sent, nothing heard back yet; then each step as its runtime reports it. */
-export type ActStep = 'sending' | 'recorded' | 'queued' | 'delivered' | 'refused'
-export interface ActAsked {
-  kind: ActKind
-  text?: string
-  /** The work the act is meant for, as shown when it was sent: its runtime refuses it for any other. */
-  workId: string
-  /** Which assignment of that work, when the runtime says (`Session.assignment.epoch`). */
-  epoch?: number
-}
-/** Sends an act to one session; `report` is called with each step as it is observed. */
-export type SessionAct = (sessionId: string, act: ActAsked, report: (step: ActStep) => void) => void
+/** Sends a command; `on.receipt` takes each receipt as it comes (any order), `on.lost` says no reply came in time. */
+export type SendCommand = (command: Command, on: { receipt: (r: unknown) => void; lost: () => void }) => void
 
-/** A session's last act, and the step it has reached. */
-export interface ActSent {
-  kind: ActKind
-  at: ActStep
-}
-
-/** The view's acts: each session's last one, and a way to send another. */
+/** The view's commands and drafts, by scope. */
 export interface Acts {
-  sent: Readonly<Record<string, ActSent | undefined>>
-  send: (sessionId: string, act: ActAsked) => void
+  /** The project the view's commands are for. */
+  project: string
+  /** The commands sent in a scope, oldest first. */
+  of: (scope: string) => readonly Known[]
+  /** Sends a command, or the same request again while one of its kind is unresolved; its operation's id. */
+  send: (kind: CommandKind, target: CommandTarget, text?: string) => string
+  /** Sends a command again with its own operation: after a lost reply, or a control pressed again while unresolved. */
+  retry: (operationId: string) => void
+  draft: (scope: string) => string
+  setDraft: (scope: string, text: string) => void
 }
 
-/**
- * Each session's last act, kept where the view lives, not in a row that closes. Only the latest act of a session
- * speaks: a step reported for an earlier one is let go.
- */
-export function useActs(onAct: SessionAct | undefined): Acts | undefined {
-  const [sent, setSent] = useState<Record<string, ActSent | undefined>>({})
-  const latest = useRef<Record<string, number>>({})
-  if (!onAct) return undefined
+/** A control pressed again while one of its kind is unresolved in the same scope is the same request, not another. */
+const pending = (known: readonly Known[], kind: CommandKind) =>
+  kind === 'guidance' ? undefined : known.findLast((k) => k.command.kind === kind && unresolved(k))
+
+/** Each command's state and each scope's draft, kept where the view lives, not in a row that closes. */
+export function useActs(
+  onCommand: SendCommand | undefined,
+  project: string,
+  newId: () => string = () => crypto.randomUUID(),
+): Acts | undefined {
+  const [known, setKnown] = useState<readonly Known[]>([])
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
+  const current = useRef(known)
+  current.current = known
+  if (!onCommand) return undefined
+  const update = (operationId: string, change: (k: Known) => Known) =>
+    setKnown((all) => all.map((k) => (k.command.operation_id === operationId ? change(k) : k)))
+  const dispatch = (command: Command) =>
+    onCommand(command, {
+      receipt: (r) => update(command.operation_id, (k) => fold(k, r)),
+      lost: () => update(command.operation_id, lost),
+    })
+  const of = (scope: string) => known.filter((k) => scopeOf(k.command.target) === scope)
+  const retry = (operationId: string) => {
+    const k = current.current.find((c) => c.command.operation_id === operationId)
+    if (!k) return operationId
+    update(operationId, retried)
+    dispatch(k.command)
+    return operationId
+  }
   return {
-    sent,
-    send: (sessionId, act) => {
-      const n = (latest.current[sessionId] ?? 0) + 1
-      latest.current[sessionId] = n
-      const said = (at: ActStep) => {
-        if (latest.current[sessionId] === n) setSent((s) => ({ ...s, [sessionId]: { kind: act.kind, at } }))
-      }
-      // Nothing is said recorded before its runtime says so: until then it is only sending.
-      said('sending')
-      onAct(sessionId, act, said)
+    project,
+    of,
+    send: (kind, target, text) => {
+      const again = pending(of(scopeOf(target)), kind)
+      if (again) return retry(again.command.operation_id)
+      const command: Command = { operation_id: newId(), kind, target, ...(text ? { text } : {}) }
+      setKnown((all) => [...all, sending(command)])
+      dispatch(command)
+      return command.operation_id
     },
+    retry,
+    draft: (scope) => drafts[scope] ?? '',
+    setDraft: (scope, text) => setDrafts((d) => ({ ...d, [scope]: text })),
   }
 }
 
-const STEPS: readonly ActStep[] = ['recorded', 'queued', 'delivered']
-const STEP_WORD: Record<ActStep, string> = {
-  sending: 'Sending',
-  recorded: 'Recorded',
-  queued: 'Queued',
-  delivered: 'Delivered',
-  refused: 'Not accepted',
-}
-/** Delivered says what was asked, never that it happened: none is seen acting on it yet. */
-const DONE: Record<ActKind, string> = {
-  guidance: 'Delivered to its session. Not seen acting on it yet.',
-  hold: 'Delivered: asked to hold at its next safe point. Not seen holding yet.',
-  stop: 'Delivered: asked to stop. Not seen stopping yet.',
-}
-
-/** Where an act is: three bars filling as each step is observed, and what that step means. */
-function Steps({ kind, at }: ActSent) {
-  const reached = STEPS.indexOf(at)
+/** Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. */
+function Steps({ known, onRetry }: { known: Known; onRetry: () => void }) {
+  const steps = stepsOf(known.command.kind)
+  const at = reached(known)
+  const again = known.local === 'lost' || (known.local === null && known.receipt?.admission === 'unknown')
   return (
-    <div className="act-steps" data-at={at}>
+    <div
+      className="act-steps"
+      data-at={known.local ?? known.receipt?.admission}
+      data-uncertain={uncertain(known) || undefined}
+    >
       <ol aria-hidden>
-        {STEPS.map((s, i) => (
-          <li key={s} data-reached={i <= reached || undefined}>
-            {STEP_WORD[s]}
+        {steps.map((s, i) => (
+          <li key={s} data-reached={i <= at || undefined}>
+            {s}
           </li>
         ))}
       </ol>
       <p>
-        {at === 'delivered' ? DONE[kind] : at === 'refused' ? 'Not accepted. Nothing was sent.' : `${STEP_WORD[at]}…`}
+        {knownSaid(known)}
+        {again && (
+          <>
+            {' '}
+            <button type="button" className="text-button" onClick={onRetry}>
+              Try again
+            </button>
+          </>
+        )}
       </p>
     </div>
   )
 }
 
+/** Earlier commands still unresolved, one line each, under the latest. */
+function Earlier({ known }: { known: readonly Known[] }) {
+  if (known.length === 0) return null
+  return (
+    <ul className="act-earlier" aria-label="Earlier, still open">
+      {known.map((k) => (
+        <li key={k.command.operation_id}>{knownSaid(k)}</li>
+      ))}
+    </ul>
+  )
+}
+
 type Control = 'steer' | 'hold' | 'stop'
 const ACT_NAME: Record<Control, string> = { steer: 'Guidance', hold: 'Hold', stop: 'Stop' }
+const AS_COMMAND: Record<Control, CommandKind> = { steer: 'guidance', hold: 'hold', stop: 'stop' }
 
-/** The acts its route supports, in order. */
+/** The acts a resource's route supports, in order. */
 export const supported = (resource: Resource): Control[] =>
   (['steer', 'hold', 'stop'] as const).filter((c) => resource.controls[c] === 'supported')
+
+/** The same, as commands to offer: a resource's owner is offered what its route supports. */
+export const routeOffers = (resource: Resource): Offer[] => supported(resource).map((c) => ({ kind: AS_COMMAND[c] }))
+
+/** A session's work, as a command's target: its assignment and generation when its runtime says them. */
+export const sessionTarget = (project: string, session: Session): CommandTarget | null =>
+  session.assignment
+    ? {
+        project_id: project,
+        work_id: session.assignment.workId,
+        assignment_id: session.assignment.id ?? null,
+        assignment_generation: session.assignment.epoch ?? null,
+        attempt_id: null,
+        session_id: session.id,
+      }
+    : null
 
 /** Whether its owner can act on a session at all here: some control its route supports. */
 export const canAct = (resource: Resource) => supported(resource).length > 0
@@ -107,79 +170,109 @@ export function actsSaid(resource: Resource): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}` : (names[0] ?? '')
 }
 
+/** A command offered here, with what it does when it isn't plain (a controlled stop that resumes later). */
+export interface Offer {
+  kind: CommandKind
+  tip?: string
+}
+
+/** Stop asks first, and says what it can and can't promise. */
+export const STOP_WARNING = 'Stop this task? Completed work is kept. Running actions may need time to stop.'
+
 interface Props {
-  resource: Resource
-  /** The session, with the work it shows: an act names that work. */
-  session: Session
+  /** Exactly what the commands are for: the work and its assignment at one generation. */
+  target: CommandTarget
+  offer: readonly Offer[]
   acts: Acts
 }
 
-/**
- * The guidance being written: it stays in its field until it is queued, so one not accepted can be sent again as it
- * was; what was typed since it went is kept.
- */
-function useDraft(mine: ActSent | undefined) {
-  const [text, setText] = useState('')
-  const submitted = useRef('')
+/** The guidance being written, kept by scope: it leaves its field once recorded, if it is still all the field holds. */
+function useDraft(acts: Acts, scope: string, latest: Known | undefined) {
+  const submitted = useRef<{ op: string; text: string } | null>(null)
+  const text = acts.draft(scope)
+  const { setDraft } = acts
+  const recorded = latest?.receipt?.admission === 'recorded' ? latest.command.operation_id : null
   useEffect(() => {
-    if (mine?.kind !== 'guidance' || (mine.at !== 'queued' && mine.at !== 'delivered')) return
-    // Its sent words leave the field if they are still all it holds; then they are forgotten, so a later step of the
-    // same act can't clear what is typed next. (Not inside the updater: StrictMode runs that twice.)
     const sent = submitted.current
-    submitted.current = ''
-    setText((t) => (t.trim() === sent ? '' : t))
-  }, [mine])
-  return { text, setText, submitted }
+    if (!sent || recorded !== sent.op) return
+    submitted.current = null
+    // Typed since it went: what was typed stays. (Not inside an updater: StrictMode runs that twice.)
+    if (text.trim() === sent.text) setDraft(scope, '')
+  }, [recorded, text, scope, setDraft])
+  return { text, setText: (t: string) => setDraft(scope, t), submitted }
 }
 
-/** The acts its route supports, for its owner: the caller shows them only to the owner. */
-export function SessionActs({ resource, session, acts }: Props) {
-  const sessionId = session.id
-  const mine = acts.sent[sessionId]
-  const { text, setText, submitted } = useDraft(mine)
-  const can = new Set(supported(resource))
-  const work = session.assignment
-  const send = (kind: ActKind, words?: string) => {
-    if (!work) return
-    if (words) submitted.current = words
-    acts.send(sessionId, {
-      kind,
-      workId: work.workId,
-      ...(work.epoch === undefined ? {} : { epoch: work.epoch }),
-      ...(words ? { text: words } : {}),
-    })
-  }
+function GuidanceField({
+  acts,
+  scope,
+  target,
+  latest,
+}: {
+  acts: Acts
+  scope: string
+  target: CommandTarget
+  latest: Known | undefined
+}) {
+  const { text, setText, submitted } = useDraft(acts, scope, latest)
+  return (
+    <form
+      className="act-guide"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const words = text.trim()
+        if (!words) return
+        submitted.current = { op: acts.send('guidance', target, words), text: words }
+      }}
+    >
+      <input
+        aria-label="Guidance for its session"
+        placeholder="Guidance for its session…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button type="submit" className="pill" disabled={!text.trim()}>
+        Send
+      </button>
+    </form>
+  )
+}
+
+/** A plain control: Hold or Resume, its tip saying what it does when it isn't plain. */
+function ControlButton({ offer, onPress }: { offer: Offer; onPress: () => void }) {
+  const label = offer.kind === 'hold' ? 'Hold' : 'Resume'
+  return (
+    <button
+      type="button"
+      className={offer.tip ? 'ghost has-tip' : 'ghost'}
+      aria-label={offer.tip ? `${label}: ${offer.tip}` : undefined}
+      onClick={onPress}
+    >
+      {label}
+      {offer.tip && <Tip label={offer.tip} side="top" />}
+    </button>
+  )
+}
+
+/** The commands offered for one target, each said as it is observed. */
+export function SessionActs({ target, offer, acts }: Props) {
+  const scope = scopeOf(target)
+  const known = acts.of(scope)
+  const latest = known.at(-1)
+  const kinds = new Set(offer.map((o) => o.kind))
+  const send = (kind: CommandKind) => acts.send(kind, target)
   return (
     <div className="session-acts">
-      {can.has('steer') && (
-        <form
-          className="act-guide"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (text.trim()) send('guidance', text.trim())
-          }}
-        >
-          <input
-            aria-label="Guidance for its session"
-            placeholder="Guidance for its session…"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <button type="submit" className="pill" disabled={!text.trim()}>
-            Send
-          </button>
-        </form>
-      )}
+      {kinds.has('guidance') && <GuidanceField acts={acts} scope={scope} target={target} latest={latest} />}
       <div className="control-row">
-        {can.has('hold') && (
-          <button type="button" className="ghost" onClick={() => send('hold')}>
-            Hold
-          </button>
-        )}
-        {can.has('stop') && (
+        {offer
+          .filter((o) => o.kind === 'hold' || o.kind === 'resume')
+          .map((o) => (
+            <ControlButton key={o.kind} offer={o} onPress={() => send(o.kind)} />
+          ))}
+        {kinds.has('stop') && (
           <ConfirmButton
             label="Stop"
-            warning="Ends its session’s work at once."
+            warning={STOP_WARNING}
             confirm="Stop"
             keep="Keep it working"
             onConfirm={() => send('stop')}
@@ -187,7 +280,10 @@ export function SessionActs({ resource, session, acts }: Props) {
         )}
       </div>
       {/* Mounted before anything is said, so each step is announced as it comes. */}
-      <div role="status">{mine && <Steps kind={mine.kind} at={mine.at} />}</div>
+      <div role="status">
+        {latest && <Steps known={latest} onRetry={() => acts.retry(latest.command.operation_id)} />}
+        <Earlier known={known.slice(0, -1).filter(unresolved)} />
+      </div>
     </div>
   )
 }

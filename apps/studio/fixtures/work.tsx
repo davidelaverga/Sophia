@@ -1,46 +1,87 @@
 // The plan's fixture page (e2e/work.spec.ts): the Studio's own ProjectShell on Tasks, with its goals served at fetch
-// (fixture-api.ts) and each goal's plan in its slot over labelled simulated data. The query string picks who is looking,
-// `viewer=davide` (default: Luis); `proposed=1` (the plan is proposed, not accepted); `superseded=1` (it was replaced,
-// so none shows); `two=1` (a second goal with its own plan); `conflict=1` (an answer comes back refused: the decision
-// changed since it was read). A decider's answer is recorded as a lead would take it; `workFixture.settle(id)` records
-// it as decided, as the lead's next plan revision would. Whoever does a task opens on the resources' fixture
-// (resources.html#resource-<id>), as Resources would; `#task-<id>` opens a task with the page. `expired=1`: the
-// decision is past its expiry; `unknown=1`: an answer comes back not confirmed; `unplanned=1`: a goal without a plan;
-// `staggered=1`: Sophia answers the first question slower than the next. `workFixture.replan()` replaces the first
-// goal's plan with a new one (a new plan id), as the lead would. `later=1` (with `two=1`): the second goal's plan is
-// held back until `workFixture.arrive()`, as a slower read would.
+// (fixture-api.ts) and each goal's plan in its slot, from a labelled simulated `sophia.work.board.v1` view
+// (work-data.ts) that the page first passes through the Studio's own reader (readBoardView): a view it refuses is
+// shown as refused, never drawn. The query string picks who is looking, `viewer=davide|luis|mara` (default: Luis;
+// Mara is a viewer who reads); `case=…` a scenario (work-cases.ts); `proposed=1` (no plan accepted yet: the first
+// goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`;
+// `many=1`; `unplanned=1`; `since=1` (an earlier look); `expired=1`; `conflict=1` and `unknown=1` (how a decision's
+// answer comes back); `later=1` (the second goal's plan held back until `workFixture.arrive()`); `coverage=partial|
+// unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
+// `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
+// into the plan's next revision; `begin(workId)`, `reassign(workId)`, `replan()`, `arrive()`, `viewAs(viewer)`,
+// `reconnect()`, `replay(operationId)` and `misdeliver(from, to)`. Whoever does a task opens on the resources' fixture.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
-import type { Decide } from '../src/features/work/planning/Decision.tsx'
+import type { Command, Receipt } from '../src/features/resources/receipts.ts'
+import { linkHash } from '../src/features/resources/link.ts'
+import { moving } from '../src/features/resources/motion.ts'
+import type { Resource } from '../src/features/resources/resource.ts'
+import { readBoardView, type BoardView, type GoalView } from '../src/features/work/planning/board-view.ts'
+import type { DecisionAnswer } from '../src/features/work/planning/Decision.tsx'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
-import { linkHash } from '../src/features/resources/link.ts'
-import { moving } from '../src/features/resources/motion.ts'
-import type { RequiredAction, Resource } from '../src/features/resources/resource.ts'
-import { current, type WorkPlan } from '../src/features/work/planning/plan.ts'
+import { boardOf, forYou } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
-import { actions, NOW, observations, people, resources, tightClaude } from './resources-data.ts'
-import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
-import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan, unplannedGoal } from './work-data.ts'
+import { NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
+import { inCase } from './work-cases.ts'
+import {
+  CASES,
+  firstGoal,
+  fixtureParts,
+  goal,
+  manyTasks,
+  moreGoals,
+  moreViews,
+  people,
+  secondGoal,
+  secondView,
+  unplannedGoal,
+  type Viewer,
+} from './work-data.ts'
+import {
+  ask,
+  answers,
+  carried,
+  commands,
+  decide,
+  misdeliver,
+  nextReport,
+  readResult,
+  receipts,
+  reconnect,
+  replay,
+  serve,
+  withActivity,
+} from './work-live.ts'
 
 declare global {
   interface Window {
     workFixture?: {
       unexpected: readonly string[]
-      /** Each answer a decider gave, in order: for the checks to read. */
-      answered?: { decision: string; revision: number; choice: string }[]
+      /** Each answer a decider gave, in order, and each command and receipt: for the checks to read. */
+      answered?: readonly DecisionAnswer[]
+      commands?: readonly Command[]
+      receipts?: readonly Receipt[]
+      /** Why the page's view was refused, when it was. */
+      refused?: readonly string[]
       settle?: (decisionId: string) => void
+      react?: (decisionId: string) => void
       begin?: (workId: string) => void
+      reassign?: (workId: string) => void
       replan?: () => void
       arrive?: () => void
+      viewAs?: (viewer: Viewer) => void
+      reconnect?: () => void
+      replay?: (operationId: string) => void
+      misdeliver?: (from: string, to: string) => void
     }
   }
 }
@@ -60,110 +101,212 @@ installFixtureApi({
     ...(query.get('unplanned') === '1' ? [unplannedGoal] : []),
   ],
 })
-const answered: NonNullable<NonNullable<Window['workFixture']>['answered']> = []
-window.workFixture = { unexpected, answered }
+window.workFixture = { unexpected, answered: answers, commands, receipts }
 const nothing = () => undefined
 
-const viewer = query.get('viewer') === 'davide' ? 'davide' : 'luis'
+const asViewer = (v: string | null): Viewer => (v === 'davide' || v === 'mara' ? v : 'luis')
+const scenario = CASES.find((c) => c === query.get('case')) ?? null
 /** `tight=1`: Davide's Claude Code runs short, as on the resources' page; its task says so. */
 const readings = observations.map((o) =>
   query.get('tight') === '1' && o.entitlement_id === 'ent-davide-anthropic' ? tightClaude(o) : o,
 )
 
-/** `since=1`: the viewer last looked a while ago, when four tasks stood elsewhere (and one wasn't there). */
+/** `since=1`: the viewer last looked a while ago, when three tasks stood elsewhere and one wasn't there. */
 if (query.get('since') === '1') {
-  const before = {
-    'work-0a': 'finished',
+  const stood = {
+    'work-0a': 'review',
     'work-1': 'working',
     'work-1-review': 'later',
     'work-2': 'later',
     'work-3': 'later',
     'work-4': 'free',
   }
+  const seen = {
+    items: Object.fromEntries(Object.entries(stood).map(([id, mark]) => [id, { mark, result: null }])),
+    decisions: { d1: '4:proposed:not_needed', d2: '1:accepted:recorded' },
+  }
   try {
-    localStorage.setItem(`sophia.plan.seen.v1.plan-1.${viewer}`, JSON.stringify(before))
+    localStorage.setItem(
+      `sophia.plan.seen.v2.${PROJECT}.${goal.id}.plan-1.${asViewer(query.get('viewer'))}`,
+      JSON.stringify(seen),
+    )
   } catch {
     // A browser that refuses storage shows nothing changed.
   }
 }
-const state = query.get('superseded') === '1' ? 'superseded' : query.get('proposed') === '1' ? 'proposed' : 'accepted'
 
-/** The decider's answer, taken as a lead would: recorded, or refused when the page asked for a stale decision. */
-const decide: Decide = (decision, choice) => {
-  // The answer names the decision's own revision, as the lead's API would check it (decision.v1).
-  answered.push({ decision: decision.decision_id, revision: decision.revision, choice })
-  const said = query.get('conflict') === '1' ? 'conflict' : query.get('unknown') === '1' ? 'unknown' : 'recorded'
-  return new Promise((done) => setTimeout(() => done(said), 300))
+/** The first goal as the page opens it: proposed, superseded, expired, crowded or in a scenario, as asked. */
+function opening(viewer: Viewer): GoalView {
+  let g = inCase(scenario, firstGoal(viewer), viewer)
+  if (query.get('many') === '1') g = manyTasks(g)
+  if (query.get('expired') === '1') {
+    const past = new Date(NOW.getTime() - 3_600_000).toISOString()
+    g = { ...g, decisions: g.decisions.map((d) => (d.state === 'proposed' ? { ...d, expires_at: past } : d)) }
+  }
+  const current = g.current_plan
+  if (current && query.get('proposed') === '1') {
+    g = { ...g, current_plan: null, items: [], proposed_plans: [{ ...current, state: 'proposed', decision_ref: null }] }
+  }
+  if (current && query.get('superseded') === '1') g = { ...g, current_plan: { ...current, state: 'superseded' } }
+  return g
 }
 
-/** `expired=1`: the decision waiting on Davide is past its expiry. */
-const expiredIf = (p: WorkPlan): WorkPlan =>
-  query.get('expired') === '1'
-    ? {
-        ...p,
-        decisions: p.decisions.map((d) =>
-          d.state === 'proposed' ? { ...d, expires_at: new Date(NOW.getTime() - 3_600_000).toISOString() } : d,
-        ),
-      }
-    : p
+type Change = (g: GoalView) => GoalView
+const { action, claude } = fixtureParts
 
-/** The lead's next revision with a recorded answer: the decision accepted with the choice its decider gave. */
-const settled = (p: WorkPlan, id: string): WorkPlan => {
-  const choice = answered.findLast((a) => a.decision === id)?.choice ?? null
+/** A task's projection changed, as the service's next observation would. */
+const observed =
+  (workId: string, change: (v: GoalView['items'][number]) => Partial<GoalView['items'][number]>): Change =>
+  (g) => ({
+    ...g,
+    items: g.items.map((v) => (v.work_id === workId ? { ...v, ...change(v) } : v)),
+  })
+
+/** What a settled command makes of its task: stopped (closed, its work kept), held (resumable), or running again. */
+function settled(command: Command, effect: Receipt['effect'], viewer: Viewer): Change {
+  const within = viewer === 'luis' ? 'Within Davide’s contribution to this project.' : null
+  if (effect === 'stopped') {
+    return observed(command.target.work_id, (v) => ({
+      lifecycle: 'stopped',
+      closed_reason: 'Stopped from its sheet. Completed work is kept.',
+      available_actions: v.available_actions.filter((a) => a.kind === 'ask_sophia'),
+    }))
+  }
+  if (effect === 'held') {
+    return observed(command.target.work_id, (v) => ({
+      lifecycle: 'held',
+      available_actions: [...v.available_actions, action('resume', 'allowed', 'Resumes from its saved state.', within)],
+    }))
+  }
+  return effect === 'resumed' ? observed(command.target.work_id, () => ({ lifecycle: 'running' })) : (g) => g
+}
+
+/** A choice recorded by the service, the plan not reacting yet. */
+const settleChoice =
+  (id: string): Change =>
+  (g) => ({
+    ...g,
+    decisions: g.decisions.map((d) => {
+      const choice = answers.findLast((a) => a.decision_id === id)?.choice ?? null
+      const recorded = { selected_choice: choice, choice_receipt_id: `fixture-choice-${id}` }
+      return d.decision_id === id ? { ...d, ...recorded, state: 'accepted', plan_reaction: 'pending' } : d
+    }),
+  })
+
+/** The lead's next revision, with the choice taken in. */
+const reactTo =
+  (id: string): Change =>
+  (g) => ({
+    ...g,
+    current_plan: g.current_plan ? { ...g.current_plan, revision: g.current_plan.revision + 1 } : null,
+    decisions: g.decisions.map((d) => (d.decision_id === id ? { ...d, plan_reaction: 'recorded' } : d)),
+  })
+
+/** Davide's Claude Code reviewer takes a task and starts it, as its runtime would report it. */
+const beginWith = (workId: string, viewer: Viewer): Change =>
+  observed(workId, (v) => ({
+    lifecycle: 'running',
+    assignment: claude('claude-reviewer', 'reviewer', 1),
+    available_actions: [...fixtureParts.commands(viewer, true), ...v.available_actions],
+  }))
+
+/** The same session given the task again: its next assignment generation, its next attempt. */
+const nextGeneration = (workId: string): Change =>
+  observed(workId, (v) =>
+    v.assignment
+      ? {
+          assignment: {
+            ...v.assignment,
+            generation: v.assignment.generation + 1,
+            attempt_id: `${v.assignment.attempt_id ?? 'attempt'}-next`,
+          },
+        }
+      : {},
+  )
+
+/** A new plan for the goal: a new plan id. */
+const replanned: Change = (g) =>
+  g.current_plan ? { ...g, current_plan: { ...g.current_plan, plan_id: 'plan-1b', revision: 1 } } : g
+
+/** Live changes to the first goal, as the service would make them. */
+function controls(
+  update: (change: Change) => void,
+  setViewer: (v: Viewer) => void,
+  setArrived: (a: boolean) => void,
+  viewer: Viewer,
+) {
   return {
-    ...p,
-    revision: p.revision + 1,
-    decisions: p.decisions.map((d) =>
-      d.decision_id === id ? { ...d, state: 'accepted', selected_choice: choice } : d,
-    ),
+    unexpected,
+    answered: answers,
+    commands,
+    receipts,
+    settle: (id: string) => update(settleChoice(id)),
+    react: (id: string) => update(reactTo(id)),
+    begin: (workId: string) => update(beginWith(workId, viewer)),
+    reassign: (workId: string) => update(nextGeneration(workId)),
+    replan: () => update(replanned),
+    arrive: () => setArrived(true),
+    viewAs: setViewer,
+    reconnect,
+    replay,
+    misdeliver,
   }
 }
 
-/** Davide's Claude Code reviewer takes `workId` and starts it, as its runtime would report it. */
-const begun = (list: Resource[], workId: string): Resource[] =>
-  list.map((r) => ({
-    ...r,
-    sessions: r.sessions.map((s) =>
-      s.id === 'claude-reviewer' ? { ...s, assignment: { workId, title: workId, state: 'running' as const } } : s,
-    ),
-  }))
-
-/** One plan's slot in Tasks: its board, NEXT, its tab in the goals' rail, and what finds it. */
-interface Shared {
-  resources: Resource[]
-  people: typeof people
-  viewerId: string
-  actions: RequiredAction[]
+/** The page's view of the project, as a service would serve it, read through the Studio's own reader. */
+function viewOf(first: GoalView, arrived: boolean, observedAt: Date): BoardView {
+  const coverage = query.get('coverage')
+  return {
+    schema_version: 'sophia.work.board.v1',
+    project_id: PROJECT,
+    snapshot_cursor: `fixture-${String(observedAt.getTime())}`,
+    observed_at: observedAt.toISOString(),
+    coverage: coverage === 'partial' || coverage === 'unavailable' ? coverage : 'complete',
+    goals: [first, ...(two && arrived ? [secondView] : []), ...(six ? moreViews : [])],
+  }
 }
 
-function slot(p: WorkPlan, now: Date, shared: Shared) {
+interface Shared {
+  resources: Resource[]
+  viewerId: Viewer
+  now: Date
+  board: BoardView
+}
+
+/** One goal's slot in Tasks: its board, NEXT, its tab in the goals' rail, what finds it, and whether it calls the viewer. */
+function slot(g: GoalView, { resources, viewerId, now, board }: Shared, onCommand: ReturnType<typeof serve>) {
+  const rows = boardOf(g, { resources, people, viewerId })?.rows ?? []
   return {
     view: (
       <PlanBoard
-        plan={p}
+        goal={g}
+        coverage={board.coverage}
+        observedAt={board.observed_at}
+        resources={resources}
+        people={people}
+        viewerId={viewerId}
         now={now}
         onDecide={decide}
-        onAct={act}
+        onCommand={onCommand}
         onAsk={ask}
+        readResult={readResult}
+        onOpenConversation={nothing}
         onOpenResource={(id) =>
           window.location.assign(`resources.html${carried(window.location.search)}${linkHash(id)}`)
         }
         observations={readings}
-        {...shared}
       />
     ),
-    next: <PlanNext plan={p} />,
-    tab: <PlanTab plan={p} now={now} {...shared} />,
-    words: p.items.map((i) => i.purpose).join(' '),
-    tasks: p.items.map((i) => i.id),
+    next: <PlanNext goal={g} />,
+    tab: <PlanTab goal={g} resources={resources} people={people} viewerId={viewerId} now={now} />,
+    words: rows.map((r) => r.item.purpose).join(' '),
+    tasks: rows.map((r) => r.item.id),
+    attention: forYou(rows, g.decisions, viewerId, now),
   }
 }
 
-function Tasks() {
-  const [first, setFirst] = useState(() => expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
-  const [live, setLive] = useState(() => withActivity(resources))
-  const [arrived, setArrived] = useState(query.get('later') !== '1')
-  // The page's clock runs from NOW, so ages count up and the freshness rings empty as they would.
+/** The page's clock runs from NOW, so ages count up and the freshness rings empty as they would. */
+function useClock(update: (change: Change) => void) {
   const [now, setNow] = useState(NOW)
   useEffect(() => {
     const start = Date.now()
@@ -172,40 +315,64 @@ function Tasks() {
       const at = new Date(NOW.getTime() + Date.now() - start)
       setNow(at)
       // Every 9 s, Codex's reviewer reports what it does next.
-      if (Math.round((Date.now() - start) / 1000) % 9 === 0) setLive((l) => nextActivity(l, at, n++))
+      if (Math.round((Date.now() - start) / 1000) % 9 === 0) update((g) => nextReport(g, at, n++))
     }, 1000)
     return () => clearInterval(tick)
-  }, [])
+  }, [update])
+  return now
+}
+
+function Tasks() {
+  const [viewer, setViewer] = useState<Viewer>(() => asViewer(query.get('viewer')))
+  const [first, setFirst] = useState(() => opening(viewer))
+  const [arrived, setArrived] = useState(query.get('later') !== '1')
+  // Each change glides into place, as a live update would (motion.ts): a decided ask folds away, a task changes lanes.
+  const [update] = useState(() => (change: Change) => moving(() => setFirst(change)))
+  const now = useClock(update)
+  const looking = useRef(viewer)
+  looking.current = viewer
+  const [onCommand] = useState(() => serve((command, effect) => update(settled(command, effect, looking.current))))
   useEffect(() => {
-    // Each change glides into place, as a live update would (motion.ts): a decided ask folds away, a task changes lanes.
-    window.workFixture = {
-      unexpected,
-      answered,
-      settle: (id) => moving(() => setFirst((p) => settled(p, id))),
-      begin: (workId) => moving(() => setLive((l) => begun(l, workId))),
-      replan: () => setFirst((p) => ({ ...p, plan_id: 'plan-1b', revision: 1 })),
-      arrive: () => setArrived(true),
-    }
-  }, [])
-  const shared = { resources: live, people, viewerId: viewer, actions }
-  // A plan in force or proposed fills its goal's slot; otherwise Tasks shows the goal as it does without one.
+    window.workFixture = controls(
+      update,
+      (v) => {
+        setViewer(v)
+        setFirst(opening(v))
+      },
+      setArrived,
+      viewer,
+    )
+  }, [update, viewer])
+  const board = viewOf(first, arrived, now)
+  const read = readBoardView(board)
+  if (!read.ok) {
+    window.workFixture = { ...window.workFixture, unexpected, refused: read.problems }
+    return <p role="alert">The fixture’s view was refused: {read.problems.join('; ')}</p>
+  }
+  const shared = { resources: withActivity(owned), viewerId: viewer, now, board: read.value }
   const plans = Object.fromEntries(
-    [first, ...(two && arrived ? [secondPlan] : []), ...(six ? morePlans : [])]
-      .filter((p) => current(p))
-      .map((p) => [p.goal_id, slot(p, now, shared)]),
+    read.value.goals
+      .filter((g) => boardOf(g, { resources: [], people, viewerId: viewer }))
+      .map((g) => [g.goal_id, slot(g, shared, onCommand)]),
   )
   return (
-    <ProjectShell
-      projectId={PROJECT}
-      view="work"
-      identity={identity}
-      account={null}
-      onShow={nothing}
-      onLeave={nothing}
-      onWork={nothing}
-      onSignOut={nothing}
-      plans={plans}
-    />
+    <>
+      <p className="fixture-label" role="note">
+        Simulated — no lead, tool, host or conversation read · viewing as {people[viewer].name}
+        {scenario ? ` · ${scenario}` : ''}
+      </p>
+      <ProjectShell
+        projectId={PROJECT}
+        view="work"
+        identity={identity}
+        account={null}
+        onShow={nothing}
+        onLeave={nothing}
+        onWork={nothing}
+        onSignOut={nothing}
+        plans={plans}
+      />
+    </>
   )
 }
 
@@ -214,9 +381,6 @@ if (!root) throw new Error('work.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
-    <p className="fixture-label" role="note">
-      Simulated — no lead, tool or host read · viewing as {viewer === 'davide' ? 'Davide' : 'Luis'}
-    </p>
     <QueryClientProvider client={new QueryClient()}>
       <ShortcutScope.Provider value>
         <Tasks />

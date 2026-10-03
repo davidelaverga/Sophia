@@ -19,6 +19,8 @@ export interface GoalPlan {
   next?: React.ReactNode
   /** Its tasks' ids: an address naming one of them (`#task-<id>`) chooses this goal. */
   tasks?: readonly string[]
+  /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
+  attention?: boolean
 }
 
 interface Props {
@@ -144,14 +146,7 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
       {!snapshot && <div className="goal skeleton" aria-busy="true" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
-      {shown && (
-        <GoalTabs
-          goals={tabbed}
-          tabs={Object.fromEntries(tabbed.map((g) => [g.id, plans?.[g.id]?.tab]))}
-          chosen={shown.id}
-          onChoose={choose}
-        />
-      )}
+      {shown && <Rail goals={tabbed} shown={shown.id} plans={plans} onChoose={choose} />}
       <SearchQuery.Provider value={query}>
         <ol className="goal-list">
           {listed.map((g) => (
@@ -171,6 +166,57 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
       </SearchQuery.Provider>
       {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} />}
     </section>
+  )
+}
+
+/**
+ * What waits on the viewer in the other goals: one compact line, each goal a press away. Nothing arriving there
+ * switches the goal the viewer chose.
+ */
+function Elsewhere({
+  goals,
+  shown,
+  plans,
+  onChoose,
+}: {
+  goals: readonly Goal[]
+  shown: string
+  plans: Props['plans']
+  onChoose: (id: string) => void
+}) {
+  const others = goals.filter((g) => g.id !== shown && plans?.[g.id]?.attention)
+  if (others.length === 0) return null
+  return (
+    <p className="goal-elsewhere">
+      <span className="field-label">Also for you</span>
+      {others.map((g) => (
+        <button key={g.id} type="button" className="text-button" onClick={() => onChoose(g.id)}>
+          {g.title}
+        </button>
+      ))}
+    </p>
+  )
+}
+
+interface RailProps {
+  goals: readonly Goal[]
+  shown: string
+  plans: Props['plans']
+  onChoose: (id: string) => void
+}
+
+/** The goals' rail, and under it what waits on the viewer in the goals not shown. */
+function Rail({ goals, shown, plans, onChoose }: RailProps) {
+  return (
+    <>
+      <GoalTabs
+        goals={goals}
+        tabs={Object.fromEntries(goals.map((g) => [g.id, plans?.[g.id]?.tab]))}
+        chosen={shown}
+        onChoose={onChoose}
+      />
+      <Elsewhere goals={goals} shown={shown} plans={plans} onChoose={onChoose} />
+    </>
   )
 }
 

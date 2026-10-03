@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { accountOf } from './account.ts'
-import { planRows, type PlanItem, type WorkPlan } from './plan.ts'
+import { assignment, goal, item, plan, view } from './board-samples.ts'
+import type { ItemView } from './board-view.ts'
+import { boardOf } from './plan.ts'
 
 const now = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString()
@@ -51,50 +53,59 @@ const readings: QuotaObservation[] = [
     missing_capabilities: [],
   },
 ]
-const item = (over: Partial<PlanItem> = {}): PlanItem => ({
-  id: 'build',
-  purpose: 'Build it',
-  parent_id: null,
-  blocked_by: [],
-  assignee_kind: 'assignment',
-  assignee_id: 'assignment-build',
-  activation: { kind: 'immediate', producer_work_id: null },
-  ...over,
-})
-const plan = (items: PlanItem[]): WorkPlan => ({
-  plan_id: 'p',
-  revision: 1,
-  mission_revision: 1,
-  state: 'accepted',
-  items,
-  goal_id: 'g',
-  next_checkpoint: null,
-  assumptions: [],
-  decisions: [],
-})
-const rowOf = (i: PlanItem) => {
-  const row = planRows(plan([i]), [claude], {})[0]
+/** Its row, observed as `over` says, run by Davide's Claude Code at its current generation. */
+const rowOf = (over: Partial<ItemView> = {}) => {
+  const running = view('build', {
+    lifecycle: 'running',
+    assignment: assignment('build', {
+      native_session_id: 's',
+      executor: {
+        kind: 'owner_native',
+        display_name: 'Davide’s Claude Code',
+        role: 'worker',
+        owner_id: 'davide',
+        resource_id: 'davide-claude',
+      },
+    }),
+    ...over,
+  })
+  const row = boardOf(goal(plan([item('build', { purpose: 'Build it' })]), [running]), {
+    resources: [claude],
+    people: {},
+    viewerId: 'davide',
+  })?.rows[0]
   if (!row) throw new Error('no row')
   return row
 }
 
 describe('a task’s account', () => {
   it('says what it is short of while its session is at it', () => {
-    const account = accountOf(rowOf(item()), { observations: readings, resources: [claude], now })
+    const account = accountOf(rowOf(), { observations: readings, resources: [claude], now })
     assert.equal(account.short, 'runs out in ~35 min')
     assert.equal(account.tile, 'out in ~35 min')
   })
 
-  it('says nothing once it is finished, or without readings', () => {
-    const finished = rowOf(item({ outcome: { state: 'finished', at: at(-5) } }))
-    assert.equal(finished.doer.resource?.id, 'davide-claude') // its session still holds it
-    assert.deepEqual(accountOf(finished, { observations: readings, resources: [claude], now }), {
+  it('says nothing once it is ready for review, complete or closed, or without readings', () => {
+    const ready = rowOf({ lifecycle: 'ready_for_review' })
+    assert.equal(ready.doer.resource?.id, 'davide-claude') // its assignment still names it
+    assert.deepEqual(accountOf(ready, { observations: readings, resources: [claude], now }), {
       short: null,
       tile: null,
       room: null,
     })
-    assert.equal(accountOf(rowOf(item()), { resources: [claude], now }).short, null)
-    const checked = rowOf(item({ outcome: { state: 'checked', at: at(-5) } }))
-    assert.equal(accountOf(checked, { observations: readings, resources: [claude], now }).short, null)
+    assert.equal(accountOf(rowOf(), { resources: [claude], now }).short, null)
+    const satisfied = { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e'] }
+    assert.equal(
+      accountOf(rowOf({ lifecycle: 'complete', completion: satisfied }), {
+        observations: readings,
+        resources: [claude],
+        now,
+      }).short,
+      null,
+    )
+    assert.equal(
+      accountOf(rowOf({ lifecycle: 'stopped' }), { observations: readings, resources: [claude], now }).short,
+      null,
+    )
   })
 })

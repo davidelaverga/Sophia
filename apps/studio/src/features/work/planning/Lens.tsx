@@ -1,4 +1,4 @@
-// Lenses over the board: All, For you, Waiting, Open. A lens dims what it doesn't show and moves nothing, so the
+// Lenses over the board: All, For you, Waiting, Unassigned. A lens dims what it doesn't show and moves nothing, so the
 // board keeps its shape and the eye keeps its map. Each says how many it shows. The arrows move between them.
 import { useRef } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
