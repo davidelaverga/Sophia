@@ -1,4 +1,7 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+import { expect, test, type Download, type Locator, type Page } from '@playwright/test'
+import { renderReportPage } from '@sophia/report/page'
+import { citedSources, content, versions } from '../fixtures/report-data.ts'
 
 // The report viewer over the room (SMC-M03), on the fixture page: the Studio's own ProjectShell with the fixture report
 // (fixtures/report-data.ts). Each check holds one of LFE-02.1's findings fixed; only the API and LiveKit are faked, and
@@ -557,7 +560,7 @@ test('CX-0019 · Download waits for the checked bytes without dropping the focus
   )
   await page.keyboard.press('Enter')
   expect(await early).toBe(false)
-  await expect(pane(page).getByRole('status')).toHaveText('')
+  await expect(pane(page).locator('.report-status')).toHaveText('') // the head's line, not the HTML page's
 
   await page.evaluate(() => window.fixture?.releaseText())
   await expect(pane(page).getByText(FIRST)).toBeVisible()
@@ -566,7 +569,7 @@ test('CX-0019 · Download waits for the checked bytes without dropping the focus
   const saved = page.waitForEvent('download')
   await page.keyboard.press('Enter')
   expect((await saved).suggestedFilename()).toBe('fixture-report.md')
-  await expect(pane(page).getByRole('status')).toHaveText(/^Downloading fixture-report\.md/)
+  await expect(pane(page).locator('.report-status')).toHaveText(/^Downloading fixture-report\.md/)
 })
 
 test('CX-0019 · History names the recommendations, not the conclusion, when only they changed', async ({ page }) => {
@@ -599,4 +602,99 @@ test('CX-0019 · a citation written as a link to one of the version’s sources 
   await expect(row).toBeFocused()
   await expect(row.getByText('Citation 1')).toBeAttached()
   await expect(pane(page).getByText('Not cited in the text')).toHaveCount(0)
+})
+
+/** The HTML page version `n` of the fixture report prints: from its checked Markdown, with the sources it cites. */
+function fixturePage(n = 1): string {
+  const version = versions(n).find((v) => v.versionNumber === n)
+  const text = version ? content(version.sourceId) : null
+  if (!version || !text?.text) throw new Error(`the fixture report has no version ${String(n)}`)
+  return renderReportPage({
+    markdown: text.text,
+    title: version.title ?? 'Report',
+    sources: citedSources.sources.map((s) => ({ id: s.sourceId, title: s.title, url: s.url })),
+    citable: citedSources.sources.map((s) => s.sourceId),
+    sha256: version.sourceHash,
+    versionNumber: n,
+  })
+}
+
+/** What a download saved, as text. */
+async function savedText(download: Download): Promise<string> {
+  const path = await download.path()
+  return readFile(path, 'utf8')
+}
+
+/** Whether a press saves no file within a second. */
+const noDownload = (page: Page) =>
+  page.waitForEvent('download', { timeout: 1000 }).then(
+    () => false,
+    () => true,
+  )
+
+test('HTML · the work card downloads each Markdown version as one self-contained page, printed from its checked text', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?place=work')
+  const row = page.getByRole('button', { name: 'Download fixture-report-v1.html, HTML page' })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('HTML page · v1')
+  const saved = page.waitForEvent('download')
+  await row.click()
+  const download = await saved
+  expect(download.suggestedFilename()).toBe('fixture-report-v1.html')
+  const html = await savedText(download)
+  expect(html).toBe(fixturePage())
+  expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">')
+  expect(html).toContain(`<meta http-equiv="Content-Security-Policy" content="default-src 'none';`)
+  expect(html).toContain('<a href="#cite-1">[1]</a>')
+  expect(html).not.toContain('<script')
+  await expect(page.locator('.work-card .output-status').last()).toHaveText(/^Downloading fixture-report-v1\.html · /)
+})
+
+test('HTML · text that does not match its record saves no page, and the row says why', async ({ page }) => {
+  await enter(page, '/room.html?place=work&tamper=text')
+  const row = page.getByRole('button', { name: 'Download fixture-report-v1.html, HTML page' })
+  await expect(row).toBeVisible()
+  const none = noDownload(page)
+  await row.click()
+  expect(await none).toBe(true)
+  await expect(page.locator('.work-card .output-status').last()).toHaveText(
+    'The file did not match its record, so it was not saved. Try again.',
+  )
+})
+
+test('HTML · the report pane’s Document tab downloads the version on screen as a page, numbered as it is read', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}&versions=3&version=${V3}`)
+  await expect(pane(page).getByText(THIRD)).toBeVisible()
+  const saved = page.waitForEvent('download')
+  await pane(page).getByRole('button', { name: 'Download HTML page' }).click()
+  const download = await saved
+  expect(download.suggestedFilename()).toBe('fixture-report-v3.html')
+  const html = await savedText(download)
+  expect(html).toBe(fixturePage(3))
+  // As the pane reads it (CX-0019): the link to one of the version's sources is citation 1, the stray id its label.
+  expect(html).toContain('It cites one page <sup class="cite"><a href="#cite-1">[1]</a></sup> and names an id')
+  expect(html).toContain('none of its sources 2.')
+  await expect(pane(page).locator('.page-download [role="status"]')).toHaveText(/^Downloading fixture-report-v3\.html/)
+})
+
+test('HTML · a Knowledge card downloads its current version as a page; the filter says Without PDF', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?place=knowledge')
+  const card = page.locator('.report-card').filter({ has: page.getByRole('button', { name: 'Fixture report' }) })
+  const saved = page.waitForEvent('download')
+  await card.getByRole('button', { name: 'Download HTML page' }).click()
+  const download = await saved
+  expect(download.suggestedFilename()).toBe('fixture-report-v1.html')
+  expect(await savedText(download)).toBe(fixturePage())
+
+  // The older report has a PDF, so the format filter is offered: "Without PDF", since every report has its page.
+  await page.getByRole('button', { name: 'More reports' }).click()
+  const formats = page.getByRole('group', { name: 'Format' })
+  await expect(formats.getByRole('button', { name: 'Without PDF' })).toBeVisible()
+  await expect(formats.getByRole('button', { name: 'Markdown only' })).toHaveCount(0)
 })

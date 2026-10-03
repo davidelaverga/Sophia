@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 import type { ReportSource } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { safeHref } from './markdown.ts'
-import { focusFree, hostOf, sourceWords } from './report-view.ts'
+import { focusFree, hostOf, sourceTitle, sourceWords } from './report-view.ts'
 
 interface Props {
   sources: readonly ReportSource[] | undefined
@@ -49,7 +49,7 @@ function useFocusedRow(focused: boolean) {
 
 function SourceRow({ source, n, focused }: { source: ReportSource; n: number | null; focused: boolean }) {
   const words = sourceWords(source)
-  const title = source.title ?? (source.url ? hostOf(source.url) : 'A source from the project')
+  const title = sourceTitle(source)
   // Only a web address opens; anything else a provider reported stays text.
   const href = source.url ? safeHref(source.url) : null
   const row = useFocusedRow(focused)

@@ -453,6 +453,10 @@ when you change the room:
   reach; Esc keeps to the shortcut scope; a notice marks Chat; the focus is
   handed back and never taken; a description never overwrites a newer one;
   a failed read is said, with a way to try again, and a refusal as one.
+  Every report downloads as an HTML page (html-report-v1) from its work card,
+  the pane's Document tab and its Knowledge card: the saved file equals the
+  page `@sophia/report/page` prints from the version's checked Markdown, and
+  text that does not match its record (`tamper=text`) saves nothing.
   Change the viewer and they must still pass.
 
 ## The personal space

@@ -126,18 +126,22 @@ export const citedSources: ReportSourceList = {
   ],
 }
 
-/** A version's Markdown, inline, as `GET /sources/{id}/content` answers it; null for a source it does not hold. */
-export function content(sourceId: string): SourceContent | null {
+/**
+ * A version's Markdown, inline, as `GET /sources/{id}/content` answers it; null for a source it does not hold.
+ * `tampered` (`tamper=text`): the text with one space more and the record's sha256 kept, bytes no record names.
+ */
+export function content(sourceId: string, tampered = false): SourceContent | null {
   const text = TEXTS.find((t) => t.sourceId === sourceId)
   if (!text) return null
+  const served = tampered ? `${text.text} ` : text.text
   return {
     sourceId,
     sha256: text.sha256,
     mime: 'text/markdown',
-    byteLength: byteLengthOf(text.text),
+    byteLength: byteLengthOf(served),
     filename: 'fixture-report.md',
     disposition: 'inline',
-    text: text.text,
+    text: served,
     downloadUrl: null,
     expiresAt: null,
   }

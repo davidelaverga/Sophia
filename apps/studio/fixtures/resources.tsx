@@ -46,6 +46,8 @@ installFixtureApi({
   versionsFail: false,
   sourcesHeld: false,
   textHeld: false,
+  textTampered: false,
+  work: false,
 })
 window.resourcesFixture = { unexpected }
 const nothing = () => undefined

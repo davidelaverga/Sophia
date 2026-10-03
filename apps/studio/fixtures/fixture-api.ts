@@ -45,6 +45,10 @@ interface Project {
   sourcesHeld: boolean
   /** So do reads of a version's text (`hold=text`). */
   textHeld: boolean
+  /** A version's text arrives as bytes its record does not name (`tamper=text`). */
+  textTampered: boolean
+  /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
+  work: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -86,10 +90,14 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
   return new Response(body.pipeThrough(new TextEncoderStream()), { headers: { 'content-type': 'text/event-stream' } })
 }
 
-/** The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`). */
+/**
+ * The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`), and the research
+ * task in its work on the Work page (`place=work`).
+ */
 function snapshotOf(project: Project) {
   const now = snapshot(project.revision, project.exchange, project.messages)
-  return project.waiting ? { ...now, lobby: [waitingAtTheDoor] } : now
+  const work = project.work ? { ...now, work: [researchTask.task] } : now
+  return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
 }
 
 /** The project moves one revision, and the event saying so goes to every open stream. */
@@ -136,7 +144,7 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
-  const text = source ? content(source) : null
+  const text = source ? content(source, project.textTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return json(researchTask)
   return null
