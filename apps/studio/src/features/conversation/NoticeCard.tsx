@@ -2,15 +2,17 @@
 // §2.8, CX-0022): the words are Studio's, by the task's kind, never a report's title or anything a page said. Open
 // shows the primary file in the viewer (the PDF when there is one, named explicitly: the viewer's own default is the
 // Markdown), Download saves that same file after its hash is checked, and Markdown opens the Markdown beside a PDF
-// (noticeActions, RF-0020).
-// The files come from the task's own record, read with this person's rights; until it is read, Open and Download keep
-// their place and the focus but do nothing (aria-disabled, never disabled).
+// (noticeActions, RF-0020). A research report's card also saves its HTML page (html-report-v1), printed from the
+// Markdown's version, PDF or not.
+// The files come from the task's own record, read with this person's rights; until it is read, Open, Download and
+// HTML page keep their place and the focus but do nothing (aria-disabled, never disabled).
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { downloadSource } from '../artifacts/download.ts'
+import { downloadReportPage } from '../artifacts/report-page.ts'
 import { formatBytes } from '../artifacts/report-view.ts'
 import { useTransientStatus } from '../artifacts/useTransientStatus.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from './chat-view.ts'
@@ -30,11 +32,43 @@ function useDelivered({ notice, projectId, identity }: Props) {
   return { artifactId: detail?.task.artifactId, ...noticeActions(detail?.result?.outputs ?? []) }
 }
 
+interface PageProps {
+  token: string
+  artifactId: string | undefined
+  page: { artifactVersionId: string } | null
+  show: (text: string, error?: boolean) => void
+}
+
+/** "HTML page": the Markdown's version saved as one self-contained page, its text checked first (report-page.ts). */
+function PageButton({ token, artifactId, page, show }: PageProps) {
+  const download = async () => {
+    if (!artifactId || !page) return
+    try {
+      const saved = await downloadReportPage(token, artifactId, page.artifactVersionId)
+      show(`Downloading ${saved.filename} · ${formatBytes(saved.byteLength)}`)
+    } catch (err: unknown) {
+      show(err instanceof Error ? err.message : 'The download didn’t start. Try again.', true)
+    }
+  }
+  return (
+    <button
+      type="button"
+      className="ghost"
+      aria-label="Download HTML page"
+      onClick={() => void download()}
+      aria-disabled={!artifactId || !page || undefined}
+    >
+      <Icon name="download" />
+      HTML page
+    </button>
+  )
+}
+
 export function NoticeCard(props: Props) {
   const { notice, identity } = props
   const viewer = useDocumentViewer()
   const status = useTransientStatus()
-  const { artifactId, primary, markdown } = useDelivered(props)
+  const { artifactId, primary, markdown, page } = useDelivered(props)
   const open =
     viewer && artifactId
       ? (file: { format: 'markdown' | 'pdf'; artifactVersionId: string }) =>
@@ -68,6 +102,9 @@ export function NoticeCard(props: Props) {
           <button type="button" className="ghost" onClick={() => open(markdown)}>
             Markdown
           </button>
+        )}
+        {notice.taskKind === 'research' && (
+          <PageButton token={identity.token} artifactId={artifactId} page={page} show={status.show} />
         )}
       </div>
       {/* There before it speaks: a live region added with its words is often not read. */}
