@@ -28,3 +28,16 @@ export async function admitGoalCommand(
   )
   return onlyRow(rows, 'admit_goal_command').receipt
 }
+
+/**
+ * Whether the acting member already sent a command under this key. A retry is answered by its first receipt
+ * (admit_goal_command replays it), so nothing judged before admission may answer it differently. Call inside withActor.
+ */
+export async function commandKeyUsed(c: pg.PoolClient, projectId: string, idempotencyKey: string): Promise<boolean> {
+  const { rows } = await c.query<{ used: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM sophia.commands
+                    WHERE project_id = $1 AND actor_id = sophia.actor_id() AND idempotency_key = $2) AS used`,
+    [projectId, idempotencyKey],
+  )
+  return rows[0]?.used ?? false
+}

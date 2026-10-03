@@ -30,6 +30,8 @@ import {
   readArtifactVersions,
   readNativeTask,
   readReportSource,
+  readResearchVersion,
+  readTaskStandings,
   recordRuntimeObservations,
   recordRuntimeReady,
   recordRuntimeReceipts,
@@ -1957,6 +1959,50 @@ describe('report facts (0027)', () => {
     assert.equal(research.reads.used, 0)
     assert.ok(research.committedUsd >= 0.01 && research.spentUsd === 0, 'the search is reserved, not yet settled')
     assert.equal(await codeOf(read(C)), 'not_found')
+  })
+
+  it('reads where tasks stand, by their own job, and the versions a task’s facts compare, to members only', async () => {
+    const w = await world()
+    const { first, amended, submit } = await amending(w)
+    const [root, follow] = [first.receipt.taskId, amended.receipt.taskId]
+    const standings = async (actor: string) =>
+      new Map(
+        (await withActor(pool, actor, 'read', (c) => readTaskStandings(c, w.projectId, [root, follow]))).map((s) => [
+          s.taskId,
+          s,
+        ]),
+      )
+    const under = await standings(V)
+    const r = under.get(root)
+    assert.ok(r)
+    // The follow-up shares the root's goal, which is under way again: the root's own job says it finished.
+    assert.deepEqual(
+      [r.state, r.goalStatus === 'completed', r.published?.versionNumber, r.current?.versionNumber, r.latestTaskId],
+      ['succeeded', false, 1, 1, follow],
+    )
+    assert.deepEqual(
+      r.inFlight.map((t) => t.taskId),
+      [follow],
+    )
+    assert.deepEqual([under.get(follow)?.published, under.get(follow)?.current?.versionNumber], [null, 1])
+    assert.equal((await standings(C)).size, 0, 'an outsider reads nothing')
+    assert.equal(
+      await withActor(pool, C, 'read', (c) => readResearchVersion(c, w.projectId, follow)),
+      null,
+      'nor any version',
+    )
+
+    const notes = { changeNote: 'Added the pricing tiers and dropped the conclusion.' }
+    let done = await submit('s2', notes)
+    if (done.outcome === 'notes_rejected') done = await submit('s3', notes)
+    assert.equal(done.outcome, 'published')
+    const read = await withActor(pool, V, 'read', (c) => readResearchVersion(c, w.projectId, follow))
+    assert.ok(read)
+    assert.deepEqual(
+      [read.own?.versionNumber, read.own?.text, read.previous?.text, read.current?.taskId, read.first?.versionNumber],
+      [2, V2, V1, follow, 1],
+    )
+    assert.deepEqual([read.standing.latestTaskId, read.standing.inFlight], [follow, []])
   })
 })
 

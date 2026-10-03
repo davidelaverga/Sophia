@@ -12,7 +12,7 @@ export {
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
-export { admitGoalCommand } from './commands.ts'
+export { admitGoalCommand, commandKeyUsed } from './commands.ts'
 export { createProject } from './projects.ts'
 export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.ts'
 export {
@@ -81,8 +81,15 @@ export {
   readDiscussion,
   readNativeTask,
   readNativeTasks,
+  readResearchVersion,
+  readTaskStandings,
   submitContribution,
   type ContributionOrigin,
+  type ReportVersion,
+  type ReportVersionText,
+  type ResearchVersions,
+  type SectionCounts,
+  type TaskStanding,
 } from './native-tasks.ts'
 export {
   editReportSummary,
