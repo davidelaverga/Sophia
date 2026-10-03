@@ -19,6 +19,12 @@ import type { ToolContext } from './mission-tools.ts'
 
 /** No PDF renderer is running (0031): nothing was started, and no other format is promised in its place. */
 const PDF_UNAVAILABLE = 'PDF reports are not available, so nothing was started.'
+/**
+ * Said with every admission: the receipt is never updated, so a later question is answered from project_status, never
+ * from this receipt (CX-0026: a finished report was still believed admitted, and a steer promised for later).
+ */
+const RECEIPT_STAYS =
+  'This receipt is not updated later; project_status says whether it is waiting, running or finished.'
 /** Said when the speaker asked for HTML: every report downloads as an HTML page Studio prints from its Markdown. */
 const HTML_NOTE = ' When it is ready, its card also downloads it as an HTML page.'
 
@@ -150,7 +156,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
       output: {
         taskId: result.admitted.taskId,
         stage: 'admitted',
-        note: `Admitted, not started yet: the report arrives later, and the work card shows when it runs.${more}`,
+        note: `Admitted, not started yet: the report arrives later, and the work card shows when it runs. ${RECEIPT_STAYS}${more}`,
       },
     }
   } catch (err: unknown) {
