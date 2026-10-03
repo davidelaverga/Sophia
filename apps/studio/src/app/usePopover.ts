@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react'
 const FIRST = '[role="menuitem"], button:not([disabled]), input, a[href]'
 
 function moveFocus(e: React.KeyboardEvent<HTMLElement>) {
-  const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')]
   if (items.length === 0) return
   e.preventDefault()
   const at = items.findIndex((i) => i === document.activeElement)

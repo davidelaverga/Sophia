@@ -2,24 +2,33 @@
 // they grow to tens, with one line on top only while a request waits on an owner. A tile opens the resource's sheet,
 // where everything else is. It goes in ProjectShell's `resources`. It shows; it doesn't steer, hold or stop
 // (LFE-06.4), and nothing here calls a tool.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
-import { ORDER_LABEL, ordered, ORDERS, placed, type Order } from './order.ts'
+import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
-import { ResourceSheet } from './ResourceSheet.tsx'
+import type { EffortAsk } from './change.ts'
+import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceSheet.tsx'
+import { glance, readSeen, whileAway, writeSeen, type Seen } from './away.ts'
+import { AwayLine } from './AwayLine.tsx'
+import { roomElsewhere } from './room.ts'
+import { useActs, type SessionAct } from './SessionActs.tsx'
+import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
   FILTER_LABEL,
   FILTERS,
   inFilter,
+  liveSession,
   matches,
+  observationOf,
   plural,
+  reportsLive,
   summary,
   TOOL,
   type Filter,
@@ -43,6 +52,42 @@ interface Props {
   loading?: boolean
   /** Earlier readings of the accounts, for each window's history in a sheet; none when only the latest is kept. */
   history?: QuotaObservation[]
+  /**
+   * Where an owner's choice of a session's effort goes (the runtime's launch configuration, SCM-01). Absent, no
+   * effort can be chosen and the bars stay read-only. `level` null withdraws the request.
+   */
+  onEffort?: (sessionId: string, ask: EffortAsk | null) => void
+  /** The way to a session's task on the plan's board (LFE-07.1); absent, a session's task is only its title. */
+  tasks?: TaskLinks
+  /** Where an owner's guidance, Hold or Stop on a session goes (LFE-06.6); absent, none is offered. */
+  onAct?: SessionAct
+  /** Where the viewer's last look is kept (LFE-06.7): the project's id, so two projects' never mix. */
+  scope?: string
+}
+
+/**
+ * What changed since the viewer last looked (away.ts): a glance kept in this browser, the line it makes, and the tiles
+ * that moved. A first visit, once the resources are read, remembers them as they are and says nothing.
+ */
+function useAway(props: Props) {
+  const { resources, actions, observations, viewerId, now, loading = false, scope = 'resources' } = props
+  // Kept for whose look, where: another scope or viewer reads its own.
+  const at = `${scope}.${viewerId}`
+  const [kept, setKept] = useState(() => ({ at, seen: readSeen(scope, viewerId) }))
+  const seen = kept.at === at ? kept.seen : readSeen(scope, viewerId)
+  const keep = (glanced: Seen) => setKept({ at, seen: writeSeen(scope, viewerId, glanced) })
+  const current = glance(resources, actions, observations, now)
+  // Read, even with nothing enrolled yet: one enrolled later is then new here.
+  const first = !seen && !loading
+  useEffect(() => {
+    if (first) setKept({ at, seen: writeSeen(scope, viewerId, glance(resources, actions, observations, now)) })
+  }, [first, at, scope, viewerId, resources, actions, observations, now])
+  const line = loading ? null : whileAway({ resources, observations, now: current, seen, at: now, viewerId })
+  return {
+    since: line?.ids ?? new Set<string>(),
+    line: line ?? { phrases: [], more: 0 },
+    markSeen: () => keep(current),
+  }
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -180,34 +225,6 @@ function None({ query, filter, onClear, onAll }: NoneProps) {
   )
 }
 
-interface SortProps {
-  order: Order
-  onChange: (order: Order) => void
-}
-
-const isOrder = (value: string): value is Order => ORDERS.some((o) => o === value)
-
-/** The tiles' order: by attention (what needs someone first), by owner or by tool. */
-function Sort({ order, onChange }: SortProps) {
-  return (
-    <label className="field quiet resource-sort">
-      <span className="resource-sort-label">Sort</span>
-      <select
-        value={order}
-        onChange={(e) => {
-          if (isOrder(e.target.value)) onChange(e.target.value)
-        }}
-      >
-        {ORDERS.map((o) => (
-          <option key={o} value={o}>
-            {ORDER_LABEL[o]}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
 function useView({ resources, actions, viewerId }: Props) {
   const [query, setQuery] = useState('')
   const [kept] = useState(() => readPrefs(viewerId))
@@ -245,20 +262,19 @@ function useView({ resources, actions, viewerId }: Props) {
   return { query, setQuery, filter, setFilter, order, setOrder, counts, shown, arrange }
 }
 
-const observationOf = (observations: QuotaObservation[], r: Resource) =>
-  observations.find((o) => o.entitlement_id === r.entitlementId)
-
 /** The enrolled tools to browse: the search and filters over the tiles, or what to do when none is shown. */
 type View = ReturnType<typeof useView>
 
-function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
-  const { resources, observations, actions, viewerId, now, onOpen, view } = props
+type Shown = Props & { onOpen: (id: string) => void; view: View; since: ReadonlySet<string> }
+
+function Browse(props: Shown) {
+  const { resources, observations, actions, viewerId, now, onOpen, view, since } = props
   return (
     <>
       <div className="resources-toolbar">
         <Search query={view.query} onChange={view.setQuery} />
         <Filters filter={view.filter} counts={view.counts} onChange={(f) => moving(() => view.setFilter(f))} />
-        <Sort order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
+        <SortMenu order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
       </div>
       <p className="sr-only" aria-live="polite">
         {view.shown.length} of {plural(resources.length, 'resource')} shown
@@ -279,6 +295,7 @@ function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
           now={now}
           onOpen={onOpen}
           onArrange={view.arrange}
+          since={since}
         />
       )}
     </>
@@ -304,7 +321,7 @@ function Placeholders() {
 }
 
 /** What the view shows under its head: placeholders while reading, the empty note, or the tiles to browse. */
-function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
+function Body(props: Shown) {
   if (props.loading) return <Placeholders />
   if (props.resources.length === 0) {
     return (
@@ -314,8 +331,40 @@ function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
   return <Browse {...props} />
 }
 
+/** Each session's requested effort, kept until withdrawn, and told on; none when nothing takes the request. */
+function useEffort(onEffort: Props['onEffort']): EffortControl | undefined {
+  const [asked, setAsked] = useState<Record<string, EffortAsk | undefined>>({})
+  // Kept the same across renders: a session's line waits on it to let a done request go.
+  const settle = useCallback((sessionId: string) => setAsked((a) => ({ ...a, [sessionId]: undefined })), [])
+  if (!onEffort) return undefined
+  return {
+    asked,
+    settle,
+    set: (sessionId, ask) => {
+      setAsked((a) => ({ ...a, [sessionId]: ask }))
+      onEffort(sessionId, ask)
+    },
+    undo: (sessionId) => {
+      setAsked((a) => ({ ...a, [sessionId]: undefined }))
+      onEffort(sessionId, null)
+    },
+  }
+}
+
+/** While a session reports live, the view's clock moves each second, so its age counts as a task tile's does. */
+const SECOND = 1000
+
+/** The view's clock: each second while any session reports live, else each minute. */
+function useViewClock(given: Props): Date {
+  const [fast, setFast] = useState(true)
+  const now = useClock(given.now, fast ? SECOND : undefined)
+  const live = given.resources.some((r) => reportsLive(r, liveSession(r), now))
+  useEffect(() => setFast(live), [live])
+  return now
+}
+
 export function ResourcePanel(given: Props) {
-  const now = useClock(given.now)
+  const now = useViewClock(given)
   const props = { ...given, now }
   const { resources, observations, actions, viewerId } = props
   // The address's resource is kept until the resources are read; it opens when it is among them.
@@ -327,6 +376,10 @@ export function ResourcePanel(given: Props) {
   }
   const view = useView(props)
   const ultra = useUltra()
+  const effort = useEffort(props.onEffort)
+  // Each session's last act, kept here: still said after its row closes or the sheet turns.
+  const acts = useActs(props.onAct)
+  const away = useAway(props)
   // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
   const order = view.shown.some((r) => r.id === open) ? view.shown : resources
   const at = order.findIndex((r) => r.id === open)
@@ -342,7 +395,8 @@ export function ResourcePanel(given: Props) {
         {!props.loading && <span className="resources-summary">{summary(resources, actions)}</span>}
       </header>
       {!props.loading && <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />}
-      <Body {...props} onOpen={show} view={view} />
+      {!props.loading && <AwayLine away={away.line} onSeen={away.markSeen} className="resources-away" />}
+      <Body {...props} onOpen={show} view={view} since={away.since} />
       {selected && !props.loading && (
         <ResourceSheet
           resource={selected}
@@ -353,6 +407,11 @@ export function ResourcePanel(given: Props) {
           now={now}
           onClose={() => show(null)}
           onStep={order.length > 1 ? step : undefined}
+          effort={effort}
+          tasks={props.tasks}
+          acts={acts}
+          room={roomElsewhere(selected, resources, observations, now, viewerId)}
+          onShow={show}
         />
       )}
     </section>

@@ -12,6 +12,8 @@ describe('a session’s effort', () => {
 
   it('keeps a word it doesn’t know, with no place on the scale', () => {
     assert.deepEqual(effortLook('turbo'), { label: 'turbo', rank: null, top: false, word: 'turbo' })
+    // A mode, not a level: it keeps no place on the scale, and is said as people say it.
+    assert.deepEqual(effortLook('ultracode'), { label: 'Ultracode', rank: null, top: false, word: 'ultracode' })
   })
 
   it('looks as each tool draws it: Claude’s dots, GPT’s gradient, a plain bar for the rest', () => {

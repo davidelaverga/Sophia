@@ -424,6 +424,17 @@ when you change the room:
   time; a viewer sees who chooses; the keyboard and a phone reach everything.
   Explore in the Studio still says it is coming: it shows the gallery once
   S1-06 serves real candidates.
+- **The lead's plan has its own checks** (`e2e/work.spec.ts`, LFE-07.1): on
+  `fixtures/work.html`, labelled "Simulated — no lead, tool or host read"
+  (`viewer=davide`, `goals=6`, `many=1`, `since=1`, `proposed=1`,
+  `superseded=1`, `conflict=1`), the Studio's own `ProjectShell` on Tasks,
+  with each goal's plan as a board (`PlanBoard`) in the `plans` slot
+  (production shows the goals alone until SCM-04 serves plans). One goal at a
+  time from a rail (search with `/`); the goal in two lines with its NEXT;
+  lenses, a decision pill and what changed since the last look; four lanes of
+  live tiles (a session's last report, a freshness ring); threads to what a
+  task waits on; a task's sheet to act on it or ask Sophia; the board by keys.
+  Its fixture's clock runs from NOW, and its acts and answers are simulated.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves
@@ -472,6 +483,36 @@ when you change the room:
   are still.
   Tiles can be arranged by hand (`TileGrid.tsx`): dragged onto another, or
   moved with Alt and an arrow, into a Custom order kept per viewer.
+  A session's owner chooses its effort from its bar (`EffortPicker.tsx`):
+  only the levels its tool reports (`Session.efforts`), set for its next run
+  or, confirmed, by a restart; the panel's `onEffort` takes the request, and
+  each step its runtime reports (`Session.change`, `change.ts`) is said beside the bar.
+  A session at work is live (LFE-06.5): its tile adds what its tool last
+  reported and how long ago. While the report is live (`reportsLive`: host
+  online, younger than two minutes) its age counts each second and its
+  owner's picture wears the board's freshness ring, amber while it waits
+  (`.live-ring`, shared with the plan's board); after that it is said still.
+  The clock never steps back when its pace changes (`clock.ts`). A session's
+  task opens on the plan's board when it is on one (the panel's `tasks`,
+  `#task-<id>`), and a task's doer opens here (the board's `onOpenResource`);
+  a task's address opens it with its goal, also when followed in the page
+  (`useAddressed`). A tile's capacity is short (`tileCapacity`): the window
+  and how full, then its reset, or, in amber, when it runs out first at its
+  pace (the window that runs out first heads it). When an account runs short,
+  its sheet names one resource with room (`room.ts`: online, another account,
+  under 75 % and on pace; the owner's own first); it only shows. `tight=1`
+  shows it.
+  A session's owner acts on it from its row (LFE-06.6): Act opens guidance,
+  Hold and Stop as its route supports them (`SessionActs.tsx`, shared with a
+  task's sheet; the panel's `onAct`), each said as observed (recorded, queued,
+  delivered), Stop asked first. A task whose session is at it says on its
+  tile when its doer's account runs short, and its sheet names where there is
+  room (the board's `observations`; `work.html?tight=1`).
+  What changed since the viewer last looked is one line under the requests
+  (LFE-06.7: `away.ts`, the shared `AwayLine`; kept per `scope` and viewer in
+  this browser; a first visit says nothing); only a tile it speaks of is
+  marked, until Mark seen; a request is said once, on top. A session's earlier reports fold under its
+  last one (`Session.recent`, newest first). `since=1` shows the line.
 - **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
   the room's fixture page, whose API also answers the fixture report
   (`fixtures/report-data.ts`), Knowledge and a research notice. A report

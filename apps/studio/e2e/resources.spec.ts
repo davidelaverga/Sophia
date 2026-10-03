@@ -15,6 +15,7 @@ async function open(page: Page, name: string) {
   await expect(sheet(page, name)).toBeVisible()
   return sheet(page, name)
 }
+const leftOf = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().left)
 const capacity = (page: Page, name: string) => sheet(page, name).getByRole('group', { name: 'Capacity' })
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })
 const filter = (page: Page, name: string) => page.getByRole('tablist', { name: 'Show' }).getByRole('tab', { name })
@@ -182,7 +183,7 @@ test('what waits on an owner is one line on top, and it opens that resource', as
   await expect(tile(page, 'Davide · Claude Code').getByText('1 waiting')).toBeVisible()
   // A screen reader hears the tile's lines, not only whose it is.
   await expect(tile(page, 'Davide · Claude Code')).toHaveAccessibleDescription(
-    'Online 1 waiting Opus 5.5 Implement the PDF retry · 2 sessions 5-hour window: 63% used, resets in 55 min',
+    /^Online 1 waiting Opus 5\.5 Implement the PDF retry · 2 sessions Asked to run pnpm --filter @sophia\/report test \d+ s ago 5-hour window: 63% used, resets in 55 min$/,
   )
   await expect(tile(page, 'Luis · Claude Code')).toHaveAccessibleDescription(
     'Unknown You No assignment Capacity unknown',
@@ -338,6 +339,14 @@ test('by attention, what needs someone comes first; a waiting tile stands out, a
   expect(await edge('Davide · Claude Code'), 'the waiting tile’s edge').not.toBe(await edge('Davide · Codex'))
 })
 
+/** The Sort menu's button, which says the order in use. */
+const sortButton = (page: Page) => page.getByRole('button', { name: /^Sort/ })
+/** Chooses an order from the Sort menu, as a person would. */
+async function sortBy(page: Page, label: string) {
+  await sortButton(page).click()
+  await page.getByRole('menuitemradio', { name: label }).click()
+}
+
 test('the tiles sort by owner or by tool, and glide there', async ({ page }) => {
   await countGlides(page)
   await page.goto(`${PAGE}?more=1`)
@@ -345,16 +354,49 @@ test('the tiles sort by owner or by tool, and glide there', async ({ page }) => 
     grid(page)
       .getByRole('button')
       .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
-  const sort = page.getByRole('combobox', { name: 'Sort' })
-  await sort.selectOption('owner')
+  await sortBy(page, 'Owner')
   await expect
     .poll(names)
     .toEqual(['Davide · Claude Code', 'Davide · Codex', 'Davide · Grok', 'Luis · Claude Code', 'Luis · Gemini CLI'])
-  await sort.selectOption('tool')
+  await sortBy(page, 'Tool')
   await expect
     .poll(names)
     .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
   expect(await glides(page)).toBe(2)
+})
+
+test('Sort is a menu in the app’s look: it opens on the order in use, keys move and choose, Escape gives back', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await expect(sortButton(page)).toHaveText('SortAttention')
+  await sortButton(page).click()
+  const menu = page.getByRole('menu', { name: 'Sort' })
+  await expect(menu).toHaveCSS('background-color', 'rgb(18, 17, 24)') // the app's raised plane (--plane-2)
+  await expect(menu.getByRole('menuitemradio', { name: 'Attention' })).toBeFocused() // on the order in use
+  await expect(menu.getByRole('menuitemradio', { name: 'Attention' })).toHaveAttribute('aria-checked', 'true')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitemradio', { name: 'Tool' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(menu).toHaveCount(0)
+  await expect(sortButton(page)).toHaveText('SortTool')
+  await expect(sortButton(page)).toBeFocused()
+  await sortButton(page).click()
+  await expect(page.getByRole('menuitemradio', { name: 'Tool' })).toBeFocused() // opens on the order now in use
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(sortButton(page)).toBeFocused()
+  await sortButton(page).click()
+  // Over the tiles: what is drawn at its items' middle is the menu itself.
+  const over = await page.getByRole('menuitemradio', { name: 'Custom' }).evaluate((item) => {
+    const b = item.getBoundingClientRect()
+    return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('[role="menu"]') !== null
+  })
+  expect(over).toBe(true)
+  await page.mouse.click(5, 700) // a press anywhere else closes it
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(sortButton(page)).toHaveText('SortTool')
 })
 
 test('each owner shows as the Studio shows a person: their picture, or their initial', async ({ page }) => {
@@ -380,14 +422,14 @@ test('every tool has its own colour', async ({ page }) => {
 test('the view opens as its viewer left it: filter and order', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
   await filter(page, 'Mine 2').click()
-  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await sortBy(page, 'Tool')
   // The order glides into place a frame later, and is kept once it has: reload after that, as a person would.
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('sophia.resources.v1.luis')))
     .toBe(JSON.stringify({ filter: 'mine', order: 'tool', custom: [] }))
   await page.reload()
   await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('tool')
+  await expect(sortButton(page)).toHaveText('SortTool')
   await expect(grid(page).getByRole('button')).toHaveCount(2)
   await page.goto(`${PAGE}?more=1&viewer=davide`) // another viewer keeps their own
   await expect(filter(page, 'All 5')).toHaveAttribute('aria-selected', 'true')
@@ -676,7 +718,7 @@ test('two Claude Codes side by side greet, then look at each other; hover one an
   const davide = tile(page, 'Davide · Claude Code')
   const luis = tile(page, 'Luis · Claude Code')
   await expect(davide).not.toHaveAttribute('data-buddy') // by attention they aren't neighbours
-  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await sortBy(page, 'Tool')
   await expect(davide).toHaveAttribute('data-buddy', 'right')
   await expect(luis).toHaveAttribute('data-buddy', 'left')
   await expect(tile(page, 'Davide · Codex')).not.toHaveAttribute('data-buddy')
@@ -693,7 +735,7 @@ test('two Claude Codes side by side greet, then look at each other; hover one an
 
 test('@phone · one tile to a row: no neighbours to greet', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
-  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await sortBy(page, 'Tool')
   // Once the order has glided into place, the two Claude Codes follow each other, a row apart: no greeting.
   await expect(grid(page).getByRole('button').nth(1)).toHaveAttribute('aria-label', 'Luis · Claude Code')
   await page.waitForTimeout(300)
@@ -712,7 +754,7 @@ test('a tile dragged onto another takes its place, in the viewer’s own order, 
   await expect
     .poll(() => order(page))
     .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('custom')
+  await expect(sortButton(page)).toHaveText('SortCustom')
   await expect(page.getByRole('status').filter({ hasText: 'Moved Luis · Claude Code to 2 of 5' })).toBeAttached()
   await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('data-buddy', 'right') // brought together, they greet
   await expect
@@ -736,7 +778,7 @@ test('Alt and an arrow move the focused tile, and the focus follows it', async (
   await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
   await expect(tile(page, 'Davide · Grok')).toBeFocused()
   await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0') // it stays the grid's one Tab stop
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('custom')
+  await expect(sortButton(page)).toHaveText('SortCustom')
   await page.keyboard.press('ArrowRight') // without Alt, the focus moves and the tiles stay
   await expect(tile(page, 'Davide · Claude Code')).toBeFocused()
   await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
@@ -797,7 +839,7 @@ test('Codex’s review · a dragged tile becomes the Tab stop; Alt at an end cha
   await tile(page, 'Davide · Claude Code').focus()
   await page.keyboard.press('Alt+Home') // already first
   await page.waitForTimeout(200)
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('attention') // still live, not frozen
+  await expect(sortButton(page)).toHaveText('SortAttention') // still live, not frozen
   await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Davide · Codex'))
   await expect(tile(page, 'Luis · Claude Code')).toHaveAttribute('tabindex', '0')
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
@@ -815,6 +857,258 @@ test('@phone · Codex’s review · the sheet’s title keeps its room beside it
     await title.evaluate((h) => h.getBoundingClientRect().height <= parseFloat(getComputedStyle(h).lineHeight) * 1.5),
     'one line',
   ).toBe(true)
+})
+
+const askedOf = (page: Page) => page.evaluate(() => JSON.stringify(window.resourcesFixture?.asked ?? []))
+
+test('effort · its owner opens the bar into a scale, and sets it for the next run, by keys alone', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  await claude.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  const slider = claude.getByRole('slider', { name: 'Effort' })
+  await expect(slider).toBeFocused() // opened to be moved
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Ultracode')
+  await expect(claude.getByRole('button', { name: 'Already Ultracode' })).toBeDisabled()
+  await expect(claude.locator('.effort-scale')).toHaveAttribute('data-alive', 'true') // previewed as it will look
+  await page.keyboard.press('Enter') // what it already runs: nothing to ask
+  await expect(slider).toBeVisible()
+  expect(await askedOf(page)).toBe('[]')
+  await page.keyboard.press('ArrowLeft')
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Max')
+  await expect(claude.locator('.effort-scale')).not.toHaveAttribute('data-alive')
+  await page.keyboard.press('Enter')
+  await expect(claude.getByRole('slider')).toHaveCount(0)
+  await expect(claude.getByRole('status').filter({ hasText: 'Next run · Max' })).toBeVisible()
+  expect(await askedOf(page)).toBe(JSON.stringify([{ sessionId: 'claude-worker', level: 'max', when: 'next' }]))
+  await claude.getByRole('button', { name: 'Undo' }).click()
+  await expect(claude.getByText('Next run · Max')).toHaveCount(0)
+  expect(await askedOf(page)).toContain('{"sessionId":"claude-worker","level":null,"when":null}')
+})
+
+/** An effort bar's fill as drawn: its paint, its dot mask, its animation. */
+const look = (scale: Locator) =>
+  scale.locator('.effort-fill').evaluate((f) => {
+    const s = getComputedStyle(f)
+    return { image: s.backgroundImage, mask: s.maskImage || s.webkitMaskImage, animation: s.animationName }
+  })
+
+test('effort · each tool’s own look only at its top: Ultracode’s dots, Ultra’s gradient; plain below', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  await claude.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  const scale = claude.locator('.effort-scale')
+  expect(await look(scale)).toMatchObject({ animation: 'effort-glint' }) // at its top: the dots, alive
+  expect((await look(scale)).mask).toMatch(/radial-gradient/)
+  await page.keyboard.press('ArrowLeft') // Max: plain
+  expect(await look(scale)).toEqual({ image: 'none', mask: 'none', animation: 'none' })
+  await expect(scale.locator('.effort-stop')).toHaveCount(6) // a mark at each of its levels
+  await expect(scale.locator('.effort-stop').nth(2)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('j')
+  const codex = sheet(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Effort: Ultra. Change it' }).click()
+  const gpt = codex.locator('.effort-scale')
+  expect((await look(gpt)).image).toMatch(/linear-gradient/) // at Ultra: the gradient
+  await page.keyboard.press('ArrowLeft') // Extra high: solid
+  expect(await look(gpt)).toEqual({ image: 'none', mask: 'none', animation: 'none' })
+  expect(await gpt.locator('.effort-fill').evaluate((f) => getComputedStyle(f, '::after').animationName)).toBe('none')
+})
+
+test('effort · restarting now is offered only while it works, said plainly, and confirmed', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  await claude.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await expect(claude.getByRole('button', { name: /Restart now/ })).toHaveCount(0) // nothing to change yet
+  await page.keyboard.press('Home')
+  await expect(claude.getByRole('slider')).toHaveAttribute('aria-valuetext', 'Low')
+  await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
+  // Asked in place, as the app asks before cutting work off: what it does, and the safe answer focused.
+  const asking = claude.getByRole('group', { name: 'Restart now with Low…' })
+  await expect(asking).toContainText('Stops its work and starts it again with Low.')
+  await expect(asking.getByRole('button', { name: 'Keep it running' })).toBeFocused()
+  // Its answers' words start where its sentence does.
+  const starts = await asking.evaluate((g) => {
+    const range = document.createRange()
+    const left = (el: Element | null) => {
+      const words = el?.firstChild
+      if (!words) return 0
+      range.selectNodeContents(words)
+      return range.getBoundingClientRect().left
+    }
+    return [left(g.querySelector('.confirm-note')), left(g.querySelector('.ghost'))]
+  })
+  expect(Math.abs((starts[0] ?? 0) - (starts[1] ?? 1))).toBeLessThanOrEqual(1)
+  await claude.getByRole('button', { name: 'Keep it running' }).click()
+  expect(await askedOf(page)).toBe('[]') // nothing asked
+  await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  await expect(claude.getByRole('status').filter({ hasText: 'Restart asked · Low' })).toBeVisible()
+  expect(await askedOf(page)).toBe(JSON.stringify([{ sessionId: 'claude-worker', level: 'low', when: 'now' }]))
+  // A session with no work running offers the next run only.
+  const reviewer = claude.getByRole('listitem').filter({ hasText: 'reviewer' })
+  await reviewer.getByRole('button', { name: 'Effort: not reported. Change it' }).click()
+  await expect(reviewer.getByRole('button', { name: /Restart now/ })).toHaveCount(0)
+})
+
+/** Moves a session's change as its runtime would report it (the fixture's advance, failStop, nextRun). */
+const runtime = (page: Page, step: 'advance' | 'failStop' | 'nextRun', id = 'claude-worker') =>
+  page.evaluate(([s, i]) => window.resourcesFixture?.[s]?.(i), [step, id] as const)
+
+test('effort · a restart, step by step: asked, its work kept as it stops, started with it, then running it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await expect(claude.getByText('Run a shell command: pnpm --filter @sophia/report test')).toBeVisible()
+  await worker.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await page.keyboard.press('Home')
+  await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  const line = worker.getByRole('status')
+  await expect(line).toHaveText(/Restart asked · Low\s*Undo/) // still its owner's to take back
+  await runtime(page, 'advance')
+  await expect(line).toHaveText('Stopping · keeping its work') // past undoing
+  await expect(line).toHaveAttribute('data-tone', 'moving')
+  // The request its old attempt had waiting on Davide is retired with it: said so, nothing left to answer.
+  const request = claude
+    .getByRole('listitem')
+    .filter({ hasText: 'Run a shell command: pnpm --filter @sophia/report test' })
+  await expect(request.getByText('Superseded')).toBeVisible()
+  await expect(request.getByRole('button', { name: 'Copy session id' })).toHaveCount(0)
+  await expect(claude.getByRole('heading', { name: 'Earlier requests' })).toBeVisible() // nothing waits on him now
+  await expect(worker.getByText('Queued')).toBeVisible() // its work held for the next attempt
+  await runtime(page, 'advance')
+  await expect(line).toHaveText('Starting again with Low')
+  await expect(worker.getByRole('button', { name: 'Effort: Ultracode. Change it' })).toBeVisible() // still what it runs
+  await runtime(page, 'advance')
+  await expect(worker.getByRole('button', { name: 'Effort: Low. Change it' })).toBeVisible()
+  await expect(line).toHaveText('Now on Low')
+  await expect(line).toHaveAttribute('data-tone', 'done')
+  await expect(worker.getByText('Working')).toBeVisible()
+  // Said for a moment, then let go, while live reads keep arriving: none of them holds it there.
+  for (let left = 3200; left > 3194; left--) {
+    await page.evaluate((n) => window.resourcesFixture?.spendCredits?.(n), left)
+    await page.waitForTimeout(900)
+  }
+  await expect(worker.getByRole('status')).toHaveCount(0, { timeout: 500 })
+})
+
+test('effort · its line sits in the session’s column: dot under dot, text under text, evenly spaced', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.locator('.resource-session').filter({ hasText: 'worker' })
+  await worker.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await page.keyboard.press('ArrowLeft')
+  await claude.getByRole('button', { name: 'Restart now with Max…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  // Measured at rest, once it has arrived.
+  await worker.locator('.effort-asked').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  const m = await worker.evaluate((row) => {
+    const box = (s: string) => row.querySelector(s)?.getBoundingClientRect() ?? new DOMRect()
+    const mid = (s: string) => box(s).left + box(s).width / 2
+    // Where an element's own words start, past its dot.
+    const text = (s: string) => {
+      const range = document.createRange()
+      const words = [...(row.querySelector(s)?.childNodes ?? [])].find((n) => n.nodeType === 3 && n.textContent?.trim())
+      if (words) range.selectNodeContents(words)
+      return range.getBoundingClientRect().left
+    }
+    const [chip, line, tag] = [box('.model-chip'), box('.effort-asked'), box('.resource-work .tag')]
+    return {
+      dot: { chip: mid('.model-dot'), line: mid('.effort-asked-dot'), tag: mid('.resource-work .tag .dot') },
+      text: { chip: text('.model-chip'), line: text('.effort-asked'), tag: text('.resource-work .tag') },
+      above: line.top - chip.bottom,
+      below: tag.top - line.bottom,
+      height: { chip: chip.height, line: line.height },
+    }
+  })
+  expect(Math.abs(m.dot.line - m.dot.chip)).toBeLessThanOrEqual(0.5) // dot under dot
+  expect(Math.abs(m.dot.tag - m.dot.chip)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(m.text.line - m.text.chip)).toBeLessThanOrEqual(1) // text under text
+  expect(Math.abs(m.text.tag - m.text.chip)).toBeLessThanOrEqual(1)
+  expect(m.above).toBeGreaterThan(0)
+  expect(m.above).toBeCloseTo(m.below, 1) // as far from the tag below as from the chip above
+  expect(m.height.line).toBe(m.height.chip)
+})
+
+/** How a piece of text is set: in the mono, and in capitals. */
+const type = (l: Locator) =>
+  l.evaluate((el) => {
+    const s = getComputedStyle(el)
+    return { mono: /mono/i.test(s.fontFamily), caps: s.textTransform === 'uppercase' }
+  })
+
+test('effort · its words in the app’s style: small labels in mono capitals; sentences and buttons in Geist', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const reviewer = claude.locator('.resource-session').filter({ hasText: 'reviewer' })
+  expect(await type(reviewer.getByText('Set effort'))).toEqual({ mono: false, caps: false })
+  await claude.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  expect(await type(claude.getByText('Faster', { exact: true }))).toEqual({ mono: true, caps: true })
+  expect(await type(claude.getByText('Smarter', { exact: true }))).toEqual({ mono: true, caps: true })
+  await page.keyboard.press('Home')
+  await expect(claude.getByRole('button', { name: 'Cancel' })).toHaveClass('ghost') // the app's quiet button
+  await expect(claude.getByRole('button', { name: 'Restart now with Low…' })).toHaveClass('ghost')
+  await page.keyboard.press('Enter')
+  expect(await type(claude.locator('.effort-asked').first())).toEqual({ mono: false, caps: false })
+})
+
+test('effort · a next run starts with it; a stop not confirmed restarts nothing, and anyone sees it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const codex = await open(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Effort: Ultra. Change it' }).click()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('Enter')
+  await expect(codex.getByRole('status')).toHaveText(/Next run · Extra high/)
+  await runtime(page, 'advance', 'codex-reviewer') // a next-run request is not a restart: nothing moves
+  await expect(codex.getByRole('status')).toHaveText(/Next run · Extra high/)
+  await runtime(page, 'nextRun', 'codex-reviewer')
+  await expect(codex.getByRole('status')).toHaveText('Now on Extra high')
+  await expect(codex.getByRole('button', { name: 'Effort: Extra high. Change it' })).toBeVisible()
+  // A restart whose stop its runtime can't confirm: said so, nothing restarted, and seen by whoever looks.
+  await page.goto(`${PAGE}?more=1`)
+  await runtime(page, 'failStop')
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await expect(worker.getByRole('status')).toHaveText('Stop not confirmed · nothing restarted')
+  await expect(worker.getByRole('status')).toHaveAttribute('data-tone', 'warn')
+  await expect(worker.getByRole('button', { name: 'Undo' })).toHaveCount(0)
+})
+
+test('effort · Escape closes the scale, not the sheet; a click places the knob', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const codex = await open(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Effort: Ultra. Change it' }).click()
+  const slider = codex.getByRole('slider', { name: 'Effort' })
+  const box = await slider.boundingBox()
+  await page.mouse.click((box?.x ?? 0) + 2, (box?.y ?? 0) + (box?.height ?? 0) / 2) // at its Faster end
+  await expect(slider).toHaveAttribute('aria-valuetext', 'Minimal')
+  await page.keyboard.press('Escape')
+  await expect(codex.getByRole('slider')).toHaveCount(0)
+  await expect(sheet(page, 'Davide · Codex')).toBeVisible()
+  await expect(codex.getByRole('button', { name: 'Effort: Ultra. Change it' })).toBeFocused() // back on its bar
+  await page.keyboard.press('j') // so the sheet's keys still work
+  await expect(sheet(page, 'Luis · Gemini CLI')).toBeVisible()
+  expect(await askedOf(page)).toBe('[]')
+})
+
+test('effort · only its owner can choose it, and only from the levels its tool says it takes', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`) // Luis
+  const claude = await open(page, 'Davide · Claude Code')
+  await expect(claude.getByRole('button', { name: /^Effort:/ })).toHaveCount(0) // Davide's: read only
+  await expect(claude.getByRole('meter', { name: 'Effort' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  const gemini = await open(page, 'Luis · Gemini CLI') // his own, but Gemini CLI says no levels: none offered
+  await expect(gemini.getByRole('button', { name: /^Effort:/ })).toHaveCount(0)
 })
 
 test('the viewer’s own resource says so', async ({ page }) => {
@@ -986,4 +1280,308 @@ test('motion · with less motion asked for, the same changes come at once and no
   await open(page, 'Davide · Codex')
   const chevron = capacity(page, 'Davide · Codex').locator('.capacity-toggle .icon')
   await expect(chevron).toHaveCSS('transition-duration', '0s') // the windows' chevron turns at once
+})
+
+test('live · a session at work says what its tool last reported, and a ring around its owner empties as that ages', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.goto(PAGE)
+  const codex = tile(page, 'Davide · Codex')
+  const live = codex.locator('.resource-tile-live')
+  await expect(live).toHaveText('Reading ReportPane.tsx6 s ago')
+  const fresh = () =>
+    codex.locator('.resource-face').evaluate((e) => Number(getComputedStyle(e).getPropertyValue('--fresh')))
+  const first = await fresh()
+  await page.clock.runFor(5000) // its age counts to the second, and the ring empties
+  await expect(live).toContainText('11 s ago')
+  expect(await fresh()).toBeLessThan(first)
+  await page.clock.runFor(4000) // its reviewer moves on: a new report, a full ring
+  await expect(live).toContainText('Reading ExportStatus.tsx')
+  expect(await fresh()).toBeGreaterThan(first)
+  // Waiting, its ring and dot are amber; a resource with nothing at work says nothing live.
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude.locator('.resource-face')).toHaveAttribute('data-waiting', 'true')
+  await expect(claude.locator('.resource-tile-live .activity-dot')).toHaveAttribute('data-waiting', 'true')
+  await expect(tile(page, 'Luis · Claude Code').locator('.resource-tile-live, .resource-face[data-live]')).toHaveCount(
+    0,
+  )
+  // The ring is a fine circle around the picture, its edge on the tile's column: never an oval swelling into it.
+  const ring = await codex.evaluate((t) => {
+    const face = t.querySelector('.resource-face')
+    const logo = t.querySelector('.tool-logo')?.getBoundingClientRect()
+    if (!face || !logo) return null
+    const box = face.getBoundingClientRect()
+    const before = getComputedStyle(face, '::before')
+    // Its stroke is measured from its own edge (closest-side), so it stays fine at any size.
+    const fine = before.maskImage.includes('closest-side')
+    return { w: box.width, h: box.height, ring: before.width, fine, edge: box.left - 3 - logo.left }
+  })
+  // Sizes to a hundredth of a pixel: layout may land a hair off a whole one.
+  expect([ring?.ring, ring?.fine]).toEqual(['22px', true])
+  expect(ring?.w).toBeCloseTo(16, 1)
+  expect(ring?.h).toBeCloseTo(16, 1)
+  expect(ring?.edge).toBeCloseTo(0, 1)
+  // The sheet says it too, under the session.
+  const s = await open(page, 'Davide · Codex')
+  await expect(s.locator('.resource-session-live')).toContainText('Reading ExportStatus.tsx')
+})
+
+test('one with Tasks · a session’s task opens on the board, as whoever looks, and its doer opens back here', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  await expect(s.getByRole('button', { name: 'No assignment' })).toHaveCount(0) // the reviewer has no task to open
+  await s.getByRole('button', { name: /^Implement the PDF retry\W+open in Tasks$/ }).click()
+  await expect(page).toHaveURL(/\/work\.html\?viewer=davide#task-work-1$/)
+  const task = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(task.locator('.task-chip')).toHaveText('Waiting on you') // still Davide looking
+  await task.getByRole('button', { name: 'Davide’s Claude Code' }).click()
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+})
+
+test('capacity · a window that runs out first says when on its tile, and its sheet names where there is room', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?tight=1`)
+  const next = tile(page, 'Davide · Claude Code').locator('.resource-tile-next')
+  await expect(next).toHaveText(/^out in ~3\d min$/)
+  const amber = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--amber').trim())
+  expect(await next.evaluate((e) => getComputedStyle(e).color)).toBe(rgb(amber))
+  await expect(tile(page, 'Davide · Codex').locator('.resource-tile-next')).toHaveText('resets in 2 h')
+  const s = await open(page, 'Davide · Claude Code')
+  const room = s.locator('.capacity-room')
+  await expect(room).toContainText('Davide’s Codex has room: 5-hour at 42%')
+  await room.getByRole('button', { name: 'Show' }).press('Enter')
+  await expect(sheet(page, 'Davide · Codex')).toBeVisible()
+  // The pressed Show went with the page: the focus stays in the sheet, where K steps back.
+  await expect(sheet(page, 'Davide · Codex')).toBeFocused()
+  await page.keyboard.press('k')
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+  await page.keyboard.press('j')
+  await expect(sheet(page, 'Davide · Codex').locator('.capacity-room')).toHaveCount(0) // on pace: nothing to offer
+  // At its usual pace, Davide's Claude Code offers nothing either.
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  await expect(sheet(page, 'Davide · Claude Code').locator('.capacity-room')).toHaveCount(0)
+})
+
+test('capacity · each tile says its capacity whole, in its own width', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  const lines = grid(page).locator('.resource-tile-capacity-line')
+  await expect(lines).toHaveCount(5)
+  const cut = await lines.evaluateAll((all) => all.filter((e) => e.scrollWidth > e.clientWidth).length)
+  expect(cut).toBe(0)
+  await expect(tile(page, 'Davide · Claude Code').locator('.resource-tile-capacity-line')).toHaveText(
+    '5-hour window: 63% used, resets in 55 min5-hour · 63%resets in 55 min',
+  )
+})
+
+test('live · a report goes still once old or its host offline, and the clock never steps back', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(PAGE)
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude).toContainText('resets in 55 min')
+  // Claude's worker last reported 22 s before the read: two minutes on, it is still said, but no longer live.
+  await page.clock.runFor('02:00')
+  await expect(claude.locator('.resource-tile-live')).toContainText('Asked to run pnpm')
+  await expect(claude.locator('.resource-tile-live .activity-dot')).toHaveAttribute('data-still', 'true')
+  await expect(claude.locator('.resource-face')).not.toHaveAttribute('data-live')
+  await expect(claude).toContainText('resets in 53 min')
+  // Codex's host goes offline: nothing is live, the clock ticks each minute, and it counts on from where it was.
+  await page.evaluate(() => window.resourcesFixture?.setHost?.('davide-codex', 'offline'))
+  await expect(tile(page, 'Davide · Codex').locator('.activity-dot')).toHaveAttribute('data-still', 'true')
+  await page.clock.runFor('03:00')
+  await expect(claude).toContainText('resets in 50 min')
+})
+
+test('one with Tasks · work on no board stays its title, with nothing to press', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1#resource-luis-gemini`)
+  const s = sheet(page, 'Luis · Gemini CLI')
+  await expect(s.getByText('Draft the onboarding copy')).toBeVisible()
+  await expect(s.getByRole('button', { name: /Draft the onboarding copy/ })).toHaveCount(0)
+})
+
+test('@phone · a session’s live line keeps to the sheet’s one column', async ({ page }) => {
+  await page.goto(`${PAGE}#resource-davide-codex`)
+  const session = sheet(page, 'Davide · Codex').locator('.resource-session').filter({ hasText: 'Reading' })
+  const [role, live] = await Promise.all([
+    leftOf(session.locator('.resource-role')),
+    leftOf(session.locator('.resource-session-live')),
+  ])
+  expect(live, 'under the role, not beside it').toBeCloseTo(role, 0)
+  expect(await session.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})
+
+test('act · its owner acts on a session at work from its row, each step said; no one else is offered it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  const worker = s.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  const act = worker.getByRole('button', { name: 'Act' })
+  await expect(act).toHaveAttribute('aria-expanded', 'false')
+  await act.click()
+  await expect(act).toHaveAttribute('aria-expanded', 'true')
+  await worker.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging report fixtures')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  const steps = worker.locator('.act-steps')
+  await expect(steps.locator('li[data-reached]')).toHaveCount(3) // recorded, queued, delivered, as observed
+  await expect(steps).toContainText('Delivered to its session. Not seen acting on it yet.')
+  expect(await page.evaluate(() => window.resourcesFixture?.acted)).toEqual([
+    { sessionId: 'claude-worker', kind: 'guidance', text: 'Use the staging report fixtures' },
+  ])
+  // Stop asks first; keeping it working sends nothing, and the focus comes back to Stop, where J and K still work.
+  const stop = worker.getByRole('button', { name: 'Stop', exact: true })
+  await stop.click()
+  await expect(worker.getByText('Ends its session’s work at once.')).toBeVisible()
+  await worker.getByRole('button', { name: 'Keep it working' }).click()
+  await expect(stop).toBeFocused()
+  expect(await page.evaluate(() => window.resourcesFixture?.acted?.length)).toBe(1)
+  // Confirmed, it is sent, and said.
+  await stop.click()
+  await worker.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  await expect(stop).toBeFocused()
+  await expect(steps).toContainText('Its session was asked to stop.')
+  expect(await page.evaluate(() => window.resourcesFixture?.acted?.at(-1)?.kind)).toBe('stop')
+  // Closed and opened again, its row still says its last act.
+  await act.click()
+  await expect(steps).toHaveCount(0)
+  await act.click()
+  await expect(steps).toContainText('Its session was asked to stop.')
+  // A session with nothing at work has no Act.
+  const reviewer = s.locator('.resource-session').filter({ hasText: 'No assignment' })
+  await expect(reviewer.getByRole('button', { name: 'Act' })).toHaveCount(0)
+  // Only what its route supports: Codex takes Hold and Stop, not guidance.
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-codex`)
+  await page.reload()
+  const codex = sheet(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Act' }).click()
+  await expect(codex.getByRole('button', { name: 'Hold' })).toBeVisible()
+  await expect(codex.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  // Anyone else sees whose they are, and no Act.
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  await page.reload()
+  await expect(sheet(page, 'Davide · Claude Code').getByRole('button', { name: 'Act' })).toHaveCount(0)
+})
+
+test('act · a late step of an earlier act never speaks over the latest one', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  await worker.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.clock.runFor(300)
+  await worker.getByRole('button', { name: 'Hold' }).click() // before the guidance is queued
+  // The guidance is delivered (1.7 s) while the Hold is only queued: the row says the Hold's step, not the guidance's.
+  await page.clock.runFor(1500)
+  const steps = worker.locator('.act-steps')
+  await expect(steps).toContainText('Queued…')
+  await expect(steps).not.toContainText('Delivered to its session')
+  await page.clock.runFor(1500) // then the Hold is delivered
+  await expect(steps).toContainText('It holds at its next safe point.')
+})
+
+test('@phone · its owner opens Act and the row keeps to one column', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  const [role, work, acts] = await Promise.all([
+    leftOf(worker.locator('.resource-role')),
+    leftOf(worker.locator('.resource-work')),
+    leftOf(worker.locator('.resource-session-acts')),
+  ])
+  expect(work, 'the task under the role').toBeCloseTo(role, 0)
+  expect(acts, 'the acts under it too').toBeCloseTo(role, 0)
+  expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})
+
+test('away · what changed since the last look is one line, its tiles marked, until Mark seen', async ({ page }) => {
+  await page.goto(`${PAGE}?since=1&more=1`)
+  const line = page.locator('.resources-away')
+  await expect(line).toContainText('While you were away')
+  await expect(line).toContainText('Davide’s Grok went offline')
+  await expect(line).toContainText('Davide’s Codex started Review the report pane')
+  // A request that came is said on top, while it waits, never twice; only a tile the line speaks of is marked.
+  await expect(line).not.toContainText('request')
+  await expect(grid(page).locator('[data-away]')).toHaveCount(2)
+  await expect(tile(page, 'Davide · Claude Code')).not.toHaveAttribute('data-away')
+  await line.getByRole('button', { name: 'Mark seen' }).click()
+  await expect(line).toHaveCount(0)
+  await expect(grid(page).locator('[data-away]')).toHaveCount(0)
+  // Remembered in this browser: the next visit has nothing new to say.
+  await page.goto(`${PAGE}?more=1`)
+  await expect(grid(page).getByRole('button').first()).toBeVisible()
+  await expect(page.locator('.resources-away')).toHaveCount(0)
+})
+
+test('away · a first visit remembers Resources as they are and says nothing', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(grid(page).getByRole('button').first()).toBeVisible()
+  await expect(page.locator('.resources-away')).toHaveCount(0)
+  await expect(grid(page).locator('[data-away]')).toHaveCount(0)
+  expect(await page.evaluate(() => localStorage.getItem('sophia.resources.seen.v1.fixture.luis'))).toContain(
+    'davide-claude',
+  )
+})
+
+test('earlier · a session’s earlier reports fold under its last one, newest first, and grow as it reports', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  const toggle = s.getByRole('button', { name: '3 earlier' })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(s.getByRole('list', { name: 'Earlier reports' })).toHaveCount(0)
+  await toggle.click()
+  const earlier = s.getByRole('list', { name: 'Earlier reports' }).locator('.session-earlier-said')
+  await expect(earlier).toHaveText([
+    'Edited pdf-retry.ts: retries the render twice',
+    'Wrote the failing test for a timed-out render',
+    'Read ExportStatus.tsx',
+  ])
+  // Codex's reviewer reports again: what it said before goes to the top of its earlier ones.
+  await page.goto(`${PAGE}#resource-davide-codex`)
+  await page.reload()
+  const codex = sheet(page, 'Davide · Codex')
+  await expect(codex.getByRole('button', { name: '2 earlier' })).toBeVisible()
+  await page.clock.runFor(9000)
+  await codex.getByRole('button', { name: '3 earlier' }).click()
+  await expect(
+    codex.getByRole('list', { name: 'Earlier reports' }).locator('.session-earlier-said').first(),
+  ).toHaveText('Reading ReportPane.tsx')
+})
+
+test('@phone · earlier reports keep to the sheet’s one column', async ({ page }) => {
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: '3 earlier' }).click()
+  const [role, earlier] = await Promise.all([
+    leftOf(worker.locator('.resource-role')),
+    leftOf(worker.locator('.session-earlier')),
+  ])
+  expect(earlier, 'under the role').toBeCloseTo(role, 0)
+  expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})
+
+test('away · what isn’t said marks nothing: a request that comes, a host gone unknown', async ({ page }) => {
+  await page.goto(`${PAGE}?quiet=1`) // a first visit: remembered as it is
+  await expect(grid(page).getByRole('button').first()).toBeVisible()
+  await page.evaluate(() => {
+    window.resourcesFixture?.addRequest?.()
+    window.resourcesFixture?.setHost?.('davide-claude', 'unknown')
+  })
+  await expect(page.getByRole('button', { name: /request waits on Davide/ })).toBeVisible() // said on top
+  await expect(page.locator('.resources-away')).toHaveCount(0)
+  await expect(grid(page).locator('[data-away]')).toHaveCount(0)
+})
+
+test('@phone · the away line wraps whole, its Mark seen in reach', async ({ page }) => {
+  await page.goto(`${PAGE}?since=1&more=1`)
+  const said = page.locator('.resources-away .away-line-said')
+  await expect(said).toBeVisible()
+  expect(await said.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+  await expect(page.locator('.resources-away').getByRole('button', { name: 'Mark seen' })).toBeInViewport()
 })

@@ -160,12 +160,60 @@
   border-top: 1px solid var(--line);
 }
 .resource-tile-capacity-line {
+  display: flex;
+  gap: 8px;
   overflow: hidden;
   color: var(--text-2);
   font-family: var(--mono);
   font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* What comes, at the line's other end: its reset, or, in amber, when it runs out first. */
+.resource-tile-next {
+  margin-left: auto;
+  color: var(--text-3);
+}
+.resource-tile-capacity-line[data-out] .resource-tile-next {
+  color: var(--amber);
+}
+/* The owner's picture, exactly its circle: the line's height would stretch it into an oval, and its ring with it. */
+.resource-face {
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  /* Room for its ring (3 px out): its edge meets the tile's column, and the name never touches it. Every tile
+     keeps it, live or not, so pictures and names line up. */
+  margin-inline: 3px;
+  border-radius: 50%;
+}
+.resource-face > .resource-avatar {
+  display: grid;
+}
+/* What the session at work last said: one quiet line, its age at the end. */
+.resource-tile-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: -4px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.resource-tile-said {
+  overflow: hidden;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-tile-ago {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* What needs someone stands out among many: a waiting tile's edge warms; an offline one steps back. */
@@ -188,12 +236,61 @@
 }
 
 /* The tiles' order, at the toolbar's end. */
+/* Its field blurs what is behind it, which makes it its own layer: lifted, so its menu opens over the tiles, and still
+   under the sticky top bar (20) as the page scrolls. */
 .field.resource-sort {
+  position: relative;
+  z-index: 12;
   flex: none;
   width: auto;
   margin-left: auto;
   align-items: center;
-  padding: 0 4px 0 10px;
+  padding: 0;
+}
+.resource-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+}
+.resource-sort-button:hover,
+.resource-sort-button[aria-expanded='true'] {
+  background: rgba(236, 235, 241, 0.04);
+}
+.resource-sort-button .icon {
+  color: var(--text-3);
+  transition: transform var(--fast) var(--ease);
+}
+.resource-sort-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+/* Its menu: the account menu's plane, under the button's end; the order in use marked with the app's lavender dot. */
+.resource-sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 100%;
+  padding: 6px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  animation: arrive var(--base) var(--ease) both;
+}
+.resource-sort-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
 }
 .resource-sort-label {
   font-family: var(--mono);
@@ -202,12 +299,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-3);
-}
-.resource-sort select {
-  height: 30px;
-  padding: 0 6px;
-  font-size: 13px;
-  color: var(--text);
 }
 
 /* A model as people say it, in its family's colour (models.ts). */
@@ -357,19 +448,25 @@
 .effort[data-look='claude'][data-alive] .effort-label {
   color: #b3a3f5;
 }
-/* Claude: a scale of dots, grey turning lavender; at max a glint runs along them and a few dots twinkle. */
-.effort[data-look='claude'] .effort-track {
+/* Below its top, each tool's bar is plain, as its own picker is: a quiet track, a fill, a mark at each stop. Its own
+   look is kept for its top alone: Claude's lavender dots and their glint in ultracode, GPT's violet gradient and its
+   sparks at ultra. */
+.effort[data-look='claude'] .effort-fill {
+  background: rgba(236, 235, 241, 0.32);
+}
+.effort[data-look='gpt'] .effort-fill {
+  background: #3b7cf6;
+}
+/* Claude in ultracode: a scale of lavender dots, a glint running along them, a few twinkling. */
+.effort[data-look='claude'][data-alive] .effort-track {
   background:
     radial-gradient(circle, rgba(236, 235, 241, 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
     rgba(236, 235, 241, 0.02);
 }
-.effort[data-look='claude'] .effort-fill {
-  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3), #b3a3f5);
-  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
-  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
-}
 .effort[data-look='claude'][data-alive] .effort-fill {
   background: linear-gradient(90deg, rgba(236, 235, 241, 0.3) 0%, #b3a3f5 38%, #f4f0ff 50%, #b3a3f5 62%) 0 0 / 250% 100%;
+  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   animation: effort-glint 2.6s linear infinite;
 }
 .effort[data-look='claude'][data-alive] .effort-track::after {
@@ -382,8 +479,8 @@
     radial-gradient(circle at 86% 25%, #e4dcff 0.9px, transparent 1.4px);
   animation: effort-twinkle 1.8s ease-in-out infinite alternate;
 }
-/* GPT: a gradient from deep blue to violet; at ultra, sparks drift along it. */
-.effort[data-look='gpt'] .effort-fill {
+/* GPT at ultra: a gradient from deep blue to violet, sparks drifting along it. */
+.effort[data-look='gpt'][data-alive] .effort-fill {
   background: linear-gradient(90deg, #2f4fd6, #7b61ff 60%, #b08cff);
 }
 .effort[data-look='gpt'][data-alive] .effort-fill::after {
@@ -399,6 +496,32 @@
   animation:
     effort-sparks 4s linear infinite,
     effort-twinkle 1.4s ease-in-out infinite alternate;
+}
+/* The picker's stops: a small mark at each level, as each tool's own picker has; gone where its top look takes over. */
+.effort-stop {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(236, 235, 241, 0.35);
+  pointer-events: none;
+}
+.effort-scale[data-alive] .effort-stop {
+  opacity: 0;
+}
+/* Claude's knob is a rounded square, GPT's a circle, as in their own pickers. */
+.effort-scale[data-look='claude'] .effort-knob {
+  width: 16px;
+  height: 20px;
+  margin: -10px 0 0 -8px;
+  border-radius: 6px;
+}
+.effort-scale[data-look='gpt'] .effort-knob {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
 }
 @keyframes effort-glint {
   from {
@@ -423,6 +546,169 @@
   to {
     background-position: 100% 0;
   }
+}
+
+/* Choosing a session's effort (EffortPicker): its bar is the way in; it opens into a scale in the tool's own look, from
+   Faster to Smarter, with a knob on the chosen level. A request waits beside the bar, apart from what runs, with Undo. */
+.effort-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.effort-button:hover {
+  background: rgba(236, 235, 241, 0.05);
+}
+.effort-button .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--text-3);
+  transition: transform var(--fast) var(--ease);
+}
+.effort-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+/* In the session's column: its dot under the model chip's and the work tag's, its text where theirs starts, as tall as
+   the chip, and as far from the tag below as from the chip above. */
+.effort-asked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  margin-bottom: 2px;
+  padding-left: 6px;
+  color: var(--text-2);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.effort-asked-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b3a3f5;
+  box-shadow: 0 0 0 3px rgba(179, 163, 245, 0.15);
+}
+/* The runtime on it: the dot breathes. Done: teal. A stop not confirmed: amber, still. */
+.effort-asked[data-tone='moving'] .effort-asked-dot {
+  animation: effort-breathe 1.2s ease-in-out infinite alternate;
+}
+.effort-asked[data-tone='done'] {
+  color: var(--teal);
+}
+.effort-asked[data-tone='done'] .effort-asked-dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.15);
+}
+.effort-asked[data-tone='warn'] {
+  color: var(--amber);
+}
+.effort-asked[data-tone='warn'] .effort-asked-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.15);
+}
+@keyframes effort-breathe {
+  to {
+    opacity: 0.35;
+    box-shadow: 0 0 0 5px rgba(179, 163, 245, 0.06);
+  }
+}
+.effort-asked .text-button {
+  font-size: 12.5px;
+}
+/* No effort reported yet: the bar's place says what it does, in words. */
+.effort-set {
+  color: var(--text-3);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.effort-picker {
+  flex-basis: 100%;
+  font-family: var(--sans);
+  font-size: 13px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--tool-accent) 4%, var(--plane-2));
+  animation: arrive 0.25s var(--ease) both;
+}
+.effort-picker-level {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.effort-picker-now {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.effort-scale {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.effort-scale .effort-track {
+  width: 100%;
+  height: 12px;
+  overflow: visible;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+.effort-scale .effort-fill {
+  border-radius: 6px;
+  transition: width var(--fast) var(--ease);
+}
+.effort-scale .effort-track:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+}
+.effort-knob {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: left var(--fast) var(--ease);
+}
+.effort-picker-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* The app's own confirmation, at the picker's start: its button at rest, then what it does and the two answers. */
+/* A quiet button's words start on the picker's edge, under its sentence, as the text above them does. */
+.effort-picker > .ghost,
+.effort-picker .confirm > .ghost {
+  justify-self: start;
+  margin-left: -8px;
+}
+.effort-picker .confirm {
+  justify-content: flex-start;
+}
+.effort-picker .confirm-note {
+  flex-basis: 100%;
 }
 
 /* Nothing shown: said, with the ways back. */
@@ -566,6 +852,69 @@
 .resource-work.idle {
   color: var(--text-3);
 }
+/* A way across, between Resources and the plan's board: a session's task, a task's doer. Its words, underlined
+   quietly, and an arrow that leans in on hover. */
+.resource-work-link,
+.task-who-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color var(--fast) var(--ease);
+}
+.resource-work-link .icon,
+.task-who-link .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--text-3);
+  transition: transform var(--fast) var(--ease);
+}
+.resource-work-link:hover,
+.task-who-link:hover {
+  text-decoration-color: var(--text-2);
+}
+.resource-work-link:hover .icon,
+.task-who-link:hover .icon {
+  transform: translateX(2px);
+  color: var(--text);
+}
+.resource-work-link:focus-visible,
+.task-who-link:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+.resource-session-live {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.resource-session-said {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-session-ago {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Capacity: a line, a thin meter only for a known percentage, and every window on request. No box. */
 .capacity {
@@ -611,6 +960,23 @@
 .capacity-pace {
   color: var(--amber);
   font-size: 12.5px;
+}
+/* Where there is room when this one runs short: whose, how full, and a way to it. */
+.capacity-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-3);
+  background: rgba(127, 214, 196, 0.06);
+  color: var(--text-2);
+  font-size: 12.5px;
+  animation: arrive 0.4s var(--ease) both;
+}
+.capacity-room-words {
+  flex: 1;
+  min-width: 0;
 }
 .capacity-toggle {
   display: inline-flex;
@@ -779,6 +1145,129 @@
   -webkit-mask-position: center;
 }
 
+/* Act, under the session's role, level with its task: quiet until wanted; its acts open under the row, in the
+   task's column. */
+.session-act-toggle {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.session-act-toggle:hover,
+.session-act-toggle[aria-expanded='true'] {
+  border-color: var(--line-2);
+  color: var(--text);
+}
+.session-act-toggle .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--fast) var(--ease);
+}
+.session-act-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.session-act-toggle:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.resource-session-acts {
+  grid-column: 2;
+  margin-top: 6px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.session-acts {
+  display: grid;
+  gap: 10px;
+}
+
+/* What a session reported before its last report: folded under it, then a short thread of quiet lines. */
+.session-earlier {
+  grid-column: 2;
+  display: grid;
+  gap: 4px;
+}
+.session-earlier-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  justify-self: start;
+  margin-left: 11px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.session-earlier-toggle:hover,
+.session-earlier-toggle[aria-expanded='true'] {
+  color: var(--text-2);
+}
+.session-earlier-toggle .icon {
+  width: 11px;
+  height: 11px;
+  transition: transform var(--fast) var(--ease);
+}
+.session-earlier-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.session-earlier-toggle:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+/* The thread: a hairline down from the live dot, each earlier report a small ring on it. */
+.session-earlier-list {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0 0 0 11px;
+  border-left: 1px solid var(--line-2);
+  margin-left: 2px;
+  list-style: none;
+  animation: arrive 0.3s var(--ease) both;
+}
+.session-earlier-list li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.session-earlier-list li::before {
+  content: '';
+  position: absolute;
+  left: -14.5px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--plane-2);
+}
+.session-earlier-said {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 560px) {
   .resource-sheet-head {
     flex-wrap: wrap;
@@ -803,8 +1292,14 @@
   .resource-session {
     grid-template-columns: minmax(0, 1fr);
   }
-  .resource-work {
+  .resource-work,
+  .resource-session-live,
+  .session-earlier,
+  .resource-session-acts {
     grid-column: 1;
+  }
+  .session-act-toggle {
+    grid-row: auto;
   }
 }
 
@@ -887,6 +1382,241 @@
   border-radius: 50%;
   border: 1px solid var(--amber);
   animation: waiting-ping 2.4s var(--ease) infinite;
+}
+/* ---- While you were away, shared with the plan's board: one sentence from Sophia's light, and Mark seen. ---- */
+.away-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 32px;
+  margin: 0;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(156, 130, 245, 0.12), rgba(156, 130, 245, 0.03));
+  color: var(--text);
+  font-size: 12.5px;
+  animation: arrive 0.5s var(--ease) 0.2s both;
+}
+.away-line .field-label {
+  margin-right: 6px;
+  color: var(--halo-text);
+}
+.away-line-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.away-line-seen {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.08);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease);
+}
+.away-line-seen:hover {
+  background: rgba(236, 235, 241, 0.14);
+  color: var(--text);
+}
+.away-line-seen:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+/* On a phone the line wraps, whole: its words can't hide behind a title a touch never reaches. */
+@media (max-width: 560px) {
+  .away-line {
+    align-items: flex-start;
+    height: auto;
+    min-height: 32px;
+    padding-block: 7px;
+    border-radius: var(--r-4);
+  }
+  .away-line .ask-light {
+    margin-top: 5px;
+  }
+  .away-line-said {
+    white-space: normal;
+  }
+}
+.ask-light {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--core), var(--halo) 70%);
+  box-shadow: 0 0 10px var(--halo);
+  animation: ask-light 2.8s var(--ease) infinite alternate;
+}
+@keyframes ask-light {
+  to {
+    box-shadow: 0 0 16px var(--halo);
+    transform: scale(1.12);
+  }
+}
+/* A resource that changed since the last look: a small lavender dot breathing at its corner, as on the board. */
+.resource-tile[data-away] .resource-tile-head::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
+  box-shadow: 0 0 10px var(--halo);
+  animation: away-breathe 2.4s var(--ease) infinite alternate;
+}
+@keyframes away-breathe {
+  to {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+.resources-away {
+  margin-bottom: 14px;
+}
+
+/* ---- Acting on a session, shared with the plan's board: guidance, Hold, Stop, and the steps an act goes through
+   as they are observed. ---- */
+.act-guide {
+  display: flex;
+  gap: 8px;
+}
+.act-guide input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  color: var(--text);
+  font-size: 13px;
+}
+.act-guide input:focus {
+  outline: none;
+  border-color: rgba(156, 130, 245, 0.6);
+  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
+}
+.act-note {
+  font-size: 12.5px;
+}
+.act-steps {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  animation: arrive 0.3s var(--ease) both;
+}
+.act-steps ol {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.act-steps li {
+  position: relative;
+  padding-top: 10px;
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color var(--base) var(--ease);
+}
+.act-steps li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(236, 235, 241, 0.08);
+}
+.act-steps li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--teal);
+  box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
+  transition: width 0.5s var(--ease);
+}
+.act-steps li[data-reached] {
+  color: var(--teal);
+}
+.act-steps li[data-reached]::after {
+  width: 100%;
+}
+.act-steps p {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.act-steps[data-at='refused'] p {
+  color: var(--amber);
+}
+
+/* ---- Live, shared with the plan's board: a ring around a picture, emptying as its session's last report ages (its
+   `--fresh`, 1 to 0), amber while the session waits; and a dot that pings while a session reports. ---- */
+.live-ring {
+  position: relative;
+}
+.live-ring[data-live]::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgba(127, 214, 196, 0.12) 0);
+  /* A fine stroke at its edge (closest-side: a bare `circle` reaches the corners and swells into the picture). */
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  transition: background 1s linear;
+}
+.live-ring[data-live][data-waiting]::before {
+  background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgba(239, 191, 134, 0.12) 0);
+}
+.activity-dot {
+  position: relative;
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+.activity-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: waiting-ping 2s var(--ease) infinite;
+}
+.activity-dot[data-waiting],
+.activity-dot[data-waiting]::after {
+  background: var(--amber);
+}
+/* A report that is no longer live is still said, with a still, quiet dot. */
+.activity-dot[data-still] {
+  background: var(--text-3);
+}
+.activity-dot[data-still]::after {
+  display: none;
 }
 @keyframes waiting-ping {
   0% {
@@ -1143,6 +1873,14 @@
 /* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
 @media (prefers-reduced-motion: reduce) {
   .resource-tile,
+  .act-steps,
+  .session-earlier-list,
+  .away-line,
+  .ask-light,
+  .resource-tile[data-away] .resource-tile-head::after,
+  .resource-session-acts,
+  .activity-dot::after,
+  .capacity-room,
   .resource-tile[data-changed],
   .capacity-meter-fill,
   .attention-dot::after,
@@ -1153,6 +1891,11 @@
   .effort[data-look][data-alive] .effort-fill,
   .effort[data-look][data-alive] .effort-fill::after,
   .effort[data-look][data-alive] .effort-track::after,
+  .effort-scale .effort-fill,
+  .effort-knob,
+  .effort-picker,
+  .effort-asked,
+  .effort-asked[data-tone='moving'] .effort-asked-dot,
   .resource-sheet-head .tool-logo {
     animation: none;
   }
@@ -1164,8 +1907,21 @@
   .resource-tile:active {
     transform: none;
   }
-  .capacity-toggle .icon {
+  .capacity-toggle .icon,
+  .effort-scale .effort-fill,
+  .effort-knob,
+  .effort-button .icon,
+  .live-ring[data-live]::before,
+  .act-steps li,
+  .act-steps li::after,
+  .session-act-toggle .icon,
+  .resource-work-link .icon,
+  .task-who-link .icon {
     transition: none;
+  }
+  .resource-work-link:hover .icon,
+  .task-who-link:hover .icon {
+    transform: none;
   }
   .resources[data-ultra] .resource-grid::after {
     display: none;
