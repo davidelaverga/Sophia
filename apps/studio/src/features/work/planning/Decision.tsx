@@ -2,16 +2,15 @@
 // is a button, and both resolve the same pending decision, once (05_CAPACITY_STEERING_HANDOVER: silence never chooses,
 // so neither is preselected). The answer is said as its receipt comes back: sent, or refused because the decision
 // changed since it was read (LFE-07 PLAN-02), or not confirmed. It shows as decided only once the plan records it.
+// The answer outlives the component (answers.ts), so closing the decisions or choosing another goal forgets nothing.
 // Anyone else reads who decides and the choices, as words, not buttons.
-import { useState } from 'react'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { expiry, type Resource } from '../../resources/resource.ts'
+import { answerKey, setAnswer, useAnswer, type Disposition } from './answers.ts'
 import { actionable, type PlanDecision } from './plan.ts'
 
 type Person = Resource['owner']
 
-/** What came back for an answer: recorded, refused as stale, refused as not the decider's, or not confirmed. */
-export type Disposition = 'recorded' | 'conflict' | 'denied' | 'unknown'
 export type Decide = (decision: PlanDecision, choice: string) => Promise<Disposition>
 
 const SAID: Record<Disposition | 'sending', (choice: string, decider: string) => string> = {
@@ -25,7 +24,7 @@ const SAID: Record<Disposition | 'sending', (choice: string, decider: string) =>
 /**
  * Whether a choice can be pressed: not while one is on its way or recorded; after a refusal, any; after an unconfirmed
  * one, only the same again (unknown stays unknown until resolved: choosing otherwise could decide twice). A revised
- * decision is a new one: its component starts afresh (keyed by its revision).
+ * decision is a new one: its answer starts afresh (kept by its revision).
  */
 function pressable(state: Disposition | 'sending' | null, chosen: string | null, key: string): boolean {
   if (state === 'sending' || state === 'recorded') return false
@@ -42,22 +41,27 @@ interface Props {
   onDecide?: Decide | undefined
 }
 
+/** No answer given yet. */
+const UNANSWERED = { state: null, chosen: null }
+
 const face = (p: Person) => ({ name: p.name, displayName: p.name, avatarUrl: p.avatarUrl ?? null })
 
 export function Decision({ decision, people, now, viewerId, onDecide }: Props) {
-  const [state, setState] = useState<Disposition | 'sending' | null>(null)
-  const [chosen, setChosen] = useState<string | null>(null)
+  const key = answerKey(decision.decision_id, decision.revision, viewerId)
+  const { state, chosen } = useAnswer(key) ?? UNANSWERED
   const decider = people[decision.decider_id]
   const name = decider?.name ?? 'Someone'
   // Its decider answers it while it can be answered: past its expiry, the choices are words for everyone.
   const mine = !!onDecide && viewerId === decision.decider_id && actionable(decision, now)
-  const choose = (key: string) => {
-    if (!onDecide || !pressable(state, chosen, key)) return
-    setChosen(key)
-    setState('sending')
-    onDecide(decision, key).then(setState, () => setState('unknown'))
+  const choose = (choice: string) => {
+    if (!onDecide || !pressable(state, chosen, choice)) return
+    setAnswer(key, { state: 'sending', chosen: choice })
+    onDecide(decision, choice).then(
+      (said) => setAnswer(key, { state: said, chosen: choice }),
+      () => setAnswer(key, { state: 'unknown', chosen: choice }),
+    )
   }
-  const label = (key: string | null) => decision.choices.find((c) => c.key === key)?.label ?? ''
+  const label = (choice: string | null) => decision.choices.find((c) => c.key === choice)?.label ?? ''
   return (
     <section className="plan-ask" aria-label={`${name} decides`} data-mine={mine || undefined}>
       {decider && <Avatar identity={face(decider)} />}

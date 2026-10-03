@@ -71,6 +71,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 22** ([handoff](../handoffs/LFE-06-attempt-22.md)): Codex's P2s on Resources from #62 to #66, fixed (keyboard, touch, effort under a change or refused, acts sending and naming their work, while-away fidelity).
 - **Attempt 23** ([handoff](../handoffs/LFE-06-attempt-23.md)): one type scale for Resources and the plan's board: at most five sizes on a screen (four tokens under the view's title).
 - **Attempt 24** ([handoff](../handoffs/LFE-06-attempt-24.md)): the search fields on the scale too, and the check counts a field's words.
+- **Attempt 25** ([handoff](../handoffs/LFE-06-attempt-25.md)): an answer not confirmed holds across the decisions' remounts, and a followed address waits for its task's plan.
 
 ## Acceptance cases
 
