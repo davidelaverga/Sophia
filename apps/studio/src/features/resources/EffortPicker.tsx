@@ -5,6 +5,7 @@
 // asked twice. Nothing changes in place: the change is a request, shown apart from what the session runs until its
 // tool reports it (02_RUNTIME_AND_RESEARCH: a new configuration, never a hot switch).
 import { useEffect, useId, useRef, useState } from 'react'
+import { ConfirmButton } from '@sophia/ui'
 import { currentLevel, levelName, type EffortAsk } from './change.ts'
 import { alive, effortLook, effortStyle } from './effort.ts'
 import type { Session, Tool } from './resource.ts'
@@ -35,7 +36,7 @@ function Scale({ levels, at, tool, onMove, onKey }: ScaleProps) {
   }
   return (
     <span className="effort effort-scale" data-look={style} data-alive={live || undefined}>
-      <span className="effort-end">Faster</span>
+      <span className="effort-end field-label">Faster</span>
       <span
         ref={track}
         className="effort-track"
@@ -59,7 +60,7 @@ function Scale({ levels, at, tool, onMove, onKey }: ScaleProps) {
         ))}
         <span className="effort-knob" style={{ left: `${place * 100}%` }} />
       </span>
-      <span className="effort-end">Smarter</span>
+      <span className="effort-end field-label">Smarter</span>
     </span>
   )
 }
@@ -70,29 +71,6 @@ interface Props {
   levels: string[]
   onSet: (ask: EffortAsk) => void
   onCancel: () => void
-}
-
-/** Restarting now: only while the session works, said plainly, and confirmed. */
-function Restart({ level, onRestart }: { level: string; onRestart: () => void }) {
-  const [asking, setAsking] = useState(false)
-  if (!asking) {
-    return (
-      <button type="button" className="text-button effort-restart" onClick={() => setAsking(true)}>
-        Restart now with {levelName(level)}…
-      </button>
-    )
-  }
-  return (
-    <p className="effort-confirm" role="alert">
-      It stops this session’s work and starts it again with {levelName(level)}.
-      <button type="button" className="text-button" onClick={onRestart}>
-        Restart
-      </button>
-      <button type="button" className="text-button" onClick={() => setAsking(false)}>
-        Keep it running
-      </button>
-    </p>
-  )
 }
 
 export function EffortPicker({ session, tool, levels, onSet, onCancel }: Props) {
@@ -127,11 +105,21 @@ export function EffortPicker({ session, tool, levels, onSet, onCancel }: Props) 
         <button type="button" className="pill" disabled={same} onClick={() => onSet({ level, when: 'next' })}>
           {same ? `Already ${levelName(level)}` : 'Set for its next run'}
         </button>
-        <button type="button" className="text-button" onClick={onCancel}>
+        <button type="button" className="ghost" onClick={onCancel}>
           Cancel
         </button>
       </p>
-      {works && !same && <Restart level={level} onRestart={() => onSet({ level, when: 'now' })} />}
+      {/* Restarting now: only while the session works, asked in place as the app asks before cutting work off. */}
+      {works && !same && (
+        <ConfirmButton
+          key={level}
+          label={`Restart now with ${levelName(level)}…`}
+          warning={`Stops its work and starts it again with ${levelName(level)}.`}
+          confirm="Restart"
+          keep="Keep it running"
+          onConfirm={() => onSet({ level, when: 'now' })}
+        />
+      )}
     </div>
   )
 }

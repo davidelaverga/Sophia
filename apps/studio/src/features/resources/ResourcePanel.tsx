@@ -9,11 +9,12 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
-import { ORDER_LABEL, ordered, ORDERS, placed, type Order } from './order.ts'
+import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
 import type { EffortAsk } from './change.ts'
 import { ResourceSheet, type EffortControl } from './ResourceSheet.tsx'
+import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
   FILTER_LABEL,
@@ -186,34 +187,6 @@ function None({ query, filter, onClear, onAll }: NoneProps) {
   )
 }
 
-interface SortProps {
-  order: Order
-  onChange: (order: Order) => void
-}
-
-const isOrder = (value: string): value is Order => ORDERS.some((o) => o === value)
-
-/** The tiles' order: by attention (what needs someone first), by owner or by tool. */
-function Sort({ order, onChange }: SortProps) {
-  return (
-    <label className="field quiet resource-sort">
-      <span className="resource-sort-label">Sort</span>
-      <select
-        value={order}
-        onChange={(e) => {
-          if (isOrder(e.target.value)) onChange(e.target.value)
-        }}
-      >
-        {ORDERS.map((o) => (
-          <option key={o} value={o}>
-            {ORDER_LABEL[o]}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
 function useView({ resources, actions, viewerId }: Props) {
   const [query, setQuery] = useState('')
   const [kept] = useState(() => readPrefs(viewerId))
@@ -264,7 +237,7 @@ function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
       <div className="resources-toolbar">
         <Search query={view.query} onChange={view.setQuery} />
         <Filters filter={view.filter} counts={view.counts} onChange={(f) => moving(() => view.setFilter(f))} />
-        <Sort order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
+        <SortMenu order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
       </div>
       <p className="sr-only" aria-live="polite">
         {view.shown.length} of {plural(resources.length, 'resource')} shown

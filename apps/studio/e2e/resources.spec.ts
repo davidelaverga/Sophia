@@ -338,6 +338,14 @@ test('by attention, what needs someone comes first; a waiting tile stands out, a
   expect(await edge('Davide · Claude Code'), 'the waiting tile’s edge').not.toBe(await edge('Davide · Codex'))
 })
 
+/** The Sort menu's button, which says the order in use. */
+const sortButton = (page: Page) => page.getByRole('button', { name: /^Sort/ })
+/** Chooses an order from the Sort menu, as a person would. */
+async function sortBy(page: Page, label: string) {
+  await sortButton(page).click()
+  await page.getByRole('menuitemradio', { name: label }).click()
+}
+
 test('the tiles sort by owner or by tool, and glide there', async ({ page }) => {
   await countGlides(page)
   await page.goto(`${PAGE}?more=1`)
@@ -345,16 +353,49 @@ test('the tiles sort by owner or by tool, and glide there', async ({ page }) => 
     grid(page)
       .getByRole('button')
       .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label')))
-  const sort = page.getByRole('combobox', { name: 'Sort' })
-  await sort.selectOption('owner')
+  await sortBy(page, 'Owner')
   await expect
     .poll(names)
     .toEqual(['Davide · Claude Code', 'Davide · Codex', 'Davide · Grok', 'Luis · Claude Code', 'Luis · Gemini CLI'])
-  await sort.selectOption('tool')
+  await sortBy(page, 'Tool')
   await expect
     .poll(names)
     .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
   expect(await glides(page)).toBe(2)
+})
+
+test('Sort is a menu in the app’s look: it opens on the order in use, keys move and choose, Escape gives back', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await expect(sortButton(page)).toHaveText('SortAttention')
+  await sortButton(page).click()
+  const menu = page.getByRole('menu', { name: 'Sort' })
+  await expect(menu).toHaveCSS('background-color', 'rgb(18, 17, 24)') // the app's raised plane (--plane-2)
+  await expect(menu.getByRole('menuitemradio', { name: 'Attention' })).toBeFocused() // on the order in use
+  await expect(menu.getByRole('menuitemradio', { name: 'Attention' })).toHaveAttribute('aria-checked', 'true')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitemradio', { name: 'Tool' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(menu).toHaveCount(0)
+  await expect(sortButton(page)).toHaveText('SortTool')
+  await expect(sortButton(page)).toBeFocused()
+  await sortButton(page).click()
+  await expect(page.getByRole('menuitemradio', { name: 'Tool' })).toBeFocused() // opens on the order now in use
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(sortButton(page)).toBeFocused()
+  await sortButton(page).click()
+  // Over the tiles: what is drawn at its items' middle is the menu itself.
+  const over = await page.getByRole('menuitemradio', { name: 'Custom' }).evaluate((item) => {
+    const b = item.getBoundingClientRect()
+    return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('[role="menu"]') !== null
+  })
+  expect(over).toBe(true)
+  await page.mouse.click(5, 700) // a press anywhere else closes it
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(sortButton(page)).toHaveText('SortTool')
 })
 
 test('each owner shows as the Studio shows a person: their picture, or their initial', async ({ page }) => {
@@ -380,14 +421,14 @@ test('every tool has its own colour', async ({ page }) => {
 test('the view opens as its viewer left it: filter and order', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
   await filter(page, 'Mine 2').click()
-  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await sortBy(page, 'Tool')
   // The order glides into place a frame later, and is kept once it has: reload after that, as a person would.
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('sophia.resources.v1.luis')))
     .toBe(JSON.stringify({ filter: 'mine', order: 'tool', custom: [] }))
   await page.reload()
   await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('tool')
+  await expect(sortButton(page)).toHaveText('SortTool')
   await expect(grid(page).getByRole('button')).toHaveCount(2)
   await page.goto(`${PAGE}?more=1&viewer=davide`) // another viewer keeps their own
   await expect(filter(page, 'All 5')).toHaveAttribute('aria-selected', 'true')
@@ -676,7 +717,7 @@ test('two Claude Codes side by side greet, then look at each other; hover one an
   const davide = tile(page, 'Davide · Claude Code')
   const luis = tile(page, 'Luis · Claude Code')
   await expect(davide).not.toHaveAttribute('data-buddy') // by attention they aren't neighbours
-  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await sortBy(page, 'Tool')
   await expect(davide).toHaveAttribute('data-buddy', 'right')
   await expect(luis).toHaveAttribute('data-buddy', 'left')
   await expect(tile(page, 'Davide · Codex')).not.toHaveAttribute('data-buddy')
@@ -693,7 +734,7 @@ test('two Claude Codes side by side greet, then look at each other; hover one an
 
 test('@phone · one tile to a row: no neighbours to greet', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
-  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await sortBy(page, 'Tool')
   // Once the order has glided into place, the two Claude Codes follow each other, a row apart: no greeting.
   await expect(grid(page).getByRole('button').nth(1)).toHaveAttribute('aria-label', 'Luis · Claude Code')
   await page.waitForTimeout(300)
@@ -712,7 +753,7 @@ test('a tile dragged onto another takes its place, in the viewer’s own order, 
   await expect
     .poll(() => order(page))
     .toEqual(['Davide · Claude Code', 'Luis · Claude Code', 'Davide · Codex', 'Luis · Gemini CLI', 'Davide · Grok'])
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('custom')
+  await expect(sortButton(page)).toHaveText('SortCustom')
   await expect(page.getByRole('status').filter({ hasText: 'Moved Luis · Claude Code to 2 of 5' })).toBeAttached()
   await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('data-buddy', 'right') // brought together, they greet
   await expect
@@ -736,7 +777,7 @@ test('Alt and an arrow move the focused tile, and the focus follows it', async (
   await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
   await expect(tile(page, 'Davide · Grok')).toBeFocused()
   await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0') // it stays the grid's one Tab stop
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('custom')
+  await expect(sortButton(page)).toHaveText('SortCustom')
   await page.keyboard.press('ArrowRight') // without Alt, the focus moves and the tiles stay
   await expect(tile(page, 'Davide · Claude Code')).toBeFocused()
   await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
@@ -797,7 +838,7 @@ test('Codex’s review · a dragged tile becomes the Tab stop; Alt at an end cha
   await tile(page, 'Davide · Claude Code').focus()
   await page.keyboard.press('Alt+Home') // already first
   await page.waitForTimeout(200)
-  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('attention') // still live, not frozen
+  await expect(sortButton(page)).toHaveText('SortAttention') // still live, not frozen
   await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Davide · Codex'))
   await expect(tile(page, 'Luis · Claude Code')).toHaveAttribute('tabindex', '0')
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
@@ -882,7 +923,22 @@ test('effort · restarting now is offered only while it works, said plainly, and
   await page.keyboard.press('Home')
   await expect(claude.getByRole('slider')).toHaveAttribute('aria-valuetext', 'Low')
   await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
-  await expect(claude.getByRole('alert')).toHaveText(/It stops this session’s work and starts it again with Low\./)
+  // Asked in place, as the app asks before cutting work off: what it does, and the safe answer focused.
+  const asking = claude.getByRole('group', { name: 'Restart now with Low…' })
+  await expect(asking).toContainText('Stops its work and starts it again with Low.')
+  await expect(asking.getByRole('button', { name: 'Keep it running' })).toBeFocused()
+  // Its answers' words start where its sentence does.
+  const starts = await asking.evaluate((g) => {
+    const range = document.createRange()
+    const left = (el: Element | null) => {
+      const words = el?.firstChild
+      if (!words) return 0
+      range.selectNodeContents(words)
+      return range.getBoundingClientRect().left
+    }
+    return [left(g.querySelector('.confirm-note')), left(g.querySelector('.ghost'))]
+  })
+  expect(Math.abs((starts[0] ?? 0) - (starts[1] ?? 1))).toBeLessThanOrEqual(1)
   await claude.getByRole('button', { name: 'Keep it running' }).click()
   expect(await askedOf(page)).toBe('[]') // nothing asked
   await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
@@ -977,6 +1033,30 @@ test('effort · its line sits in the session’s column: dot under dot, text und
   expect(m.above).toBeGreaterThan(0)
   expect(m.above).toBeCloseTo(m.below, 1) // as far from the tag below as from the chip above
   expect(m.height.line).toBe(m.height.chip)
+})
+
+/** How a piece of text is set: in the mono, and in capitals. */
+const type = (l: Locator) =>
+  l.evaluate((el) => {
+    const s = getComputedStyle(el)
+    return { mono: /mono/i.test(s.fontFamily), caps: s.textTransform === 'uppercase' }
+  })
+
+test('effort · its words in the app’s style: small labels in mono capitals; sentences and buttons in Geist', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const reviewer = claude.locator('.resource-session').filter({ hasText: 'reviewer' })
+  expect(await type(reviewer.getByText('Set effort'))).toEqual({ mono: false, caps: false })
+  await claude.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  expect(await type(claude.getByText('Faster', { exact: true }))).toEqual({ mono: true, caps: true })
+  expect(await type(claude.getByText('Smarter', { exact: true }))).toEqual({ mono: true, caps: true })
+  await page.keyboard.press('Home')
+  await expect(claude.getByRole('button', { name: 'Cancel' })).toHaveClass('ghost') // the app's quiet button
+  await expect(claude.getByRole('button', { name: 'Restart now with Low…' })).toHaveClass('ghost')
+  await page.keyboard.press('Enter')
+  expect(await type(claude.locator('.effort-asked').first())).toEqual({ mono: false, caps: false })
 })
 
 test('effort · a next run starts with it; a stop not confirmed restarts nothing, and anyone sees it', async ({

@@ -110,6 +110,37 @@ Luis showed "Restart asked · Max" out of line. Measured: its dot sat 6 px left 
 - **Checked:** a browser check measures all four at rest, after the line's entrance animation (measured mid-animation, it read 3 px off). Two mutations each made it fail: the line off the column, and the line closer to the tag below. A third rule (the Undo's own height) changed nothing measurable and was removed.
 - `test:browser --repeat-each=2`: 164 of 164.
 
+## Luis's note: the words and Sort in the app's style
+
+Luis said the microcopy didn't follow the app's style, and neither did Sort's dropdown list (the system's own list).
+
+- **Words:**
+  - Faster and Smarter are small labels, set in mono capitals like every label (`field-label`).
+  - The change line ("Restart asked · Low") and "Set effort" are sentences, set in Geist like the toast's. They were mono.
+  - Cancel is the app's quiet button (`ghost`), not a link.
+  - Restarting now asks with the app's own `ConfirmButton`, the way it asks before cutting off a link or a passkey. It shows what it does ("Stops its work and starts it again with Low."), focuses "Keep it running", and offers "Restart". Its answers start where its sentence does.
+- **Sort is a menu in the account menu's look** (`SortMenu.tsx`, `usePopover`):
+  - It opens on the order in use, marked with the lavender dot.
+  - The arrows move, and Enter or a press chooses. Escape, a choice or a press elsewhere closes it, with the focus back on its button.
+  - `usePopover` and `.menu-list` now take `menuitemradio` items too.
+  - The first check found the menu under the tiles: the field's blur makes it its own layer. It is lifted above the tiles and stays under the sticky top bar (12 < 20).
+- **Checked:**
+  - two browser checks: the Sort menu, and the effort words' type;
+  - the confirmation's alignment, added to the restart check.
+
+  Nine mutations each made a check fail:
+  - the menu under the tiles;
+  - opening on the first item;
+  - the order in use not marked;
+  - the focus lost on choosing;
+  - arrows not moving radio items;
+  - Faster in sentence case;
+  - the change line in mono;
+  - "Set effort" in mono;
+  - Cancel as a link.
+
+  The confirmation's alignment failed when its rule was removed. `test:browser --repeat-each=2`: 168 of 168.
+
 ## Remaining obligations
 
 - **Davide:**

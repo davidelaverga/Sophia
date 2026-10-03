@@ -129,7 +129,7 @@ function Effort({
         aria-label={`Effort: ${now ? levelName(now) : 'not reported'}. Change it`}
         onClick={() => setOpen((o) => !o)}
       >
-        {shown ?? <span className="resource-effort">Set effort</span>}
+        {shown ?? <span className="effort-set">Set effort</span>}
         <Icon name="chevron" />
         <Tip label="Choose its effort" side="top" />
       </button>
