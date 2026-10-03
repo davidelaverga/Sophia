@@ -343,6 +343,14 @@ describe('the runtime research routes (A11)', () => {
       limitations: [],
       citations: [capture.json.sourceId],
     }
+    // Which ids the draft cites is the API's to read (persistence adds them after validation): a runtime naming them,
+    // beside the result or inside it, is refused before anything runs.
+    for (const named of [
+      { ...at, callId: 's1', result, draftCitations: [capture.json.sourceId] },
+      { ...at, callId: 's1', result: { ...result, draftCitations: [capture.json.sourceId] } },
+    ]) {
+      assert.equal((await w.runtime('/v1/runtime/research/submit', named)).status, 422)
+    }
     const submitted = await w.runtime('/v1/runtime/research/submit', { ...at, callId: 's1', result })
     assert.deepEqual([submitted.status, submitted.json.outcome, submitted.json.versionNumber], [200, 'published', 1])
     const again = await w.runtime('/v1/runtime/research/submit', { ...at, callId: 's2', result })
@@ -760,11 +768,15 @@ describe('readiness (0036)', () => {
       return [res.status, res.json as unknown]
     }
     assert.deepEqual(await ready(), [200, { ready: true }])
-    await owner.query('ALTER FUNCTION sophia.research_draft_citations(sophia.research_scope,jsonb) RENAME TO away')
+    await owner.query(
+      'ALTER FUNCTION sophia.research_draft_citations(sophia.research_scope,jsonb,jsonb) RENAME TO away',
+    )
     try {
       assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'a schema without 0036')
     } finally {
-      await owner.query('ALTER FUNCTION sophia.away(sophia.research_scope,jsonb) RENAME TO research_draft_citations')
+      await owner.query(
+        'ALTER FUNCTION sophia.away(sophia.research_scope,jsonb,jsonb) RENAME TO research_draft_citations',
+      )
       await owner.end()
     }
     assert.deepEqual(await ready(), [200, { ready: true }])

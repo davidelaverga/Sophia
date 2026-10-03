@@ -8,7 +8,7 @@ import { after, before, describe, it } from 'node:test'
 import type { RenderJob, RenderReceipt, RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
 import { parseArtifactVersionList } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
-import { compareSections } from '@sophia/report/markdown'
+import { compareSections, parseMarkdown, sectionsOf } from '@sophia/report/markdown'
 import {
   createTestDatabase,
   registerRuntime,
@@ -879,6 +879,30 @@ async function citable(w: World, at: { attemptId: string; nativeSessionId: strin
   )
 }
 
+/** More searches of the allowance `anchor`'s capture was made under, stored as the owner: n sources the task may cite. */
+async function moreSearches(w: World, anchor: string, n: number) {
+  const ids = Array.from({ length: n }, () => randomUUID())
+  await owner(async (c) => {
+    await c.query(
+      `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+       SELECT $1, x, $2, 'project', repeat('c',64), 'text/markdown', 'cap-'||x, 1, true, 'ready' FROM unnest($3::uuid[]) x`,
+      [w.projectId, A, ids],
+    )
+    await c.query(
+      `WITH r AS (INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,state,
+          reserved_usd,settled_usd,ended_at,query)
+         SELECT $1, rr.allowance_id, 'cap-'||x, 'search', 'tavily', 'settled', 0.01, 0.01, now(), 'q'
+          FROM unnest($3::uuid[]) x, sophia.source_provenance p
+          JOIN sophia.research_reservations rr ON rr.project_id=p.project_id AND rr.id=p.reservation_id
+         WHERE p.project_id=$1 AND p.source_id=$2 RETURNING id, reservation_key)
+       INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,coverage)
+       SELECT $1, substr(r.reservation_key,5)::uuid, 'search_results', 'tavily', r.id, 'complete' FROM r`,
+      [w.projectId, anchor, ids],
+    )
+  })
+  return ids
+}
+
 const resultOf = (draftSha256: string, citations: string[], extra: Record<string, unknown> = {}) => ({
   draftSha256,
   title: 'Sandboxes for PDF rendering',
@@ -1183,26 +1207,8 @@ describe('research submission (0026)', () => {
     const { at } = await started(w)
     const a = await citable(w, at, 'search_1')
     const b = await citable(w, at, 'search_2')
-    // 205 more searches of the task's allowance, stored as the owner: more sources than a report may cite.
-    const many = Array.from({ length: 205 }, () => randomUUID())
-    await owner(async (c) => {
-      await c.query(
-        `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
-         SELECT $1, x, $2, 'project', repeat('c',64), 'text/markdown', 'cap-'||x, 1, true, 'ready' FROM unnest($3::uuid[]) x`,
-        [w.projectId, A, many],
-      )
-      await c.query(
-        `WITH r AS (INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,state,
-            reserved_usd,settled_usd,ended_at,query)
-           SELECT $1, rr.allowance_id, 'cap-'||x, 'search', 'tavily', 'settled', 0.01, 0.01, now(), 'q'
-            FROM unnest($3::uuid[]) x, sophia.source_provenance p
-            JOIN sophia.research_reservations rr ON rr.project_id=p.project_id AND rr.id=p.reservation_id
-           WHERE p.project_id=$1 AND p.source_id=$2 RETURNING id, reservation_key)
-         INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,coverage)
-         SELECT $1, substr(r.reservation_key,5)::uuid, 'search_results', 'tavily', r.id, 'complete' FROM r`,
-        [w.projectId, a.sourceId, many],
-      )
-    })
+    // 205 more searches of the task's allowance: more sources than a report may cite.
+    const many = await moreSearches(w, a.sourceId, 205)
     // Named once in capitals and again as written; an id it may not read never takes a place.
     const named = [many[0]!.toUpperCase(), randomUUID(), ...many.slice(1), many[0]!].map((id) => `[${id}]`)
     const d = await service((c) =>
@@ -1230,6 +1236,90 @@ describe('research submission (0026)', () => {
       cited.map((r) => r.id).toSorted(),
       [a.sourceId, b.sourceId, ...many.slice(0, 198)].toSorted(),
       'the two listed, then the first 198 the draft names',
+    )
+  })
+
+  it('CX-0019 · cites exactly what the report’s parser numbers among the sources the task may cite', async () => {
+    const w = await world()
+    const { at, receipt } = await started(w)
+    const a = await citable(w, at, 'search_1')
+    const k = await moreSearches(w, a.sourceId, 16)
+    const own = await one<{ question: string; manifest: string }>(
+      `SELECT t.question_source_id AS question, j.input_source_id AS manifest FROM sophia.research_tasks t
+       JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id WHERE t.project_id=$1 AND t.job_id=$2`,
+      [w.projectId, receipt.taskId],
+    )
+    // The reviewers' inputs: ids in a code span, a fence, a page's address, an autolink and an image; an escaped
+    // bracket, an emphasis cutting a label, a spaced ref link, a space after '<', an autolink holding a '<', a ref link
+    // with a title, a search ref, escaped backticks, a code span across list items, a cell past the head's; and one id
+    // past the first pages of a draft longer than one page.
+    const text = [
+      `# Hosts`,
+      `Code \`${k[0]}\` and a fence:`,
+      `\`\`\`\n${k[1]}\n\`\`\``,
+      `A page [docs](https://e.org/${k[2]}) and <https://e.org/${k[3]}>; an image ![${k[4]}](${k[4]}).`,
+      `An escaped bracket \\[x](https://e.com/${k[5]}), and *the [report* at](https://e.com/${k[6]}).`,
+      `Claim [1](source: ${k[7]}). Not [3](< ${k[8]}). See <https://e.com/a<${k[9]}> here.`,
+      `With a title [2](<${k[10]}> "t"), a search [x](search:${k[11]}#2), escaped \\\`${k[12]}\\\`.`,
+      `- run \`a\n- see ${k[13]} \`b\``,
+      `| a |\n|---|\n| \`x\` | ${k[14]} |`,
+      `Asked as [4](${own.question}) under [5](${own.manifest}); never [6](${randomUUID()}).`,
+      `${'Padding. '.repeat(2000)}Last [9](${k[15]}).\n`,
+    ].join('\n\n')
+    const d = await service((c) => runtimeResearchDraft(c, w.who, { ...at, callId: 'd', expectedSha256: null, text }))
+    const v = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
+    )
+    assert.equal(v.outcome, 'published')
+    const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
+    const mayCite = new Set([a.sourceId, ...k])
+    const numbered = parseMarkdown(text).citations.filter((id) => mayCite.has(id))
+    assert.deepEqual(
+      sources.map((s) => s.sourceId).toSorted(),
+      [...new Set([a.sourceId, ...numbered])].toSorted(),
+      'the version cites the model’s list and what the parser numbers among the citable, nothing else',
+    )
+    assert.deepEqual(
+      numbered,
+      [5, 6, 7, 10, 11, 12, 13, 15].map((i) => k[i]),
+      'as the parser reads the reviewers’ inputs',
+    )
+  })
+
+  it('CX-0019 · cites the model’s list alone when the draft cannot be read back', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const a = await citable(w, at, 'search_1')
+    const b = await citable(w, at, 'search_2')
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...at,
+        callId: 'd',
+        expectedSha256: null,
+        text: `# Hosts\n\nA [${a.sourceId}], B [${b.sourceId}].\n`,
+      }),
+    )
+    // Each page of the draft is asked for under another source, which the service refuses: the reads fail in the
+    // database, and the submit's transaction carries on.
+    const refusingPages = (c: pg.PoolClient) =>
+      new Proxy(c, {
+        get(target, key, receiver) {
+          if (key !== 'query') return Reflect.get(target, key, receiver) as unknown
+          return (sql: string, params?: unknown[]) => {
+            const page = sql.includes('runtime_research_context') && String(params?.[3]).includes('"sourceId"')
+            const asked = page ? [...params!.slice(0, 3), JSON.stringify({ ...at, sourceId: randomUUID() })] : params
+            return target.query(sql, asked)
+          }
+        },
+      })
+    const v = await service((c) =>
+      runtimeResearchSubmit(refusingPages(c), w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
+    )
+    assert.equal(v.outcome, 'published')
+    const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
+    assert.deepEqual(
+      sources.map((s) => s.sourceId),
+      [a.sourceId],
     )
   })
 
@@ -1415,6 +1505,20 @@ const OPTIONS_V2 = OPTIONS.replace('Cheap.', 'Cheap and simple.').replace(
   '## Option C\nNew.\n\n### Pros\nFree.\n\n## Option B',
 )
 
+/** A text's sections as Studio reads them (sectionsOf), each with markdown_outline's columns (0036). */
+function outlineOf(text: string) {
+  const stack: { depth: number; anchor: string }[] = []
+  return sectionsOf(text).map((s, ord) => {
+    if (s.heading !== null) {
+      while ((stack.at(-1)?.depth ?? 0) >= s.depth) stack.pop()
+      stack.push(s)
+    }
+    const path = s.heading === null ? '' : `/${stack.map((x) => x.anchor).join('/')}`
+    const bodyHash = createHash('sha256').update(s.body).digest('hex')
+    return { ord, anchor: s.anchor, heading: s.heading, bodyHash, path }
+  })
+}
+
 describe('report facts, each section once (0036)', () => {
   it('publishes "conclusion unchanged" as written when only the recommendations changed', async () => {
     const w = await world()
@@ -1491,6 +1595,29 @@ describe('report facts, each section once (0036)', () => {
     for (const [was, now] of cases) {
       const row = await one<{ f: unknown }>(`SELECT sophia.section_facts($1,$2) AS f`, [was, now])
       assert.deepEqual(row.f, compareSections(was, now), now)
+    }
+  })
+
+  it('splits a text into the sections Studio reads, with their headings, anchors, paths and bodies', async () => {
+    // Generated texts of the characters a split turns on: '#'s, spaces, tabs, a no-break space, a byte order mark,
+    // line and paragraph separators, CRs, fences.
+    const alphabet = ['#', '#', '##', ' ', ' ', '\t', '\n', '\n', 'a', 'B', ' ', '﻿', ' ', '\r', '```', '~~~']
+    let seed = 7
+    const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648)
+    const texts = Array.from({ length: 400 }, () =>
+      Array.from({ length: 48 }, () => alphabet[next() % alphabet.length]).join(''),
+    )
+    const { rows } = await owner((c) =>
+      c.query<{ t: number; outline: unknown }>(
+        `SELECT x.t, coalesce((SELECT jsonb_agg(jsonb_build_object('ord',o.ord,'anchor',o.anchor,'heading',o.heading,
+         'bodyHash',o.body_hash,'path',o.path) ORDER BY o.ord) FROM sophia.markdown_outline(x.body) o),'[]') AS outline
+       FROM unnest($1::text[]) WITH ORDINALITY x(body,t) ORDER BY x.t`,
+        [texts],
+      ),
+    )
+    for (const r of rows) {
+      const text = texts[r.t - 1]!
+      assert.deepEqual(r.outline, outlineOf(text), JSON.stringify(text))
     }
   })
 

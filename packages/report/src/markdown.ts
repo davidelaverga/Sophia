@@ -40,13 +40,13 @@ const CITE_GROUP = new RegExp(`[\\[(]\\s*${REF}(?:\\s*[,;]\\s*${REF})*\\s*[\\])]
 const CITE_ONE = new RegExp(REF, 'gi')
 /** A source or a ref to one, and nothing else: a link label that says only that numbers its citation. */
 const CITE_TARGET = new RegExp(`^<?\\s*${REF}\\s*>?$`, 'i')
-/** A space in a link target, as every database reads `\s`: ASCII only (a no-break space or U+FEFF is not one there). */
+/** A space in a link target: ASCII only (a no-break space or U+FEFF is not one there). */
 const LINK_SPACE = '[ \\t\\n\\v\\f\\r]'
 /**
  * A link target that cites, as written (untrimmed): spaces, then a source or a ref to one (`<id>`, `search:<id>#3`, a
  * space after the prefix allowed as in the bracketed form: `source: <id>`), then nothing or a space and anything, a
- * title (`<id> "t"`) say. The service reads a draft's links the same way (0036 markdown_citing_text), so its spaces are
- * `LINK_SPACE`: with a wider one the report would number a source the submit does not add.
+ * title (`<id> "t"`) say. A submit cites what this numbers: the API parses the draft with it and the service checks
+ * each id (0036 research_draft_citations), so the report and its Sources agree.
  */
 const CITE_LINK = new RegExp(
   `^${LINK_SPACE}*<?(?:(?:search|link|input|source):${LINK_SPACE}*)?(${UUID})(?:#\\d{1,4})?>?(?:${LINK_SPACE}[\\s\\S]*)?$`,
@@ -58,7 +58,7 @@ const CITE_LINK = new RegExp(
  * was split every way.
  */
 const MARKER = /^\[?\^?\d{0,4}\]?$/
-/** An autolink-shaped span's opening, as the service blanks one (0036 markdown_citing_text: `<(?:https?|mailto):`). */
+/** An autolink-shaped span's opening: `<https:`, `<http:` or `<mailto:`, in any case. */
 const AUTOLINK_SCHEME = /^(?:https?|mailto):/i
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w+-]*)/
@@ -426,7 +426,7 @@ function closerAfter(s: Scan, i: number): number {
 /**
  * `<https://…>`: an autolink, with no `<` inside it (as in CommonMark). Any other `<…>` stays text. Each `<` looks no
  * further than the next one, so a run of them before one `>` is read once, not once per `<` (the address is parsed).
- * A span that opens with a scheme but holds a `<` is text up to its `>`, and cites nothing: the service blanks it all.
+ * A span that opens with a scheme but holds a `<` is text up to its `>`, and cites nothing.
  */
 function autolink(s: Scan, i: number): Step {
   const step = linkAt(s, i)
@@ -762,7 +762,7 @@ interface Section {
   body: string
 }
 
-/** A section's heading opens as the service's does (0036 markdown_outline: `^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$`). */
+/** A section's heading opens as the service's does (0036 markdown_outline): its `#`s and the spaces after them. */
 const SECTION_HEADING = /^\s{0,3}(#{1,6})\s+/
 
 /** A Markdown text as sections, the way the service splits it for section facts (0036 markdown_outline). */

@@ -2,9 +2,10 @@
 // Admission runs inside withActor(..., 'write'); the runtime operations inside withService, with no member actor:
 // the sophia.runtime_research_* functions authenticate the capability, the lease and the binding themselves, and
 // every operation but settle is fenced by the goal's status and the session's current authority. A submitted result
-// cites what its draft cites (CX-0019): the service adds them (0036).
+// cites what its draft cites (CX-0019): the report's parser reads them here, the service checks and adds them (0036).
 import type pg from 'pg'
 import { DomainError } from '@sophia/domain'
+import { parseMarkdown } from '@sophia/report/markdown'
 import type {
   NativeTaskReceipt,
   ResearchCapture,
@@ -14,6 +15,7 @@ import type {
   ResearchDraft,
   ResearchDraftRequest,
   ResearchReservation,
+  ResearchResult,
   ResearchReserveRequest,
   ResearchSettleRequest,
   ResearchSettlement,
@@ -118,10 +120,86 @@ export async function runtimeResearchCapture(c: pg.PoolClient, who: RuntimeCalle
 export const runtimeResearchDraft = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchDraftRequest) =>
   operation<ResearchDraft>(c, 'runtime_research_draft', who, request)
 
+/** A draft is at most 262144 bytes (0025), so as many characters at most; a page of a source is 6000 of them. */
+const DRAFT_PAGES = Math.ceil(262_144 / 6000)
+/** As many as a result may cite. */
+const MOST_DRAFT_CITATIONS = 200
+
+/** The current draft's text, read as the model reads it (research_read_context): null unless it is the one submitted. */
+async function draftText(c: pg.PoolClient, who: RuntimeCaller, at: ResearchContextRequest, result: ResearchResult) {
+  const task = await runtimeResearchContext(c, who, at)
+  const draft = 'draft' in task ? task.draft : null
+  if (draft?.sha256 !== result.draftSha256) return null
+  let text = ''
+  let offset: number | null = 0
+  for (let page = 0; page < DRAFT_PAGES && offset !== null; page += 1) {
+    const read = await runtimeResearchContext(c, who, { ...at, sourceId: draft.sourceId, offset })
+    if (!('text' in read)) return null
+    text += read.text
+    offset = read.nextOffset
+  }
+  return offset === null ? text : null
+}
+
+/**
+ * The submitted draft's text, or null when it cannot be read (stale, the task ended, any failure). The reads run in a
+ * savepoint: a refused one leaves the submit's transaction as it was.
+ */
+async function submittedDraft(
+  c: pg.PoolClient,
+  who: RuntimeCaller,
+  at: ResearchContextRequest,
+  result: ResearchResult,
+) {
+  await c.query('SAVEPOINT draft_citations')
+  let text: string | null
+  try {
+    text = await draftText(c, who, at, result)
+  } catch {
+    await c.query('ROLLBACK TO SAVEPOINT draft_citations')
+    text = null
+  }
+  await c.query('RELEASE SAVEPOINT draft_citations')
+  return text
+}
+
+/**
+ * The ids the submitted draft cites, as the report's parser numbers them (the code Studio and the page read it with),
+ * but those the model listed, at most 200; undefined when the draft cannot be read, so the model's list stands alone.
+ */
+async function citedByDraft(
+  c: pg.PoolClient,
+  who: RuntimeCaller,
+  request: ResearchSubmitRequest,
+  result: ResearchResult,
+) {
+  const text = await submittedDraft(
+    c,
+    who,
+    { attemptId: request.attemptId, nativeSessionId: request.nativeSessionId },
+    result,
+  )
+  if (text === null) return undefined
+  const listed = new Set(result.citations)
+  return parseMarkdown(text)
+    .citations.filter((id) => !listed.has(id))
+    .slice(0, MOST_DRAFT_CITATIONS)
+}
+
 /**
  * End the task: publish its current draft as the report's next version, or record a blocker (0026). A result cites
- * what the model listed and every other source its draft names that the task may cite (CX-0019, 0036): the service
- * adds them in the submit's own transaction, so the version's Sources, facts and lineage are what its text cites.
+ * what the model listed and every other source its draft cites that the task may cite (CX-0019, 0036): the parser
+ * reads the draft here and the service checks each id in the submit's own transaction, so the version's Sources,
+ * facts and lineage are what its text cites. The ids go beside the result (draftCitations), never inside it, and
+ * only from here: one the request carried is dropped (the API's schema refuses it before this).
  */
-export const runtimeResearchSubmit = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchSubmitRequest) =>
-  operation<ResearchSubmission>(c, 'runtime_research_submit', who, request)
+export async function runtimeResearchSubmit(c: pg.PoolClient, who: RuntimeCaller, request: ResearchSubmitRequest) {
+  const { draftCitations: _carried, ...asked } = request as ResearchSubmitRequest & { draftCitations?: unknown }
+  const cited = asked.result ? await citedByDraft(c, who, asked, asked.result) : undefined
+  return operation<ResearchSubmission>(
+    c,
+    'runtime_research_submit',
+    who,
+    cited ? { ...asked, draftCitations: cited } : asked,
+  )
+}

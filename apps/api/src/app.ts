@@ -100,7 +100,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.admit_research_task(uuid,text,text,jsonb,text,text)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_research_reserve(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_research_submit(bytea,text,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.research_draft_citations(sophia.research_scope,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.research_draft_citations(sophia.research_scope,jsonb,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.edit_report_summary(uuid,text,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.research_revoke_source(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.reconcile_research_overrun(uuid,uuid,text)') IS NOT NULL

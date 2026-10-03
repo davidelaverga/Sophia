@@ -25,12 +25,11 @@ BEGIN
     <>'{"added":[],"revised":[],"removed":[],"unchanged":["Hosts"],"conclusionChanged":false}'
    OR sophia.section_facts(E'# Hosts\nA.\n',chr(160)||E'\n# Hosts\nA.\n')->'added'<>'[]' THEN
   RAISE EXCEPTION 'A blank introduction of JavaScript whitespace made a section'; END IF;
- -- One heading line of spaces at the draft cap reads in well under a second, here and in the citation pass (cutting its
- -- closing marks with a lazy match took minutes).
+ -- One heading line of spaces at the draft cap reads in well under a second (cutting its closing marks with a lazy
+ -- match took minutes).
  started:=clock_timestamp();
  IF (SELECT heading FROM sophia.markdown_outline('# a'||repeat(' ',262140)||'b ##'))<>'a'||repeat(' ',262140)||'b' THEN
   RAISE EXCEPTION 'A long heading lost its text'; END IF;
- PERFORM sophia.markdown_citing_text('# a'||repeat(' ',262140)||'b');
  IF clock_timestamp()-started>interval '1 second' THEN
   RAISE EXCEPTION 'A heading line of spaces took %',clock_timestamp()-started; END IF;
  IF EXISTS((SELECT ord,anchor,heading,body_hash FROM sophia.markdown_sections(t)) EXCEPT ALL
@@ -228,152 +227,113 @@ DO $$ DECLARE f jsonb; p text[]; o text; BEGIN
  IF cardinality(p)<>20 OR EXISTS(SELECT 1 FROM unnest(p) x WHERE length(x)>300) THEN
   RAISE EXCEPTION 'Problems exceed the contract: % of them',cardinality(p); END IF;
 END $$;
--- research_draft_citations: the model's list as it came, then each source the current draft names that the task may
--- cite (an input, the base), lower case, in order of first appearance, never its own question, manifest or drafts, nor
--- a source it may not read; at most 200 distinct in all. A stale or missing draft, or citations that are not a list,
--- add nothing. Seeded here: a task's scope needs only its project, attempt, manifest and question.
+-- research_draft_citations: the model's list as it came, then each id the API's parser read in the current draft (the
+-- candidates), in their order, lower case, that the draft names and the task may cite (an input, the base), never its
+-- own question, manifest or drafts, a withdrawn source, another project's or one it may not read; malformed candidates
+-- are ignored; at most 200 distinct in all, of the first 200 candidates. A stale or missing draft, citations that are
+-- not a list, or candidates that are not one, add nothing. Seeded here: a task's scope needs only its project, attempt,
+-- manifest and question.
 DO $$ DECLARE
- pr uuid:='16000000-0000-0000-0000-000000000001'; who uuid:='06000000-0000-0000-0000-000000000001';
- g uuid:='26000000-0000-0000-0000-000000000001'; att uuid:='36000000-0000-0000-0000-000000000001';
+ pr uuid:='16000000-0000-0000-0000-000000000001'; pr2 uuid:='16000000-0000-0000-0000-000000000002';
+ who uuid:='06000000-0000-0000-0000-000000000001'; g uuid:='26000000-0000-0000-0000-000000000001';
+ att uuid:='36000000-0000-0000-0000-000000000001';
  man uuid:='46000000-0000-0000-0000-000000000001'; q uuid:='46000000-0000-0000-0000-000000000002';
  inp uuid:='46000000-0000-0000-0000-00000000000a'; base uuid:='46000000-0000-0000-0000-00000000000b';
  gone uuid:='46000000-0000-0000-0000-00000000000c'; stray uuid:='46000000-0000-0000-0000-00000000000d';
+ inp2 uuid:='46000000-0000-0000-0000-00000000000e'; inp3 uuid:='46000000-0000-0000-0000-00000000000f';
+ other_src uuid:='76000000-0000-0000-0000-000000000001';
  d0 uuid:='56000000-0000-0000-0000-000000000000'; d1 uuid:='56000000-0000-0000-0000-000000000001';
- d2 uuid:='56000000-0000-0000-0000-000000000002'; d3 uuid:='56000000-0000-0000-0000-000000000003';
- d4 uuid:='56000000-0000-0000-0000-000000000004'; many uuid[];
+ d2 uuid:='56000000-0000-0000-0000-000000000002'; many uuid[]; all_ids jsonb;
  s sophia.research_scope; r jsonb; t text;
 BEGIN
- INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who);
+ INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who),(pr2,'Elsewhere',who);
  INSERT INTO sophia.project_revisions(project_id,revision,frame,accepted_by) VALUES(pr,1,'{}',who);
  INSERT INTO sophia.goals(project_id,id,title,outcome,criteria,status,mission_revision) VALUES(pr,g,'Goal','Outcome','[]','running',1);
  INSERT INTO sophia.work_attempts(project_id,id,goal_id,goal_revision,authority_epoch,state) VALUES(pr,att,g,1,1,'running');
  SELECT array_agg(('66000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO many FROM generate_series(1,205) i;
  INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
   SELECT pr,x,who,'project',repeat('a',64),'text/markdown','cite-'||x,1,x<>gone,'ready'
-  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2,d3,d4]||many) x;
+  FROM unnest(ARRAY[man,q,inp,base,gone,stray,inp2,inp3,d0,d1,d2]||many) x;
+ -- Another project's source, drawn on by that project's manifest of the same id: never this task's.
+ INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+  VALUES(pr2,other_src,who,'project',repeat('a',64),'text/markdown','cite-'||other_src,1,true,'ready'),
+   (pr2,man,who,'project',repeat('a',64),'text/markdown','cite-man2',1,true,'ready');
+ INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) VALUES(pr2,other_src,man);
  INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES
   (pr,man,jsonb_build_object('schema','sophia.research-manifest.v1','base',jsonb_build_object('sourceId',base))::text),
   (pr,d0,'# Draft'||E'\n\nTo do.\n'),
-  (pr,d1,format(E'# Hosts\n\nOurs [%s], the base [%s], ours again (input:%s#2).\n\nAsked as [%s] under [%s]; drafted [%s] and [%s]; '
-   ||'never [%s] or [%s]; a link [1](<%s>).',upper(inp::text),base,inp,q,man,d0,d1,gone,stray,inp)),
+  (pr,d1,format(E'# Hosts\n\nOurs [%s], the base [%s], more (input:%s#2).\n\nAsked as [%s] under [%s]; drafted [%s] and [%s]; '
+   ||'never [%s], [%s] or [%s].',upper(inp::text),base,inp3,q,man,d0,d1,gone,stray,other_src)),
   (pr,d2,(SELECT string_agg(format('[%s]',x),' ' ORDER BY i) FROM unnest(many) WITH ORDINALITY u(x,i)));
  -- The manifest draws on the inputs, the 205 among them.
- INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) SELECT pr,x,man FROM unnest(ARRAY[inp,gone]||many) x;
+ INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id)
+  SELECT pr,x,man FROM unnest(ARRAY[inp,gone,inp2,inp3]||many) x;
  INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES
   (pr,att,1,'d0',d0,repeat('0',64)),(pr,att,2,'d1',d1,repeat('1',64));
  s:=ROW(pr,NULL,NULL,att,'sess',g,NULL,NULL,who,NULL,man,q)::sophia.research_scope;
+ -- Every id the draft names, each a candidate, the task's own and all; inp2 may be cited but the draft never names it.
+ all_ids:=jsonb_build_array(inp3,inp,base,q,man,d0,d1,gone,stray,other_src,inp2);
 
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base)));
- IF r<>jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base,inp)) THEN
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base)),all_ids);
+ IF r<>jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base,inp3,inp)) THEN
   RAISE EXCEPTION 'The current draft added the wrong sources: %',r; END IF;
+ -- In the candidates' order, not the draft's; a candidate in capitals is read in lower case, as the draft is.
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),
+  jsonb_build_array(upper(inp::text),base,inp3));
+ IF r->'citations'<>jsonb_build_array(inp,base,inp3) THEN RAISE EXCEPTION 'Candidates read out of order: %',r; END IF;
  -- The model's list stays as written, ids it may not cite and all (research_publish refuses them); what follows is new.
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_array('X',upper(base::text),q)));
- IF r->'citations'<>jsonb_build_array('X',upper(base::text),q,inp) THEN RAISE EXCEPTION 'The model''s list was changed: %',r; END IF;
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb));
- IF r->'citations'<>jsonb_build_array(inp,base) THEN RAISE EXCEPTION 'An empty list gained the wrong sources: %',r; END IF;
- -- A stale draft (an earlier one's hash), citations that are not a list, or no draft at all: nothing is added.
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_array('X',upper(base::text),q)),all_ids);
+ IF r->'citations'<>jsonb_build_array('X',upper(base::text),q,inp3,inp) THEN RAISE EXCEPTION 'The model''s list was changed: %',r; END IF;
+ -- Malformed candidates are passed over: refs, ids cut or padded, numbers, nulls, objects.
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),
+  jsonb_build_array('input:'||inp,inp||'#2',' '||inp,left(inp::text,35),'',42,NULL,jsonb_build_object('id',inp),jsonb_build_array(inp),base));
+ IF r->'citations'<>jsonb_build_array(base) THEN RAISE EXCEPTION 'A malformed candidate was read: %',r; END IF;
+ -- A stale draft (an earlier one's hash), citations that are not a list, no draft at all, or candidates that are not a
+ -- list: nothing is added.
  SELECT string_agg(x::text,E'\n') INTO t FROM (VALUES
-  (jsonb_build_object('draftSha256',repeat('0',64),'citations',jsonb_build_array(base))),
-  (jsonb_build_object('draftSha256',repeat('1',64),'citations',base::text)),
-  (jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_object('id',base))),
-  (jsonb_build_object('draftSha256',repeat('1',64))),
-  (jsonb_build_object('citations',jsonb_build_array(base)))) v(x)
-  WHERE sophia.research_draft_citations(s,x) IS DISTINCT FROM x;
+  (jsonb_build_object('draftSha256',repeat('0',64),'citations',jsonb_build_array(base)),all_ids),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations',base::text),all_ids),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_object('id',base)),all_ids),
+  (jsonb_build_object('draftSha256',repeat('1',64)),all_ids),
+  (jsonb_build_object('citations',jsonb_build_array(base)),all_ids),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),NULL),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),to_jsonb(inp::text)),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),jsonb_build_object('0',inp))) v(x,c)
+  WHERE sophia.research_draft_citations(s,x,c) IS DISTINCT FROM x;
  IF t IS NOT NULL THEN RAISE EXCEPTION E'A result gained citations it should not:\n%',t; END IF;
  IF sophia.research_draft_citations(ROW(pr,NULL,NULL,g,'sess',g,NULL,NULL,who,NULL,man,q)::sophia.research_scope,
-   jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb))<>jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb) THEN
+   jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),all_ids)
+   <>jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb) THEN
   RAISE EXCEPTION 'An attempt with no draft gained citations'; END IF;
 
- -- At most 200 distinct: the model's (a repeat counts once), then the draft's first 199.
+ -- At most 200 distinct: the model's (a repeat counts once), then the candidates' first 199.
  INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,3,'d2',d2,repeat('2',64));
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations',jsonb_build_array(base,base)));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations',jsonb_build_array(base,base)),to_jsonb(many));
  IF r->'citations'<>jsonb_build_array(base,base)||(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[1:199]) WITH ORDINALITY u(x,i)) THEN
   RAISE EXCEPTION 'The cap is not 200 in all, in order: %',r; END IF;
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),
-  'citations',(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[5:205]) WITH ORDINALITY u(x,i))));
+  'citations',(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[5:205]) WITH ORDINALITY u(x,i))),to_jsonb(many));
  IF jsonb_array_length(r->'citations')<>201 THEN RAISE EXCEPTION 'A list already past 200 gained citations'; END IF;
- -- The earlier draft cites nothing the current one does, and is still never added.
+ -- Only the first 200 candidates are read.
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb),
+  (SELECT jsonb_agg('X'::text) FROM generate_series(1,200))||to_jsonb(many[1:1]));
+ IF r->'citations'<>'[]' THEN RAISE EXCEPTION 'A candidate past the 200th was read: %',r; END IF;
+ -- The earlier drafts, one that cites nothing, are named here and offered, and are still never added.
  UPDATE sophia.source_texts SET body=format('[%s] [%s] [%s]',d0,d1,many[1]) WHERE project_id=pr AND source_id=d2;
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb),
+  jsonb_build_array(d0,d1,d2,many[1]));
  IF r->'citations'<>jsonb_build_array(many[1]) THEN RAISE EXCEPTION 'A draft of the task was added: %',r; END IF;
- -- Only what the report's parser numbers (packages/report markdown.ts): never an id in a code span or a fenced block
- -- (closed by a fence as long as its own), an image, an autolink or a link's target that is not a source ref alone; a
- -- bare URL's id, a ref link with a title, an escaped backtick, and a span that would cross a blank line all cite.
- INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES(pr,d3,format(E'Code `%s`, a page [docs](https://e.org/%s) '
-  ||E'<https://e.org/%s>, an image ![%s](%s).\n\n```\n%s\n```\n~~~~\n%s\n~~~\n%s\n~~~~\nCited: https://e.org/%s, [1](<%s> "t"), '
-  ||E'[x](search:%s#2), \\`%s\\`.\n\nOpen `tick\n\n%s and` close.',
-  many[1],many[2],many[3],many[4],many[5],many[6],many[7],many[8],many[9],many[10],many[11],many[12],many[13]));
- INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,4,'d3',d3,repeat('3',64));
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('3',64),'citations','[]'::jsonb));
- IF r->'citations'<>jsonb_build_array(many[9],many[10],many[11],many[12],many[13]) THEN
-  RAISE EXCEPTION 'A source the report does not number was added: %',r; END IF;
- -- Block by block, as the parser reads: a code span never spans a heading and the paragraph under it, two list items or
- -- two cells, and a cell past the table's head is never read; an escaped '[' opens no link, so the id in what would be
- -- its target is a bare URL's; a link to a ref with a space after its prefix cites (the parser's reading of it), one
- -- with a space after its '<' does not; a ref is read with its '#n', so an id right after it is not one; and a table
- -- whose head is a lone '|' has one column.
- INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES(pr,d4,format(E'## Head `x\nText %s and `y`.\n\n'
-  ||E'- run `a\n- see %s `b`\n\n\\[x](https://e.com/%s)\n\nClaim [1](source: %s).\n\n| a |\n|---|\n| `x` | %s |'
-  ||E'\n\nNot [3](< %s), nor %s#%s.\n\n|\n|---|\n| %s |',
-  many[14],many[15],many[16],many[17],many[18],many[19],many[20],many[21],many[22]));
- INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,5,'d4',d4,repeat('4',64));
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('4',64),'citations','[]'::jsonb));
- IF r->'citations'<>jsonb_build_array(many[14],many[15],many[16],many[17],many[20],many[22]) THEN
-  RAISE EXCEPTION 'The draft''s blocks were read unlike the parser: %',r; END IF;
 END $$;
--- markdown_citing_text reads a run from left to right as the parser does (packages/report markdown.ts, inlines): at
--- each place the construct the parser takes there, so an autolink hides a backtick or an escape inside it, a target
--- ends at its own ')' however escaped, an emphasis ends a label it cuts across, and '<' is an autolink only to an
--- address the parser opens. Each case names the ids the parser numbers, in order ({A}, {B} and {C} stand for ids).
-DO $$ DECLARE bad text; BEGIN
- SELECT string_agg(format('%s: %s, not %s',x.md,g.got,x.want),E'\n') INTO bad FROM (VALUES
-  ('See <https://e.com/a`b> and {A} `c`.','A'),
-  ('See <mailto:x\> and <{A}>>.','A'),
-  ('See [x](https://e.com/a\) and {A}).','A'),
-  ('See <https://e.com:port/{A}>.','A'),
-  ('See <https://exa mple.com/{A}>.','A'),
-  ('See < https://e.com/{A}>.',''),
-  ('See <'||chr(160)||'https://e.com/{A}>.',''),
-  ('See *the [report* at](https://e.com/{A}).','A'),
-  ('See _the [report_ at](https://e.com/{A}).','A'),
-  ('See **the [report** at](https://e.com/{A}).','A'),
-  ('*a [b* c](https://e.com/{A}) `{B}`','A'),
-  ('[a [b](https://e.com) c](https://f.com/{A})','A'),
-  ('[a <https://e.com> c](https://f.com/{A})','A'),
-  ('[a [b](https://e.com) c](javascript:{A})',''),
-  ('[see {B}](<{A}>)','B,A'),
-  ('[{B}](<{A}>)','A'),
-  ('Not [3](< {C}). Nor [1](< {A} >).',''),
-  (E'|\n|---|\n| {A} |','A'),
-  (E'||\n|---|\n| {A} |','A'),
-  (E'> > > > > [x](<{A}>) `{B}`','A'),
-  (E'- a\n  `x\n  {A}` b','')) x(md,want),
-  LATERAL (SELECT coalesce(string_agg(CASE u.id WHEN 'aaaaaaaa-0000-4000-8000-00000000000a' THEN 'A'
-     WHEN 'bbbbbbbb-0000-4000-8000-00000000000b' THEN 'B' ELSE 'C' END,',' ORDER BY u.first),'') AS got
-   FROM (SELECT lower(m[1]) AS id, min(o) AS first FROM regexp_matches(sophia.markdown_citing_text(
-     replace(replace(replace(x.md,'{A}','aaaaaaaa-0000-4000-8000-00000000000a'),'{B}','bbbbbbbb-0000-4000-8000-00000000000b'),
-      '{C}','cccccccc-0000-4000-8000-00000000000c')),
-     '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})','gi') WITH ORDINALITY r(m,o) GROUP BY 1) u) g
- WHERE g.got<>x.want;
- IF bad IS NOT NULL THEN RAISE EXCEPTION E'Read unlike the parser:\n%',bad; END IF;
-END $$;
--- The citation pass costs a draft's length: 256 KiB of quotes nested four deep, a line each (where a quote of every
--- level was read by a call of its own), reads in well under the submit's budget.
-DO $$ DECLARE started timestamptz:=clock_timestamp(); BEGIN
- PERFORM sophia.markdown_citing_text(repeat(E'>>>>\na\n',43690));
- IF clock_timestamp()-started>interval '1.5 seconds' THEN
-  RAISE EXCEPTION 'Nested quotes took %',clock_timestamp()-started; END IF;
-END $$;
--- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
+-- Grants mirror 0027: nothing here is callable by PUBLIC, the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.
 DO $$ DECLARE fn text; BEGIN
  FOREACH fn IN ARRAY ARRAY['sophia.heading_anchor(text)','sophia.markdown_outline(text)','sophia.note_keeps(text,text,text)',
    'sophia.section_facts(text,text)','sophia.note_problems(text,text,jsonb)',
-   'sophia.markdown_cells(text)','sophia.markdown_runs(text)','sophia.markdown_href(text)',
-   'sophia.markdown_inline_text(text)','sophia.markdown_citing_text(text)',
-   'sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
-  IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE') THEN
-   RAISE EXCEPTION '% is callable by the API or worker role',fn; END IF;
+   'sophia.research_draft_citations(sophia.research_scope,jsonb,jsonb)'] LOOP
+  IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE')
+    OR EXISTS(SELECT 1 FROM pg_proc p, aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+     WHERE p.oid=fn::regprocedure AND a.grantee=0) THEN
+   RAISE EXCEPTION '% is callable by PUBLIC, the API or the worker role',fn; END IF;
  END LOOP;
  fn:='sophia.runtime_research_submit(bytea,text,text,jsonb)';
  IF NOT has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE')

@@ -364,12 +364,12 @@ describe('the report Markdown parser', () => {
     assert.ok(blocks[0]?.kind === 'paragraph')
     assert.equal(plain(blocks[0].children), 'Claim [1]. More [2], x[1]. Bracketed [2].')
     assert.ok(!JSON.stringify(blocks).includes('"link"'))
-    // A space after the `<` is not a ref, as the service reads it (0036 markdown_citing_text); nor an uncited source.
+    // A space after the `<` is not a ref; nor is an uncited source.
     assert.deepEqual(parseMarkdown(`See [1](< ${A}).`).citations, [])
     assert.deepEqual(parseMarkdown(`See [1](source: ${A}).`, { citable: [] }).citations, [])
   })
 
-  it('reads link spaces as the service does, ASCII only, so a no-break space or U+FEFF does not cite', () => {
+  it('reads link spaces as ASCII only, so a no-break space or U+FEFF does not cite', () => {
     for (const md of [
       `[1](source:\u00a0${A})`,
       `[1](source:\ufeff${A})`,
@@ -382,7 +382,7 @@ describe('the report Markdown parser', () => {
     assert.deepEqual(parseMarkdown(`Claim [1](\t${A} ), [2](<source:\t${B}>\t"t").`).citations, [A, B])
   })
 
-  it('cites nothing in a span that opens like an autolink and holds a <, as the service blanks it', () => {
+  it('cites nothing in a span that opens like an autolink and holds a <', () => {
     assert.deepEqual(parseMarkdown(`See <https://x.example/a<${A}> here.`).citations, [])
     assert.deepEqual(parseMarkdown(`Open <HTTPS://app.example/s/<${A}>> or <mailto:a<${B}>.`).citations, [])
     assert.deepEqual(shape(`See <https://x.example/a<${A}> here.`), ['See ', `<https://x.example/a<${A}>`, ' here.'])
