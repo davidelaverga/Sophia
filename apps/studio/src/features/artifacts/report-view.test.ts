@@ -253,9 +253,9 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
   it('names the sections removed and added and counts the sources, from the facts alone', () => {
     assert.equal(
       factsLine(PILOT, 1, NONE),
-      'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
-        'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-        '2 added: Revised recommendations, Sources. Cited sources: 5 dropped, 1 added.',
+      'Compared with v1: 7 sections removed: “Summary”, “Compatibility and standards”, “Charging speed in practice”, ' +
+        '“Product claims vs. evidence”, “Comparison table”, “Recommendations for buyers”, “Limitations of this review”; ' +
+        '2 added: “Revised recommendations”, “Sources”. Cited sources: 5 dropped, 1 added.',
       'the sources count is "Cited sources", which the section called Sources cannot be read into',
     )
     assert.deepEqual(
@@ -263,10 +263,10 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
       ['Recommendations changed'],
       'nothing the line says is said again as a chip',
     )
-    assert.equal(factsLine(amended({ added: ['Pricing'] }), 1, NONE), 'Compared with v1: 1 section added: Pricing.')
+    assert.equal(factsLine(amended({ added: ['Pricing'] }), 1, NONE), 'Compared with v1: 1 section added: “Pricing”.')
     assert.equal(
       factsLine(amended({ removed: ['Costs'] }, { dropped: ['a'] }), 2, NONE),
-      'Compared with v2: 1 section removed: Costs. Cited sources: 1 dropped.',
+      'Compared with v2: 1 section removed: “Costs”. Cited sources: 1 dropped.',
     )
   })
 
@@ -279,20 +279,42 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
     )
   })
 
+  it('quotes each heading, so one the worker wrote never reads as the service’s own words', () => {
+    const line = factsLine(
+      amended({ removed: ['Comparison table; no section added or removed'], added: ['All other sections unchanged'] }),
+      1,
+      NONE,
+    )
+    assert.equal(
+      line,
+      'Compared with v1: 1 section removed: “Comparison table; no section added or removed”; ' +
+        '1 added: “All other sections unchanged”.',
+    )
+    assert.equal(
+      factsLine(amended({ added: ['The “rest”” unchanged'] }), 1, NONE),
+      'Compared with v1: 1 section added: “The "rest"" unchanged”.',
+      'a heading’s own quotes never close the quote',
+    )
+  })
+
   it('names at most eight headings of a list, each cut short past 60 characters', () => {
     const long = `A heading that runs on ${'and on '.repeat(10)}`
     const removed = [long, ...Array.from({ length: 9 }, (_, i) => `Part ${i + 1}`)]
     const line = factsLine(amended({ removed }), 1, NONE) ?? ''
-    assert.ok(line.startsWith(`Compared with v1: 10 sections removed: ${long.slice(0, 59)}…, Part 1, `), line)
-    assert.ok(line.endsWith('Part 7 and 2 more.'), line)
+    assert.ok(line.startsWith(`Compared with v1: 10 sections removed: “${long.slice(0, 59)}…”, “Part 1”, `), line)
+    assert.ok(line.endsWith('“Part 7” and 2 more.'), line)
   })
 
   it('counts a heading’s characters as the service does, never cutting a character in two', () => {
     const cut = factsLine(amended({ added: [`${'x'.repeat(58)}🚀 launch plan`] }), 1, NONE) ?? ''
-    assert.equal(cut, `Compared with v1: 1 section added: ${'x'.repeat(58)}🚀….`, 'the emoji kept whole before the cut')
+    assert.equal(
+      cut,
+      `Compared with v1: 1 section added: “${'x'.repeat(58)}🚀…”.`,
+      'the emoji kept whole before the cut',
+    )
     assert.doesNotMatch(cut, /[\ud800-\udbff](?![\udc00-\udfff])/, 'no half of a character')
     const whole = `${'x'.repeat(59)}🚀` // 60 characters, 61 UTF-16 units
-    assert.equal(factsLine(amended({ added: [whole] }), 1, NONE), `Compared with v1: 1 section added: ${whole}.`)
+    assert.equal(factsLine(amended({ added: [whole] }), 1, NONE), `Compared with v1: 1 section added: “${whole}”.`)
   })
 
   it('never counts the report’s own versions as sources, as a follow-up that listed its base stored them', () => {
@@ -325,7 +347,7 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
     assert.equal(factsLine({ parentId: 'v1' }, 1, NONE), null)
     assert.equal(
       factsLine(amended({ added: ['Pricing'] }), null, NONE),
-      'Compared with the version before: 1 section added: Pricing.',
+      'Compared with the version before: 1 section added: “Pricing”.',
     )
     const older = { parentId: 'v1', changeFacts: { cited: 1, added: [], dropped: ['a'] } }
     assert.equal(

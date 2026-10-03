@@ -344,17 +344,22 @@ type ChangeFacts = NonNullable<ArtifactVersion['changeFacts']>
 const NAMED = 8
 const NAME_LENGTH = 60
 
-/** A heading as the line names it: cut short past NAME_LENGTH characters. */
+/**
+ * A heading as the line names it: in quotes, so a heading the worker wrote ("Everything else unchanged") never reads as
+ * the service's own words, and cut short past NAME_LENGTH characters. Its own curly double quotes become straight ones,
+ * so none of them closes the quote early.
+ */
 function nameOf(heading: string): string {
+  const plain = heading.replace(/[“”]/gu, '"')
   // Code points, as the service counts characters: an emoji or another character outside the BMP is never cut in two.
   // oxlint-disable-next-line typescript/no-misused-spread -- code points by design; Firefox 114 lacks Intl.Segmenter
-  const chars = [...heading]
-  if (chars.length <= NAME_LENGTH) return heading
+  const chars = [...plain]
+  if (chars.length <= NAME_LENGTH) return `“${plain}”`
   const kept = chars.slice(0, NAME_LENGTH - 1).join('')
-  return `${kept.trimEnd()}…`
+  return `“${kept.trimEnd()}…”`
 }
 
-/** "A, B and 3 more": a list's headings, as many as the line names, a long one cut short. */
+/** "“A”, “B” and 3 more": a list's headings, quoted, as many as the line names, a long one cut short. */
 function named(headings: readonly string[]): string {
   const names = headings.slice(0, NAMED).map(nameOf)
   const more = headings.length - names.length
@@ -390,11 +395,11 @@ function sourceChanges(f: Pick<ChangeFacts, 'added' | 'dropped'>, own: ReadonlyS
 /**
  * The first line of a version's history entry: what the service found changed against the version it replaced (its
  * parent; `before` is that version's number, null when the list does not hold it), from the facts computed at
- * publication, never from the notes. It names the sections removed and added and counts the cited sources dropped and
- * added ("Cited sources", so a section called Sources cannot read as the start of that count); revised sections stay a
- * count chip, since facts stored under 0027 can count a repeated heading as revised when it was not. The report's own
- * versions (`own`, their source ids) are never counted as sources (movedSources). A version that only adds the PDF
- * says so. Null for a first version, or a version without facts.
+ * publication, never from the notes. It names the sections removed and added, each in quotes (nameOf), and counts the
+ * cited sources dropped and added ("Cited sources", so a section called Sources cannot read as the start of that
+ * count); revised sections stay a count chip, since facts stored under 0027 can count a repeated heading as revised
+ * when it was not. The report's own versions (`own`, their source ids) are never counted as sources (movedSources). A
+ * version that only adds the PDF says so. Null for a first version, or a version without facts.
  */
 export function factsLine(
   version: Pick<ArtifactVersion, 'changeFacts' | 'parentId'>,

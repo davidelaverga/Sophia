@@ -591,9 +591,9 @@ test('CX-0019 · History names the recommendations, not the conclusion, when onl
 
 /** The pilot-shaped v2's facts line (`history=pilot`, CX-0026): what the History entry says first. */
 const PILOT_FACTS =
-  'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
-  'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-  '2 added: Revised recommendations, Sources. Cited sources: 5 dropped.'
+  'Compared with v1: 7 sections removed: “Summary”, “Compatibility and standards”, “Charging speed in practice”, ' +
+  '“Product claims vs. evidence”, “Comparison table”, “Recommendations for buyers”, “Limitations of this review”; ' +
+  '2 added: “Revised recommendations”, “Sources”. Cited sources: 5 dropped.'
 /** Its notes, which say the rest was kept (synthetic words, as the pilot's said it). */
 const PILOT_CHANGE = 'Revised the recommendations; the rest of the report is unchanged.'
 const PILOT_KEPT = 'Kept: Compatibility, charging speed, product claims and limitations are kept as they were.'
@@ -766,7 +766,7 @@ for (const phone of [false, true]) {
   test(`CX-0026${at} · a heading or a note a line cannot break in wraps inside its History entry`, async ({ page }) => {
     const v3 = await historyAt(page, `/room.html?report=${REPORT}&versions=3&history=pilot`, 3)
     const facts = v3.locator('.report-facts')
-    await expect(facts).toHaveText(`Compared with v2: 1 section added: ${LONG_HEADING}.`) // named whole: 59 characters
+    await expect(facts).toHaveText(`Compared with v2: 1 section added: “${LONG_HEADING}”.`) // named whole: 59 characters
     const note = v3.getByText(/^Added the charging times, from measured_/)
     // Nothing removed and no source dropped (its own versions are none): the notes are in sight.
     await expect(note).toBeVisible()
