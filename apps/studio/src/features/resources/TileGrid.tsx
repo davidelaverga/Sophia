@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useBuddies } from './buddies.ts'
 import { glideName } from './motion.ts'
-import { TOOL, type QuotaObservation, type RequiredAction, type Resource } from './resource.ts'
+import { observationOf, TOOL, type QuotaObservation, type RequiredAction, type Resource } from './resource.ts'
 import { ResourceTile } from './ResourceTile.tsx'
 
 const STEP: Record<string, (columns: number) => number> = {
@@ -32,8 +32,6 @@ const openIds = (actions: RequiredAction[], id: string) =>
     .filter((a) => a.resourceId === id && a.state === 'open')
     .map((a) => a.id)
     .join(' ')
-const observationOf = (observations: QuotaObservation[], r: Resource) =>
-  observations.find((o) => o.entitlement_id === r.entitlementId)
 const nameOf = (r: Resource) => `${r.owner.name} · ${TOOL[r.tool]}`
 
 interface Props {

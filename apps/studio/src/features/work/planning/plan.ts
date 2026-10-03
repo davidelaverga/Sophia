@@ -3,7 +3,7 @@
 // goal it serves, its next checkpoint, what it assumes and the decisions it reserves (06_LEAD_RECIPES §3 puts those
 // last two in the plan). Who does an item is found, not stored twice: the resource whose session has that work as its
 // assignment (LFE-06). Nothing here computes progress: no percentage, no timer.
-import { ago, TOOL, type Resource, type Session } from '../../resources/resource.ts'
+import { TOOL, type Resource, type Session } from '../../resources/resource.ts'
 
 export interface PlanItem {
   id: string
@@ -166,13 +166,3 @@ export function planRows(plan: WorkPlan, resources: readonly Resource[], people:
     .toSorted((a, b) => (a[0]?.status.rank ?? 0) - (b[0]?.status.rank ?? 0))
     .flat()
 }
-
-/** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
-export function observedAgo(observed: string, now: Date): string {
-  const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(observed)) / 1000))
-  return seconds < 60 ? `${String(seconds)} s ago` : ago(observed, now)
-}
-
-/** How fresh an observation still is, from 1 when just made to 0 at `span` seconds old. */
-export const freshness = (observed: string, now: Date, span = 120) =>
-  Math.min(1, Math.max(0, 1 - (now.getTime() - Date.parse(observed)) / 1000 / span))

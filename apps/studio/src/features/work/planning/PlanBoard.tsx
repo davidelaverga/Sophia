@@ -6,10 +6,13 @@
 // - its tasks in four lanes side by side, In motion, Up next, Open and Done (TaskTile.tsx). A lane shows its first
 //   five and keeps the rest one press away;
 // - hovering a tile draws the threads to the tasks it waits on (Threads.tsx); pressing it opens the task's sheet, to
-//   act on it or ask Sophia (TaskSheet.tsx); the arrows move across the board (board-keys.ts);
+//   act on it or ask Sophia (TaskSheet.tsx), and puts it in the address (`#task-<id>`, link.ts), which opens it
+//   again; the arrows move across the board (board-keys.ts);
 // - what it assumes and what was decided, one quiet line (PlanNotes.tsx).
-import { useContext, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { Icon } from '@sophia/ui'
+import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
+import { useAddressed } from '../../resources/useAddressed.ts'
 import type { Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
 import '../../resources/resources.css'
@@ -41,6 +44,8 @@ interface Props {
   onAct?: Act
   /** Where a question to Sophia about a task goes. */
   onAsk?: Ask
+  /** Opens the resource doing a task in Resources (LFE-06.5); absent, who does it is only a name. */
+  onOpenResource?: (resourceId: string) => void
 }
 
 type Lane = { key: string; label: string; mark: Mark; marks: Mark[]; empty: string }
@@ -189,11 +194,31 @@ function WhileAway({ away, onSeen }: { away: ReturnType<typeof whileAway>; onSee
   )
 }
 
+/**
+ * The open task, kept in the address (`#task-<id>`): the address's task opens with the board, and again each time a
+ * link is followed; a task pressed opens over it. Only a task on this board is open: one on none shows nothing, and
+ * one a new revision took away closes, its address with it.
+ */
+function useOpenTask(rows: readonly PlanRow[]) {
+  const named = useAddressed(TASK)
+  const [pressed, setPressed] = useState<{ id: string | null; seq: number } | null>(null)
+  const wanted = pressed?.seq === named.seq ? pressed.id : named.id
+  const open = rows.some((r) => r.item.id === wanted) ? wanted : null
+  useEffect(() => {
+    if (!open) return undefined
+    showInAddress(open, TASK)
+    return () => {
+      if (linkedId(window.location.hash, TASK) === open) showInAddress(null, TASK)
+    }
+  }, [open])
+  return { open, setOpen: (id: string | null) => setPressed({ id, seq: named.seq }) }
+}
+
 /** The board's moment-to-moment state: the hovered task and what it waits on, the open task, the lens. */
 function useBoard(rows: readonly PlanRow[], viewerId: string | null, changed: ReadonlySet<string>) {
   const query = useContext(SearchQuery)
   const [lit, setLit] = useState<string | null>(null)
-  const [open, setOpen] = useState<string | null>(null)
+  const { open, setOpen } = useOpenTask(rows)
   const [lens, setLens] = useState<LensName>('all')
   const lighting = rows.find((r) => r.item.id === lit)?.item
   const waited = lighting ? waitsOn(lighting) : []
@@ -272,6 +297,7 @@ function Board({
   onDecide,
   onAct,
   onAsk,
+  onOpenResource,
 }: BoardProps) {
   const asks = useDecisions(plan, viewerId)
   const opened = rows.find((r) => r.item.id === board.open)
@@ -304,6 +330,7 @@ function Board({
           viewerId={viewerId}
           onAct={onAct}
           onAsk={onAsk}
+          onOpenResource={onOpenResource}
           onOpen={board.setOpen}
           onStep={board.step}
           onClose={() => board.setOpen(null)}

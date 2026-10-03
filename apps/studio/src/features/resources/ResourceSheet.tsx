@@ -1,6 +1,7 @@
 // One resource up close, in the app's sheet (as Invite opens): its host, each session with what it reported and what
-// it works on, its account's capacity window by window, the controls its route supports (shown, not offered: they
-// come with LFE-06.4) and the requests waiting on its owner. Esc or Close returns to the tile it was opened from.
+// it works on (a way to that task, when it is on the plan's board), its account's capacity window by window and, when
+// it runs short, a resource with room. Then the controls its route supports (shown, not offered: they come with
+// LFE-06.4) and the requests waiting on its owner. Esc or Close returns to the tile it was opened from.
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
 import { useDialog } from '../../app/useDialog.ts'
@@ -8,6 +9,8 @@ import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
 import {
   ago,
+  observedAgo,
+  reportsLive,
   SUPPORT,
   TOOL,
   VENDOR,
@@ -25,6 +28,7 @@ import { changeLine, currentLevel, levelName, type ChangeLine, type EffortAsk } 
 import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
+import type { Room } from './room.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
@@ -145,15 +149,56 @@ function Effort({
   )
 }
 
-function SessionRow({
-  session,
-  tool,
-  control,
-}: {
+/** A session's task: a way to it on the board when that task is on one, its title otherwise. */
+function WorkTitle({ work, tasks }: { work: NonNullable<Session['assignment']>; tasks: TaskLinks | undefined }) {
+  if (!tasks?.has(work.workId)) return <>{work.title}</>
+  return (
+    <button type="button" className="resource-work-link has-tip" onClick={() => tasks.open(work.workId)}>
+      {work.title}
+      <span className="sr-only">, open in Tasks</span>
+      <Icon name="forward" />
+      <Tip label="Open in Tasks" side="top" />
+    </button>
+  )
+}
+
+/** What a session at work last reported, and how long ago; still once it isn't live. */
+function SessionLive({ session, live, now }: { session: Session; live: boolean; now: Date }) {
+  const reported = session.activity
+  if (!reported || !session.assignment) return null
+  return (
+    <span className="resource-session-live">
+      <span
+        className="activity-dot"
+        data-waiting={session.assignment.state === 'waiting' || undefined}
+        data-still={live ? undefined : true}
+        aria-hidden
+      />
+      <span className="resource-session-said" title={reported.said}>
+        {reported.said}
+      </span>
+      <span className="resource-session-ago">{observedAgo(reported.observedAt, now)}</span>
+    </span>
+  )
+}
+
+/** The way to a session's task on the plan's board: whether a task is on one, and opening it there. */
+export interface TaskLinks {
+  has: (workId: string) => boolean
+  open: (workId: string) => void
+}
+
+interface SessionProps {
   session: Session
   tool: Resource['tool']
+  /** Whether its report is live now (reportsLive). */
+  live: boolean
+  now: Date
   control?: EffortControl | undefined
-}) {
+  tasks?: TaskLinks | undefined
+}
+
+function SessionRow({ session, tool, live, now, control, tasks }: SessionProps) {
   const work = session.assignment
   return (
     <li className="resource-session">
@@ -165,11 +210,12 @@ function SessionRow({
       {work ? (
         <span className="resource-work">
           <Tag tone={WORK_STATE[work.state][0]}>{WORK_STATE[work.state][1]}</Tag>
-          {work.title}
+          <WorkTitle work={work} tasks={tasks} />
         </span>
       ) : (
         <span className="resource-work idle">No assignment</span>
       )}
+      <SessionLive session={session} live={live} now={now} />
     </li>
   )
 }
@@ -273,35 +319,90 @@ interface Props {
   onStep?: ((by: 1 | -1) => void) | undefined
   /** Its owner's way to choose each session's effort; absent where none can be asked for. */
   effort?: EffortControl | undefined
+  /** The way to a session's task on the plan's board; absent where Tasks has no plan to open it in. */
+  tasks?: TaskLinks | undefined
+  /** Where there is room when this one runs short (room.ts); absent when none is, or it isn't short. */
+  room?: Room | null
+  /** Shows another resource's sheet: the one with room. */
+  onShow?: (id: string) => void
 }
 
-/** Each session: its role, model, effort (its owner can choose it) and what it works on. */
-function Sessions({ resource, control }: { resource: Resource; control?: EffortControl | undefined }) {
+/** Each session: its role, model, effort (its owner can choose it), what it works on and what it last reported. */
+function Sessions({
+  resource,
+  now,
+  control,
+  tasks,
+}: {
+  resource: Resource
+  now: Date
+  control?: EffortControl | undefined
+  tasks?: TaskLinks | undefined
+}) {
   return (
     <section className="sheet-section" aria-labelledby="sessions-title">
       <h3 id="sessions-title">Sessions</h3>
       <ul className="resource-sessions" aria-label="Sessions">
         {resource.sessions.map((s) => (
-          <SessionRow key={s.id} session={s} tool={resource.tool} control={control} />
+          <SessionRow
+            key={s.id}
+            session={s}
+            tool={resource.tool}
+            live={reportsLive(resource, s, now)}
+            now={now}
+            control={control}
+            tasks={tasks}
+          />
         ))}
       </ul>
     </section>
   )
 }
 
-export function ResourceSheet(props: Props) {
-  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort } = props
-  const panel = useRef<HTMLDivElement>(null)
-  useDialog(panel, onClose)
-  // A step turns the page: the control pressed may go with it, so the focus stays in the sheet, where J and K work.
+/** Where there is room, when this account runs short: whose, how full, and a way to its sheet. It assigns nothing. */
+function RoomLine({ room, onShow }: { room: Room; onShow: ((id: string) => void) | undefined }) {
+  return (
+    <p className="capacity-room">
+      <ToolLogo tool={room.resource.tool} size="sm" />
+      <span className="capacity-room-words">{room.line}</span>
+      {onShow && (
+        <button type="button" className="text-button" onClick={() => onShow(room.resource.id)}>
+          Show
+        </button>
+      )}
+    </p>
+  )
+}
+
+/**
+ * Turning the page (a step, or Show) may take the control pressed with it: the focus stays in the sheet, where J and K
+ * work.
+ */
+function usePageTurns(panel: React.RefObject<HTMLDivElement | null>, onStep: Props['onStep'], onShow: Props['onShow']) {
+  const keepFocus = () =>
+    requestAnimationFrame(() => {
+      if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
+    })
   const turn = onStep
     ? (by: 1 | -1) => {
         onStep(by)
-        requestAnimationFrame(() => {
-          if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
-        })
+        keepFocus()
       }
     : undefined
+  const show = onShow
+    ? (id: string) => {
+        onShow(id)
+        keepFocus()
+      }
+    : undefined
+  return { turn, show }
+}
+
+export function ResourceSheet(props: Props) {
+  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort, room, onShow } = props
+  const panel = useRef<HTMLDivElement>(null)
+  useDialog(panel, onClose)
+  const { turn, show } = usePageTurns(panel, onStep, onShow)
   const host = resource.host
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -323,7 +424,12 @@ export function ResourceSheet(props: Props) {
             Host {HOST[host.state]} · <Since at={host.observedAt} now={now} />
           </p>
           <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
-          <Sessions resource={resource} control={resource.owner.id === viewerId ? effort : undefined} />
+          <Sessions
+            resource={resource}
+            now={now}
+            control={resource.owner.id === viewerId ? effort : undefined}
+            tasks={props.tasks}
+          />
           <section className="sheet-section" aria-labelledby="capacity-title">
             <h3 id="capacity-title">Capacity</h3>
             <CapacityBlock
@@ -332,6 +438,7 @@ export function ResourceSheet(props: Props) {
               reservePercent={resource.reservePercent}
               now={now}
               earlier={earlier}
+              room={room && <RoomLine room={room} onShow={show} />}
             />
           </section>
           <section className="sheet-section" aria-labelledby="controls-title">

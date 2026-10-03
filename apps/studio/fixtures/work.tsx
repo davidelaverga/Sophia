@@ -3,7 +3,8 @@
 // `viewer=davide` (default: Luis); `proposed=1` (the plan is proposed, not accepted); `superseded=1` (it was replaced,
 // so none shows); `two=1` (a second goal with its own plan); `conflict=1` (an answer comes back refused: the decision
 // changed since it was read). A decider's answer is recorded as a lead would take it; `workFixture.settle(id)` records
-// it as decided, as the lead's next plan revision would.
+// it as decided, as the lead's next plan revision would. Whoever does a task opens on the resources' fixture
+// (resources.html#resource-<id>), as Resources would; `#task-<id>` opens a task with the page.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -15,6 +16,7 @@ import type { Decide } from '../src/features/work/planning/Decision.tsx'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
+import { linkHash } from '../src/features/resources/link.ts'
 import { moving } from '../src/features/resources/motion.ts'
 import type { Resource } from '../src/features/resources/resource.ts'
 import { current, type WorkPlan } from '../src/features/work/planning/plan.ts'
@@ -52,6 +54,7 @@ window.workFixture = { unexpected, answered }
 const nothing = () => undefined
 
 const viewer = query.get('viewer') === 'davide' ? 'davide' : 'luis'
+const viewerQuery = viewer === 'davide' ? '?viewer=davide' : ''
 
 /** `since=1`: the viewer last looked a while ago, when four tasks stood elsewhere (and one wasn't there). */
 if (query.get('since') === '1') {
@@ -98,6 +101,27 @@ const begun = (list: Resource[], workId: string): Resource[] =>
     ),
   }))
 
+/** One plan's slot in Tasks: its board, NEXT, its tab in the goals' rail, and what finds it. */
+function slot(p: WorkPlan, now: Date, shared: { resources: Resource[]; people: typeof people; viewerId: string }) {
+  return {
+    view: (
+      <PlanBoard
+        plan={p}
+        now={now}
+        onDecide={decide}
+        onAct={act}
+        onAsk={ask}
+        onOpenResource={(id) => window.location.assign(`resources.html${viewerQuery}${linkHash(id)}`)}
+        {...shared}
+      />
+    ),
+    next: <PlanNext plan={p} />,
+    tab: <PlanTab plan={p} {...shared} />,
+    words: p.items.map((i) => i.purpose).join(' '),
+    tasks: p.items.map((i) => i.id),
+  }
+}
+
 function Tasks() {
   const [first, setFirst] = useState(() => (query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
   const [live, setLive] = useState(() => withActivity(resources))
@@ -128,15 +152,7 @@ function Tasks() {
   const plans = Object.fromEntries(
     [first, ...(two ? [secondPlan] : []), ...(six ? morePlans : [])]
       .filter((p) => current(p))
-      .map((p) => [
-        p.goal_id,
-        {
-          view: <PlanBoard plan={p} now={now} onDecide={decide} onAct={act} onAsk={ask} {...shared} />,
-          next: <PlanNext plan={p} />,
-          tab: <PlanTab plan={p} {...shared} />,
-          words: p.items.map((i) => i.purpose).join(' '),
-        },
-      ]),
+      .map((p) => [p.goal_id, slot(p, now, shared)]),
   )
   return (
     <ProjectShell

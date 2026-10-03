@@ -738,19 +738,7 @@
   font-size: 10.5px;
 }
 
-/* ---- Live: what a session last reported, and a ring around its picture emptying as that ages. ---- */
-.task-who[data-live]::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgba(127, 214, 196, 0.12) 0);
-  mask: radial-gradient(circle, transparent calc(50% - 1.5px), #000 calc(50% - 1px));
-  transition: background 1s linear;
-}
-.task-tile[data-mark='waiting'] .task-who[data-live]::before {
-  background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgba(239, 191, 134, 0.12) 0);
-}
+/* ---- Live: what a session last reported (its ring and dot are shared, in resources.css). ---- */
 .task-tile-activity {
   display: flex;
   align-items: center;
@@ -771,22 +759,6 @@
   font-family: var(--mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
-}
-.activity-dot {
-  position: relative;
-  flex: none;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--teal);
-}
-.activity-dot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--teal);
-  animation: waiting-ping 2s var(--ease) infinite;
 }
 .task-sheet-activity {
   display: flex;
@@ -1203,7 +1175,6 @@
   .thread-spark {
     display: none;
   }
-  .activity-dot::after,
   .decision-pill[data-mine] .decision-pill-dot::after,
   .ask-light,
   .board-return,

@@ -3,26 +3,34 @@
 // reads are answered at fetch (fixture-api.ts); the panel has no port that acts, and any other request is recorded as
 // unexpected. The query string picks who is looking, `viewer=davide` (default: Luis); `stale=1` (Codex's reading has
 // expired); `more=1` (Grok and Gemini CLI join the three enrollments); `quiet=1` (nothing waits on an owner);
-// `busy=1` (Codex's account at 92 % and 78 %, Davide's Claude Code at 95 %); `spent=1` (Codex's spend limit passed, at 120 %);
+// `busy=1` (Codex's account at 92 % and 78 %, Davide's Claude Code at 95 %); `tight=1` (Davide's Claude Code runs out
+// ~2 h before its reset, his Codex has room); `spent=1` (Codex's spend limit passed, at 120 %);
 // `loading=1` (the resources not read yet, until `resourcesFixture.load()`); `refreshing=1` (read again, the last read's
 // data still in hand). Live, as a live read would: `resourcesFixture.addRequest()` brings a request to wait on Davide,
 // `answerRequest()` answers the first, `swapRequest()` answers it while another comes, `spendCredits(n)` moves Gemini's
 // balance, and `setHost(id, state)` moves a host. An owner's effort request is taken as a runtime would:
 // `advance(sessionId)` moves a restart one step (stopping, starting, then running with it), `failStop(sessionId)` leaves
-// its stop unconfirmed, and `nextRun(sessionId)` starts its next run with what was asked.
+// its stop unconfirmed, and `nextRun(sessionId)` starts its next run with what was asked. The sessions at work report
+// what they do, as on the plan's fixture (work-live.ts: Codex's reviewer moves on every 9 s), and a session's task
+// opens on that fixture's board (work.html#task-<id>), as Tasks would, when it is on it (Gemini's onboarding copy
+// isn't).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
+import { linkHash, TASK } from '../src/features/resources/link.ts'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
+import type { TaskLinks } from '../src/features/resources/ResourceSheet.tsx'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
 import type { Resource, Session } from '../src/features/resources/resource.ts'
+import { plan, secondPlan } from './work-data.ts'
+import { nextActivity, withActivity } from './work-live.ts'
 import {
   actions,
   arriving,
@@ -30,6 +38,7 @@ import {
   busyCodex,
   earlierReadings,
   spentCodex,
+  tightClaude,
   expiredAt,
   moreObservations,
   moreResources,
@@ -71,13 +80,24 @@ const shown = more ? [...resources, ...moreResources] : resources
 const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
 const spent = query.get('spent') === '1'
+const tight = query.get('tight') === '1'
 const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
   if (busy && o.entitlement_id === 'ent-davide-anthropic') return busyClaude(o)
+  if (tight && o.entitlement_id === 'ent-davide-anthropic') return tightClaude(o)
   if (o.entitlement_id !== 'ent-davide-openai') return o
   if (stale) return { ...o, valid_until: expiredAt() }
   if (spent) return spentCodex(o)
   return busy ? busyCodex(o) : o
 })
+
+/** Who is looking, carried to the plan's fixture when a session's task opens there. */
+const viewerQuery = viewer === people.davide ? '?viewer=davide' : ''
+/** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
+const planned = new Set([...plan('accepted').items, ...secondPlan.items].map((i) => i.id))
+const tasks: TaskLinks = {
+  has: (workId) => planned.has(workId),
+  open: (workId) => window.location.assign(`work.html${viewerQuery}${linkHash(workId, TASK)}`),
+}
 
 const waitingOn = (list: typeof actions, id: string) =>
   list.filter((a) => a.ownerId === id && a.state === 'open').length
@@ -183,13 +203,21 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
 function Live() {
   const [live, setLive] = useState<LiveState>({
     actions: query.get('quiet') === '1' ? [] : actions,
-    resources: shown,
+    resources: withActivity(shown),
     observations: read,
     loading: query.get('loading') === '1' || query.get('refreshing') === '1',
     asks: {},
   })
   useEffect(() => {
     window.resourcesFixture = controls(setLive)
+    // Every 9 s, Codex's reviewer reports what it does next, at the view's time (it runs from NOW).
+    const start = Date.now()
+    let n = 0
+    const tick = setInterval(() => {
+      const at = new Date(NOW.getTime() + Date.now() - start)
+      setLive((l) => ({ ...l, resources: nextActivity(l.resources, at, n++) }))
+    }, 9000)
+    return () => clearInterval(tick)
   }, [])
   return (
     <ProjectShell
@@ -211,6 +239,7 @@ function Live() {
           now={NOW}
           loading={live.loading}
           history={earlierReadings(read)}
+          tasks={tasks}
           onEffort={(sessionId, ask) => {
             asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })
             setLive((l) => ({ ...l, asks: { ...l.asks, [sessionId]: ask ?? undefined } }))

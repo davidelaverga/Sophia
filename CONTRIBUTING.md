@@ -487,6 +487,21 @@ when you change the room:
   only the levels its tool reports (`Session.efforts`), set for its next run
   or, confirmed, by a restart; the panel's `onEffort` takes the request, and
   each step its runtime reports (`Session.change`, `change.ts`) is said beside the bar.
+  A session at work is live (LFE-06.5): its tile adds what its tool last
+  reported and how long ago. While the report is live (`reportsLive`: host
+  online, younger than two minutes) its age counts each second and its
+  owner's picture wears the board's freshness ring, amber while it waits
+  (`.live-ring`, shared with the plan's board); after that it is said still.
+  The clock never steps back when its pace changes (`clock.ts`). A session's
+  task opens on the plan's board when it is on one (the panel's `tasks`,
+  `#task-<id>`), and a task's doer opens here (the board's `onOpenResource`);
+  a task's address opens it with its goal, also when followed in the page
+  (`useAddressed`). A tile's capacity is short (`tileCapacity`): the window
+  and how full, then its reset, or, in amber, when it runs out first at its
+  pace (the window that runs out first heads it). When an account runs short,
+  its sheet names one resource with room (`room.ts`: online, another account,
+  under 75 % and on pace; the owner's own first); it only shows. `tight=1`
+  shows it.
 
 ## The personal space
 
