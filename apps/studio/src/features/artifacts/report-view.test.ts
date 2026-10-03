@@ -14,8 +14,11 @@ import {
   focusReturn,
   pdfMissing,
   factChips,
+  factsLine,
   formatBytes,
   money,
+  notesNeedFacts,
+  notesShown,
   progressRatio,
   progressText,
   renditionRefusal,
@@ -147,7 +150,7 @@ describe('a research card in words', () => {
 })
 
 describe('a version’s chips come from its facts, never its notes', () => {
-  it('lists sources and sections changed, a changed conclusion and notes the service wrote', () => {
+  it('count the sections revised and name a changed conclusion; what came and went is the facts line’s', () => {
     const chips = factChips({
       versionNumber: 2,
       changeFacts: {
@@ -166,7 +169,8 @@ describe('a version’s chips come from its facts, never its notes', () => {
     })
     assert.deepEqual(
       chips.map((c) => c.label),
-      ['+2 sources', '−1 source', '1 section added', '1 revised', 'Conclusion changed', 'Notes written from the facts'],
+      ['1 revised', 'Conclusion changed'],
+      'sources and sections added or removed are said once, in the facts line; notes from the facts are not shown',
     )
     assert.deepEqual(
       factChips({ versionNumber: 1, changeFacts: { cited: 1, added: ['a'], dropped: [] } }).map((c) => c.label),
@@ -174,11 +178,7 @@ describe('a version’s chips come from its facts, never its notes', () => {
     )
     assert.deepEqual(factChips({ versionNumber: 3 }), [])
     const pdfOnly = { cited: 4, added: [], dropped: [], notesFromFacts: true, renditionOnly: true }
-    assert.deepEqual(
-      factChips({ versionNumber: 3, changeFacts: pdfOnly }).map((c) => c.label),
-      ['PDF added'],
-      'a rendition-only version adds the PDF and nothing else',
-    )
+    assert.deepEqual(factChips({ versionNumber: 3, changeFacts: pdfOnly }), [], 'the facts line says it adds the PDF')
   })
 
   it('names what changed when the conclusion fact covers recommendations only (CX-0019)', () => {
@@ -192,6 +192,145 @@ describe('a version’s chips come from its facts, never its notes', () => {
       chips.map((c) => c.label),
       ['1 revised', 'Recommendations changed'],
     )
+  })
+})
+
+/** Sections as the service stores them: none unless given. */
+const sectionFacts = (s: Partial<Record<'added' | 'revised' | 'removed' | 'unchanged', string[]>>) => ({
+  added: [],
+  revised: [],
+  removed: [],
+  unchanged: [],
+  conclusionChanged: false,
+  ...s,
+})
+
+/**
+ * The pilot's v2 facts (CX-0026): a seven-section report under its title, one section a table, amended into its title
+ * and two new sections; its five sources dropped and the first version cited in their place. Synthetic headings of
+ * the same shape.
+ */
+const PILOT = {
+  parentId: 'v1',
+  changeFacts: {
+    cited: 1,
+    added: ['base'],
+    dropped: ['s1', 's2', 's3', 's4', 's5'],
+    notesFromFacts: false,
+    sections: {
+      ...sectionFacts({
+        added: ['Revised recommendations', 'Sources'],
+        removed: [
+          'Summary',
+          'Compatibility and standards',
+          'Charging speed in practice',
+          'Product claims vs. evidence',
+          'Comparison table',
+          'Recommendations for buyers',
+          'Limitations of this review',
+        ],
+        unchanged: ['USB-C charging for phones'],
+      }),
+      conclusionChanged: true,
+    },
+  },
+}
+
+/** A later version over `sections`, citing what it did before unless `sources` says otherwise. */
+const amended = (
+  sections: Parameters<typeof sectionFacts>[0],
+  sources: { added?: string[]; dropped?: string[] } = {},
+  more: { notesFromFacts?: boolean; renditionOnly?: boolean } = {},
+) => ({
+  parentId: 'v1',
+  changeFacts: { cited: 3, added: [], dropped: [], ...sources, sections: sectionFacts(sections), ...more },
+})
+
+describe('a version’s facts line, first in its history entry (CX-0026)', () => {
+  it('names the sections removed and added and counts the sources, from the facts alone', () => {
+    assert.equal(
+      factsLine(PILOT, 1),
+      'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
+        'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
+        '2 added: Revised recommendations, Sources. Sources: 5 dropped, 1 added.',
+    )
+    assert.deepEqual(
+      factChips({ versionNumber: 2, ...PILOT }).map((c) => c.label),
+      ['Recommendations changed'],
+      'nothing the line says is said again as a chip',
+    )
+    assert.equal(factsLine(amended({ added: ['Pricing'] }), 1), 'Compared with v1: 1 section added: Pricing.')
+    assert.equal(
+      factsLine(amended({ removed: ['Costs'] }, { dropped: ['a'] }), 2),
+      'Compared with v2: 1 section removed: Costs. Sources: 1 dropped.',
+    )
+  })
+
+  it('keeps revised sections a count, never names them, and says when none came or went', () => {
+    const revised = amended({ revised: ['Pros', 'Cons', 'Pros', 'Cons'], unchanged: ['Options'] })
+    assert.equal(factsLine(revised, 1), 'Compared with v1: no section added or removed.')
+    assert.deepEqual(
+      factChips({ versionNumber: 2, ...revised }).map((c) => c.label),
+      ['4 revised'],
+    )
+  })
+
+  it('names at most eight headings of a list, each cut short past 60 characters', () => {
+    const long = `A heading that runs on ${'and on '.repeat(10)}`
+    const removed = [long, ...Array.from({ length: 9 }, (_, i) => `Part ${i + 1}`)]
+    const line = factsLine(amended({ removed }), 1) ?? ''
+    assert.ok(line.startsWith(`Compared with v1: 10 sections removed: ${long.slice(0, 59)}…, Part 1, `), line)
+    assert.ok(line.endsWith('Part 7 and 2 more.'), line)
+  })
+
+  it('says a version that only adds the PDF shares the text of the one before', () => {
+    const pdf = amended({ unchanged: ['Report'] }, {}, { notesFromFacts: true, renditionOnly: true })
+    assert.equal(factsLine(pdf, 3), 'Same text as v3; adds the PDF.')
+  })
+
+  it('says nothing for a first version, or without facts; the version before when the list lacks it', () => {
+    assert.equal(factsLine({ parentId: null, changeFacts: { cited: 2, added: ['a', 'b'], dropped: [] } }, null), null)
+    assert.equal(factsLine({ parentId: 'v1' }, 1), null)
+    assert.equal(
+      factsLine(amended({ added: ['Pricing'] }), null),
+      'Compared with the version before: 1 section added: Pricing.',
+    )
+    const older = { parentId: 'v1', changeFacts: { cited: 1, added: [], dropped: ['a'] } }
+    assert.equal(factsLine(older, 1), 'Sources compared with v1: 1 dropped.', 'a version published before sections')
+    assert.equal(factsLine({ ...older, changeFacts: { ...older.changeFacts, dropped: [] } }, 1), null)
+  })
+})
+
+describe('whether a version’s notes fold under its facts (CX-0026)', () => {
+  it('folds them when a section was removed with none of its name left, or sources were dropped', () => {
+    assert.equal(notesNeedFacts(PILOT), true)
+    assert.equal(notesNeedFacts(amended({ removed: ['Comparison table'], unchanged: ['Summary'] })), true)
+    assert.equal(notesNeedFacts(amended({ revised: ['Summary'] }, { dropped: ['a'] })), true, 'a source dropped')
+  })
+
+  it('keeps them open when a removed heading still names a section, by its anchor as the service reads it', () => {
+    assert.equal(notesNeedFacts(amended({ removed: ['Pros'], revised: ['Pros'], unchanged: ['Cons'] })), false)
+    assert.equal(notesNeedFacts(amended({ removed: ['**Pros:**'], unchanged: ['Pros'] })), false, 'markup dropped')
+    assert.equal(notesNeedFacts(amended({ removed: ['Old pricing'], added: ['New pricing'] })), true, 'a new name')
+    assert.equal(notesNeedFacts(amended({ revised: ['Pricing'] }, { added: ['a'] })), false, 'a source added')
+    assert.equal(notesNeedFacts({ changeFacts: { cited: 1, added: [], dropped: [] } }), false, 'no sections')
+    assert.equal(notesNeedFacts({}), false, 'no facts')
+  })
+
+  it('never folds notes the service wrote from the facts, nor a version that only adds the PDF', () => {
+    assert.equal(notesNeedFacts({ changeFacts: { ...PILOT.changeFacts, notesFromFacts: true } }), false)
+    const pdf = amended({ removed: ['Costs'] }, { dropped: ['a'] }, { renditionOnly: true })
+    assert.equal(notesNeedFacts(pdf), false)
+  })
+
+  it('shows them open, folded, or not at all when the service wrote them from the facts', () => {
+    const notes = { changeNote: 'Revised the recommendations.', retainedNote: 'The rest is unchanged.' }
+    assert.equal(notesShown({ ...PILOT, ...notes }), 'folded')
+    assert.equal(notesShown({ ...amended({ revised: ['Pricing'] }), changeNote: 'Expanded the pricing.' }), 'open')
+    assert.equal(notesShown({ retainedNote: 'Everything in v1 is kept' }), 'open', 'a kept note alone')
+    const fromFacts = { ...PILOT, changeFacts: { ...PILOT.changeFacts, notesFromFacts: true }, ...notes }
+    assert.equal(notesShown(fromFacts), null, 'the facts line says the same')
+    assert.equal(notesShown(PILOT), null, 'no notes')
   })
 })
 

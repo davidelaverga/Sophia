@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test'
 import { renderReportPage } from '@sophia/report/page'
 import { citedSources, content, versions } from '../fixtures/report-data.ts'
+import { typeSizes } from './type-sizes.ts'
 
 // The report viewer over the room (SMC-M03), on the fixture page: the Studio's own ProjectShell with the fixture report
 // (fixtures/report-data.ts). Each check holds one of LFE-02.1's findings fixed; only the API and LiveKit are faked, and
@@ -585,6 +586,118 @@ test('CX-0019 · History names the recommendations, not the conclusion, when onl
   const region = pane(page).getByRole('region', { name: 'v1 to v2' })
   await expect(region.locator('dt')).toHaveText(['Revised', 'Unchanged', 'Recommendations'])
   await expect(region.locator('dd')).toHaveText(['Fixture report, Recommendations', 'Conclusion', 'Changed'])
+})
+
+/** The pilot-shaped v2's facts line (`history=pilot`, CX-0026): what the History entry says first. */
+const PILOT_FACTS =
+  'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
+  'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
+  '2 added: Revised recommendations, Sources. Sources: 5 dropped, 1 added.'
+/** Its notes, which say the rest was kept (synthetic words, as the pilot's said it). */
+const PILOT_CHANGE = 'Revised the recommendations; the rest of the report is unchanged.'
+const PILOT_KEPT = 'Kept: Compatibility, charging speed, product claims and limitations are kept as they were.'
+
+/** Version `n`'s entry on the History tab. */
+const entry = (page: Page, n: number) =>
+  pane(page)
+    .locator('.report-history > li')
+    .filter({ has: page.getByText(`v${String(n)}`, { exact: true }) })
+
+/** Opens the fixture report at `url` on its History tab, and gives its v2 entry. */
+async function historyAt(page: Page, url: string): Promise<Locator> {
+  await enter(page, url)
+  await pane(page)
+    .getByRole('tab', { name: /^History/ })
+    .click()
+  await expect(entry(page, 1)).toBeVisible()
+  return entry(page, 2)
+}
+
+/** Whether `upper` ends above where `lower` begins. */
+async function above(upper: Locator, lower: Locator): Promise<boolean> {
+  const [a, b] = await Promise.all([upper.boundingBox(), lower.boundingBox()])
+  return a !== null && b !== null && a.y + a.height <= b.y
+}
+
+/** Whether nothing runs past the page's width: no sideways scroll at this width. */
+const fitsWidth = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
+
+// At 1280 px (desktop) and 390 px (@phone, where the pane covers the room): CONTRIBUTING's Studio UI widths.
+for (const phone of [false, true]) {
+  const at = phone ? ' @phone' : ''
+
+  test(`CX-0026${at} · a History entry shaped like the pilot’s says the facts first, Sophia’s notes folded under them`, async ({
+    page,
+  }) => {
+    const v2 = await historyAt(page, `/room.html?report=${REPORT}&versions=2&version=${V2}&history=pilot`)
+    const facts = v2.locator('.report-facts')
+    await expect(facts).toHaveText(PILOT_FACTS)
+    await expect(v2.locator('.report-chips')).toHaveText('Recommendations changed') // nothing the line says, again
+    const notes = v2.locator('details.report-notes')
+    const by = notes.locator('summary')
+    await expect(by).toHaveText('Sophia’s notes')
+    await expect(notes).not.toHaveAttribute('open')
+    await expect(v2.getByText(PILOT_CHANGE)).toBeHidden()
+    await expect(v2.getByText(PILOT_KEPT)).toBeHidden()
+    expect(await above(facts, by), 'the facts before the notes').toBe(true)
+    expect(await fitsWidth(page), 'the facts line wraps in the pane').toBe(true)
+
+    // The notes unfold in place, the press keeping its focus; they read as Sophia's, under the facts.
+    if (phone) await by.tap()
+    else await by.press('Enter')
+    await expect(by).toBeFocused()
+    await expect(v2.getByText(PILOT_CHANGE)).toBeVisible()
+    await expect(v2.getByText(PILOT_KEPT)).toBeVisible()
+    expect(await above(facts, v2.getByText(PILOT_CHANGE)), 'the facts still first').toBe(true)
+    expect(await fitsWidth(page), 'and the notes too').toBe(true)
+    // Show this version still turns into "On screen" in place, keeping the focus: aria-disabled, never disabled.
+    await entry(page, 1).getByRole('button', { name: 'Show this version' }).click()
+    const onScreen = entry(page, 1).getByRole('button', { name: 'On screen' })
+    await expect(onScreen).toBeFocused()
+    await expect(onScreen).toHaveAttribute('aria-disabled', 'true')
+    await expect(onScreen).not.toHaveAttribute('disabled')
+  })
+
+  test(`CX-0026${at} · an honest History entry says the facts, then Sophia’s notes, both in sight`, async ({
+    page,
+  }) => {
+    const v2 = await historyAt(page, `/room.html?report=${REPORT}&versions=2&version=${V2}`)
+    const facts = v2.locator('.report-facts')
+    await expect(facts).toHaveText('Compared with v1: no section added or removed.')
+    await expect(v2.locator('.report-chips .tag')).toHaveText(['2 revised', 'Recommendations changed'])
+    await expect(v2.locator('details')).toHaveCount(0) // nothing to fold: no section removed, no source dropped
+    const by = v2.getByText('Sophia’s notes', { exact: true })
+    const change = v2.getByText('Expanded the introduction and the recommendations.')
+    await expect(change).toBeVisible()
+    await expect(v2.getByText('Kept: The conclusion is unchanged.')).toBeVisible()
+    expect(await above(facts, by), 'the facts first').toBe(true)
+    expect(await above(by, change), 'then whose notes they are').toBe(true)
+    expect(await fitsWidth(page)).toBe(true)
+  })
+
+  test(`CX-0026${at} · a Knowledge card shows no notes of what changed, never “Kept:”; its History says the facts`, async ({
+    page,
+  }) => {
+    await enter(page, '/room.html?place=knowledge&versions=2&history=pilot')
+    const card = page.locator('.report-card').filter({ has: page.getByRole('button', { name: 'Fixture report' }) })
+    await expect(card.locator('.report-meta')).toContainText('v2 · 2 versions')
+    await expect(card).not.toContainText('Kept:')
+    await expect(card).not.toContainText(PILOT_CHANGE)
+    expect(await fitsWidth(page)).toBe(true)
+    await card.getByRole('button', { name: 'History and changes' }).click()
+    await expect(entry(page, 2).locator('.report-facts')).toHaveText(PILOT_FACTS)
+  })
+}
+
+test('type · a History entry keeps to the work views’ scale, its notes open or folded', async ({ page }) => {
+  const v2 = await historyAt(page, `/room.html?report=${REPORT}&versions=2&version=${V2}&history=pilot`)
+  const folded = await typeSizes(page, '.report-history')
+  expect(folded, folded.join(' ')).toEqual(['12px', '13px'])
+  await v2.locator('summary').click()
+  await expect(v2.getByText(PILOT_CHANGE)).toBeVisible()
+  const open = await typeSizes(page, '.report-history')
+  expect(open, open.join(' ')).toEqual(['12px', '13px'])
 })
 
 test('CX-0019 · a citation written as a link to one of the version’s sources is numbered; a link to another id stays text', async ({

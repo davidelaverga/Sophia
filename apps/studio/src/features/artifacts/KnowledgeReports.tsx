@@ -1,9 +1,10 @@
 // Knowledge (plan §2.9): the permanent home of the team's reports. M03 turns on the Reports tab only (the Sources and
 // Decisions tabs come with their data). Cards from this project or every project the reader is in, filtered by
 // project, format and words, newest first, a page at a time. A card names the report, its description (Sophia's, or
-// a member's edit, attributed), its current version and what last changed; it opens in the viewer, where its history
-// compares versions, and it downloads its current version as an HTML page. Editors and admins edit a description
-// against the revision they saw.
+// a member's edit, attributed) and its current version; it opens in the viewer, where its history says what changed,
+// facts first, and compares versions, and it downloads its current version as an HTML page. A card carries no facts,
+// so it shows none of the notes on what changed: alone, a note that the rest was kept read as true when it was not
+// (CX-0026). Editors and admins edit a description against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ReportCard } from '@sophia/contracts'
@@ -288,8 +289,6 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
         editable={editable}
         onSaved={() => void client.invalidateQueries({ queryKey: ['reports'] })}
       />
-      {card.latestChange.note && <p className="report-change">{card.latestChange.note}</p>}
-      {card.latestChange.retained && <p className="muted">Kept: {card.latestChange.retained}</p>}
       <div className="control-row">
         <button
           type="button"
