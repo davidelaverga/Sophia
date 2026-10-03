@@ -140,6 +140,7 @@ interface Props {
   /**
    * Each goal's plan from the lead, by the goal's id, shown in Tasks inside that goal's row, once something serves
    * plans (SCM-04, LFE-07.1); until then Tasks shows the goals alone. The work fixture fills it (fixtures/work.tsx).
+   * Each plan's board needs the open requests (`actions`), or no waiting task says whom it waits on.
    */
   plans?: Readonly<Record<string, GoalPlan>>
   /** Requests waiting on this person in their own tools (ResourcePanel's actions): counted in the tab's title. */

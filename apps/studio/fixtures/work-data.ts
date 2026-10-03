@@ -99,6 +99,8 @@ const assumptions: WorkPlan['assumptions'] = [
 const decisions: WorkPlan['decisions'] = [
   {
     decision_id: 'd1',
+    // Its own revision, apart from the plan's (2): an answer names this one.
+    revision: 4,
     question: 'Ship the retry before the report pane’s review is done?',
     decider_id: 'davide',
     state: 'proposed',
@@ -111,6 +113,7 @@ const decisions: WorkPlan['decisions'] = [
   },
   {
     decision_id: 'd2',
+    revision: 1,
     question: 'How many times may a failed render be retried?',
     decider_id: 'luis',
     state: 'accepted',
@@ -135,6 +138,19 @@ export const plan = (state: WorkPlan['state']): WorkPlan => ({
   assumptions,
   decisions,
 })
+
+/** `unplanned=1`: a goal the lead hasn't planned yet: it keeps its row, its review, Hold and Stop. */
+export const unplannedGoal: Goal = {
+  id: '00000000-0000-4000-8000-0000000000c1',
+  projectId: PROJECT,
+  title: 'Exports keep their fonts',
+  revision: 1,
+  authorityEpoch: 1,
+  status: 'running',
+  outcome: 'An exported PDF uses the report’s own fonts.',
+  criteria: [],
+  stateRevision: 1,
+}
 
 /** `two=1`: a second goal in the same project, with its own plan, proposed and smaller. */
 export const secondGoal: Goal = {

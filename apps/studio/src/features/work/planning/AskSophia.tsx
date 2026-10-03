@@ -1,14 +1,14 @@
 // Asking Sophia about a task, from its sheet: the questions its state invites, offered as one-press asks, or one's own.
 // Her answer writes itself in, word by word, under her light. The answer comes from wherever the page sends the ask
 // (`onAsk`); the panel never makes one up.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Mark, PlanRow } from './plan.ts'
 
 export type Ask = (row: PlanRow, question: string) => Promise<string>
 
-/** The questions a task's state invites. */
+/** The questions a task's state invites. Waiting, "say yes" is asked only by the one its request waits on (invited). */
 const INVITED: Record<Mark, string[]> = {
-  waiting: ['Why is it waiting?', 'What happens if I say yes?'],
+  waiting: ['Why is it waiting?', 'What does it wait for?'],
   working: ['What is it doing now?', 'When will it have a candidate?'],
   queued: ['What is it queued behind?'],
   later: ['What does it wait for?', 'Can it start sooner?'],
@@ -30,18 +30,44 @@ function useWords(text: string | null): string {
   return words.slice(0, shown).join(' ')
 }
 
-export function AskSophia({ row, onAsk }: { row: PlanRow; onAsk?: Ask | undefined }) {
+/** A question to Sophia and her answer: only the latest question's answer is written, a late earlier one let go. */
+function useAsk(row: PlanRow, onAsk: Ask | undefined) {
   const [question, setQuestion] = useState('')
   const [asked, setAsked] = useState<string | null>(null)
   const [answer, setAnswer] = useState<string | null>(null)
-  const shown = useWords(answer)
-  if (!onAsk) return null
+  const latest = useRef(0)
   const ask = (q: string) => {
+    if (!onAsk) return
+    const n = ++latest.current
     setAsked(q)
     setAnswer(null)
     setQuestion('')
-    onAsk(row, q).then(setAnswer, () => setAnswer('I couldn’t reach the plan just now. Nothing was changed.'))
+    const answered = (a: string) => {
+      if (n === latest.current) setAnswer(a)
+    }
+    onAsk(row, q).then(answered, () => answered('I couldn’t reach the plan just now. Nothing was changed.'))
   }
+  return { question, setQuestion, asked, answer, ask }
+}
+
+/** The questions a task invites from this viewer. */
+const invited = (row: PlanRow, viewerId: string | null) =>
+  row.status.mark === 'waiting' && row.status.on && row.status.on.id === viewerId
+    ? ['Why is it waiting?', 'What happens if I say yes?']
+    : INVITED[row.status.mark]
+
+export function AskSophia({
+  row,
+  onAsk,
+  viewerId,
+}: {
+  row: PlanRow
+  onAsk?: Ask | undefined
+  viewerId: string | null
+}) {
+  const { question, setQuestion, asked, answer, ask } = useAsk(row, onAsk)
+  const shown = useWords(answer)
+  if (!onAsk) return null
   return (
     <section className="sheet-section ask-sophia">
       <h3>
@@ -49,7 +75,7 @@ export function AskSophia({ row, onAsk }: { row: PlanRow; onAsk?: Ask | undefine
         Ask Sophia
       </h3>
       <div className="ask-chips">
-        {INVITED[row.status.mark].map((q) => (
+        {invited(row, viewerId).map((q) => (
           <button key={q} type="button" className="ask-chip" onClick={() => ask(q)}>
             {q}
           </button>

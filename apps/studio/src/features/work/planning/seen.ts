@@ -35,7 +35,8 @@ export const changedSince = (rows: readonly PlanRow[], seen: Seen | null): Reado
   new Set(seen ? rows.filter((r) => seen[r.item.id] !== r.status.mark).map((r) => r.item.id) : [])
 
 const SAID: Record<Mark, (task: string, who: string, yours: boolean) => string> = {
-  waiting: (task, who, yours) => (yours ? `${task} now waits on you` : `${task} waits on ${who}`),
+  waiting: (task, who, yours) =>
+    yours ? `${task} now waits on you` : who ? `${task} waits on ${who}` : `${task} is waiting`,
   working: (task) => `${task} started`,
   queued: (task) => `${task} is queued`,
   later: (task) => `${task} is up next`,
@@ -45,8 +46,12 @@ const SAID: Record<Mark, (task: string, who: string, yours: boolean) => string> 
 }
 
 /** One changed task, said in a few words from where it stands now: "Implement the PDF retry now waits on you". */
-const said = (row: PlanRow, viewerId: string | null) =>
-  SAID[row.status.mark](row.item.purpose, row.doer.person?.name ?? 'Someone', row.doer.person?.id === viewerId)
+const said = (row: PlanRow, viewerId: string | null) => {
+  // A waiting task names whom it waits on only when a request names them (status.on); the rest name who does it.
+  const who = row.status.mark === 'waiting' ? (row.status.on?.name ?? '') : (row.doer.person?.name ?? 'Someone')
+  const yours = row.status.mark === 'waiting' ? row.status.on?.id === viewerId : row.doer.person?.id === viewerId
+  return SAID[row.status.mark](row.item.purpose, who, yours)
+}
 
 /** What changed while the viewer was away, as a few phrases, the most pressing first; the rest counted. */
 export function whileAway(

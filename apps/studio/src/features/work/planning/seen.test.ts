@@ -22,7 +22,13 @@ const row = (id: string, mark: Mark, person: string | null = 'davide'): PlanRow 
     session: null,
     state: null,
   },
-  status: { mark, text: mark, rank: 0 },
+  // A waiting task waits on someone only when a request names them: here, the one who does it.
+  status: {
+    mark,
+    text: mark,
+    rank: 0,
+    on: mark === 'waiting' && person ? { id: person, name: person === 'davide' ? 'Davide' : 'Luis' } : null,
+  },
   depth: 0,
 })
 
@@ -43,6 +49,9 @@ describe('what changed since the last look', () => {
     ])
     assert.equal(away.more, 1)
     assert.equal(whileAway(rows, new Set(['a']), 'luis').phrases[0], 'Task a waits on Davide')
+    // Waiting, with no request naming anyone: said waiting, on no one.
+    const none = { ...row('e', 'waiting'), status: { mark: 'waiting' as const, text: 'Waiting', rank: 0, on: null } }
+    assert.equal(whileAway([none], new Set(['e']), 'davide').phrases[0], 'Task e is waiting')
   })
 })
 

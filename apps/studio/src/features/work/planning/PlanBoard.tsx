@@ -13,12 +13,13 @@ import { useContext, useEffect, useRef, useState } from 'react'
 import { Icon } from '@sophia/ui'
 import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
-import type { QuotaObservation, Resource } from '../../resources/resource.ts'
+import type { QuotaObservation, RequiredAction, Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
 import '../../resources/resources.css'
 import { useActs } from '../../resources/SessionActs.tsx'
 import { AwayLine } from '../../resources/AwayLine.tsx'
 import { accountOf } from './account.ts'
+import { actionable } from './plan.ts'
 import type { Ask } from './AskSophia.tsx'
 import { moveOnBoard } from './board-keys.ts'
 import { Decision, type Decide } from './Decision.tsx'
@@ -49,6 +50,8 @@ interface Props {
   onAsk?: Ask
   /** Opens the resource doing a task in Resources (LFE-06.5); absent, who does it is only a name. */
   onOpenResource?: (resourceId: string) => void
+  /** The requests waiting on owners: a waiting task names whom it waits on only from one of these. */
+  actions?: readonly RequiredAction[]
   /**
    * The accounts' latest capacity readings (LFE-06.6): a task whose doer's account runs short says so, and its sheet
    * names where there is room. Absent, nothing is said.
@@ -115,12 +118,17 @@ function LaneView({ lane, rows, flags, ...tile }: LaneProps) {
 
 /** What changed since the viewer last looked: remembered per plan; a first visit remembers and says nothing. */
 function useSeen(plan: WorkPlan | null, rows: readonly PlanRow[], viewerId: string | null) {
-  const [seen, setSeen] = useState(() =>
-    plan ? (readSeen(plan.plan_id, viewerId) ?? writeSeen(plan.plan_id, viewerId, rows)) : null,
-  )
+  const at = plan ? `${plan.plan_id}.${viewerId ?? ''}` : null
+  const first = () => (plan ? (readSeen(plan.plan_id, viewerId) ?? writeSeen(plan.plan_id, viewerId, rows)) : null)
+  const [kept, setKept] = useState(() => ({ at, seen: first() }))
+  // Another plan for the same goal (a new plan id), or another viewer: its own seen state, never the last one's.
+  const seen = kept.at === at ? kept.seen : first()
+  useEffect(() => {
+    if (kept.at !== at) setKept({ at, seen })
+  }, [kept.at, at, seen])
   return {
     changed: changedSince(rows, seen),
-    markSeen: () => plan && setSeen(writeSeen(plan.plan_id, viewerId, rows)),
+    markSeen: () => plan && setKept({ at, seen: writeSeen(plan.plan_id, viewerId, rows) }),
   }
 }
 
@@ -136,9 +144,10 @@ interface DecisionsProps {
  * What waits on someone's decision: a pill in the board's bar, amber and pinging when it is the viewer's, that opens
  * the decisions over the lanes. Its decider's own opens by itself the first time, so nothing of theirs hides.
  */
-function useDecisions(plan: WorkPlan, viewerId: string | null) {
+function useDecisions(plan: WorkPlan, viewerId: string | null, now: Date) {
   const open = plan.decisions.filter((d) => d.state === 'proposed')
-  const mine = open.filter((d) => d.decider_id === viewerId)
+  // Past its expiry, it is read, not answered: it isn't the viewer's to act on, so it calls no one.
+  const mine = open.filter((d) => d.decider_id === viewerId && actionable(d, now))
   const [shown, setShown] = useState(mine.length > 0)
   return { open, mine, shown, toggle: () => setShown((v) => !v) }
 }
@@ -179,7 +188,7 @@ function Decisions({ decisions, ...rest }: Omit<DecisionsProps, 'plan'> & { deci
   return (
     <div className="board-decisions">
       {decisions.map((d) => (
-        <Decision key={d.decision_id} decision={d} {...rest} />
+        <Decision key={`${d.decision_id}:${String(d.revision)}`} decision={d} {...rest} />
       ))}
     </div>
   )
@@ -233,7 +242,7 @@ function useBoard(rows: readonly PlanRow[], viewerId: string | null, changed: Re
 export function PlanBoard(props: Props) {
   const { plan: given, resources, people, viewerId = null } = props
   const plan = current(given)
-  const rows = plan ? planRows(plan, resources, people) : []
+  const rows = plan ? planRows(plan, resources, people, props.actions) : []
   const { changed, markSeen } = useSeen(plan, rows, viewerId)
   const board = useBoard(rows, viewerId, changed)
   if (!plan) return null
@@ -289,7 +298,7 @@ function useBoardActs(rows: readonly PlanRow[], onAct: Act | undefined) {
 
 function Board(props: BoardProps) {
   const { plan, rows, changed, markSeen, board, people, now, viewerId = null, onDecide, onAsk } = props
-  const asks = useDecisions(plan, viewerId)
+  const asks = useDecisions(plan, viewerId, now)
   const acts = useBoardActs(rows, props.onAct)
   const opened = rows.find((r) => r.item.id === board.open)
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
