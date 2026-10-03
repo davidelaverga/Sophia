@@ -66,14 +66,18 @@ test('four lanes, each task in the one its state says; the words only where the 
 test('a session at work says what it last reported and how long ago, its ring emptying as that ages', async ({
   page,
 }) => {
+  // The page's clock moves as the check moves it: a busy machine can't stall it into a false failure.
+  await page.clock.install()
   await page.goto(PAGE)
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000))
   const worker = tile(page, 'work-1')
   await expect(worker.locator('.task-tile-said')).toHaveText('Asked to run pnpm --filter @sophia/report test')
   const fresh = () =>
     worker.locator('.task-who').evaluate((w) => Number(getComputedStyle(w).getPropertyValue('--fresh')))
   const ago = await worker.locator('.task-tile-ago').innerText()
   const before = await fresh()
-  await expect(worker.locator('.task-tile-ago')).not.toHaveText(ago, { timeout: 3000 }) // the clock runs
+  await page.clock.runFor(3000)
+  await expect(worker.locator('.task-tile-ago')).not.toHaveText(ago) // the clock runs
   expect(await fresh()).toBeLessThan(before)
   await expect(tile(page, 'work-3').locator('.task-who')).not.toHaveAttribute('data-live') // a person, not a session
 })
@@ -200,13 +204,15 @@ test('a decision sits in a pill, its decider’s own open; anyone else reads it,
 test('its decider answers in one press: sent, both held, then decided once the lead records it', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide`)
   const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  // The page's first paint may be slow on a busy machine: wait for it as a press would, then check what it says.
+  await expect(ask).toBeVisible({ timeout: 15_000 })
   await expect(ask).toContainText('expires in 2 h')
   const choices = ask.getByRole('group', { name: 'Your choice' }).getByRole('button')
   await choices.first().click()
   await expect(ask.getByRole('status')).toHaveText('Sent: Ship it now. It shows as decided once the lead records it.')
   await expect(choices.last()).toBeDisabled()
   expect(await page.evaluate(() => window.workFixture?.answered)).toEqual([
-    { decision: 'd1', revision: 2, choice: 'ship' },
+    { decision: 'd1', revision: 4, choice: 'ship' }, // the decision's own revision, not the plan's
   ])
   await page.evaluate(() => window.workFixture?.settle?.('d1'))
   await expect(board(page).locator('.decision-pill')).toHaveCount(0)
@@ -394,4 +400,91 @@ test('a task whose account runs short says so, and its sheet names where there i
   await page.goto(`${PAGE}?viewer=davide`)
   await expect(tile(page, 'work-1')).toBeVisible()
   await expect(page.locator('[data-short]')).toHaveCount(0)
+})
+
+test('a decision past its expiry is read, not answered, and calls no one', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&expired=1`)
+  const pill = board(page).locator('.decision-pill')
+  await expect(pill).toBeVisible({ timeout: 15_000 })
+  // Not "for you": no amber call, and it doesn't open by itself onto choices that can't be pressed.
+  await expect(pill).not.toHaveAttribute('data-mine')
+  await pill.click()
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask).toContainText('expired')
+  await expect(ask.getByRole('button')).toHaveCount(0)
+  await expect(ask).toContainText('Ship it now  or  Wait for the review')
+})
+
+test('an answer not confirmed holds the other choice: only the same can be tried again', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&unknown=1`)
+  const ask = board(page)
+    .getByRole('region', { name: 'You decide' })
+    .or(board(page).getByRole('region', { name: 'Davide decides' }))
+  const choices = ask.getByRole('group', { name: 'Your choice' })
+  await choices.getByRole('button', { name: 'Ship it now' }).click()
+  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
+  await expect(choices.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
+})
+
+test('a goal without a plan keeps its row beside the planned one', async ({ page }) => {
+  await page.goto(`${PAGE}?unplanned=1`)
+  await expect(page.locator('.board')).toBeVisible()
+  await expect(page.locator('.goal').filter({ hasText: 'Exports keep their fonts' })).toBeVisible()
+})
+
+test('a guidance draft belongs to its task: the next task’s sheet starts empty', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  await page.evaluate(() => window.workFixture?.begin?.('work-1-review'))
+  await tile(page, 'work-1').click()
+  const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('For the retry only')
+  await sheet.getByRole('button', { name: /Review the retry’s candidate/ }).click()
+  const next = page.getByRole('dialog', { name: 'Review the retry’s candidate' })
+  await expect(next.getByRole('textbox', { name: 'Guidance for its session' })).toHaveValue('')
+})
+
+test('Sophia’s answer is the latest question’s, even when an earlier one answers late', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}?viewer=davide&staggered=1`)
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000)) // time moves only as checked
+  await tile(page, 'work-1').click()
+  const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await sheet.getByRole('button', { name: 'What happens if I say yes?' }).click()
+  // The second's answer at 0.9 s, the first's at 1.8 s, then every word written in: only the second's is said.
+  await page.clock.runFor(3000)
+  await expect(sheet.locator('.ask-a')).toContainText('It runs the report tests')
+  await expect(sheet.locator('.ask-a')).not.toContainText('waiting for a permission')
+})
+
+test('a new plan for the goal reads its own last look, never the old plan’s', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&since=1`)
+  await expect(board(page).locator('.board-return')).toBeVisible()
+  await page.evaluate(() => window.workFixture?.replan?.())
+  await expect(board(page).locator('.board-return')).toHaveCount(0)
+  await expect(board(page).locator('.task-tile[data-changed]')).toHaveCount(0)
+})
+
+test('a followed address opens its task even when the search hides its goal', async ({ page }) => {
+  await page.goto(`${PAGE}?two=1`)
+  await page.getByRole('searchbox').fill('PDF retry')
+  await expect(page.getByRole('tab')).toHaveCount(0) // one goal answers
+  await page.evaluate(() => (window.location.hash = '#task-pane-copy'))
+  await expect(page.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+})
+
+test('“What happens if I say yes?” is asked only by the one the request waits on', async ({ page }) => {
+  await page.goto(PAGE) // Luis: the request waits on Davide
+  await tile(page, 'work-1').click()
+  const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(sheet.getByRole('button', { name: 'Why is it waiting?' })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'What happens if I say yes?' })).toHaveCount(0)
+})
+
+test('a search that a goal without a plan answers says nothing is missing', async ({ page }) => {
+  await page.goto(`${PAGE}?unplanned=1`)
+  await page.getByRole('searchbox').fill('fonts')
+  await expect(page.locator('.goal').filter({ hasText: 'Exports keep their fonts' })).toBeVisible()
+  await expect(page.getByText(/No goal or task answers/)).toHaveCount(0)
 })

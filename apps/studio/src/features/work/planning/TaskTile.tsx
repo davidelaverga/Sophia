@@ -18,7 +18,7 @@ const face = (p: Person) => ({ name: p.name, displayName: p.name, avatarUrl: p.a
 
 /** Where a task stands, as its tile says it: to the one it waits on, "Waiting on you"; a finished run, unchecked. */
 function said(row: PlanRow, viewerId: string | null): string {
-  if (row.status.mark === 'waiting' && row.doer.person?.id === viewerId) return 'Waiting on you'
+  if (row.status.mark === 'waiting' && row.status.on && row.status.on.id === viewerId) return 'Waiting on you'
   if (row.status.mark === 'finished') return 'Not checked yet'
   return row.status.text
 }

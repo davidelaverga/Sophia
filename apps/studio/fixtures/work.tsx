@@ -4,7 +4,10 @@
 // so none shows); `two=1` (a second goal with its own plan); `conflict=1` (an answer comes back refused: the decision
 // changed since it was read). A decider's answer is recorded as a lead would take it; `workFixture.settle(id)` records
 // it as decided, as the lead's next plan revision would. Whoever does a task opens on the resources' fixture
-// (resources.html#resource-<id>), as Resources would; `#task-<id>` opens a task with the page.
+// (resources.html#resource-<id>), as Resources would; `#task-<id>` opens a task with the page. `expired=1`: the
+// decision is past its expiry; `unknown=1`: an answer comes back not confirmed; `unplanned=1`: a goal without a plan;
+// `staggered=1`: Sophia answers the first question slower than the next. `workFixture.replan()` replaces the first
+// goal's plan with a new one (a new plan id), as the lead would.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -18,15 +21,15 @@ import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
 import { linkHash } from '../src/features/resources/link.ts'
 import { moving } from '../src/features/resources/motion.ts'
-import type { Resource } from '../src/features/resources/resource.ts'
+import type { RequiredAction, Resource } from '../src/features/resources/resource.ts'
 import { current, type WorkPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
-import { NOW, observations, people, resources, tightClaude } from './resources-data.ts'
+import { actions, NOW, observations, people, resources, tightClaude } from './resources-data.ts'
 import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
-import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan } from './work-data.ts'
+import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan, unplannedGoal } from './work-data.ts'
 
 declare global {
   interface Window {
@@ -36,6 +39,7 @@ declare global {
       answered?: { decision: string; revision: number; choice: string }[]
       settle?: (decisionId: string) => void
       begin?: (workId: string) => void
+      replan?: () => void
     }
   }
 }
@@ -48,7 +52,12 @@ installFixtureApi({
   revision: 1,
   exchange: false,
   messages: [],
-  goals: [goal, ...(two ? [secondGoal] : []), ...(six ? moreGoals : [])],
+  goals: [
+    goal,
+    ...(two ? [secondGoal] : []),
+    ...(six ? moreGoals : []),
+    ...(query.get('unplanned') === '1' ? [unplannedGoal] : []),
+  ],
   // The room page's report (SMC-M03), at rest: this page reads none of it.
   reportVersions: 1,
   reportTitle: TITLE,
@@ -90,9 +99,22 @@ const state = query.get('superseded') === '1' ? 'superseded' : query.get('propos
 
 /** The decider's answer, taken as a lead would: recorded, or refused when the page asked for a stale decision. */
 const decide: Decide = (decision, choice) => {
-  answered.push({ decision: decision.decision_id, revision: plan(state).revision, choice })
-  return new Promise((done) => setTimeout(() => done(query.get('conflict') === '1' ? 'conflict' : 'recorded'), 300))
+  // The answer names the decision's own revision, as the lead's API would check it (decision.v1).
+  answered.push({ decision: decision.decision_id, revision: decision.revision, choice })
+  const said = query.get('conflict') === '1' ? 'conflict' : query.get('unknown') === '1' ? 'unknown' : 'recorded'
+  return new Promise((done) => setTimeout(() => done(said), 300))
 }
+
+/** `expired=1`: the decision waiting on Davide is past its expiry. */
+const expiredIf = (p: WorkPlan): WorkPlan =>
+  query.get('expired') === '1'
+    ? {
+        ...p,
+        decisions: p.decisions.map((d) =>
+          d.state === 'proposed' ? { ...d, expires_at: new Date(NOW.getTime() - 3_600_000).toISOString() } : d,
+        ),
+      }
+    : p
 
 /** The lead's next revision with a recorded answer: the decision accepted with the choice its decider gave. */
 const settled = (p: WorkPlan, id: string): WorkPlan => {
@@ -116,7 +138,14 @@ const begun = (list: Resource[], workId: string): Resource[] =>
   }))
 
 /** One plan's slot in Tasks: its board, NEXT, its tab in the goals' rail, and what finds it. */
-function slot(p: WorkPlan, now: Date, shared: { resources: Resource[]; people: typeof people; viewerId: string }) {
+interface Shared {
+  resources: Resource[]
+  people: typeof people
+  viewerId: string
+  actions: RequiredAction[]
+}
+
+function slot(p: WorkPlan, now: Date, shared: Shared) {
   return {
     view: (
       <PlanBoard
@@ -133,14 +162,14 @@ function slot(p: WorkPlan, now: Date, shared: { resources: Resource[]; people: t
       />
     ),
     next: <PlanNext plan={p} />,
-    tab: <PlanTab plan={p} {...shared} />,
+    tab: <PlanTab plan={p} now={now} {...shared} />,
     words: p.items.map((i) => i.purpose).join(' '),
     tasks: p.items.map((i) => i.id),
   }
 }
 
 function Tasks() {
-  const [first, setFirst] = useState(() => (query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
+  const [first, setFirst] = useState(() => expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
   const [live, setLive] = useState(() => withActivity(resources))
   // The page's clock runs from NOW, so ages count up and the freshness rings empty as they would.
   const [now, setNow] = useState(NOW)
@@ -162,9 +191,10 @@ function Tasks() {
       answered,
       settle: (id) => moving(() => setFirst((p) => settled(p, id))),
       begin: (workId) => moving(() => setLive((l) => begun(l, workId))),
+      replan: () => setFirst((p) => ({ ...p, plan_id: 'plan-1b', revision: 1 })),
     }
   }, [])
-  const shared = { resources: live, people, viewerId: viewer }
+  const shared = { resources: live, people, viewerId: viewer, actions }
   // A plan in force or proposed fills its goal's slot; otherwise Tasks shows the goal as it does without one.
   const plans = Object.fromEntries(
     [first, ...(two ? [secondPlan] : []), ...(six ? morePlans : [])]

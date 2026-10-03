@@ -45,7 +45,14 @@ export function SortMenu({ order, onChange }: Props) {
           onKeyDown={menu.onKeyDown}
         >
           {ORDERS.map((o) => (
-            <button key={o} type="button" role="menuitemradio" aria-checked={o === order} onClick={() => choose(o)}>
+            <button
+              key={o}
+              type="button"
+              role="menuitemradio"
+              tabIndex={-1}
+              aria-checked={o === order}
+              onClick={() => choose(o)}
+            >
               {ORDER_LABEL[o]}
               {o === order && <span className="resource-sort-mark" aria-hidden />}
             </button>

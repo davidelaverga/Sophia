@@ -22,7 +22,7 @@ export function TaskActions({ row, viewerId, acts }: Props) {
   return (
     <section className="sheet-section task-actions">
       <h3>Act on it</h3>
-      <SessionActs resource={resource} sessionId={session.id} acts={acts} />
+      <SessionActs resource={resource} session={session} acts={acts} />
     </section>
   )
 }

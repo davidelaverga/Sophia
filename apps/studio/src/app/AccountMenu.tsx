@@ -91,20 +91,20 @@ export function AccountMenu({ identity, where, actions }: Props) {
       {open && (
         <div ref={menu.panel} className="account-menu" role="menu" aria-label="Account" onKeyDown={menu.onKeyDown}>
           <Head identity={identity} onChoose={actions.chooseDev} />
-          <button role="menuitem" type="button" className="has-tip" onClick={pick(actions.data)}>
+          <button role="menuitem" type="button" tabIndex={-1} className="has-tip" onClick={pick(actions.data)}>
             Your data
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
           </button>
-          <button role="menuitem" type="button" onClick={pick(actions.privacy)}>
+          <button role="menuitem" type="button" tabIndex={-1} onClick={pick(actions.privacy)}>
             How privacy works
           </button>
           <span className="menu-sep" aria-hidden />
           {passkeysOffered && authMode !== 'dev' && (
-            <button role="menuitem" type="button" onClick={pick(() => setPasskeys(true))}>
+            <button role="menuitem" type="button" tabIndex={-1} onClick={pick(() => setPasskeys(true))}>
               Passkeys
             </button>
           )}
-          <button role="menuitem" type="button" onClick={pick(actions.signOut)}>
+          <button role="menuitem" type="button" tabIndex={-1} onClick={pick(actions.signOut)}>
             Sign out
           </button>
         </div>

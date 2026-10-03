@@ -69,11 +69,12 @@ export const nextActivity = (list: Resource[], at: Date, n: number): Resource[] 
   }))
 
 /** Each act an owner sent, in order: for the checks to read. */
-export const acted: { sessionId: string; kind: string; text?: string }[] = []
+export const acted: { sessionId: string; kind: string; text?: string; workId: string; epoch?: number }[] = []
 
 /** An act on a session, taken as a runtime would: recorded, then queued, then delivered to it. */
 export const actOn: SessionAct = (sessionId, asked, report) => {
   acted.push({ sessionId, ...asked })
+  setTimeout(() => report('recorded'), 150)
   setTimeout(() => report('queued'), 700)
   setTimeout(() => report('delivered'), 1700)
 }
@@ -113,11 +114,13 @@ export const ask: Ask = (row: PlanRow, question: string) => {
     'Who should check it?': 'Davide: he didn’t write it, and the check needs his report fixtures.',
     'What does it wait for?': `${row.status.text}. Nothing else holds it.`,
   }
+  // `staggered=1`: the first question's answer comes back after the next one's, as a slower reply can.
+  const late = new URLSearchParams(window.location.search).get('staggered') === '1' && question === 'Why is it waiting?'
   return new Promise((done) =>
     setTimeout(
       () =>
         done(answers[question] ?? `About “${row.item.purpose}”: ${row.status.text}. Ask me anything else about it.`),
-      900,
+      late ? 1800 : 900,
     ),
   )
 }

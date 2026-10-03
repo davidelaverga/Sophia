@@ -607,10 +607,12 @@
   background: var(--teal);
   box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.15);
 }
-.effort-asked[data-tone='warn'] {
+.effort-asked[data-tone='warn'],
+.effort-asked[data-tone='refused'] {
   color: var(--amber);
 }
-.effort-asked[data-tone='warn'] .effort-asked-dot {
+.effort-asked[data-tone='warn'] .effort-asked-dot,
+.effort-asked[data-tone='refused'] .effort-asked-dot {
   background: var(--amber);
   box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.15);
 }
@@ -675,6 +677,22 @@
 .effort-scale .effort-fill {
   border-radius: 6px;
   transition: width var(--fast) var(--ease);
+}
+/* On touch, the bar and the scale reach wider than they draw (36–40 px, CONTRIBUTING): their look stays thin. */
+@media (pointer: coarse) {
+  .effort-button::before {
+    content: '';
+    position: absolute;
+    inset: -14px -6px;
+  }
+  .effort-scale .effort-track {
+    position: relative;
+  }
+  .effort-scale .effort-track::before {
+    content: '';
+    position: absolute;
+    inset: -14px 0;
+  }
 }
 .effort-scale .effort-track:focus-visible {
   outline: 2px solid var(--halo);

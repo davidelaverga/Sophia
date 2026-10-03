@@ -130,7 +130,7 @@ function Who({ row, viewerId, onOpenResource }: Pick<Props, 'row' | 'viewerId' |
       </span>
       <span className="task-chip" data-mark={status.mark}>
         <span className="plan-mark" data-mark={status.mark} aria-hidden />
-        {status.mark === 'waiting' && doer.person?.id === viewerId ? 'Waiting on you' : status.text}
+        {status.mark === 'waiting' && status.on && status.on.id === viewerId ? 'Waiting on you' : status.text}
       </span>
     </div>
   )
@@ -171,8 +171,8 @@ export function TaskSheet(props: Props) {
         )}
         <Links title="Waits on" rows={before} onOpen={onOpen} />
         <Links title="Waited on by" rows={after} onOpen={onOpen} />
-        <TaskActions row={row} viewerId={viewerId} acts={acts} />
-        <AskSophia key={item.id} row={row} onAsk={onAsk} />
+        <TaskActions key={`acts-${item.id}`} row={row} viewerId={viewerId} acts={acts} />
+        <AskSophia key={`ask-${item.id}`} row={row} onAsk={onAsk} viewerId={viewerId} />
         <p className="task-sheet-plan muted">
           Plan r{plan.revision} · {plan.state === 'accepted' ? 'accepted' : 'proposed, not accepted yet'} · <kbd>J</kbd>{' '}
           <kbd>K</kbd> the next and the one before

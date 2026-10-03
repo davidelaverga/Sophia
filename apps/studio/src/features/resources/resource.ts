@@ -58,7 +58,18 @@ export interface Session {
    * unknown"), where nothing restarts. Absent when none is. The Studio's proposal for SCM-01.
    */
   change?: { level: string; phase: 'stopping' | 'starting' | 'unconfirmed' } | null
-  assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
+  assignment: {
+    workId: string
+    title: string
+    state: 'recorded' | 'queued' | 'running' | 'waiting'
+    /** The assignment's id, as the plan names it (`assignee_id`): two sessions on one work are told apart by it. */
+    id?: string
+    /**
+     * Which of its assignments this is: an act names it, so one meant for the work shown never reaches work that
+     * replaced it. The Studio's proposal for SCM-01/02 (LFE-06: "current assignment IDs and epochs").
+     */
+    epoch?: number
+  } | null
   /**
    * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
    * its reasoning (07_STUDIO_VOICE_AND_ARTIFACTS). The Studio's proposal for SCM-02.
@@ -326,6 +337,13 @@ export function summary(resources: Resource[], actions: RequiredAction[]): strin
   ].join(' · ')
 }
 
+/** The requests' heading in a sheet: what waits on whom; one whose outcome isn't known yet; else earlier ones. */
+export function requestsHeading(own: readonly RequiredAction[], owner: Resource['owner'], viewerId: string): string {
+  if (own.some((a) => a.state === 'open')) return `Waiting on ${owner.id === viewerId ? 'you' : owner.name}`
+  if (own.some((a) => a.state === 'unknown')) return 'Not settled yet'
+  return 'Earlier requests'
+}
+
 const ACTION_STATE: Record<RequiredAction['state'], string> = {
   open: 'Waiting',
   resolved: 'Answered',
@@ -429,6 +447,9 @@ export const liveSession = (r: Resource): Session | null => r.sessions.find((s) 
  */
 export const reportsLive = (r: Resource, s: Session | null, now: Date): boolean =>
   r.host.state === 'online' && Boolean(s?.activity) && freshness(s?.activity?.observedAt ?? '', now) > 0
+
+/** Whether any of a resource's sessions reports live now. */
+export const anyLive = (r: Resource, now: Date): boolean => r.sessions.some((s) => reportsLive(r, s, now))
 
 /** A tile's capacity, short enough for its width: the window and how full on one end, what comes on the other. */
 export interface TileCapacityLine {

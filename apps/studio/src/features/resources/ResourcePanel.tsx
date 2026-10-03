@@ -1,7 +1,7 @@
 // The project's Resources view (LFE-06): the enrolled tools as tiles to scan, found by a search and four filters as
 // they grow to tens, with one line on top only while a request waits on an owner. A tile opens the resource's sheet,
-// where everything else is. It goes in ProjectShell's `resources`. It shows; it doesn't steer, hold or stop
-// (LFE-06.4), and nothing here calls a tool.
+// where everything else is. It goes in ProjectShell's `resources`. Its owner's acts (guidance, Hold, Stop) and effort
+// requests go out through `onAct` and `onEffort`, to whoever the host passes; nothing here calls a tool.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
@@ -21,14 +21,13 @@ import { useActs, type SessionAct } from './SessionActs.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
+  anyLive,
   FILTER_LABEL,
   FILTERS,
   inFilter,
-  liveSession,
   matches,
   observationOf,
   plural,
-  reportsLive,
   summary,
   TOOL,
   type Filter,
@@ -56,7 +55,7 @@ interface Props {
    * Where an owner's choice of a session's effort goes (the runtime's launch configuration, SCM-01). Absent, no
    * effort can be chosen and the bars stay read-only. `level` null withdraws the request.
    */
-  onEffort?: (sessionId: string, ask: EffortAsk | null) => void
+  onEffort?: (sessionId: string, ask: EffortAsk | null, refused: () => void) => void
   /** The way to a session's task on the plan's board (LFE-07.1); absent, a session's task is only its title. */
   tasks?: TaskLinks
   /** Where an owner's guidance, Hold or Stop on a session goes (LFE-06.6); absent, none is offered. */
@@ -82,7 +81,7 @@ function useAway(props: Props) {
   useEffect(() => {
     if (first) setKept({ at, seen: writeSeen(scope, viewerId, glance(resources, actions, observations, now)) })
   }, [first, at, scope, viewerId, resources, actions, observations, now])
-  const line = loading ? null : whileAway({ resources, observations, now: current, seen, at: now, viewerId })
+  const line = loading ? null : whileAway({ resources, actions, observations, now: current, seen, at: now, viewerId })
   return {
     since: line?.ids ?? new Set<string>(),
     line: line ?? { phrases: [], more: 0 },
@@ -342,11 +341,14 @@ function useEffort(onEffort: Props['onEffort']): EffortControl | undefined {
     settle,
     set: (sessionId, ask) => {
       setAsked((a) => ({ ...a, [sessionId]: ask }))
-      onEffort(sessionId, ask)
+      // Refused by its runtime: said so, if it is still the request shown.
+      onEffort(sessionId, ask, () =>
+        setAsked((a) => (a[sessionId] === ask ? { ...a, [sessionId]: { ...ask, refused: true } } : a)),
+      )
     },
     undo: (sessionId) => {
       setAsked((a) => ({ ...a, [sessionId]: undefined }))
-      onEffort(sessionId, null)
+      onEffort(sessionId, null, () => undefined)
     },
   }
 }
@@ -358,7 +360,7 @@ const SECOND = 1000
 function useViewClock(given: Props): Date {
   const [fast, setFast] = useState(true)
   const now = useClock(given.now, fast ? SECOND : undefined)
-  const live = given.resources.some((r) => reportsLive(r, liveSession(r), now))
+  const live = given.resources.some((r) => anyLive(r, now))
   useEffect(() => setFast(live), [live])
   return now
 }
