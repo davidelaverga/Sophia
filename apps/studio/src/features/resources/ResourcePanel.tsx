@@ -15,6 +15,7 @@ import { useUltra } from './ultra.ts'
 import type { EffortAsk } from './change.ts'
 import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceSheet.tsx'
 import { roomElsewhere } from './room.ts'
+import { useActs, type SessionAct } from './SessionActs.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
@@ -56,6 +57,8 @@ interface Props {
   onEffort?: (sessionId: string, ask: EffortAsk | null) => void
   /** The way to a session's task on the plan's board (LFE-07.1); absent, a session's task is only its title. */
   tasks?: TaskLinks
+  /** Where an owner's guidance, Hold or Stop on a session goes (LFE-06.6); absent, none is offered. */
+  onAct?: SessionAct
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -342,6 +345,8 @@ export function ResourcePanel(given: Props) {
   const view = useView(props)
   const ultra = useUltra()
   const effort = useEffort(props.onEffort)
+  // Each session's last act, kept here: still said after its row closes or the sheet turns.
+  const acts = useActs(props.onAct)
   // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
   const order = view.shown.some((r) => r.id === open) ? view.shown : resources
   const at = order.findIndex((r) => r.id === open)
@@ -370,6 +375,7 @@ export function ResourcePanel(given: Props) {
           onStep={order.length > 1 ? step : undefined}
           effort={effort}
           tasks={props.tasks}
+          acts={acts}
           room={roomElsewhere(selected, resources, observations, now, viewerId)}
           onShow={show}
         />

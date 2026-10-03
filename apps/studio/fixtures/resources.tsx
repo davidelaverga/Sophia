@@ -13,7 +13,7 @@
 // its stop unconfirmed, and `nextRun(sessionId)` starts its next run with what was asked. The sessions at work report
 // what they do, as on the plan's fixture (work-live.ts: Codex's reviewer moves on every 9 s), and a session's task
 // opens on that fixture's board (work.html#task-<id>), as Tasks would, when it is on it (Gemini's onboarding copy
-// isn't).
+// isn't). An owner's act on a session is taken as a runtime would (`acted` records it), as on the plan's page.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -30,7 +30,7 @@ import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
 import type { Resource, Session } from '../src/features/resources/resource.ts'
 import { plan, secondPlan } from './work-data.ts'
-import { nextActivity, withActivity } from './work-live.ts'
+import { acted, actOn, carried, nextActivity, withActivity } from './work-live.ts'
 import {
   actions,
   arriving,
@@ -54,6 +54,8 @@ declare global {
       unexpected: readonly string[]
       /** What owners asked of their sessions' effort, in order: for the checks to read. */
       asked?: { sessionId: string; level: string | null; when: string | null }[]
+      /** Each act an owner sent on a session, in order. */
+      acted?: readonly { sessionId: string; kind: string; text?: string }[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
@@ -90,13 +92,11 @@ const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
   return busy ? busyCodex(o) : o
 })
 
-/** Who is looking, carried to the plan's fixture when a session's task opens there. */
-const viewerQuery = viewer === people.davide ? '?viewer=davide' : ''
 /** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
 const planned = new Set([...plan('accepted').items, ...secondPlan.items].map((i) => i.id))
 const tasks: TaskLinks = {
   has: (workId) => planned.has(workId),
-  open: (workId) => window.location.assign(`work.html${viewerQuery}${linkHash(workId, TASK)}`),
+  open: (workId) => window.location.assign(`work.html${carried(window.location.search)}${linkHash(workId, TASK)}`),
 }
 
 const waitingOn = (list: typeof actions, id: string) =>
@@ -160,6 +160,7 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
   return {
     unexpected,
     asked,
+    acted,
     load: () => setLive((l) => ({ ...l, loading: false })),
     answerRequest: () =>
       setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
@@ -240,6 +241,7 @@ function Live() {
           loading={live.loading}
           history={earlierReadings(read)}
           tasks={tasks}
+          onAct={actOn}
           onEffort={(sessionId, ask) => {
             asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })
             setLive((l) => ({ ...l, asks: { ...l.asks, [sessionId]: ask ?? undefined } }))

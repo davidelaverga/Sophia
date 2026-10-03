@@ -23,8 +23,8 @@ import { current, type WorkPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
-import { NOW, people, resources } from './resources-data.ts'
-import { act, ask, nextActivity, withActivity } from './work-live.ts'
+import { NOW, observations, people, resources, tightClaude } from './resources-data.ts'
+import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
 import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan } from './work-data.ts'
 
 declare global {
@@ -54,7 +54,10 @@ window.workFixture = { unexpected, answered }
 const nothing = () => undefined
 
 const viewer = query.get('viewer') === 'davide' ? 'davide' : 'luis'
-const viewerQuery = viewer === 'davide' ? '?viewer=davide' : ''
+/** `tight=1`: Davide's Claude Code runs short, as on the resources' page; its task says so. */
+const readings = observations.map((o) =>
+  query.get('tight') === '1' && o.entitlement_id === 'ent-davide-anthropic' ? tightClaude(o) : o,
+)
 
 /** `since=1`: the viewer last looked a while ago, when four tasks stood elsewhere (and one wasn't there). */
 if (query.get('since') === '1') {
@@ -111,7 +114,10 @@ function slot(p: WorkPlan, now: Date, shared: { resources: Resource[]; people: t
         onDecide={decide}
         onAct={act}
         onAsk={ask}
-        onOpenResource={(id) => window.location.assign(`resources.html${viewerQuery}${linkHash(id)}`)}
+        onOpenResource={(id) =>
+          window.location.assign(`resources.html${carried(window.location.search)}${linkHash(id)}`)
+        }
+        observations={readings}
         {...shared}
       />
     ),

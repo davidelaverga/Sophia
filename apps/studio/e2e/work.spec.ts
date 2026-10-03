@@ -378,3 +378,20 @@ test('whoever does a task opens in Resources; nobody, or no way there, is only a
   await expect(person).toBeVisible() // a person, not a session: no resource to open
   await expect(person.locator('.task-who-link')).toHaveCount(0)
 })
+
+test('a task whose account runs short says so, and its sheet names where there is room', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&tight=1`)
+  await expect(tile(page, 'work-1').locator('.task-tile-short')).toHaveText(/^Account out in ~3\d min$/)
+  await expect(page.locator('[data-short]')).toHaveCount(1) // only the task its session is at
+  await tile(page, 'work-1').click()
+  const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(sheet.locator('.task-sheet-short')).toHaveText(/^Its account runs out in ~3\d min\.$/)
+  await expect(sheet.locator('.capacity-room')).toContainText('Your Codex has room: 5-hour at 42%')
+  await sheet.getByRole('button', { name: 'Show' }).click()
+  await expect(page).toHaveURL(/\/resources\.html\?viewer=davide&tight=1#resource-davide-codex$/)
+  await expect(page.getByRole('dialog', { name: 'Davide · Codex' })).toBeVisible()
+  // At its usual pace, nothing is said.
+  await page.goto(`${PAGE}?viewer=davide`)
+  await expect(tile(page, 'work-1')).toBeVisible()
+  await expect(page.locator('[data-short]')).toHaveCount(0)
+})

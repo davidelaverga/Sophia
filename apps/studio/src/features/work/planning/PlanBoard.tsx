@@ -13,9 +13,11 @@ import { useContext, useEffect, useRef, useState } from 'react'
 import { Icon } from '@sophia/ui'
 import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
-import type { Resource } from '../../resources/resource.ts'
+import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
 import '../../resources/resources.css'
+import { useActs } from '../../resources/SessionActs.tsx'
+import { accountOf } from './account.ts'
 import type { Ask } from './AskSophia.tsx'
 import { moveOnBoard } from './board-keys.ts'
 import { Decision, type Decide } from './Decision.tsx'
@@ -46,6 +48,11 @@ interface Props {
   onAsk?: Ask
   /** Opens the resource doing a task in Resources (LFE-06.5); absent, who does it is only a name. */
   onOpenResource?: (resourceId: string) => void
+  /**
+   * The accounts' latest capacity readings (LFE-06.6): a task whose doer's account runs short says so, and its sheet
+   * names where there is room. Absent, nothing is said.
+   */
+  observations?: readonly QuotaObservation[]
 }
 
 type Lane = { key: string; label: string; mark: Mark; marks: Mark[]; empty: string }
@@ -285,23 +292,24 @@ interface BoardProps extends Props {
   board: ReturnType<typeof useBoard>
 }
 
-function Board({
-  plan,
-  rows,
-  changed,
-  markSeen,
-  board,
-  people,
-  now,
-  viewerId = null,
-  onDecide,
-  onAct,
-  onAsk,
-  onOpenResource,
-}: BoardProps) {
+/** The board's acts on its tasks' sessions, kept by the board: still said after J or K turn a task's sheet. */
+function useBoardActs(rows: readonly PlanRow[], onAct: Act | undefined) {
+  return useActs(
+    onAct &&
+      ((sessionId, act, report) => {
+        const row = rows.find((r) => r.doer.session?.id === sessionId)
+        if (row) onAct(row, act, report)
+      }),
+  )
+}
+
+function Board(props: BoardProps) {
+  const { plan, rows, changed, markSeen, board, people, now, viewerId = null, onDecide, onAsk } = props
   const asks = useDecisions(plan, viewerId)
+  const acts = useBoardActs(rows, props.onAct)
   const opened = rows.find((r) => r.item.id === board.open)
-  const tile = { plan, viewerId, now, onLight: board.setLit, onOpen: board.setOpen, flags: board.flags }
+  const shortOf = (row: PlanRow) => accountOf(row, props).tile
+  const tile = { plan, viewerId, now, onLight: board.setLit, onOpen: board.setOpen, flags: board.flags, shortOf }
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={board.lens}>
       <div className="board-bar">
@@ -328,9 +336,10 @@ function Board({
           plan={plan}
           now={now}
           viewerId={viewerId}
-          onAct={onAct}
+          acts={acts}
           onAsk={onAsk}
-          onOpenResource={onOpenResource}
+          onOpenResource={props.onOpenResource}
+          account={accountOf(opened, props)}
           onOpen={board.setOpen}
           onStep={board.step}
           onClose={() => board.setOpen(null)}

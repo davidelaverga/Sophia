@@ -15,6 +15,26 @@ import {
 /** Whether a capacity is short: it runs out before it resets, or it is past the full line already. */
 export const short = (c: Capacity) => Boolean(c.pace?.runsOut) || (c.limiting?.percent ?? 0) >= FULL_AT
 
+/**
+ * A short capacity in a few words, after "Its account": "runs out in ~34 min", "runs out now", or past the full line,
+ * "is at 92% of its 5-hour window"; null when it isn't short.
+ */
+export function shortWords(c: Capacity): string | null {
+  const out = c.pace?.runsOut
+  if (out) return out === 'now' ? 'runs out now' : `runs out in ${out}`
+  const { limiting } = c
+  if (!limiting?.percent || limiting.percent < FULL_AT) return null
+  return `is at ${String(limiting.percent)}% of its ${limiting.name} window`
+}
+
+/** The same, short enough for a task's tile, after "Account": "out in ~34 min", "out now", "at 92%"; else null. */
+export function shortTileWords(c: Capacity): string | null {
+  const out = c.pace?.runsOut
+  if (out) return out === 'now' ? 'out now' : `out in ${out}`
+  const percent = c.limiting?.percent
+  return percent && percent >= FULL_AT ? `at ${String(percent)}%` : null
+}
+
 export interface Room {
   resource: Resource
   /** "Davide's Codex has room: 5-hour at 42%". */
@@ -22,7 +42,7 @@ export interface Room {
 }
 
 /** The capacity of a resource's account, from the latest observations. */
-const capacityOf = (r: Resource, observations: readonly QuotaObservation[], now: Date) =>
+export const capacityOf = (r: Resource, observations: readonly QuotaObservation[], now: Date) =>
   capacity(observationOf(observations, r), now)
 
 /** When `from` runs short, a resource with room, other than it and not on its account; null otherwise. */
