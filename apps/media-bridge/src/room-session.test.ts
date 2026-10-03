@@ -2579,7 +2579,51 @@ describe('room session: guide v1.2, the research operations (SMC-M03 S6)', () =>
     assert.equal(logs.findLast(([event]) => event === 'tool.answered')?.[1].code, 'not_applied')
   })
 
-  it('the API’s own explanation, an unconfirmed control and another tool’s refusal reach the guide untouched', async () => {
+  // An older API refused a Hold that Google sent again on a resumed connection: the Hold had moved the goal's epoch, so
+  // the repeat's request differed from the one stored under the same call. The guide must not hear "nothing changed".
+  it('an older API’s refusal that may hide an applied control reaches a v1.2 guide as unknown', async () => {
+    useV12()
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.resumption('handle-2', true)
+    const hold = { id: 'call-u1', name: 'control_work', args: { taskId: RESEARCH_TASK, action: 'hold' } }
+    live.events.toolCalls([hold])
+    await flush()
+    live.events.goAway('5s')
+    clock += 1000
+    session.tick()
+    await flush()
+    const resumed = lives.at(-1)
+    assert.ok(resumed && resumed !== live)
+    resumed.events.setupComplete()
+    const unconfirmed = {
+      status: 'unknown',
+      code: 'unconfirmed',
+      reason: 'I could not confirm whether it was applied; read project_status.',
+    }
+    const refusals: Array<[string, string]> = [
+      ['idempotency_conflict', 'Idempotency key reused with different request'],
+      ['outcome_unknown', 'Commit outcome unknown'],
+      ['unavailable', 'Database unavailable'],
+    ]
+    for (const [i, [code, reason]] of refusals.entries()) {
+      service.result = { status: 'refused', output: { code, reason } }
+      resumed.events.toolCalls([i === 0 ? hold : { ...hold, id: `call-u${String(i + 1)}` }])
+      await until(code, () => resumed.responses.length === i + 1)
+      assert.deepEqual(resumed.responses[i]?.response?.output, unconfirmed, code)
+      assert.equal(logs.findLast(([event]) => event === 'tool.answered')?.[1].code, 'unconfirmed')
+    }
+    assert.deepEqual(
+      service.calls.slice(0, 2).map((c) => [c.callId, c.connectionGeneration]),
+      [
+        ['call-u1', service.calls[0]?.connectionGeneration],
+        ['call-u1', service.calls[0]?.connectionGeneration],
+      ],
+      'the repeat is the same call',
+    )
+  })
+
+  it('the API’s own explanation, an unconfirmed control, other refused controls and another tool’s refusal reach the guide untouched', async () => {
     useV12()
     const { room, live } = await ready()
     room.events.audio(LUIS, pcm16k(), 16000, 1)
@@ -2610,6 +2654,20 @@ describe('room session: guide v1.2, the research operations (SMC-M03 S6)', () =>
             reason: 'I could not confirm whether it was applied; read project_status.',
           },
         },
+      ],
+      // Refusals that changed nothing: a viewer's (no code), and a goal that moved between the read and the write.
+      [
+        'control_work',
+        { taskId: RESEARCH_TASK, action: 'hold' },
+        {
+          status: 'refused',
+          output: { reason: 'Only editors and admins can start or control work. Viewers can talk with Sophia.' },
+        },
+      ],
+      [
+        'control_work',
+        { taskId: RESEARCH_TASK, action: 'stop' },
+        { status: 'refused', output: { code: 'stale_revision', reason: 'Stale goal revision or epoch' } },
       ],
       [
         'record_mission_note',
@@ -2829,6 +2887,75 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
     await until('the refusal to be answered', () => live.responses.length >= 1)
     assert.equal(service.calls.length, 1)
     assert.equal(statusOf(live.responses[0]), 'error')
+  })
+
+  // An API from before CX-0026 refused a Hold sent again after its reply was lost, because the Hold had moved the goal's
+  // epoch; a database that did not answer the repeat said "nothing was saved". Each speaks for the repeat alone.
+  it('a write whose reply was lost is settled only by the receipt its repeat brings back (CX-0026)', async () => {
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    const fake = service
+    let repeat: MediaToolResult | ServiceError = fake.result
+    fake.toolCall = async (c) => {
+      await Promise.resolve()
+      fake.calls.push(c)
+      if (fake.calls.filter((sent) => sent.callId === c.callId).length === 1) throw new Error('socket hang up')
+      if (repeat instanceof ServiceError) throw repeat
+      return repeat
+    }
+    const HOLD = { taskId: TASK, action: 'hold' }
+    const repeats: Array<[string, Record<string, unknown>, MediaToolResult | ServiceError]> = [
+      [
+        'control_work',
+        HOLD,
+        {
+          status: 'refused',
+          output: { code: 'idempotency_conflict', reason: 'Idempotency key reused with different request' },
+        },
+      ],
+      [
+        'record_mission_note',
+        NOTE,
+        { status: 'error', output: { reason: 'The project records are unavailable right now; nothing was saved.' } },
+      ],
+      [
+        'record_mission_note',
+        NOTE,
+        {
+          status: 'clarify',
+          output: { ask: 'I couldn’t tell who asked that. Could the person holding the floor ask again?' },
+        },
+      ],
+      ['control_work', HOLD, new ServiceError(401, 'POST /v1/media/tool-calls: 401')],
+    ]
+    for (const [i, [name, args, answer]] of repeats.entries()) {
+      repeat = answer
+      live.events.toolCalls([{ id: `repeat-${String(i)}`, name, args }])
+      await until(name, () => live.responses.length === i + 1)
+      const output = live.responses[i]?.response?.output as { status: string; next: string }
+      assert.equal(output.status, 'unknown', `${name} ${String(i)}`)
+      assert.match(output.next, /Read project_status/)
+    }
+    repeat = { status: 'committed', output: { entryId: ENTRY, ledgerRevision: 3 } }
+    live.events.toolCalls([{ id: 'repeat-r', name: 'record_mission_note', args: NOTE }])
+    await until('the receipt', () => live.responses.length === repeats.length + 1)
+    assert.equal(statusOf(live.responses.at(-1)), 'committed', 'the receipt its repeat brought back settles it')
+    // The API's own unknown keeps its words.
+    repeat = {
+      status: 'unknown',
+      output: {
+        code: 'unconfirmed:outcome_unknown',
+        reason: 'I could not confirm whether it was applied; read project_status.',
+      },
+    }
+    live.events.toolCalls([{ id: 'repeat-u', name: 'control_work', args: HOLD }])
+    await until('the unknown', () => live.responses.length === repeats.length + 2)
+    assert.deepEqual(live.responses.at(-1)?.response?.output, { status: 'unknown', ...repeat.output })
+    assert.deepEqual(
+      service.calls.map((c) => c.callId),
+      ['repeat-0', 'repeat-1', 'repeat-2', 'repeat-3', 'repeat-r', 'repeat-u'].flatMap((id) => [id, id]),
+      'each sent once more, as the same call',
+    )
   })
 
   it('tells the guide when records changed outside the conversation, on its next result', async () => {
