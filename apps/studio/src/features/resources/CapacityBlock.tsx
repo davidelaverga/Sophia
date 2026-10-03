@@ -3,10 +3,10 @@
 import { useId, useState } from 'react'
 import { Icon, Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
-import { windowHistory } from './history.ts'
+import { windowHistory, type Point } from './history.ts'
 import { pace } from './pace.ts'
 import { Sparkline } from './Sparkline.tsx'
-import { ago, capacity, expired, windowView, type QuotaObservation, type WindowView } from './resource.ts'
+import { ago, capacity, expired, windowView, type QuotaObservation } from './resource.ts'
 
 /** A window that isn't observed says so as a tag, in words: never as a number. */
 const NOT_OBSERVED_TONE = { unknown: 'muted', refresh_pending: 'amber', expired: 'amber' } as const
@@ -58,9 +58,17 @@ function Windows({ observation, now, earlier }: Reading) {
   )
 }
 
-function Meta({ observation, sessions, reservePercent, now }: Props) {
+/**
+ * The capacity's facts in one line, short enough to stay one: how many sessions share it, how many readings its history
+ * holds and over how long, how old the latest is, and what the owner keeps back.
+ * "shared by 2 sessions · 6 readings in 3 h · 1 min ago".
+ */
+function Meta({ observation, sessions, reservePercent, now, points }: Props & { points: Point[] }) {
+  const first = points[0]
+  const span = first ? ago(new Date(first.at).toISOString(), now).replace(/ ago$/, '') : ''
   const parts = [
     sessions > 1 ? `shared by ${sessions} sessions` : null,
+    points.length > 1 ? `${points.length} readings in ${span}` : null,
     observation ? ago(observation.observed_at, now) : 'never observed',
     reservePercent !== null ? `${reservePercent}% kept back` : null,
   ]
@@ -94,20 +102,22 @@ function WindowsDisclosure(reading: Reading) {
 
 /** The capacity's line, its meter (a percentage; an empty, hatched track for what isn't known; nothing beside a
  * balance) and, when the account runs out before its window resets at this pace, how long before. */
-/** The limiting window's readings over time, under its meter. */
-function HeadHistory({ observation, now, earlier, limiting }: Reading & { limiting: WindowView }) {
-  const window = observation.windows.find((w) => w.window_id === limiting.id)
-  if (!window) return null
-  return (
-    <Sparkline name={`${limiting.name} window`} points={windowHistory(window, [...earlier, observation])} now={now} />
-  )
+/** The limiting window's readings over time: drawn under its meter, and counted in the line of facts. */
+function headHistory(observation: QuotaObservation | undefined, now: Date, earlier: QuotaObservation[]): Point[] {
+  const { limiting } = capacity(observation, now)
+  const window = observation?.windows.find((w) => w.window_id === limiting?.id)
+  return observation && window ? windowHistory(window, [...earlier, observation]) : []
 }
 
 function Headline({
   observation,
   now,
-  earlier,
-}: Omit<Reading, 'observation'> & { observation: QuotaObservation | undefined }) {
+  points,
+}: {
+  observation: QuotaObservation | undefined
+  now: Date
+  points: Point[]
+}) {
   const { line, limiting, known, pace: headPace } = capacity(observation, now)
   return (
     <>
@@ -121,21 +131,20 @@ function Headline({
         />
       )}
       {headPace?.early && <p className="capacity-pace">{headPace.early}.</p>}
-      {observation && limiting && (
-        <HeadHistory observation={observation} now={now} earlier={earlier} limiting={limiting} />
-      )}
+      {limiting && <Sparkline name={`${limiting.name} window`} points={points} now={now} />}
     </>
   )
 }
 
 export function CapacityBlock(props: Props) {
   const { observation, now, earlier } = props
+  const points = headHistory(observation, now, earlier)
   const readable = observation && observation.coverage !== 'unavailable' && observation.windows.length > 0
   const missing = observation?.missing_capabilities ?? []
   return (
     <div className="capacity" role="group" aria-label="Capacity">
-      <Headline observation={observation} now={now} earlier={earlier} />
-      <Meta {...props} />
+      <Headline observation={observation} now={now} points={points} />
+      <Meta {...props} points={points} />
       {readable && <WindowsDisclosure observation={observation} now={now} earlier={earlier} />}
       {missing.length > 0 && <p className="capacity-missing">Not reported: {missing.join(', ')}.</p>}
     </div>

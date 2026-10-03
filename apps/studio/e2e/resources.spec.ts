@@ -554,7 +554,14 @@ test('a window’s readings over time, in its sheet: one window, since its reset
   const claude = capacity(page, 'Davide · Claude Code')
   const history = claude.getByRole('img', { name: '5-hour window: 19% to 63% used, since 3 h ago' })
   await expect(history.first()).toBeVisible() // under the headline's meter
-  await expect(history.first().locator('figcaption')).toHaveText('6 readings · since 3 h ago')
+  // Counted once, in the capacity's one line of facts: no second grey line under the drawing.
+  await expect(claude.locator('.capacity-meta')).toHaveText('shared by 2 sessions · 6 readings in 3 h · 1 min ago')
+  await expect(claude.locator('figcaption')).toHaveCount(0)
+  const meta = claude.locator('.capacity-meta')
+  const lines = await meta.evaluate((el) =>
+    Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)),
+  )
+  expect(lines, 'one line, in the sheet’s width').toBe(1)
   await claude.getByRole('button', { name: 'All 3 windows' }).click()
   await expect(history).toHaveCount(2) // and with its window
   await expect(claude.getByRole('img', { name: /^7-day/ })).toHaveCount(0) // its reset is due: no history drawn

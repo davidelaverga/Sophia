@@ -1,5 +1,6 @@
 // A window's readings over time, small: a line from its first reading to its latest, with the latest marked, in the
-// colour its use has reached (usageTone). Two readings at least, or nothing is drawn. It says in words what it shows.
+// colour its use has reached (usageTone). Two readings at least, or nothing is drawn. It says in words what it shows to
+// a screen reader; on screen, how many readings and since when are in the capacity's line of facts.
 import type { Point } from './history.ts'
 import { ago, usageTone } from './resource.ts'
 
@@ -30,9 +31,6 @@ export function Sparkline({ name, points, now }: Props) {
         <polyline className="capacity-history-line" points={line} />
       </svg>
       <span className="capacity-history-now" style={{ left: `${x(last)}%`, top: `${(y(last) / H) * 100}%` }} />
-      <figcaption aria-hidden>
-        {points.length} readings · since {since}
-      </figcaption>
     </figure>
   )
 }
