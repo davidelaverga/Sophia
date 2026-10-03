@@ -7,7 +7,9 @@
 // `loading=1` (the resources not read yet, until `resourcesFixture.load()`); `refreshing=1` (read again, the last read's
 // data still in hand). Live, as a live read would: `resourcesFixture.addRequest()` brings a request to wait on Davide,
 // `answerRequest()` answers the first, `swapRequest()` answers it while another comes, `spendCredits(n)` moves Gemini's
-// balance, and `setHost(id, state)` moves a host.
+// balance, and `setHost(id, state)` moves a host. An owner's effort request is taken as a runtime would:
+// `advance(sessionId)` moves a restart one step (stopping, starting, then running with it), `failStop(sessionId)` leaves
+// its stop unconfirmed, and `nextRun(sessionId)` starts its next run with what was asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -19,7 +21,8 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
-import type { Resource } from '../src/features/resources/resource.ts'
+import type { EffortAsk } from '../src/features/resources/change.ts'
+import type { Resource, Session } from '../src/features/resources/resource.ts'
 import {
   actions,
   arriving,
@@ -40,10 +43,15 @@ declare global {
   interface Window {
     resourcesFixture?: {
       unexpected: readonly string[]
+      /** What owners asked of their sessions' effort, in order: for the checks to read. */
+      asked?: { sessionId: string; level: string | null; when: string | null }[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
       setHost?: (id: string, state: Resource['host']['state']) => void
+      advance?: (sessionId: string) => void
+      failStop?: (sessionId: string) => void
+      nextRun?: (sessionId: string) => void
       spendCredits?: (left: number) => void
       swapRequest?: () => void
     }
@@ -53,6 +61,8 @@ declare global {
 installFixtureApi({ revision: 1, exchange: false, messages: [] })
 window.resourcesFixture = { unexpected }
 const nothing = () => undefined
+/** Each effort an owner asks for: kept here, where a launch configuration would take it. */
+const asked: NonNullable<NonNullable<Window['resourcesFixture']>['asked']> = []
 
 const query = new URLSearchParams(window.location.search)
 const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
@@ -78,12 +88,58 @@ type LiveState = {
   resources: typeof shown
   observations: typeof read
   loading: boolean
+  /** What each session's owner asked of its effort, as its runtime holds it. */
+  asks: Record<string, EffortAsk | undefined>
+}
+
+/** The live state with one session changed. */
+const withSession = (l: LiveState, id: string, change: (s: Session) => Session): LiveState => ({
+  ...l,
+  resources: l.resources.map((r) => ({ ...r, sessions: r.sessions.map((s) => (s.id === id ? change(s) : s)) })),
+})
+
+/** A session started with a level: ultracode is Claude Code's mode, over the effort it had. */
+const startedWith = (s: Session, level: string): Session => ({
+  ...s,
+  effort: level === 'ultracode' ? s.effort : level,
+  mode: level === 'ultracode' ? 'ultracode' : null,
+  change: null,
+})
+
+/**
+ * A restart's next step, as OMNIGENT §6 has it: its attempt stops (its work kept and queued, the requests it had
+ * waiting retired), a new one starts with the level asked, then runs it.
+ */
+function advanced(l: LiveState, id: string): LiveState {
+  const ask = l.asks[id]
+  if (ask?.when !== 'now') return l
+  const session = l.resources.flatMap((r) => r.sessions).find((s) => s.id === id)
+  if (!session?.change) {
+    const stopping = withSession(l, id, (s) => ({
+      ...s,
+      change: { level: ask.level, phase: 'stopping' },
+      assignment: s.assignment && { ...s.assignment, state: 'queued' },
+    }))
+    const retired = l.actions.map((a) =>
+      a.sessionId === id && a.state === 'open' ? { ...a, state: 'superseded' as const } : a,
+    )
+    return { ...stopping, actions: retired }
+  }
+  if (session.change.phase === 'stopping') {
+    return withSession(l, id, (s) => ({ ...s, change: { level: ask.level, phase: 'starting' } }))
+  }
+  const running = withSession(l, id, (s) => ({
+    ...startedWith(s, ask.level),
+    assignment: s.assignment && { ...s.assignment, state: 'running' },
+  }))
+  return { ...running, asks: { ...l.asks, [id]: undefined } }
 }
 
 /** What a test can change while the page is open, as a live read would. */
 function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): NonNullable<Window['resourcesFixture']> {
   return {
     unexpected,
+    asked,
     load: () => setLive((l) => ({ ...l, loading: false })),
     answerRequest: () =>
       setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
@@ -105,6 +161,17 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
           { ...arriving(l.actions.length + 1), resourceId: 'davide-claude', sessionId: 'claude-worker' },
         ],
       })),
+    advance: (id) => setLive((l) => advanced(l, id)),
+    failStop: (id) =>
+      setLive((l) =>
+        withSession(l, id, (s) => ({ ...s, change: { level: s.change?.level ?? '', phase: 'unconfirmed' } })),
+      ),
+    nextRun: (id) =>
+      setLive((l) => {
+        const ask = l.asks[id]
+        if (ask?.when !== 'next') return l
+        return { ...withSession(l, id, (s) => startedWith(s, ask.level)), asks: { ...l.asks, [id]: undefined } }
+      }),
     setHost: (id, state) =>
       setLive((l) => ({
         ...l,
@@ -119,6 +186,7 @@ function Live() {
     resources: shown,
     observations: read,
     loading: query.get('loading') === '1' || query.get('refreshing') === '1',
+    asks: {},
   })
   useEffect(() => {
     window.resourcesFixture = controls(setLive)
@@ -143,6 +211,10 @@ function Live() {
           now={NOW}
           loading={live.loading}
           history={earlierReadings(read)}
+          onEffort={(sessionId, ask) => {
+            asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })
+            setLive((l) => ({ ...l, asks: { ...l.asks, [sessionId]: ask ?? undefined } }))
+          }}
         />
       }
     />

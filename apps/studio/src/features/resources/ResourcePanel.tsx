@@ -2,17 +2,19 @@
 // they grow to tens, with one line on top only while a request waits on an owner. A tile opens the resource's sheet,
 // where everything else is. It goes in ProjectShell's `resources`. It shows; it doesn't steer, hold or stop
 // (LFE-06.4), and nothing here calls a tool.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
-import { ORDER_LABEL, ordered, ORDERS, placed, type Order } from './order.ts'
+import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
-import { ResourceSheet } from './ResourceSheet.tsx'
+import type { EffortAsk } from './change.ts'
+import { ResourceSheet, type EffortControl } from './ResourceSheet.tsx'
+import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
   FILTER_LABEL,
@@ -43,6 +45,11 @@ interface Props {
   loading?: boolean
   /** Earlier readings of the accounts, for each window's history in a sheet; none when only the latest is kept. */
   history?: QuotaObservation[]
+  /**
+   * Where an owner's choice of a session's effort goes (the runtime's launch configuration, SCM-01). Absent, no
+   * effort can be chosen and the bars stay read-only. `level` null withdraws the request.
+   */
+  onEffort?: (sessionId: string, ask: EffortAsk | null) => void
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -180,34 +187,6 @@ function None({ query, filter, onClear, onAll }: NoneProps) {
   )
 }
 
-interface SortProps {
-  order: Order
-  onChange: (order: Order) => void
-}
-
-const isOrder = (value: string): value is Order => ORDERS.some((o) => o === value)
-
-/** The tiles' order: by attention (what needs someone first), by owner or by tool. */
-function Sort({ order, onChange }: SortProps) {
-  return (
-    <label className="field quiet resource-sort">
-      <span className="resource-sort-label">Sort</span>
-      <select
-        value={order}
-        onChange={(e) => {
-          if (isOrder(e.target.value)) onChange(e.target.value)
-        }}
-      >
-        {ORDERS.map((o) => (
-          <option key={o} value={o}>
-            {ORDER_LABEL[o]}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
 function useView({ resources, actions, viewerId }: Props) {
   const [query, setQuery] = useState('')
   const [kept] = useState(() => readPrefs(viewerId))
@@ -258,7 +237,7 @@ function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
       <div className="resources-toolbar">
         <Search query={view.query} onChange={view.setQuery} />
         <Filters filter={view.filter} counts={view.counts} onChange={(f) => moving(() => view.setFilter(f))} />
-        <Sort order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
+        <SortMenu order={view.order} onChange={(o) => moving(() => view.setOrder(o))} />
       </div>
       <p className="sr-only" aria-live="polite">
         {view.shown.length} of {plural(resources.length, 'resource')} shown
@@ -314,6 +293,26 @@ function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
   return <Browse {...props} />
 }
 
+/** Each session's requested effort, kept until withdrawn, and told on; none when nothing takes the request. */
+function useEffort(onEffort: Props['onEffort']): EffortControl | undefined {
+  const [asked, setAsked] = useState<Record<string, EffortAsk | undefined>>({})
+  // Kept the same across renders: a session's line waits on it to let a done request go.
+  const settle = useCallback((sessionId: string) => setAsked((a) => ({ ...a, [sessionId]: undefined })), [])
+  if (!onEffort) return undefined
+  return {
+    asked,
+    settle,
+    set: (sessionId, ask) => {
+      setAsked((a) => ({ ...a, [sessionId]: ask }))
+      onEffort(sessionId, ask)
+    },
+    undo: (sessionId) => {
+      setAsked((a) => ({ ...a, [sessionId]: undefined }))
+      onEffort(sessionId, null)
+    },
+  }
+}
+
 export function ResourcePanel(given: Props) {
   const now = useClock(given.now)
   const props = { ...given, now }
@@ -327,6 +326,7 @@ export function ResourcePanel(given: Props) {
   }
   const view = useView(props)
   const ultra = useUltra()
+  const effort = useEffort(props.onEffort)
   // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
   const order = view.shown.some((r) => r.id === open) ? view.shown : resources
   const at = order.findIndex((r) => r.id === open)
@@ -353,6 +353,7 @@ export function ResourcePanel(given: Props) {
           now={now}
           onClose={() => show(null)}
           onStep={order.length > 1 ? step : undefined}
+          effort={effort}
         />
       )}
     </section>
