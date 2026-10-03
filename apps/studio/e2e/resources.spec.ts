@@ -876,6 +876,40 @@ test('Codex’s review · a dragged tile becomes the Tab stop; Alt at an end cha
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
 })
 
+test('a tile dragged without taking the focus becomes the Tab stop; the arrows start from the focused tile', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Davide · Claude Code').focus()
+  // As Safari and Firefox on a Mac drag: the pressed tile doesn't take the focus.
+  const dragged = tile(page, 'Luis · Claude Code')
+  const onto = tile(page, 'Davide · Codex')
+  const data = await page.evaluateHandle(() => new DataTransfer())
+  await dragged.dispatchEvent('dragstart', { dataTransfer: data })
+  await onto.dispatchEvent('dragover', { dataTransfer: data })
+  await onto.dispatchEvent('drop', { dataTransfer: data })
+  await dragged.dispatchEvent('dragend', { dataTransfer: data })
+  await expect(grid(page).getByRole('button').nth(1)).toHaveAccessibleName(/Luis · Claude Code/)
+  await expect(dragged).toHaveAttribute('tabindex', '0')
+  await expect(tile(page, 'Davide · Claude Code')).toBeFocused()
+  await page.keyboard.press('ArrowRight') // from Davide's Claude Code, first: the next is Luis's, now second
+  await expect(dragged).toBeFocused()
+})
+
+test('the Tab stop is a tile, not a place: when the tiles re-sort by themselves it stays on the same one', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await page.evaluate(() => window.resourcesFixture?.addRequest?.()) // Codex waits too
+  await tile(page, 'Davide · Claude Code').focus()
+  await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('tabindex', '0')
+  // Its request answered, Davide's Claude Code no longer waits: Codex goes first, by attention.
+  await page.evaluate(() => window.resourcesFixture?.answerRequest?.())
+  await expect(grid(page).getByRole('button').first()).toHaveAccessibleName(/Davide · Codex/)
+  await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('tabindex', '0')
+  await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
+})
+
 test('@phone · Codex’s review · the sheet’s title keeps its room beside its actions', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 }) // a narrow phone, its touch controls 40 px wide
   await page.goto(PAGE)

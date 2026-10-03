@@ -72,6 +72,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 23** ([handoff](../handoffs/LFE-06-attempt-23.md)): one type scale for Resources and the plan's board: at most five sizes on a screen (four tokens under the view's title).
 - **Attempt 24** ([handoff](../handoffs/LFE-06-attempt-24.md)): the search fields on the scale too, and the check counts a field's words.
 - **Attempt 25** ([handoff](../handoffs/LFE-06-attempt-25.md)): an answer not confirmed holds across the decisions' remounts, and a followed address waits for its task's plan.
+- **Attempt 26** ([handoff](../handoffs/LFE-06-attempt-26.md)): the address the page opens with waits for its plan too; the tiles' Tab stop is a tile, not a place, so a live re-sort or a drag keeps it.
 
 ## Acceptance cases
 

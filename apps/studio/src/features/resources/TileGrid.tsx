@@ -2,7 +2,7 @@
 // order); a tile dragged onto another takes its place, and Alt with an arrow moves the focused tile the same way, so
 // arranging never needs a pointer. Arranging puts the view in the viewer's own order (Custom). Two Claude Codes that
 // end up side by side greet (buddies.ts).
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useBuddies } from './buddies.ts'
 import { glideName } from './motion.ts'
 import { observationOf, TOOL, type QuotaObservation, type RequiredAction, type Resource } from './resource.ts'
@@ -47,42 +47,38 @@ interface Props {
   since?: ReadonlySet<string>
 }
 
-/** One tile in the Tab order; arrows move the focus, Alt and an arrow move the tile, which stays the Tab stop. */
+/**
+ * One tile in the Tab order; arrows move the focus, Alt and an arrow move the tile, which stays the Tab stop. The stop
+ * is a tile, by its id, not a place: when the tiles re-sort by themselves, or one is moved, it stays on the same one
+ * (the first, when it is no longer shown).
+ */
 function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([])
-  const [active, setActive] = useState(0)
-  // The tile being moved, and where it was: the move lands a frame or more later when it glides (motion.ts), and the
-  // view may render before then (its clock, a live read) with the tile still in its old place.
-  const moving = useRef<{ id: string; from: number } | null>(null)
-  const current = Math.min(active, Math.max(0, shown.length - 1))
-  useEffect(() => {
-    const m = moving.current
-    const at = m ? shown.findIndex((r) => r.id === m.id) : -1
-    if (!m || at < 0 || at === m.from) return
-    moving.current = null
-    // The moved tile keeps the focus by itself (the same element, in its new place); it becomes the Tab stop.
-    setActive(at)
-  }, [shown])
+  const [active, setActive] = useState<string | null>(null)
+  const current = Math.max(
+    0,
+    shown.findIndex((r) => r.id === active),
+  )
   const onKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
     const columns = getComputedStyle(e.currentTarget).gridTemplateColumns.split(' ').length
-    const to = moveTo(e.key, current, shown.length, columns)
-    const from = shown[current]
+    // From the tile with the focus: a drag can make another the Tab stop where pressing a tile doesn't focus it.
+    const focused = tiles.current.findIndex((tile) => tile === e.target)
+    const at = focused < 0 ? current : focused
+    const to = moveTo(e.key, at, shown.length, columns)
+    const from = shown[at]
     const target = to === null ? undefined : shown[to]
-    if (to === null || !from || !target || to === current) return
+    if (to === null || !from || !target || to === at) return
     e.preventDefault()
     if (e.altKey) {
-      moving.current = { id: from.id, from: current }
+      // The moved tile keeps the focus by itself (the same element, in its new place), and stays the Tab stop.
+      setActive(from.id)
       onArrange(from.id, target.id)
       return
     }
-    setActive(to)
+    setActive(target.id)
     tiles.current[to]?.focus()
   }
-  /** A tile moved another way (dragged): it becomes the Tab stop once in its new place. */
-  const follow = (id: string) => {
-    moving.current = { id, from: shown.findIndex((r) => r.id === id) }
-  }
-  return { tiles, current, setActive, onKeyDown, follow }
+  return { tiles, current, setActive, onKeyDown }
 }
 
 /** A tile dragged onto another: which is dragged, which it is over, and the handlers each tile takes. */
@@ -128,8 +124,9 @@ export function TileGrid(props: Props) {
     props.onArrange(id, target)
   }
   const keys = useKeys(shown, arrange)
+  // A tile dragged into place becomes the Tab stop.
   const drag = useDrag((id, target) => {
-    keys.follow(id)
+    keys.setActive(id)
     arrange(id, target)
   })
   const list = useRef<HTMLUListElement>(null)
@@ -159,7 +156,7 @@ export function TileGrid(props: Props) {
               onOpen={() => onOpen(r.id)}
               buddy={buddies.get(r.id)}
               current={i === keys.current}
-              onFocus={() => keys.setActive(i)}
+              onFocus={() => keys.setActive(r.id)}
               drag={drag.handlers(r.id)}
               ref={(el) => {
                 keys.tiles.current[i] = el
