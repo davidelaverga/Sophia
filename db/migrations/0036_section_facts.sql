@@ -17,10 +17,17 @@
 --   heading contradicts the facts only when no section of that name remains. Problems are distinct and at most 20, as
 --   the submission contract allows.
 -- * A submitted result cites what its draft cites (CX-0019) by an exact rule, in the submit's own transaction: to the
---   model's list, research_draft_citations adds every source the current draft names that the task may cite
---   (research_readable), never its own question, manifest or a draft of this attempt, up to 200 in all. The API's
---   reconciliation (probes through runtime_research_context, and guesses from a page's text at which source was the
---   manifest or an earlier draft) is gone.
+--   model's list, research_draft_citations adds every source the current draft names where the report's parser
+--   numbers it (markdown_citing_text: never in a code span, a fenced block, an image, an autolink or a link to a page)
+--   that the task may cite (research_readable), never its own question, manifest or a draft of this attempt, up to 200
+--   in all.
+--   The API's reconciliation (probes through runtime_research_context, and guesses from a page's text at which source
+--   was the manifest or an earlier draft) is gone. That exclusion applies to what is added: the model's own list is
+--   checked by research_publish (0027) as before, which admits every source research_readable does, the question,
+--   manifest and drafts among them. And the PDF's render input (runtime_research_render_input, 0031) still offers every
+--   readable id the draft names but the draft itself, so a PDF printed before submit can number a question or an
+--   earlier draft the version's Sources leave out. Aligning either changes what a submit or a render accepts (a report
+--   that cites only its question; a link the PDF's check then calls unresolved): left for a later migration.
 -- 0001-0035 are not edited. section_facts and note_problems are replaced with the same signatures; their callers
 -- (research_publish 0027, research_rendition_settled 0034) resolve them at call time and are not replaced.
 -- runtime_research_submit (0031) is replaced with the same signature and grants, one line changed.
@@ -158,9 +165,37 @@ BEGIN
  RETURN out[1:20];
 END $$;
 
--- The citations of a submitted result, and every source its current draft names that the task may cite (CX-0019):
--- research_readable admits it (an input, the base, a capture of its allowance), and it is not the task's own question,
--- manifest or a draft of this attempt. The model's list comes first, as it came (research_publish still checks it); the
+-- A Markdown text with what the report's parser (packages/report markdown.ts) never reads as a citation blanked: a fenced
+-- block (closed by a fence of its kind at least as long), a code span (never across a blank line), an image, an
+-- autolink, and a link's target unless it is a source or a ref to one alone ([1](<id> "title") keeps its id where the
+-- target stood). An escaped mark is text. What is left names a source where the report numbers it: bare, bracketed, in
+-- a bare URL, or as a link's target. Nesting the parser reads apart (a link in a link's label, parentheses in a target)
+-- is read as the common case.
+CREATE FUNCTION sophia.markdown_citing_text(p_text text) RETURNS text LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
+DECLARE line text; fence text:=NULL; m text[]; kept text[]:='{}';
+BEGIN
+ FOREACH line IN ARRAY regexp_split_to_array(coalesce(p_text,''),E'\r\n?|\n') LOOP
+  IF fence IS NULL THEN
+   m:=regexp_match(line,'^ {0,3}(`{3,}|~{3,})');
+   IF m IS NULL THEN kept:=kept||line; ELSE fence:=m[1]; END IF;
+  ELSIF starts_with(btrim(line,E' \t\f\v'),fence) AND translate(btrim(line,E' \t\f\v'),'`~','')='' THEN
+   fence:=NULL;
+  END IF;
+ END LOOP;
+ RETURN regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
+  array_to_string(kept,E'\n'),'\\[`\[\]()<>!]',' ','g'),
+  '`(?:[^`\n]|\n(?![ \t]*\n))*`',' ','g'),
+  '!\[[^]\n]*\]\([^)\n]*\)',' ','g'),
+  '<(?:https?|mailto):[^>]*>',' ','gi'),
+  '\]\(\s*<?(?:(?:search|link|input|source):\s*)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:#\d{1,4})?>?(?:\s[^)\n]*)?\)',
+  '] \1 ','gi'),
+  '\]\([^)\n]*\)',']','g');
+END $$;
+REVOKE ALL ON FUNCTION sophia.markdown_citing_text(text) FROM PUBLIC;
+
+-- The citations of a submitted result, and every source its current draft names where the report numbers it
+-- (markdown_citing_text) that the task may cite (CX-0019): research_readable admits it (an input, the base, a capture of
+-- its allowance), and it is not the task's own question, manifest or a draft of this attempt. The model's list comes first, as it came (research_publish still checks it); the
 -- draft's ids follow, lower case, in order of first appearance, up to 200 distinct in all. A stale or missing draft, or
 -- citations that are not a list, add nothing (research_publish refuses them).
 CREATE FUNCTION sophia.research_draft_citations(s sophia.research_scope, p_result jsonb) RETURNS jsonb LANGUAGE sql STABLE
@@ -171,7 +206,7 @@ SET search_path=pg_catalog,sophia AS $$
    WHERE d.sha256=p_result->>'draftSha256' AND jsonb_typeof(p_result->'citations')='array'),
   listed AS (SELECT lower(c) AS id FROM current, jsonb_array_elements_text(p_result->'citations') c),
   named AS (SELECT lower(x.m[1]) AS id, min(x.o) AS first FROM current,
-    regexp_matches(current.body,'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})','g')
+    regexp_matches(sophia.markdown_citing_text(current.body),'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})','g')
      WITH ORDINALITY AS x(m,o) GROUP BY 1),
   extra AS (SELECT n.id, n.first FROM named n
    WHERE NOT EXISTS(SELECT 1 FROM listed l WHERE l.id=n.id)

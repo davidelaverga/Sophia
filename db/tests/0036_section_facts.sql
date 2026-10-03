@@ -166,7 +166,7 @@ DO $$ DECLARE
  inp uuid:='46000000-0000-0000-0000-00000000000a'; base uuid:='46000000-0000-0000-0000-00000000000b';
  gone uuid:='46000000-0000-0000-0000-00000000000c'; stray uuid:='46000000-0000-0000-0000-00000000000d';
  d0 uuid:='56000000-0000-0000-0000-000000000000'; d1 uuid:='56000000-0000-0000-0000-000000000001';
- d2 uuid:='56000000-0000-0000-0000-000000000002'; many uuid[];
+ d2 uuid:='56000000-0000-0000-0000-000000000002'; d3 uuid:='56000000-0000-0000-0000-000000000003'; many uuid[];
  s sophia.research_scope; r jsonb; t text;
 BEGIN
  INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who);
@@ -176,7 +176,7 @@ BEGIN
  SELECT array_agg(('66000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO many FROM generate_series(1,205) i;
  INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
   SELECT pr,x,who,'project',repeat('a',64),'text/markdown','cite-'||x,1,x<>gone,'ready'
-  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2]||many) x;
+  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2,d3]||many) x;
  INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES
   (pr,man,jsonb_build_object('schema','sophia.research-manifest.v1','base',jsonb_build_object('sourceId',base))::text),
   (pr,d0,'# Draft'||E'\n\nTo do.\n'),
@@ -222,13 +222,24 @@ BEGIN
  UPDATE sophia.source_texts SET body=format('[%s] [%s] [%s]',d0,d1,many[1]) WHERE project_id=pr AND source_id=d2;
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb));
  IF r->'citations'<>jsonb_build_array(many[1]) THEN RAISE EXCEPTION 'A draft of the task was added: %',r; END IF;
+ -- Only what the report's parser numbers (packages/report markdown.ts): never an id in a code span or a fenced block
+ -- (closed by a fence as long as its own), an image, an autolink or a link's target that is not a source ref alone; a
+ -- bare URL's id, a ref link with a title, an escaped backtick, and a span that would cross a blank line all cite.
+ INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES(pr,d3,format(E'Code `%s`, a page [docs](https://e.org/%s) '
+  ||E'<https://e.org/%s>, an image ![%s](%s).\n\n```\n%s\n```\n~~~~\n%s\n~~~\n%s\n~~~~\nCited: https://e.org/%s, [1](<%s> "t"), '
+  ||E'[x](search:%s#2), \\`%s\\`.\n\nOpen `tick\n\n%s and` close.',
+  many[1],many[2],many[3],many[4],many[5],many[6],many[7],many[8],many[9],many[10],many[11],many[12],many[13]));
+ INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,4,'d3',d3,repeat('3',64));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('3',64),'citations','[]'::jsonb));
+ IF r->'citations'<>jsonb_build_array(many[9],many[10],many[11],many[12],many[13]) THEN
+  RAISE EXCEPTION 'A source the report does not number was added: %',r; END IF;
 END $$;
 -- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.
 DO $$ DECLARE fn text; BEGIN
  FOREACH fn IN ARRAY ARRAY['sophia.heading_anchor(text)','sophia.markdown_outline(text)','sophia.note_keeps(text,text,text)',
    'sophia.section_facts(text,text)','sophia.note_problems(text,text,jsonb)',
-   'sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
+   'sophia.markdown_citing_text(text)','sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
   IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE') THEN
    RAISE EXCEPTION '% is callable by the API or worker role',fn; END IF;
  END LOOP;
