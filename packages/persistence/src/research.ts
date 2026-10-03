@@ -128,11 +128,15 @@ const MAX_CITATIONS = 200
 const MAX_PROBES = 50
 /** A draft is at most 256 KiB (0025), read 6,000 characters a page: never more pages than this. */
 const MAX_DRAFT_PAGES = 64
-/** A JSON source is read whole to tell the task's manifest from a search capture: at most this many pages. */
-const MAX_JSON_PAGES = 8
-/** A question is at most 2,000 characters (0025): one page this long holds it whole. */
-const QUESTION_PAGE = 2001
+/**
+ * A JSON source is read whole to tell the task's manifest from a capture, at most this many pages after the first. In
+ * jsonb's key order the manifest's schema comes after only its base, role, URLs (8 at most, 2,048 characters each),
+ * route and inputs (8 at most), well inside the 30,000 characters these pages hold.
+ */
+const MAX_JSON_PAGES = 4
 const MANIFEST_SCHEMA = 'sophia.research-manifest.v1'
+/** The manifest's schema, as jsonb_pretty prints it: how a manifest too long to read whole is still known. */
+const MANIFEST_MARK = /"schema"\s*:\s*"sophia\.research-manifest\.v1"/
 
 /** The submit's own transaction, caller and task: what every check below reads through. */
 interface Reader {
@@ -152,7 +156,7 @@ const pageOf = (r: Reader, page: { sourceId: string; offset: number; limit?: num
 async function readable(r: Reader, sourceId: string) {
   await r.c.query('SAVEPOINT cite_probe')
   try {
-    const page = await pageOf(r, { sourceId, offset: 0, limit: QUESTION_PAGE })
+    const page = await pageOf(r, { sourceId, offset: 0 })
     await r.c.query('RELEASE SAVEPOINT cite_probe')
     return page
   } catch {
@@ -161,8 +165,8 @@ async function readable(r: Reader, sourceId: string) {
   }
 }
 
-/** A stored source's whole text, from its first page; null when it runs past `pages` more pages. */
-async function wholeText(r: Reader, first: ResearchSourcePage, pages: number) {
+/** A stored source's text from its first page, up to `pages` more pages; whole when nothing of it is left. */
+async function textOf(r: Reader, first: ResearchSourcePage, pages: number) {
   let text = first.text
   let next = first.nextOffset
   for (let n = 1; next !== null && n <= pages; n += 1) {
@@ -170,54 +174,67 @@ async function wholeText(r: Reader, first: ResearchSourcePage, pages: number) {
     text += more.text
     next = more.nextOffset
   }
-  return next === null ? text : null
+  return { text, whole: next === null }
 }
 
-function isManifest(json: string): boolean {
-  const value: unknown = JSON.parse(json)
-  return typeof value === 'object' && value !== null && 'schema' in value && value.schema === MANIFEST_SCHEMA
+/** Whether a whole text is the manifest: JSON of its schema. Text that is not JSON never is. */
+function isManifest(text: string): boolean {
+  try {
+    const value: unknown = JSON.parse(text)
+    return typeof value === 'object' && value !== null && 'schema' in value && value.schema === MANIFEST_SCHEMA
+  } catch {
+    return false
+  }
 }
 
 /**
  * Whether a source is the task's own request, which it reads but never cites: its question (the source's whole text)
- * or its manifest (JSON of that schema). JSON that cannot be read whole counts as its own.
+ * or its manifest (JSON of that schema; past what is read whole, a text that names the schema).
  */
 async function ownRequest(r: Reader, task: ResearchTaskContext, page: ResearchSourcePage) {
   if (page.nextOffset === null && page.text === task.question) return true
   if (!page.text.trimStart().startsWith('{')) return false
-  const text = await wholeText(r, page, MAX_JSON_PAGES)
-  try {
-    return text === null || isManifest(text)
-  } catch {
-    return true
-  }
+  const { text, whole } = await textOf(r, page, MAX_JSON_PAGES)
+  return whole ? isManifest(text) : MANIFEST_MARK.test(text)
 }
 
 /** The sources the current draft cites, in any form (bare, bracketed, a link); none for a stale or absent draft. */
 async function draftCites(r: Reader, task: ResearchTaskContext, sha256: string) {
   const draft = task.draft
   if (draft === null || draft.sha256 !== sha256) return []
-  const text = await wholeText(r, await pageOf(r, { sourceId: draft.sourceId, offset: 0 }), MAX_DRAFT_PAGES)
-  return parseMarkdown(text ?? '').citations.filter((id) => id !== draft.sourceId)
+  const { text } = await textOf(r, await pageOf(r, { sourceId: draft.sourceId, offset: 0 }), MAX_DRAFT_PAGES)
+  return parseMarkdown(text).citations.filter((id) => id !== draft.sourceId)
 }
 
-/** Whether the task may cite a source its draft names: the service lets it read it, and it is not its own request. */
-async function mayCite(r: Reader, task: ResearchTaskContext, id: string) {
+/**
+ * Whether a page reads as an earlier draft of this report, which the task may read but never cites: it cites a source
+ * the current draft cites. No page from the web carries the project's source ids. A draft that cites nothing on its
+ * first page is not known this way (the service, too, accepts a draft the model lists).
+ */
+const earlierDraft = (page: ResearchSourcePage, cites: ReadonlySet<string>) =>
+  parseMarkdown(page.text).citations.some((id) => id !== page.sourceId && cites.has(id))
+
+/**
+ * Whether the task may cite a source its draft names: the service lets it read it, and it is an input or the base, or
+ * neither an earlier draft nor its own request.
+ */
+async function mayCite(r: Reader, task: ResearchTaskContext, cites: ReadonlySet<string>, id: string) {
   const page = await readable(r, id)
   if (page === null) return false
   if (task.inputs.some((i) => i.sourceId === id) || task.base?.sourceId === id) return true
-  return !(await ownRequest(r, task, page))
+  return !earlierDraft(page, cites) && !(await ownRequest(r, task, page))
 }
 
 /** The model's citations, then every other source the draft cites that the task may cite, within the bounds. */
 async function citationsOf(r: Reader, result: ResearchResult) {
   const task = await overview(r)
   const listed = new Set(result.citations.map((id) => id.toLowerCase()))
-  const missing = (await draftCites(r, task, result.draftSha256)).filter((id) => !listed.has(id))
+  const cites = new Set(await draftCites(r, task, result.draftSha256))
+  const missing = [...cites].filter((id) => !listed.has(id))
   const out = [...result.citations]
   for (const id of missing.slice(0, MAX_PROBES)) {
     if (out.length >= MAX_CITATIONS) break
-    if (await mayCite(r, task, id)) out.push(id)
+    if (await mayCite(r, task, cites, id)) out.push(id)
   }
   return out
 }
@@ -238,8 +255,9 @@ async function withDraftCitations(r: Reader, result: ResearchResult) {
 /**
  * End the task: publish its current draft as the report's next version, or record a blocker (0026). A result cites
  * what the model listed and every other source its draft cites that the task may cite (CX-0019), checked by the
- * service's own rule (a page read through runtime_research_context) and never the task's own question or manifest:
- * the version's Sources, facts and lineage are what its text cites. The service still checks every citation.
+ * service's own rule (a page read through runtime_research_context) and never the task's own question, manifest or an
+ * earlier draft it can tell: the version's Sources, facts and lineage are what its text cites. The service still checks
+ * every citation.
  */
 export async function runtimeResearchSubmit(c: pg.PoolClient, who: RuntimeCaller, request: ResearchSubmitRequest) {
   const { result } = request

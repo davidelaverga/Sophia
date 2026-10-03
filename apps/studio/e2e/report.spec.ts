@@ -550,15 +550,22 @@ test('CX-0019 · Download waits for the checked bytes without dropping the focus
   await expect(download).toHaveAttribute('aria-disabled', 'true')
   await expect(download).not.toHaveAttribute('disabled')
   await download.focus()
-  await expect(download).toBeFocused() // it can be reached, and a press does nothing yet
+  await expect(download).toBeFocused() // it can be reached, and a press does nothing yet: no file is saved
+  const early = page.waitForEvent('download', { timeout: 1000 }).then(
+    () => true,
+    () => false,
+  )
   await page.keyboard.press('Enter')
+  expect(await early).toBe(false)
   await expect(pane(page).getByRole('status')).toHaveText('')
 
   await page.evaluate(() => window.fixture?.releaseText())
   await expect(pane(page).getByText(FIRST)).toBeVisible()
   await expect(download).not.toHaveAttribute('aria-disabled')
   await expect(download).toBeFocused() // kept through the load
+  const saved = page.waitForEvent('download')
   await page.keyboard.press('Enter')
+  expect((await saved).suggestedFilename()).toBe('fixture-report.md')
   await expect(pane(page).getByRole('status')).toHaveText(/^Downloading fixture-report\.md/)
 })
 

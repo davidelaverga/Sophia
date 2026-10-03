@@ -40,6 +40,9 @@ export interface ReportInput {
   title: string
   sources: readonly ReportSource[]
   layout: ReportLayout
+  /** The sources a link may cite (parseMarkdown's option): a published version's own, so its PDF reads it as Studio
+   * does. Left out, a link to any source id is a citation, and one the service did not resolve refuses the PDF. */
+  citable?: readonly string[]
 }
 
 export interface ReportManifest {
@@ -318,7 +321,7 @@ const matches = (html: string, re: RegExp) => [...html.matchAll(re)].map((m) => 
 
 /** The report as one HTML document, its manifest and its checks (see the header). */
 export function renderReport(input: ReportInput): ReportDocument {
-  const parsed = parseMarkdown(input.markdown)
+  const parsed = parseMarkdown(input.markdown, input.citable ? { citable: input.citable } : {})
   const parts = split(parsed.blocks)
   const words = WORDS[input.language.toLowerCase().split('-')[0] ?? ''] ?? EN
   const title = (parts.title || input.title).trim().slice(0, 200)

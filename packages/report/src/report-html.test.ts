@@ -159,6 +159,16 @@ describe('the PDF report template (pdf-report-v1, report_manifest_v1)', () => {
     assert.deepEqual(failed(renderReport(input({ markdown: `${REPORT}\nAlso [3](${C}).\n` }))), ['citations_resolved'])
   })
 
+  it('with the sources a link may cite, prints a link to any other id as its label, as Studio reads it', () => {
+    const markdown = `${REPORT}\nAlso [3](${C}), asked as [4](input:${C}#1), and [5](<${A}>).\n`
+    const doc = renderReport(input({ markdown, citable: [A, B] }))
+    assert.deepEqual(failed(doc), [])
+    assert.equal(doc.manifest.citations, 2)
+    assert.match(doc.html, /Also 3, asked as 4, and <sup class="cite"><a href="#cite-1">\[1\]<\/a><\/sup>\./)
+    const bracketed = renderReport(input({ markdown: `${markdown}\nNot [${C}].\n`, citable: [A, B] }))
+    assert.deepEqual(failed(bracketed), ['citations_resolved'], 'a bracketed id is a citation still')
+  })
+
   it('keeps ids and titles bounded, and refuses a report with too many sections', () => {
     const long = 'Word '.repeat(400)
     const doc = renderReport(input({ markdown: `# T\n\n## ${long}\n\n${filler(120)}\n` }))
