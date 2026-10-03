@@ -291,6 +291,17 @@ const outside: Change = (g) => ({
   ],
 })
 
+/**
+ * Codex F-002: a task whose state is unknown, and one running with no assignment observed. Both stay Active, said not
+ * observed, and offer nothing to send, though the view allows Stop; reading and asking stay.
+ */
+const unobserved: Change = (g) =>
+  update(
+    update(g, 'work-2', () => ({ lifecycle: 'unknown' })),
+    'work-1',
+    () => ({ lifecycle: 'running', assignment: null, waiting_on: [] }),
+  )
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -306,6 +317,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'revision-failed': revisionFailed,
   'luis-resource': luisResource,
   outside,
+  unobserved,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

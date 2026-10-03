@@ -147,10 +147,24 @@ describe('what is known of a command', () => {
     assert.equal(knownSaid(later), 'Stop requested. The runtime’s state is not confirmed yet.')
   })
 
+  it('never settles a command from another project’s receipt, whatever else matches (Codex F-001)', () => {
+    const stop = command('stop')
+    const foreign = receipt(stop, 3, {
+      project_id: 'another-project',
+      delivery: 'delivered',
+      effect: 'stopped',
+      evidence_refs: ['admission', 'settled'],
+    })
+    const known = fold(sending(stop), foreign)
+    assert.equal(knownSaid(known), 'Sending…')
+    assert.equal(known.receipt, null)
+  })
+
   it('takes nothing from a receipt for other work, another generation, another operation, or one malformed (UI-12)', () => {
     const c = command('hold')
     const known = sending(c)
     for (const foreign of [
+      receipt(c, 1, { project_id: 'another-project' }), // Codex F-001: the same ids in another project
       receipt(c, 1, { work_id: 'other' }),
       receipt(c, 1, { assignment_generation: 2 }),
       receipt(c, 1, { operation_id: 'op-2' }),

@@ -8,6 +8,7 @@ import { createInvitation, reissueInvitation, revokeInvitation } from '../../api
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { nextInRow } from '../../app/roving.ts'
+import { SheetCall } from '../../app/call-in-reach.tsx'
 import { useDialog } from '../../app/useDialog.ts'
 import { admissionLabel, doorNote, invitationState, linkLimits } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
@@ -51,6 +52,7 @@ export function InviteSheet({ context, onClose }: { context: SheetContext; onClo
               <Tip label="Close" keys="Esc" side="bottom" align="end" />
             </button>
           </header>
+          <SheetCall />
           <SheetTabs tab={tab} onTab={setTab} />
         </div>
         <TabPanel tab="guests" shown={tab}>

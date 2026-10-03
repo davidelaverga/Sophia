@@ -166,17 +166,27 @@ describe('who does an item', () => {
 describe('where an item stands', () => {
   it('waits on whom a pending request names: the viewer first, then a person, then what it waits for (UI-07)', () => {
     const waits = [wait('native_permission', 'luis'), wait('product_decision', 'davide')]
-    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: waits }, 'davide'), ['waiting', 'Waiting on Davide'])
-    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: waits }, 'mara'), ['waiting', 'Waiting on Luis'])
-    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: [wait('capacity', null)] }), [
+    assert.deepEqual(standing({ lifecycle: 'waiting', assignment: assignment('one'), waiting_on: waits }, 'davide'), [
       'waiting',
-      'Waiting for capacity',
+      'Waiting on Davide',
     ])
+    assert.deepEqual(standing({ lifecycle: 'waiting', assignment: assignment('one'), waiting_on: waits }, 'mara'), [
+      'waiting',
+      'Waiting on Luis',
+    ])
+    assert.deepEqual(
+      standing({ lifecycle: 'waiting', assignment: assignment('one'), waiting_on: [wait('capacity', null)] }),
+      ['waiting', 'Waiting for capacity'],
+    )
     // A resolved or expired request calls no one.
-    assert.deepEqual(standing({ lifecycle: 'waiting', waiting_on: [wait('product_decision', 'luis', 'resolved')] }), [
-      'waiting',
-      'Waiting',
-    ])
+    assert.deepEqual(
+      standing({
+        lifecycle: 'waiting',
+        assignment: assignment('one'),
+        waiting_on: [wait('product_decision', 'luis', 'resolved')],
+      }),
+      ['waiting', 'Waiting'],
+    )
   })
 
   it('in motion: working, held, ready for review, changes needed (UI-04)', () => {
@@ -247,6 +257,13 @@ describe('where an item stands', () => {
       [['unknown', 'Not observed']],
     )
     assert.deepEqual(standing({ lifecycle: 'unknown' }), ['unknown', 'State unknown'])
+    // Codex F-002: the plan names who does it, the view says no one, and the work is past planning: not known.
+    assert.deepEqual(standing({ lifecycle: 'queued', assignment: null }), ['unknown', 'Assignment not observed'])
+    assert.deepEqual(standing({ lifecycle: 'running', assignment: null }), ['unknown', 'Assignment not observed'])
+    assert.deepEqual(
+      standing({ lifecycle: 'running', assignment: assignment('one', { observation_state: 'unknown' }) }),
+      ['unknown', 'Not observed'],
+    )
     const offline = assignment('one', { observation_state: 'offline' })
     assert.deepEqual(standing({ lifecycle: 'running', assignment: offline }), ['unknown', 'Host offline'])
     assert.equal(LANE.unknown, 'active')

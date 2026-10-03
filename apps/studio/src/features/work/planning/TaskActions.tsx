@@ -7,7 +7,7 @@
 // exact assignment and generation shown: with no assignment known, nothing is sent.
 import { SessionActs, type Acts } from '../../resources/SessionActs.tsx'
 import { scopeOf } from '../../resources/receipts.ts'
-import { boundaries, COMMANDS, notOffered, offered, targetOf } from './actions.ts'
+import { boundaries, COMMANDS, notOffered, offered, targetOf, writable } from './actions.ts'
 import { actionOf, type PlanRow } from './plan.ts'
 
 interface Props {
@@ -24,7 +24,8 @@ function actionsOf(row: PlanRow, acts: Acts) {
     offer: target ? offered(row) : [],
     sent: target ? acts.of(scopeOf(target)).length > 0 : false,
     reasons: notOffered(row),
-    unaddressed: !target && COMMANDS.some((k) => actionOf(row, k)?.availability === 'allowed'),
+    // Said once: an unobserved task's own line already says why nothing can be sent (notOffered).
+    unaddressed: !target && writable(row) && COMMANDS.some((k) => actionOf(row, k)?.availability === 'allowed'),
   }
 }
 

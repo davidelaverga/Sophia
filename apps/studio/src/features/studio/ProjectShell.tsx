@@ -14,7 +14,8 @@ import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { sendingOf } from '../voice/CallSwitches.tsx'
-import { MiniDock } from '../voice/MiniDock.tsx'
+import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
+import { CallInReach } from '../../app/call-in-reach.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -202,6 +203,30 @@ function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: Pr
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
 }
 
+/** H goes home and W to the projects, from a project as from every place; I invites, where the viewer may. */
+function useProjectKeys(
+  go: { onLeave: () => void; onWork: () => void; invite: () => void },
+  inviting: boolean,
+  may: boolean,
+) {
+  useShortcuts({ h: go.onLeave, w: go.onWork }, !inviting)
+  useShortcuts({ i: go.invite }, may && !inviting)
+}
+
+/** While a call is live in view, a sheet that covers the room's own switches shows them (SheetCall). */
+function CallKeptInReach({
+  room,
+  background,
+  children,
+}: {
+  room: ProjectRoom
+  background: boolean
+  children: React.ReactNode
+}) {
+  const call = isInCall(room) && !background ? <RoomSwitches room={room} side="bottom" /> : null
+  return <CallInReach.Provider value={call}>{children}</CallInReach.Provider>
+}
+
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
@@ -215,52 +240,52 @@ export function ProjectShell(props: Props) {
   const invite = () => setInviting(true)
   useLeaveBehindClosedDoor(blocked, room)
   useBeyondTheView(props, snapshot.data, room)
-  // H goes home and W to the projects, from a project as from every place.
-  useShortcuts({ h: onLeave, w: onWork }, !inviting)
-  useShortcuts({ i: invite }, !!shown && canInvite(membership) && !inviting)
+  useProjectKeys({ onLeave, onWork, invite }, inviting, !!shown && canInvite(membership))
   return (
-    <div className="shell" data-view={view}>
-      <ProjectHeader
-        title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
-        connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
-        nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
-        share={shown && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
-        account={account}
-        onLeave={onLeave}
-        onWork={onWork}
-      />
-      <OpeningNote loaded={loaded} blocked={blocked} />
-      {inviting && shown && (
-        <Suspense fallback={null}>
-          <InviteSheet
-            context={{ projectId, identity, membership, sessions: shown.sessions, lobby: shown.lobby }}
-            onClose={() => setInviting(false)}
+    <CallKeptInReach room={room} background={!!props.background}>
+      <div className="shell" data-view={view}>
+        <ProjectHeader
+          title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
+          connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
+          nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
+          share={shown && <Share invites={canInvite(membership)} projectId={projectId} onInvite={invite} />}
+          account={account}
+          onLeave={onLeave}
+          onWork={onWork}
+        />
+        <OpeningNote loaded={loaded} blocked={blocked} />
+        {inviting && shown && (
+          <Suspense fallback={null}>
+            <InviteSheet
+              context={{ projectId, identity, membership, sessions: shown.sessions, lobby: shown.lobby }}
+              onClose={() => setInviting(false)}
+            />
+          </Suspense>
+        )}
+        {blocked ? (
+          <AccessNotice
+            blocked={blocked}
+            identityName={identity.name}
+            actions={{ leave: onWork, retry: () => void snapshot.refetch(), signin: onSignOut }}
           />
-        </Suspense>
-      )}
-      {blocked ? (
-        <AccessNotice
-          blocked={blocked}
-          identityName={identity.name}
-          actions={{ leave: onWork, retry: () => void snapshot.refetch(), signin: onSignOut }}
-        />
-      ) : (
-        <ProjectBody
-          view={view}
-          projectId={projectId}
-          identity={identity}
-          room={room}
-          membership={membership}
-          snapshot={snapshot.data}
-          pulse={<WorkPulse feed={feed} connection={connection} />}
-          onShow={onShow}
-          onInvite={invite}
-          background={!!props.background}
-          resources={props.resources}
-          plans={props.plans}
-        />
-      )}
-    </div>
+        ) : (
+          <ProjectBody
+            view={view}
+            projectId={projectId}
+            identity={identity}
+            room={room}
+            membership={membership}
+            snapshot={snapshot.data}
+            pulse={<WorkPulse feed={feed} connection={connection} />}
+            onShow={onShow}
+            onInvite={invite}
+            background={!!props.background}
+            resources={props.resources}
+            plans={props.plans}
+          />
+        )}
+      </div>
+    </CallKeptInReach>
   )
 }
 

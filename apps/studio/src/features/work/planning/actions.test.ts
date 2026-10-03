@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { boundaries, notOffered, offered, targetOf } from './actions.ts'
+import { boundaries, notOffered, offered, targetOf, writable } from './actions.ts'
 import { assignment, goal, item, plan, view } from './board-samples.ts'
 import type { ItemAction, ItemView } from './board-view.ts'
 import { boardOf } from './plan.ts'
@@ -67,6 +67,26 @@ describe('what a task’s sheet offers to send (G3)', () => {
     assert.deepEqual(offered(rowOf({ lifecycle: 'held', available_actions: actions })), [
       { kind: 'resume', tip: 'Resumes from its saved state.' },
     ])
+  })
+
+  it('offers nothing to send while its state isn’t observed, and says why; reading and asking stay (Codex F-002)', () => {
+    const mandate = 'Within Davide’s contribution to this project.'
+    const actions = [allowed('stop', mandate), allowed('hold', mandate), allowed('ask_sophia')]
+    const unknown = rowOf({ lifecycle: 'unknown', available_actions: actions })
+    const offline = rowOf({
+      assignment: assignment('build', { observation_state: 'offline' }),
+      available_actions: actions,
+    })
+    const unassigned = rowOf({ lifecycle: 'running', assignment: null, available_actions: actions })
+    for (const row of [unknown, offline, unassigned]) {
+      assert.equal(writable(row), false)
+      assert.deepEqual(offered(row), [])
+      assert.deepEqual(boundaries(row), [])
+      assert.deepEqual(notOffered(row), [
+        'Hold and Stop: Its state isn’t observed now, so nothing can be sent to it until it is.',
+      ])
+      assert.equal(row.actions.find((a) => a.kind === 'ask_sophia')?.availability, 'allowed')
+    }
   })
 
   it('aims at the exact assignment, generation and attempt shown; with none known, at nothing', () => {

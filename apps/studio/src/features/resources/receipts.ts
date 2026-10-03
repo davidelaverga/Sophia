@@ -128,11 +128,12 @@ export const sending = (command: Command): Known => ({ command, local: 'sending'
 
 const FINAL: ReadonlySet<Effect> = new Set(['held', 'stopped', 'resumed', 'choice_recorded'])
 
-/** Whether a receipt speaks of this command: the same operation, work, assignment and generation. */
+/** Whether a receipt speaks of this command: the same project, operation, work, assignment and generation. */
 function speaksOf(known: Known, r: Receipt): boolean {
   const { command } = known
   const { target } = command
   return (
+    r.project_id === target.project_id &&
     r.operation_id === command.operation_id &&
     r.kind === command.kind &&
     r.work_id === target.work_id &&

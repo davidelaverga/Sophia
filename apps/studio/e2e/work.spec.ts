@@ -1151,3 +1151,85 @@ test('review · work observed outside the plan in force is said, never hidden', 
   await expect(outside.locator('[data-work="work-old"]')).toContainText('Davide’s Claude Code · work-old')
   await expect(outside.locator('[data-work="work-old"]')).toContainText('running')
 })
+
+// ---- Codex's findings on 8afd007 (#74, WBC-01-CX-0001), each with its regression. ----
+
+test('codex · F-002 · a task whose state isn’t observed stays Active, said so, and offers nothing to send', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=unobserved`)
+  await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('State unknown')
+  await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Assignment not observed')
+  expect(await titles(lane(page, 'Active'))).toEqual(
+    expect.arrayContaining(['Implement the PDF retry', 'Review the report pane']),
+  )
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  await expect(sheet.locator('.act-note')).toContainText([
+    'Hold and Stop: Its state isn’t observed now, so nothing can be sent to it until it is.',
+  ])
+  await expect(sheet.getByRole('button', { name: 'What do we know about it?' })).toBeVisible() // asking stays
+})
+
+/** Joins the project's room from the mini dock, as a person on Tasks would (the fixture's LiveKit is fake). */
+async function joinTheRoom(page: Page) {
+  await page
+    .locator('.mini-dock')
+    .getByRole('button', { name: /^Join the room/ })
+    .click()
+  await expect(page.locator('.mini-dock').getByRole('button', { name: 'Leave the room' })).toBeVisible()
+}
+
+/** Whether a press at a control's centre reaches the control itself, not something over it. */
+const pressable = (control: Locator) =>
+  control.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button') === el
+  })
+
+async function callKeptInReach(page: Page) {
+  await page.goto(`${PAGE}?viewer=davide`)
+  await joinTheRoom(page)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const call = sheet.getByRole('group', { name: 'Your call' })
+  const mic = call.getByRole('button', { name: 'Microphone' })
+  const leave = call.getByRole('button', { name: 'Leave the room' })
+  await expect(mic).toHaveAttribute('aria-pressed', 'true') // sending
+  expect(await pressable(mic)).toBe(true)
+  expect(await pressable(leave)).toBe(true)
+  // The keyboard reaches it inside the sheet: from Close, the next stop is the microphone.
+  await sheet.getByRole('button', { name: 'Close' }).focus()
+  await page.keyboard.press('Tab')
+  await expect(mic).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(mic).toHaveAttribute('aria-pressed', 'false') // muted from the sheet
+  await leave.click()
+  await expect(call).toHaveCount(0) // the call is over: the row goes, the sheet stays, the focus in it
+  await expect(sheet).toBeVisible()
+  expect(await sheet.evaluate((s) => s.contains(document.activeElement))).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.mini-dock').getByRole('button', { name: /^Join the room/ })).toBeVisible()
+}
+
+test('codex · F-003 · during a call, an open task sheet keeps the microphone and Leave in reach', async ({ page }) => {
+  await callKeptInReach(page)
+})
+
+test('@phone · codex · F-003 · on a phone too, an open task sheet keeps the microphone and Leave in reach', async ({
+  page,
+}) => {
+  await callKeptInReach(page)
+})
+
+test('codex · F-003 · a resource’s sheet keeps the call in reach too', async ({ page }) => {
+  await page.goto('/resources.html?viewer=davide')
+  await joinTheRoom(page)
+  await page
+    .getByRole('button', { name: /Davide · Claude Code/ })
+    .first()
+    .click()
+  const call = page.getByRole('dialog').getByRole('group', { name: 'Your call' })
+  expect(await pressable(call.getByRole('button', { name: 'Leave the room' }))).toBe(true)
+  await expect(call.getByRole('button', { name: 'Microphone' })).toHaveAttribute('aria-pressed', 'true')
+})

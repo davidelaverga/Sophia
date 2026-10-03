@@ -17,9 +17,36 @@ interface Props {
   onOpen: () => void
 }
 
+/**
+ * The call's switches beyond the dock, Leave included: the mini dock's, and a sheet's while it covers them (SheetCall).
+ * Leaving from inside a sheet hands the focus to the sheet, not to the page behind it.
+ */
+export function RoomSwitches({ room, side = 'top' }: { room: ProjectRoom; side?: 'top' | 'bottom' }) {
+  const me = room.participants.find((p) => p.local)
+  const leave = () => {
+    const sheet =
+      document.activeElement instanceof HTMLElement ? document.activeElement.closest('[role="dialog"]') : null
+    void room.leave()
+    if (sheet instanceof HTMLElement) sheet.focus()
+  }
+  return (
+    <CallSwitches
+      sending={sendingOf(me)}
+      controls={{
+        setMicrophone: (on) => void room.setMicrophone(on),
+        setCamera: (on) => void room.setCamera(on),
+        setScreenShare: (on) => void room.setScreenShare(on),
+        leave,
+      }}
+      textMode={{ on: room.textMode, onVoice: () => void room.setTextMode(false) }}
+      keys={false}
+      side={side}
+    />
+  )
+}
+
 export function MiniDock({ room, looking, onOpen }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
-  const me = room.participants.find((p) => p.local)
   const note = room.mediaError ?? room.error
   return (
     <div className="mini-dock" role="group" aria-label="Project room">
@@ -36,17 +63,7 @@ export function MiniDock({ room, looking, onOpen }: Props) {
             In the room · {room.participants.length}
             <Tip label="Open the room" />
           </button>
-          <CallSwitches
-            sending={sendingOf(me)}
-            controls={{
-              setMicrophone: (on) => void room.setMicrophone(on),
-              setCamera: (on) => void room.setCamera(on),
-              setScreenShare: (on) => void room.setScreenShare(on),
-              leave: () => void room.leave(),
-            }}
-            textMode={{ on: room.textMode, onVoice: () => void room.setTextMode(false) }}
-            keys={false}
-          />
+          <RoomSwitches room={room} />
         </>
       ) : (
         <>

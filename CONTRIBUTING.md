@@ -194,7 +194,12 @@ writing a new one, and keep the rule when you change the code around it.
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, and everywhere else the dock's own toggles
   (`CallSwitches`: the chat panel's head, the mini dock, the places' bar).
-  Nothing keeps sending out of sight because the view changed.
+  A sheet is modal and covers the mini dock, so while a call is live every
+  project sheet shows the same switches, Leave included, in a row under its
+  head (`SheetCall`, `app/call-in-reach.tsx`, filled by `ProjectShell`): the
+  pointer, the keyboard and a screen reader reach them inside the dialog, and
+  leaving from there keeps the focus in the sheet (`codex · F-003` checks, on
+  a phone too). Nothing keeps sending out of sight because the view changed.
 - **A guest is always marked as one** (`presenceRole`, `screenCaption` in
   `room-view.ts`, with tests). A visitor chooses their own name, so the word
   "guest" is what tells them from a member of the same name: it stays while

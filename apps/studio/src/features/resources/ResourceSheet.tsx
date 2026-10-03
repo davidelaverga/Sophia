@@ -5,6 +5,7 @@
 // returns to the tile it was opened from.
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
+import { SheetCall } from '../../app/call-in-reach.tsx'
 import { useDialog } from '../../app/useDialog.ts'
 import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
@@ -414,6 +415,7 @@ function Head({ resource, mine, onClose, onStep }: HeadProps) {
           </button>
         </span>
       </header>
+      <SheetCall />
     </div>
   )
 }

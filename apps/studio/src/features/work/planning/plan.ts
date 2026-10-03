@@ -266,8 +266,15 @@ function completed(view: ItemView): Status {
     : at('complete', 'Complete')
 }
 
-/** Whether what is observed of an assignment can be trusted as its state now. */
-const observed = (view: ItemView) => !view.assignment || view.assignment.observation_state === 'observed'
+/**
+ * Why what is observed of an item can't be taken as its state now, or null when it can: no assignment for work past
+ * planning (the plan names who does it; the view says nobody), or an assignment its host doesn't report.
+ */
+function unobserved(view: ItemView): string | null {
+  if (!view.assignment) return view.lifecycle === 'planned' ? null : 'Assignment not observed'
+  const { observation_state: state } = view.assignment
+  return state === 'observed' ? null : state === 'offline' ? 'Host offline' : 'Not observed'
+}
 
 /** Where an item that has not begun stands: queued, up next with what it waits for, or unassigned. */
 function notBegun(item: PlanItem, view: ItemView, plan: WorkPlan, waits: readonly WaitRow[]): Status {
@@ -292,8 +299,8 @@ export function status({ item, view, plan, waits, viewerId }: Standing): Status 
   if (closed) return at('closed', closed)
   if (view.lifecycle === 'complete') return completed(view)
   if (view.lifecycle === 'unknown') return at('unknown', 'State unknown')
-  if (!observed(view))
-    return at('unknown', view.assignment?.observation_state === 'offline' ? 'Host offline' : 'Not observed')
+  const why = unobserved(view)
+  if (why) return at('unknown', why)
   if (view.lifecycle === 'waiting') return waiting(waits, viewerId)
   const moving = MOVING[view.lifecycle]
   return moving ? at(...moving) : notBegun(item, view, plan, waits)

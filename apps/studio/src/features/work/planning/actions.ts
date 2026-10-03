@@ -34,8 +34,17 @@ const fits = (row: PlanRow, kind: CommandKind) => {
   return kind === 'hold' ? !held : kind === 'resume' ? held : true
 }
 
+/**
+ * Whether anything can be sent to a task now: not while its state isn't observed (Codex F-002, CC-0001 reading 1).
+ * Reading it and asking about it stay as the view allows.
+ */
+export const writable = (row: PlanRow) => row.status.mark !== 'unknown'
+
+const UNOBSERVED = 'Its state isn’t observed now, so nothing can be sent to it until it is.'
+
 /** The commands offered: what the view allows and the state fits, Hold and Resume with what they do as their tip. */
 export function offered(row: PlanRow): Offer[] {
+  if (!writable(row)) return []
   return COMMANDS.flatMap((kind): Offer[] => {
     const action = actionOf(row, kind)
     if (action?.availability !== 'allowed' || !fits(row, kind)) return []
@@ -52,8 +61,9 @@ export function notOffered(row: PlanRow): string[] {
   const why = new Map<string, string[]>()
   for (const kind of COMMANDS) {
     const action = actionOf(row, kind)
-    if (!action || action.availability === 'allowed' || !fits(row, kind)) continue
-    why.set(action.reason, [...(why.get(action.reason) ?? []), NAME[kind]])
+    if (!action || !fits(row, kind)) continue
+    const reason = action.availability !== 'allowed' ? action.reason : writable(row) ? null : UNOBSERVED
+    if (reason) why.set(reason, [...(why.get(reason) ?? []), NAME[kind]])
   }
   return [...why].map(([reason, names]) => `${listed(names)}: ${reason}`)
 }
@@ -63,7 +73,9 @@ export const boundaries = (row: PlanRow) => [
   ...new Set(
     COMMANDS.flatMap((kind) => {
       const action = actionOf(row, kind)
-      return action?.availability === 'allowed' && action.boundary && fits(row, kind) ? [action.boundary] : []
+      return action?.availability === 'allowed' && action.boundary && fits(row, kind) && writable(row)
+        ? [action.boundary]
+        : []
     }),
   ),
 ]
