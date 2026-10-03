@@ -160,6 +160,8 @@ interface Scan {
   depth: number
   /** Where each label opened in `src` closes (-1: it does not), as `labelEnd` finds them: one pass, however many `[`. */
   ends?: Map<number, number>
+  /** Where a link target opened at each index of `src` closes (-1: it does not), as `targetEnds` finds them: one pass. */
+  targets?: Int32Array
 }
 
 /** A part of a scan's text (an emphasis or a label), read one level deeper. */
@@ -188,18 +190,35 @@ function emphasis(s: Scan, i: number): Step {
   return { inline: [strong ? { kind: 'strong', children } : { kind: 'em', children }], next: end + delim.length }
 }
 
-/** The `)` that closes a link target opened just before `from`, parentheses inside it balanced; -1 when none. */
-function targetEnd(src: string, from: number): number {
+/**
+ * The `)` that closes a link target opened at each index of `src`, parentheses inside it balanced and the line its end;
+ * -1 when none. One pass for every index at once: an unclosed `[](` per character costs no rescan of the rest of its
+ * line. A target waits on a stack at the depth it opened at, and the first `)` back at that depth closes it (depth moves
+ * one step at a time, so the waiting depths only rise up the stack); a line break leaves the ones still waiting open.
+ */
+function targetEnds(src: string): Int32Array {
+  const ends = new Int32Array(src.length + 1).fill(-1)
+  const waiting: number[] = []
+  const depths: number[] = []
   let depth = 0
-  for (let i = from; i < src.length && src[i] !== '\n'; i += 1) {
-    if (src[i] === '(') depth += 1
-    else if (src[i] === ')') {
-      if (depth === 0) return i
+  for (let i = 0; i < src.length; i += 1) {
+    waiting.push(i)
+    depths.push(depth)
+    const c = src[i]
+    if (c === '(') depth += 1
+    else if (c === '\n') {
+      waiting.length = 0
+      depths.length = 0
+    } else if (c === ')') {
+      for (; depths.at(-1) === depth; depths.pop()) ends[waiting.pop() ?? 0] = i
       depth -= 1
     }
   }
-  return -1
+  return ends
 }
+
+/** The `)` that closes a link target opened just before `from`; -1 when none. */
+const targetEnd = (s: Scan, from: number): number => (s.targets ??= targetEnds(s.src))[from] ?? -1
 
 /** `[1](<id>)`: a link to a source the report may cite is a citation, its label kept if it says more than a number. */
 function citeLink(s: Scan, label: string, target: string): Inline[] | null {
@@ -300,7 +319,7 @@ function linkOrImage(s: Scan, i: number): Step {
   const open = image ? i + 1 : i
   const close = labelEnd(s, open)
   if (close < 0 || s.src[close + 1] !== '(') return null
-  const end = targetEnd(s.src, close + 2)
+  const end = targetEnd(s, close + 2)
   if (end < 0) return null
   const label = s.src.slice(open + 1, close)
   const target =
