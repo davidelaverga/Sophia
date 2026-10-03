@@ -19,6 +19,7 @@ import {
   type Support,
 } from './resource.ts'
 import { CopyLink } from './CopyLink.tsx'
+import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
@@ -50,12 +51,16 @@ function Since({ at, now }: { at: string | null; now: Date }) {
 }
 
 function SessionRow({ session }: { session: Session }) {
-  const reported = [session.model, session.effort && `${session.effort} effort`].filter(Boolean).join(' · ')
+  const effort = session.effort && `${session.effort} effort`
   const work = session.assignment
   return (
     <li className="resource-session">
       <span className="resource-role">{session.role}</span>
-      <span className="resource-model">{reported || 'Model not reported'}</span>
+      <span className="resource-model">
+        {session.model && <ModelChip model={session.model} />}
+        {effort && <span className="resource-effort">{effort}</span>}
+        {!session.model && !effort && 'Model not reported'}
+      </span>
       {work ? (
         <span className="resource-work">
           <Tag tone={WORK[work.state][0]}>{WORK[work.state][1]}</Tag>
@@ -120,13 +125,15 @@ function Head({ resource, mine, onClose }: { resource: Resource; mine: boolean; 
 interface Props {
   resource: Resource
   observation: QuotaObservation | undefined
+  /** This account's earlier readings, for its windows' history. */
+  earlier: QuotaObservation[]
   actions: RequiredAction[]
   viewerId: string
   now: Date
   onClose: () => void
 }
 
-export function ResourceSheet({ resource, observation, actions, viewerId, now, onClose }: Props) {
+export function ResourceSheet({ resource, observation, earlier, actions, viewerId, now, onClose }: Props) {
   const panel = useRef<HTMLDivElement>(null)
   useDialog(panel, onClose)
   const host = resource.host
@@ -162,6 +169,7 @@ export function ResourceSheet({ resource, observation, actions, viewerId, now, o
             sessions={resource.sessions.length}
             reservePercent={resource.reservePercent}
             now={now}
+            earlier={earlier}
           />
         </section>
         <section className="sheet-section" aria-labelledby="controls-title">

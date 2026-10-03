@@ -40,6 +40,8 @@ interface Props {
   now: Date
   /** The resources are not read yet: placeholders hold their places. */
   loading?: boolean
+  /** Earlier readings of the accounts, for each window's history in a sheet; none when only the latest is kept. */
+  history?: QuotaObservation[]
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -360,6 +362,7 @@ export function ResourcePanel(given: Props) {
         <ResourceSheet
           resource={selected}
           observation={observationOf(observations, selected)}
+          earlier={(props.history ?? []).filter((o) => o.entitlement_id === selected.entitlementId)}
           actions={actions}
           viewerId={viewerId}
           now={now}

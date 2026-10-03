@@ -74,7 +74,11 @@ test('LFE-06.1 · the three enrollments as tiles; a sheet holds the owner, host,
   await expect(codex.getByRole('button', { name: /^(Stop|Hold|Steer|Guidance)$/ })).toHaveCount(0) // said, not offered
   await page.keyboard.press('Escape')
   await expect(tile(page, 'Davide · Codex')).toBeFocused() // back where it was opened
-  await expect((await open(page, 'Davide · Claude Code')).getByText('claude-opus-5-5 · high effort')).toBeVisible()
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await expect(worker.locator('.model-chip')).toHaveText('Opus 5.5') // as people say it
+  await expect(worker.locator('.model-chip')).toHaveAttribute('title', 'claude-opus-5-5') // its exact id on hover
+  await expect(worker.getByText('high effort')).toBeVisible()
   await page.getByRole('button', { name: 'Close' }).click()
   const luis = await open(page, 'Luis · Claude Code')
   await expect(luis.getByText('Host unknown')).toBeVisible()
@@ -171,10 +175,10 @@ test('what waits on an owner is one line on top, and it opens that resource', as
   await expect(tile(page, 'Davide · Claude Code').getByText('1 waiting')).toBeVisible()
   // A screen reader hears the tile's lines, not only whose it is.
   await expect(tile(page, 'Davide · Claude Code')).toHaveAccessibleDescription(
-    'Online 1 waiting Implement the PDF retry · 2 sessions 5-hour window: 63% used, resets in 55 min',
+    'Online 1 waiting Opus 5.5 Implement the PDF retry · 2 sessions 5-hour window: 63% used, resets in 55 min',
   )
   await expect(tile(page, 'Luis · Claude Code')).toHaveAccessibleDescription(
-    'Unknown You No assignment Capacity unknown',
+    'Unknown You Haiku 4.5 No assignment Capacity unknown',
   )
   await expect(tile(page, 'Davide · Codex').getByText(/waiting/)).toHaveCount(0) // none waiting
   await line.click()
@@ -501,6 +505,52 @@ test('live · while the resources are read, placeholders hold their places', asy
   await expect(page.getByRole('list', { name: 'Resources' })).toHaveCount(0)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await expect(busy.locator('.resource-placeholder > span').first()).toHaveCSS('animation-name', 'none')
+})
+
+test('each session’s model shows as people say it, in its family’s colour; none is guessed', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  const chip = (name: string) => tile(page, name).locator('.model-chip')
+  await expect(chip('Davide · Claude Code')).toHaveText('Opus 5.5')
+  await expect(chip('Luis · Gemini CLI')).toHaveText('Gemini 2.5 Pro')
+  await expect(chip('Luis · Claude Code')).toHaveText('Haiku 4.5')
+  await expect(chip('Davide · Grok')).toHaveText('Grok 4')
+  await expect(chip('Davide · Codex')).toHaveCount(0) // Codex reported no model: none is made up
+  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--model').trim())
+  const colours = await Promise.all(
+    ['Davide · Claude Code', 'Luis · Gemini CLI', 'Luis · Claude Code', 'Davide · Grok'].map(colour),
+  )
+  expect(new Set(colours).size, 'four families, four colours').toBe(4)
+  const neutral = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--text-3').trim(),
+  )
+  expect(colours, 'a known family is never the neutral grey').not.toContain(neutral)
+  await open(page, 'Davide · Claude Code')
+  await expect(
+    sheet(page, 'Davide · Claude Code').getByRole('listitem').filter({ hasText: 'reviewer' }).locator('.model-chip'),
+  ).toHaveText('Sonnet 5.5')
+})
+
+test('each tile carries its tool’s colour along its top', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  const rim = (name: string) => tile(page, name).evaluate((t) => getComputedStyle(t).boxShadow)
+  const rims = await Promise.all(['Davide · Codex', 'Davide · Claude Code', 'Luis · Gemini CLI'].map(rim))
+  expect(new Set(rims).size).toBe(3)
+  expect(rims[0]).toMatch(/inset/)
+})
+
+test('a window’s readings over time, in its sheet: one window, since its reset', async ({ page }) => {
+  await page.goto(PAGE)
+  await open(page, 'Davide · Claude Code')
+  const claude = capacity(page, 'Davide · Claude Code')
+  const history = claude.getByRole('img', { name: '5-hour window: 19% to 63% used, since 3 h ago' })
+  await expect(history.first()).toBeVisible() // under the headline's meter
+  await expect(history.first().locator('figcaption')).toHaveText('6 readings · since 3 h ago')
+  await claude.getByRole('button', { name: 'All 3 windows' }).click()
+  await expect(history).toHaveCount(2) // and with its window
+  await expect(claude.getByRole('img', { name: /^7-day/ })).toHaveCount(0) // its reset is due: no history drawn
+  await page.keyboard.press('Escape')
+  await open(page, 'Luis · Claude Code') // only the latest reading, and an unknown one: nothing to draw
+  await expect(capacity(page, 'Luis · Claude Code').locator('.capacity-history')).toHaveCount(0)
 })
 
 test('the viewer’s own resource says so', async ({ page }) => {
