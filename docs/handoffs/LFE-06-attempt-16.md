@@ -42,6 +42,11 @@
   A first mutation, "the focus lost when its tile moves", survived. The focus call was redundant: React moves the same element, which keeps the focus. The call was removed, and the check now asserts what matters, the Tab stop.
 - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass. `pnpm test`: 600 pass, plus the 5 known Windows failures.
 
+## Every LFE-06 mutation, together
+
+- All 120 mutations from attempts 5 to 16 were run against the top of the stack, each on a fresh fixture server. 119 failed their check.
+- The one that didn't was attempt 8's "an address naming no resource is taken as one". Its check navigated to `#resource-nobody` from the same page, and a change of fragment alone doesn't reload it, so nothing was opened either way. The check now loads the page afresh, and the mutation fails it: 120 of 120.
+
 ## Next bounded action
 
-- Every LFE-06 mutation, run together against the top of the stack. Then Luis's approval and the merges.
+- Luis's approval and the merges, #51 to #60, each with no P1.

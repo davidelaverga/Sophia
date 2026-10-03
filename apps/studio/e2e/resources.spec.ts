@@ -405,7 +405,9 @@ test('a resource’s sheet has its own address, to share; the address opens it',
   await expect(sheet(page, 'Davide · Codex')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page).not.toHaveURL(/#/)
-  await page.goto(`${PAGE}#resource-nobody`) // an address naming no resource opens nothing
+  // A fresh load (a query the page ignores, so only the fragment's resource is new): an address naming none opens nothing.
+  await page.goto(`${PAGE}?fresh=1#resource-nobody`)
+  await expect(grid(page).getByRole('button')).toHaveCount(3)
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
