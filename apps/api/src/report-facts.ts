@@ -3,14 +3,9 @@
 // worker- or web-derived text, so they appear only as items of JSON arrays, at most HEADINGS per list and HEADING
 // code points each, with a marker that would open a Sophia or Project turn neutralized; the service's own sentence
 // carries counts only. Sections are compared as Studio and 0036 compare them (compareSections), recomputed from the
-// texts rather than read from stored facts, whose 0027-era sections can show phantom revisions.
-import type {
-  ReportVersion,
-  ReportVersionText,
-  ResearchVersions,
-  SectionCounts,
-  TaskStanding,
-} from '@sophia/persistence'
+// texts rather than read from stored facts, whose 0027-era sections can show phantom revisions. read_selected_source
+// and project_status tell one comparison (comparedVersions), so the two never give different counts for a version.
+import type { ReportVersion, ReportVersionText, ResearchVersions } from '@sophia/persistence'
 import { compareSections, parseMarkdown, sectionsOf, type Block, type SectionChange } from '@sophia/report/markdown'
 
 /** At most this many headings in one list, each at most HEADING code points; the counts stay exact. */
@@ -50,6 +45,14 @@ const countTables = (blocks: readonly Block[]): number =>
 const tablesIn = (text: string): number => countTables(parseMarkdown(text).blocks)
 
 const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`
+
+/** A version's section counts against the version before it. */
+interface SectionCounts {
+  added: number
+  revised: number
+  removed: number
+  unchanged: number
+}
 
 /** The counts one version's facts are told by: sections against the version before, tables, citations. */
 interface Counts {
@@ -111,7 +114,7 @@ const isLatest = (own: ReportVersion | null, current: ReportVersion | null) =>
 const textOf = (v: ReportVersionText | null): string | null => v?.text ?? null
 
 /** Each text's table count, parsed once however many of the versions share it. */
-function tableCounter() {
+export function tableCounter() {
   const seen = new Map<string, number>()
   return (v: ReportVersionText | null): number | null => {
     const text = textOf(v)
@@ -147,24 +150,34 @@ const versionFields = ({ own, previous, current }: ResearchVersions) => ({
 })
 
 /**
- * read_selected_source's facts for a research task: its version, the one it replaced, the report's current content
- * version and how each compares, from the texts and the stored citation counts.
+ * What this task's version changed against the one it replaced, compared from both texts, and the sentence of counts
+ * that says it: the one comparison both readers tell.
  */
-export function reportOf(v: ResearchVersions) {
-  const { own, previous, current, first } = v
+function comparedVersions(v: ResearchVersions, tables: ReturnType<typeof tableCounter>) {
+  const { own, previous, current } = v
   const change = compared(previous, own)
-  const since = current?.versionNumber === 1 ? null : compared(first, current)
-  const tables = tableCounter()
   const [before, after] = [tables(previous), tables(own)]
-  const currentText = textOf(current)
   const counts: Counts = {
     sections: change && countsOf(change),
     tables: before === null || after === null ? null : { before, after },
   }
+  return { change, before, after, changes: changesOf(own, previous, current, counts) }
+}
+
+/**
+ * read_selected_source's facts for a research task: its version, the one it replaced, the report's current content
+ * version and how each compares, from the texts and the stored citation counts.
+ */
+export function reportOf(v: ResearchVersions) {
+  const { own, current, first } = v
+  const since = current?.versionNumber === 1 ? null : compared(first, current)
+  const tables = tableCounter()
+  const { change, before, after, changes } = comparedVersions(v, tables)
+  const currentText = textOf(current)
   return {
     computedBy: 'service',
     ...versionFields(v),
-    changes: changesOf(own, previous, current, counts),
+    changes,
     sections: change && sectionLists(change),
     currentSections: currentText === null ? null : listOf(headingsOf(currentText)),
     sinceFirstVersion: since && sectionLists(since),
@@ -174,13 +187,16 @@ export function reportOf(v: ResearchVersions) {
   }
 }
 
-/** project_status's facts for a research task's row: from the stored counts alone, no text is parsed. */
-export function statusReportOf(s: TaskStanding) {
-  const { published, previous, current } = s
+/**
+ * project_status's facts for a research task's row: read_selected_source's own sentence of counts (comparedVersions),
+ * from the same texts. `tables` counts each text once across the rows of one status.
+ */
+export function statusReportOf(v: ResearchVersions, tables = tableCounter()) {
+  const { own, current } = v
   return {
-    version: published?.versionNumber ?? null,
-    latest: isLatest(published, current),
+    version: own?.versionNumber ?? null,
+    latest: isLatest(own, current),
     currentVersion: current?.versionNumber ?? null,
-    changes: changesOf(published, previous, current, { sections: published?.sections ?? null, tables: null }),
+    changes: comparedVersions(v, tables).changes,
   }
 }

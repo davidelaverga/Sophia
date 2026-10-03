@@ -26,7 +26,6 @@ const v = (n: number): ReportVersion => ({
   cited: 1,
   added: 1,
   dropped: 0,
-  sections: null,
 })
 
 /** One task, under way unless `over` says otherwise; its goal has nothing else under way unless `over` adds it. */

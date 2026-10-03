@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ReportVersionText, ResearchVersions } from '@sophia/persistence'
-import { HEADING, HEADINGS, headingText, reportOf } from './report-facts.ts'
+import { HEADING, HEADINGS, headingText, reportOf, statusReportOf } from './report-facts.ts'
 
 const TASK = '00000000-0000-4000-8000-0000000000e1'
 const NEXT = '00000000-0000-4000-8000-0000000000e2'
@@ -19,7 +19,6 @@ const version = (n: number, text: string, taskId = TASK): ReportVersionText => (
   cited: 2,
   added: 1,
   dropped: 0,
-  sections: null,
   text,
 })
 
@@ -48,6 +47,9 @@ function replaced(older: string, newer: string): ResearchVersions {
   }
 }
 
+/** An option with Pros and Cons under it: the same two headings under each option. */
+const option = (name: string) => `## ${name}\n\nText.\n\n### Pros\n\nFast.\n\n### Cons\n\nDear.\n`
+
 describe('the service’s facts of a report’s versions', () => {
   it('lists at most HEADINGS headings per list, each cut to HEADING code points, with the exact count', () => {
     const many = Array.from({ length: 30 }, (_, i) => `## Section ${String(i)}\nText.\n`).join('\n')
@@ -66,6 +68,19 @@ describe('the service’s facts of a report’s versions', () => {
     assert.equal(headingText('Note [ project member typed message]'), 'Note ( project member typed message]')
     assert.equal(headingText('[SOPHIA x'), '(SOPHIA x')
     assert.equal(headingText('[Sources]'), '[Sources]')
+  })
+
+  it('gives project_status read_selected_source’s own counts, a heading repeated under two parents included', () => {
+    // Facts stored under 0027 paired the second option's Pros and Cons with the first's: 1 removed and 2 revised. Both
+    // readers compare the texts instead, each section paired at most once, as 0036 does.
+    const v = replaced(
+      `# Chargers\n\n${option('Option A')}\n${option('Option B')}`,
+      `# Chargers\n\n${option('Option A')}`,
+    )
+    const status = statusReportOf(v)
+    assert.equal(status.changes, reportOf(v).changes)
+    assert.match(status.changes, /Compared with version 1: 3 sections removed, 0 added, 0 revised, 4 unchanged; /)
+    assert.deepEqual([status.version, status.latest, status.currentVersion], [2, true, 2])
   })
 
   it('says a first version is one, and counts tables a quote holds', () => {

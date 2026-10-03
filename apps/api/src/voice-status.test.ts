@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MissionContext } from '@sophia/contracts'
-import type { ReportVersion, TaskStanding } from '@sophia/persistence'
+import type { ReportVersionText, ResearchVersions, TaskStanding } from '@sophia/persistence'
 import { voiceStatus, type VoiceStatusInput } from './voice-status.ts'
 
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
@@ -146,8 +146,15 @@ const FOLLOW = '00000000-0000-4000-8000-0000000000b2'
 const BRIEF = '00000000-0000-4000-8000-0000000000b3'
 const TITLE = 'Research: Which phone chargers are worth it?'
 
-/** A published version, as readTaskStandings reads it; its counts are what publication stored. */
-const version = (n: number, taskId: string, extra: Partial<ReportVersion> = {}): ReportVersion => ({
+/** A first version: a title over seven sections, one of them a table. */
+const V1_TEXT = `${[
+  '# Phone chargers',
+  ...['Summary', 'Standards', 'Speed', 'Claims', 'Prices', 'Advice'].map((h) => `## ${h}\n\nText.`),
+  '## Table\n\n| a | b |\n| --- | --- |\n| 1 | 2 |',
+].join('\n\n')}\n`
+
+/** A published version with its text, as readResearchVersions reads it; its citation counts are what was stored. */
+const version = (n: number, taskId: string, extra: Partial<ReportVersionText> = {}): ReportVersionText => ({
   id: `00000000-0000-4000-8000-0000000000c${String(n)}`,
   versionNumber: n,
   parentId: null,
@@ -158,7 +165,7 @@ const version = (n: number, taskId: string, extra: Partial<ReportVersion> = {}):
   cited: 5,
   added: 5,
   dropped: 0,
-  sections: { added: 8, revised: 0, removed: 0, unchanged: 0 },
+  text: V1_TEXT,
   ...extra,
 })
 
@@ -168,35 +175,46 @@ type Own = Pick<TaskStanding, 'state' | 'phase'>
 
 /**
  * A finished root (version 1) and its follow-up sharing one goal (0025), the follow-up having published `v2` if given,
- * and a finished brief on a goal of its own.
+ * and a finished brief on a goal of its own; each with the versions read_selected_source would compare.
  */
-function lineage(goalStatus: string, follow: Own, v2: ReportVersion | null = null) {
+function lineage(goalStatus: string, follow: Own, v2: ReportVersionText | null = null) {
   const rootPhase = goalStatus === 'held' ? 'held' : 'result_ready'
   const inFlight = ['pending', 'running'].includes(follow.state) ? [{ taskId: FOLLOW, ...follow }] : []
-  const research = (taskId: string, own: Own, published: ReportVersion | null): TaskStanding => ({
-    taskId,
-    kind: 'research',
-    goalId: GOAL,
-    goalStatus,
-    ...own,
-    published,
-    previous: published === v2 && v2 !== null ? V1 : null,
-    current: v2 ?? V1,
-    latestTaskId: FOLLOW,
-    inFlight,
-  })
-  const brief: TaskStanding = {
-    taskId: BRIEF,
-    kind: 'draft_brief',
-    goalId: BRIEF,
-    goalStatus: 'completed',
-    state: 'succeeded',
-    phase: 'result_ready',
-    published: null,
+  const research = (taskId: string, own: Own, published: ReportVersionText | null): ResearchVersions => {
+    const previous = published === v2 && v2 !== null ? V1 : null
+    const current = v2 ?? V1
+    const standing: TaskStanding = {
+      taskId,
+      kind: 'research',
+      goalId: GOAL,
+      goalStatus,
+      ...own,
+      published,
+      previous,
+      current,
+      latestTaskId: FOLLOW,
+      inFlight,
+    }
+    return { standing, own: published, previous, current, first: V1 }
+  }
+  const brief: ResearchVersions = {
+    standing: {
+      taskId: BRIEF,
+      kind: 'draft_brief',
+      goalId: BRIEF,
+      goalStatus: 'completed',
+      state: 'succeeded',
+      phase: 'result_ready',
+      published: null,
+      previous: null,
+      current: null,
+      latestTaskId: null,
+      inFlight: [],
+    },
+    own: null,
     previous: null,
     current: null,
-    latestTaskId: null,
-    inFlight: [],
+    first: null,
   }
   const row = (taskId: string, phase: string) => ({ goalId: GOAL, title: TITLE, status: goalStatus, taskId, phase })
   return {
@@ -212,14 +230,14 @@ function lineage(goalStatus: string, follow: Own, v2: ReportVersion | null = nul
         kind: 'draft_brief' as const,
       },
     ],
-    standings: [research(ROOT, { state: 'succeeded', phase: rootPhase }, V1), research(FOLLOW, follow, v2), brief],
+    tasks: [research(ROOT, { state: 'succeeded', phase: rootPhase }, V1), research(FOLLOW, follow, v2), brief],
   }
 }
 
-/** project_status for an editor, with this work and these standings. */
+/** project_status for an editor, with this work and these tasks read. */
 function statusOf(
   guide: VoiceStatusInput['guide'],
-  { work, standings }: { work: MissionContext['work']; standings?: TaskStanding[] },
+  { work, tasks }: { work: MissionContext['work']; tasks?: ResearchVersions[] },
 ) {
   return voiceStatus({
     context: { ...missionContext('editor'), work },
@@ -228,7 +246,7 @@ function statusOf(
     target: null,
     now: Date.parse(AT),
     guide,
-    standings,
+    tasks,
   })
 }
 
@@ -296,7 +314,7 @@ describe('project_status’s work: each task’s own state, Steer and its report
       cited: 1,
       added: 1,
       dropped: 5,
-      sections: { added: 2, revised: 0, removed: 7, unchanged: 1 },
+      text: '# Phone chargers\n\n## Updated advice\n\nText.\n\n## Sources\n\nOne.\n',
     })
     const amended = statusOf('v1.2', lineage('completed', { state: 'succeeded', phase: 'result_ready' }, v2)).work
     const [root, follow] = amended.map((w) => ('report' in w ? w.report : null))
@@ -306,7 +324,7 @@ describe('project_status’s work: each task’s own state, Steer and its report
       currentVersion: 2,
       changes:
         'Version 2 replaced version 1. Compared with version 1: 7 sections removed, 2 added, 0 revised, 1 unchanged; ' +
-        '1 source cited (1 added, 5 dropped). This is the latest version.',
+        'tables 1 → 0; 1 source cited (1 added, 5 dropped). This is the latest version.',
     })
     assert.deepEqual(root, {
       version: 1,
@@ -316,7 +334,7 @@ describe('project_status’s work: each task’s own state, Steer and its report
     })
   })
 
-  it('gives a v1.1 guide the work exactly as before, standings or not', () => {
+  it('gives a v1.1 guide the work exactly as before, tasks read or not', () => {
     const shared = lineage('ready', { state: 'pending', phase: 'queued' })
     for (const guide of ['v1.1', undefined] as const) {
       const today = statusOf(guide, { work: shared.work })

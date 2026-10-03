@@ -938,6 +938,9 @@ The worker wrote this heading.
 One search.
 `
 
+/** An option with Pros and Cons under it: the same two headings under each option. */
+const option = (name: string, line: string) => `## ${name}\n${line}\n\n### Pros\nFast.\n\n### Cons\nDear.\n`
+
 /** The worker's claim in CX-0026, as a result summary: false against the facts. */
 const FALSE_SUMMARY = 'Revised the recommendations; the comparison table and every other section are retained.'
 
@@ -1219,6 +1222,37 @@ describe('read_selected_source on research: the worker’s summary, and the serv
       [null, false, 1, v1, null, null],
     )
     assert.equal(r.changes, `This task has published no version. The report is at version 1 (task ${v1}).`)
+  })
+
+  it('project_status and read_selected_source give one count for a version whose facts 0027 stored', async () => {
+    const w = await world()
+    const both = `# Chargers\nTwo options [CITE].\n\n${option('Option A', 'A.')}\n${option('Option B', 'B.')}`
+    const v1 = await researched(w, { text: both })
+    const onlyA = `# Chargers\nTwo options [CITE].\n\n${option('Option A', 'A.')}`
+    const v2 = await researched(w, { amends: v1, text: onlyA, notes: { changeNote: 'Removed Option B.' } })
+    // What 0027's section_facts stored for such a version: the second option's Pros and Cons paired with the first's.
+    const sections = {
+      added: [],
+      revised: ['Chargers', 'Pros', 'Cons'],
+      removed: ['Option B'],
+      unchanged: ['Option A', 'Pros', 'Cons'],
+      conclusionChanged: false,
+    }
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    await owner.query(
+      `UPDATE sophia.artifact_versions SET change_facts = change_facts || jsonb_build_object('sections', $3::jsonb)
+        WHERE project_id=$1 AND job_id=$2`,
+      [w.projectId, v2, JSON.stringify(sections)],
+    )
+    await owner.end()
+    const read = (await readTask(w, v2)).report.changes
+    assert.match(read, /Compared with version 1: 3 sections removed, 0 added, 1 revised, 3 unchanged; /)
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { changes: string }
+    }>
+    assert.equal(rows.find((r) => r.taskId === v2)?.report?.changes, read)
   })
 
   it('never counts the report’s own versions as sources added or dropped, as a follow-up that listed its base stored them', async () => {
