@@ -34,9 +34,12 @@
 -- runtime_research_submit (0031) is replaced with the same signature and grants, one line changed.
 BEGIN;
 
--- A heading's anchor, as markdown_sections (0027) computes it: lower case, punctuation dropped, spaces as hyphens.
+-- A heading's anchor, as markdown_sections (0027) computes it: lower case, punctuation dropped, spaces as hyphens; its
+-- spaces are JavaScript's, as Studio's anchorOf reads them (a byte order mark is one there, and was dropped here).
 CREATE FUNCTION sophia.heading_anchor(p_heading text) RETURNS text LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
- SELECT btrim(regexp_replace(regexp_replace(lower(p_heading),'[^[:alnum:][:space:]-]','','g'),'\s+','-','g'),'-') $$;
+ SELECT btrim(regexp_replace(regexp_replace(lower(p_heading),
+   '[^[:alnum:]\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff-]','','g'),
+   '[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+','-','g'),'-') $$;
 REVOKE ALL ON FUNCTION sophia.heading_anchor(text) FROM PUBLIC;
 
 -- A Markdown text as sections, split as markdown_sections (0027) splits it, each with its heading path: '' for the text

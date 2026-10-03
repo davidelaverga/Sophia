@@ -25,6 +25,10 @@ BEGIN
     <>'{"added":[],"revised":[],"removed":[],"unchanged":["Hosts"],"conclusionChanged":false}'
    OR sophia.section_facts(E'# Hosts\nA.\n',chr(160)||E'\n# Hosts\nA.\n')->'added'<>'[]' THEN
   RAISE EXCEPTION 'A blank introduction of JavaScript whitespace made a section'; END IF;
+ -- An anchor reads those spaces as Studio's anchorOf does: a byte order mark or a no-break space joins words with '-'.
+ IF sophia.heading_anchor('Fast'||chr(65279)||'hosts'||chr(160)||chr(160)||'2026')<>'fast-hosts-2026' THEN
+  RAISE EXCEPTION 'An anchor read JavaScript whitespace unlike Studio: %',
+   sophia.heading_anchor('Fast'||chr(65279)||'hosts'||chr(160)||chr(160)||'2026'); END IF;
  -- One heading line of spaces at the draft cap reads in well under a second (cutting its closing marks with a lazy
  -- match took minutes).
  started:=clock_timestamp();
@@ -265,9 +269,9 @@ BEGIN
   (pr,d1,format(E'# Hosts\n\nOurs [%s], the base [%s], more (input:%s#2).\n\nAsked as [%s] under [%s]; drafted [%s] and [%s]; '
    ||'never [%s], [%s] or [%s].',upper(inp::text),base,inp3,q,man,d0,d1,gone,stray,other_src)),
   (pr,d2,(SELECT string_agg(format('[%s]',x),' ' ORDER BY i) FROM unnest(many) WITH ORDINALITY u(x,i)));
- -- The manifest draws on the inputs, the 205 among them.
+ -- The manifest draws on the inputs, the 205 among them; gone (no longer eligible) and stray are no input of it.
  INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id)
-  SELECT pr,x,man FROM unnest(ARRAY[inp,gone,inp2,inp3]||many) x;
+  SELECT pr,x,man FROM unnest(ARRAY[inp,inp2,inp3]||many) x;
  INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES
   (pr,att,1,'d0',d0,repeat('0',64)),(pr,att,2,'d1',d1,repeat('1',64));
  s:=ROW(pr,NULL,NULL,att,'sess',g,NULL,NULL,who,NULL,man,q)::sophia.research_scope;
@@ -319,10 +323,15 @@ BEGIN
   (SELECT jsonb_agg('X'::text) FROM generate_series(1,200))||to_jsonb(many[1:1]));
  IF r->'citations'<>'[]' THEN RAISE EXCEPTION 'A candidate past the 200th was read: %',r; END IF;
  -- The earlier drafts, one that cites nothing, are named here and offered, and are still never added.
- UPDATE sophia.source_texts SET body=format('[%s] [%s] [%s]',d0,d1,many[1]) WHERE project_id=pr AND source_id=d2;
+ UPDATE sophia.source_texts SET body=format('[%s] [%s] [%s] [%s]',d0,d1,many[1],many[2]) WHERE project_id=pr AND source_id=d2;
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb),
   jsonb_build_array(d0,d1,d2,many[1]));
  IF r->'citations'<>jsonb_build_array(many[1]) THEN RAISE EXCEPTION 'A draft of the task was added: %',r; END IF;
+ -- An input withdrawn since (no longer eligible) is no longer added; the others still are.
+ UPDATE sophia.source_objects SET eligible=false WHERE project_id=pr AND id=many[1];
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb),
+  jsonb_build_array(many[1],many[2]));
+ IF r->'citations'<>jsonb_build_array(many[2]) THEN RAISE EXCEPTION 'A withdrawn input was added: %',r; END IF;
 END $$;
 -- Grants mirror 0027: nothing here is callable by PUBLIC, the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.

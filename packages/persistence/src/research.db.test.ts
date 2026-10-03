@@ -1312,9 +1312,9 @@ describe('research submission (0026)', () => {
           }
         },
       })
-    const v = await service((c) =>
-      runtimeResearchSubmit(refusingPages(c), w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
-    )
+    // Ids the caller names beside the result are never taken for the draft's (the API's schema refuses them first).
+    const request = { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]), draftCitations: [b.sourceId] }
+    const v = await service((c) => runtimeResearchSubmit(refusingPages(c), w.who, request))
     assert.equal(v.outcome, 'published')
     const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
     assert.deepEqual(
@@ -1601,11 +1601,32 @@ describe('report facts, each section once (0036)', () => {
   it('splits a text into the sections Studio reads, with their headings, anchors, paths and bodies', async () => {
     // Generated texts of the characters a split turns on: '#'s, spaces, tabs, a no-break space, a byte order mark,
     // line and paragraph separators, CRs, fences.
-    const alphabet = ['#', '#', '##', ' ', ' ', '\t', '\n', '\n', 'a', 'B', ' ', '﻿', ' ', '\r', '```', '~~~']
+    const alphabet = [
+      '#',
+      '#',
+      '##',
+      ' ',
+      ' ',
+      '\t',
+      '\n',
+      '\n',
+      'a',
+      'B',
+      'é',
+      '-',
+      '2',
+      '.',
+      '\u00A0',
+      '\uFEFF',
+      '\u2028',
+      '\r',
+      '```',
+      '~~~',
+    ]
     let seed = 7
     const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648)
-    const texts = Array.from({ length: 400 }, () =>
-      Array.from({ length: 48 }, () => alphabet[next() % alphabet.length]).join(''),
+    const texts = Array.from({ length: 1500 }, () =>
+      Array.from({ length: 48 }, () => alphabet[(next() >>> 16) % alphabet.length]).join(''),
     )
     const { rows } = await owner((c) =>
       c.query<{ t: number; outline: unknown }>(
