@@ -64,6 +64,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 15** ([handoff](../handoffs/LFE-06-attempt-15.md)): the windows, each said once: the list holds only the windows the headline doesn't ("2 more windows"), and no toggle when nothing is left.
 - **Attempt 16** ([handoff](../handoffs/LFE-06-attempt-16.md)): arranging the tiles by hand: drag one onto another, or Alt and an arrow; a Custom order kept per viewer.
 - **Attempt 17** ([handoff](../handoffs/LFE-06-attempt-17.md)): Codex's twelve P2s across #53 to #60, fixed together (history by `window_epoch`, model names kept whole, GPT alive only at Ultra, the history's own span, flashes for every change, nothing said while reading, the phone sheet's head, the Tab stop after a drag).
+- **Attempt 18** ([handoff](../handoffs/LFE-06-attempt-18.md)): choosing a session's effort: its owner opens the bar into a scale in its tool's look, previews it, and sets it for its next run (or restarts, confirmed); only the levels its tool says it takes.
 
 ## Acceptance cases
 

@@ -1,7 +1,7 @@
 // One resource up close, in the app's sheet (as Invite opens): its host, each session with what it reported and what
 // it works on, its account's capacity window by window, the controls its route supports (shown, not offered: they
 // come with LFE-06.4) and the requests waiting on its owner. Esc or Close returns to the tile it was opened from.
-import { Fragment, useRef } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
 import { useDialog } from '../../app/useDialog.ts'
 import { CapacityBlock } from './CapacityBlock.tsx'
@@ -20,6 +20,8 @@ import {
 } from './resource.ts'
 import { CopyLink } from './CopyLink.tsx'
 import { EffortMeter } from './EffortMeter.tsx'
+import { changeLine, currentLevel, levelName, type ChangeLine, type EffortAsk } from './change.ts'
+import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
@@ -51,14 +53,119 @@ function Since({ at, now }: { at: string | null; now: Date }) {
   )
 }
 
-function SessionRow({ session, tool }: { session: Session; tool: Resource['tool'] }) {
+/** The owner's way to a session's effort: its bar, which opens the picker; a request waits beside it, with Undo. */
+export interface EffortControl {
+  asked: Record<string, EffortAsk | undefined>
+  set: (sessionId: string, ask: EffortAsk) => void
+  undo: (sessionId: string) => void
+  /** Lets a request go once what the session runs is what was asked. */
+  settle: (sessionId: string) => void
+}
+
+/** How long "Now on Low" stays once the change is done. */
+const SETTLED_MS = 4000
+
+/** The line beside the bar: a request, with Undo while it is still its owner's; then each step its runtime reports. */
+function ChangeNote({ line, onUndo }: { line: ChangeLine; onUndo: () => void }) {
+  return (
+    <span className="effort-asked" role="status" data-tone={line.tone}>
+      <span className="effort-asked-dot" aria-hidden />
+      {line.text}
+      {line.tone === 'asked' && (
+        <button type="button" className="text-button" onClick={onUndo}>
+          Undo
+        </button>
+      )}
+    </span>
+  )
+}
+
+/** Once what it runs is what was asked, the request is done: said for a moment, then let go. */
+function useSettled(done: boolean, settle: ((sessionId: string) => void) | undefined, sessionId: string) {
+  useEffect(() => {
+    if (!done || !settle) return undefined
+    const t = setTimeout(() => settle(sessionId), SETTLED_MS)
+    return () => clearTimeout(t)
+  }, [done, settle, sessionId])
+}
+
+function Effort({
+  session,
+  tool,
+  control,
+}: {
+  session: Session
+  tool: Resource['tool']
+  control?: EffortControl | undefined
+}) {
+  const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  // Closing the scale (set, cancelled or Escape) hands the focus back to its bar, so the sheet's keys keep working.
+  const close = () => {
+    button.current?.focus()
+    setOpen(false)
+  }
+  const levels = session.efforts ?? []
+  const line = changeLine(session, control?.asked[session.id])
+  useSettled(line?.tone === 'done', control?.settle, session.id)
+  const shown = session.effort ? <EffortMeter effort={session.effort} tool={tool} mode={session.mode} /> : null
+  const note = line && <ChangeNote line={line} onUndo={() => control?.undo(session.id)} />
+  if (!control || levels.length === 0) {
+    return (
+      <>
+        {shown}
+        {note}
+      </>
+    )
+  }
+  const now = currentLevel(session)
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className="effort-button has-tip"
+        aria-expanded={open}
+        aria-label={`Effort: ${now ? levelName(now) : 'not reported'}. Change it`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {shown ?? <span className="effort-set">Set effort</span>}
+        <Icon name="chevron" />
+        <Tip label="Choose its effort" side="top" />
+      </button>
+      {note}
+      {open && (
+        <EffortPicker
+          session={session}
+          tool={tool}
+          levels={levels}
+          onSet={(next) => {
+            control.set(session.id, next)
+            close()
+          }}
+          onCancel={close}
+        />
+      )}
+    </>
+  )
+}
+
+function SessionRow({
+  session,
+  tool,
+  control,
+}: {
+  session: Session
+  tool: Resource['tool']
+  control?: EffortControl | undefined
+}) {
   const work = session.assignment
   return (
     <li className="resource-session">
       <span className="resource-role">{session.role}</span>
       <span className="resource-model">
         {session.model ? <ModelChip model={session.model} /> : 'Model not reported'}
-        {session.effort && <EffortMeter effort={session.effort} tool={tool} mode={session.mode} />}
+        <Effort session={session} tool={tool} control={control} />
       </span>
       {work ? (
         <span className="resource-work">
@@ -169,10 +276,26 @@ interface Props {
   onClose: () => void
   /** Steps to the previous or next resource; absent when there is only this one. */
   onStep?: ((by: 1 | -1) => void) | undefined
+  /** Its owner's way to choose each session's effort; absent where none can be asked for. */
+  effort?: EffortControl | undefined
+}
+
+/** Each session: its role, model, effort (its owner can choose it) and what it works on. */
+function Sessions({ resource, control }: { resource: Resource; control?: EffortControl | undefined }) {
+  return (
+    <section className="sheet-section" aria-labelledby="sessions-title">
+      <h3 id="sessions-title">Sessions</h3>
+      <ul className="resource-sessions" aria-label="Sessions">
+        {resource.sessions.map((s) => (
+          <SessionRow key={s.id} session={s} tool={resource.tool} control={control} />
+        ))}
+      </ul>
+    </section>
+  )
 }
 
 export function ResourceSheet(props: Props) {
-  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep } = props
+  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort } = props
   const panel = useRef<HTMLDivElement>(null)
   useDialog(panel, onClose)
   // A step turns the page: the control pressed may go with it, so the focus stays in the sheet, where J and K work.
@@ -205,14 +328,7 @@ export function ResourceSheet(props: Props) {
             Host {HOST[host.state]} · <Since at={host.observedAt} now={now} />
           </p>
           <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
-          <section className="sheet-section" aria-labelledby="sessions-title">
-            <h3 id="sessions-title">Sessions</h3>
-            <ul className="resource-sessions" aria-label="Sessions">
-              {resource.sessions.map((s) => (
-                <SessionRow key={s.id} session={s} tool={resource.tool} />
-              ))}
-            </ul>
-          </section>
+          <Sessions resource={resource} control={resource.owner.id === viewerId ? effort : undefined} />
           <section className="sheet-section" aria-labelledby="capacity-title">
             <h3 id="capacity-title">Capacity</h3>
             <CapacityBlock

@@ -188,12 +188,61 @@
 }
 
 /* The tiles' order, at the toolbar's end. */
+/* Its field blurs what is behind it, which makes it its own layer: lifted, so its menu opens over the tiles, and still
+   under the sticky top bar (20) as the page scrolls. */
 .field.resource-sort {
+  position: relative;
+  z-index: 12;
   flex: none;
   width: auto;
   margin-left: auto;
   align-items: center;
-  padding: 0 4px 0 10px;
+  padding: 0;
+}
+.resource-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+}
+.resource-sort-button:hover,
+.resource-sort-button[aria-expanded='true'] {
+  background: rgba(236, 235, 241, 0.04);
+}
+.resource-sort-button .icon {
+  color: var(--text-3);
+  transition: transform var(--fast) var(--ease);
+}
+.resource-sort-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+/* Its menu: the account menu's plane, under the button's end; the order in use marked with the app's lavender dot. */
+.resource-sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 100%;
+  padding: 6px;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line-2);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  animation: arrive var(--base) var(--ease) both;
+}
+.resource-sort-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
 }
 .resource-sort-label {
   font-family: var(--mono);
@@ -202,12 +251,6 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-3);
-}
-.resource-sort select {
-  height: 30px;
-  padding: 0 6px;
-  font-size: 13px;
-  color: var(--text);
 }
 
 /* A model as people say it, in its family's colour (models.ts). */
@@ -357,19 +400,25 @@
 .effort[data-look='claude'][data-alive] .effort-label {
   color: #b3a3f5;
 }
-/* Claude: a scale of dots, grey turning lavender; at max a glint runs along them and a few dots twinkle. */
-.effort[data-look='claude'] .effort-track {
+/* Below its top, each tool's bar is plain, as its own picker is: a quiet track, a fill, a mark at each stop. Its own
+   look is kept for its top alone: Claude's lavender dots and their glint in ultracode, GPT's violet gradient and its
+   sparks at ultra. */
+.effort[data-look='claude'] .effort-fill {
+  background: rgba(236, 235, 241, 0.32);
+}
+.effort[data-look='gpt'] .effort-fill {
+  background: #3b7cf6;
+}
+/* Claude in ultracode: a scale of lavender dots, a glint running along them, a few twinkling. */
+.effort[data-look='claude'][data-alive] .effort-track {
   background:
     radial-gradient(circle, rgba(236, 235, 241, 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
     rgba(236, 235, 241, 0.02);
 }
-.effort[data-look='claude'] .effort-fill {
-  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3), #b3a3f5);
-  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
-  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
-}
 .effort[data-look='claude'][data-alive] .effort-fill {
   background: linear-gradient(90deg, rgba(236, 235, 241, 0.3) 0%, #b3a3f5 38%, #f4f0ff 50%, #b3a3f5 62%) 0 0 / 250% 100%;
+  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   animation: effort-glint 2.6s linear infinite;
 }
 .effort[data-look='claude'][data-alive] .effort-track::after {
@@ -382,8 +431,8 @@
     radial-gradient(circle at 86% 25%, #e4dcff 0.9px, transparent 1.4px);
   animation: effort-twinkle 1.8s ease-in-out infinite alternate;
 }
-/* GPT: a gradient from deep blue to violet; at ultra, sparks drift along it. */
-.effort[data-look='gpt'] .effort-fill {
+/* GPT at ultra: a gradient from deep blue to violet, sparks drifting along it. */
+.effort[data-look='gpt'][data-alive] .effort-fill {
   background: linear-gradient(90deg, #2f4fd6, #7b61ff 60%, #b08cff);
 }
 .effort[data-look='gpt'][data-alive] .effort-fill::after {
@@ -399,6 +448,32 @@
   animation:
     effort-sparks 4s linear infinite,
     effort-twinkle 1.4s ease-in-out infinite alternate;
+}
+/* The picker's stops: a small mark at each level, as each tool's own picker has; gone where its top look takes over. */
+.effort-stop {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(236, 235, 241, 0.35);
+  pointer-events: none;
+}
+.effort-scale[data-alive] .effort-stop {
+  opacity: 0;
+}
+/* Claude's knob is a rounded square, GPT's a circle, as in their own pickers. */
+.effort-scale[data-look='claude'] .effort-knob {
+  width: 16px;
+  height: 20px;
+  margin: -10px 0 0 -8px;
+  border-radius: 6px;
+}
+.effort-scale[data-look='gpt'] .effort-knob {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
 }
 @keyframes effort-glint {
   from {
@@ -423,6 +498,169 @@
   to {
     background-position: 100% 0;
   }
+}
+
+/* Choosing a session's effort (EffortPicker): its bar is the way in; it opens into a scale in the tool's own look, from
+   Faster to Smarter, with a knob on the chosen level. A request waits beside the bar, apart from what runs, with Undo. */
+.effort-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.effort-button:hover {
+  background: rgba(236, 235, 241, 0.05);
+}
+.effort-button .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--text-3);
+  transition: transform var(--fast) var(--ease);
+}
+.effort-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+/* In the session's column: its dot under the model chip's and the work tag's, its text where theirs starts, as tall as
+   the chip, and as far from the tag below as from the chip above. */
+.effort-asked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  margin-bottom: 2px;
+  padding-left: 6px;
+  color: var(--text-2);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.effort-asked-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b3a3f5;
+  box-shadow: 0 0 0 3px rgba(179, 163, 245, 0.15);
+}
+/* The runtime on it: the dot breathes. Done: teal. A stop not confirmed: amber, still. */
+.effort-asked[data-tone='moving'] .effort-asked-dot {
+  animation: effort-breathe 1.2s ease-in-out infinite alternate;
+}
+.effort-asked[data-tone='done'] {
+  color: var(--teal);
+}
+.effort-asked[data-tone='done'] .effort-asked-dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.15);
+}
+.effort-asked[data-tone='warn'] {
+  color: var(--amber);
+}
+.effort-asked[data-tone='warn'] .effort-asked-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.15);
+}
+@keyframes effort-breathe {
+  to {
+    opacity: 0.35;
+    box-shadow: 0 0 0 5px rgba(179, 163, 245, 0.06);
+  }
+}
+.effort-asked .text-button {
+  font-size: 12.5px;
+}
+/* No effort reported yet: the bar's place says what it does, in words. */
+.effort-set {
+  color: var(--text-3);
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.effort-picker {
+  flex-basis: 100%;
+  font-family: var(--sans);
+  font-size: 13px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--tool-accent) 4%, var(--plane-2));
+  animation: arrive 0.25s var(--ease) both;
+}
+.effort-picker-level {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.effort-picker-now {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.effort-scale {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.effort-scale .effort-track {
+  width: 100%;
+  height: 12px;
+  overflow: visible;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+.effort-scale .effort-fill {
+  border-radius: 6px;
+  transition: width var(--fast) var(--ease);
+}
+.effort-scale .effort-track:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+}
+.effort-knob {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: left var(--fast) var(--ease);
+}
+.effort-picker-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* The app's own confirmation, at the picker's start: its button at rest, then what it does and the two answers. */
+/* A quiet button's words start on the picker's edge, under its sentence, as the text above them does. */
+.effort-picker > .ghost,
+.effort-picker .confirm > .ghost {
+  justify-self: start;
+  margin-left: -8px;
+}
+.effort-picker .confirm {
+  justify-content: flex-start;
+}
+.effort-picker .confirm-note {
+  flex-basis: 100%;
 }
 
 /* Nothing shown: said, with the ways back. */
@@ -1153,6 +1391,11 @@
   .effort[data-look][data-alive] .effort-fill,
   .effort[data-look][data-alive] .effort-fill::after,
   .effort[data-look][data-alive] .effort-track::after,
+  .effort-scale .effort-fill,
+  .effort-knob,
+  .effort-picker,
+  .effort-asked,
+  .effort-asked[data-tone='moving'] .effort-asked-dot,
   .resource-sheet-head .tool-logo {
     animation: none;
   }
@@ -1164,7 +1407,10 @@
   .resource-tile:active {
     transform: none;
   }
-  .capacity-toggle .icon {
+  .capacity-toggle .icon,
+  .effort-scale .effort-fill,
+  .effort-knob,
+  .effort-button .icon {
     transition: none;
   }
   .resources[data-ultra] .resource-grid::after {

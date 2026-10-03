@@ -472,6 +472,10 @@ when you change the room:
   are still.
   Tiles can be arranged by hand (`TileGrid.tsx`): dragged onto another, or
   moved with Alt and an arrow, into a Custom order kept per viewer.
+  A session's owner chooses its effort from its bar (`EffortPicker.tsx`):
+  only the levels its tool reports (`Session.efforts`), set for its next run
+  or, confirmed, by a restart; the panel's `onEffort` takes the request, and
+  each step its runtime reports (`Session.change`, `change.ts`) is said beside the bar.
 
 ## The personal space
 
