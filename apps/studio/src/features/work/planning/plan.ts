@@ -3,7 +3,7 @@
 // goal it serves, its next checkpoint, what it assumes and the decisions it reserves (06_LEAD_RECIPES §3 puts those
 // last two in the plan). Who does an item is found, not stored twice: the resource whose session has that work as its
 // assignment (LFE-06). Nothing here computes progress: no percentage, no timer.
-import { TOOL, type Resource, type Session } from '../../resources/resource.ts'
+import { ago, TOOL, type Resource, type Session } from '../../resources/resource.ts'
 
 export interface PlanItem {
   id: string
@@ -15,6 +15,11 @@ export interface PlanItem {
   assignee_kind: 'assignment' | 'human' | 'unassigned'
   assignee_id: string | null
   activation: { kind: 'immediate' | 'dependencies_satisfied' | 'candidate_ready'; producer_work_id: string | null }
+  /**
+   * How it ended, once it has (proposed for SCM-04): its run finished, or its result was checked. A finished run is not
+   * accepted work (07_STUDIO_VOICE_AND_ARTIFACTS): the two are said apart.
+   */
+  outcome?: { state: 'finished' | 'checked'; at: string } | null
 }
 
 /** A decision the plan reserves for someone: decision.v1's shape, with the question it asks (proposed). */
@@ -55,11 +60,13 @@ export interface Doer {
   resource: Resource | null
   /** The person behind it: the resource's owner, or who does it by hand. */
   person: Person | null
+  /** The session doing it, when one is. */
+  session: Session | null
   /** What its session reports of this work; null before it starts or when no session reports it. */
   state: NonNullable<Session['assignment']>['state'] | null
 }
 
-const UNASSIGNED: Doer = { name: 'Unassigned', role: null, resource: null, person: null, state: null }
+const UNASSIGNED: Doer = { name: 'Unassigned', role: null, resource: null, person: null, session: null, state: null }
 
 /** Who does an item: the resource whose session has it as its assignment, or the person named; else said unassigned. */
 export function whoDoes(item: PlanItem, resources: readonly Resource[], people: Record<string, Person>): Doer {
@@ -76,6 +83,7 @@ export function whoDoes(item: PlanItem, resources: readonly Resource[], people: 
         role: session.role,
         resource,
         person: resource.owner,
+        session,
         state: session.assignment?.state ?? null,
       }
     }
@@ -85,9 +93,9 @@ export function whoDoes(item: PlanItem, resources: readonly Resource[], people: 
 
 /**
  * Where an item stands, as one mark and a few words: waiting on its owner, working, queued, not started yet (and what
- * for), or free for someone to take. `rank` orders the plan by what moves: what waits on someone first.
+ * for), free for someone to take, or done: finished, then checked. `rank` orders the plan by what moves: what waits on someone first.
  */
-export type Mark = 'waiting' | 'working' | 'queued' | 'later' | 'free'
+export type Mark = 'waiting' | 'working' | 'queued' | 'later' | 'free' | 'finished' | 'checked'
 export interface Status {
   mark: Mark
   text: string
@@ -95,7 +103,7 @@ export interface Status {
 }
 
 /** The marks in the order they draw attention: what waits on someone first, what no one has last. */
-const MARKS: readonly Mark[] = ['waiting', 'working', 'queued', 'later', 'free']
+const MARKS: readonly Mark[] = ['waiting', 'working', 'queued', 'later', 'free', 'finished', 'checked']
 const at = (mark: Mark, text: string): Status => ({ mark, text, rank: MARKS.indexOf(mark) })
 
 /** The items an item waits on: its blockers, and the producer whose candidate it reviews. */
@@ -106,7 +114,24 @@ export const waitsOn = (item: PlanItem) => [
     : []),
 ]
 
+/** How a task hangs on another, in a few words: the build it reviews, or what it comes after. Null when it doesn't. */
+export function relation(item: PlanItem, plan: WorkPlan): string | null {
+  const purpose = (id: string) => plan.items.find((i) => i.id === id)?.purpose ?? 'other work'
+  const producer = item.activation.kind === 'candidate_ready' ? item.activation.producer_work_id : null
+  if (producer) return `Reviews ${purpose(producer)}`
+  if (item.blocked_by.length > 0) return `After ${item.blocked_by.map(purpose).join(' and ')}`
+  return null
+}
+
+/** Where a task stands once it has ended: checked, or finished and not checked yet. */
+const ended = (item: PlanItem): Status | null => {
+  if (item.outcome?.state === 'checked') return at('checked', 'Checked')
+  return item.outcome?.state === 'finished' ? at('finished', 'Finished, not checked yet') : null
+}
+
 export function status(item: PlanItem, doer: Doer, plan: WorkPlan): Status {
+  const done = ended(item)
+  if (done) return done
   if (doer.state === 'waiting') return at('waiting', `Waiting on ${doer.person?.name ?? 'its owner'}`)
   if (doer.state === 'running') return at('working', 'Working')
   if (doer.state) return at('queued', 'Queued')
@@ -142,9 +167,12 @@ export function planRows(plan: WorkPlan, resources: readonly Resource[], people:
     .flat()
 }
 
-/** How many items carry each mark, in the plan's order of attention; marks no item carries are left out. */
-export function tally(rows: readonly PlanRow[]): { mark: Mark; count: number }[] {
-  return MARKS.map((mark) => ({ mark, count: rows.filter((r) => r.status.mark === mark).length })).filter(
-    (t) => t.count > 0,
-  )
+/** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
+export function observedAgo(observed: string, now: Date): string {
+  const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(observed)) / 1000))
+  return seconds < 60 ? `${String(seconds)} s ago` : ago(observed, now)
 }
+
+/** How fresh an observation still is, from 1 when just made to 0 at `span` seconds old. */
+export const freshness = (observed: string, now: Date, span = 120) =>
+  Math.min(1, Math.max(0, 1 - (now.getTime() - Date.parse(observed)) / 1000 / span))

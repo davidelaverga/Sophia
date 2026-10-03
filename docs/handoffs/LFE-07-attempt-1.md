@@ -142,6 +142,34 @@ Luis asked for a strict evaluation, then for the fix, keeping the app's premium 
 
   `test:browser --repeat-each=2`: 174 of 174.
 
+## The board (Luis: "would you pay $20 for this?")
+
+After more strict rounds, the list became a board in Resources' language, and the list (`PlanView.tsx`) was removed.
+
+- **Goals:** one at a time, from a rail of goal cards (rail, search, arrows, drag, wheel).
+- **The goal:** two lines, with NEXT and the plan on the second.
+- **The bar:** lenses, a decision pill, and "While you were away" with Mark seen.
+- **The lanes:** four (In motion, Up next, Open, Done) of compact live tiles. A session's last report sits on its tile, with a freshness ring around the picture.
+- **Threads:** edge-to-edge threads to what a task waits on.
+- **The sheet:** a task's own sheet, with Waits on / Waited on by, Act on it (guidance, Hold, Stop, said step by step), Ask Sophia, and J/K.
+- **Keys:** across the board.
+
+The pull request lists what each part shows, and the endpoints and fields it needs from the backend.
+
+- **Measured:** the first task starts at 387 px (near 600 px before).
+- **Checked:**
+  - 19 browser checks; the suite passes 186 of 186 twice;
+  - 14 unit checks;
+  - 19 mutations, each making its check fail.
+- **Found and fixed along the way:**
+  - a sheet held inside a moving parent (now a portal);
+  - a long line widening the board past the page;
+  - rings collapsed to slivers;
+  - threads crossing the tiles' words.
+
+  A short drag over one goal used to choose it: the rail now takes no press while it slides.
+- **Simulated on the fixture:** the activity, the acts' steps and Sophia's answers. The proposals for SCM-01/02/04/06 are in the pull request.
+
 ## Remaining obligations
 
 - **Davide (SCM-04):**

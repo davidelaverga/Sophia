@@ -1,0 +1,1221 @@
+/* The plan as a board, in Resources' language: few words, pictures and marks, depth instead of lines, and motion that
+   says what happens. Everything that moves rests when less motion is asked for. */
+
+/* ---- The goals' rail: one small card per goal, a light bar sliding under the chosen one. ---- */
+.goal-rail-wrap {
+  position: relative;
+}
+/* An arrow at an end with more beyond it, over the fade. */
+.rail-turn {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: -12px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--plane-2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--text-2);
+  animation: arrive 0.25s var(--ease) both;
+  transition:
+    color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.rail-turn:hover {
+  color: var(--text);
+  transform: scale(1.08);
+}
+.rail-turn[data-side='before'] {
+  left: -10px;
+}
+.rail-turn[data-side='after'] {
+  right: -10px;
+}
+.goal-rail[data-dragging] {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
+.goal-rail[data-dragging] .goal-chip {
+  pointer-events: none;
+}
+.goal-rail {
+  --fade: 28px;
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 2px 2px 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.goal-rail::-webkit-scrollbar {
+  display: none;
+}
+.goal-rail-wrap[data-more-after] .goal-rail {
+  mask-image: linear-gradient(90deg, #000 calc(100% - var(--fade)), transparent);
+}
+.goal-rail-wrap[data-more-before] .goal-rail {
+  mask-image: linear-gradient(90deg, transparent, #000 var(--fade));
+}
+.goal-rail-wrap[data-more-before][data-more-after] .goal-rail {
+  mask-image: linear-gradient(90deg, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+}
+/* The light bar under the chosen goal. */
+.goal-rail::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 4px;
+  width: var(--thumb-w, 0);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--halo), transparent);
+  box-shadow: 0 0 12px rgba(156, 130, 245, 0.6);
+  transform: translateX(var(--thumb-x, 0));
+}
+.goal-rail[data-thumb-ready]::after {
+  transition:
+    transform 0.42s var(--ease),
+    width 0.42s var(--ease);
+}
+.goal-chip {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  width: 208px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-4);
+  background: rgba(236, 235, 241, 0.025);
+  color: var(--text-2);
+  text-align: left;
+  scroll-snap-align: start;
+  animation: arrive 0.4s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+  transition:
+    background-color var(--base) var(--ease),
+    border-color var(--base) var(--ease),
+    color var(--base) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.goal-chip:hover {
+  background: rgba(236, 235, 241, 0.05);
+  color: var(--text);
+}
+.goal-chip:active {
+  transform: scale(0.98);
+}
+.goal-chip[aria-selected='true'] {
+  border-color: var(--line-2);
+  background: radial-gradient(120% 120% at 0% 0%, rgba(156, 130, 245, 0.12), transparent 60%), var(--plane-2);
+  color: var(--text);
+}
+.goal-chip:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.goal-chip-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.goal-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.goal-tab-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.goal-tab-dot[data-status='running'] {
+  background: var(--teal);
+  box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
+}
+.goal-tab-dot[data-status='holding'],
+.goal-tab-dot[data-status='held'] {
+  background: var(--amber);
+}
+.plan-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.plan-tab-faces {
+  display: inline-flex;
+}
+.plan-tab-faces .avatar {
+  width: 18px;
+  height: 18px;
+  margin-right: -6px;
+  border: 1.5px solid var(--plane);
+  font-size: 8.5px;
+}
+.plan-tab-faces + .plan-tab-count {
+  margin-left: 6px;
+}
+.plan-tab-mine {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--amber);
+}
+.plan-tab-mine::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px rgba(239, 191, 134, 0.7);
+}
+
+/* ---- The board ---- */
+.board {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+/* Where the plan goes next: one band, lit from its start, a sheen crossing it once as it arrives. */
+.board-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 0 2px;
+  animation: arrive 0.45s var(--ease) both;
+}
+.board-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.board-next .field-label {
+  color: var(--halo-text);
+}
+.board-plan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.board-plan .count {
+  font-size: 10.5px;
+}
+.board > .plan-ask {
+  animation-delay: 80ms;
+}
+
+/* Three lanes side by side; one under another on a narrow screen. */
+.board-lanes {
+  display: grid;
+  position: relative;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.lane {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.lane:nth-child(2) {
+  --lane-delay: 80ms;
+}
+.lane:nth-child(3) {
+  --lane-delay: 160ms;
+}
+.lane:nth-child(4) {
+  --lane-delay: 240ms;
+}
+.lane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+.lane-head .plan-mark::after {
+  display: none;
+}
+.lane-head .count {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.05);
+  font-size: 10.5px;
+}
+.lane-empty {
+  display: grid;
+  place-items: center;
+  min-height: 56px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-4);
+  color: var(--text-4);
+  font-size: 12px;
+}
+.task-grid {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---- A task tile: who and where it stands on top, the task, what it hangs on. Depth, not lines. ---- */
+.task-tile {
+  --tool-accent: var(--halo);
+  --edge: rgba(255, 255, 255, 0.06);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)), var(--plane-2);
+  box-shadow:
+    inset 0 0 0 1px var(--edge),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  text-align: left;
+  animation: tile-in 0.5s var(--ease) both;
+  animation-delay: calc(var(--lane-delay, 0ms) + var(--i, 0) * 50ms + 120ms);
+  transition:
+    box-shadow var(--base) var(--ease),
+    transform var(--base) var(--ease);
+}
+.task-tile:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.task-tile:active {
+  transform: scale(0.99);
+}
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+.task-tile[data-mark='waiting'] {
+  --edge: rgba(239, 191, 134, 0.3);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(239, 191, 134, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)), var(--plane-2);
+}
+.task-tile[data-mark='working'] {
+  --edge: rgba(127, 214, 196, 0.18);
+}
+.task-tile[data-mark='free'] {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed var(--line-2);
+  outline-offset: -1px;
+}
+/* The light follows the pointer, in the tool's colour, on the face and along the edge (as Resources' tiles). */
+@media (hover: hover) {
+  .task-tile::before,
+  .task-tile::after {
+    content: '';
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--base) var(--ease);
+  }
+  .task-tile::before {
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 0),
+      color-mix(in srgb, var(--tool-accent) 10%, transparent),
+      transparent 70%
+    );
+  }
+  .task-tile::after {
+    inset: 0;
+    padding: 1px;
+    background: radial-gradient(
+      160px circle at var(--mx, 50%) var(--my, 0),
+      color-mix(in srgb, var(--tool-accent) 60%, transparent),
+      transparent 70%
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+  }
+  .task-tile:hover::before,
+  .task-tile:hover::after {
+    opacity: 1;
+  }
+  .task-tile:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      inset 0 0 0 1px var(--edge),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 14px 34px rgba(0, 0, 0, 0.4);
+  }
+  .task-tile:hover .task-who .avatar {
+    transform: scale(1.06);
+  }
+}
+/* What the hovered tile waits on: a lavender ring, with a soft glow around it. */
+.task-tile[data-lit] {
+  --edge: rgba(156, 130, 245, 0.7);
+  box-shadow:
+    inset 0 0 0 1px var(--edge),
+    0 0 0 4px rgba(156, 130, 245, 0.14),
+    0 0 28px rgba(156, 130, 245, 0.2);
+}
+
+.task-who {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+}
+.task-who[data-size='lg'] {
+  width: 40px;
+  height: 40px;
+}
+.task-who .avatar,
+.task-who .plan-nobody {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  font-size: 11px;
+  transition: transform var(--base) var(--ease);
+}
+.task-who .tool-logo.sm {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: 50%;
+  background: var(--plane-2);
+  box-shadow: 0 0 0 1.5px var(--plane-2);
+}
+.task-who .tool-logo.sm img,
+.task-who .tool-logo.sm .tool-logo-mark {
+  width: 10px;
+  height: 10px;
+}
+.task-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.05);
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.task-chip[data-mark='waiting'] {
+  background: rgba(239, 191, 134, 0.14);
+  color: var(--amber);
+}
+.task-chip[data-mark='working'] {
+  background: rgba(127, 214, 196, 0.12);
+  color: var(--teal);
+}
+.task-chip .plan-mark {
+  width: 6px;
+  height: 6px;
+  border-width: 1px;
+}
+.task-tile-body {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.task-tile-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.008em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.task-tile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+.task-tile-name {
+  overflow: hidden;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.task-tile-hangs {
+  overflow: hidden;
+  color: var(--text-4);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* What it hangs on: a short rule leading into it, drawn, since Geist has no hook arrow. */
+.task-tile-hangs::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 6px;
+  margin: 0 6px 2px 1px;
+  border-left: 1px solid var(--text-4);
+  border-bottom: 1px solid var(--text-4);
+  border-bottom-left-radius: 2px;
+}
+
+.lane-more {
+  justify-self: start;
+  height: 26px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ---- A task up close (TaskSheet): who and where it stands, then the tasks it is linked to. ---- */
+.task-sheet {
+  display: grid;
+  gap: 18px;
+}
+.task-sheet-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.task-sheet-name {
+  display: grid;
+  gap: 2px;
+  margin-right: auto;
+  font-size: 14px;
+}
+.task-sheet-name .muted {
+  font-size: 12px;
+}
+.task-sheet-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-3);
+  background: rgba(156, 130, 245, 0.08);
+}
+.task-sheet-next .field-label {
+  color: var(--halo-text);
+}
+.task-links {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-link {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--fast) var(--ease);
+}
+.task-link:hover {
+  background: rgba(236, 235, 241, 0.07);
+}
+.task-link-where {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.task-sheet-plan {
+  font-size: 12px;
+}
+
+/* ---- The board's bar: lenses on the left, what changed since the last look on the right. ---- */
+.board-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.board-lens {
+  width: fit-content;
+}
+.board-lens button {
+  gap: 6px;
+}
+.board-since-act {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.08);
+  color: var(--text-2);
+  font-size: 11.5px;
+  transition: background-color var(--fast) var(--ease);
+}
+.board-since-act:hover {
+  background: rgba(236, 235, 241, 0.14);
+  color: var(--text);
+}
+.board-return-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.board-return-said .field-label {
+  margin-right: 6px;
+}
+
+/* A lens dims what it doesn't show and moves nothing. */
+.task-tile[data-dim] {
+  opacity: 0.28;
+  filter: saturate(0.4);
+}
+.task-tile {
+  transition:
+    box-shadow var(--base) var(--ease),
+    transform var(--base) var(--ease),
+    opacity var(--base) var(--ease),
+    filter var(--base) var(--ease);
+}
+/* What changed since the last look: a lavender breath along its edge, and a small dot at its corner. */
+.task-tile[data-changed] {
+  --edge: rgba(156, 130, 245, 0.55);
+}
+.task-tile[data-changed] .task-tile-body::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
+  box-shadow: 0 0 10px var(--halo);
+  animation: changed-breathe 2.4s var(--ease) infinite alternate;
+}
+@keyframes changed-breathe {
+  from {
+    opacity: 0.45;
+  }
+}
+
+/* Done: a finished run and a checked result, said apart and set back. */
+.task-tile[data-mark='finished'],
+.task-tile[data-mark='checked'] {
+  background: rgba(236, 235, 241, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.task-tile[data-mark='checked'] .task-tile-title {
+  color: var(--text-2);
+}
+.plan-mark[data-mark='finished'] {
+  border-color: var(--teal);
+}
+.plan-mark[data-mark='checked'] {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+.task-chip[data-mark='checked'] {
+  background: rgba(127, 214, 196, 0.1);
+  color: var(--teal);
+}
+.task-chip[data-mark='finished'] {
+  background: rgba(127, 214, 196, 0.05);
+  color: var(--text-2);
+}
+
+/* The threads to what a hovered task waits on: drawn in, then a spark travels them. */
+.threads {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.thread {
+  fill: none;
+  stroke: #b9a8ff;
+  stroke-opacity: 0.9;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.85));
+  animation: thread-draw 0.5s var(--ease) forwards;
+}
+@keyframes thread-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.thread-spark {
+  fill: var(--core);
+  filter: drop-shadow(0 0 6px var(--halo));
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  animation: thread-spark 1.4s var(--ease) 0.35s infinite;
+}
+@keyframes thread-spark {
+  from {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+/* While threads are drawn, the rest of the board steps back, so the two ends stand out. */
+.board-lanes[data-threading] .task-tile:not([data-lit], [data-hover]) {
+  opacity: 0.45;
+}
+/* The task waited on looks up as its thread arrives. */
+.task-tile[data-lit] .task-who .avatar,
+.task-tile[data-lit] .task-who .plan-nobody {
+  animation: task-look-up 0.6s var(--ease) 0.25s both;
+}
+@keyframes task-look-up {
+  40% {
+    transform: translateY(-3px) scale(1.08);
+  }
+}
+
+.task-sheet-plan kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-1);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+/* ---- Live: what a session last reported, and a ring around its picture emptying as that ages. ---- */
+.task-who[data-live]::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgba(127, 214, 196, 0.12) 0);
+  mask: radial-gradient(circle, transparent calc(50% - 1.5px), #000 calc(50% - 1px));
+  transition: background 1s linear;
+}
+.task-tile[data-mark='waiting'] .task-who[data-live]::before {
+  background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgba(239, 191, 134, 0.12) 0);
+}
+.task-tile-activity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.task-tile-said {
+  overflow: hidden;
+  color: var(--text-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.task-tile-ago {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.activity-dot {
+  position: relative;
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+.activity-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: waiting-ping 2s var(--ease) infinite;
+}
+.task-sheet-activity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-3);
+  background: rgba(127, 214, 196, 0.06);
+  font-size: 13px;
+}
+.task-sheet-activity .muted {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* ---- While you were away: one sentence from Sophia's light, over the board. ---- */
+.board-return {
+  display: flex;
+  flex: 1 1 320px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(156, 130, 245, 0.12), rgba(156, 130, 245, 0.03));
+  color: var(--text);
+  font-size: 12.5px;
+  animation: arrive 0.5s var(--ease) 0.2s both;
+}
+.board-return .field-label {
+  color: var(--halo-text);
+}
+.ask-light {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--core), var(--halo) 70%);
+  box-shadow: 0 0 10px var(--halo);
+  animation: ask-light 2.8s var(--ease) infinite alternate;
+}
+@keyframes ask-light {
+  to {
+    box-shadow: 0 0 16px var(--halo);
+    transform: scale(1.12);
+  }
+}
+
+/* ---- The goal's second line: where its plan goes next, and the plan, quietly. ---- */
+.plan-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 14px;
+}
+.plan-next > .field-label {
+  color: var(--halo-text);
+}
+.plan-next-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+}
+.plan-next-plan .count {
+  font-size: 10.5px;
+}
+.goal-outcome-open {
+  max-width: 64ch;
+  margin-top: 4px;
+}
+
+/* ---- Decisions: a pill in the bar, amber and pinging when one is the viewer's; open, they sit over the lanes. ---- */
+.decision-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.04);
+  color: var(--text-2);
+  font-size: 12.5px;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+.decision-pill[data-mine] {
+  border-color: rgba(239, 191, 134, 0.4);
+  background: rgba(239, 191, 134, 0.1);
+  color: var(--amber);
+}
+.decision-pill:hover {
+  background: rgba(239, 191, 134, 0.16);
+}
+.decision-pill .icon {
+  transition: transform var(--fast) var(--ease);
+}
+.decision-pill[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.decision-pill-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.decision-pill[data-mine] .decision-pill-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  animation: waiting-ping 2.4s var(--ease) infinite;
+}
+.board-decisions {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---- A decision on the board: one row, who and the question on the left, the choices on the right. ---- */
+.board .plan-ask {
+  align-items: center;
+  padding: 10px 14px;
+}
+.board .plan-ask-body {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head choices'
+    'question choices'
+    'said said';
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 2px;
+}
+.board .plan-ask-head {
+  grid-area: head;
+  justify-content: flex-start;
+}
+.board .plan-ask-question {
+  grid-area: question;
+  font-size: 14px;
+}
+.board .plan-choices,
+.board .plan-ask-choices {
+  grid-area: choices;
+  margin-top: 0;
+}
+.board .plan-ask-said {
+  grid-area: said;
+  margin-top: 6px;
+}
+@media (max-width: 760px) {
+  .board .plan-ask-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'head' 'question' 'choices' 'said';
+  }
+  .board .plan-choices {
+    margin-top: 6px;
+  }
+}
+
+/* ---- Acting on a task: guidance, Hold, Stop, and the steps an act goes through. ---- */
+.task-actions,
+.ask-sophia {
+  display: grid;
+  gap: 10px;
+}
+.act-guide {
+  display: flex;
+  gap: 8px;
+}
+.act-guide input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  color: var(--text);
+  font-size: 13px;
+}
+.act-guide input:focus {
+  outline: none;
+  border-color: rgba(156, 130, 245, 0.6);
+  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
+}
+.act-note {
+  font-size: 12.5px;
+}
+.act-steps {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  animation: arrive 0.3s var(--ease) both;
+}
+.act-steps ol {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.act-steps li {
+  position: relative;
+  padding-top: 10px;
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color var(--base) var(--ease);
+}
+.act-steps li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(236, 235, 241, 0.08);
+}
+.act-steps li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--teal);
+  box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
+  transition: width 0.5s var(--ease);
+}
+.act-steps li[data-reached] {
+  color: var(--teal);
+}
+.act-steps li[data-reached]::after {
+  width: 100%;
+}
+.act-steps p {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.act-steps[data-at='refused'] p {
+  color: var(--amber);
+}
+
+/* ---- Ask Sophia: the questions its state invites, and her answer writing itself in. ---- */
+.ask-sophia h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ask-chip {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(156, 130, 245, 0.28);
+  border-radius: 999px;
+  background: rgba(156, 130, 245, 0.06);
+  color: var(--halo-text);
+  font-size: 12.5px;
+  transition:
+    background-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.ask-chip:hover {
+  background: rgba(156, 130, 245, 0.14);
+  transform: translateY(-1px);
+}
+.ask-thread {
+  display: grid;
+  gap: 8px;
+}
+.ask-q {
+  justify-self: end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px 12px 4px 12px;
+  background: rgba(236, 235, 241, 0.06);
+  font-size: 13px;
+}
+.ask-a {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  max-width: 95%;
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.ask-a .ask-light {
+  margin-top: 6px;
+}
+.ask-a[data-thinking] {
+  color: var(--text-3);
+}
+
+/* A task that changes lanes travels there; the board itself fades between goals. */
+::view-transition-group(*) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---- A goal over its board: its actions at the top right, out of the reading line. ---- */
+.goal-outcome-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.goal.compact .goal-criteria-button {
+  margin-left: 0;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+.goal.compact .controls .pill {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+.task-search {
+  flex: 0 1 280px;
+  margin-left: auto;
+}
+.goal.compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  border-bottom: 0;
+}
+.goal.compact .goal-title {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.goal.compact > :not(.controls) {
+  grid-column: 1;
+}
+.goal.compact > .controls {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: start;
+  margin-top: 0;
+}
+.goal.compact > .board,
+.goal.compact > .plan {
+  grid-column: 1 / -1;
+}
+/* Its parts never widen it: a long line (what changed while away) is cut at its end, not pushed out of the page. */
+.goal.compact > *,
+.board > * {
+  min-width: 0;
+}
+
+/* Tasks with a plan take the page's width, as Resources does; the work pulse follows under it, no longer sticky. */
+.page.planned .pulse {
+  position: static;
+  margin-top: 40px;
+}
+
+@media (max-width: 1000px) {
+  .board-lanes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .board-lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .goal-chip {
+    width: 200px;
+  }
+  /* A phone: the goal's actions under its words, not squeezing them. */
+  .goal.compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .goal.compact > .controls {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-chip,
+  .board-head,
+  .task-tile,
+  .thread,
+  .task-tile[data-changed] .task-tile-body::after,
+  .task-tile[data-lit] .task-who .avatar,
+  .task-tile[data-lit] .task-who .plan-nobody {
+    animation: none;
+  }
+  .thread {
+    stroke-dashoffset: 0;
+  }
+  .thread-spark {
+    display: none;
+  }
+  .activity-dot::after,
+  .decision-pill[data-mine] .decision-pill-dot::after,
+  .ask-light,
+  .board-return,
+  .act-steps {
+    animation: none;
+  }
+  .goal-rail::after,
+  .task-tile,
+  .task-who .avatar {
+    transition: none;
+  }
+  .task-tile:hover {
+    transform: none;
+  }
+}

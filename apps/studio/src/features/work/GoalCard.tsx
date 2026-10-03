@@ -18,6 +18,8 @@ interface Props {
   compact?: boolean
   /** Its plan, inside its row so the two read as one (Tasks, LFE-07.1). */
   children?: React.ReactNode
+  /** Its plan's next checkpoint, said on its second line (Tasks, compact). */
+  next?: React.ReactNode
 }
 
 function Criteria({ goal }: { goal: Goal }) {
@@ -33,21 +35,39 @@ function Criteria({ goal }: { goal: Goal }) {
   )
 }
 
-/** Its criteria behind one quiet line, "2 criteria", opened on request. */
-function FoldedCriteria({ goal }: { goal: Goal }) {
+/**
+ * The goal's second line, under its title. With its plan's next checkpoint (`next`): that line, and its outcome and
+ * criteria behind one quiet press. Without: its outcome, its criteria behind the press.
+ */
+function SecondLine({ goal, next }: { goal: Goal; next?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const count = goal.criteria.length
+  const criteria = count > 0 ? `${String(count)} ${count === 1 ? 'criterion' : 'criteria'}` : null
+  const folded = next ? ['Outcome', criteria].filter(Boolean).join(' · ') : criteria
   return (
     <>
-      <button type="button" className="ghost goal-criteria-button" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {goal.criteria.length} {goal.criteria.length === 1 ? 'criterion' : 'criteria'}
-        <Icon name="chevron" size={12} />
-      </button>
-      {open && <Criteria goal={goal} />}
+      <div className="goal-outcome-line">
+        {next ?? <p className="goal-outcome">{goal.outcome}</p>}
+        {folded && (
+          <button
+            type="button"
+            className="ghost goal-criteria-button"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {folded}
+            <Icon name="chevron" size={12} />
+          </button>
+        )}
+      </div>
+      {open && next && <p className="goal-outcome goal-outcome-open">{goal.outcome}</p>}
+      {open && count > 0 && <Criteria goal={goal} />}
     </>
   )
 }
 
-export function GoalCard({ goal, projectId, identity, controls = true, compact = false, children }: Props) {
+export function GoalCard(props: Props) {
+  const { goal, projectId, identity, controls = true, compact = false, children, next } = props
   const status = GOAL_STATUS[goal.status]
   const tag = <Tag tone={status.tone}>{status.label}</Tag>
   return (
@@ -57,8 +77,14 @@ export function GoalCard({ goal, projectId, identity, controls = true, compact =
         {compact && tag}
         {goal.title}
       </h3>
-      <p className="goal-outcome">{goal.outcome}</p>
-      {goal.criteria.length > 0 && (compact ? <FoldedCriteria goal={goal} /> : <Criteria goal={goal} />)}
+      {compact ? (
+        <SecondLine goal={goal} next={next} />
+      ) : (
+        <>
+          <p className="goal-outcome">{goal.outcome}</p>
+          {goal.criteria.length > 0 && <Criteria goal={goal} />}
+        </>
+      )}
       {controls && <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />}
       {children}
     </li>

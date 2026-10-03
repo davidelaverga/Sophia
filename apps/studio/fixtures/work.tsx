@@ -12,13 +12,18 @@ import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import type { Decide } from '../src/features/work/planning/Decision.tsx'
-import { PlanView } from '../src/features/work/planning/PlanView.tsx'
+import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
+import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
+import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
+import { moving } from '../src/features/resources/motion.ts'
+import type { Resource } from '../src/features/resources/resource.ts'
 import { current, type WorkPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { NOW, people, resources } from './resources-data.ts'
-import { goal, plan, secondGoal, secondPlan } from './work-data.ts'
+import { act, ask, nextActivity, withActivity } from './work-live.ts'
+import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan } from './work-data.ts'
 
 declare global {
   interface Window {
@@ -27,18 +32,43 @@ declare global {
       /** Each answer a decider gave, in order: for the checks to read. */
       answered?: { decision: string; revision: number; choice: string }[]
       settle?: (decisionId: string) => void
+      begin?: (workId: string) => void
     }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
-const two = query.get('two') === '1'
-installFixtureApi({ revision: 1, exchange: false, messages: [], goals: two ? [goal, secondGoal] : [goal] })
+/** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
+const six = query.get('goals') === '6'
+const two = six || query.get('two') === '1'
+installFixtureApi({
+  revision: 1,
+  exchange: false,
+  messages: [],
+  goals: [goal, ...(two ? [secondGoal] : []), ...(six ? moreGoals : [])],
+})
 const answered: NonNullable<NonNullable<Window['workFixture']>['answered']> = []
 window.workFixture = { unexpected, answered }
 const nothing = () => undefined
 
 const viewer = query.get('viewer') === 'davide' ? 'davide' : 'luis'
+
+/** `since=1`: the viewer last looked a while ago, when four tasks stood elsewhere (and one wasn't there). */
+if (query.get('since') === '1') {
+  const before = {
+    'work-0a': 'finished',
+    'work-1': 'working',
+    'work-1-review': 'later',
+    'work-2': 'later',
+    'work-3': 'later',
+    'work-4': 'free',
+  }
+  try {
+    localStorage.setItem(`sophia.plan.seen.v1.plan-1.${viewer}`, JSON.stringify(before))
+  } catch {
+    // A browser that refuses storage shows nothing changed.
+  }
+}
 const state = query.get('superseded') === '1' ? 'superseded' : query.get('proposed') === '1' ? 'proposed' : 'accepted'
 
 /** The decider's answer, taken as a lead would: recorded, or refused when the page asked for a stale decision. */
@@ -59,17 +89,54 @@ const settled = (p: WorkPlan, id: string): WorkPlan => {
   }
 }
 
+/** Davide's Claude Code reviewer takes `workId` and starts it, as its runtime would report it. */
+const begun = (list: Resource[], workId: string): Resource[] =>
+  list.map((r) => ({
+    ...r,
+    sessions: r.sessions.map((s) =>
+      s.id === 'claude-reviewer' ? { ...s, assignment: { workId, title: workId, state: 'running' as const } } : s,
+    ),
+  }))
+
 function Tasks() {
-  const [first, setFirst] = useState(() => plan(state))
+  const [first, setFirst] = useState(() => (query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
+  const [live, setLive] = useState(() => withActivity(resources))
+  // The page's clock runs from NOW, so ages count up and the freshness rings empty as they would.
+  const [now, setNow] = useState(NOW)
   useEffect(() => {
-    window.workFixture = { unexpected, answered, settle: (id) => setFirst((p) => settled(p, id)) }
+    const start = Date.now()
+    let n = 0
+    const tick = setInterval(() => {
+      const at = new Date(NOW.getTime() + Date.now() - start)
+      setNow(at)
+      // Every 9 s, Codex's reviewer reports what it does next.
+      if (Math.round((Date.now() - start) / 1000) % 9 === 0) setLive((l) => nextActivity(l, at, n++))
+    }, 1000)
+    return () => clearInterval(tick)
   }, [])
-  const view = (p: WorkPlan) => (
-    <PlanView plan={p} resources={resources} people={people} now={NOW} viewerId={viewer} onDecide={decide} />
-  )
+  useEffect(() => {
+    // Each change glides into place, as a live update would (motion.ts): a decided ask folds away, a task changes lanes.
+    window.workFixture = {
+      unexpected,
+      answered,
+      settle: (id) => moving(() => setFirst((p) => settled(p, id))),
+      begin: (workId) => moving(() => setLive((l) => begun(l, workId))),
+    }
+  }, [])
+  const shared = { resources: live, people, viewerId: viewer }
   // A plan in force or proposed fills its goal's slot; otherwise Tasks shows the goal as it does without one.
   const plans = Object.fromEntries(
-    [first, ...(two ? [secondPlan] : [])].filter((p) => current(p)).map((p) => [p.goal_id, view(p)]),
+    [first, ...(two ? [secondPlan] : []), ...(six ? morePlans : [])]
+      .filter((p) => current(p))
+      .map((p) => [
+        p.goal_id,
+        {
+          view: <PlanBoard plan={p} now={now} onDecide={decide} onAct={act} onAsk={ask} {...shared} />,
+          next: <PlanNext plan={p} />,
+          tab: <PlanTab plan={p} {...shared} />,
+          words: p.items.map((i) => i.purpose).join(' '),
+        },
+      ]),
   )
   return (
     <ProjectShell

@@ -426,17 +426,15 @@ when you change the room:
   S1-06 serves real candidates.
 - **The lead's plan has its own checks** (`e2e/work.spec.ts`, LFE-07.1): on
   `fixtures/work.html`, labelled "Simulated — no lead, tool or host read"
-  (`proposed=1`, `superseded=1`), the Studio's own `ProjectShell` on Tasks,
-  with the real `PlanView` in its `plan` slot under the goal it serves
-  (production shows the goals alone until SCM-04 serves a plan). One thing
-  reads first: the goal in two lines, the plan's head with a tally of where
-  its tasks stand, its next checkpoint, then what waits on someone's decision,
-  raised. Then one line per task, by what moves: a mark, the task, where it
-  stands, and who does it (a picture with their tool's logo as a badge, found
-  through the session assigned to it, LFE-06). Hovering a task lights what it
-  waits on. What it assumes and what was decided fold into one line. Only a
-  decision's decider answers it, one press, said by its receipt; several goals
-  each carry their own plan (`plans`, by goal id), each folding to its tally.
+  (`viewer=davide`, `goals=6`, `many=1`, `since=1`, `proposed=1`,
+  `superseded=1`, `conflict=1`), the Studio's own `ProjectShell` on Tasks,
+  with each goal's plan as a board (`PlanBoard`) in the `plans` slot
+  (production shows the goals alone until SCM-04 serves plans). One goal at a
+  time from a rail (search with `/`); the goal in two lines with its NEXT;
+  lenses, a decision pill and what changed since the last look; four lanes of
+  live tiles (a session's last report, a freshness ring); threads to what a
+  task waits on; a task's sheet to act on it or ask Sophia; the board by keys.
+  Its fixture's clock runs from NOW, and its acts and answers are simulated.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves

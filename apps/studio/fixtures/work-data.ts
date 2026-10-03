@@ -25,6 +25,26 @@ export const goal: Goal = {
 
 const items: WorkPlan['items'] = [
   {
+    id: 'work-0a',
+    purpose: 'Reproduce the failed render',
+    parent_id: null,
+    blocked_by: [],
+    assignee_kind: 'human',
+    assignee_id: 'luis',
+    activation: { kind: 'immediate', producer_work_id: null },
+    outcome: { state: 'checked', at: inHours(-6) },
+  },
+  {
+    id: 'work-0b',
+    purpose: 'Write the retry’s failing test',
+    parent_id: null,
+    blocked_by: [],
+    assignee_kind: 'human',
+    assignee_id: 'luis',
+    activation: { kind: 'immediate', producer_work_id: null },
+    outcome: { state: 'finished', at: inHours(-1) },
+  },
+  {
     id: 'work-1',
     purpose: 'Implement the PDF retry',
     parent_id: null,
@@ -161,3 +181,71 @@ export const secondPlan: WorkPlan = {
   assumptions: [],
   decisions: [],
 }
+
+/** `goals=6`: four more goals beside the first two, each with a small plan, to see the goals' rail scroll. */
+const MORE = [
+  ['Exports keep the report’s fonts', 'Fonts embedded or substituted, and said which'],
+  ['Large reports stay under a minute', 'Render time measured and kept'],
+  ['Every export can be shared by link', 'A link that opens the exact export'],
+  ['Failed exports explain themselves', 'A reason a person can act on'],
+] as const
+
+export const moreGoals: Goal[] = MORE.map(([title, outcome], i) => ({
+  id: `00000000-0000-4000-8000-0000000000c${String(i)}`,
+  projectId: PROJECT,
+  title,
+  revision: 1,
+  authorityEpoch: 1,
+  status: i === 1 ? 'running' : 'ready',
+  outcome,
+  criteria: [],
+  stateRevision: 1,
+}))
+
+export const morePlans: WorkPlan[] = moreGoals.map((g, i) => ({
+  plan_id: `plan-more-${String(i)}`,
+  revision: 1,
+  mission_revision: 3,
+  state: 'accepted',
+  goal_id: g.id,
+  next_checkpoint: { label: `${g.title}: a first candidate`, item_id: null },
+  items: [
+    {
+      id: `more-${String(i)}-a`,
+      purpose: `Draft: ${g.outcome}`,
+      parent_id: null,
+      blocked_by: [],
+      assignee_kind: i % 2 === 0 ? 'human' : 'unassigned',
+      assignee_id: i % 2 === 0 ? 'luis' : null,
+      activation: { kind: 'immediate', producer_work_id: null },
+    },
+  ],
+  assumptions: [],
+  decisions: [],
+}))
+
+/** `many=1`: eight more tasks on the first plan, after the retry or free to take, to see a lane fill and fold. */
+export const manyTasks = (p: WorkPlan): WorkPlan => ({
+  ...p,
+  items: [
+    ...p.items,
+    ...[
+      'Cover the retry in the export tests',
+      'Log each retry with its cause',
+      'Show a retry in the report pane',
+      'Cap retries per report',
+      'Document the retry for support',
+      'Alert when retries pile up',
+      'Measure retries per day',
+      'Remove the old export path',
+    ].map((purpose, i) => ({
+      id: `many-${String(i)}`,
+      purpose,
+      parent_id: null,
+      blocked_by: i % 3 === 2 ? [] : ['work-1'],
+      assignee_kind: i % 3 === 2 ? ('unassigned' as const) : ('human' as const),
+      assignee_id: i % 3 === 2 ? null : 'luis',
+      activation: { kind: 'dependencies_satisfied' as const, producer_work_id: null },
+    })),
+  ],
+})

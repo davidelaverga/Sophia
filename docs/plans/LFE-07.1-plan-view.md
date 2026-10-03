@@ -57,6 +57,17 @@ The first version was "all mixed", so the view now has one thing to read first:
 
 Hovering a task lights what it waits on. The details and the measurements are in the [handoff](../handoffs/LFE-07-attempt-1.md).
 
+## Then a board
+
+After further rounds, the plan is a board in Resources' language:
+
+- goals one at a time, from a rail;
+- lenses, a decision pill, and "While you were away";
+- four lanes of live tiles, with threads to what a task waits on;
+- a sheet to act on a task or ask Sophia.
+
+The list was removed. The pull request lists the endpoints it needs.
+
 ## Out of this slice
 
 Editing or accepting the plan, Review work progress (07.2), the capacity warning (07.3) and handovers (07.4) are not here.

@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Resource } from '../../resources/resource.ts'
-import { current, planRows, status, tally, waitsOn, whoDoes, type PlanItem, type WorkPlan } from './plan.ts'
+import {
+  current,
+  freshness,
+  observedAgo,
+  planRows,
+  status,
+  waitsOn,
+  whoDoes,
+  type PlanItem,
+  type WorkPlan,
+} from './plan.ts'
 
 const item = (id: string, over: Partial<PlanItem> = {}): PlanItem => ({
   id,
@@ -117,11 +127,25 @@ describe('the lead’s plan', () => {
         ['free', 0],
       ],
     )
-    assert.deepEqual(tally(rows), [
-      { mark: 'waiting', count: 1 },
-      { mark: 'working', count: 1 },
-      { mark: 'later', count: 3 },
-      { mark: 'free', count: 1 },
-    ])
+  })
+})
+
+describe('a task that has ended, and a session’s last report', () => {
+  it('says a finished run apart from a checked result, and both before anything else', () => {
+    const finished = item('a', { outcome: { state: 'finished', at: '2026-10-02T11:00:00Z' } })
+    const checked = item('b', { outcome: { state: 'checked', at: '2026-10-02T11:00:00Z' } })
+    const p = plan([finished, checked])
+    const running = whoDoes(finished, [resource('a', 'running')], people)
+    assert.deepEqual(status(finished, running, p), { mark: 'finished', text: 'Finished, not checked yet', rank: 5 })
+    assert.equal(status(checked, whoDoes(checked, [], people), p).mark, 'checked')
+  })
+
+  it('says how long ago a report was seen, to the second while fresh, and how fresh it still is', () => {
+    const now = new Date('2026-10-02T12:00:00Z')
+    assert.equal(observedAgo('2026-10-02T11:59:20Z', now), '40 s ago')
+    assert.equal(observedAgo('2026-10-02T11:57:00Z', now), '3 min ago')
+    assert.equal(freshness('2026-10-02T12:00:00Z', now), 1)
+    assert.equal(freshness('2026-10-02T11:59:00Z', now), 0.5)
+    assert.equal(freshness('2026-10-02T11:50:00Z', now), 0)
   })
 })

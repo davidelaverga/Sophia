@@ -41,6 +41,11 @@ export interface Session {
    */
   mode?: string | null
   assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
+  /**
+   * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
+   * its reasoning (07_STUDIO_VOICE_AND_ARTIFACTS). The Studio's proposal for SCM-02.
+   */
+  activity?: { said: string; observedAt: string } | null
 }
 
 /** A session's work as its tool reports it, said and toned as the Studio says it, in the sheet and in the plan. */
