@@ -1471,7 +1471,7 @@ describe('report facts, each section once (0036)', () => {
     assert.deepEqual(compareSections(OPTIONS, OPTIONS_V2), sections, 'Studio compares as the service counted')
   })
 
-  it('stores the same facts Studio compares for repeated paths, renamed titles and a leading blank line', async () => {
+  it('stores the same facts Studio compares for repeated paths, renamed titles and a blank introduction', async () => {
     const log = '# Log\n## Update\nMon.\n## Update\nTue.\n## Update\nWed.\n'
     const cases: [string, string][] = [
       [OPTIONS, OPTIONS_V2],
@@ -1482,6 +1482,9 @@ describe('report facts, each section once (0036)', () => {
       // Blank lines before the first heading are no section on either side, so no introduction was removed.
       ['\n# Hosts\nA.\n## Conclusion\nUse A.\n', '# Hosts\nA.\n## Conclusion\nUse A.\n'],
       ['# Hosts\nA.\n## Conclusion\nUse A.\n', '\n\t\n\n# Hosts\nA.\n## Conclusion\nUse B.\n'],
+      // A no-break space or a byte order mark is whitespace to Studio, so an introduction of one alone is none either.
+      ['\uFEFF\n# Hosts\nA.\n', '# Hosts\nA.\n'],
+      ['# Hosts\nA.\n', '\u00A0\n# Hosts\nA.\n## Conclusion\nUse B.\n'],
     ]
     for (const [was, now] of cases) {
       const row = await one<{ f: unknown }>(`SELECT sophia.section_facts($1,$2) AS f`, [was, now])
