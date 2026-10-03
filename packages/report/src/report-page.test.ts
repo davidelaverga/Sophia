@@ -60,6 +60,14 @@ describe('the report as a web page (html-report-v1)', () => {
     assert.equal(html, page(), 'the same bytes for the same input')
   })
 
+  it('prints the bytes it has always printed for the same report (pinned: a change must be deliberate)', () => {
+    const digest = createHash('sha256').update(page()).digest('hex')
+    assert.equal(digest, '58e68697ee93a4d5028f2a1c999d31d14e40330d4a3b885e614fae8003b669dc')
+    const html = page()
+    assert.ok(html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light">'))
+    assert.ok(PAGE_CSS.includes('body { max-width: 46rem; margin: 0 auto;'), 'a readable column on a screen')
+  })
+
   it('runs and loads nothing, whatever the report wrote', () => {
     const md = [
       '# <b>T</b>',
@@ -74,6 +82,21 @@ describe('the report as a web page (html-report-v1)', () => {
     assert.doesNotMatch(html, /<(script|img|iframe|object|embed|form|base|link)\b|<[^>]*\son\w+=|javascript:/i)
     assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
     assert.match(html, /\[image: chart\]/)
+  })
+
+  it('escapes its own title, whether a heading or the fallback gives it: nothing reaches the head', () => {
+    const breakout = '</title><meta http-equiv="refresh" content="0;url=https://evil.test/"><b>x</b>'
+    for (const html of [
+      page({ markdown: `# ${breakout}\n\nSome text.` }),
+      page({ markdown: 'Some text, no heading.', title: breakout }),
+    ]) {
+      const head = html.slice(0, html.indexOf('</head>'))
+      assert.equal(head.match(/<title>/g)?.length, 1, head)
+      assert.equal(html.match(/http-equiv="/g)?.length, 1, 'the policy is the only http-equiv')
+      assert.equal(html.match(/<meta\b/g)?.length, 7, 'only the page’s own metas')
+      assert.doesNotMatch(html, /<(b|i|script|iframe|base|link)\b/)
+      assert.ok(head.includes('<title>&lt;/title&gt;&lt;meta http-equiv=&quot;refresh&quot;'), head)
+    }
   })
 
   it('prints a short report too: a page is not gated by the PDF checks', () => {
@@ -106,6 +129,18 @@ describe('the report as a web page (html-report-v1)', () => {
     assert.match(page({ markdown: italian }), /<html lang="it">[\s\S]*<p class="eyebrow">Rapporto<\/p>/)
     assert.equal(reportLanguage(REPORT), 'und', 'filler words name no language')
     assert.equal(reportLanguage('Short.'), 'und')
+    const english =
+      '# Report\n\n## Summary\n\nThe service is the one that renders, and this is from the team with the hosts, ' +
+      'which are for the project of the year.'
+    assert.equal(reportLanguage(english), 'en')
+    assert.match(page({ markdown: english }), /<html lang="en">[\s\S]*<p class="eyebrow">Report<\/p>/)
+    const spanish =
+      '# Informe\n\n## Resumen\n\nEl servicio que ofrece los informes para las empresas, como este proyecto, ' +
+      'también está por encima de las opciones que son más caras.'
+    assert.equal(reportLanguage(spanish), 'es')
+    const es = page({ markdown: spanish })
+    assert.match(es, /<html lang="es">[\s\S]*<p class="eyebrow">Informe<\/p>/)
+    assert.match(page({ markdown: `${spanish}\n\nVer [${A}].` }), /<h2>Fuentes<\/h2>/)
     const mixed = `${italian} The service of the rendering is that this is the one which is from the team and the host.`
     assert.equal(reportLanguage(mixed), 'und', 'no clear lead')
   })

@@ -176,7 +176,9 @@ describe('the PDF report template (pdf-report-v1, report_manifest_v1)', () => {
   })
 
   it('prints no anchor inside an anchor, whatever brackets a label holds', () => {
-    const md = `${REPORT}\nPer [${A}], see [the docs](https://x.example/). [Report [${B}]](https://y.example/)\n`
+    const md =
+      `${REPORT}\nPer [${A}], see [the docs](https://x.example/). [Report [${B}]](https://y.example/)\n` +
+      `[**the [docs](https://a.example/)**](https://b.example/) [*Report [${A}]*](https://c.example/)\n`
     const { html } = renderReport(input({ markdown: md }))
     assert.doesNotMatch(html, /<a [^>]*>(?:(?!<\/a>).)*<a /)
     assert.match(html, /<a href="https:\/\/y\.example\/">Report <\/a><sup class="cite">/)

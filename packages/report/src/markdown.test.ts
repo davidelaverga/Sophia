@@ -14,6 +14,8 @@ import {
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'
 const C = '33333333-3333-4333-8333-333333333333'
+const D = '44444444-4444-4444-8444-444444444444'
+const E = '55555555-5555-4555-8555-555555555555'
 
 /** The plain text of inline content, citations as [n]. */
 function plain(inline: readonly Inline[]): string {
@@ -27,14 +29,23 @@ function plain(inline: readonly Inline[]): string {
     .join('')
 }
 
-type Shape = string | { link: string; label: Shape[] }
+type Shape = string | { link: string; label: Shape[] } | { strong: Shape[] } | { em: Shape[] }
 
-/** Inline content as text runs, `[n]` citations and links with their labels' shapes. */
+/** Inline content as text runs, `[n]` citations, emphasis and links with their contents' shapes. */
 const runShape = (inline: readonly Inline[]): Shape[] =>
-  inline.map((i) => {
+  inline.map((i): Shape => {
     if (i.kind === 'link') return { link: i.href, label: runShape(i.children) }
+    if (i.kind === 'strong') return { strong: runShape(i.children) }
+    if (i.kind === 'em') return { em: runShape(i.children) }
     return i.kind === 'cite' ? `[${i.n}]` : plain([i])
   })
+
+/** How long a parse takes, in milliseconds. */
+const timed = (md: string): number => {
+  const t = performance.now()
+  parseMarkdown(md)
+  return performance.now() - t
+}
 
 /** A one-paragraph report's shape. */
 const shape = (md: string): Shape[] => {
@@ -203,6 +214,31 @@ describe('the report Markdown parser', () => {
       { link: 'https://x.example/', label: ['a [b] c'] },
       '.',
     ])
+    assert.deepEqual(shape('See [a \\] b](https://x.example/).'), [
+      'See ',
+      { link: 'https://x.example/', label: ['a ] b'] },
+      '.',
+    ])
+    assert.deepEqual(shape('See [`a]`](https://x.example/).'), [
+      'See ',
+      { link: 'https://x.example/', label: ['a]'] },
+      '.',
+    ])
+  })
+
+  it('reads a label once, so brackets in brackets take linear time (a web page a draft cites is parsed in the API)', () => {
+    let nested = 'a'
+    for (let k = 0; k < 24; k += 1) nested = `[${nested}](https://x.example/${k})`
+    assert.ok(timed(nested) < 250, 'a link 24 labels deep')
+    let around = `${'['.repeat(3000)}${']'.repeat(3000)}`
+    for (let k = 0; k < 8; k += 1) around = `[x ${around} [b](https://b.example/)](https://x.example/${k})`
+    assert.ok(timed(around) < 250, 'balanced brackets inside 8 labels that each hold a link')
+    assert.ok(timed('['.repeat(128 * 1024)) < 1000, '128 KiB of [')
+    assert.deepEqual(shape('[[a](https://x.example/0)](https://x.example/1)'), [
+      '[',
+      { link: 'https://x.example/0', label: ['a'] },
+      '](https://x.example/1)',
+    ])
   })
 
   it('never puts an anchor inside another: a link in a label is the link, a citation in a label follows it', () => {
@@ -218,6 +254,38 @@ describe('the report Markdown parser', () => {
       '[2]',
       '.',
     ])
+    assert.deepEqual(shape('See [**the [docs](https://a.example/)**](https://b.example/)'), [
+      'See ',
+      '[',
+      { strong: ['the ', { link: 'https://a.example/', label: ['docs'] }] },
+      '](https://b.example/)',
+    ])
+    assert.deepEqual(shape(`[*Report [${A}]*](https://c.example/)`), [
+      { link: 'https://c.example/', label: [{ em: ['Report '] }] },
+      '[1]',
+    ])
+  })
+
+  it('names a link by its site when its label holds only citations, never an empty anchor', () => {
+    assert.deepEqual(shape(`Read the study [${A}](https://example.org/study).`), [
+      'Read the study ',
+      { link: 'https://example.org/study', label: ['example.org'] },
+      '[1]',
+      '.',
+    ])
+    assert.deepEqual(shape(`[${A}; ${B}](https://x.example/)`), [
+      { link: 'https://x.example/', label: ['x.example'] },
+      '[1]',
+      '[2]',
+    ])
+    assert.deepEqual(shape(`[source: ${A}](mailto:desk@x.example)`), [
+      { link: 'mailto:desk@x.example', label: ['desk@x.example'] },
+      '[1]',
+    ])
+    assert.deepEqual(shape(`[\`v2\` [${A}]](https://x.example/)`), [
+      { link: 'https://x.example/', label: ['v2', ' '] },
+      '[1]',
+    ])
   })
 
   it('numbers citations in reading order through lists, quotes and tables', () => {
@@ -227,6 +295,26 @@ describe('the report Markdown parser', () => {
     const table = blocks[2]
     assert.ok(table?.kind === 'table')
     assert.equal(plain(table.rows[0]?.[0] ?? []), '[3] [1]')
+  })
+
+  it('numbers citations in reading order in headings, emphasis and table heads, whatever order the parse meets them', () => {
+    const md = [
+      `## Findings [${C}] in [x [${B}]](https://x.example/)`,
+      '',
+      `**Costs [${D}]** and [*fell [${A}]*](https://y.example/) [${C}].`,
+      '',
+      `| [y [${E}]](https://z.example/) [${A}] |`,
+      '|---|',
+      `| [${D}] |`,
+    ]
+    const { blocks, citations } = parseMarkdown(md.join('\n'))
+    assert.deepEqual(citations, [C, B, D, A, E])
+    const [heading, paragraph, table] = blocks
+    assert.ok(heading?.kind === 'heading' && paragraph?.kind === 'paragraph' && table?.kind === 'table')
+    assert.equal(plain(heading.children), 'Findings [1] in x [2]')
+    assert.equal(plain(paragraph.children), 'Costs [3] and fell [4] [1].')
+    assert.equal(plain(table.head[0] ?? []), 'y [5] [4]')
+    assert.equal(plain(table.rows[0]?.[0] ?? []), '[3]')
   })
 
   it('leaves snake_case alone and survives unclosed markers', () => {

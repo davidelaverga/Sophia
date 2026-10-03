@@ -44,10 +44,10 @@ const sources: ReportSourceList = {
 }
 
 /** API and save doubles: the text loader serves `served` without checking it, so only the page's own check can. */
-function doubles(served: string) {
+function doubles(served: string, listed: ArtifactVersion = version) {
   const saved: { blob: Blob; filename: string }[] = []
   const deps: PageDeps = {
-    listVersions: () => Promise.resolve([version]),
+    listVersions: () => Promise.resolve([listed]),
     loadText: () =>
       Promise.resolve({ text: served, filename: 'x.md', mime: 'text/markdown', byteLength: served.length }),
     listSources: () => Promise.resolve(sources),
@@ -78,6 +78,23 @@ describe('a report’s HTML page is printed from its checked Markdown and saved,
     assert.equal(result.byteLength, new TextEncoder().encode(expected).byteLength)
     // Numbered as the viewer numbers it: the link to an id outside the version's sources is its label.
     assert.match(html, /<a href="#cite-1">\[1\]<\/a><\/sup> and names an id that is none of its sources 2\./)
+  })
+
+  it('titles a report without a level-1 heading by its version, else as a report', async () => {
+    const note = 'A short note with no heading.\n'
+    const noteSha = createHash('sha256').update(note, 'utf8').digest('hex')
+    const titled: ArtifactVersion = { ...version, sourceHash: noteSha, title: 'Quarterly hosts' }
+    const { title: _title, ...untitled } = titled
+    for (const [listed, shown] of [
+      [titled, 'Quarterly hosts'],
+      [untitled, 'Report'],
+    ] as const) {
+      const { deps, saved } = doubles(note, listed)
+      await downloadReportPage('t', 'a', 'v3', deps)
+      const html = (await saved[0]?.blob.text()) ?? ''
+      assert.match(html, new RegExp(`<title>${shown}</title>`))
+      assert.match(html, new RegExp(`<h1>${shown}</h1>`))
+    }
   })
 
   it('refuses text that does not match the version’s record, and saves nothing', async () => {

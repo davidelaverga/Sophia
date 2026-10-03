@@ -158,7 +158,12 @@ interface Scan {
   src: string
   cites: Citations
   depth: number
+  /** Where each label opened in `src` closes (-1: it does not), as `labelEnd` finds them: one pass, however many `[`. */
+  ends?: Map<number, number>
 }
+
+/** A part of a scan's text (an emphasis or a label), read one level deeper. */
+const deeper = (s: Scan, src: string): Scan => ({ src, cites: s.cites, depth: s.depth + 1 })
 
 type Step = { inline: Inline[]; next: number } | null
 
@@ -179,7 +184,7 @@ function emphasis(s: Scan, i: number): Step {
   if (s.src[start] === undefined || /\s/.test(s.src[start] ?? '')) return null
   const end = closing(s.src, start, delim)
   if (end < 0) return null
-  const children = inlines({ ...s, src: s.src.slice(start, end), depth: s.depth + 1 })
+  const children = inlines(deeper(s, s.src.slice(start, end)))
   return { inline: [strong ? { kind: 'strong', children } : { kind: 'em', children }], next: end + delim.length }
 }
 
@@ -202,28 +207,35 @@ function citeLink(s: Scan, label: string, target: string): Inline[] | null {
   if (id === undefined || !s.cites.links(id)) return null
   if (MARKER.test(label) || CITE_TARGET.test(label.trim())) return [{ kind: 'cite', sourceId: id, n: s.cites.n(id) }]
   // The label first, so a citation inside it keeps its place in the numbering.
-  const children = inlines({ ...s, src: label, depth: s.depth + 1 })
+  const children = inlines(deeper(s, label))
   return [...children, { kind: 'cite', sourceId: id, n: s.cites.n(id) }]
+}
+
+/** The last character of an escape or a closed code span at `i`, else `i`: what a label's brackets skip. */
+const skipped = (src: string, i: number): number => {
+  if (src[i] === '\\') return i + 1
+  return src[i] === '`' ? Math.max(i, src.indexOf('`', i + 1)) : i
 }
 
 /**
  * The `]` that closes the label opened at `open`, brackets inside it balanced: a backslash escapes the next character,
- * a closed code span hides what it holds, and a blank line ends the search. -1 when none.
+ * a closed code span hides what it holds, and a blank line ends the search. -1 when none. The labels opened inside it
+ * are closed by the same pass and remembered, so a run of `[` costs one pass, not one per bracket.
  */
-function labelEnd(src: string, open: number): number {
-  let depth = 0
-  for (let i = open + 1; i < src.length; i += 1) {
+function labelEnd(s: Scan, open: number): number {
+  const ends = (s.ends ??= new Map<number, number>())
+  const known = ends.get(open)
+  if (known !== undefined) return known
+  const src = s.src
+  const opens = [open]
+  for (let i = open + 1; i < src.length && opens.length > 0; i = skipped(src, i) + 1) {
     const c = src[i]
-    if (c === '\\') i += 1
-    else if (c === '`') i = Math.max(i, src.indexOf('`', i + 1))
-    else if (c === '\n' && src[i + 1] === '\n') return -1
-    else if (c === '[') depth += 1
-    else if (c === ']') {
-      if (depth === 0) return i
-      depth -= 1
-    }
+    if (c === '\n' && src[i + 1] === '\n') break
+    if (c === '[') opens.push(i)
+    else if (c === ']') ends.set(opens.pop() ?? open, i)
   }
-  return -1
+  for (const o of opens) ends.set(o, -1)
+  return ends.get(open) ?? -1
 }
 
 /** Whether inline content holds a link, at any depth. */
@@ -242,24 +254,51 @@ function withoutCites(inline: readonly Inline[], out: Inline[]): Inline[] {
   })
 }
 
+/** Whether inline content shows a letter or a digit, at any depth. */
+const shows = (inline: readonly Inline[]): boolean =>
+  inline.some((i) =>
+    i.kind === 'text' || i.kind === 'code'
+      ? /[\p{L}\p{N}]/u.test(i.text)
+      : (i.kind === 'strong' || i.kind === 'em' || i.kind === 'link') && shows(i.children),
+  )
+
+/** What a link says when its label says nothing but citations: its site, or the address it mails. */
+function siteOf(href: string): string {
+  const url = new URL(href)
+  return url.host || url.pathname
+}
+
+/** Adjacent text runs as one. */
+const joined = (inline: readonly Inline[]): Inline[] =>
+  inline.reduce<Inline[]>((out, i) => {
+    const last = out.at(-1)
+    if (i.kind === 'text' && last?.kind === 'text') out[out.length - 1] = { kind: 'text', text: last.text + i.text }
+    else out.push(i)
+    return out
+  }, [])
+
 /**
  * A link the viewer may open, else its label as text. One anchor is never inside another: a label that holds a link is
- * not a link (the inner one is, as in CommonMark), and a citation in a label follows the link.
+ * not a link but text around the inner one, its brackets and target as written (as in CommonMark), and a citation in a
+ * label follows the link. A label is read once: read again, a label in a label in a label… doubles the work each level.
  */
-function linkTo(s: Scan, label: string, href: string | null, next: number): Step {
-  const children = inlines({ ...s, src: label, depth: s.depth + 1 })
+function linkTo(s: Scan, label: string, href: string | null, tail: string, next: number): Step {
+  const children = inlines(deeper(s, label))
   if (!href) return { inline: children, next }
-  if (holdsLink(children)) return null
+  if (holdsLink(children)) {
+    return { inline: joined([{ kind: 'text', text: '[' }, ...children, ...citing(tail, s.cites)]), next }
+  }
   const cites: Inline[] = []
   const kept = withoutCites(children, cites)
-  return { inline: [{ kind: 'link', href, children: kept }, ...cites], next }
+  const named: Inline[] = shows(kept) ? kept : [{ kind: 'text', text: siteOf(href) }]
+  return { inline: [{ kind: 'link', href, children: named }, ...cites], next }
 }
 
 /** `[text](url)` or `![alt](src)`: a link the viewer may open, else its text; an image only by name. */
 function linkOrImage(s: Scan, i: number): Step {
   const image = s.src[i] === '!'
   const open = image ? i + 1 : i
-  const close = labelEnd(s.src, open)
+  const close = labelEnd(s, open)
   if (close < 0 || s.src[close + 1] !== '(') return null
   const end = targetEnd(s.src, close + 2)
   if (end < 0) return null
@@ -272,7 +311,7 @@ function linkOrImage(s: Scan, i: number): Step {
   if (image) return { inline: [{ kind: 'text', text: `[image: ${label || 'untitled'}]` }], next: end + 1 }
   const cited = citeLink(s, label, target)
   if (cited) return { inline: cited, next: end + 1 }
-  return linkTo(s, label, safeHref(target), end + 1)
+  return linkTo(s, label, safeHref(target), s.src.slice(close, end + 1), end + 1)
 }
 
 /** `<https://…>`: an autolink. Any other `<…>` stays text. */

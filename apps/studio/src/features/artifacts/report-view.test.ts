@@ -249,6 +249,8 @@ describe('how a cited source was retrieved', () => {
     assert.equal(sourceTitle({ title: 'A page', url: 'https://example.org/a' }), 'A page')
     assert.equal(sourceTitle({ title: null, url: 'https://example.org/a' }), 'example.org')
     assert.equal(sourceTitle({ title: null, url: null }), 'A source from the project')
+    assert.equal(sourceTitle({ title: ' ', url: 'https://example.org/a' }), 'example.org', 'a blank title is none')
+    assert.equal(sourceTitle({ title: '', url: null }), 'A source from the project')
   })
 })
 
