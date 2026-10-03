@@ -9,7 +9,16 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { RuntimeCommand } from '@sophia/contracts'
-import { admitResearchTask, createPool, readSnapshot, startExchange, withActor } from '@sophia/persistence'
+import {
+  admitNativeTask,
+  admitResearchTask,
+  createPool,
+  readNativeTask,
+  readSnapshot,
+  startExchange,
+  submitContribution,
+  withActor,
+} from '@sophia/persistence'
 import {
   createTestDatabase,
   registerRuntime,
@@ -755,6 +764,122 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     const hold = await tool(w, { taskId, action: 'hold' }, E, { name: 'control_work', guide: 'v1.1' })
     // An admitted goal is not active yet, so the work refuses the Hold: the call passed the guide and reached it.
     assert.deepEqual([hold.status, hold.output.code], ['refused', 'invalid_state'], 'v1.1’s controls reach the work')
+  })
+})
+
+/** A brief admitted the way production still runs one (0012), dispatched, delivered and answered with `text`. */
+async function answeredBrief(w: Awaited<ReturnType<typeof world>>, text: string | null) {
+  const said = await withActor(pool, E, 'write', (c) =>
+    submitContribution(c, w.projectId, randomUUID(), {
+      source: null,
+      text: 'Say what the room needs first.',
+      threadId: null,
+      artifactVersionId: null,
+      intent: 'discuss',
+    }),
+  )
+  const admitted = await withActor(pool, E, 'write', (c) =>
+    admitNativeTask(c, w.projectId, randomUUID(), {
+      kind: 'draft_brief',
+      instruction: 'Draft the brief.',
+      contributionIds: [said.contributionId],
+      expectedMissionRevision: 1,
+    }),
+  )
+  await dispatchOnce(worker, { workerId: 'test-worker' })
+  const batch = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
+  const create = (batch.json.commands as Array<{ command: RuntimeCommand }>)
+    .map((q) => q.command)
+    .find((cmd) => cmd.binding.attemptId === admitted.attemptId)
+  assert.ok(create, 'the brief was dispatched')
+  if (text === null) return { taskId: admitted.taskId, contextSourceId: admitted.contextSourceId }
+  const session = `sophia-${admitted.attemptId}`
+  const delivered = await w.runtime('/v1/runtime/receipts', {
+    receipts: [
+      {
+        commandId: create.commandId,
+        attemptId: admitted.attemptId,
+        stage: 'delivered',
+        nativeSessionId: session,
+        nativeSequence: 1,
+        evidenceRefs: [],
+        observedAt: new Date().toISOString(),
+        reason: null,
+      },
+    ],
+  })
+  assert.equal(delivered.status, 204, JSON.stringify(delivered.json))
+  const seen = (nativeSeq: number, type: string, data: unknown) => ({
+    runtimeUnitId: w.rt.runtimeUnitId,
+    attemptId: admitted.attemptId,
+    nativeSessionId: session,
+    nativeSeq,
+    type,
+    durable: true,
+    data,
+  })
+  const turn = await w.runtime('/v1/runtime/observations', {
+    observations: [
+      seen(2, 'turn/start', { turn: 1 }),
+      seen(3, 'assistant/message', { text, truncated: false, provider: 'p', model: 'm', interrupted: false }),
+      seen(4, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ],
+  })
+  assert.equal(turn.status, 204, JSON.stringify(turn.json))
+  return { taskId: admitted.taskId, contextSourceId: admitted.contextSourceId }
+}
+
+describe('read_selected_source on a brief (written before CX-0027’s change, which must leave it as it is)', () => {
+  it('reads a brief’s result one page at a time, and a brief with no result as none, for either guide', async () => {
+    const w = await world()
+    // Longer than one page: the first page is partial and names the next.
+    const text = `## Intended outcome\n${'A real voice in the room. '.repeat(130)}\n## Cited inputs\n- the room`
+    const brief = await answeredBrief(w, text)
+    const source = await withActor(pool, E, 'read', (c) => readNativeTask(c, w.projectId, brief.taskId))
+    assert.ok(source.result)
+    const points = Array.from(text)
+    const page = (start: number, end: number) => ({
+      taskId: brief.taskId,
+      sourceId: source.result?.sourceId,
+      sha256: createHash('sha256').update(text).digest('hex'),
+      textKind: 'runtime_result',
+      state: 'result_ready',
+      text: points.slice(start, end).join(''),
+      locator: { start, end, total: points.length },
+      coverage: 'partial',
+      nextCursor: end < points.length ? `cp:${String(end)}` : null,
+      exact: true,
+    })
+    const read = (guide: 'v1.1' | 'v1.2' | undefined, args: object = {}) =>
+      tool(w, { taskId: brief.taskId, ...args }, E, { name: 'read_selected_source', guide })
+    for (const guide of ['v1.1', 'v1.2', undefined] as const) {
+      const first = await read(guide)
+      assert.equal(first.status, 'ok')
+      // Byte for byte, keys in order: what the guide reads of a brief is exactly what it read before.
+      assert.equal(JSON.stringify(first.output), JSON.stringify(page(0, 3000)), String(guide))
+      const next = await read(guide, { cursor: 'cp:3000' })
+      assert.equal(JSON.stringify(next.output), JSON.stringify(page(3000, points.length)), String(guide))
+    }
+    const waiting = await answeredBrief(w, null)
+    for (const guide of ['v1.1', 'v1.2'] as const) {
+      const none = await tool(w, { taskId: waiting.taskId }, E, { name: 'read_selected_source', guide })
+      assert.equal(
+        JSON.stringify(none),
+        JSON.stringify({
+          status: 'ok',
+          output: {
+            taskId: waiting.taskId,
+            sourceId: waiting.contextSourceId,
+            sha256: null,
+            textKind: 'runtime_result',
+            state: 'dispatched',
+            text: null,
+            coverage: 'none',
+          },
+        }),
+        guide,
+      )
+    }
   })
 })
 
