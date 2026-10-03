@@ -7,7 +7,8 @@
 // (resources.html#resource-<id>), as Resources would; `#task-<id>` opens a task with the page. `expired=1`: the
 // decision is past its expiry; `unknown=1`: an answer comes back not confirmed; `unplanned=1`: a goal without a plan;
 // `staggered=1`: Sophia answers the first question slower than the next. `workFixture.replan()` replaces the first
-// goal's plan with a new one (a new plan id), as the lead would.
+// goal's plan with a new one (a new plan id), as the lead would. `later=1` (with `two=1`): the second goal's plan is
+// held back until `workFixture.arrive()`, as a slower read would.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -39,6 +40,7 @@ declare global {
       settle?: (decisionId: string) => void
       begin?: (workId: string) => void
       replan?: () => void
+      arrive?: () => void
     }
   }
 }
@@ -160,6 +162,7 @@ function slot(p: WorkPlan, now: Date, shared: Shared) {
 function Tasks() {
   const [first, setFirst] = useState(() => expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
   const [live, setLive] = useState(() => withActivity(resources))
+  const [arrived, setArrived] = useState(query.get('later') !== '1')
   // The page's clock runs from NOW, so ages count up and the freshness rings empty as they would.
   const [now, setNow] = useState(NOW)
   useEffect(() => {
@@ -181,12 +184,13 @@ function Tasks() {
       settle: (id) => moving(() => setFirst((p) => settled(p, id))),
       begin: (workId) => moving(() => setLive((l) => begun(l, workId))),
       replan: () => setFirst((p) => ({ ...p, plan_id: 'plan-1b', revision: 1 })),
+      arrive: () => setArrived(true),
     }
   }, [])
   const shared = { resources: live, people, viewerId: viewer, actions }
   // A plan in force or proposed fills its goal's slot; otherwise Tasks shows the goal as it does without one.
   const plans = Object.fromEntries(
-    [first, ...(two ? [secondPlan] : []), ...(six ? morePlans : [])]
+    [first, ...(two && arrived ? [secondPlan] : []), ...(six ? morePlans : [])]
       .filter((p) => current(p))
       .map((p) => [p.goal_id, slot(p, now, shared)]),
   )
