@@ -322,7 +322,7 @@ export interface SectionCounts {
 
 /**
  * One published version of a research report, as the guide's readers compare them (CX-0026, CX-0027). Counts are what
- * publication stored; nothing here is the worker's notes.
+ * publication stored, citations less the report's own versions; nothing here is the worker's notes.
  */
 export interface ReportVersion {
   id: string
@@ -335,7 +335,11 @@ export interface ReportVersion {
   renditionOnly: boolean
   /** Whether a PDF of this text exists: on the version itself, or on a rendition-only version made of it. */
   pdf: boolean
-  /** Sources cited, and added and dropped against the version before; null where publication stored none. */
+  /**
+   * Sources cited, and added and dropped against the version before; null where publication stored none. Added and
+   * dropped leave out the report's own versions: a follow-up that lists its base (the pilot's v2 did, CX-0026, and 0037
+   * keeps the base citable) changed no source, and the next version, which does not list it again, dropped none.
+   */
   cited: number | null
   added: number | null
   dropped: number | null
@@ -429,6 +433,15 @@ interface VersionRow {
 /** The length of a stored facts array; null when publication stored none. */
 const stored = (path: string) => `CASE WHEN jsonb_typeof(${path}) = 'array' THEN jsonb_array_length(${path}) END`
 
+/**
+ * How many sources of a stored facts array are not a version of the same report (any of its versions, as 0037's
+ * research_citable lets a follow-up cite one); null when publication stored none.
+ */
+const movedSources = (path: string) =>
+  `CASE WHEN jsonb_typeof(${path}) = 'array' THEN (SELECT count(*)::integer FROM jsonb_array_elements_text(${path}) s(id)
+     WHERE NOT EXISTS(SELECT 1 FROM sophia.artifact_versions o
+                       WHERE o.project_id = v.project_id AND o.artifact_id = v.artifact_id AND o.source_id::text = s.id)) END`
+
 /** Every published, numbered version of these reports, newest first. */
 async function readReportVersions(c: pg.PoolClient, projectId: string, artifactIds: string[]): Promise<VersionRow[]> {
   if (artifactIds.length === 0) return []
@@ -440,7 +453,7 @@ async function readReportVersions(c: pg.PoolClient, projectId: string, artifactI
             EXISTS(SELECT 1 FROM sophia.artifact_renditions r
                     WHERE r.project_id = v.project_id AND r.artifact_version_id = v.id AND r.format = 'pdf') AS pdf,
             CASE WHEN jsonb_typeof(v.change_facts->'cited') = 'number' THEN (v.change_facts->>'cited')::integer END AS cited,
-            ${stored(`v.change_facts->'added'`)} AS added, ${stored(`v.change_facts->'dropped'`)} AS dropped,
+            ${movedSources(`v.change_facts->'added'`)} AS added, ${movedSources(`v.change_facts->'dropped'`)} AS dropped,
             CASE WHEN jsonb_typeof(v.change_facts->'sections') = 'object' THEN jsonb_build_object(
               'added', ${sections('added')}, 'revised', ${sections('revised')},
               'removed', ${sections('removed')}, 'unchanged', ${sections('unchanged')}) END AS sections

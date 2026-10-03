@@ -530,7 +530,8 @@ when you change the room:
   page `@sophia/report/page` prints from the version's checked Markdown, and
   text that does not match its record (`tamper=text`) saves nothing.
   History says first what the service's facts show changed (`factsLine`:
-  sections removed and added by name, cited sources dropped and added,
+  sections removed and added by name, cited sources dropped and added, never
+  counting the report's own versions, which a follow-up may list as its base,
   revisions a count), then Sophia's notes, folded under the facts where a
   section was removed with no section of its name left, or a source dropped
   (`notesNeedFacts`), and not shown where the service wrote them from the

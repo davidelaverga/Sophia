@@ -1220,7 +1220,73 @@ describe('read_selected_source on research: the worker’s summary, and the serv
     )
     assert.equal(r.changes, `This task has published no version. The report is at version 1 (task ${v1}).`)
   })
+
+  it('never counts the report’s own versions as sources added or dropped, as a follow-up that listed its base stored them', async () => {
+    const w = await world()
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const v2 = await researched(w, {
+      amends: v1,
+      text: PILOT_V2,
+      notes: { changeNote: 'Rewrote the recommendations.' },
+    })
+    const kept = PILOT_V2.replace('a 65 W one', 'a 45 W one')
+    const v3 = await researched(w, { amends: v2, text: kept, notes: { changeNote: 'Changed the laptop advice.' } })
+    // Each task cited its own capture in place of the one before: one source added and one dropped, every time. Stored
+    // as the pilot's were (CX-0026): v2 listed its base too, and v3 listed its own base and not v2's.
+    const [base1, base2] = [await versionSource(w, v1), await versionSource(w, v2)]
+    await storedAlso(w, v2, { added: [base1] })
+    await storedAlso(w, v3, { added: [base2], dropped: [base1] })
+    const [second, third] = [(await readTask(w, v2)).report, (await readTask(w, v3)).report]
+    assert.deepEqual(
+      [second.citations, third.citations],
+      [
+        { cited: 1, added: 1, dropped: 1 },
+        { cited: 1, added: 1, dropped: 1 },
+      ],
+    )
+    assert.match(third.changes, /; 1 source cited \(1 added, 1 dropped\)\. This is the latest version\.$/)
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { changes: string }
+    }>
+    const told = rows.find((r) => r.taskId === v3)?.report?.changes ?? ''
+    assert.match(told, /; 1 source cited \(1 added, 1 dropped\)\. This is the latest version\.$/)
+  })
 })
+
+/** As the owner: the source of the version a task published. */
+async function versionSource(w: World, taskId: string): Promise<string> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ source_id: string }>(
+      `SELECT source_id FROM sophia.artifact_versions WHERE project_id=$1 AND job_id=$2`,
+      [w.projectId, taskId],
+    )
+    const source = rows[0]?.source_id
+    assert.ok(source)
+    return source
+  } finally {
+    await owner.end()
+  }
+}
+
+/** As the owner: more sources in the added and dropped facts of the version a task published. */
+async function storedAlso(w: World, taskId: string, more: { added?: string[]; dropped?: string[] }) {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    await owner.query(
+      `UPDATE sophia.artifact_versions SET change_facts = change_facts
+         || jsonb_build_object('added', (change_facts->'added') || to_jsonb($3::text[]),
+                               'dropped', (change_facts->'dropped') || to_jsonb($4::text[]))
+        WHERE project_id=$1 AND job_id=$2`,
+      [w.projectId, taskId, more.added ?? [], more.dropped ?? []],
+    )
+  } finally {
+    await owner.end()
+  }
+}
 
 /** control_work as a v1.2 guide calls it, for the editor holding the floor. */
 const control = (w: World, args: object) => tool(w, args, E, { name: 'control_work', guide: 'v1.2' })

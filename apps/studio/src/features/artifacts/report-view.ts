@@ -370,12 +370,19 @@ function sectionChanges(s: Pick<ReportSections, 'added' | 'removed'>): string {
   return removed ? `${removed}; ${added}` : added
 }
 
+/**
+ * The sources a version's facts say were dropped and added, less the report's own versions (`own`, their source ids):
+ * a follow-up that lists its base (the pilot's v2 did, CX-0026, and 0037 keeps the base citable) changed no source,
+ * and the next version, which does not list it again, dropped none.
+ */
+function movedSources(f: Pick<ChangeFacts, 'added' | 'dropped'>, own: ReadonlySet<string>) {
+  return { dropped: f.dropped.filter((id) => !own.has(id)), added: f.added.filter((id) => !own.has(id)) }
+}
+
 /** "5 dropped, 1 added": how the sources cited changed, or null when they are the same. */
-function sourceChanges(f: Pick<ChangeFacts, 'added' | 'dropped'>): string | null {
-  const parts = [
-    f.dropped.length > 0 ? `${f.dropped.length} dropped` : '',
-    f.added.length > 0 ? `${f.added.length} added` : '',
-  ]
+function sourceChanges(f: Pick<ChangeFacts, 'added' | 'dropped'>, own: ReadonlySet<string>): string | null {
+  const { dropped, added } = movedSources(f, own)
+  const parts = [dropped.length > 0 ? `${dropped.length} dropped` : '', added.length > 0 ? `${added.length} added` : '']
   const said = parts.filter((p) => p !== '')
   return said.length > 0 ? said.join(', ') : null
 }
@@ -385,32 +392,34 @@ function sourceChanges(f: Pick<ChangeFacts, 'added' | 'dropped'>): string | null
  * parent; `before` is that version's number, null when the list does not hold it), from the facts computed at
  * publication, never from the notes. It names the sections removed and added and counts the cited sources dropped and
  * added ("Cited sources", so a section called Sources cannot read as the start of that count); revised sections stay a
- * count chip, since facts stored under 0027 can count a repeated heading as revised when it was not. A version that
- * only adds the PDF says so. Null for a first version, or a version without facts.
+ * count chip, since facts stored under 0027 can count a repeated heading as revised when it was not. The report's own
+ * versions (`own`, their source ids) are never counted as sources (movedSources). A version that only adds the PDF
+ * says so. Null for a first version, or a version without facts.
  */
 export function factsLine(
   version: Pick<ArtifactVersion, 'changeFacts' | 'parentId'>,
   before: number | null,
+  own: ReadonlySet<string>,
 ): string | null {
   const f = version.changeFacts
   if (!f || version.parentId === null) return null
   const was = before === null ? 'the version before' : `v${before}`
   if (f.renditionOnly) return `Same text as ${was}; adds the PDF.`
-  const sources = sourceChanges(f)
+  const sources = sourceChanges(f, own)
   if (!f.sections) return sources === null ? null : `Cited sources compared with ${was}: ${sources}.`
   return `Compared with ${was}: ${sectionChanges(f.sections)}.${sources === null ? '' : ` Cited sources: ${sources}.`}`
 }
 
 /**
  * Whether a version's notes go under its facts, folded: its facts show a section removed with no section of that name
- * left (anchorOf, the rule of the service's truth gate, 0036 note_problems), or sources dropped. Never for notes the
- * service wrote from the facts, or a version that only adds the PDF. It never reads the notes: it says only that the
- * facts hold something the notes may leave out.
+ * left (anchorOf, the rule of the service's truth gate, 0036 note_problems), or sources dropped, never counting the
+ * report's own versions (`own`, movedSources). Never for notes the service wrote from the facts, or a version that only
+ * adds the PDF. It never reads the notes: it says only that the facts hold something the notes may leave out.
  */
-export function notesNeedFacts(version: Pick<ArtifactVersion, 'changeFacts'>): boolean {
+export function notesNeedFacts(version: Pick<ArtifactVersion, 'changeFacts'>, own: ReadonlySet<string>): boolean {
   const f = version.changeFacts
   if (!f || f.notesFromFacts || f.renditionOnly) return false
-  if (f.dropped.length > 0) return true
+  if (movedSources(f, own).dropped.length > 0) return true
   const s = f.sections
   if (!s) return false
   const left = new Set([...s.added, ...s.revised, ...s.unchanged].map(anchorOf))
@@ -426,10 +435,11 @@ export function notesNeedFacts(version: Pick<ArtifactVersion, 'changeFacts'>): b
  */
 export function notesShown(
   version: Pick<ArtifactVersion, 'changeFacts' | 'changeNote' | 'parentId' | 'retainedNote'>,
+  own: ReadonlySet<string>,
 ): 'open' | 'folded' | null {
   if (version.parentId === null || version.changeFacts?.notesFromFacts) return null
   if (!version.changeNote && !version.retainedNote) return null
-  return notesNeedFacts(version) ? 'folded' : 'open'
+  return notesNeedFacts(version, own) ? 'folded' : 'open'
 }
 
 export interface SourceWords {

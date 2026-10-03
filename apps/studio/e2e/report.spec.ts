@@ -593,7 +593,7 @@ test('CX-0019 · History names the recommendations, not the conclusion, when onl
 const PILOT_FACTS =
   'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
   'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-  '2 added: Revised recommendations, Sources. Cited sources: 5 dropped, 1 added.'
+  '2 added: Revised recommendations, Sources. Cited sources: 5 dropped.'
 /** Its notes, which say the rest was kept (synthetic words, as the pilot's said it). */
 const PILOT_CHANGE = 'Revised the recommendations; the rest of the report is unchanged.'
 const PILOT_KEPT = 'Kept: Compatibility, charging speed, product claims and limitations are kept as they were.'
@@ -768,7 +768,8 @@ for (const phone of [false, true]) {
     const facts = v3.locator('.report-facts')
     await expect(facts).toHaveText(`Compared with v2: 1 section added: ${LONG_HEADING}.`) // named whole: 59 characters
     const note = v3.getByText(/^Added the charging times, from measured_/)
-    await expect(note).toBeVisible() // nothing removed, no source dropped: the notes are in sight
+    // Nothing removed and no source dropped (its own versions are none): the notes are in sight.
+    await expect(note).toBeVisible()
     expect(await entriesFit(page), 'the heading and the file name wrap inside the pane').toBe(true)
   })
 
