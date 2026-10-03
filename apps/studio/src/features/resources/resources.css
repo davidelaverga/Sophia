@@ -4,7 +4,7 @@
 .resources-summary {
   margin-left: auto;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 
 /* While a request waits: one line under the head, each a way into its resource's sheet. */
@@ -29,7 +29,7 @@
   border: 0;
   background: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-body);
   text-decoration: underline;
   text-decoration-color: rgba(239, 191, 134, 0.4);
   text-underline-offset: 3px;
@@ -40,7 +40,7 @@
 .attention-tool {
   margin-left: 8px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -67,7 +67,7 @@
 .filter-count {
   margin-left: 6px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-small);
   color: var(--text-4);
 }
 .resource-filters button[aria-selected='true'] .filter-count {
@@ -127,7 +127,7 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: 14px;
+  font-size: var(--type-title);
   font-weight: 600;
   letter-spacing: -0.01em;
   text-overflow: ellipsis;
@@ -138,7 +138,7 @@
   align-items: center;
   gap: 5px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -150,7 +150,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .resource-tile-capacity {
   display: grid;
@@ -165,7 +165,7 @@
   overflow: hidden;
   color: var(--text-2);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -200,7 +200,7 @@
   min-width: 0;
   margin-top: -4px;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .resource-tile-said {
   overflow: hidden;
@@ -212,7 +212,7 @@
   flex: none;
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
 }
 
@@ -257,7 +257,7 @@
   border-radius: var(--r-3);
   background: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .resource-sort-button:hover,
 .resource-sort-button[aria-expanded='true'] {
@@ -294,7 +294,7 @@
 }
 .resource-sort-label {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -314,7 +314,7 @@
   background: color-mix(in srgb, var(--model) 7%, transparent);
   color: color-mix(in srgb, var(--model) 30%, var(--text-2));
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -350,7 +350,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .resource-tile-activity-words {
   overflow: hidden;
@@ -409,7 +409,7 @@
 .capacity-history figcaption {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
 }
 .capacity-windows dd .capacity-history {
   flex-basis: 100%;
@@ -440,7 +440,7 @@
 .effort-label {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
 }
 .effort[data-alive] .effort-label {
   color: var(--text-2);
@@ -586,7 +586,7 @@
   padding-left: 6px;
   color: var(--text-2);
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: var(--type-body);
   animation: arrive 0.3s var(--ease) both;
 }
 .effort-asked-dot {
@@ -623,18 +623,18 @@
   }
 }
 .effort-asked .text-button {
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 /* No effort reported yet: the bar's place says what it does, in words. */
 .effort-set {
   color: var(--text-3);
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .effort-picker {
   flex-basis: 100%;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--type-body);
   display: grid;
   gap: 10px;
   margin-top: 6px;
@@ -648,14 +648,14 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 15px;
+  font-size: var(--type-title);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 .effort-picker-now {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -737,7 +737,7 @@
   gap: 8px 16px;
   padding: 28px 0;
   color: var(--text-3);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 
 /* A resource up close, in the app's sheet: sections under small mono heads, ruled from one another. */
@@ -761,7 +761,6 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 15px;
   line-height: 1.35;
   letter-spacing: -0.015em;
 }
@@ -770,7 +769,7 @@
 .capacity-windows dt,
 .sheet-section h3 {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -781,7 +780,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 /* An owner's picture, or their initial, at the size of the line it sits in. */
 .resource-avatar .avatar {
@@ -802,7 +801,7 @@
   gap: 6px;
   padding-bottom: 14px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .sheet-section {
   display: grid;
@@ -818,7 +817,7 @@
 .waiting-session,
 .waiting-foot .muted {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .resource-age,
 .capacity-meta,
@@ -865,7 +864,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .resource-work.idle {
   color: var(--text-3);
@@ -918,7 +917,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .resource-session-said {
   overflow: hidden;
@@ -930,7 +929,7 @@
   margin-left: auto;
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
 }
 
@@ -940,7 +939,7 @@
   gap: 6px;
 }
 .capacity-line {
-  font-size: 13px;
+  font-size: var(--type-body);
   color: var(--text);
 }
 .capacity-meter {
@@ -977,7 +976,7 @@
 }
 .capacity-pace {
   color: var(--amber);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 /* Where there is room when this one runs short: whose, how full, and a way to it. */
 .capacity-room {
@@ -989,7 +988,7 @@
   border-radius: var(--r-3);
   background: rgba(127, 214, 196, 0.06);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-body);
   animation: arrive 0.4s var(--ease) both;
 }
 .capacity-room-words {
@@ -1001,7 +1000,7 @@
   align-items: center;
   gap: 4px;
   justify-self: start;
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .capacity-toggle .icon {
   width: 12px;
@@ -1029,14 +1028,14 @@
   align-items: center;
   gap: 4px 8px;
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .capacity-windows dd .capacity-meter {
   flex-basis: 100%;
 }
 .capacity-missing {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 
 /* The route's controls: small mono labels with a glyph; a tip says what each does. */
@@ -1054,7 +1053,7 @@
   align-items: center;
   gap: 5px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1093,7 +1092,7 @@
 }
 .waiting-line {
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .waiting-foot {
   display: flex;
@@ -1103,7 +1102,7 @@
 }
 /* Its label keeps the width of its longest words (SwapLabel): it starts where it sits, not centred in that width. */
 .waiting-copy {
-  font-size: 12.5px;
+  font-size: var(--type-body);
   text-align: left;
 }
 
@@ -1179,7 +1178,7 @@
   background: none;
   color: var(--text-2);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--type-small);
   cursor: pointer;
   transition:
     border-color var(--fast) var(--ease),
@@ -1229,7 +1228,7 @@
   background: none;
   color: var(--text-3);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--type-small);
   cursor: pointer;
   transition: color var(--fast) var(--ease);
 }
@@ -1268,7 +1267,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .session-earlier-list li::before {
   content: '';
@@ -1401,6 +1400,25 @@
   border: 1px solid var(--amber);
   animation: waiting-ping 2.4s var(--ease) infinite;
 }
+/* ---- The work views' type, on their shared pieces: the app's tag and a request's quiet line keep to the scale
+   here (theme.css: --type-*), so a view shows at most five sizes. ---- */
+.resources .tag,
+.resource-sheet .tag,
+.goals .tag,
+.task-sheet .tag {
+  font-size: var(--type-small);
+}
+/* A goal's own card (one without a plan, or the list before plans): its title and outcome on the scale too. */
+.goals .goal-title {
+  font-size: var(--type-title);
+}
+.goals .goal-outcome {
+  font-size: var(--type-body);
+}
+.resource-requests .event .muted {
+  font-size: var(--type-small);
+}
+
 /* ---- While you were away, shared with the plan's board: one sentence from Sophia's light, and Mark seen. ---- */
 .away-line {
   display: flex;
@@ -1413,7 +1431,7 @@
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(156, 130, 245, 0.12), rgba(156, 130, 245, 0.03));
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--type-body);
   animation: arrive 0.5s var(--ease) 0.2s both;
 }
 .away-line .field-label {
@@ -1436,7 +1454,7 @@
   background: rgba(236, 235, 241, 0.08);
   color: var(--text-2);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--type-small);
   cursor: pointer;
   transition: background-color var(--fast) var(--ease);
 }
@@ -1519,7 +1537,7 @@
   border-radius: var(--r-3);
   background: rgba(236, 235, 241, 0.03);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .act-guide input:focus {
   outline: none;
@@ -1527,7 +1545,7 @@
   box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
 }
 .act-note {
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .act-steps {
   display: grid;
@@ -1550,7 +1568,7 @@
   padding-top: 10px;
   color: var(--text-4);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transition: color var(--base) var(--ease);
@@ -1585,7 +1603,7 @@
 }
 .act-steps p {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .act-steps[data-at='refused'] p {
   color: var(--amber);

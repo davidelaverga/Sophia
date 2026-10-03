@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { typeSizes } from './type-sizes.ts'
 
 // The lead's plan in Tasks (LFE-07.1), on its fixture page (fixtures/work.html): the real ProjectShell, each goal's
 // plan as a board, over labelled simulated data. The page's clock runs from the fixture's NOW. No request leaves it.
@@ -487,4 +488,18 @@ test('a search that a goal without a plan answers says nothing is missing', asyn
   await page.getByRole('searchbox').fill('fonts')
   await expect(page.locator('.goal').filter({ hasText: 'Exports keep their fonts' })).toBeVisible()
   await expect(page.getByText(/No goal or task answers/)).toHaveCount(0)
+})
+
+test('type · the board, a goal without a plan, and a task’s sheet keep to the scale', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&tight=1&unplanned=1`)
+  await expect(tile(page, 'work-1')).toBeVisible()
+  await expect(page.locator('.goal').filter({ hasText: 'Exports keep their fonts' })).toBeVisible()
+  const onBoard = await typeSizes(page, '.goals')
+  expect(onBoard, onBoard.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '20px'])
+  await tile(page, 'work-1').click()
+  const sheet = await typeSizes(page, '.task-sheet')
+  expect(
+    sheet.filter((s) => !['10.5px', '12px', '13px', '14px'].includes(s)),
+    sheet.join(' '),
+  ).toEqual([])
 })

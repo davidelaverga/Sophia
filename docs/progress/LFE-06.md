@@ -69,6 +69,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 20** ([handoff](../handoffs/LFE-06-attempt-20.md)): acting from Resources (Act on a session's row: guidance, Hold, Stop, said as observed), and Tasks warned when a task's account runs short, with where there is room.
 - **Attempt 21** ([handoff](../handoffs/LFE-06-attempt-21.md)): what changed since the viewer last looked, one line with Mark seen and the tiles marked; a session's earlier reports folded under its last one.
 - **Attempt 22** ([handoff](../handoffs/LFE-06-attempt-22.md)): Codex's P2s on Resources from #62 to #66, fixed (keyboard, touch, effort under a change or refused, acts sending and naming their work, while-away fidelity).
+- **Attempt 23** ([handoff](../handoffs/LFE-06-attempt-23.md)): one type scale for Resources and the plan's board: at most five sizes on a screen (four tokens under the view's title).
 
 ## Acceptance cases
 

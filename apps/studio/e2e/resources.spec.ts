@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { typeSizes } from './type-sizes.ts'
 
 // LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
 // Resources view, on the labelled simulated fixture page (fixtures/resources.html). Each resource is a tile; its
@@ -1703,4 +1704,15 @@ test('effort · a change that comes while the scale is open brings the focus bac
   await page.evaluate(() => window.resourcesFixture?.advance?.('claude-worker'))
   await expect(worker.locator('.effort-picker')).toHaveCount(0)
   await expect(bar).toBeFocused()
+})
+
+test('type · the view and its sheet keep to the scale: at most five sizes each', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&tight=1&more=1`)
+  await expect(tile(page, 'Davide · Claude Code')).toBeVisible()
+  const view = await typeSizes(page, '.resources')
+  expect(view, view.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '20px'])
+  await open(page, 'Davide · Claude Code')
+  const inSheet = await typeSizes(page, '.resource-sheet')
+  expect(inSheet.length, inSheet.join(' ')).toBeLessThanOrEqual(5)
+  expect(inSheet.filter((s) => !['10.5px', '12px', '13px', '14px', '15px'].includes(s))).toEqual([])
 })
