@@ -149,7 +149,35 @@ const START_RESEARCH: FunctionDeclaration = {
   parametersJsonSchema: {
     type: 'object',
     properties: {
-      question: { type: 'string', maxLength: 2000, description: 'The research question, in the speaker’s language.' },
+      question: {
+        type: 'string',
+        maxLength: 2000,
+        description:
+          'The whole request in the speaker’s own words and language: the topic and every instruction they gave about it (what to change and what to keep as it is, a length, the sections they want, limits on web searches or page reads). Never shortened to a topic.',
+      },
+      scope: {
+        type: 'object',
+        description:
+          'Fill only the parts the speaker stated; leave out the others and do not ask for them. The research worker reads it with the question.',
+        properties: {
+          change: {
+            type: 'string',
+            maxLength: 500,
+            description: 'What the speaker wants changed, mostly for a revision.',
+          },
+          keep: { type: 'string', maxLength: 500, description: 'What they want kept as it is.' },
+          length: { type: 'string', maxLength: 100, description: 'The length they asked for, e.g. "about 500 words".' },
+          sections: {
+            type: 'array',
+            items: { type: 'string', maxLength: 100 },
+            maxItems: 12,
+            description: 'The sections they want, in their order.',
+          },
+          maxSearches: { type: 'integer', minimum: 0, maximum: 5, description: 'The most web searches they allow.' },
+          maxReads: { type: 'integer', minimum: 0, maximum: 8, description: 'The most page reads they allow.' },
+        },
+        additionalProperties: false,
+      },
       outputs: {
         type: 'array',
         items: { type: 'string', enum: ['markdown', 'html', 'pdf'] },
@@ -187,7 +215,7 @@ const START_RESEARCH: FunctionDeclaration = {
       amendsTaskId: {
         ...UUID_SCHEMA,
         description:
-          'A finished research task this request revises. The report is edited in place: say in question exactly what to change and anything the speaker wants kept as it is.',
+          'A finished research task this request revises. The report is edited in place: say in question exactly what to change and anything the speaker wants kept as it is, and fill scope’s change and keep.',
       },
       newRequest: { type: 'boolean', description: 'Only after the speaker confirms a separate report.' },
     },
