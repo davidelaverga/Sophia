@@ -3,6 +3,7 @@
 // goal it serves, its next checkpoint, what it assumes and the decisions it reserves (06_LEAD_RECIPES §3 puts those
 // last two in the plan). Who does an item is found, not stored twice: the resource whose session has that work as its
 // assignment (LFE-06). Nothing here computes progress: no percentage, no timer.
+import type { ActiveReview, LastReview } from './review.ts'
 import { TOOL, WORK_STATE, type RequiredAction, type Resource, type Session } from '../../resources/resource.ts'
 
 export interface PlanItem {
@@ -47,6 +48,9 @@ export interface WorkPlan {
   next_checkpoint: { label: string; item_id: string | null } | null
   assumptions: { id: string; text: string }[]
   decisions: PlanDecision[]
+  /** Proposed for SCM-04 (LFE-07.2): the last finished review of its progress, and the one running now. */
+  last_review?: LastReview | null
+  active_review?: ActiveReview | null
 }
 
 /** Whether a decision can still be answered: proposed, and not past its expiry. */
