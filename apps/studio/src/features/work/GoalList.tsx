@@ -13,17 +13,18 @@ interface Props {
   canAct: boolean
   onOpenStudio: () => void
   onInvite: () => void
-  /** Tasks: the lead's plan, under the goals it serves (LFE-07.1). */
-  plan?: React.ReactNode
+  /** Tasks: each goal's plan, by the goal's id, shown inside that goal's row (LFE-07.1). */
+  plans?: Readonly<Record<string, React.ReactNode>> | undefined
 }
 
-export function GoalList({ snapshot, projectId, identity, controls, canAct, onOpenStudio, onInvite, plan }: Props) {
+export function GoalList({ snapshot, projectId, identity, controls, canAct, onOpenStudio, onInvite, plans }: Props) {
+  const planned = (id: string) => plans?.[id]
   return (
     <section className="goals" aria-labelledby="goals-title">
       <header className="view-head">
         <h2 id="goals-title">{controls ? 'Tasks' : 'Goals'}</h2>
         {/* It counts goals: under a plan, its tasks are counted in the plan's own head instead. */}
-        {!plan && <GoalCount snapshot={snapshot} />}
+        {Object.keys(plans ?? {}).length === 0 && <GoalCount snapshot={snapshot} />}
       </header>
       {!snapshot && <div className="goal skeleton" aria-busy="true" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
@@ -36,11 +37,12 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
             projectId={projectId}
             identity={identity}
             controls={controls && canAct}
-            compact={!!plan}
-          />
+            compact={!!planned(g.id)}
+          >
+            {planned(g.id)}
+          </GoalCard>
         ))}
       </ol>
-      {snapshot && snapshot.goals.length > 0 && plan}
       {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} />}
     </section>
   )

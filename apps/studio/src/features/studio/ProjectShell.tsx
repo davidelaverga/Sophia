@@ -138,10 +138,10 @@ interface Props {
    */
   resources?: React.ReactNode
   /**
-   * The lead's plan, in Tasks under its goal, once something serves it (SCM-04, LFE-07.1); until then Tasks shows the
-   * goals alone. The work fixture fills it (fixtures/work.tsx).
+   * Each goal's plan from the lead, by the goal's id, shown in Tasks inside that goal's row, once something serves
+   * plans (SCM-04, LFE-07.1); until then Tasks shows the goals alone. The work fixture fills it (fixtures/work.tsx).
    */
-  plan?: React.ReactNode
+  plans?: Readonly<Record<string, React.ReactNode>>
   /** Requests waiting on this person in their own tools (ResourcePanel's actions): counted in the tab's title. */
   resourcesWaiting?: number
 }
@@ -256,7 +256,7 @@ export function ProjectShell(props: Props) {
           onInvite={invite}
           background={!!props.background}
           resources={props.resources}
-          plan={props.plan}
+          plans={props.plans}
         />
       )}
     </div>
@@ -337,7 +337,7 @@ interface BodyProps {
   /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
   background: boolean
   resources: React.ReactNode
-  plan: React.ReactNode
+  plans: Readonly<Record<string, React.ReactNode>> | undefined
 }
 
 /**
@@ -389,7 +389,7 @@ function ProjectBody(props: BodyProps) {
 }
 
 /** A page other than the room: Goals and Work list the goals; the views still to come say so. */
-function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plan }: BodyProps) {
+function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plans }: BodyProps) {
   if (view === 'goals' || view === 'work') {
     return (
       <GoalList
@@ -398,7 +398,7 @@ function PageBody({ view, projectId, identity, membership, snapshot, onShow, onI
         identity={identity}
         controls={view === 'work'}
         canAct={canInvite(membership)}
-        plan={view === 'work' ? plan : undefined}
+        plans={view === 'work' ? plans : undefined}
         onOpenStudio={() => onShow('studio')}
         onInvite={onInvite}
       />

@@ -25,6 +25,8 @@ export interface PlanDecision {
   state: 'proposed' | 'accepted' | 'declined' | 'expired' | 'superseded'
   choices: { key: string; label: string }[]
   selected_choice: string | null
+  /** When it stops waiting for an answer (decision.v1 requires one). */
+  expires_at: string
 }
 
 export interface WorkPlan {

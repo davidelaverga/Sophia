@@ -117,6 +117,31 @@ Luis asked for a strict evaluation, then for the fix, keeping the app's premium 
   A rule that changed nothing measurable was removed.
 - `test:browser --repeat-each=2`: 168 of 168. `pnpm test`: 607 pass, plus the 5 known Windows failures.
 
+## Luis's notes: the choices are buttons, several plans, comments
+
+- **Its decider answers a decision where it is raised.** Each choice is a button, and the decider sees "You decide" and when it expires (decision.v1 requires `expires_at`). Anyone else reads who decides and the choices, as words. Per `05_CAPACITY_STEERING_HANDOVER` and LFE-07 PLAN-02:
+  - silence never chooses, so neither button is preselected;
+  - one press answers the one pending decision, and both choices then wait;
+  - the receipt is said: "Sent: Ship it now. It shows as decided once the lead records it.";
+  - a decision that changed since it was read is refused ("Nothing was chosen: read it again"), and the choices can be pressed again. So can a reply that was never confirmed;
+  - it shows as decided only once the plan records it: the raised decision leaves, and the folded line counts it.
+
+  The panel takes an optional `onDecide`. The pack names the operation (`decide_work_request`, "resolve a work decision") but binds no route yet: that is SCM-04/06's.
+- **Several goals each carry their own plan,** inside their row: the slot is `plans`, by goal id. Each plan folds to its tally from its name (PLAN r2), so a project with several goals stays readable.
+- **Comments are not built here.** Per the pack, discussion lives in the project's thread, version-linked: "posting a comment does not retask a worker" (`13_FRONTEND_BINDINGS`). Guidance to a worker is a separate path, recorded, queued, delivered, then verified (`07_STUDIO_VOICE_AND_ARTIFACTS`). Proposed to Luis: a task links to its discussion in the room's thread.
+- **Checked:**
+  - five new browser checks: only the decider answers; one press; refused when stale; several plans, each folding to its tally; the chosen answer kept at full strength;
+  - eight mutations each made their check fail:
+    - anyone can decide;
+    - the other choice can follow;
+    - a refused answer locks the choices;
+    - a refused answer said as sent;
+    - no expiry said;
+    - one plan under every goal;
+    - folding hides the tally.
+
+  `test:browser --repeat-each=2`: 174 of 174.
+
 ## Remaining obligations
 
 - **Davide (SCM-04):**

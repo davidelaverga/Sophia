@@ -16,6 +16,8 @@ interface Props {
    * the plan is what reads first. The Goals view shows them open.
    */
   compact?: boolean
+  /** Its plan, inside its row so the two read as one (Tasks, LFE-07.1). */
+  children?: React.ReactNode
 }
 
 function Criteria({ goal }: { goal: Goal }) {
@@ -45,7 +47,7 @@ function FoldedCriteria({ goal }: { goal: Goal }) {
   )
 }
 
-export function GoalCard({ goal, projectId, identity, controls = true, compact = false }: Props) {
+export function GoalCard({ goal, projectId, identity, controls = true, compact = false, children }: Props) {
   const status = GOAL_STATUS[goal.status]
   const tag = <Tag tone={status.tone}>{status.label}</Tag>
   return (
@@ -58,6 +60,7 @@ export function GoalCard({ goal, projectId, identity, controls = true, compact =
       <p className="goal-outcome">{goal.outcome}</p>
       {goal.criteria.length > 0 && (compact ? <FoldedCriteria goal={goal} /> : <Criteria goal={goal} />)}
       {controls && <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />}
+      {children}
     </li>
   )
 }

@@ -25,7 +25,7 @@ test('one thing to read first: the goal in two lines, then the plan’s head, it
 }) => {
   await page.goto(PAGE)
   const goal = page.locator('.goal').first()
-  await expect(goal.getByRole('heading', { level: 3 })).toHaveText('RunningReports export to PDF reliably')
+  await expect(goal.locator('.goal-title')).toHaveText('RunningReports export to PDF reliably')
   await expect(goal.locator('.criteria')).toHaveCount(0) // folded under the plan
   await goal.getByRole('button', { name: '2 criteria' }).click()
   await expect(goal.locator('.criteria li')).toHaveCount(2)
@@ -132,15 +132,72 @@ test('what it assumes and what was decided rest in one quiet line, opened on req
   await expect(plan(page).getByRole('list', { name: 'Decided' })).toHaveCount(0)
 })
 
-test('the plan reads: its fold is the one control in it, and nothing else looks like one', async ({ page }) => {
-  await page.goto(PAGE)
+test('for anyone but the decider the plan reads: its two folds are its only controls', async ({ page }) => {
+  await page.goto(PAGE) // Luis looks; Davide decides
   await expect(rows(page)).toHaveCount(5)
-  await expect(plan(page).getByRole('button')).toHaveCount(1)
+  await expect(plan(page).getByRole('button')).toHaveCount(2) // the plan's own fold, and Assumed · Decided
   await expect(plan(page).getByRole('link')).toHaveCount(0)
   const pointers = await plan(page)
-    .locator('*:not(.plan-fold-button, .plan-fold-button *)')
+    .locator('*:not(button, button *)')
     .evaluateAll((all) => all.filter((el) => getComputedStyle(el).cursor === 'pointer').length)
   expect(pointers).toBe(0)
+})
+
+test('its decider answers it in one press: sent, both choices held, then decided once the lead records it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const ask = plan(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask.locator('.field-label')).toHaveText('You decide')
+  await expect(ask).toContainText('expires in 2 h')
+  const choices = ask.getByRole('group', { name: 'Your choice' }).getByRole('button')
+  await expect(choices).toHaveText(['Ship it now', 'Wait for the review'])
+  await choices.first().click()
+  await expect(ask.getByRole('status')).toHaveText('Sent: Ship it now. It shows as decided once the lead records it.')
+  await expect(choices.first()).toHaveAttribute('data-chosen', 'true')
+  await expect(choices.first()).toHaveCSS('opacity', '1') // the one chosen stays itself, ringed; the other dims
+  await expect(choices.last()).not.toHaveCSS('opacity', '1')
+  await expect(choices.first()).toBeDisabled() // one answer: the other can't follow it
+  await expect(choices.last()).toBeDisabled()
+  expect(await page.evaluate(() => window.workFixture?.answered)).toEqual([
+    { decision: 'd1', revision: 2, choice: 'ship' },
+  ])
+  await page.evaluate(() => window.workFixture?.settle?.('d1')) // the lead records it in its next revision
+  await expect(plan(page).locator('.plan-ask')).toHaveCount(0)
+  await expect(plan(page).getByRole('heading', { level: 3 })).toHaveText('Planr3Accepted')
+  await plan(page).getByRole('button', { name: '2 assumed · 2 decided' }).click()
+  await expect(plan(page).getByRole('list', { name: 'Decided' })).toContainText('Davide chose Ship it now')
+})
+
+test('an answer to a decision that changed is refused, said so, and the choices can be pressed again', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&conflict=1`)
+  const ask = plan(page).getByRole('region', { name: 'Davide decides' })
+  await ask.getByRole('button', { name: 'Wait for the review' }).click()
+  await expect(ask.getByRole('status')).toHaveText(
+    'This decision changed since you read it. Nothing was chosen: read it again.',
+  )
+  await expect(ask.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
+  await expect(plan(page).locator('.plan-ask')).toHaveCount(1) // still waiting: nothing was decided
+})
+
+test('several goals each carry their own plan inside their row; a plan folds to its tally', async ({ page }) => {
+  await page.goto(`${PAGE}?two=1`)
+  const goals = page.locator('.goal')
+  await expect(goals).toHaveCount(2)
+  await expect(goals.nth(0).locator('.plan')).toHaveCount(1)
+  await expect(goals.nth(1).locator('.plan')).toHaveCount(1)
+  const second = goals.nth(1).locator('.plan')
+  await expect(second.getByText('Proposed · not accepted yet')).toBeVisible()
+  await expect(second.locator('.plan-task')).toHaveText(['Draw the export’s states in the pane', 'Word each state'])
+  const fold = goals.nth(0).getByRole('button', { name: 'Plan r2' })
+  await expect(fold).toHaveAttribute('aria-expanded', 'true')
+  await fold.click()
+  await expect(goals.nth(0).locator('.plan-row')).toHaveCount(0)
+  await expect(goals.nth(0).locator('.plan-tally li')).toHaveCount(4) // folded, it still says where its tasks stand
+  await fold.click()
+  await expect(goals.nth(0).locator('.plan-row')).toHaveCount(5)
 })
 
 test('each picture sits centred on its task’s line, a photo or an initial alike', async ({ page }) => {

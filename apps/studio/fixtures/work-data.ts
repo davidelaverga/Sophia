@@ -4,6 +4,9 @@
 import type { Goal } from '@sophia/contracts'
 import type { WorkPlan } from '../src/features/work/planning/plan.ts'
 import { PROJECT } from './data.ts'
+import { NOW } from './resources-data.ts'
+
+const inHours = (h: number) => new Date(NOW.getTime() + h * 3_600_000).toISOString()
 
 export const goal: Goal = {
   id: '00000000-0000-4000-8000-0000000000b1',
@@ -84,6 +87,7 @@ const decisions: WorkPlan['decisions'] = [
       { key: 'wait', label: 'Wait for the review' },
     ],
     selected_choice: null,
+    expires_at: inHours(2),
   },
   {
     decision_id: 'd2',
@@ -95,6 +99,7 @@ const decisions: WorkPlan['decisions'] = [
       { key: '3', label: 'Three times' },
     ],
     selected_choice: '3',
+    expires_at: inHours(-20),
   },
 ]
 
@@ -110,3 +115,49 @@ export const plan = (state: WorkPlan['state']): WorkPlan => ({
   assumptions,
   decisions,
 })
+
+/** `two=1`: a second goal in the same project, with its own plan, proposed and smaller. */
+export const secondGoal: Goal = {
+  id: '00000000-0000-4000-8000-0000000000b2',
+  projectId: PROJECT,
+  title: 'The report pane says what an export is doing',
+  revision: 1,
+  authorityEpoch: 1,
+  status: 'ready',
+  outcome: 'Whoever exports a report sees it start, wait and finish, without asking anyone.',
+  criteria: [
+    { id: 'c1', description: 'Each state of an export is shown once', required: true, verification: 'review' },
+  ],
+  stateRevision: 1,
+}
+
+export const secondPlan: WorkPlan = {
+  plan_id: 'plan-2',
+  revision: 1,
+  mission_revision: 3,
+  state: 'proposed',
+  goal_id: secondGoal.id,
+  next_checkpoint: { label: 'The pane’s states agreed with Luis', item_id: null },
+  items: [
+    {
+      id: 'pane-states',
+      purpose: 'Draw the export’s states in the pane',
+      parent_id: null,
+      blocked_by: [],
+      assignee_kind: 'human',
+      assignee_id: 'luis',
+      activation: { kind: 'immediate', producer_work_id: null },
+    },
+    {
+      id: 'pane-copy',
+      purpose: 'Word each state',
+      parent_id: null,
+      blocked_by: ['pane-states'],
+      assignee_kind: 'unassigned',
+      assignee_id: null,
+      activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+    },
+  ],
+  assumptions: [],
+  decisions: [],
+}

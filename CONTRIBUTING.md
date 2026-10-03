@@ -434,7 +434,9 @@ when you change the room:
   raised. Then one line per task, by what moves: a mark, the task, where it
   stands, and who does it (a picture with their tool's logo as a badge, found
   through the session assigned to it, LFE-06). Hovering a task lights what it
-  waits on. What it assumes and what was decided fold into one line.
+  waits on. What it assumes and what was decided fold into one line. Only a
+  decision's decider answers it, one press, said by its receipt; several goals
+  each carry their own plan (`plans`, by goal id), each folding to its tally.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves

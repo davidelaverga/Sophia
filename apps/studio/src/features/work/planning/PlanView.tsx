@@ -1,28 +1,19 @@
 // The lead's plan in Tasks, under the goal it serves (LFE-07.1). One thing to read first, then one line per task:
-// - its head: PLAN r2 and whether it is accepted, and a tally of where its tasks stand, each with its mark;
+// - its head: PLAN r2 and whether it is accepted, a tally of where its tasks stand, each with its mark; the head folds
+//   the plan away to that tally, for a project with several goals;
 // - the next checkpoint, as its lead sentence;
-// - what waits on someone's decision, raised, with who decides;
+// - what waits on someone's decision, raised, with who decides; its decider answers it there (Decision.tsx);
 // - its tasks, one line each, ordered by what moves: a mark, the task, where it stands in words, and who does it (a
 //   picture with their tool's logo on it). Hovering a task lights the tasks it waits on;
 // - what it assumes and what was decided, folded into one quiet line.
-// It reads; only the fold acts. Editing a plan revision is a later slice.
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
 import type { Resource } from '../../resources/resource.ts'
 import '../../resources/resources.css'
-import {
-  current,
-  planRows,
-  tally,
-  waitsOn,
-  type Doer,
-  type Mark,
-  type PlanDecision,
-  type PlanRow,
-  type WorkPlan,
-} from './plan.ts'
+import { Decision, type Decide } from './Decision.tsx'
+import { current, planRows, tally, waitsOn, type Doer, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import './plan.css'
 
 type Person = Resource['owner']
@@ -33,6 +24,11 @@ interface Props {
   resources: readonly Resource[]
   /** The project's people, by id: who decides, and who does an item by hand. */
   people: Record<string, Person>
+  now: Date
+  /** Who is looking: a decision's decider answers it. */
+  viewerId?: string | null
+  /** Where a decider's answer goes; absent, decisions are read only. */
+  onDecide?: Decide
 }
 
 const MARK_WORDS: Record<Mark, string> = {
@@ -84,27 +80,30 @@ function Row({ row, lit, onLight }: { row: PlanRow; lit: boolean; onLight: (id: 
   )
 }
 
-/** A decision the plan leaves to someone, raised above the tasks: who decides, the question, its choices. */
-function Ask({ decision, people }: { decision: PlanDecision; people: Record<string, Person> }) {
-  const decider = people[decision.decider_id]
-  return (
-    <section className="plan-ask" aria-label={`${decider?.name ?? 'Someone'} decides`}>
-      {decider && <Avatar identity={face(decider)} />}
-      <div className="plan-ask-body">
-        <p className="field-label">{decider?.name ?? 'Someone'} decides</p>
-        <p className="plan-ask-question">{decision.question}</p>
-        <p className="plan-ask-choices">{decision.choices.map((c) => c.label).join('  or  ')}</p>
-      </div>
-    </section>
-  )
+interface HeadProps {
+  plan: WorkPlan
+  rows: PlanRow[]
+  id: string
+  open: boolean
+  onToggle: () => void
 }
 
-function Head({ plan, rows }: { plan: WorkPlan; rows: PlanRow[] }) {
+/** PLAN r2 Accepted, which folds the plan to its tally, and the tally itself. */
+function Head({ plan, rows, id, open, onToggle }: HeadProps) {
   return (
     <header className="plan-head">
-      <h3 id="plan-title" className="plan-title">
-        <span className="field-label">Plan</span>
-        <span className="count">r{plan.revision}</span>
+      <h3 id={id} className="plan-title">
+        <button
+          type="button"
+          className="plan-toggle"
+          aria-label={`Plan r${plan.revision}`}
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          <span className="field-label">Plan</span>
+          <span className="count">r{plan.revision}</span>
+          <Icon name="chevron" size={12} />
+        </button>
         {plan.state === 'accepted' ? (
           <Tag tone="teal">Accepted</Tag>
         ) : (
@@ -123,33 +122,46 @@ function Head({ plan, rows }: { plan: WorkPlan; rows: PlanRow[] }) {
   )
 }
 
-export function PlanView({ plan: given, resources, people }: Props) {
+export function PlanView({ plan: given, resources, people, now, viewerId = null, onDecide }: Props) {
   const [lit, setLit] = useState<string | null>(null)
+  const [open, setOpen] = useState(true)
+  const id = useId()
   const plan = current(given)
   if (!plan) return null
   const rows = planRows(plan, resources, people)
   const lighting = rows.find((r) => r.item.id === lit)?.item
   const linked = new Set(lighting ? waitsOn(lighting) : [])
   return (
-    <section className="plan" aria-labelledby="plan-title">
-      <Head plan={plan} rows={rows} />
-      {plan.next_checkpoint && (
-        <p className="plan-checkpoint">
-          <span className="field-label">Next</span>
-          {plan.next_checkpoint.label}
-        </p>
+    <section className="plan" aria-labelledby={id} data-open={open || undefined}>
+      <Head plan={plan} rows={rows} id={id} open={open} onToggle={() => setOpen(!open)} />
+      {open && (
+        <>
+          {plan.next_checkpoint && (
+            <p className="plan-checkpoint">
+              <span className="field-label">Next</span>
+              {plan.next_checkpoint.label}
+            </p>
+          )}
+          {plan.decisions
+            .filter((d) => d.state === 'proposed')
+            .map((d) => (
+              <Decision
+                key={d.decision_id}
+                decision={d}
+                people={people}
+                now={now}
+                viewerId={viewerId}
+                onDecide={onDecide}
+              />
+            ))}
+          <ol className="plan-rows" aria-label="Its tasks">
+            {rows.map((row) => (
+              <Row key={row.item.id} row={row} lit={linked.has(row.item.id)} onLight={setLit} />
+            ))}
+          </ol>
+          <Folded plan={plan} people={people} />
+        </>
       )}
-      {plan.decisions
-        .filter((d) => d.state === 'proposed')
-        .map((d) => (
-          <Ask key={d.decision_id} decision={d} people={people} />
-        ))}
-      <ol className="plan-rows" aria-label="Its tasks">
-        {rows.map((row) => (
-          <Row key={row.item.id} row={row} lit={linked.has(row.item.id)} onLight={setLit} />
-        ))}
-      </ol>
-      <Folded plan={plan} people={people} />
     </section>
   )
 }
@@ -165,7 +177,14 @@ function Folded({ plan, people }: { plan: WorkPlan; people: Record<string, Perso
   ].filter(Boolean)
   return (
     <div className="plan-fold">
-      <button type="button" className="ghost plan-fold-button" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {/* Keyed on what it says: a new decision lands with the line arriving again. */}
+      <button
+        key={said.join()}
+        type="button"
+        className="ghost plan-fold-button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
         {said.join(' · ')}
         <Icon name="chevron" size={12} />
       </button>

@@ -21,6 +21,30 @@
 .plan-title .count {
   font-size: 10.5px;
 }
+/* The plan's name folds it to its tally: quiet, as a label is, with the chevron saying which way it goes. */
+.plan-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  margin-left: -8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+}
+.plan-toggle:hover {
+  background: rgba(236, 235, 241, 0.05);
+}
+.plan-toggle .icon {
+  color: var(--text-3);
+  transform: rotate(-90deg);
+  transition: transform var(--fast) var(--ease);
+}
+.plan-toggle[aria-expanded='true'] .icon {
+  transform: none;
+}
 
 /* Where its tasks stand, counted, each with the mark its tasks carry below. */
 .plan-tally {
@@ -65,7 +89,64 @@
   display: grid;
   gap: 4px;
 }
+.plan-ask-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
 .plan-ask .field-label {
+  color: var(--amber);
+}
+.plan-ask-due {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+/* Its decider's choices: two equal buttons, neither chosen for them; the one pressed keeps a ring while it is sent. */
+.plan-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.plan-choice {
+  height: 32px;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.plan-choice:not(:disabled):hover {
+  border-color: rgba(239, 191, 134, 0.45);
+  background: rgba(239, 191, 134, 0.1);
+  transform: translateY(-1px);
+}
+.plan-choice:not(:disabled):active {
+  transform: translateY(0);
+}
+.plan-choice[data-chosen],
+.plan-choice[data-chosen]:disabled {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+  color: var(--text);
+  opacity: 1;
+}
+.plan-choice:disabled:not([data-chosen]) {
+  opacity: 0.4;
+}
+.plan-ask-said {
+  color: var(--text-2);
+  font-size: 13px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.plan-ask-said[data-state='recorded'] {
+  color: var(--teal);
+}
+.plan-ask-said[data-state='conflict'],
+.plan-ask-said[data-state='unknown'],
+.plan-ask-said[data-state='denied'] {
   color: var(--amber);
 }
 .plan-ask-question {
@@ -323,8 +404,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .plan-choice:not(:disabled):hover {
+    transform: none;
+  }
   .plan-row,
   .plan-ask,
+  .plan-ask-said,
   .plan-fold-body,
   .plan-mark[data-mark='waiting']::after {
     animation: none;
