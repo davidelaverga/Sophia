@@ -226,7 +226,7 @@ export const revisedNotice = { ...researchNotice, id: '00000000-0000-4000-8000-0
 
 /**
  * A brief's notice, synthetic: the fixture's task told as a draft_brief, so its record still names a Markdown file and
- * only the card's kind differs (the HTML page is a research report's, html-report-v1).
+ * only the card's kind differs (the HTML page is a research report's, html-report-v2).
  */
 export const briefNotice = { ...researchNotice, id: '00000000-0000-4000-8000-0000000000bd', taskKind: 'draft_brief' }
 

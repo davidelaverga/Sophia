@@ -525,11 +525,28 @@ when you change the room:
   reach; Esc keeps to the shortcut scope; a notice marks Chat; the focus is
   handed back and never taken; a description never overwrites a newer one;
   a failed read is said, with a way to try again, and a refusal as one.
-  Every report downloads as an HTML page (html-report-v1) from its work card,
+  Every report downloads as an HTML page (html-report-v2) from its work card,
   the pane's Document tab and its Knowledge card: the saved file equals the
-  page `@sophia/report/page` prints from the version's checked Markdown, and
-  text that does not match its record (`tamper=text`) saves nothing.
+  page `@sophia/report/page` prints from the version's checked Markdown, with
+  what the version and its sources already hold (when it was published, its
+  limitations, what was read of each source and when), and text that does not
+  match its record (`tamper=text`) saves nothing.
   Change the viewer and they must still pass.
+- **The downloaded page has its own checks** (`e2e/report-page.spec.ts`,
+  SMC-M03): the bytes `renderReportPage` prints for labelled fixture reports
+  (`fixtures/report-pages.ts`: a research report with every element and every
+  kind of source, and a stress report), opened as they are on a phone and a
+  desktop, light and dark, and printed as A4. 60 to 80 characters a line on a
+  desktop and in print, at least 35 on a phone; at most five font sizes, none
+  under 14 px; nothing past the screen or the column's box; no word of 14
+  characters or fewer broken in a table cell; every text at 4.5:1 (3:1 when
+  large); the answer before the contents and the body, in the first phone
+  screen; every table cell in the PDF, its body at 10.5 pt, and print light
+  for a reader who prefers dark. What its bytes guarantee (one policy, seven
+  metas and one stylesheet, only the tags and attributes it prints, ids used
+  once and links that land, the same bytes in any time zone, hostile text
+  escaped) is checked by `packages/report/src/report-page.test.ts`. Change
+  the page and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake
   delivers result cards and live captions as encoded packets through the
