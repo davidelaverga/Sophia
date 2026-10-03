@@ -76,6 +76,19 @@ export async function admitResearchTask(
   return 'existingTaskId' in result ? result : { admitted: result }
 }
 
+/**
+ * Whether the project's research gate is open, as admission reads it (0025): an enabled grant. No grant is a closed
+ * gate, never an open one. Read under the member's own policy (0024 members_read), in withActor(..., 'read'): an
+ * outsider reads it closed.
+ */
+export async function researchGateOpen(c: pg.PoolClient, projectId: string): Promise<boolean> {
+  const { rows } = await c.query<{ open: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM sophia.research_grants WHERE project_id = $1 AND state = 'enabled') AS open`,
+    [projectId],
+  )
+  return onlyRow(rows, 'research_grants').open
+}
+
 const args = (who: RuntimeCaller) => [who.tokenSha256, who.runtimeUnitId, who.bridgeInstanceId]
 
 async function operation<T>(c: pg.PoolClient, fn: string, who: RuntimeCaller, request: unknown): Promise<T> {

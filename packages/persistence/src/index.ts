@@ -58,6 +58,7 @@ export {
 } from './runtime.ts'
 export {
   admitResearchTask,
+  researchGateOpen,
   runtimeResearchCapture,
   runtimeResearchContext,
   runtimeResearchDraft,

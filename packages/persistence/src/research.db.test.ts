@@ -37,6 +37,7 @@ import {
   rendererRecordOutput,
   rendererSettle,
   requestResearchRendition,
+  researchGateOpen,
   runtimeHello,
   runtimePoll,
   runtimeResearchCapture,
@@ -224,6 +225,17 @@ describe('research admission (start_research)', () => {
     assert.equal(await codeOf(ask(await world({ roles: [PDF] }))), 'native_capability_unavailable')
     const wrongRoute = await world({ roles: [{ ...MD, route: 'default' }] })
     assert.equal(await codeOf(ask(wrongRoute)), 'native_capability_unavailable', 'the role must come with its route')
+  })
+
+  it('reads the research gate as admission does: no grant or a disabled one is closed, and outsiders read it closed', async () => {
+    const open = (projectId: string, actor = E) => withActor(pool, actor, 'read', (c) => researchGateOpen(c, projectId))
+    const none = await world({ granted: false })
+    assert.equal(await open(none.projectId), false, 'no grant')
+    await grant(none.projectId, 'disabled')
+    assert.equal(await open(none.projectId), false, 'a disabled grant')
+    await grant(none.projectId, 'enabled')
+    assert.deepEqual([await open(none.projectId), await open(none.projectId, V)], [true, true], 'members read it open')
+    assert.equal(await open(none.projectId, C), false, 'an outsider')
   })
 
   it('admits one task with the ordinary records, its lineage and a new allowance from the grant', async () => {
