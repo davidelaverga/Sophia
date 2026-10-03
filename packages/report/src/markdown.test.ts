@@ -241,6 +241,59 @@ describe('the report Markdown parser', () => {
     ])
   })
 
+  it('finds every link target’s end in one pass, so unclosed targets take linear time (a draft may hold 256 KiB)', () => {
+    assert.ok(timed('[]((('.repeat((128 * 1024) / 5)) < 1000, '128 KiB of [](((')
+    assert.ok(timed('[a](b '.repeat((96 * 1024) / 6)) < 1000, '96 KiB of [a](b and a space')
+    assert.ok(timed(`${'[]('.repeat((64 * 1024) / 3)}\n${'[x]('.repeat(1024)}`) < 1000, 'two lines of [](')
+  })
+
+  it('reads a paragraph of many short lines in linear time, its hard breaks kept (a draft may hold 256 KiB)', () => {
+    assert.ok(timed('x(\n'.repeat((256 * 1024) / 3)) < 1000, '256 KiB of x( lines in one paragraph')
+    assert.ok(timed('abcd\n'.repeat((256 * 1024) / 5)) < 1000, '256 KiB of short lines in one paragraph')
+    assert.ok(timed('[]((\n'.repeat((256 * 1024) / 5)) < 1000, '256 KiB of [](( lines in one paragraph')
+    const p = only('a  \nb \nc\\\nd \\ \ne\t\nf')
+    assert.equal(p.kind, 'paragraph')
+    assert.deepEqual(p.kind === 'paragraph' ? p.children.map((i) => (i.kind === 'break' ? '<br>' : plain([i]))) : [], [
+      'a',
+      '<br>',
+      'b  c\nd',
+      '<br>',
+      'e\t f',
+    ])
+  })
+
+  it('ends a link target on its own parenthesis, those inside it balanced, and never past its line', () => {
+    assert.deepEqual(shape('See [the docs](https://x.example/a "Title") then.'), [
+      'See ',
+      { link: 'https://x.example/a', label: ['the docs'] },
+      ' then.',
+    ])
+    assert.deepEqual(
+      shape('See [Lisp](https://en.example/wiki/Lisp_(language)) and [f](https://x.example/f(a(b))c).'),
+      [
+        'See ',
+        { link: 'https://en.example/wiki/Lisp_(language)', label: ['Lisp'] },
+        ' and ',
+        { link: 'https://x.example/f(a(b))c', label: ['f'] },
+        '.',
+      ],
+    )
+    assert.deepEqual(shape('[a](b)) [c](https://c.example/)) d'), [
+      'a',
+      ') ',
+      { link: 'https://c.example/', label: ['c'] },
+      ') d',
+    ])
+    assert.deepEqual(shape('See [a](https://x.example/ more'), ['See [a](https://x.example/ more'])
+    assert.deepEqual(shape('See [a](https://x.example/(b) more'), ['See [a](https://x.example/(b) more'])
+    assert.deepEqual(shape('See [a](https://x.example/\nb) c'), ['See [a](https://x.example/ b) c'])
+    assert.deepEqual(shape('[](((([b](https://b.example/) c'), [
+      '[]((((',
+      { link: 'https://b.example/', label: ['b'] },
+      ' c',
+    ])
+  })
+
   it('never puts an anchor inside another: a link in a label is the link, a citation in a label follows it', () => {
     assert.deepEqual(shape('[a [b](https://u1.example/) c](https://u2.example/)'), [
       '[a ',
