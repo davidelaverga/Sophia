@@ -9,7 +9,7 @@ import {
   citedSources,
   REPORT,
   reportList,
-  researchTask,
+  researchTaskAt,
   TASK,
   versions,
   waitingAtTheDoor,
@@ -41,6 +41,10 @@ interface Project {
   versionsFail: false | 'unavailable' | 'not_found'
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
+  /** The research task's result revision (report-data.ts): 1 unless the check revises it. */
+  taskRevision?: 1 | 2
+  /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
+  taskHeld?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -134,8 +138,25 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source) : null
   if (text) return json(text)
-  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return json(researchTask)
+  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   return null
+}
+
+/** Reads of the research task the page holds, each waiting to be let through (`window.fixture.releaseTask`). */
+const heldTasks: (() => void)[] = []
+
+/** The research task at its revision now; while the page holds it, a read that answers once let through. */
+function taskRead(project: Project): Response | Promise<Response> {
+  const read = () => json(researchTaskAt(project.taskRevision ?? 1))
+  served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (!project.taskHeld) return read()
+  return new Promise((resolve) => heldTasks.push(() => resolve(read())))
+}
+
+/** Lets the held reads of the task through, and every later one. */
+export function releaseTask(project: Project): void {
+  project.taskHeld = false
+  for (const release of heldTasks.splice(0)) release()
 }
 
 /** The API's error bodies for a failed read of the versions, with their status (packages/domain/src/errors.ts). */

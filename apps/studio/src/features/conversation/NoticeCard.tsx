@@ -1,8 +1,10 @@
-// A finished result in the chat, for someone who reads Sophia instead of hearing her (SMC-M03 S6, plan §2.8): the
-// words are Studio's, by the task's kind, never a report's title or anything a page said. Open shows the primary file
-// in the viewer (the PDF when there is one, named explicitly: the viewer's own default is the Markdown), Download saves
-// that same file after its hash is checked, and Markdown opens the Markdown beside a PDF (noticeActions, RF-0020).
-// The files come from the task's own record, read with this person's rights.
+// A finished result's card in the chat, for every member, whether they hear Sophia or read her (SMC-M03 S6, plan
+// §2.8, CX-0022): the words are Studio's, by the task's kind, never a report's title or anything a page said. Open
+// shows the primary file in the viewer (the PDF when there is one, named explicitly: the viewer's own default is the
+// Markdown), Download saves that same file after its hash is checked, and Markdown opens the Markdown beside a PDF
+// (noticeActions, RF-0020).
+// The files come from the task's own record, read with this person's rights; until it is read, Open and Download keep
+// their place and the focus but do nothing (aria-disabled, never disabled).
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
@@ -55,10 +57,10 @@ export function NoticeCard(props: Props) {
         <strong>{title}</strong>
       </p>
       <div className="chat-notice-actions">
-        <button type="button" onClick={() => primary && open?.(primary)} disabled={!open || !primary}>
+        <button type="button" onClick={() => primary && open?.(primary)} aria-disabled={!open || !primary || undefined}>
           Open
         </button>
-        <button type="button" className="ghost" onClick={() => void download()} disabled={!primary}>
+        <button type="button" className="ghost" onClick={() => void download()} aria-disabled={!primary || undefined}>
           <Icon name="download" />
           Download
         </button>

@@ -138,22 +138,41 @@ const notice = (taskId: string, resultRevision = 1): ChatNotice => ({
   resultRevision,
 })
 
-it('keeps a result notice once per revision, after the turn that was last when it came (SMC-M03 S6)', () => {
+it('keeps a result notice once, after the turn that was last when it came (SMC-M03 S6)', () => {
   const once = receiveNotice([], notice('t1'), 'a')
-  assert.deepEqual(receiveNotice(once, { ...notice('t1'), id: '44444444-4444-4444-8444-444444444444' }, 'b'), once)
-  const twice = receiveNotice(once, notice('t1', 2), 'b')
   assert.deepEqual(
-    twice.map((n) => [n.key, n.afterTurnId]),
-    [
-      ['t1:1', 'a'],
-      ['t1:2', 'b'],
-    ],
+    once.map((n) => [n.key, n.afterTurnId]),
+    [['t1:1', 'a']],
   )
+  const again = receiveNotice(once, { ...notice('t1'), id: '44444444-4444-4444-8444-444444444444' }, 'b')
+  assert.equal(again, once, 'delivered again: the same list, so nothing renders again and Chat is not marked')
   const many = Array.from({ length: 25 }, (_, i) => `t${String(i)}`).reduce(
     (list, id) => receiveNotice(list, notice(id), null),
     [] as ReturnType<typeof receiveNotice>,
   )
   assert.equal(many.length, 20, 'bounded')
+})
+
+it('a task keeps one notice, its newest revision, after the turn that was last when it came (CX-0022)', () => {
+  const first = receiveNotice(receiveNotice([], notice('t1'), 'a'), notice('t2'), 'a')
+  const revised = receiveNotice(first, notice('t1', 2), 'b')
+  assert.deepEqual(
+    revised.map((n) => [n.key, n.afterTurnId]),
+    [
+      ['t2:1', 'a'],
+      ['t1:2', 'b'],
+    ],
+    'the older card goes: it would open the newer files',
+  )
+  assert.equal(receiveNotice(revised, notice('t1', 1), 'c'), revised, 'an older revision changes nothing')
+  assert.equal(receiveNotice(revised, notice('t1', 2), 'c'), revised, 'nor does the newest, again')
+  const full = Array.from({ length: 20 }, (_, i) => `t${String(i)}`).reduce(
+    (list, id) => receiveNotice(list, notice(id), null),
+    [] as ReturnType<typeof receiveNotice>,
+  )
+  const superseded = receiveNotice(full, notice('t0', 2), null)
+  assert.equal(superseded.length, 20, 'a revision takes its own place, so no other card drops out')
+  assert.equal(superseded[0]?.taskId, 't1')
 })
 
 it('places notices in the chat: after their turn, or first when their turn is gone', () => {

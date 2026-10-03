@@ -1369,28 +1369,25 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.equal(room.notices.length, 2, 'once')
   })
 
-  it('a mixed room hears Sophia say it, and the reader gets the notice as it is said', async () => {
+  it('a mixed room hears Sophia say it, and every member, reader or listener, gets the card as it is said', async () => {
     const { session, room, live } = await ready({ results })
     room.events.textMode?.(DAVIDE, true)
     session.tick()
     await settle()
     assert.equal(live.notices.length, 1)
-    assert.deepEqual(
-      room.notices.map((n) => n.identity),
-      [DAVIDE],
-    )
+    assert.deepEqual(room.notices.map((n) => n.identity).toSorted(), [DAVIDE, LUIS].toSorted(), 'once each (CX-0022)')
     assert.deepEqual(service.announcedEvents, [], 'sent is not heard')
     live.events.audio(speech(), OUT)
     await settle()
-    assert.deepEqual(service.announcedEvents, told(true, 1))
+    assert.deepEqual(service.announcedEvents, told(true, 2))
   })
 
-  it('an older Studio never says it reads: everyone hears Sophia say it, as before', async () => {
+  it('nobody reads: everyone hears Sophia say it once, and every member gets the card (CX-0022)', async () => {
     const { session, room, live } = await ready({ results })
     session.tick()
     await settle()
     assert.equal(live.notices.length, 1)
-    assert.equal(room.notices.length, 0)
+    assert.deepEqual(room.notices.map((n) => n.identity).toSorted(), [DAVIDE, LUIS].toSorted())
   })
 
   it('voice again, leaving, or a signal from someone not in the room each make that person a listener', async () => {
@@ -1404,10 +1401,10 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     session.tick()
     await settle()
     assert.equal(live.notices.length, 1, 'both hear it: Davide chose voice, and Luis came back without saying')
-    assert.equal(room.notices.length, 0)
+    assert.deepEqual(room.notices.map((n) => n.identity).toSorted(), [DAVIDE, LUIS].toSorted(), 'the members present')
   })
 
-  it('a mixed room that did not hear Sophia still records its readers, and a retry the room hears adds it (RF-0017)', async () => {
+  it('a mixed room that did not hear Sophia still records its cards, and a retry the room hears adds it (RF-0017)', async () => {
     const { session, room, live } = await ready({ results })
     room.events.textMode?.(DAVIDE, true)
     session.tick()
@@ -1415,7 +1412,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.equal(live.notices.length, 1)
     live.events.closed('network lost')
     await settle()
-    assert.deepEqual(service.announcedEvents, told(false, 1), 'the reader got it: recorded at once')
+    assert.deepEqual(service.announcedEvents, told(false, 2), 'the members got its card: recorded at once')
     // Recorded, so the API stops listing it; the room's listeners are still owed it.
     session.update(assignment({ results: [], roomRevision: 2 }))
     clock += 1000
@@ -1427,16 +1424,16 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     session.tick()
     await settle()
     assert.equal(next.notices.length, 1, 'said again on the new connection')
-    assert.equal(room.notices.length, 1, 'the reader is not sent it twice')
+    assert.equal(room.notices.length, 2, 'no member is sent it twice')
     next.events.audio(speech(), OUT)
     await settle()
-    assert.deepEqual(service.announcedEvents, [...told(false, 1), ...told(true, 1)], 'heard, and the reader kept')
+    assert.deepEqual(service.announcedEvents, [...told(false, 2), ...told(true, 2)], 'heard, and the cards kept')
     session.tick()
     await settle()
     assert.equal(next.notices.length, 1, 'once heard, never again')
   })
 
-  it('voice retries that are never heard stop, and the readers stay recorded (RF-0017)', async () => {
+  it('voice retries that are never heard stop, and the cards stay recorded (RF-0017)', async () => {
     const { session, room } = await ready({ results })
     room.events.textMode?.(DAVIDE, true)
     let said = 0
@@ -1454,8 +1451,8 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       await flush()
     }
     assert.equal(said, 3, 'three attempts, then no more')
-    assert.deepEqual(service.announcedEvents.at(-1), told(false, 1)[0])
-    assert.equal(room.notices.length, 1)
+    assert.deepEqual(service.announcedEvents.at(-1), told(false, 2)[0])
+    assert.equal(room.notices.length, 2)
   })
 
   it('a record made while an earlier one of the same result is still being sent is not lost (RF-0017)', async () => {
@@ -1517,13 +1514,14 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       fake.announcedEvents.push(e)
     }
     const { session, room, live } = await ready({ results })
-    // The reader's notice is slow to be acknowledged by the data channel.
-    let acknowledge: () => void = noop
+    // The members' cards are slow to be acknowledged by the data channel.
+    const acks: Array<() => void> = []
+    const acknowledge = () => {
+      for (const ack of acks.splice(0)) ack()
+    }
     const send = room.sendChat
     room.sendChat = async (identity, packet) => {
-      await new Promise<void>((resolve) => {
-        acknowledge = resolve
-      })
+      await new Promise<void>((resolve) => acks.push(resolve))
       return send(identity, packet)
     }
     room.events.textMode?.(DAVIDE, true)
@@ -1541,25 +1539,25 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     await settle()
     next.events.audio(speech(), OUT)
     await settle()
-    // The room heard it; its record was refused once. Now the first attempt's notice is acknowledged.
+    // The room heard it; its record was refused once. Now the first attempt's cards are acknowledged.
     acknowledge()
     await settle()
     clock += 10_000
     session.tick()
     await settle()
     const last = fake.announcedEvents.at(-1)
-    assert.deepEqual([last?.heard, last?.textRecipients], [true, 1], 'heard, and the reader counted')
+    assert.deepEqual([last?.heard, last?.textRecipients], [true, 2], 'heard, and the members counted')
   })
 
-  it('closing records the readers of a notice still waiting to be heard', async () => {
+  it('closing records the cards of a notice still waiting to be heard', async () => {
     const { session, room, live } = await ready({ results })
     room.events.textMode?.(DAVIDE, true)
     session.tick()
     await settle()
     assert.equal(live.notices.length, 1)
-    assert.equal(room.notices.length, 1)
+    assert.equal(room.notices.length, 2)
     await session.close()
-    assert.deepEqual(service.announcedEvents, told(false, 1))
+    assert.deepEqual(service.announcedEvents, told(false, 2))
   })
 
   it('every close waits for the same close, so what the session still owes is settled when any returns', async () => {
@@ -1583,11 +1581,11 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       closed = true
     })
     await settle()
-    assert.equal(closed, false, "the readers' record is still on its way")
+    assert.equal(closed, false, "the cards' record is still on its way")
     release()
     await again
     assert.deepEqual(session.handover().unrecorded, [], 'recorded before close returned')
-    assert.deepEqual(fake.announcedEvents, told(false, 1))
+    assert.deepEqual(fake.announcedEvents, told(false, 2))
   })
 
   it("a reader is kept when their mode arrives before the room's people update (Sophia just joined)", async () => {
@@ -1597,10 +1595,18 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     session.tick()
     await settle()
     assert.equal(live.notices.length, 1)
-    assert.deepEqual(
-      room.notices.map((n) => n.identity),
-      [DAVIDE],
-    )
+    assert.deepEqual(room.notices.map((n) => n.identity).toSorted(), [DAVIDE, LUIS].toSorted())
+  })
+
+  it('a reader kept from before the people update makes, with the others, a room where everyone reads', async () => {
+    const { session, room, live } = await ready({ results }, [member(LUIS)])
+    room.events.textMode?.(LUIS, true)
+    room.events.textMode?.(DAVIDE, true)
+    room.join([member(LUIS), member(DAVIDE)])
+    session.tick()
+    await settle()
+    assert.equal(live.notices.length, 0, 'nothing is said: who reads still decides whether Sophia speaks')
+    assert.deepEqual(service.announcedEvents, told(false, 2))
   })
 
   it('a room with no members waits: nothing is said to an empty room, or recorded as heard', async () => {
@@ -1614,19 +1620,19 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.equal(live.notices.length, 1, 'said once someone is there')
   })
 
-  it('a member who turns to text while it is being said gets the notice too', async () => {
-    const { session, room, live } = await ready({ results })
+  it('a member who arrives while it is being said gets the card too', async () => {
+    const { session, room, live } = await ready({ results }, [member(LUIS)])
     session.tick()
     await settle()
-    assert.deepEqual([live.notices.length, room.notices.length], [1, 0])
-    room.events.textMode?.(DAVIDE, true)
+    assert.deepEqual([live.notices.length, room.notices.length], [1, 1])
+    room.join([member(LUIS), member(DAVIDE)])
     live.events.audio(speech(), OUT)
     await settle()
     assert.deepEqual(
       room.notices.map((n) => n.identity),
-      [DAVIDE],
+      [LUIS, DAVIDE],
     )
-    assert.deepEqual(service.announcedEvents, told(true, 1))
+    assert.deepEqual(service.announcedEvents, told(true, 2))
   })
 
   it('in a room where everyone reads, it is done only when every reader has it', async () => {
@@ -1668,20 +1674,21 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.deepEqual(service.announcedEvents.at(-1), told(false, 2)[0])
   })
 
-  it('a session replacing a lost one owes what it owed: said to the room, never sent to a reader twice', async () => {
+  it('a session replacing a lost one owes what it owed: said to the room, never counted twice for a member', async () => {
     const { session, room, live } = await ready({ results })
     room.events.textMode?.(DAVIDE, true)
     session.tick()
     await settle()
-    assert.deepEqual([live.notices.length, room.notices.length], [1, 1])
+    assert.deepEqual([live.notices.length, room.notices.length], [1, 2])
     // The room is lost while the notice waits to be heard.
     await session.close()
-    assert.deepEqual(service.announcedEvents, told(false, 1))
+    assert.deepEqual(service.announcedEvents, told(false, 2))
     const handover = session.handover()
     assert.deepEqual(handover, {
-      owed: [{ result: results[0], attempts: 1, told: [DAVIDE], delivered: 1, heard: false }],
+      owed: [{ result: results[0], attempts: 1, told: [LUIS, DAVIDE], delivered: 2, heard: false }],
       unrecorded: [],
       done: [],
+      shown: results,
     })
     // The API no longer lists it: the replacement owes it from the handover alone.
     const next = await ready({ results: [] }, undefined, handover)
@@ -1689,10 +1696,14 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     next.session.tick()
     await settle()
     assert.equal(next.live.notices.length, 1, 'said to the room')
-    assert.equal(next.room.notices.length, 0, 'the reader already has it')
+    assert.deepEqual(
+      next.room.notices.map((n) => n.identity),
+      [DAVIDE],
+      'shown again to the member whose Studio said hello, and to nobody else',
+    )
     next.live.events.audio(speech(), OUT)
     await settle()
-    assert.deepEqual(service.announcedEvents, [...told(false, 1), ...told(true, 1)])
+    assert.deepEqual(service.announcedEvents, [...told(false, 2), ...told(true, 2)], 'still two members')
   })
 
   it('an announcement the API had not recorded is recorded by the replacement, and not delivered again', async () => {
@@ -1715,7 +1726,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     const handover = session.handover()
     assert.deepEqual(
       handover,
-      { owed: [], unrecorded: told(false, 2), done: [`${TASK}:1`] },
+      { owed: [], unrecorded: told(false, 2), done: [`${TASK}:1`], shown: results },
       'refused, and refused again at close',
     )
     // Not recorded, so the API still lists it.
@@ -1725,7 +1736,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     next.session.tick()
     await settle()
     assert.deepEqual(fake.announcedEvents, told(false, 2))
-    assert.equal(next.room.notices.length, 0, 'everyone already has it')
+    assert.equal(next.room.notices.length, 2, 'everyone already has it: shown again on their hello only')
   })
 
   it('a replacement given a listing read before the record never says again what the room heard', async () => {
@@ -1748,23 +1759,21 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     release()
     await closing
     const handover = session.handover()
-    assert.deepEqual(handover, { owed: [], unrecorded: [], done: [`${TASK}:1`] })
+    assert.deepEqual(handover, { owed: [], unrecorded: [], done: [`${TASK}:1`], shown: results })
     // The bridge's assignments were read before the record landed: they still list the result.
     const next = await ready({ results }, undefined, handover)
     next.session.tick()
     await settle()
     assert.equal(next.live.notices.length, 0, 'the room already heard it')
-    assert.deepEqual(fake.announcedEvents, told(true, 0))
+    assert.deepEqual(fake.announcedEvents, told(true, 2))
   })
 
-  it('a close waits for a reader’s notice still on its way, so the room hears it once and the reader is counted', async () => {
+  it('a close waits for cards still on their way, so the room hears it once and the members are counted', async () => {
     const { session, room, live } = await ready({ results })
-    let acknowledge: () => void = noop
+    const acks: Array<() => void> = []
     const send = room.sendChat
     room.sendChat = async (identity, packet) => {
-      await new Promise<void>((resolve) => {
-        acknowledge = resolve
-      })
+      await new Promise<void>((resolve) => acks.push(resolve))
       return send(identity, packet)
     }
     room.events.textMode?.(DAVIDE, true)
@@ -1774,19 +1783,18 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     await settle()
     const closing = session.close()
     await settle()
-    assert.deepEqual(service.announcedEvents, [], 'heard, and waiting for the reader’s notice')
-    acknowledge()
+    assert.deepEqual(service.announcedEvents, [], 'heard, and waiting for the cards')
+    for (const ack of acks.splice(0)) ack()
     await closing
-    assert.deepEqual(service.announcedEvents, told(true, 1))
+    assert.deepEqual(service.announcedEvents, told(true, 2))
     const next = await ready({ results }, undefined, session.handover())
-    next.room.events.textMode?.(DAVIDE, true)
     next.session.tick()
     await settle()
-    assert.deepEqual([next.live.notices.length, next.room.notices.length], [0, 0], 'once, to the room and the reader')
+    assert.deepEqual([next.live.notices.length, next.room.notices.length], [0, 0], 'once, to the room and the members')
   })
 
-  it('a close waits for the notice of a member who turned to text while it was being said', async () => {
-    const { session, room, live } = await ready({ results })
+  it('a close waits for the card of a member who arrived while it was being said', async () => {
+    const { session, room, live } = await ready({ results }, [member(LUIS)])
     session.tick()
     await settle()
     let acknowledge: () => void = noop
@@ -1797,7 +1805,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       })
       return send(identity, packet)
     }
-    room.events.textMode?.(DAVIDE, true)
+    room.join([member(LUIS), member(DAVIDE)])
     live.events.audio(speech(), OUT)
     await settle()
     let closed = false
@@ -1805,10 +1813,10 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       closed = true
     })
     await settle()
-    assert.equal(closed, false, 'the late notice is still on its way')
+    assert.equal(closed, false, 'the late card is still on its way')
     acknowledge()
     await closing
-    assert.deepEqual(service.announcedEvents, told(true, 1))
+    assert.deepEqual(service.announcedEvents, told(true, 2))
   })
 
   it('in a room where everyone reads, notices the lost room never delivered are owed to the replacement', async () => {
@@ -1869,7 +1877,11 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.equal(next.notices.length, 1, 'revision 2 only')
     assert.deepEqual(
       service.announcedEvents.map((e) => [e.resultRevision, e.heard]),
-      [[2, true]],
+      [
+        [1, false],
+        [2, true],
+      ],
+      'revision 1 reached the members as cards (CX-0022); only revision 2 was said',
     )
   })
 
@@ -1914,7 +1926,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.deepEqual(service.announcedEvents, told(false, 2))
   })
 
-  it('a heard notice whose late reader is still waiting at the close is recorded as heard, and the reader is owed it', async () => {
+  it('a heard notice whose late card is still waiting at the close is recorded as heard, and the member is owed it', async () => {
     const fake = service
     let refusals = 1
     const record = fake.announced
@@ -1925,20 +1937,20 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       }
       await record(e)
     }
-    const { session, room, live } = await ready({ results })
+    const { session, room, live } = await ready({ results }, [member(LUIS)])
     session.tick()
     await settle()
-    // Davide turns to text while it is being said; his notice never gets an answer from the lost room.
+    // Davide arrives while it is being said; his card never gets an answer from the lost room.
     room.sendChat = () => new Promise<boolean>(() => undefined)
-    room.events.textMode?.(DAVIDE, true)
+    room.join([member(LUIS), member(DAVIDE)])
     live.events.audio(speech(), OUT)
     await settle()
     await session.close()
     const handover = session.handover()
-    assert.deepEqual(handover.unrecorded, told(true, 0), 'heard: recorded at the close, refused, handed over')
+    assert.deepEqual(handover.unrecorded, told(true, 1), 'heard: recorded at the close, refused, handed over')
     assert.deepEqual(
       handover.owed.map((o) => [o.told, o.heard]),
-      [[[], true]],
+      [[[LUIS], true]],
     )
     const next = await ready({ results }, undefined, handover)
     next.room.events.textMode?.(DAVIDE, true)
@@ -1949,10 +1961,10 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
       next.room.notices.map((n) => n.identity),
       [DAVIDE],
     )
-    assert.deepEqual(fake.announcedEvents.at(-1), told(true, 1)[0])
+    assert.deepEqual(fake.announcedEvents.at(-1), told(true, 2)[0])
   })
 
-  it('a room that heard it: a reader whose notice failed gets it again as text, and the room is not told twice', async () => {
+  it('a room that heard it: a member whose card failed gets it again, and the room is not told twice', async () => {
     const { session, room, live } = await ready({ results })
     room.events.textMode?.(DAVIDE, true)
     room.unreachable.add(DAVIDE)
@@ -1962,7 +1974,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     await settle()
     live.events.turnComplete()
     await settle()
-    assert.deepEqual(service.announcedEvents, told(true, 0))
+    assert.deepEqual(service.announcedEvents, told(true, 1))
     room.unreachable.delete(DAVIDE)
     clock += 5000
     session.tick()
@@ -1970,13 +1982,16 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.equal(live.notices.length, 1, 'said once')
     assert.deepEqual(
       room.notices.map((n) => n.identity),
-      [DAVIDE],
+      [LUIS, DAVIDE],
     )
-    assert.deepEqual(service.announcedEvents.at(-1), told(true, 1)[0])
+    assert.deepEqual(service.announcedEvents.at(-1), told(true, 2)[0])
   })
 
   it('a result whose attempts ran out with nothing delivered is not done: a replacement may say it again', async () => {
-    const { session, live } = await ready({ results })
+    const { session, room, live } = await ready({ results })
+    // No member's card gets through either: nothing was delivered.
+    room.unreachable.add(LUIS)
+    room.unreachable.add(DAVIDE)
     for (let i = 0; i < 4; i += 1) {
       session.tick()
       live.events.turnComplete()
@@ -1984,7 +1999,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     assert.equal(live.notices.length, 3)
     await session.close()
     const handover = session.handover()
-    assert.deepEqual(handover, { owed: [], unrecorded: [], done: [] })
+    assert.deepEqual(handover, { owed: [], unrecorded: [], done: [], shown: results })
     const next = await ready({ results }, undefined, handover)
     next.session.tick()
     assert.equal(next.live.notices.length, 1)
@@ -1999,7 +2014,7 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     session.tick()
     await settle()
     assert.equal(live.notices.length, 0, 'waiting for the handover')
-    hand({ owed: [], unrecorded: [], done: [`${TASK}:1`] })
+    hand({ owed: [], unrecorded: [], done: [`${TASK}:1`], shown: [] })
     await settle()
     session.tick()
     await settle()
@@ -2026,6 +2041,197 @@ describe('room session: results for members who read Sophia (SMC-M03 S6, T16)', 
     )
     assert.deepEqual(service.announcedEvents, told(false, 1))
     assert.equal(live.notices.length, 0)
+  })
+})
+
+/** The result cards one person received, in order. */
+const cardsFor = (room: FakeRoom, identity: string) =>
+  room.notices.filter((n) => n.identity === identity).map((n) => n.packet)
+
+describe('room session: every member present gets the result card (CX-0022)', () => {
+  const results = [{ taskId: TASK, resultRevision: 1, kind: 'research' as const }]
+  const told = (heard: boolean, textRecipients: number) => [
+    { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard, textRecipients },
+  ]
+  const settle = async () => {
+    for (let i = 0; i < 4; i += 1) await flush()
+  }
+  /** A voice-only room: Sophia said the result and the room heard it. */
+  async function sayHeard() {
+    const s = await ready({ results })
+    s.session.tick()
+    await settle()
+    s.live.events.audio(speech(), OUT)
+    await settle()
+    s.live.events.turnComplete()
+    await settle()
+    return s
+  }
+
+  it('voice only: Sophia says it once, and every member gets the card as it is said', async () => {
+    const { session, room, live } = await ready({ results })
+    session.tick()
+    await settle()
+    assert.equal(live.notices.length, 1)
+    assert.deepEqual(room.notices.map((n) => n.identity).toSorted(), [DAVIDE, LUIS].toSorted())
+    assert.deepEqual(service.announcedEvents, [], 'sent is not heard')
+    live.events.audio(speech(), OUT)
+    await settle()
+    assert.deepEqual(service.announcedEvents, told(true, 2), 'heard, and both members have the card')
+    session.tick()
+    await settle()
+    assert.deepEqual([live.notices.length, room.notices.length], [1, 2], 'once')
+  })
+
+  it('a hello (a switch either way) brings the card again, never the voice, and never a bigger count', async () => {
+    const { session, room, live } = await ready({ results })
+    room.unreachable.add(DAVIDE)
+    session.tick()
+    await settle()
+    live.events.audio(speech(), OUT)
+    await settle()
+    live.events.turnComplete()
+    await settle()
+    assert.deepEqual(service.announcedEvents, told(true, 1))
+    room.events.textMode?.(LUIS, true)
+    await settle()
+    room.events.textMode?.(LUIS, false)
+    await settle()
+    const luis = cardsFor(room, LUIS)
+    assert.equal(luis.length, 3, 'the first card, and one per hello')
+    assert.deepEqual(new Set(luis.map((c) => `${c.taskId}:${String(c.resultRevision)}`)), new Set([`${TASK}:1`]))
+    assert.equal(new Set(luis.map((c) => c.id)).size, 3, 'each packet its own id')
+    assert.equal(live.notices.length, 1, 'never said again')
+    assert.deepEqual(service.announcedEvents, told(true, 1), 'a hello records nothing')
+    // Davide's card is still owed; when it gets through, the record counts members, not cards.
+    room.unreachable.delete(DAVIDE)
+    clock += 5000
+    session.tick()
+    await settle()
+    assert.deepEqual(service.announcedEvents.at(-1), told(true, 2)[0])
+  })
+
+  it('a reload or a late arrival: the member whose Studio says hello gets the card', async () => {
+    const MARIA = '33333333-3333-4333-8333-333333333334'
+    const { room, live } = await sayHeard()
+    room.join([member(DAVIDE)])
+    room.join([member(LUIS), member(DAVIDE)])
+    room.events.textMode?.(LUIS, false)
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 2, 'Luis reloaded: his page has it again')
+    assert.equal(cardsFor(room, DAVIDE).length, 1, 'Davide said nothing: nothing more for him')
+    room.join([member(LUIS), member(DAVIDE), member(MARIA)])
+    room.events.textMode?.(MARIA, false)
+    await settle()
+    assert.equal(cardsFor(room, MARIA).length, 1, 'Maria came after it was said')
+    assert.equal(live.notices.length, 1)
+  })
+
+  it('a guest is never sent a card, and nothing is carded while a guest is in the room', async () => {
+    const guest: RoomPerson = { identity: 'guest-x', standing: 'guest' }
+    const paused = await ready({ results }, [member(LUIS), guest])
+    paused.session.tick()
+    await settle()
+    assert.deepEqual([paused.live.notices.length, paused.room.notices.length], [0, 0])
+    const { room } = await sayHeard()
+    room.join([member(LUIS), member(DAVIDE), guest])
+    room.events.textMode?.(LUIS, false)
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 2)
+    assert.equal(cardsFor(room, 'guest-x').length, 0)
+  })
+
+  it('a newer revision of a task replaces the older in what is shown again', async () => {
+    const { session, room, live } = await sayHeard()
+    const newer = { taskId: TASK, resultRevision: 2, kind: 'research' as const }
+    session.update(assignment({ results: [newer], roomRevision: 2 }))
+    clock += 1000
+    session.tick()
+    await settle()
+    live.events.audio(speech(), OUT)
+    await settle()
+    assert.equal(live.notices.length, 2, 'revision 2 is said')
+    const before = cardsFor(room, DAVIDE).length
+    room.events.textMode?.(DAVIDE, false)
+    await settle()
+    assert.deepEqual(
+      cardsFor(room, DAVIDE)
+        .slice(before)
+        .map((c) => c.resultRevision),
+      [2],
+    )
+    await session.close()
+    assert.deepEqual(session.handover().shown, [newer])
+  })
+
+  it('what is shown again is bounded, the oldest results dropped first', async () => {
+    const many = Array.from({ length: 21 }, (_, i) => ({
+      taskId: `eeeeeeee-eeee-4eee-8eee-${String(i).padStart(12, '0')}`,
+      resultRevision: 1,
+      kind: 'research' as const,
+    }))
+    const { session, room } = await ready({ results: many }, [member(LUIS)])
+    room.events.textMode?.(LUIS, true)
+    for (let i = 0; i < many.length; i += 1) {
+      session.tick()
+      await settle()
+    }
+    assert.equal(cardsFor(room, LUIS).length, 21)
+    room.events.textMode?.(LUIS, true)
+    await settle()
+    const again = cardsFor(room, LUIS).slice(21)
+    assert.deepEqual(
+      again.map((c) => c.taskId),
+      many.slice(1).map((r) => r.taskId),
+    )
+  })
+
+  it('a replacement shows the cards again to a member who said hello before the handover arrived', async () => {
+    const { session } = await sayHeard()
+    await session.close()
+    const handover = session.handover()
+    assert.deepEqual(handover.shown, results)
+    let hand: (h: Handover) => void = noop
+    const pending = new Promise<Handover>((resolve) => {
+      hand = resolve
+    })
+    const next = await ready({ results: [] }, undefined, pending)
+    next.room.events.textMode?.(LUIS, false)
+    await settle()
+    assert.equal(next.room.notices.length, 0, 'nothing to show yet')
+    hand(handover)
+    await settle()
+    assert.deepEqual(
+      next.room.notices.map((n) => n.identity),
+      [LUIS],
+    )
+    next.session.tick()
+    await settle()
+    assert.equal(next.live.notices.length, 0, 'the room heard it: never said again')
+  })
+
+  it('voice only, not heard: the cards stand and are recorded; the listeners are still owed the voice', async () => {
+    const { session, room, live } = await ready({ results })
+    session.tick()
+    await settle()
+    live.events.closed('network lost')
+    await settle()
+    // The intended durability shift: the API stops listing it, and only this session (or its replacement) owes the
+    // voice now, as RF-0017 already had it for a mixed room.
+    assert.deepEqual(service.announcedEvents, told(false, 2))
+    clock += 1000
+    session.tick()
+    await flush()
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    session.tick()
+    await settle()
+    assert.equal(next.notices.length, 1, 'said again on the new connection')
+    assert.equal(room.notices.length, 2, 'no new cards')
+    next.events.audio(speech(), OUT)
+    await settle()
+    assert.deepEqual(service.announcedEvents, [...told(false, 2), ...told(true, 2)])
   })
 })
 
@@ -2078,7 +2284,7 @@ describe('room session: finished work (case A06)', () => {
     await flush()
     await flush()
     assert.deepEqual(service.announcedEvents, [
-      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 0 },
+      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 2 },
     ])
     live.events.toolCalls([{ id: 'after-notice', name: 'control_work', args: { taskId: TASK, action: 'stop' } }])
     await flush()
@@ -2108,8 +2314,10 @@ describe('room session: finished work (case A06)', () => {
     next.events.audio(speech(), OUT)
     await flush()
     await flush()
+    // The members got its card as it was first sent (CX-0022): recorded then, nobody having heard it (RF-0017).
     assert.deepEqual(service.announcedEvents, [
-      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 0 },
+      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: false, textRecipients: 2 },
+      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 2 },
     ])
   })
 
@@ -2135,19 +2343,24 @@ describe('room session: finished work (case A06)', () => {
     session.tick()
     await flush()
     assert.deepEqual(service.announcedEvents, [
-      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 0 },
+      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 2 },
     ])
     assert.equal(live.notices.length, 1, 'recorded again, not announced again')
   })
 
   it('a notice answered with silence three times is left for a later session, unrecorded', async () => {
     const results = [{ taskId: TASK, resultRevision: 1, kind: 'draft_brief' as const }]
-    const { session, live } = await ready({ results })
+    const { session, room, live } = await ready({ results })
+    // No member's card gets through either: a card that did would be recorded (RF-0017, CX-0022).
+    room.unreachable.add(LUIS)
+    room.unreachable.add(DAVIDE)
     for (let i = 0; i < 4; i += 1) {
       session.tick()
       live.events.turnComplete()
     }
     assert.equal(live.notices.length, 3)
+    await flush()
+    await flush()
     assert.deepEqual(service.announcedEvents, [])
   })
 
@@ -2179,7 +2392,7 @@ describe('room session: finished work (case A06)', () => {
     session.tick()
     assert.equal(live.notices.length, 1, 'the unknown kind is never announced')
     assert.deepEqual(service.announcedEvents, [
-      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 0 },
+      { exchangeId: EXCHANGE, taskId: TASK, resultRevision: 1, heard: true, textRecipients: 2 },
     ])
   })
 

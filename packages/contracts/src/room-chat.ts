@@ -4,10 +4,12 @@
  * SMC-M03 S6 adds two kinds, each ignored by a side that does not know it (an older parser returns null):
  * - `mode` (Studio → bridge, input topic): whether this person reads Sophia (text mode) or hears her. It is a packet,
  *   not a participant attribute: members cannot update their own LiveKit metadata or attributes, and granting that
- *   would let them rewrite their signed standing.
- * - `notice` (bridge → Studio, reply topic): a finished result, for a person in text mode, who does not hear Sophia
- *   say it. A fixed template of ids and a bounded kind name, never text: Studio words it, and a report's own title or
- *   anything a web page said never travels in it.
+ *   would let them rewrite their signed standing. Studio says it on every join, reconnect and switch, which is also
+ *   the bridge's cue to send that member the cards the exchange has shown (CX-0022).
+ * - `notice` (bridge → Studio, reply topic): a finished result's card, for every member present, whether they hear
+ *   Sophia say it or read her (CX-0022); sent again when their Studio says its mode, so the receiver keeps one per task
+ *   (its newest revision) and ignores the repeats. A fixed template of ids and a bounded kind name, never text: Studio
+ *   words it, and a report's own title or anything a web page said never travels in it.
  */
 export const CHAT_INPUT_TOPIC = 'sophia.chat.input.v1'
 export const CHAT_REPLY_TOPIC = 'sophia.chat.reply.v1'

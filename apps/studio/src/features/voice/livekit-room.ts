@@ -201,8 +201,9 @@ function listenToSophia(room: Room, cb: RoomCallbacks): void {
 
 /**
  * Tells Sophia whether this person reads or hears her (SMC-M03 S6): when it changes, and again whenever she joins or
- * the connection comes back, because her bridge keeps it only while both are in the room. Best effort: a signal that
- * is lost leaves this person a listener, who still finds the result on its work card.
+ * the connection comes back, because her bridge keeps it only while both are in the room. Each one is also the hello
+ * after which the bridge sends this page the result cards the exchange has shown (CX-0022). Best effort: a signal
+ * that is lost leaves this person a listener, who still finds the result on its work card.
  */
 function modeSignal(room: Room, textOnly: () => boolean): () => void {
   const send = () => {

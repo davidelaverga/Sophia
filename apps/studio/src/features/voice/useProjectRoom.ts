@@ -18,7 +18,7 @@ export type { VideoFeed } from './livekit-room.ts'
 
 export interface ProjectRoom {
   chat: ChatTurn[]
-  /** Finished results told as text to this person, who reads Sophia (SMC-M03 S6). */
+  /** Finished results' cards, one per task, for this member whether they hear or read Sophia (SMC-M03 S6, CX-0022). */
   notices: ChatNoticeItem[]
   textMode: boolean
   /** Text mode as it is this moment, for code that awaited (a chat start, once its join settled): `textMode` is the render's. */

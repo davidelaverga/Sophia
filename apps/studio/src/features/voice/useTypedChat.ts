@@ -141,6 +141,8 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
     return () => clearTimeout(timer)
   }, [chat])
   const onChat = (packet: ChatReply) => setChat((turns) => receiveChat(turns, packet))
+  // Cards come whether this person hears or reads Sophia, and again after each mode signal (CX-0022): one per task,
+  // and a repeat leaves the list as it was.
   const onNotice = (packet: ChatNotice) => setNotices((list) => receiveNotice(list, packet, lastTurn.current))
   const interrupted = () => setChat((turns) => turns.map(unknown))
   const textModeNow = () => now.current

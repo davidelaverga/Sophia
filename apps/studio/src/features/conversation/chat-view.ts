@@ -29,8 +29,9 @@ export function receiveChat(turns: readonly ChatTurn[], packet: ChatReply): Chat
 }
 
 /**
- * A finished result, told in the chat to someone in text mode (SMC-M03 S6): the bridge's notice carries ids and the
- * task's kind, and the words are Studio's own. It sits after the turn that was last when it arrived.
+ * A finished result's card in the chat (SMC-M03 S6), for every member, whether they hear Sophia or read her
+ * (CX-0022): the bridge's notice carries ids and the task's kind, and the words are Studio's own. It sits after the
+ * turn that was last when it arrived.
  */
 export interface ChatNoticeItem {
   key: string
@@ -42,16 +43,23 @@ export interface ChatNoticeItem {
 
 const KEPT_NOTICES = 20
 
-/** A notice is kept once per result revision, however often it is delivered. */
+/**
+ * A task keeps one notice, its newest revision: the task's record names only its current files (a task read has no
+ * revision), so an older revision's card would open the newer files. A notice delivered again (the bridge sends them
+ * again whenever this page says its mode, CX-0022), or an older revision, changes nothing: the same list comes back,
+ * so nothing renders again and Chat is not marked.
+ */
 export function receiveNotice(
-  notices: readonly ChatNoticeItem[],
+  notices: ChatNoticeItem[],
   packet: ChatNotice,
   afterTurnId: string | null,
 ): ChatNoticeItem[] {
-  const key = `${packet.taskId}:${String(packet.resultRevision)}`
-  if (notices.some((n) => n.key === key)) return [...notices]
   const { taskId, taskKind, resultRevision } = packet
-  return [...notices.slice(-(KEPT_NOTICES - 1)), { key, taskId, taskKind, resultRevision, afterTurnId }]
+  const held = notices.find((n) => n.taskId === taskId)
+  if (held && held.resultRevision >= resultRevision) return notices
+  const rest = notices.filter((n) => n.taskId !== taskId)
+  const key = `${taskId}:${String(resultRevision)}`
+  return [...rest.slice(-(KEPT_NOTICES - 1)), { key, taskId, taskKind, resultRevision, afterTurnId }]
 }
 
 /** The notice's words, by the task's kind: never anything a report, a page or a model wrote. */
