@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
+import { glance, writeSeen } from '../src/features/resources/away.ts'
 import { linkHash, TASK } from '../src/features/resources/link.ts'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import type { TaskLinks } from '../src/features/resources/ResourceSheet.tsx'
@@ -91,6 +92,23 @@ const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
   if (spent) return spentCodex(o)
   return busy ? busyCodex(o) : o
 })
+
+/**
+ * `since=1`: the viewer last looked a while ago, when Codex's review was still queued, nothing waited on Davide, and
+ * Grok (`more=1`) was online.
+ */
+if (query.get('since') === '1') {
+  const then = shown.map((r) => ({
+    ...r,
+    host: r.id === 'davide-grok' ? { ...r.host, state: 'online' as const } : r.host,
+    sessions: r.sessions.map((s) =>
+      s.id === 'codex-reviewer' && s.assignment
+        ? { ...s, assignment: { ...s.assignment, state: 'queued' as const } }
+        : s,
+    ),
+  }))
+  writeSeen('fixture', viewer.id, glance(then, [], read, NOW))
+}
 
 /** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
 const planned = new Set([...plan('accepted').items, ...secondPlan.items].map((i) => i.id))
@@ -241,6 +259,7 @@ function Live() {
           loading={live.loading}
           history={earlierReadings(read)}
           tasks={tasks}
+          scope="fixture"
           onAct={actOn}
           onEffort={(sessionId, ask) => {
             asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })

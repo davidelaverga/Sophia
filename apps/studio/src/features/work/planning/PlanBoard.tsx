@@ -17,6 +17,7 @@ import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
 import '../../resources/resources.css'
 import { useActs } from '../../resources/SessionActs.tsx'
+import { AwayLine } from '../../resources/AwayLine.tsx'
 import { accountOf } from './account.ts'
 import type { Ask } from './AskSophia.tsx'
 import { moveOnBoard } from './board-keys.ts'
@@ -184,23 +185,6 @@ function Decisions({ decisions, ...rest }: Omit<DecisionsProps, 'plan'> & { deci
   )
 }
 
-/** While the viewer was away: one line of what changed, beside the lenses, whole on hover, and Mark seen. */
-function WhileAway({ away, onSeen }: { away: ReturnType<typeof whileAway>; onSeen: () => void }) {
-  if (away.phrases.length === 0) return null
-  const said = away.phrases.join(' · ') + (away.more > 0 ? ` · and ${String(away.more)} more` : '')
-  return (
-    <p className="board-return" title={said}>
-      <span className="ask-light" aria-hidden />
-      <span className="board-return-said">
-        <span className="field-label">While you were away</span> {said}
-      </span>
-      <button type="button" className="board-since-act" onClick={onSeen}>
-        Mark seen
-      </button>
-    </p>
-  )
-}
-
 /**
  * The open task, kept in the address (`#task-<id>`): the address's task opens with the board, and again each time a
  * link is followed; a task pressed opens over it. Only a task on this board is open: one on none shows nothing, and
@@ -322,7 +306,7 @@ function Board(props: BoardProps) {
           people={people}
           deciders={asks.open.map((d) => d.decider_id)}
         />
-        <WhileAway away={whileAway(rows, changed, viewerId)} onSeen={markSeen} />
+        <AwayLine away={whileAway(rows, changed, viewerId)} onSeen={markSeen} className="board-return" />
       </div>
       {asks.shown && asks.open.length > 0 && (
         <Decisions decisions={asks.open} people={people} now={now} viewerId={viewerId} onDecide={onDecide} />

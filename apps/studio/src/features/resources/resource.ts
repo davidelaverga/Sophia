@@ -28,6 +28,12 @@ export type ControlName = 'steer' | 'hold' | 'stop' | 'permissions'
 /** As the control-support matrix says it: qualified for this route, not qualified yet, or not offered by it. */
 export type Support = 'supported' | 'unqualified' | 'unsupported'
 
+/** One thing a session's tool reported doing, in its own words, and when it was observed. */
+export interface Report {
+  said: string
+  observedAt: string
+}
+
 export interface Session {
   id: string
   /** What this session does in the project: "worker", "reviewer"… */
@@ -57,7 +63,12 @@ export interface Session {
    * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
    * its reasoning (07_STUDIO_VOICE_AND_ARTIFACTS). The Studio's proposal for SCM-02.
    */
-  activity?: { said: string; observedAt: string } | null
+  activity?: Report | null
+  /**
+   * What it reported before that, newest first, a few at most: what it did in its last minutes, without opening its
+   * tool. The Studio's proposal for SCM-02, beside `activity`.
+   */
+  recent?: Report[] | null
 }
 
 /** A session's work as its tool reports it, said and toned as the Studio says it, in the sheet and in the plan. */

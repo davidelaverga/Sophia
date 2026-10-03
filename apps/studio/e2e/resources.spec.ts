@@ -1317,7 +1317,11 @@ test('live · a session at work says what its tool last reported, and a ring aro
     const fine = before.maskImage.includes('closest-side')
     return { w: box.width, h: box.height, ring: before.width, fine, edge: box.left - 3 - logo.left }
   })
-  expect(ring).toEqual({ w: 16, h: 16, ring: '22px', fine: true, edge: 0 })
+  // Sizes to a hundredth of a pixel: layout may land a hair off a whole one.
+  expect([ring?.ring, ring?.fine]).toEqual(['22px', true])
+  expect(ring?.w).toBeCloseTo(16, 1)
+  expect(ring?.h).toBeCloseTo(16, 1)
+  expect(ring?.edge).toBeCloseTo(0, 1)
   // The sheet says it too, under the session.
   const s = await open(page, 'Davide · Codex')
   await expect(s.locator('.resource-session-live')).toContainText('Reading ExportStatus.tsx')
@@ -1491,4 +1495,93 @@ test('@phone · its owner opens Act and the row keeps to one column', async ({ p
   expect(work, 'the task under the role').toBeCloseTo(role, 0)
   expect(acts, 'the acts under it too').toBeCloseTo(role, 0)
   expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})
+
+test('away · what changed since the last look is one line, its tiles marked, until Mark seen', async ({ page }) => {
+  await page.goto(`${PAGE}?since=1&more=1`)
+  const line = page.locator('.resources-away')
+  await expect(line).toContainText('While you were away')
+  await expect(line).toContainText('Davide’s Grok went offline')
+  await expect(line).toContainText('Davide’s Codex started Review the report pane')
+  // A request that came is said on top, while it waits, never twice; only a tile the line speaks of is marked.
+  await expect(line).not.toContainText('request')
+  await expect(grid(page).locator('[data-away]')).toHaveCount(2)
+  await expect(tile(page, 'Davide · Claude Code')).not.toHaveAttribute('data-away')
+  await line.getByRole('button', { name: 'Mark seen' }).click()
+  await expect(line).toHaveCount(0)
+  await expect(grid(page).locator('[data-away]')).toHaveCount(0)
+  // Remembered in this browser: the next visit has nothing new to say.
+  await page.goto(`${PAGE}?more=1`)
+  await expect(grid(page).getByRole('button').first()).toBeVisible()
+  await expect(page.locator('.resources-away')).toHaveCount(0)
+})
+
+test('away · a first visit remembers Resources as they are and says nothing', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(grid(page).getByRole('button').first()).toBeVisible()
+  await expect(page.locator('.resources-away')).toHaveCount(0)
+  await expect(grid(page).locator('[data-away]')).toHaveCount(0)
+  expect(await page.evaluate(() => localStorage.getItem('sophia.resources.seen.v1.fixture.luis'))).toContain(
+    'davide-claude',
+  )
+})
+
+test('earlier · a session’s earlier reports fold under its last one, newest first, and grow as it reports', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  const toggle = s.getByRole('button', { name: '3 earlier' })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(s.getByRole('list', { name: 'Earlier reports' })).toHaveCount(0)
+  await toggle.click()
+  const earlier = s.getByRole('list', { name: 'Earlier reports' }).locator('.session-earlier-said')
+  await expect(earlier).toHaveText([
+    'Edited pdf-retry.ts: retries the render twice',
+    'Wrote the failing test for a timed-out render',
+    'Read ExportStatus.tsx',
+  ])
+  // Codex's reviewer reports again: what it said before goes to the top of its earlier ones.
+  await page.goto(`${PAGE}#resource-davide-codex`)
+  await page.reload()
+  const codex = sheet(page, 'Davide · Codex')
+  await expect(codex.getByRole('button', { name: '2 earlier' })).toBeVisible()
+  await page.clock.runFor(9000)
+  await codex.getByRole('button', { name: '3 earlier' }).click()
+  await expect(
+    codex.getByRole('list', { name: 'Earlier reports' }).locator('.session-earlier-said').first(),
+  ).toHaveText('Reading ReportPane.tsx')
+})
+
+test('@phone · earlier reports keep to the sheet’s one column', async ({ page }) => {
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: '3 earlier' }).click()
+  const [role, earlier] = await Promise.all([
+    leftOf(worker.locator('.resource-role')),
+    leftOf(worker.locator('.session-earlier')),
+  ])
+  expect(earlier, 'under the role').toBeCloseTo(role, 0)
+  expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})
+
+test('away · what isn’t said marks nothing: a request that comes, a host gone unknown', async ({ page }) => {
+  await page.goto(`${PAGE}?quiet=1`) // a first visit: remembered as it is
+  await expect(grid(page).getByRole('button').first()).toBeVisible()
+  await page.evaluate(() => {
+    window.resourcesFixture?.addRequest?.()
+    window.resourcesFixture?.setHost?.('davide-claude', 'unknown')
+  })
+  await expect(page.getByRole('button', { name: /request waits on Davide/ })).toBeVisible() // said on top
+  await expect(page.locator('.resources-away')).toHaveCount(0)
+  await expect(grid(page).locator('[data-away]')).toHaveCount(0)
+})
+
+test('@phone · the away line wraps whole, its Mark seen in reach', async ({ page }) => {
+  await page.goto(`${PAGE}?since=1&more=1`)
+  const said = page.locator('.resources-away .away-line-said')
+  await expect(said).toBeVisible()
+  expect(await said.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+  await expect(page.locator('.resources-away').getByRole('button', { name: 'Mark seen' })).toBeInViewport()
 })

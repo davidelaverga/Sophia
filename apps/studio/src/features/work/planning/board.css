@@ -582,30 +582,6 @@
 .board-lens button {
   gap: 6px;
 }
-.board-since-act {
-  margin-left: auto;
-  padding: 3px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(236, 235, 241, 0.08);
-  color: var(--text-2);
-  font-size: 11.5px;
-  transition: background-color var(--fast) var(--ease);
-}
-.board-since-act:hover {
-  background: rgba(236, 235, 241, 0.14);
-  color: var(--text);
-}
-.board-return-said {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.board-return-said .field-label {
-  margin-right: 6px;
-}
 
 /* A lens dims what it doesn't show and moves nothing. */
 .task-tile[data-dim] {
@@ -777,39 +753,9 @@
 }
 
 /* ---- While you were away: one sentence from Sophia's light, over the board. ---- */
+/* In the board's bar, it takes the room left beside the lenses and the decision pill (its look: resources.css). */
 .board-return {
-  display: flex;
   flex: 1 1 320px;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  height: 32px;
-  padding: 0 4px 0 12px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(156, 130, 245, 0.12), rgba(156, 130, 245, 0.03));
-  color: var(--text);
-  font-size: 12.5px;
-  animation: arrive 0.5s var(--ease) 0.2s both;
-}
-.board-return .field-label {
-  color: var(--halo-text);
-}
-.ask-light {
-  position: relative;
-  display: inline-block;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--core), var(--halo) 70%);
-  box-shadow: 0 0 10px var(--halo);
-  animation: ask-light 2.8s var(--ease) infinite alternate;
-}
-@keyframes ask-light {
-  to {
-    box-shadow: 0 0 16px var(--halo);
-    transform: scale(1.12);
-  }
 }
 
 /* ---- The goal's second line: where its plan goes next, and the plan, quietly. ---- */
@@ -1132,9 +1078,7 @@
   .thread-spark {
     display: none;
   }
-  .decision-pill[data-mine] .decision-pill-dot::after,
-  .ask-light,
-  .board-return {
+  .decision-pill[data-mine] .decision-pill-dot::after {
     animation: none;
   }
   .goal-rail::after,

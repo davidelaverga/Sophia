@@ -508,6 +508,11 @@ when you change the room:
   delivered), Stop asked first. A task whose session is at it says on its
   tile when its doer's account runs short, and its sheet names where there is
   room (the board's `observations`; `work.html?tight=1`).
+  What changed since the viewer last looked is one line under the requests
+  (LFE-06.7: `away.ts`, the shared `AwayLine`; kept per `scope` and viewer in
+  this browser; a first visit says nothing); only a tile it speaks of is
+  marked, until Mark seen; a request is said once, on top. A session's earlier reports fold under its
+  last one (`Session.recent`, newest first). `since=1` shows the line.
 
 ## The personal space
 

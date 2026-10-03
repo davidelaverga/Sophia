@@ -67,6 +67,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 18** ([handoff](../handoffs/LFE-06-attempt-18.md)): choosing a session's effort: its owner opens the bar into a scale in its tool's look, previews it, and sets it for its next run (or restarts, confirmed); only the levels its tool says it takes.
 - **Attempt 19** ([handoff](../handoffs/LFE-06-attempt-19.md)): Resources live and one with Tasks: what a session last reported and a freshness ring on its tile; a session's task opens on the board, and a task's doer opens here; a tile says when its account runs out, and its sheet names where there is room.
 - **Attempt 20** ([handoff](../handoffs/LFE-06-attempt-20.md)): acting from Resources (Act on a session's row: guidance, Hold, Stop, said as observed), and Tasks warned when a task's account runs short, with where there is room.
+- **Attempt 21** ([handoff](../handoffs/LFE-06-attempt-21.md)): what changed since the viewer last looked, one line with Mark seen and the tiles marked; a session's earlier reports folded under its last one.
 
 ## Acceptance cases
 
