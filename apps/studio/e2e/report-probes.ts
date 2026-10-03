@@ -42,24 +42,29 @@ export const medianLine = (page: Page) =>
 
 /**
  * What runs past the screen: how far the page scrolls sideways, the elements outside a scrolling frame that pass
- * its right edge, the code blocks that scroll, and the tables that pass the body's box or the screen.
+ * its right edge, the code blocks that scroll, the tables that pass the body's box or the screen, and the table frames
+ * that scroll further than their table is wide (something inside, a citation's target, reaching past its last column).
  */
 export const overflow = (page: Page) =>
   page.evaluate(() => {
     const width = document.documentElement.clientWidth
     const all = [...document.body.querySelectorAll('*')]
-    const frames = all.filter((e) => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX))
+    const scrolling = all.filter((e) => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX))
     const edge = Math.min(width, document.body.getBoundingClientRect().right + 0.5)
+    const figures = [...document.querySelectorAll('figure.table')]
     return {
       page: document.documentElement.scrollWidth - width,
       outside: all
         .filter((e) => {
           const r = e.getBoundingClientRect()
-          return r.width > 0 && r.height > 0 && r.right > width + 0.5 && !frames.some((f) => f !== e && f.contains(e))
+          return (
+            r.width > 0 && r.height > 0 && r.right > width + 0.5 && !scrolling.some((f) => f !== e && f.contains(e))
+          )
         })
         .map((e) => e.tagName.toLowerCase()),
       code: [...document.querySelectorAll('pre')].filter((e) => e.scrollWidth > e.clientWidth + 1).length,
-      tables: [...document.querySelectorAll('figure.table')].filter((f) => f.getBoundingClientRect().right > edge + 0.5)
+      tables: figures.filter((f) => f.getBoundingClientRect().right > edge + 0.5).length,
+      frames: figures.filter((f) => f.scrollWidth > Math.max(f.clientWidth, f.querySelector('table')?.offsetWidth ?? 0))
         .length,
     }
   })
@@ -176,6 +181,51 @@ export const rail = (page: Page) =>
       }),
     }
   })
+
+/** The least target a citation is pressed on: a square of 24 CSS pixels (WCAG 2.2's target size minimum, 2.5.8). */
+const TARGET = 24
+
+/**
+ * Each citation's target, where a finger lands: a square of TARGET centred on its numeral. A press anywhere in it must
+ * reach the citation (elementFromPoint at its centre, corners and edge midpoints, half a pixel in, the citation
+ * scrolled into view first), and no two citations' squares may overlap (taken where the page lays them out). Returns
+ * how many citations there are, one line for each a press missed (the numeral, the probe, what took the press), and
+ * one for each pair whose squares overlap.
+ */
+export const citationTargets = (page: Page) =>
+  page.evaluate((side) => {
+    const links = [...document.querySelectorAll('sup.cite a')]
+    /** The square of `side` centred on a citation's numeral, where it is on the screen now. */
+    const square = (link: Element) => {
+      const r = link.getBoundingClientRect()
+      const [x, y] = [r.left + r.width / 2, r.top + r.height / 2]
+      return { x, y, left: x - side / 2, right: x + side / 2, top: y - side / 2, bottom: y + side / 2 }
+    }
+    const laid = links.map(square)
+    const overlaps = laid.flatMap((a, i) =>
+      laid
+        .slice(i + 1)
+        .flatMap((b, k) =>
+          a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+            ? [`${links[i]?.textContent} and ${links[i + 1 + k]?.textContent}`]
+            : [],
+        ),
+    )
+    const h = side / 2 - 0.5
+    const probes = [-h, 0, h].flatMap((dx) => [-h, 0, h].map((dy) => [dx, dy] as const))
+    const missed = links.flatMap((link) => {
+      link.scrollIntoView({ block: 'center', inline: 'center' })
+      const { x, y } = square(link)
+      const taken = probes
+        .map(([dx, dy]) => ({ dx, dy, hit: document.elementFromPoint(x + dx, y + dy) }))
+        .find(({ hit }) => hit?.closest('a') !== link)
+      if (!taken) return []
+      return [
+        `${link.textContent} at ${taken.dx},${taken.dy}: ${taken.hit?.tagName.toLowerCase()}.${taken.hit?.className}`,
+      ]
+    })
+    return { count: links.length, missed, overlaps }
+  }, TARGET)
 
 /**
  * Where the answer stands: whether the summary section comes before the contents and before the first body section

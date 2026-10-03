@@ -244,6 +244,8 @@ table {
 thead { display: table-header-group; }
 th, td { padding: var(--space-xs) var(--space-sm) var(--space-xs) 0; text-align: left; vertical-align: top; overflow-wrap: break-word; hyphens: manual; }
 th:last-child, td:last-child { padding-right: 0; }
+/* On screen a last column that holds a citation keeps room for its target (below), so the frame never scrolls for it. */
+@media screen { figure.table:has(:is(th, td):last-child sup.cite) :is(th, td):last-child { padding-right: var(--space-sm); } }
 th { border-bottom: 1px solid var(--ink); font-weight: 700; vertical-align: bottom; }
 td { border-top: 1px solid var(--rule); }
 tbody tr:first-child td { border-top: 0; }
@@ -272,11 +274,13 @@ sup.cite {
   font-variant-numeric: lining-nums tabular-nums;
 }
 sup.cite a { position: relative; white-space: nowrap; color: var(--accent); text-decoration: none; }
-/* A finger-sized target around a small numeral, without moving the line. */
-sup.cite a::after { content: ""; position: absolute; inset: -0.6em -0.2em; }
+/* A 24px square centred on each numeral takes its press (WCAG 2.5.8), without moving the line. */
+sup.cite a::after { content: ""; position: absolute; top: 50%; left: 50%; width: 1.5rem; height: 1.5rem; margin: -0.75rem 0 0 -0.75rem; }
 sup.cite a:hover { text-decoration: underline; }
 sup.cite a.weak { font-weight: 400; text-decoration: underline dotted; text-decoration-thickness: 1.5px; text-underline-offset: 0.2em; }
-sup.cite .sep { color: var(--muted); font-weight: 400; margin-right: 0.04em; }
+/* In a group a comma and the space after it take 24px less one digit or more, so numerals stand 24px apart and no square
+   covers its neighbour's. The space is a margin, not a box: a box would let a line break before the comma. */
+sup.cite .sep { color: var(--muted); font-weight: 400; margin-right: calc(1.5rem - 1ch); }
 sup.cite a:target { background: var(--mark); box-shadow: 0 0 0 0.2em var(--mark); border-radius: 2px; }
 .omitted { color: var(--muted); font-style: italic; }
 
@@ -453,5 +457,6 @@ sup.cite a:target { background: var(--mark); box-shadow: 0 0 0 0.2em var(--mark)
   sup.cite a, .sources .back, .toc .n { color: var(--accent); }
   :is(section, .lead) a[href^="http"]:not(.url)::after { content: " (" attr(href) ")"; color: var(--muted); font: var(--text-sm) var(--font-ui); overflow-wrap: anywhere; }
   sup.cite a::after { content: none; }
+  sup.cite .sep { margin-right: 0.04em; }
 }
 `

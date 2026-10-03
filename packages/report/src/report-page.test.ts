@@ -288,7 +288,7 @@ describe('the report as a web page (html-report-v2)', () => {
 
   it('prints the bytes it has always printed for the same report (pinned: a change must be deliberate)', () => {
     const digest = createHash('sha256').update(page()).digest('hex')
-    assert.equal(digest, '9bd7346fba08829b2625163908ed53a93dd96bb998ff6f31105cb6c497a13196')
+    assert.equal(digest, '61355303e6866a1ffe6dfc06e00d9badba0fc3665b41d585d0b5c2726d636081')
     const html = page()
     assert.ok(
       html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark">'),

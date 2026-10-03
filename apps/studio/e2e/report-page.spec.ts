@@ -4,6 +4,7 @@ import { REPORT_PAGES } from '../fixtures/report-pages.ts'
 import {
   answerFirst,
   brokenWords,
+  citationTargets,
   medianLine,
   overflow,
   pdfText,
@@ -102,7 +103,13 @@ for (const { width, where, tag } of SCREENS) {
     for (const name of NAMES) {
       for (const scheme of ['light', 'dark'] as const) {
         await open(page, name, width, scheme)
-        expect(await overflow(page), `${name}, ${scheme}`).toEqual({ page: 0, outside: [], code: 0, tables: 0 })
+        expect(await overflow(page), `${name}, ${scheme}`).toEqual({
+          page: 0,
+          outside: [],
+          code: 0,
+          tables: 0,
+          frames: 0,
+        })
       }
     }
   })
@@ -121,6 +128,16 @@ for (const { width, where, tag } of SCREENS) {
         const worst = await worstContrast(page)
         expect(worst.ratio, `${name}, ${scheme}: ${worst.what}`).toBeGreaterThanOrEqual(worst.need)
       }
+    }
+  })
+
+  test(`C15 · every citation takes a press on a 24px square of its own, ${where}${tag}`, async ({ page }) => {
+    for (const name of NAMES) {
+      await open(page, name, width)
+      const targets = await citationTargets(page)
+      expect(targets.count, `${name}: citations`).toBeGreaterThan(0)
+      expect(targets.missed, `${name}: presses on a citation’s square that miss it`).toEqual([])
+      expect(targets.overlaps, `${name}: citations whose squares overlap`).toEqual([])
     }
   })
 }
