@@ -1,12 +1,12 @@
 // One resource as a tile, to scan many at a glance: its tool as itself and its host, whose it is, what it is doing,
 // and how full its account is. Four lines, never more; everything else opens in its sheet (ResourceSheet). Its name
 // is whose tool it is; what its lines say is its description, so assistive technology hears them too.
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
 import { followPointer } from './motion.ts'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
-import { activity, ago, capacity, TOOL, type QuotaObservation, type Resource } from './resource.ts'
+import { activity, ago, capacity, TOOL, type Capacity, type QuotaObservation, type Resource } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'Online', offline: 'Offline', unknown: 'Unknown' } as const
@@ -59,11 +59,48 @@ function Owner({ owner, mine, waiting, said }: OwnerProps) {
   )
 }
 
+/**
+ * Whether what a tile says changed a moment ago: its host, what waits, its capacity. Not its words, which move with
+ * the clock. True for a little over a second, so the tile can say it once.
+ */
+function useChanged(signature: string): boolean {
+  const last = useRef(signature)
+  const [changed, setChanged] = useState(false)
+  useEffect(() => {
+    if (last.current === signature) return undefined
+    last.current = signature
+    setChanged(true)
+    const timer = setTimeout(() => setChanged(false), 1400)
+    return () => clearTimeout(timer)
+  }, [signature])
+  return changed
+}
+
+/** The tile's foot: its capacity in a line, over a meter for a percentage or an empty track for what isn't known. */
+function TileCapacity({ capacity: { line, limiting, known, pace }, id }: { capacity: Capacity; id: string }) {
+  return (
+    <span className="resource-tile-capacity">
+      {(limiting || !known) && (
+        <Meter
+          label={limiting ? `${limiting.name} window` : 'Capacity'}
+          percent={limiting?.percent ?? null}
+          value={line}
+          passed={pace?.passed}
+        />
+      )}
+      <span id={id} className="resource-tile-capacity-line" title={line}>
+        {line}
+      </span>
+    </span>
+  )
+}
+
 export function ResourceTile(props: Props) {
   const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref } = props
   const { tool, owner, host } = resource
-  const { line, limiting, known, pace } = capacity(observation, now)
+  const held = capacity(observation, now)
   const id = useId()
+  const changed = useChanged(`${host.state}|${waiting}|${held.limiting?.percent ?? ''}|${held.known}`)
   const said = (part: string) => `${id}-${part}`
   const described = ['host', mine && 'you', waiting > 0 && 'waiting', 'activity', 'capacity']
     .filter((part) => typeof part === 'string')
@@ -75,6 +112,7 @@ export function ResourceTile(props: Props) {
       className="resource-tile"
       data-tool={tool}
       data-host={host.state}
+      data-changed={changed || undefined}
       data-waiting={waiting > 0 || undefined}
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
@@ -97,19 +135,7 @@ export function ResourceTile(props: Props) {
       <span id={said('activity')} className="resource-tile-activity" title={activity(resource)}>
         {activity(resource)}
       </span>
-      <span className="resource-tile-capacity">
-        {(limiting || !known) && (
-          <Meter
-            label={limiting ? `${limiting.name} window` : 'Capacity'}
-            percent={limiting?.percent ?? null}
-            value={line}
-            passed={pace?.passed}
-          />
-        )}
-        <span id={said('capacity')} className="resource-tile-capacity-line" title={line}>
-          {line}
-        </span>
-      </span>
+      <TileCapacity capacity={held} id={said('capacity')} />
     </button>
   )
 }

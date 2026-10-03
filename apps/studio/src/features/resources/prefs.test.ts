@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { linkedResource, linkHash } from './link.ts'
+import { linkedId, linkHash } from './link.ts'
 import { DEFAULT_PREFS, prefsKey, readPrefs, savePrefs } from './prefs.ts'
 
 /** A browser's storage, held in a map. */
@@ -41,13 +41,13 @@ describe('what the view remembers', () => {
 })
 
 describe('a resource’s address', () => {
-  it('opens the resource it names, and nothing else', () => {
-    const ids = ['davide-codex', 'luis-claude']
+  it('names the resource its fragment holds, kept as it is until the resources are read', () => {
     assert.equal(linkHash('davide-codex'), '#resource-davide-codex')
-    assert.equal(linkedResource('#resource-davide-codex', ids), 'davide-codex')
-    assert.equal(linkedResource('#resource-nobody', ids), null)
-    assert.equal(linkedResource('#davide-codex', ids), null)
-    assert.equal(linkedResource('', ids), null)
-    assert.equal(linkedResource('#resource-%E0%A4%A', ids), null) // a broken escape opens nothing
+    assert.equal(linkedId('#resource-davide-codex'), 'davide-codex')
+    assert.equal(linkedId('#resource-nobody'), 'nobody') // checked against the resources when they arrive
+    assert.equal(linkedId('#davide-codex'), null)
+    assert.equal(linkedId('#resource-'), null)
+    assert.equal(linkedId(''), null)
+    assert.equal(linkedId('#resource-%E0%A4%A'), null) // a broken escape names nothing
   })
 })

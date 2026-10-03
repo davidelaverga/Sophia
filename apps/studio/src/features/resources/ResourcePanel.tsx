@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
-import { linkedResource, showInAddress } from './link.ts'
+import { useClock } from './clock.ts'
+import { linkedId, showInAddress } from './link.ts'
 import { glideName, moving } from './motion.ts'
 import { ORDER_LABEL, ordered, ORDERS, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
@@ -35,7 +36,10 @@ interface Props {
   actions: RequiredAction[]
   /** Who is looking: only an action's owner is told how to answer it, and their own resource says "You". */
   viewerId: string
+  /** When the data was read: the view's clock starts here and moves on while the page is open (clock.ts). */
   now: Date
+  /** The resources are not read yet: placeholders hold their places. */
+  loading?: boolean
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -61,7 +65,7 @@ function Attention({
         return (
           <button key={r.id} type="button" className="attention-item" onClick={() => onOpen(r.id)}>
             <ToolLogo tool={r.tool} size="sm" />
-            <span className="attention-label">
+            <span key={n} className="attention-label">
               {plural(n, 'request')} {n === 1 ? 'waits' : 'wait'} on {who}
             </span>
             <span className="attention-tool">{TOOL[r.tool]}</span>
@@ -303,14 +307,41 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
   )
 }
 
-export function ResourcePanel(props: Props) {
-  const { resources, observations, actions, viewerId, now } = props
-  const [open, setOpen] = useState<string | null>(() =>
-    linkedResource(
-      window.location.hash,
-      resources.map((r) => r.id),
-    ),
+/** While the resources are read: tiles' shapes, still and quiet, in their places. */
+function Placeholders() {
+  return (
+    <div className="resource-grid resource-placeholders" aria-busy="true">
+      <p className="sr-only" role="status">
+        Reading the resources…
+      </p>
+      {Array.from({ length: 6 }, (_, i) => (
+        <span key={i} className="resource-placeholder" aria-hidden style={{ '--i': i }}>
+          <span />
+          <span />
+          <span />
+        </span>
+      ))}
+    </div>
   )
+}
+
+/** What the view shows under its head: placeholders while reading, the empty note, or the tiles to browse. */
+function Body(props: Props & { onOpen: (id: string) => void }) {
+  if (props.loading) return <Placeholders />
+  if (props.resources.length === 0) {
+    return (
+      <p className="view-note">No tool is enrolled for this project yet. An owner enrolls one from their own host.</p>
+    )
+  }
+  return <Browse {...props} />
+}
+
+export function ResourcePanel(given: Props) {
+  const now = useClock(given.now)
+  const props = { ...given, now }
+  const { resources, observations, actions, viewerId } = props
+  // The address's resource is kept until the resources are read; it opens when it is among them.
+  const [open, setOpen] = useState<string | null>(() => linkedId(window.location.hash))
   const selected = resources.find((r) => r.id === open)
   const show = (id: string | null) => {
     setOpen(id)
@@ -320,15 +351,11 @@ export function ResourcePanel(props: Props) {
     <section className="resources" aria-labelledby="resources-title">
       <header className="view-head">
         <h2 id="resources-title">Resources</h2>
-        <span className="count">{resources.length}</span>
+        <span className="count">{props.loading ? '–' : resources.length}</span>
         <span className="resources-summary">{summary(resources, actions)}</span>
       </header>
       <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />
-      {resources.length === 0 ? (
-        <p className="view-note">No tool is enrolled for this project yet. An owner enrolls one from their own host.</p>
-      ) : (
-        <Browse {...props} onOpen={show} />
-      )}
+      <Body {...props} onOpen={show} />
       {selected && (
         <ResourceSheet
           resource={selected}

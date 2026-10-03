@@ -715,14 +715,68 @@
   animation-delay: 160ms;
 }
 
+/* A tile whose state just changed says so once: its edge lights in its tool's colour and fades, the room's ignite. */
+/* Added beside the arrival, never instead of it: replacing it would play the arrival again when the flash ends. */
+.resource-tile[data-changed] {
+  animation-name: arrive, tile-changed;
+  animation-duration: 0.4s, 1.4s;
+  animation-fill-mode: both, none;
+  animation-delay: calc(var(--i, 0) * 40ms), 0s;
+}
+@keyframes tile-changed {
+  0% {
+    box-shadow:
+      var(--lift),
+      0 0 0 1px color-mix(in srgb, var(--tool-accent) 80%, transparent),
+      0 0 24px color-mix(in srgb, var(--tool-accent) 35%, transparent);
+  }
+}
+
+/* While the resources are read: tiles' shapes, with a light passing over them. */
+.resource-placeholder {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 150px;
+  padding: 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+}
+.resource-placeholder > span {
+  height: 10px;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--line) 30%, var(--line-2) 50%, var(--line) 70%) 0 0 / 300% 100%;
+  animation: placeholder-light 1.6s linear infinite;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.resource-placeholder > span:first-child {
+  width: 55%;
+  height: 14px;
+}
+.resource-placeholder > span:last-child {
+  width: 70%;
+  margin-top: 28px;
+}
+@keyframes placeholder-light {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 /* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
 @media (prefers-reduced-motion: reduce) {
   .resource-tile,
+  .resource-tile[data-changed],
   .capacity-meter-fill,
   .attention-dot::after,
   .event.waiting.open .dot::after,
   .attention-label,
-  .resource-sheet > * {
+  .resource-sheet > *,
+  .resource-placeholder > span {
     animation: none;
   }
   .attention-label {

@@ -50,6 +50,9 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - Owners show their picture (the app's `Avatar`), and each tool has its own colour.
   - The view opens as its viewer left it, a sheet has its own address, and arrow keys move across the tiles.
   - A glide cut short no longer leaves an unhandled rejection.
+- **Attempt 9** ([handoff](../handoffs/LFE-06-attempt-9.md)): the view feels live.
+  - Ages and countdowns move on while the page is open; a tile whose state changes flashes once.
+  - The tab counts requests waiting on the viewer (through `ProjectShell`, beside who waits at the door); placeholders hold the tiles while reading.
 
 ## Acceptance cases
 
