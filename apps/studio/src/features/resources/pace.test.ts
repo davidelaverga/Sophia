@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ordered } from './order.ts'
+import { ordered, placed } from './order.ts'
 import { pace } from './pace.ts'
 import type { QuotaWindow, RequiredAction, Resource } from './resource.ts'
 
@@ -86,5 +86,23 @@ describe('the tiles’ order', () => {
   it('by owner, or by tool, as a list is read', () => {
     assert.deepEqual(ids(ordered(list, 'owner', actions)), ['unk', 'off', 'ben', 'cy', 'wait'])
     assert.deepEqual(ids(ordered(list, 'tool', actions)), ['unk', 'ben', 'cy', 'wait', 'off'])
+  })
+})
+
+describe('the viewer’s own order', () => {
+  it('takes the place of the tile it was dropped on: before it moving back, after it moving on', () => {
+    assert.deepEqual(placed(['a', 'b', 'c', 'd'], 'd', 'b'), ['a', 'd', 'b', 'c'])
+    assert.deepEqual(placed(['a', 'b', 'c', 'd'], 'a', 'c'), ['b', 'c', 'a', 'd'])
+    assert.deepEqual(placed(['a', 'b'], 'a', 'z'), ['a', 'b']) // nowhere to go
+  })
+
+  it('orders by hand; what wasn’t placed yet comes after, by attention', () => {
+    const list = [
+      resource('off', 'Ana', 'grok', 'offline'),
+      resource('ben', 'Ben', 'codex', 'online'),
+      resource('cy', 'Cy', 'cursor', 'online'),
+      resource('unk', 'Ada', 'claude-code', 'unknown'),
+    ]
+    assert.deepEqual(ids(ordered(list, 'custom', [], ['off', 'cy'])), ['off', 'cy', 'ben', 'unk'])
   })
 })

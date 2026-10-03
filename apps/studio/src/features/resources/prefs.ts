@@ -7,9 +7,11 @@ import { FILTERS, type Filter } from './resource.ts'
 export interface Prefs {
   filter: Filter
   order: Order
+  /** The order the viewer arranged by hand: resource ids, first to last. */
+  custom: string[]
 }
 
-export const DEFAULT_PREFS: Prefs = { filter: 'all', order: 'attention' }
+export const DEFAULT_PREFS: Prefs = { filter: 'all', order: 'attention', custom: [] }
 
 /** One key per viewer: who signs in on a shared browser gets their own. */
 export const prefsKey = (viewerId: string) => `sophia.resources.v1.${viewerId}`
@@ -34,9 +36,11 @@ export function readPrefs(viewerId: string, store: Store | null = browserStore()
     if (typeof kept !== 'object' || kept === null) return DEFAULT_PREFS
     const filter: unknown = Reflect.get(kept, 'filter')
     const order: unknown = Reflect.get(kept, 'order')
+    const custom: unknown = Reflect.get(kept, 'custom')
     return {
       filter: isFilter(filter) ? filter : DEFAULT_PREFS.filter,
       order: isOrder(order) ? order : DEFAULT_PREFS.order,
+      custom: Array.isArray(custom) ? custom.filter((id): id is string => typeof id === 'string') : [],
     }
   } catch {
     return DEFAULT_PREFS

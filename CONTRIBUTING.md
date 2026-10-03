@@ -470,6 +470,8 @@ when you change the room:
   tiles side by side greet (`buddies.ts`), and typing "ultracode" on the
   view sends a wave across the tiles (`ultra.ts`); with reduced motion, both
   are still.
+  Tiles can be arranged by hand (`TileGrid.tsx`): dragged onto another, or
+  moved with Alt and an arrow, into a Custom order kept per viewer.
 
 ## The personal space
 

@@ -6,15 +6,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
-import { useBuddies } from './buddies.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
-import { glideName, moving } from './motion.ts'
-import { ORDER_LABEL, ordered, ORDERS, type Order } from './order.ts'
+import { moving } from './motion.ts'
+import { ORDER_LABEL, ordered, ORDERS, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
 import { ResourceSheet } from './ResourceSheet.tsx'
-import { ResourceTile } from './ResourceTile.tsx'
+import { TileGrid } from './TileGrid.tsx'
 import {
   FILTER_LABEL,
   FILTERS,
@@ -210,7 +209,8 @@ function useView({ resources, actions, viewerId }: Props) {
   const [kept] = useState(() => readPrefs(viewerId))
   const [filter, setFilter] = useState<Filter>(kept.filter)
   const [order, setOrder] = useState<Order>(kept.order)
-  useEffect(() => savePrefs(viewerId, { filter, order }), [viewerId, filter, order])
+  const [custom, setCustom] = useState<string[]>(kept.custom)
+  useEffect(() => savePrefs(viewerId, { filter, order, custom }), [viewerId, filter, order, custom])
   const found = resources.filter((r) => matches(r, query))
   const count = (f: Filter) => found.filter((r) => inFilter(f, r, actions, viewerId)).length
   const counts: Record<Filter, number> = {
@@ -223,41 +223,22 @@ function useView({ resources, actions, viewerId }: Props) {
     found.filter((r) => inFilter(filter, r, actions, viewerId)),
     order,
     actions,
+    custom,
   )
-  return { query, setQuery, filter, setFilter, order, setOrder, counts, shown }
-}
-
-const STEP: Record<string, (columns: number) => number> = {
-  ArrowRight: () => 1,
-  ArrowLeft: () => -1,
-  ArrowDown: (columns) => columns,
-  ArrowUp: (columns) => -columns,
-}
-
-/** Which tile a key moves to, in a grid of `columns`: arrows by one or a row, Home and End to the ends. */
-function moveTo(key: string, from: number, count: number, columns: number): number | null {
-  if (key === 'Home') return 0
-  if (key === 'End') return count - 1
-  const step = STEP[key]?.(columns)
-  if (step === undefined) return null
-  const to = from + step
-  return to >= 0 && to < count ? to : null
-}
-
-/** One tile in the Tab order (the last one focused); arrow keys, Home and End move across the grid. */
-function useRoving(count: number) {
-  const tiles = useRef<(HTMLButtonElement | null)[]>([])
-  const [active, setActive] = useState(0)
-  const current = Math.min(active, Math.max(0, count - 1))
-  const onKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
-    const columns = getComputedStyle(e.currentTarget).gridTemplateColumns.split(' ').length
-    const to = moveTo(e.key, current, count, columns)
-    if (to === null) return
-    e.preventDefault()
-    setActive(to)
-    tiles.current[to]?.focus()
-  }
-  return { tiles, current, setActive, onKeyDown }
+  // A tile moved by hand takes its place in the whole order, hidden ones kept where they were, and the view is then
+  // in the viewer's own order.
+  const arrange = (id: string, target: string) =>
+    moving(() => {
+      setCustom(
+        placed(
+          ordered(resources, order, actions, custom).map((r) => r.id),
+          id,
+          target,
+        ),
+      )
+      setOrder('custom')
+    })
+  return { query, setQuery, filter, setFilter, order, setOrder, counts, shown, arrange }
 }
 
 const observationOf = (observations: QuotaObservation[], r: Resource) =>
@@ -268,9 +249,6 @@ type View = ReturnType<typeof useView>
 
 function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
   const { resources, observations, actions, viewerId, now, onOpen, view } = props
-  const roving = useRoving(view.shown.length)
-  const list = useRef<HTMLUListElement>(null)
-  const buddies = useBuddies(list, view.shown.map((r) => r.id).join(' '))
   return (
     <>
       <div className="resources-toolbar">
@@ -289,27 +267,15 @@ function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
           onAll={() => moving(() => view.setFilter('all'))}
         />
       ) : (
-        <ul ref={list} id="resource-grid" className="resource-grid" aria-label="Resources" onKeyDown={roving.onKeyDown}>
-          {view.shown.map((r, i) => (
-            // Each arrives a beat after the one before (the first eight), and glides when a filter moves it.
-            <li key={r.id} style={{ '--i': Math.min(i, 8), viewTransitionName: glideName(r.id) }}>
-              <ResourceTile
-                resource={r}
-                observation={observationOf(observations, r)}
-                now={now}
-                mine={r.owner.id === viewerId}
-                waiting={openOn(actions, r.id)}
-                onOpen={() => onOpen(r.id)}
-                buddy={buddies.get(r.id)}
-                current={i === roving.current}
-                onFocus={() => roving.setActive(i)}
-                ref={(el) => {
-                  roving.tiles.current[i] = el
-                }}
-              />
-            </li>
-          ))}
-        </ul>
+        <TileGrid
+          shown={view.shown}
+          observations={observations}
+          actions={actions}
+          viewerId={viewerId}
+          now={now}
+          onOpen={onOpen}
+          onArrange={view.arrange}
+        />
       )}
     </>
   )

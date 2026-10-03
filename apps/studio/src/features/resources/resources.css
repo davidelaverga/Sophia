@@ -1086,6 +1086,16 @@
   }
 }
 
+/* Arranging by hand (TileGrid): the tile being dragged fades where it was; the one it would take the place of shows a
+   quiet dashed edge, in the app's light. */
+.resource-grid > li[data-dragging] .resource-tile {
+  opacity: 0.4;
+}
+.resource-grid > li[data-over] .resource-tile {
+  outline: 1px dashed color-mix(in srgb, var(--halo) 70%, transparent);
+  outline-offset: 3px;
+}
+
 /* The secret (ultra.ts): "ultracode" typed on the view sends the ultracode bar's lavender dots across every tile, once. */
 .resource-grid {
   position: relative;
