@@ -1,0 +1,1064 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed Sophia work-board read view",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.work.board.v1"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "snapshot_cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "coverage": {
+      "enum": [
+        "complete",
+        "partial",
+        "unavailable"
+      ]
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/goal_view"
+      },
+      "minItems": 0,
+      "maxItems": 30
+    }
+  },
+  "required": [
+    "schema_version",
+    "project_id",
+    "snapshot_cursor",
+    "observed_at",
+    "coverage",
+    "goals"
+  ],
+  "$defs": {
+    "plan_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "deliverable_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "criteria_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "maxItems": 30,
+          "uniqueItems": true
+        },
+        "assignee_kind": {
+          "enum": [
+            "assignment",
+            "human",
+            "unassigned"
+          ]
+        },
+        "assignee_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_scope_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_policy_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "recipe_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "activation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "immediate",
+                "dependencies_satisfied",
+                "candidate_ready"
+              ]
+            },
+            "producer_work_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "producer_work_id"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "candidate_ready"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "producer_work_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "purpose",
+        "deliverable_ref",
+        "criteria_ref",
+        "parent_id",
+        "blocked_by",
+        "assignee_kind",
+        "assignee_id",
+        "source_scope_ref",
+        "review_policy_ref",
+        "recipe_ref",
+        "activation"
+      ]
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "sophia.work.plan.v2"
+        },
+        "plan_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "project_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "goal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "goal_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "criteria_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mission_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_manifest_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "state": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "superseded",
+            "withdrawn"
+          ]
+        },
+        "decision_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 700
+              },
+              "status": {
+                "enum": [
+                  "unresolved",
+                  "supported",
+                  "contradicted"
+                ]
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "minItems": 0,
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "id",
+              "text",
+              "status",
+              "evidence_refs"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 20
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/plan_item"
+          },
+          "minItems": 1,
+          "maxItems": 30
+        }
+      },
+      "required": [
+        "schema_version",
+        "plan_id",
+        "project_id",
+        "goal_id",
+        "goal_revision",
+        "criteria_ref",
+        "revision",
+        "mission_revision",
+        "source_manifest_ref",
+        "state",
+        "decision_ref",
+        "assumptions",
+        "items"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "accepted"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "decision_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          }
+        }
+      ]
+    },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assignment_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "native_session_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "executor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "sophia_native",
+                "owner_native",
+                "human"
+              ]
+            },
+            "display_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "role": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "owner_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "resource_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "display_name",
+            "role",
+            "owner_id",
+            "resource_id"
+          ]
+        },
+        "observation_state": {
+          "enum": [
+            "observed",
+            "unknown",
+            "offline"
+          ]
+        }
+      },
+      "required": [
+        "assignment_id",
+        "generation",
+        "attempt_id",
+        "native_session_id",
+        "executor",
+        "observation_state"
+      ]
+    },
+    "wait": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "product_decision",
+            "native_permission",
+            "dependency",
+            "capacity",
+            "connection",
+            "external"
+          ]
+        },
+        "reference_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "respondent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 700
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "resolved",
+            "expired",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "reference_id",
+        "respondent_id",
+        "detail",
+        "state"
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "enum": [
+            "current",
+            "previous",
+            "withdrawn"
+          ]
+        }
+      },
+      "required": [
+        "source_id",
+        "version_id",
+        "sha256",
+        "media_type",
+        "created_at",
+        "state"
+      ]
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "guidance",
+            "hold",
+            "resume",
+            "stop",
+            "ask_sophia",
+            "open_result",
+            "review_candidate"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "allowed",
+            "denied",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 700
+        },
+        "boundary": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "availability",
+        "reason",
+        "boundary"
+      ]
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "assignment_generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "said": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 700
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "connection": {
+          "enum": [
+            "online",
+            "offline",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "observation_id",
+        "attempt_id",
+        "assignment_generation",
+        "said",
+        "observed_at",
+        "connection"
+      ]
+    },
+    "item_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "work_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "lifecycle": {
+          "enum": [
+            "planned",
+            "queued",
+            "running",
+            "waiting",
+            "held",
+            "ready_for_review",
+            "changes_required",
+            "complete",
+            "stopped",
+            "cancelled",
+            "failed",
+            "superseded",
+            "unknown"
+          ]
+        },
+        "assignment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/assignment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "waiting_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/wait"
+          },
+          "minItems": 0,
+          "maxItems": 15
+        },
+        "activity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/activity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/candidate"
+          },
+          "minItems": 0,
+          "maxItems": 10
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "enum": [
+                "not_requested",
+                "pending",
+                "passed",
+                "changes_required",
+                "inconclusive"
+              ]
+            },
+            "candidate_version_ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "minItems": 0,
+              "maxItems": 100
+            }
+          },
+          "required": [
+            "state",
+            "candidate_version_ref",
+            "evidence_refs"
+          ]
+        },
+        "completion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "status": {
+              "enum": [
+                "not_evaluated",
+                "satisfied",
+                "not_satisfied"
+              ]
+            },
+            "evidence_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "minItems": 0,
+              "maxItems": 100
+            }
+          },
+          "required": [
+            "policy_ref",
+            "status",
+            "evidence_refs"
+          ]
+        },
+        "closed_reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 700
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "available_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "minItems": 0,
+          "maxItems": 7
+        }
+      },
+      "required": [
+        "work_id",
+        "lifecycle",
+        "assignment",
+        "waiting_on",
+        "activity",
+        "candidates",
+        "review",
+        "completion",
+        "closed_reason",
+        "available_actions"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "const": "complete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "completion": {
+                "properties": {
+                  "status": {
+                    "const": "satisfied"
+                  },
+                  "evidence_refs": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "work_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "plan_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "plan_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "candidate_version_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200
+        },
+        "decider_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "key",
+              "label"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 10
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "declined",
+            "expired",
+            "superseded"
+          ]
+        },
+        "selected_choice": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "choice_receipt_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan_reaction": {
+          "enum": [
+            "not_needed",
+            "pending",
+            "recorded",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "decision_id",
+        "revision",
+        "work_id",
+        "plan_id",
+        "plan_revision",
+        "candidate_version_ref",
+        "question",
+        "decider_id",
+        "choices",
+        "expires_at",
+        "state",
+        "selected_choice",
+        "choice_receipt_id",
+        "plan_reaction"
+      ]
+    },
+    "goal_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "goal_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "current_plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/plan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposed_plans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/plan"
+          },
+          "minItems": 0,
+          "maxItems": 3
+        },
+        "next_checkpoint": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "item_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "item_id"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item_view"
+          },
+          "minItems": 0,
+          "maxItems": 30
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/decision"
+          },
+          "minItems": 0,
+          "maxItems": 30
+        }
+      },
+      "required": [
+        "goal_id",
+        "current_plan",
+        "proposed_plans",
+        "next_checkpoint",
+        "items",
+        "decisions"
+      ]
+    }
+  }
+}

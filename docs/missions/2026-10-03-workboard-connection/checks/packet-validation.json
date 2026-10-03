@@ -1,0 +1,12 @@
+{
+  "kind": "documentation_and_synthetic_schema_validation",
+  "application_tests_run": false,
+  "local_markdown_links_checked": 28,
+  "html_internal_anchors_checked": 12,
+  "json_schemas_valid": 2,
+  "valid_examples_checked": 4,
+  "invalid_examples_correctly_rejected": 6,
+  "not_run_application_acceptance_cases": 41,
+  "broken_links": [],
+  "html_external_assets": 0
+}
