@@ -35,6 +35,11 @@ export interface Session {
   /** The model and effort the native tool reported; null when it didn't. */
   model: string | null
   effort: string | null
+  /**
+   * A mode the tool reports beside its effort, when it has one: Claude Code's "ultracode". Not an effort level: a
+   * session can be at max effort without it. The Studio's proposal for SCM-01.
+   */
+  mode?: string | null
   assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
 }
 

@@ -39,8 +39,8 @@ const RULES: Rule[] = [
     }),
   },
   {
-    pattern: /^gpt-(\d+(?:\.\d+)?)(-codex)?/,
-    look: ([, v = '', codex]) => ({ label: `GPT-${v}${codex ? ' Codex' : ''}`, family: 'gpt' }),
+    pattern: /^gpt-(\d+(?:\.\d+)?)(?:-([a-z]+))?/,
+    look: ([, v = '', name]) => ({ label: `GPT-${v}${name ? ` ${title(name)}` : ''}`, family: 'gpt' }),
   },
   { pattern: /^grok-(\d+(?:\.\d+)?)/, look: ([, v = '']) => ({ label: `Grok ${v}`, family: 'grok' }) },
 ]

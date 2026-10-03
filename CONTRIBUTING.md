@@ -463,6 +463,9 @@ when you change the room:
   shows as people say it, in its family's colour (`models.ts`); a sheet draws
   each window's readings over time from earlier observations (`history.ts`,
   the panel's `history`), one window at a time, never across a reset.
+  Each session's effort is a small bar in its tool's own look (`effort.ts`):
+  Claude's dots, alive and saying "Ultracode" in that mode; GPT's gradient,
+  sparkling at Ultra; a plain, still bar for the others.
 
 ## The personal space
 
