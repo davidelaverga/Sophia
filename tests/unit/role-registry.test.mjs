@@ -6,9 +6,10 @@ import { REPO_ROOT } from '../../scripts/lib/common.mjs'
 import { ROLE_PRESETS, roleOf } from '../../packages/dsh-bundle/dist/role-registry.js'
 
 const roles = JSON.parse(readFileSync(join(REPO_ROOT, 'config', 'roles.json'), 'utf8')).roles
+const specialists = JSON.parse(readFileSync(join(REPO_ROOT, 'config', 'specialists.json'), 'utf8')).specialists
 
-test('bundle role presets mirror config/roles.json ids and flags', () => {
-  assert.deepEqual(Object.keys(ROLE_PRESETS).sort(), roles.map((r) => r.id).sort())
+test('bundle role presets are exactly config/roles.json and the specialist registry; roles.json mirrors ids and flags', () => {
+  assert.deepEqual(Object.keys(ROLE_PRESETS).sort(), [...roles, ...specialists].map((r) => r.id).sort())
   for (const role of roles) {
     const preset = roleOf(role.id)
     assert.equal(preset.goalContinuation, role.goal_continuation, `${role.id} goal_continuation`)

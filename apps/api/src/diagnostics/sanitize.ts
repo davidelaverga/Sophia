@@ -53,6 +53,8 @@ const KNOWN_TEXT: ReadonlyArray<[prefix: string, code: string]> = [
   ['no active runtime for its executor resource and runtime unit', 'no_active_runtime'],
   ['its instruction source is no longer eligible', 'instruction_ineligible'],
   ['an input it was admitted with is no longer eligible', 'input_ineligible'],
+  ['a source its work would read was withdrawn', 'source_withdrawn'],
+  ['a source its work read was withdrawn', 'source_withdrawn'],
   ['the dispatch lease expired', 'dispatch_lease_expired'],
   ['Sophia could not join the room: ', 'room_join_failed'],
   ['The room service is not configured for Sophia', 'room_not_configured'],
@@ -145,7 +147,7 @@ export const EVENT_TYPES = [
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence']),
   'project.member_joined',
   'contribution.recorded',
-  ...suffixed('native_task.', ['admitted', 'waiting', 'running', 'result_ready', 'failed', 'denied']),
+  ...suffixed('native_task.', ['admitted', 'waiting', 'running', 'result_ready', 'failed', 'denied', 'nudged']),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready']),
   ...suffixed('goal.', ['held', 'stopped']),
 ]
@@ -163,7 +165,22 @@ const EXCHANGE_CHANGES = [
   'empty',
 ]
 const LOBBY_CHANGES = ['knock', 'admit', 'deny', 'block', 'unblock']
-const TASK_SUMMARIES = ['draft_brief', 'waiting', 'running', 'result_ready', 'denied', 'rejected', 'failed']
+const TASK_SUMMARIES = [
+  'draft_brief',
+  'research',
+  'waiting',
+  'running',
+  'result_ready',
+  'denied',
+  'rejected',
+  'failed',
+  // A research turn that ended without a submit (SMC-M03 0026): the one nudge, then the failure.
+  'no_result_yet',
+  'no_result_submitted',
+  // A source the research read was withdrawn (0028): the task revoked, and the one rebuilt without it.
+  'revoked',
+  'rebuilt',
+]
 const TASK_ENDINGS = ['outcome_unknown', 'error', 'max-tokens', 'blocked']
 export const VOICE_STATES = ['connecting', 'ready', 'recovering', 'unavailable']
 

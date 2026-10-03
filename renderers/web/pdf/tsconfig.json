@@ -1,0 +1,7 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  // The kernel stays JavaScript (architecture 14 §1); JSDoc types are checked. The DOM library is for the
+  // callbacks that run in the page (page.evaluate).
+  "compilerOptions": { "allowJs": true, "checkJs": true, "lib": ["ES2024", "DOM", "DOM.Iterable"] },
+  "include": ["*.mjs", "test/**/*.ts"]
+}

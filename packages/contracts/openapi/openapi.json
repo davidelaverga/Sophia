@@ -2072,10 +2072,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ArtifactVersion"
-                  }
+                  "$ref": "#/components/schemas/ArtifactVersionList"
                 }
               }
             }
@@ -2606,6 +2603,19 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "disposition",
+            "in": "query",
+            "required": false,
+            "description": "inline (the default) to show it; attachment to save it under its file name.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "inline",
+                "attachment"
+              ]
             }
           }
         ],
@@ -6434,7 +6444,21 @@
             "mediaBridgeCapability": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "guide",
+            "in": "query",
+            "required": false,
+            "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research and render_research, and steer on control_work. The bridge rolls back before the API.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "v1.1",
+                "v1.2"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -7736,6 +7760,1686 @@
         "x-sophia-implementation": "contract_only",
         "x-sophia-release-goal": "PS-01"
       }
+    },
+    "/api/v1/knowledge/reports": {
+      "get": {
+        "operationId": "listReports",
+        "summary": "Reports from one project or every project the reader is a member of, newest first; counts and names only from readable projects.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "pdf",
+                "markdown_only"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,200}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Report cards.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/research/context": {
+      "post": {
+        "operationId": "runtimeResearchContext",
+        "summary": "The research task an attempt runs (request, inputs, allowance, draft), or a page of a stored source it may read. Fenced: the goal is active under the session's authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchContextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchContextReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/reserve": {
+      "post": {
+        "operationId": "runtimeResearchReserve",
+        "summary": "Reserve allowance before one paid call (model, search, read, render). A read names a target (search result, link or admitted URL), resolved here within the task's lineage. Idempotent by native session and call id. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchReservation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/settle": {
+      "post": {
+        "operationId": "runtimeResearchSettle",
+        "summary": "End a reservation from the call's reported usage: settled, released (never left) or uncertain. Never fenced, so a call already paid for is always accounted.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchSettleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSettlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/capture": {
+      "post": {
+        "operationId": "runtimeResearchCapture",
+        "summary": "Keep what one paid search or read returned, with its provenance. One capture per call; a replay returns it. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchCapture"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/draft": {
+      "post": {
+        "operationId": "runtimeResearchDraft",
+        "summary": "Replace the attempt's draft; the write names the hash it replaces. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchDraft"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a reused idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/submit": {
+      "post": {
+        "operationId": "runtimeResearchSubmit",
+        "summary": "End a research task: publish its current draft as the report's next stable version (checked: the draft's hash, every citation readable by the task, the current authority), or record a blocker with the remaining work. Idempotent by the call; fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published or blocked (or already)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, the task has ended, or the draft changed since it was read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or a citation or the draft is not the task's",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/render": {
+      "post": {
+        "operationId": "runtimeResearchRender",
+        "summary": "Render the current draft as the task's PDF: printed by the service, checked, then queued for the renderer. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchRenderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The render (or the one this call already queued)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchRender"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, the work is not active (Hold or Stop), a stale draft, or a render of the task still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The task's renders and repairs are used up, or it is finalizing (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/research/render-result": {
+      "post": {
+        "operationId": "runtimeResearchRenderResult",
+        "summary": "A render of the task: its state, report manifest and, once settled, the kernel's checks and its render-result.v1 record.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchRenderResultRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The render (or the one this call already queued)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchRender"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/api/v1/projects/{projectId}/native-tasks/{taskId}/rendition": {
+      "post": {
+        "operationId": "requestResearchRendition",
+        "summary": "Try PDF again: render a published report that has no PDF, with no model call, as a rendition of its current version. Editors and admins only. The same Idempotency-Key returns the same rendition.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued (or what the earlier call with this key did); rejected when the version cannot be printed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchRendition"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (editors and admins only)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A newer version exists, research is under way or held or stopped, or a rendition is already in flight",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or the task is not found, asked for no PDF, published nothing or already has its PDF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Three attempts on this version (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No PDF renderer is running, or a dependent service is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/api/v1/artifacts/{artifactId}/versions/{versionId}/sources": {
+      "get": {
+        "operationId": "listReportSources",
+        "summary": "The sources a report version cites, with their provenance: what was read in full and what only as a snippet, by which route, and the origin status only when known. Each one the reader may read.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSourceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not found or not readable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/api/v1/artifacts/{artifactId}/summary": {
+      "patch": {
+        "operationId": "editReportSummary",
+        "summary": "A member's edit of a report's description: attributed, against the revision they saw. Editors and admins only.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportSummaryEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The description changed since it was read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or the report is not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/renderer/claim": {
+      "post": {
+        "operationId": "rendererClaim",
+        "summary": "Claim the oldest pending render whose goal is working, under a new lease; job is null when there is none.",
+        "tags": [
+          "renderer"
+        ],
+        "security": [
+          {
+            "renderRunnerCapability": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Claimed, or nothing to claim",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderClaim"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown render runner capability"
+          },
+          "409": {
+            "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/renderer/jobs/{jobId}/heartbeat": {
+      "post": {
+        "operationId": "rendererHeartbeat",
+        "summary": "Extend the lease, or learn to stop: a Stop or a task that ended cancels the render, a Hold returns it to the queue.",
+        "tags": [
+          "renderer"
+        ],
+        "security": [
+          {
+            "renderRunnerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderLease"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Continue or cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderHeartbeat"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown render runner capability"
+          },
+          "409": {
+            "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/renderer/jobs/{jobId}/file": {
+      "get": {
+        "operationId": "rendererFile",
+        "summary": "One file of the job's source package, by its relative path, as bytes; its SHA-256 is the package's.",
+        "tags": [
+          "renderer"
+        ],
+        "security": [
+          {
+            "renderRunnerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-sophia-render-lease",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$",
+              "maxLength": 512
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown render runner capability"
+          },
+          "409": {
+            "description": "The lease is lost",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a file of this package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/renderer/jobs/{jobId}/output": {
+      "put": {
+        "operationId": "rendererOutput",
+        "summary": "Upload the rendered PDF once: the API checks its signature and size, stores it and records it as the job's output, derived from every file of the package.",
+        "tags": [
+          "renderer"
+        ],
+        "security": [
+          {
+            "renderRunnerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-sophia-render-lease",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown render runner capability"
+          },
+          "409": {
+            "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/renderer/jobs/{jobId}/settle": {
+      "post": {
+        "operationId": "rendererSettle",
+        "summary": "End the render with the kernel's receipt. A succeeded render names its package and its recorded output; one that ends after a Stop or the task's end is stale and never the job's result; under a Hold it is queued again.",
+        "tags": [
+          "renderer"
+        ],
+        "security": [
+          {
+            "renderRunnerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderSettleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settled (or already settled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderSettlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown render runner capability"
+          },
+          "409": {
+            "description": "The lease is lost (another claim, a Hold or Stop) or the job already has its output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a job or file this lease does not cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "SMC-M03"
+      }
     }
   },
   "components": {
@@ -7754,6 +9458,11 @@
         "type": "http",
         "scheme": "bearer",
         "description": "The media bridge's capability: an opaque secret on the bridge host; the API holds only its SHA-256. It names no member and grants no member authority: tool calls act for the speaker the exchange's input epoch binds, under that speaker's own role."
+      },
+      "renderRunnerCapability": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A render runner capability: an opaque secret held by the supervisor on the renderer host; the service stores only its SHA-256. It claims, reads, uploads and settles render jobs under their leases, and nothing else: no member, project or runtime authority."
       }
     },
     "schemas": {
@@ -8364,7 +10073,8 @@
               "html",
               "pdf",
               "pptx",
-              "ui"
+              "ui",
+              "markdown"
             ]
           },
           "exportEditability": {
@@ -8374,6 +10084,139 @@
               "raster_pptx_with_source",
               "original_only"
             ]
+          },
+          "title": {
+            "type": "string",
+            "description": "The artifact's title (at most 180 characters, held by the database)."
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "1 for the first version of the artifact, then 2, 3… Omitted for a version written before numbering."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "renditions": {
+            "type": "array",
+            "maxItems": 8,
+            "description": "Other formats of this version, e.g. the PDF of a report's Markdown. Omitted when there is none.",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRendition"
+            }
+          },
+          "changeNote": {
+            "type": "string",
+            "description": "What changed from the previous version, in a sentence. Omitted for a first version and before notes existed."
+          },
+          "retainedNote": {
+            "type": "string",
+            "description": "What this version carried over from the previous one. Omitted for a first version."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            },
+            "description": "What the version says it could not do. Omitted when it says nothing."
+          },
+          "changeFacts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cited": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "dropped": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 262144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "previousBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 262144
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sections": {
+                "$ref": "#/components/schemas/ReportSections"
+              },
+              "notesFromFacts": {
+                "type": "boolean"
+              },
+              "renditionOnly": {
+                "type": "boolean",
+                "description": "The version adds a PDF its parent could not produce (Try PDF again, 0032): the same text and sources."
+              }
+            },
+            "required": [
+              "cited",
+              "added",
+              "dropped"
+            ],
+            "description": "What the service computed about this version at publication (the chips come from these, never from the notes). Omitted for a version published before M03 S4."
+          },
+          "trigger": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "research",
+                  "rendition"
+                ]
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "amendsTaskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "renderJobId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "kind",
+              "taskId"
+            ],
+            "description": "What produced this version: a research task, or a rendition of the task's report (Try PDF again, with its render job). Omitted when unknown."
           }
         },
         "required": [
@@ -9475,6 +11318,7 @@
       "SourceContent": {
         "type": "object",
         "additionalProperties": false,
+        "description": "One authorized read of a source. Exactly one of text (a text kept inline) and downloadUrl (stored bytes, until expiresAt) is set.",
         "properties": {
           "sourceId": {
             "type": "string",
@@ -9487,18 +11331,55 @@
           "mime": {
             "type": "string"
           },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "filename": {
+            "type": "string",
+            "description": "What a saved copy is called, e.g. sandboxed-pdf-rendering-v2.pdf."
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "inline",
+              "attachment"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "The source itself, when it is a text kept inline."
+          },
           "downloadUrl": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time"
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "sourceId",
           "sha256",
           "mime",
+          "byteLength",
+          "filename",
+          "disposition",
           "downloadUrl",
           "expiresAt"
         ]
@@ -10195,7 +12076,12 @@
               },
               "role": {
                 "type": "string",
-                "pattern": "^sophia-[a-z]+-v[0-9]+$"
+                "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+              },
+              "route": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
               }
             }
           }
@@ -10345,6 +12231,14 @@
           "dshVersion": {
             "type": "string",
             "maxLength": 100
+          },
+          "roles": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/RuntimeRole"
+            },
+            "description": "The specialist roles this runtime's unit carries, each with its route and preset digest. Research is admitted only onto a ready runtime that advertises the specialist and its route; absent means none."
           }
         },
         "required": [
@@ -10703,7 +12597,11 @@
             "format": "uuid"
           },
           "kind": {
-            "const": "draft_brief"
+            "type": "string",
+            "enum": [
+              "draft_brief",
+              "research"
+            ]
           },
           "stage": {
             "const": "admitted"
@@ -10750,7 +12648,11 @@
             "format": "uuid"
           },
           "kind": {
-            "const": "draft_brief"
+            "type": "string",
+            "enum": [
+              "draft_brief",
+              "research"
+            ]
           },
           "goalId": {
             "type": "string",
@@ -10831,6 +12733,11 @@
                 "type": "null"
               }
             ]
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The report this task writes into. Omitted until it has one, and always for a brief."
           }
         },
         "required": [
@@ -10923,6 +12830,69 @@
                   "capturedAt": {
                     "type": "string",
                     "format": "date-time"
+                  },
+                  "cacheReadTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Input tokens the provider read from its prompt cache. Omitted when the provider did not report it."
+                  },
+                  "cacheWriteTokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Input tokens the provider wrote to its prompt cache. Omitted when the provider did not report it."
+                  },
+                  "outputs": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "description": "What the task published: each stored format of the report version it produced. Omitted for a brief.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "artifactVersionId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "markdown",
+                            "pdf"
+                          ]
+                        },
+                        "sourceId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "byteLength": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "limitations": {
+                          "type": "array",
+                          "maxItems": 8,
+                          "description": "What the output says it could not do, in short sentences.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "artifactVersionId",
+                        "format",
+                        "sourceId",
+                        "sha256",
+                        "byteLength",
+                        "limitations"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -10940,6 +12910,9 @@
                 "type": "null"
               }
             ]
+          },
+          "research": {
+            "$ref": "#/components/schemas/ResearchProgress"
           }
         },
         "required": [
@@ -11349,7 +13322,9 @@
                   "maximum": 9007199254740991
                 },
                 "kind": {
-                  "const": "draft_brief"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,39}$",
+                  "description": "The task's kind (draft_brief, research, …). A bridge announces the kinds it knows and leaves any other result unannounced."
                 }
               },
               "required": [
@@ -11581,7 +13556,9 @@
               "record_mission_note",
               "propose_mission_change",
               "decide_mission_change",
-              "control_work"
+              "control_work",
+              "start_research",
+              "render_research"
             ]
           },
           "args": {
@@ -11609,6 +13586,14 @@
               "text"
             ],
             "description": "Bridge-derived admitted input mode; never taken from model arguments. Omitted by older bridges means voice."
+          },
+          "guide": {
+            "type": "string",
+            "enum": [
+              "v1.1",
+              "v1.2"
+            ],
+            "description": "The guide version the bridge runs (SMC-M03 S6). Omitted by older bridges means v1.1. project_status lists the operations of this version only."
           }
         },
         "required": [
@@ -11637,6 +13622,16 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991
+          },
+          "heard": {
+            "type": "boolean",
+            "description": "Whether the room heard Sophia say it (SMC-M03 S6). Omitted by older bridges, which only record what was heard: true."
+          },
+          "textRecipients": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "How many members in text mode received it as a chat notice (SMC-M03 S6). Omitted means none. A notice no one heard was delivered as text at least once."
           }
         },
         "required": [
@@ -12387,6 +14382,14 @@
                       "type": "null"
                     }
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft_brief",
+                    "research"
+                  ],
+                  "description": "The task's kind (SMC-M03 S6), so the guide knows which work is research. Omitted when the goal has no task."
                 }
               },
               "required": [
@@ -13932,6 +15935,2955 @@
         "required": [
           "projects",
           "personalEpoch"
+        ]
+      },
+      "ArtifactRendition": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One stored format of an artifact version. Its bytes are the source's; the hash is what a download is checked against.",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf"
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "mime": {
+            "type": "string"
+          },
+          "pageCount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "format",
+          "sourceId",
+          "sha256",
+          "byteLength",
+          "mime",
+          "pageCount"
+        ]
+      },
+      "ArtifactVersionList": {
+        "type": "array",
+        "maxItems": 500,
+        "items": {
+          "$ref": "#/components/schemas/ArtifactVersion"
+        },
+        "description": "Every version of one artifact the reader may see, newest first."
+      },
+      "ReportCard": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One report as Knowledge lists it: what it is, where it lives, and its latest change.",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectTitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryAuthorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "summaryUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentVersionNumber": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versionCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "formats": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "html",
+                "pdf",
+                "pptx",
+                "ui",
+                "markdown"
+              ]
+            }
+          },
+          "latestChange": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "retained": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "note",
+              "retained"
+            ]
+          }
+        },
+        "required": [
+          "artifactId",
+          "projectId",
+          "projectTitle",
+          "title",
+          "summary",
+          "summaryAuthorId",
+          "summaryRevision",
+          "summaryUpdatedAt",
+          "currentVersionId",
+          "currentVersionNumber",
+          "versionCount",
+          "updatedAt",
+          "formats",
+          "latestChange"
+        ]
+      },
+      "ReportList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reports": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ReportCard"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "maxItems": 500,
+            "description": "Each readable project with reports matching the format and search, and how many.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "projectId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "projectId",
+                "title",
+                "count"
+              ]
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,200}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reports",
+          "projects",
+          "nextCursor"
+        ]
+      },
+      "RuntimeRole": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+          },
+          "route": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+          },
+          "presetDigest": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9:+/=_-]{1,120}$"
+          }
+        },
+        "required": [
+          "id",
+          "route",
+          "presetDigest"
+        ]
+      },
+      "ResearchContextRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6000
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId"
+        ]
+      },
+      "ResearchTaskContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "rootTaskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "outputs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "pdf"
+              ]
+            }
+          },
+          "preferences": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "depth": {
+                "type": "string",
+                "enum": [
+                  "brief",
+                  "standard",
+                  "deep"
+                ]
+              },
+              "sourceConstraints": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": []
+          },
+          "assumptions": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^input:[0-9a-f-]{36}$"
+                },
+                "sourceId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "mime": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "byteLength": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "ref",
+                "sourceId",
+                "sha256",
+                "mime",
+                "byteLength"
+              ]
+            }
+          },
+          "urls": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                }
+              },
+              "required": [
+                "ref",
+                "url"
+              ]
+            }
+          },
+          "base": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifactId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "versionId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "sourceId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "artifactId",
+                  "versionId",
+                  "sourceId"
+                ]
+              }
+            ]
+          },
+          "allowance": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "capUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "headroomUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "committedUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "searchesLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "readsLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "required": [
+              "capUsd",
+              "headroomUsd",
+              "committedUsd",
+              "searchesLeft",
+              "readsLeft"
+            ]
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  }
+                },
+                "required": [
+                  "sourceId",
+                  "sha256",
+                  "seq"
+                ]
+              }
+            ]
+          },
+          "roster": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                "email": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 320
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "email"
+              ]
+            },
+            "description": "The disclosure guard's roster as far as the database holds it (member invitation addresses, lobby names). The bridge keeps it from the model."
+          }
+        },
+        "required": [
+          "taskId",
+          "rootTaskId",
+          "question",
+          "outputs",
+          "preferences",
+          "assumptions",
+          "inputs",
+          "urls",
+          "base",
+          "allowance",
+          "draft",
+          "roster"
+        ]
+      },
+      "ResearchSourcePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "nextOffset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalChars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 6000
+          }
+        },
+        "required": [
+          "sourceId",
+          "offset",
+          "nextOffset",
+          "totalChars",
+          "truncated",
+          "text"
+        ]
+      },
+      "ResearchReserveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id (or, for a model call, the bridge's provider call id); with the native session it is the operation's idempotency key."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "model",
+              "search",
+              "read",
+              "render"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}$"
+          },
+          "amountUsd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "call",
+              "partial_result"
+            ],
+            "description": "partial_result only for the model call that writes the partial result; the bridge sets it from the attempt's finalize step, never from a tool argument."
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "targetRef": {
+            "type": "string",
+            "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "kind",
+          "provider",
+          "amountUsd"
+        ]
+      },
+      "ResearchReservation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "model",
+              "search",
+              "read",
+              "render"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "call",
+              "partial_result"
+            ]
+          },
+          "amountUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "ref",
+                  "url"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "reservationId",
+          "state",
+          "kind",
+          "purpose",
+          "amountUsd",
+          "target"
+        ]
+      },
+      "ResearchSettleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "costUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "providerRequestId": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "reservationId",
+          "outcome"
+        ]
+      },
+      "ResearchSettlement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "settledUsd": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reservationId",
+          "state",
+          "settledUsd"
+        ]
+      },
+      "ResearchCaptureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "reservationId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "search_results",
+              "web_read"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "tavily",
+              "jina"
+            ]
+          },
+          "providerHttpStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "originHttpStatus": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reportedFinalUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerRequestId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extraction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unsupported"
+            ]
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "snippet": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "publishedAt": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "score": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "links": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "The page title the extractor reported (a read)."
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "reservationId",
+          "kind",
+          "provider",
+          "providerHttpStatus",
+          "coverage",
+          "limitations"
+        ]
+      },
+      "ResearchCapture": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "search_results",
+              "web_read"
+            ]
+          },
+          "refs": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "pattern": "^(search|link|input):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[0-9]{1,4}$"
+            }
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "byteLength",
+          "kind",
+          "refs"
+        ]
+      },
+      "ResearchDraftRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id (or, for a model call, the bridge's provider call id); with the native session it is the operation's idempotency key."
+          },
+          "expectedSha256": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 262144
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "expectedSha256",
+          "text"
+        ]
+      },
+      "ResearchDraft": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "seq"
+        ]
+      },
+      "ResearchContextReply": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ResearchTaskContext"
+          },
+          {
+            "$ref": "#/components/schemas/ResearchSourcePage"
+          }
+        ]
+      },
+      "ResearchResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "draftSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "The draft being published: the one research_read_context last showed."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "description": "The report's description (its Knowledge card)."
+          },
+          "resultSummary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What the result resolves, for the guide and the work card."
+          },
+          "changeNote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What changed; required from the second version on."
+          },
+          "retainedNote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What was kept from the previous version."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "citations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "The sources the report cites: each one the task may read."
+          }
+        },
+        "required": [
+          "draftSha256",
+          "title",
+          "summary",
+          "resultSummary",
+          "limitations",
+          "citations"
+        ]
+      },
+      "ResearchBlocker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "remainingWork": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ResearchSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the submit's idempotency key."
+          },
+          "result": {
+            "$ref": "#/components/schemas/ResearchResult"
+          },
+          "blocker": {
+            "$ref": "#/components/schemas/ResearchBlocker"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId"
+        ],
+        "description": "Exactly one of result and blocker."
+      },
+      "ResearchSubmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "published",
+              "blocked",
+              "notes_rejected"
+            ]
+          },
+          "artifactId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "resultSourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "problems": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": "notes_rejected: where the notes contradict the facts. Correct them and submit again; a second contradiction publishes with notes written from the facts."
+          },
+          "sections": {
+            "$ref": "#/components/schemas/ReportSections"
+          },
+          "notesFromFacts": {
+            "type": "boolean",
+            "description": "published: the notes were written from the facts after the model's still contradicted them."
+          },
+          "pdf": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "A PDF task's PDF: produced (a succeeded render of exactly the published draft, now the version's rendition) or not_produced, with the reason.",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "produced",
+                  "not_produced"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "sourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "renderJobId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          }
+        },
+        "required": [
+          "taskId",
+          "outcome"
+        ]
+      },
+      "ResearchProgress": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "specialist": {
+            "type": "string",
+            "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+          },
+          "outputs": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "pdf"
+              ]
+            }
+          },
+          "rootTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amendsTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "committedUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "spentUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "searches": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "used": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": [
+              "used",
+              "max"
+            ]
+          },
+          "reads": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "used": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": [
+              "used",
+              "max"
+            ]
+          },
+          "pdfReason": {
+            "type": "string",
+            "description": "A PDF task published without its PDF: why, in one sentence (at most 300 characters, held by the database) the service wrote from the facts: not rendered, rendered from an earlier draft, or the render's failure. Omitted otherwise."
+          },
+          "pdfRendering": {
+            "type": "boolean",
+            "description": "True while a rendition (\"Try PDF again\") of the task's report is queued or rendering. Omitted otherwise."
+          }
+        },
+        "required": [
+          "question",
+          "specialist",
+          "outputs",
+          "rootTaskId",
+          "capUsd",
+          "committedUsd",
+          "spentUsd",
+          "searches",
+          "reads"
+        ],
+        "description": "A research task's request and progress: its allowance (committed counts what is reserved, spent or uncertain) and its source policy's use. Omitted for a brief."
+      },
+      "ResearchRenderRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "research_render_pdf: render the attempt's current draft (the one the model last read) as the task's PDF. The service prints it with the pdf-report-v1 template; the request carries no markup.",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id (or, for a model call, the bridge's provider call id); with the native session it is the operation's idempotency key."
+          },
+          "draftSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+            "maxLength": 35,
+            "description": "The report's language (BCP 47); en when omitted."
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "draftSha256"
+        ]
+      },
+      "ResearchRenderResultRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "research_inspect_output: a render of this task, the latest when none is named.",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId"
+        ]
+      },
+      "ReportCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed"
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "outcome",
+          "detail"
+        ]
+      },
+      "ReportManifest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The report's manifest (report_manifest_v1), derived from its Markdown by the pdf-report-v1 template and checked before it renders.",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "report_manifest_v1"
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "pdf-report-v1"
+            ]
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "compact"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 35
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "sections": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "summary",
+                    "body",
+                    "conclusion",
+                    "references"
+                  ]
+                },
+                "words": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "role",
+                "words"
+              ]
+            }
+          },
+          "visuals": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "table"
+                  ]
+                },
+                "section": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "section"
+              ]
+            }
+          },
+          "toc": {
+            "type": "boolean"
+          },
+          "words": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "citations": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "schema",
+          "profile",
+          "layout",
+          "language",
+          "title",
+          "sections",
+          "visuals",
+          "toc",
+          "words",
+          "citations"
+        ]
+      },
+      "RenderResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "sophia.render-result.v1 (the pack's render contract): a settled render's record, a view of the kernel's receipt. In a task, sourceVersionId is the draft the render printed.",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sophia.render-result.v1"
+            ]
+          },
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sourceVersionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sourceManifestHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "rendererUnitId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "outputs": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sourceId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "sourceId",
+                "sha256",
+                "bytes"
+              ]
+            }
+          },
+          "previewSourceIds": {
+            "type": "array",
+            "maxItems": 0,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "unknown"
+                  ]
+                },
+                "evidenceRef": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "outcome",
+                "evidenceRef"
+              ]
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "exportEditability": {
+            "type": "string",
+            "enum": [
+              "source_editable"
+            ]
+          }
+        },
+        "required": [
+          "schema",
+          "jobId",
+          "sourceVersionId",
+          "sourceManifestHash",
+          "status",
+          "rendererUnitId",
+          "outputs",
+          "previewSourceIds",
+          "checks",
+          "warnings",
+          "exportEditability"
+        ]
+      },
+      "ResearchRender": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A render of the task's PDF as the research tools see it. rejected: the report failed its manifest checks (reportChecks) and nothing was queued; revise the draft. queued and rendering: wait. succeeded: pdf is the output. failed or cancelled: reason, errorCode and the kernel's checks say why.",
+        "properties": {
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "rejected",
+              "queued",
+              "rendering",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "repair": {
+            "type": "string",
+            "enum": [
+              "none",
+              "semantic",
+              "format"
+            ]
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "compact"
+            ]
+          },
+          "draftSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "manifestSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "report": {
+            "$ref": "#/components/schemas/ReportManifest"
+          },
+          "reportChecks": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/ReportCheck"
+            }
+          },
+          "pdf": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "pages": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "sourceId",
+              "sha256",
+              "bytes"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/RenderCheck"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "overflow": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "measurement": {
+                "type": "string",
+                "enum": [
+                  "measured",
+                  "unavailable"
+                ]
+              },
+              "px": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "elements": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "element": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "rightPx": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "element",
+                    "rightPx"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "measurement",
+              "px",
+              "elements"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "result": {
+            "$ref": "#/components/schemas/RenderResult"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "ResearchRendition": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "\"Try PDF again\": the rendition queued for a published report without its PDF (queued, rendering, or how an earlier call with the same key ended), or rejected with the report's checks when the version cannot be printed.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "rejected",
+              "queued",
+              "rendering",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed"
+                  ]
+                },
+                "detail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "outcome",
+                "detail"
+              ]
+            }
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "ReportSections": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revised": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unchanged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conclusionChanged": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "added",
+          "revised",
+          "removed",
+          "unchanged",
+          "conclusionChanged"
+        ],
+        "description": "Sections by heading, from the stored Markdown of this version and the previous one. A first version's are all added."
+      },
+      "ReportSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "search_results",
+              "web_read",
+              "input"
+            ],
+            "description": "A search's result list (snippets only), a page read in full or in part by the extractor, or an input the project admitted."
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "tavily",
+                  "jina"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "complete",
+                  "partial",
+                  "unsupported"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "originHttpStatus": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 599
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when unknown: the extractor reports only its own status."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string"
+            }
+          },
+          "mime": {
+            "type": "string"
+          },
+          "retrievedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sourceId",
+          "kind",
+          "provider",
+          "title",
+          "url",
+          "coverage",
+          "originHttpStatus",
+          "limitations",
+          "mime",
+          "retrievedAt"
+        ]
+      },
+      "ReportSourceList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sources": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ReportSource"
+            }
+          }
+        },
+        "required": [
+          "sources"
+        ]
+      },
+      "ReportSummaryEdit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "summary",
+          "expectedRevision"
+        ]
+      },
+      "ReportSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "summaryAuthorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "summaryUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "artifactId",
+          "summary",
+          "summaryAuthorId",
+          "summaryRevision",
+          "summaryUpdatedAt"
+        ]
+      },
+      "RenderJobFile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,7}$",
+            "maxLength": 512
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "entry",
+              "asset"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16777216
+          }
+        },
+        "required": [
+          "path",
+          "role",
+          "sha256",
+          "byteLength"
+        ]
+      },
+      "RenderJob": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One claimed render: its lease and its source package, each file by relative path and SHA-256. Files are fetched through the API under the lease.",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "leaseUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+            "maxLength": 35
+          },
+          "sourceManifestHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 600000
+          },
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 65,
+            "items": {
+              "$ref": "#/components/schemas/RenderJobFile"
+            }
+          }
+        },
+        "required": [
+          "jobId",
+          "leaseToken",
+          "leaseUntil",
+          "format",
+          "language",
+          "sourceManifestHash",
+          "timeoutMs",
+          "files"
+        ]
+      },
+      "RenderClaim": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "job"
+        ]
+      },
+      "RenderLease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "leaseToken"
+        ]
+      },
+      "RenderHeartbeat": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "continue",
+              "cancel"
+            ]
+          },
+          "leaseUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "RenderOutput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 33554432
+          }
+        },
+        "required": [
+          "sourceId",
+          "sha256",
+          "byteLength"
+        ]
+      },
+      "RenderCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "unknown"
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "outcome",
+          "detail"
+        ]
+      },
+      "RenderFileRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ]
+      },
+      "RenderReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The PDF kernel's receipt (renderers/web/pdf, sophia.pdf-render-receipt.v1): what it rendered, how it was confined, and every check, passed, failed or unknown.",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sophia.pdf-render-receipt.v1"
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z_]{0,63}$"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renderer": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kernel": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "rendererSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "donor": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "repository": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "commit": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "blob": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{40}$"
+                  }
+                },
+                "required": [
+                  "repository",
+                  "commit",
+                  "path",
+                  "blob"
+                ]
+              },
+              "playwrightCore": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "browser": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kernel",
+              "rendererSha256",
+              "donor",
+              "playwrightCore",
+              "browser"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "manifestSha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "entry": {
+                    "$ref": "#/components/schemas/RenderFileRef"
+                  },
+                  "assets": {
+                    "type": "array",
+                    "maxItems": 64,
+                    "items": {
+                      "$ref": "#/components/schemas/RenderFileRef"
+                    }
+                  }
+                },
+                "required": [
+                  "manifestSha256",
+                  "entry",
+                  "assets"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 35
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "maxItems": 64,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 300
+                    }
+                  },
+                  "browserUid": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "renderers": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "gpuSeccomp": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "active",
+                  "reasons",
+                  "browserUid",
+                  "renderers",
+                  "gpuSeccomp"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "header": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 16
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "eof": {
+                    "type": "boolean"
+                  },
+                  "pageCount": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "pdfImages": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256",
+                  "bytes",
+                  "header",
+                  "eof",
+                  "pageCount",
+                  "pdfImages"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "measurements": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "overflow": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "measurement": {
+                        "type": "string",
+                        "enum": [
+                          "measured",
+                          "unavailable"
+                        ]
+                      },
+                      "px": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "elements": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "element": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "rightPx": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "element",
+                            "rightPx"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "measurement",
+                      "px",
+                      "elements"
+                    ]
+                  },
+                  "svgVisuals": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "domImages": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "overflow",
+                  "svgVisuals",
+                  "domImages"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "undeclaredAssets": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "blockedRequests": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/RenderCheck"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "elapsedMs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "schema",
+          "jobId",
+          "status",
+          "error",
+          "renderer",
+          "source",
+          "language",
+          "sandbox",
+          "output",
+          "measurements",
+          "undeclaredAssets",
+          "blockedRequests",
+          "checks",
+          "warnings",
+          "elapsedMs"
+        ]
+      },
+      "RenderSettleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/RenderReceipt"
+          }
+        },
+        "required": [
+          "leaseToken",
+          "receipt"
+        ]
+      },
+      "RenderSettlement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "reason"
         ]
       }
     }

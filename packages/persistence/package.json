@@ -12,6 +12,7 @@
   "dependencies": {
     "@sophia/contracts": "workspace:*",
     "@sophia/domain": "workspace:*",
+    "@sophia/report": "workspace:*",
     "pg": "8.23.0"
   },
   "devDependencies": {

@@ -5,6 +5,8 @@ import {
   ContractViolation,
   isCursorAdvance,
   parseFrame,
+  parseMediaAssignmentBatch,
+  parseNativeTaskDetail,
   parseProjectCreated,
   parseReceipt,
   parseSnapshot,
@@ -110,6 +112,97 @@ describe('@sophia/contracts/validate', () => {
       assert.match(err.issues, issue, name)
     }
     assert.equal(violation(() => parseSnapshot(null)).schema, 'Snapshot')
+  })
+
+  it('reads research work and Markdown reports, and an unknown task kind only where readers tolerate it (A11)', () => {
+    const sha = 'a'.repeat(64)
+    const task = {
+      id: G,
+      kind: 'research',
+      goalId: G,
+      attemptId: G,
+      commandId: G,
+      actorId: G,
+      state: 'succeeded',
+      phase: 'result_ready',
+      createdAt: '2026-10-01T09:00:00.000Z',
+      contextSourceId: G,
+      inputSourceIds: [],
+      resultSourceId: G,
+      reason: null,
+      artifactId: P,
+    }
+    const report = {
+      id: G,
+      artifactId: P,
+      projectId: P,
+      parentId: null,
+      sourceId: G,
+      sourceHash: sha,
+      state: 'stable',
+      previewId: null,
+      format: 'markdown',
+      exportEditability: 'source_editable',
+      title: 'Sandboxed PDF rendering on managed hosts',
+      versionNumber: 2,
+      createdAt: '2026-10-01T09:20:00.000Z',
+      renditions: [
+        { format: 'pdf', sourceId: G, sha256: sha, byteLength: 1024, mime: 'application/pdf', pageCount: 4 },
+      ],
+    }
+    const withWork = { ...snapshot, work: [task], artifacts: [report] }
+    assert.deepEqual(parseSnapshot(withWork), withWork)
+    assert.match(
+      violation(() => parseSnapshot({ ...withWork, work: [{ ...task, kind: 'slide_deck' }] })).issues,
+      /kind/,
+    )
+
+    const output = { artifactVersionId: G, format: 'pdf', sourceId: G, sha256: sha, byteLength: 1024, limitations: [] }
+    const detail = {
+      task,
+      instruction: 'Compare the hosts.',
+      result: {
+        sourceId: G,
+        sha256: sha,
+        markdown: '# Report',
+        provider: 'openai',
+        model: 'gpt-6.1-sol',
+        inputTokens: 1200,
+        outputTokens: 300,
+        capturedAt: '2026-10-01T09:20:00.000Z',
+        cacheReadTokens: 900,
+        outputs: [output],
+      },
+    }
+    assert.deepEqual(parseNativeTaskDetail(detail), detail)
+
+    const assignment = {
+      exchangeId: G,
+      projectId: P,
+      roomId: G,
+      state: 'open',
+      pauseReason: null,
+      inputEpoch: 1,
+      inputActorId: null,
+      playbackEpoch: 1,
+      observationEpoch: 1,
+      allowVision: false,
+      looking: null,
+      roomRevision: 1,
+      quiesceRequestId: null,
+      roomToken: null,
+      results: [
+        { taskId: G, resultRevision: 1, kind: 'research' },
+        { taskId: P, resultRevision: 1, kind: 'slide_deck' },
+      ],
+      missionRevision: 1,
+      ledgerRevision: 1,
+      eligibilityRevision: 1,
+    }
+    const batch = { assignments: [assignment], version: sha }
+    assert.deepEqual(parseMediaAssignmentBatch(batch), batch, 'an unknown kind never fails the batch')
+    const odd = { ...assignment, results: [{ taskId: G, resultRevision: 1, kind: 'Not A Kind' }] }
+    assert.match(violation(() => parseMediaAssignmentBatch({ ...batch, assignments: [odd] })).issues, /kind/)
   })
 
   it('reads an error body only when it is one', () => {

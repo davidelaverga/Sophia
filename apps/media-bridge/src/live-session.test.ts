@@ -7,9 +7,9 @@ import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { loadMissionGuide } from './guide.ts'
+import { GUIDE_DIR, loadMissionGuide, type GuideVersion } from './guide.ts'
 import { geminiLive, type LiveEvents } from './live-session.ts'
-import { DECLARED_NAMES } from './tools.ts'
+import { DECLARED_NAMES, TOOL_SETS } from './tools.ts'
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
@@ -108,7 +108,6 @@ const noEvents: LiveEvents = {
 type Setup = any
 
 describe('the provider setup frame (T19, T21)', () => {
-  const guide = loadMissionGuide(DECLARED_NAMES)
   const endpoint = new LocalLiveEndpoint()
   let baseUrl: string
   before(async () => {
@@ -116,12 +115,13 @@ describe('the provider setup frame (T19, T21)', () => {
   })
   after(() => endpoint.stop())
 
-  async function setupOf(resumptionHandle: string | null): Promise<Setup> {
+  async function setupOf(version: GuideVersion, resumptionHandle: string | null): Promise<Setup> {
     const connect = geminiLive({ baseUrl })
     const options = {
       apiKey: 'test-key',
       model: 'gemini-3.8-live',
-      systemInstruction: guide.instruction,
+      systemInstruction: loadMissionGuide(TOOL_SETS[version].names, GUIDE_DIR, version).instruction,
+      tools: TOOL_SETS[version].declarations,
       resumptionHandle,
     }
     const link = await connect(options, noEvents)
@@ -131,29 +131,73 @@ describe('the provider setup frame (T19, T21)', () => {
     return frame.setup
   }
 
-  it('carries exactly the checked M01 instruction, once, and the six declared operations', async () => {
-    const setup = await setupOf(null)
-    const parts: Array<{ text?: string }> = setup.systemInstruction.parts
-    assert.equal(parts.length, 1, 'one instruction part: no second copy of the skill, no appended prose')
-    const text = parts[0]?.text ?? ''
-    assert.equal(text, guide.instruction)
-    assert.equal(createHash('sha256').update(text, 'utf8').digest('hex'), guide.combined.sha256)
-    assert.equal(Buffer.byteLength(text, 'utf8'), guide.combined.bytes)
-    const tools: Array<{ functionDeclarations?: Array<{ name: string; behavior: string }> }> = setup.tools
-    const declarations = tools.flatMap((t) => t.functionDeclarations ?? [])
+  for (const version of ['v1.1', 'v1.2'] as const) {
+    const guide = loadMissionGuide(TOOL_SETS[version].names, GUIDE_DIR, version)
+    it(`carries exactly the checked ${version} instruction, once, and that version’s declared operations`, async () => {
+      const setup = await setupOf(version, null)
+      const parts: Array<{ text?: string }> = setup.systemInstruction.parts
+      assert.equal(parts.length, 1, 'one instruction part: no second copy of the skill, no appended prose')
+      const text = parts[0]?.text ?? ''
+      assert.equal(text, guide.instruction)
+      assert.equal(createHash('sha256').update(text, 'utf8').digest('hex'), guide.combined.sha256)
+      assert.equal(Buffer.byteLength(text, 'utf8'), guide.combined.bytes)
+      const tools: Array<{ functionDeclarations?: Array<{ name: string; behavior: string }> }> = setup.tools
+      const declarations = tools.flatMap((t) => t.functionDeclarations ?? [])
+      assert.deepEqual(
+        declarations.map((d) => d.name),
+        guide.operationNames,
+      )
+      assert.ok(declarations.every((d) => d.behavior === 'NON_BLOCKING'))
+      assert.match(setup.model, /gemini-3\.8-live$/)
+      assert.deepEqual(setup.generationConfig.responseModalities, ['AUDIO'], 'the media configuration is unchanged')
+      assert.deepEqual(setup.sessionResumption, {})
+    })
+  }
+
+  it('v1.1 declares M01’s six exactly as before, and v1.2 adds research without changing the other five', async () => {
+    type Declared = {
+      name: string
+      description?: string
+      parametersJsonSchema?: { properties?: Record<string, { description?: string }> }
+    }
+    const declared = async (version: GuideVersion) =>
+      ((await setupOf(version, null)).tools as Array<{ functionDeclarations?: Declared[] }>).flatMap(
+        (t) => t.functionDeclarations ?? [],
+      )
+    const older = await declared('v1.1')
+    const newer = await declared('v1.2')
     assert.deepEqual(
-      declarations.map((d) => d.name),
+      older.map((d) => d.name),
       DECLARED_NAMES,
     )
-    assert.ok(declarations.every((d) => d.behavior === 'NON_BLOCKING'))
-    assert.match(setup.model, /gemini-3\.8-live$/)
-    assert.deepEqual(setup.generationConfig.responseModalities, ['AUDIO'], 'the media configuration is unchanged')
-    assert.deepEqual(setup.sessionResumption, {})
+    // M01's six as Google receives them, byte for byte as before CX-0026.
+    const wire = createHash('sha256').update(JSON.stringify(older), 'utf8').digest('hex')
+    assert.equal(wire, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
+    // v1.2's as Google receives them: the digest provider.setup logs, so a setup receipt names what was sent.
+    const wireV12 = createHash('sha256').update(JSON.stringify(newer), 'utf8').digest('hex')
+    assert.equal(wireV12, '4d1b9c5bcfe2ee3f26ff5a3d714915ec51a4528c8695ed602733c7b2e4ead4de')
+    assert.deepEqual([wire, wireV12], [TOOL_SETS['v1.1'].sha256, TOOL_SETS['v1.2'].sha256])
+    assert.deepEqual(newer.slice(0, 5), older.slice(0, 5))
+    assert.deepEqual(
+      newer.slice(5).map((d) => d.name),
+      ['control_work', 'start_research', 'render_research'],
+    )
+    // CX-0026, deliberately: v1.2's Steer says where it reaches and that a refused control changed nothing, and a
+    // follow-up says the report is edited in place.
+    const [control, research] = newer.slice(5)
+    assert.match(
+      String(control?.description),
+      / Steer reaches only research that project_status shows waiting or running; a finished report is changed with start_research and amendsTaskId\. Do not say a control took effect before its result arrives; a refused control changed nothing\.$/,
+    )
+    assert.match(
+      String(research?.parametersJsonSchema?.properties?.amendsTaskId?.description),
+      /^A finished research task this request revises\. The report is edited in place: /,
+    )
   })
 
   it('a resumed connection sends the same instruction bytes with its handle, and nothing else changes', async () => {
-    const fresh = await setupOf(null)
-    const resumed = await setupOf('handle-7')
+    const fresh = await setupOf('v1.2', null)
+    const resumed = await setupOf('v1.2', 'handle-7')
     assert.equal(resumed.sessionResumption.handle, 'handle-7')
     assert.deepEqual({ ...resumed, sessionResumption: {} }, fresh)
   })

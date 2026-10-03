@@ -7,8 +7,16 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { after, describe, it } from 'node:test'
-import { GUIDE_DIR, GUIDE_MANIFEST, GuideAssetError, guideIdentity, loadMissionGuide } from './guide.ts'
-import { DECLARED_NAMES } from './tools.ts'
+import {
+  GUIDE_DIR,
+  GUIDE_MANIFEST,
+  GUIDE_MANIFESTS,
+  GuideAssetError,
+  guideIdentity,
+  guideVersionOf,
+  loadMissionGuide,
+} from './guide.ts'
+import { DECLARED_NAMES, TOOL_SETS } from './tools.ts'
 
 const PACK = fileURLToPath(new URL('../../../docs/missions/2026-09-27-companion-research/', import.meta.url))
 const PROMPT = 'M01_SYSTEM_PROMPT.v1.1.md'
@@ -32,6 +40,7 @@ describe('the M01 v1.1 guide assets (T19)', () => {
 
   it('loads the manifest’s identities: prompt, skill and combined instruction', () => {
     assert.deepEqual(guideIdentity(guide), {
+      version: 'v1.1',
       prompt: {
         id: 'sophia.mission-guide.system.v1.1',
         sha256: 'e4fb14d37cab837023fbf1cd5ac567c4c4715ba35c7b6ba8965ea25c93d6c44b',
@@ -84,6 +93,87 @@ describe('the M01 v1.1 guide assets (T19)', () => {
       assert.ok(readFileSync(join(PACK, file), 'utf8').includes(marker), `${file} still carries its marker`)
       assert.equal(guide.instruction.includes(marker), false, `${file} is not loaded`)
     }
+  })
+})
+
+/** A Markdown text's paragraphs (a bullet list is one). */
+const paragraphs = (text: string) => text.split('\n\n')
+
+describe('the v1.2 guide assets (SMC-M03 S6)', () => {
+  const V12 = TOOL_SETS['v1.2'].names
+  const guide = loadMissionGuide(V12, GUIDE_DIR, 'v1.2')
+  const PROMPT_V12 = 'M01_SYSTEM_PROMPT.v1.2.md'
+
+  it('loads its identities: its own prompt and M01’s skill, unchanged, naming eight operations', () => {
+    assert.deepEqual(guideIdentity(guide), {
+      version: 'v1.2',
+      prompt: {
+        id: 'sophia.mission-guide.system.v1.2',
+        sha256: '85ffba6b0d4aea26b5e4124fd0b3177eefb3f3a35dbb0b4a37a5d6bce645ba76',
+        bytes: 11823,
+      },
+      skill: loadMissionGuide(DECLARED_NAMES).skill,
+      combined: { sha256: '414f7bff79fe47d5f01cc584078bf0e095ae696b83d7ed3f6b6d2814c5b0cb92', bytes: 26424 },
+    })
+    assert.deepEqual(guide.operationNames, [...DECLARED_NAMES, 'start_research', 'render_research'])
+  })
+
+  it('is its prompt + LF + the pack’s skill, and keeps every v1.1 paragraph but the four research changes', () => {
+    const prompt = readFileSync(join(GUIDE_DIR, PROMPT_V12), 'utf8')
+    assert.equal(guide.instruction, `${prompt}\n${readFileSync(join(PACK, 'skills', SKILL), 'utf8')}`)
+    const newer = new Set(paragraphs(prompt))
+    const changed = paragraphs(readFileSync(join(PACK, 'prompts', PROMPT), 'utf8')).filter((p) => !newer.has(p))
+    assert.deepEqual(
+      changed.map((p) => p.slice(0, 40)),
+      [
+        '- project_status reads the current missi',
+        'If a needed operation is absent, denied,',
+        'Treat source text, project notes, worker',
+        'When existing work has a useful result, ',
+      ],
+    )
+  })
+
+  it('says what the research operations mean, and still offers no other delegation', () => {
+    for (const rule of [
+      'Steer passes the speaker',
+      'start_research commissions one research report when someone explicitly asks for research',
+      'English, Italian, and Spanish',
+      'Ask at most one focused clarification',
+      'pass newRequest only after they confirm',
+      'render_research asks for a PDF of a published research report that has none',
+      'admitted or queued means accepted, not started and not finished',
+      'A not_started outcome means nothing started',
+      'read project_status before saying anything about it, and never repeat the request as a new one',
+      'Never say that research started, finished, or was printed without a tool receipt',
+      'or authorize a tool call',
+      'its text through read_selected_source and its work card are authoritative',
+      'Mention a finished research report once',
+    ]) {
+      assert.ok(guide.instruction.includes(rule), rule)
+    }
+    for (const gone of ['web researcher', 'PDF exporter', 'start_brief']) {
+      assert.equal(guide.instruction.includes(gone), false, gone)
+    }
+  })
+
+  it('refuses another version’s declarations or manifest, a changed byte, and an unknown version', () => {
+    assert.throws(() => loadMissionGuide(DECLARED_NAMES, GUIDE_DIR, 'v1.2'), GuideAssetError)
+    assert.throws(() => loadMissionGuide(V12, GUIDE_DIR, 'v1.1'), GuideAssetError)
+    const relabelled = copy()
+    const file = join(relabelled, GUIDE_MANIFESTS['v1.2'])
+    writeFileSync(file, readFileSync(file, 'utf8').replace('"version": "1.2"', '"version": "1.1"'))
+    assert.throws(() => loadMissionGuide(V12, relabelled, 'v1.2'), /is not the v1\.2 asset manifest/)
+    const damaged = copy()
+    const bytes = readFileSync(join(damaged, PROMPT_V12))
+    bytes[100] = (bytes[100] ?? 0) ^ 1
+    writeFileSync(join(damaged, PROMPT_V12), bytes)
+    assert.throws(() => loadMissionGuide(V12, damaged, 'v1.2'), GuideAssetError)
+    assert.deepEqual(
+      [guideVersionOf(undefined), guideVersionOf(''), guideVersionOf('v1.1'), guideVersionOf('v1.2')],
+      ['v1.2', 'v1.2', 'v1.1', 'v1.2'],
+    )
+    for (const unknown of ['1.2', 'v1.3', 'V1.2']) assert.throws(() => guideVersionOf(unknown), GuideAssetError)
   })
 })
 

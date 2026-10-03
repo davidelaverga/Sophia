@@ -54,7 +54,17 @@ test('M02-T10: a step failing with tool calls pending keeps committed results, m
   w.send(w.cmd('input', { text: 'continue' }))
   await w.service.waitFor(() => w.turnEnds().length >= 2, 60000, 'the next turn')
 
-  const events = sessionEvents(w.layout.dshHome, `sophia-${w.attemptId}`)
+  // The service sees an event as soon as dsh appends it; the log file is written after. Read the log once it holds
+  // both turn ends (a frame being written may not decode yet), so the assertions read the durable record.
+  const logged = () => {
+    try {
+      return sessionEvents(w.layout.dshHome, `sophia-${w.attemptId}`)
+    } catch {
+      return []
+    }
+  }
+  await w.service.waitFor(() => logged().filter((e) => e.type === 'turn/end').length >= 2, 30000, 'the log to hold both turn ends')
+  const events = logged()
   // The model's calls live in its assistant message; `tool/call` is logged only when a call starts.
   const requested = events.filter((e) => e.type === 'assistant/message').flatMap((e) => e.data.message.content.filter((b) => b.type === 'tool-call').map((b) => b.id))
   const started = events.filter((e) => e.type === 'tool/call')

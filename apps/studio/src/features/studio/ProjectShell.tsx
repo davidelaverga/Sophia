@@ -13,6 +13,8 @@ import { useShortcuts } from '../../app/shortcuts.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
+import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
+import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock } from '../voice/MiniDock.tsx'
 import { shortName } from '../voice/room-view.ts'
@@ -22,7 +24,7 @@ import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
-import { StudioShell, useRoomPanel } from './StudioShell.tsx'
+import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 
@@ -344,6 +346,7 @@ interface BodyProps {
 /**
  * Studio is the room itself; every other view is a page, with the room one click away in the mini dock.
  * The lobby shows on every view: someone waiting at the door should never depend on which page you read.
+ * A report opens in the same viewer on every view (DocumentViewer), never beside the side panel.
  */
 function ProjectBody(props: BodyProps) {
   const { view, projectId, identity, room, membership, snapshot, pulse, onShow, background } = props
@@ -351,6 +354,11 @@ function ProjectBody(props: BodyProps) {
   // tab isn't in view: what arrives there meanwhile is new when the person comes back.
   const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
+  const withViewer = (body: React.ReactNode) => (
+    <WithViewer {...props} panel={panel} looking={looking}>
+      {body}
+    </WithViewer>
+  )
   const lobby = (
     <LobbyPanel
       projectId={projectId}
@@ -360,7 +368,7 @@ function ProjectBody(props: BodyProps) {
     />
   )
   if (view === 'studio') {
-    return (
+    return withViewer(
       <>
         {lobby}
         <StudioShell
@@ -371,13 +379,13 @@ function ProjectBody(props: BodyProps) {
           panel={panel}
           looking={looking}
         />
-      </>
+      </>,
     )
   }
   const work = view === 'work'
   // A served Resources view takes the page's whole width: its tiles fill it. So does Tasks with a plan, its pulse under.
   const resources = view === 'resources' ? props.resources : undefined
-  return (
+  return withViewer(
     <>
       {lobby}
       <main className={pageClass(work, props.plans)}>
@@ -385,7 +393,38 @@ function ProjectBody(props: BodyProps) {
         {work && pulse}
       </main>
       <MiniDock room={room} looking={looking} onOpen={() => onShow('studio')} />
-    </>
+    </>,
+  )
+}
+
+interface ViewerProps extends BodyProps {
+  panel: RoomPanel
+  /** What Sophia is looking at, in words, or null (lookingText). */
+  looking: string | null
+  children: React.ReactNode
+}
+
+/**
+ * The report viewer around a view: opening a report closes the side panel, and opening the panel closes the report. In
+ * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
+ * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
+ */
+function WithViewer({ projectId, identity, view, room, panel, looking, children }: ViewerProps) {
+  const studio = view === 'studio'
+  return (
+    <DocumentViewerProvider
+      projectId={projectId}
+      identity={identity}
+      // The side panel is the room's: a chat left open there is not open on another page.
+      panelOpen={studio && panel.panel !== null}
+      closePanel={() => panel.show(null)}
+      openChat={studio ? () => panel.toggle('chat') : undefined}
+      chatUnread={panel.unread}
+      call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
+      note={room.mediaError ?? room.error}
+    >
+      {children}
+    </DocumentViewerProvider>
   )
 }
 
@@ -395,8 +434,14 @@ function pageClass(work: boolean, plans: BodyProps['plans']): string {
   return Object.keys(plans ?? {}).length > 0 ? 'page planned' : 'page split'
 }
 
-/** A page other than the room: Goals and Work list the goals; the views still to come say so. */
+/**
+ * A page other than the room: Goals and Work list the goals (Tasks with each goal's plan), Knowledge its reports; the
+ * views still to come say so.
+ */
 function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plans }: BodyProps) {
+  if (view === 'knowledge') {
+    return <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
+  }
   if (view === 'goals' || view === 'work') {
     return (
       <GoalList

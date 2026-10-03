@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatInput, ChatReply } from '@sophia/contracts/room-chat'
-import { receiveChat, type ChatTurn } from '../conversation/chat-view.ts'
+import type { ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
+import {
+  receiveChat,
+  receiveNotice,
+  type Arrivals,
+  type ChatNoticeItem,
+  type ChatTurn,
+} from '../conversation/chat-view.ts'
 import type { RoomConnection } from './livekit-room.ts'
 
 type Connection = { current: RoomConnection | null }
@@ -97,9 +103,11 @@ export async function enterCall(p: EnterPorts): Promise<void> {
 /**
  * Ephemeral typed messages are bounded and never written to storage or logs. Text mode turns the microphone off
  * through `silence`, which the room provides: it is done for the person, so it is not remembered as their choice.
+ * `arrival` places each turn and card in the one chat it shares with the captions (chat-view.ts).
  */
-export function useTypedChat(connection: Connection, silence: () => Promise<boolean>) {
+export function useTypedChat(connection: Connection, silence: () => Promise<boolean>, arrival: Arrivals) {
   const [chat, setChat] = useState<ChatTurn[]>([])
+  const [notices, setNotices] = useState<ChatNoticeItem[]>([])
   const [textMode, setShown] = useState(false)
   // Text mode as it is this moment, for code that awaited: a join reads it as it gets in (the pill may have gone back
   // to voice meanwhile), and a chat start once its join has settled.
@@ -112,6 +120,7 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
   const sendChat = async (packet: ChatInput) => {
     const c = connection.current
     if (!c) throw new Error('Join the conversation first.')
+    const at = arrival.next()
     setChat((turns) => [
       ...turns.slice(-99),
       {
@@ -122,6 +131,7 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
         sequence: -1,
         state: 'sending',
         reason: null,
+        at,
       },
     ])
     try {
@@ -137,7 +147,24 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
     return () => clearTimeout(timer)
   }, [chat])
   const onChat = (packet: ChatReply) => setChat((turns) => receiveChat(turns, packet))
+  // Cards come whether this person hears or reads Sophia, and again after each mode signal (CX-0022): one per task,
+  // and a repeat leaves the list as it was.
+  const onNotice = (packet: ChatNotice) => {
+    const at = arrival.next()
+    setNotices((list) => receiveNotice(list, packet, at))
+  }
   const interrupted = () => setChat((turns) => turns.map(unknown))
   const textModeNow = () => now.current
-  return { chat, textMode, textModeNow, rememberTextMode, setTextMode, sendChat, onChat, interrupted }
+  return {
+    chat,
+    notices,
+    textMode,
+    textModeNow,
+    rememberTextMode,
+    setTextMode,
+    sendChat,
+    onChat,
+    onNotice,
+    interrupted,
+  }
 }

@@ -17,6 +17,13 @@
  * - `sophia-brief-v1` (S1-05A) drafts a brief from inputs the service puts in
  *   its prompt (the source-bound context manifest). It needs no native tool,
  *   so it may run none: every tool is hidden and the guard denies any call.
+ * - The specialist roles (SMC-M03), such as `sophia-research-md-v1` and
+ *   `sophia-research-pdf-v1`, come from config/specialists.json through the
+ *   generated `specialists.generated.ts`, never restated here. A research
+ *   specialist reads and writes only through Sophia's research tools (S4),
+ *   never the workspace, the host or the global web; a tool the composition
+ *   does not register yet is simply absent. Its route is the bridge row's
+ *   `roleRoutes`, which the runtime unit keeps equal to the registry.
  *
  * A role id is versioned. A session created under one role resumes under the
  * same id, and a bundle that no longer defines it refuses to resume
@@ -24,7 +31,17 @@
  * @module @sophia/dsh-bundle/role-registry
  */
 
-export type RoleId = 'sophia-guide-v1' | 'sophia-lead-v1' | 'sophia-research-v1' | 'sophia-prototype-v1' | 'sophia-review-v1' | 'sophia-brief-v1'
+import { SPECIALISTS } from './specialists.generated.js'
+import type { SpecialistId } from './specialists.generated.js'
+
+export type RoleId =
+  | 'sophia-guide-v1'
+  | 'sophia-lead-v1'
+  | 'sophia-research-v1'
+  | 'sophia-prototype-v1'
+  | 'sophia-review-v1'
+  | 'sophia-brief-v1'
+  | SpecialistId
 
 export interface RolePreset {
   readonly id: RoleId
@@ -37,7 +54,7 @@ export interface RolePreset {
 const READ_WORKSPACE = ['read', 'glob', 'grep', 'read_image']
 const GOALS = ['get_goal', 'create_goal', 'update_goal']
 
-const preset = (id: RoleId, goalContinuation: boolean, tools: string[]): RolePreset => ({
+const preset = (id: RoleId, goalContinuation: boolean, tools: readonly string[]): RolePreset => ({
   id,
   nativeTools: new Set(tools),
   goalContinuation,
@@ -51,6 +68,8 @@ export const ROLE_PRESETS: Readonly<Record<RoleId, RolePreset>> = {
   'sophia-prototype-v1': preset('sophia-prototype-v1', true, ['todo_write', 'skill', ...READ_WORKSPACE, ...GOALS, 'workflow']),
   'sophia-review-v1': preset('sophia-review-v1', false, [...READ_WORKSPACE]),
   'sophia-brief-v1': preset('sophia-brief-v1', false, []),
+  // Specialists never continue through native goals: Sophia's episode owns their continuation.
+  ...(Object.fromEntries(SPECIALISTS.map((s) => [s.id, preset(s.id, false, s.nativeTools)])) as Record<SpecialistId, RolePreset>),
 }
 
 /**

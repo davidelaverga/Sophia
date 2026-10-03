@@ -122,3 +122,59 @@ test('the preset roster must be exactly the recorded one, each preset inserted b
   assert.match(messages([registry(), preset('sophia-review-v1', [], { patchedBy: ['profile'] }), preset('sophia-brief-v1')]), /patched by no layer/)
   assert.match(messages([preset('sophia-review-v1'), preset('sophia-brief-v1')]), /expected one @deepseek-ai\/dsh-agent-preset-registry row/)
 })
+
+test('the research routes, role routes and compaction must be exactly the recorded ones (SMC-M03)', async () => {
+  const { checkCompaction, checkModelRoutes } = await import('../../scripts/lib/gate.mjs')
+  const route = {
+    provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000, contextWindow: 272000,
+    baseURL: 'https://api.openai.com/v1', cacheRetention: null, compat: { supportsStrictMode: true, supportsLongCacheRetention: false },
+    credential_ref: 'OPENAI_RESEARCH_API_KEY',
+  }
+  const unit = {
+    model_routes: { 'research-sol-medium-v1': route },
+    role_routes: { 'sophia-research-md-v1': 'research-sol-medium-v1', 'sophia-research-pdf-v1': 'research-sol-medium-v1' },
+    presets: { ids: ['sophia-brief-v1', 'sophia-research-md-v1', 'sophia-research-pdf-v1'] },
+    compaction: { modelPolicies: [{ provider: 'openai-research', model: 'gpt-6.1-sol', thresholdRatio: 0.45, headroomTokens: 16000, maxTokens: 8000 }] },
+  }
+  const entry = { id: 'gpt-6.1-sol', contextWindow: 272000, maxTokens: 16000, reasoningEfforts: { low: 'low', medium: 'medium' }, compat: { supportsStrictMode: true, supportsLongCacheRetention: false } }
+  const rows = (o = {}) => [
+    { id: 'llm-pi-ai', origin: '@deepseek-ai/dsh-base', patchedBy: ['@sophia/dsh-bundle'], config: { providers: { 'openai-research': { apiKeyEnv: 'OPENAI_RESEARCH_API_KEY', baseURL: 'https://api.openai.com/v1', models: [{ ...entry, ...o.entry }], ...o.profile } } } },
+    { id: 'sophia-control-bridge', origin: '@sophia/dsh-bundle', patchedBy: [], config: { protocolVersion: 1, routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000 } }, roleRoutes: unit.role_routes, ...o.bridge } },
+    { id: 'compaction-basic', origin: '@deepseek-ai/dsh-base', patchedBy: ['@sophia/dsh-bundle'], config: o.compaction ?? unit.compaction },
+  ]
+  assert.deepEqual(checkModelRoutes(rows(), unit), [])
+  assert.deepEqual(checkCompaction(rows(), unit), [])
+  const messages = (r, u = unit) => checkModelRoutes(r, u).map((f) => f.message).join(' | ')
+  assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000 } } } })), /allows routes/)
+  assert.match(messages(rows({ bridge: { routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 128000 } } } })), /allows routes/, 'a raised bridge ceiling (M03-RF-0003)')
+  assert.match(messages(rows({ bridge: { roleRoutes: { 'sophia-research-md-v1': 'research-sol-medium-v1' } } })), /maps roles/)
+  const priced = { ...unit, model_routes: { 'research-sol-medium-v1': { ...route, prices: { input: 2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 } } } }
+  const bridgeRoute = (prices) => ({ routes: { 'research-sol-medium-v1': { provider: 'openai-research', model: 'gpt-6.1-sol', reasoningEffort: 'medium', maxTokens: 16000, prices } } })
+  assert.deepEqual(checkModelRoutes(rows({ bridge: bridgeRoute(priced.model_routes['research-sol-medium-v1'].prices) }), priced), [])
+  assert.match(messages(rows({ bridge: bridgeRoute({ input: 0.2, cacheRead: 0.1, cacheWrite: 2.5, output: 10 }) }), priced), /allows routes/, 'the bridge meters at the unit\'s prices (S4)')
+  assert.match(messages(rows(), priced), /allows routes/, 'an unpriced bridge route meters nothing')
+  assert.match(messages(rows({ profile: { apiKeyEnv: 'OPENAI_API_KEY' } })), /OPENAI_RESEARCH_API_KEY through apiKeyEnv/)
+  assert.match(messages(rows({ profile: { cacheRetention: 'long' } })), /must not set cacheRetention "long"/)
+  assert.match(messages(rows({ entry: { maxTokens: 128000 } })), /recorded maxTokens 16000/)
+  assert.match(messages(rows({ entry: { maxTokens: undefined } })), /recorded maxTokens 16000/)
+  assert.match(messages(rows({ entry: { contextWindow: 1050000 } })), /contextWindow/)
+  assert.match(messages(rows({ entry: { compat: { supportsStrictMode: true } } })), /supportsLongCacheRetention false/)
+  assert.match(messages(rows({ entry: { reasoningEfforts: { low: 'low' } } })), /does not offer reasoning effort "medium"/)
+  assert.match(messages(rows(), { ...unit, role_routes: { ...unit.role_routes, 'sophia-research-pdf-v1': 'default' } }), /share one route/)
+  assert.match(messages(rows(), { ...unit, presets: { ids: ['sophia-research-md-v1'] } }), /not in the preset roster/)
+  assert.match(checkCompaction(rows({ compaction: {} }), unit)[0].message, /compaction-basic config/)
+  assert.match(checkCompaction(rows(), { ...unit, model_routes: {} })[0].message, /for no recorded route/)
+  const summarizing = { ...unit.compaction, summarizationProvider: 'openai-research', summarizationModel: 'gpt-6.1-sol' }
+  assert.match(checkCompaction(rows({ compaction: summarizing }), { ...unit, compaction: summarizing }).map((f) => f.message).join(' | '), /names a summarization model/)
+})
+
+test('the research providers are named by reference only, and no endpoint is overridden (SMC-M03 S4)', async () => {
+  const { checkResearchSources } = await import('../../scripts/lib/gate.mjs')
+  const unit = { research_sources: { tavily: { credential_ref: 'TAVILY_API_KEY' }, jina: { credential_ref: 'JINA_API_KEY' } } }
+  const rows = (sources) => [{ id: 'sophia-control-bridge', origin: '@sophia/dsh-bundle', patchedBy: [], config: { protocolVersion: 1, ...(sources ? { sources } : {}) } }]
+  assert.deepEqual(checkResearchSources(rows({ tavilyKeyEnv: 'TAVILY_API_KEY', jinaKeyEnv: 'JINA_API_KEY' }), unit), [])
+  assert.match(checkResearchSources(rows({ tavilyKeyEnv: 'TAVILY_API_KEY', jinaKeyEnv: 'JINA_API_KEY', tavilyEndpoint: 'http://127.0.0.1:9/' }), unit)[0].message, /sources are/)
+  assert.match(checkResearchSources(rows({ tavilyKeyEnv: 'OPENAI_API_KEY', jinaKeyEnv: 'JINA_API_KEY' }), unit)[0].message, /sources are/)
+  assert.match(checkResearchSources(rows(null), unit)[0].message, /sources are null/)
+  assert.deepEqual(checkResearchSources(rows(null), {}), [], 'a unit without research names no sources')
+})

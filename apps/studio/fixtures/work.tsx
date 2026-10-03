@@ -27,6 +27,7 @@ import { current, type WorkPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
+import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions, NOW, observations, people, resources, tightClaude } from './resources-data.ts'
 import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
 import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan, unplannedGoal } from './work-data.ts'
@@ -59,6 +60,16 @@ installFixtureApi({
     ...(six ? moreGoals : []),
     ...(query.get('unplanned') === '1' ? [unplannedGoal] : []),
   ],
+  // The room page's report (SMC-M03), at rest: this page reads none of it.
+  reportVersions: 1,
+  reportTitle: TITLE,
+  waiting: false,
+  description: SOPHIAS_DESCRIPTION,
+  versionsFail: false,
+  sourcesHeld: false,
+  textHeld: false,
+  textTampered: false,
+  work: false,
 })
 const answered: NonNullable<NonNullable<Window['workFixture']>['answered']> = []
 window.workFixture = { unexpected, answered }

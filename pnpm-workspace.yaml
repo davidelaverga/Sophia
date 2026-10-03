@@ -5,6 +5,8 @@ packages:
   - apps/*
   - packages/*
   - runtime/*
+  # SMC-M03 S5: the confined render kernels (renderers/web/pdf first).
+  - renderers/web/*
 
 # Dependency install scripts are denied unless listed. Allowed: the pinned
 # runtime's native prebuild fetchers and dsh's own spawn-helper fix-up.

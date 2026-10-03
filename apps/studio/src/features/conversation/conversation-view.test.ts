@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { NativeTask } from '@sophia/contracts'
-import { authorLabel, briefBlocks, visibleBriefBlocks, currentTask, TASK_PHASE } from './conversation-view.ts'
+import {
+  authorLabel,
+  briefBlocks,
+  visibleBriefBlocks,
+  currentTask,
+  taskPhase,
+  workHeading,
+  TASK_KIND,
+  TASK_PHASE,
+} from './conversation-view.ts'
 
 const task = (id: string, phase: NativeTask['phase']): NativeTask => ({
   id,
@@ -20,6 +29,20 @@ const task = (id: string, phase: NativeTask['phase']): NativeTask => ({
 })
 
 describe('conversation view', () => {
+  it('names research in its own words and keeps every brief phase as it was (A11)', () => {
+    const research = { ...task('r', 'running'), kind: 'research' as const }
+    assert.equal(TASK_KIND.research, 'Research report')
+    assert.equal(taskPhase(research).label, 'Researching')
+    assert.equal(taskPhase({ ...research, phase: 'result_ready' }).label, 'Report ready')
+    assert.deepEqual(taskPhase({ ...research, phase: 'held' }), TASK_PHASE.held, 'a shared phase says the same')
+    for (const phase of Object.keys(TASK_PHASE) as NativeTask['phase'][]) {
+      assert.equal(taskPhase(task('b', phase)), TASK_PHASE[phase])
+    }
+    assert.equal(workHeading([task('b', 'running')]), 'Briefs from Sophia’s runtime')
+    assert.equal(workHeading([research]), 'Research from Sophia’s runtime')
+    assert.equal(workHeading([task('b', 'running'), research]), 'Work from Sophia’s runtime')
+  })
+
   it('names the author as the room knows them, never inventing one', () => {
     const names = new Map([['b', 'luis@example.com']])
     assert.equal(authorLabel('me', 'me', names), 'You')

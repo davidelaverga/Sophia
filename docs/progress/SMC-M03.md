@@ -1,0 +1,934 @@
+# SMC-M03 progress: research specialists, Markdown/PDF delivery and Knowledge
+
+The mission: [M03](../missions/2026-09-27-companion-research/missions/M03_RESEARCH_WORKFLOW.md), pack v1.1. Coordination: issue [#31](https://github.com/davidelaverga/Sophia/issues/31). Plan: [SMC-M03-plan.md](SMC-M03-plan.md) (approved). Contract binding: [SMC-M03-contract-binding.md](SMC-M03-contract-binding.md). State: [SMC-M03-state.json](SMC-M03-state.json). Coordination mirror: [docs/coordination/SMC-M03](../coordination/SMC-M03/README.md).
+
+This record keeps source, tests, hosted evidence and human acceptance apart. A state changes only with the evidence named beside it.
+
+**Checkpoint, 2026-10-01, attempt 1: S0 (bind), S1 (readers first, byte store, report content and Knowledge reads) and S2 (the research route and its guard, usage with cache counters and compaction calls, the specialist registry; unit `sophia-runtime-m03-dev`) are done. S2 awaits Codex's review (CC-0004); S3 (source access) is next. Nothing is merged, released or deployed.**
+
+| Readiness | State |
+|---|---|
+| Source-ready | No: S0, S1 and S2 are in PR #32; S3 to S7 are planned (plan §4) |
+| Merge-ready | No |
+| Release-ready | No: every hosted step is a Codex operation with Davide's bound approval (plan §5) |
+| Hosted-verified | No. This attempt touches no hosted state |
+| Product-accepted | No |
+
+## 1. Identities
+
+| Item | Value |
+|---|---|
+| Base | `main` `ba983e7` (merge of #23; #29 merged at `41ac3e7`, then #28 and #23) |
+| Luis's work included | #24 (`studio/side-chat`) merged at `19a41e0` in `da7660e`, as Davide asked ("targets also Luis's latest changes"). #30 is not included yet (§5) |
+| Branch | `claude/smc-m03-research` |
+| Implementation PR | [#32](https://github.com/davidelaverga/Sophia/pull/32) (draft, base `main`) |
+| Implementer | Claude Code, session `https://claude.ai/code/session_018hCUhiK4hgMf5V5QPbkC9S` |
+| Operator | Codex, woken by Davide on #31 |
+| Toolchain on this host | linux-x64, Node 24.21.0 (tarball checksum verified), pnpm 11.7.0; `pnpm install --frozen-lockfile` exit 0 at `da7660e` |
+| Harness | dsh `0.2.0-rc.2` at `639ed01` (unit `sophia-runtime-m02-dev`, cut over by OP-0003) |
+| Hosted gate | M02 OP-0003 complete and verified ([CX-0015](https://github.com/davidelaverga/Sophia/pull/29#issuecomment-5921358520)) |
+
+## 2. Goals
+
+| Goal | Slices (plan §4) | State |
+|---|---|---|
+| G1 Source access | S0, S1, S3 | S0, S1 and S3 done (§6, §7, §11, §12) |
+| G2 Durable Markdown | S2, S4 | S2 done (§8–§10); S4 next after S3 |
+| G3 PDF | S5a (renderer host, Codex probe), S5b | planned; the host depends on CC-0001 and D6 |
+| G4 Voice and text | S6 | planned |
+| G5 Mission loop and release | S7 | planned |
+
+## 3. Owner decisions
+
+All recorded in plan §8. D1–D10 decided on 2026-09-30, with D1 raised to **$5 per task** and $40 for qualification, and D3 set to `main`. L6, U3 and U4 approved on 2026-10-01. L1–L5 and U1 are proposed for Luis's review.
+
+## 4. Operations
+
+| Operation | Kind | Request | State |
+|---|---|---|---|
+| SMC-M03-OP-0001 | read only | [CC-0001](../coordination/SMC-M03/SMC-M03-CC-0001.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5921937526)) | awaiting Codex. Wake line: `SMC-M03: read SMC-M03-CC-0001 on #31 and act within its scope.` |
+| SMC-M03-OP-0002 | review and local tests | [CC-0002](../coordination/SMC-M03/SMC-M03-CC-0002.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5922184205)) | **answered** by the operator Codex in [CX-0002](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5923248971) at `dfb91d6` (the cloud attempt CX-0001 was blocked). Every suite exit 0 on Node 24.21.0 and PostgreSQL 16.13; 0021 after 0022 exit 0; compatibility and RLS hold. One finding, **M03-RF-0001 (P2)**: the task detail's `outputs` took the task's newest version even when it was not published. **Fixed**: outputs read only published versions, with a regression case for candidate, validated and rejected versions by the task and by a child job (`research-readers.db.test.ts`, fails without the fix). Returned to Codex for re-review in [CC-0003](../coordination/SMC-M03/SMC-M03-CC-0003.md), with S1 part 2. Wake line: `SMC-M03: read SMC-M03-CC-0003 on #31 and act within its scope.` <br>**Revision 2 answered** in [CX-0003](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5930015231) at `569fc75`: M03-RF-0001 verified fixed; `pnpm check` exit 0 (415 unit; 72 integration, 2 skipped) with the runtime-service suite inside it; `test:sql` 21 migrations; `test:db` 214/214. One new finding, **M03-RF-0002 (P2)**: a Knowledge cursor whose microseconds exceed `bigint` passed validation and failed in SQL as a retryable 503. **Fixed**: the decoder refuses it, and any cursor with extra segments, as `invalid_request` (422) before any query; `knowledge.db.test.ts` covers bigint max (200), max + 1 and beyond (422), zero (200) and an extra segment (422), and fails without the fix. Returned with S2 in [CC-0004](../coordination/SMC-M03/SMC-M03-CC-0004.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5930776701)), which also asks for the darwin-arm64 record. Wake line: `SMC-M03: read SMC-M03-CC-0004 on #31 and act within its scope.` <br>**Revision 3 answered** in [CX-0004](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5932598609) at `3c37f48`, on Apple silicon: M03-RF-0002 verified fixed; S2's route, gate, registry and 0023 compatibility checked, and an identityless attempt recovers once onto the same route; `pnpm check` exit 0 after a local Mac record (456 unit; 77 integration, 2 skipped), `test:sql` 22 migrations, `test:db` 216/216. One finding, **M03-RF-0003 (P2)**: the route guard did not enforce the route's output ceiling, so a native caller could send `max_output_tokens: 128000` on the 16000 route. **Fixed** (§13). The committed gate failed on the Mac because this unit's darwin-arm64 bundle archive is not recorded (§13). Returned in [CC-0005](../coordination/SMC-M03/SMC-M03-CC-0005.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5932890015)) with S3's first review. Wake line: `SMC-M03: read SMC-M03-CC-0005 on #31 and act within its scope.` <br>**Revision 4 answered** in [CX-0005](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5934185861) at `de6acd5`, on Apple silicon: M03-RF-0003 verified fixed (the native-hook probe sends nothing above 16000, and an 8000-token compaction on the named route passes); S3 reviewed; `pnpm check` exit 0 after a local Mac record (479 unit; 83 integration, 81 passed, 2 skipped), `test:sql` 23 migrations, `test:db` 226/226. The Mac archive differs from the Linux one only in the gzip OS byte. Four findings, **M03-RF-0004..0007 (P2)**, all **fixed** (§14). Returned in [CC-0006](../coordination/SMC-M03/SMC-M03-CC-0006.md) ([posted](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5934546162)) for re-review and a Mac gate run with no local record. Wake line: `SMC-M03: read SMC-M03-CC-0006 on #31 and act within its scope.` |
+
+Cloud Codex review of #32 at `29bb825` (Davide's request, [comment](https://github.com/davidelaverga/Sophia/pull/32#issuecomment-5922653573)): verified by Claude.
+- The PR is not end to end yet. That is true, and by plan: it stays a draft until S7.
+- The mission state named the S1 part 1 commit. Fixed.
+- Three docs ended with a blank line (`git diff --check`). Fixed.
+- Its suites did not run there, because Node 24.21.0 and the dependency set were unavailable. CC-0002's test item stays open for the operator Codex.
+
+No hosted effect, deployment, migration, paid call or credential use happened in this attempt.
+
+## 5. Luis's open work
+
+- **#24** is merged into this branch. The delivery UI builds on its `SidePanel`.
+- **#30** conflicts with #23's review fixes on `main` (`App.tsx`, `route.ts`, `route.test.ts`, `CONTRIBUTING.md`, and `ProjectHome.tsx` deleted vs changed). Those resolutions are Luis's. This branch merges #30 once Luis updates it on `main`. It owns `0021` and `A10`; M03 starts at `0022` and `A11`. (#30 landed on `main` and was merged here on 2026-10-02, §32)
+- The cross-project Knowledge library (L6) lands in #30's Work place after that merge.
+
+## 6. S1 part 1: readers first
+
+What a later release writes, these readers already read. No writer exists in this slice.
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Schema | `0022_research_readers.sql`: <br>• `markdown` format; <br>• report description (revisioned) and per-version notes, `change_facts`, trigger, number and limitations; <br>• `artifact_renditions`; <br>• job parent and report links, with one task job per attempt and children without an attempt or command; <br>• cache usage columns; <br>• `is_task_kind` allowlist in the task view and in `media_assignments` | `pnpm test:sql`: 21 migrations; `research-readers.db.test.ts` 5/5 |
+| Contract | A11 read side ([binding §3](SMC-M03-contract-binding.md)); runtime wire unchanged | `pnpm contracts:check` |
+| Persistence | `readArtifacts` (each report's stable version and its renditions, at most 100); the artifact refusal removed; the real task kind and `artifactId`; result outputs and cache usage | `pnpm test:db` 203/203 (198 before) |
+| Bridge | Result notices by kind; an unknown kind is skipped, never blocking a known one | `room-session.test.ts` 93/93, mutation-checked |
+| Studio | Task kind and research phase words; the work heading by kind; `native_task.research` summary | `conversation-view.test.ts` |
+| API | `research` summary code; `/ready` requires 0022 | `pnpm check` |
+
+Left for S4, where research writes usage: the task detail reports the usage of the attempt's latest model call (the brief's rule, one step). A research attempt makes many calls, so its detail will sum them per attempt.
+
+Compatibility: every added property is omitted when it has no value, so an older Studio or bridge reads every pre-M03 record unchanged. 0022 must be applied before an API that carries these readers (`/ready` says so). No research row can exist until the writer release, which follows the release carrying these readers.
+
+## 7. S1 part 2: byte store, report content and Knowledge reads
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Byte store | `ByteStore` port (`apps/api/src/byte-store.ts`): write-once objects at `<project>/<source>`, signed GET URLs with an optional download name; a Supabase Storage REST adapter (config `SOPHIA_STORAGE_URL`, `_KEY`, `_BUCKET`, all or none) and an in-memory one. **Not exercised live**; the credential question is in [binding §8](SMC-M03-contract-binding.md). The REST adapter is replaced by an S3 one in S4 part 5 (§19) | `byte-store.test.ts` 6/6 |
+| Report content | `GET /api/v1/sources/{id}/content?disposition=`: published report versions and their renditions only (never a candidate or a rejected version); inline text as text, stored bytes as a 120-second URL; `no-store`; not ready → 409; no store → 503 for stored bytes only | `sources.db.test.ts` 5/5 over HTTP, mutation-checked |
+| Knowledge | `GET /api/v1/knowledge/reports?project=<id>|all&format=&q=&cursor=` (cards, per-project counts, 30 per page) and `GET /api/v1/artifacts/{id}/versions` (published versions with notes) | `knowledge.db.test.ts` 5/5: <br>• isolation across projects (no card, count or name from another project); <br>• format and search; <br>• paging; <br>• no candidate version; <br>• guest refused |
+| Studio | Icons `download`, `expand`, `collapse` (L4); `api/artifacts.ts` for the three reads | typecheck |
+
+## 8. S2 part 1: execution policy (the research route)
+
+The runtime unit becomes `sophia-runtime-m03-dev` (previous: `sophia-runtime-m02-dev`, the rollback). Same dsh release and the same runtime tree (`sophia-tree-v2:sha256:4552d08f…`); only the Sophia bundle changes. No hosted effect: the unit is built and recorded on linux-x64 only.
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Route allowlist | The bridge row carries `routes` (`research-sol-medium-v1`: `openai-research` / `gpt-6.1-sol` / `medium`) and `roleRoutes` (both research roles). Config keys are strict; `default` cannot be redefined; a role route must name a role this unit defines | `tests/unit/routes.test.mjs` |
+| `routeFor` | A create resolves the role's route, records it in the attempt's identity, and refuses a command that names another route before any session or journal entry exists. An attempt without a recorded identity resumes on its role's route | `research-route.test.mjs` (rejected create, empty journal) |
+| Route guard | A global `llm/stream` hook (prepended) refuses any model call made for a bound attempt, by its Agent or by a child a `workflow` program spawns, that names another provider, model or effort. The refusal happens before a request leaves and is journaled as `sophia/route-refused` (audit only; replay ignores it). Compaction passes: it targets the session's latest route and names no effort | `route-guard.test.mjs`: the mock offers a second model; the child that names it never reaches the mock, the child on the route does, and one refusal is journaled on the parent attempt |
+| Sol route | `openai-research` provider row in the bundle patch (`openai-responses`, `OPENAI_RESEARCH_API_KEY` by reference), the `gpt-6.1-sol` entry declared by hand (D2): context 272000, `maxTokens` 16000 (the request default cap), `compat.supportsLongCacheRetention:false` so no retention field is ever sent. Cache retention stays unset (short), so `prompt_cache_key` is the native session id | `research-route.test.mjs` against a local Responses stub with a dummy key: model, `reasoning {effort: medium, summary: auto}`, encrypted reasoning, `prompt_cache_key = sophia-<attempt>`, no `prompt_cache_retention` or options, `max_output_tokens` 16000, `store:false`, `strict:false` tools, the role's tools only, a stable instructions and tools prefix across turns |
+| Compaction | `compaction-basic` policy for the Sol route: threshold 0.45, headroom 16000, summary cap 8000 | gate |
+| Roles and presets | `sophia-research-md-v1` and `sophia-research-pdf-v1` (identity presets for now; their research tools compose in S4); the role pattern widens to `^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$` and the command gains an optional `route` (A11, runtime wire regenerated) | `role-registry.test`, `contracts:check` |
+| Gate | `checkModelRoutes`: bridge routes and role routes equal the unit's; the provider row, key reference, base URL, model entry, effort, `maxTokens`, context window and compat equal the recorded route; `cacheRetention` is never `long`; research roles share one route. `checkCompaction`: the policy equals the unit's, names a recorded route, and never a separate summarization model | `gate-parse.test.mjs`; `profile-gate.test.mjs` adverse case (long retention, `maxTokens` 128000, a role remapped to `default`, a changed compaction threshold) |
+| Runtime host | Credentials are the default route's key plus each research route's key reference, by name only. The default is required; a missing research key is logged by name, and the research route then fails its first call with the adapter's `MISSING_CREDENTIAL` (never another route) | reviewed against `llm-pi-ai` at the pin; no automated test (the script runs only on a host). Codex rehearses it at cutover |
+| Test doubles | `mockRouteOverlay` points every route at the keyless mock; `researchRouteOverlay` points the real `openai-research` entry at the local stub | M02 request-shape parity unchanged |
+
+| Identity | Value |
+|---|---|
+| Unit | `sophia-runtime-m03-dev` |
+| Bundle archive (linux-x64) | `sha256:6344b0c5827fff52ee9fca8778255e03a90be81abc9c487b5330a7ea23c48f0e` |
+| Runtime tree | unchanged, `sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12` (both platforms) |
+| darwin-arm64 bundle archive and profile lock | pending: Codex records them on Apple silicon (`pnpm artifacts:record`). Until then the gate on a Mac reports the missing platform entry |
+
+Run on this host (Node 24.21.0, pnpm 11.7.0, PostgreSQL 16.13): `pnpm check` exit 0 (419 unit; 73 integration, 2 skipped as before), `pnpm test:sql` 21 migrations, `pnpm test:db` 214/214. Unchanged by this part: the schema, the API and Studio.
+
+The specialist registry is part 3 (§10); usage forwarding is part 2 (§9). Moved to S4, with the research tools they guard: the reservation hook and the `skill-filesystem` closure ([binding §8](SMC-M03-contract-binding.md)).
+
+## 9. S2 part 2: usage with cache counters and compaction calls
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Bridge | An assistant message's usage adds `cacheReadTokens` and `cacheWriteTokens` when the adapter reported them. A `compaction/summary` event is projected as its own model call (`compactionId`, provider, model, usage), never its summary text. dsh's counts are disjoint, and `llm-pi-ai` leaves a zero cache counter out, so an absent counter means zero or not reported | `research-route.test.mjs`: the stub reports 1200 cached and 100 written tokens on turn 2; the service receives input 200 (uncached), read 1200, write 100, and no counters on turn 1. `compaction-usage.test.mjs`: a real compaction on a bound attempt passes the route guard (nothing refused) and reaches the service as one call, without the summary text |
+| Schema | `0023_usage_cache.sql`: `usage_records.purpose` (`turn` or `compaction`, default `turn`); `runtime_record_observations` fills the cache columns and records compaction calls; `usage_count(jsonb)` reads a count or null | `pnpm test:sql`: 22 migrations |
+| Persistence | A task's result reports the turn that produced it (`purpose = 'turn'`), never a later compaction | `runtime.db.test.ts`: per-call rows, null when not reported, a summary without usage records nothing, the result unchanged by a later compaction (mutation-checked: without the filter the case fails) |
+| API | `/ready` requires 0023 | `pnpm check` |
+
+The bundle changes, so the unit's linux-x64 bundle archive is re-recorded: `sha256:c119dbaec86fb54319356bbe46bef9cc2474e25e036ae83a32b3a7ebe3e004b2` (replacing §8's `6344b0c5…`). The runtime tree is unchanged; darwin-arm64 is still pending Codex.
+
+Compatibility: 0023 only adds a defaulted column and replaces the writer, so the readers released with 0022 keep working before and after it. An older bundle sends no cache counters and a null compaction projection; the writer records nothing new for it. The API with the purpose filter needs 0023 first, and `/ready` says so.
+
+Known gap, unchanged from M02: a `workflow` child's own model calls are not observed (the bridge forwards bound sessions only), so their usage is not recorded. Research roles have no `workflow`; the M02 `sophia-research-v1` does. Recorded for S4's allowance work, where every call is reserved before it runs.
+
+## 10. S2 part 3: the specialist registry
+
+| Surface | Change | Evidence |
+|---|---|---|
+| Registry | `config/specialists.json` (schema `config/schemas/specialists.schema.json`): per specialist its family, task kind, outputs (Markdown always), route, native tool policy, output profile, admission fields, source policy and continuation owner; `workflow`, `peer` and `raw_host_shell` are `false` by schema. `config/roles.json` is back to the roles before M03 | `tests/unit/specialists.test.mjs`: the schema refuses a host shell, workflows, peers, no Markdown, the `default` route, an unknown field, a PDF output without its renderer, and a duplicate id |
+| Generation | `packages/contracts/scripts/generate-specialists.ts` validates the registry and writes `packages/dsh-bundle/src/specialists.generated.ts` (id, family, outputs, route, native tools). It runs in `pnpm --filter @sophia/contracts generate`, and its `--check` in `pnpm contracts:check` | a registry edit without regeneration fails `contracts:check` (mutation-checked) |
+| Bundle | `role-registry.ts` derives the specialist presets from the generated module: their tool policy is the registry's, never restated; no goal continuation | `role-registry.test.mjs`: the presets are exactly `roles.json` plus the registry |
+| Equality | The unit's `role_routes` and the bridge row's `roleRoutes` equal the registry's routes; each route is recorded by the unit and each preset is in its roster | `specialists.test.mjs` (a changed route fails it, mutation-checked) |
+
+The research specialists' tool policy now names the research tools S4 builds. Until S4 registers them, a research attempt is offered only `todo_write` (`research-route.test.mjs`); the policy changes the presets' digests, so the bundle archive is re-recorded: linux-x64 `sha256:b085f3f9f7c225ceac3390fa3df2883263759ba6b3c3882ea793bd225ecb00a1` (replacing §9's `c119dbae…`). darwin-arm64 is still pending Codex.
+
+Moved to S4 with the research tools ([binding §8](SMC-M03-contract-binding.md)): the preset patch files and `bundlePatchFiles()`, the research-base and output plugins, prompt sections, and the registry's `prompt_sections`. The API's admission resolution against the registry is S4's as planned. SOURCE_MAP §2e and DESTINATION_MAP record S2's upstream sources and paths.
+
+A test fix found by this part's full run: `tool-recovery.test.mjs` (M02-T10) read the native session log as soon as the service had observed the second turn's end, and once, with the runtime-service suite inside the run, the log did not hold that event yet (`['error']` for `['error', 'completed']`; it passed 3/3 alone). The service sees an event when dsh appends it and the log file is written after, so the test now waits until the log holds both turn ends before asserting. No product code changed.
+
+Run on this host after merging `main` (Luis's side-panel commits, `3c37f48`), with `SOPHIA_DISPOSABLE_DATABASE_URL` set so the runtime-service suite runs inside: `pnpm check` exit 0 (456 unit; 79 integration, 77 passed, 2 skipped as before), `pnpm test:sql` 22 migrations, `pnpm test:db` 216/216.
+
+## 11. S3 part 1: source adapters and guards
+
+The modules S4's research tools call, built and tested on their own. Nothing registers them yet: native `web_search`/`web_fetch` stay hidden, and no source call can happen until S4 admits research. The vendors' documentation is blocked from this container, so the adapters follow the vendors' source code (SOURCE_MAP §2e); the live behavior is Codex's to check.
+
+| Module (`packages/dsh-bundle/src/`) | What it does | Evidence (`tests/unit/sources.test.mjs`, 22 tests, no network) |
+|---|---|---|
+| `source-tavily.ts` | dsh's `WebSearchProvider` shape (`id: tavily`, `available()`, `search()`) plus `searchWithReceipt()` keeping request id, credits and scores. Never keyless: no key → unavailable, refused with no I/O. Pinned: basic depth, general topic, at most 5 results, no answer, raw content or images, usage reported | request shape exact; receipt fields; 400/401/403/432/433/429/5xx as typed codes from the status alone (the provider body never reaches the message); malformed answer; deadline vs cancellation |
+| `source-jina.ts` | Jina Reader as a `SourceReadResult`: provider status is Jina's; origin status only from an error warning; final URL always unknown; redirect and DNS-rebinding limitations on every read. Fixed headers, never `X-Max-Tokens`, `X-Set-Cookie` or `X-Proxy-Url`; provider deadline 25 s under the local 30 s | no key → no I/O; exact header set; origin 404 as `code: 200` (reader#1103) → origin 404; errors from status, never body; empty, bot-check and long pages partial with the cut declared; PDF and binary URLs unsupported with no read, a disguised PDF partial |
+| `source-eligibility.ts` | WHATWG parsing; http(s) on the default port; no credentials, credential parameters or signed URLs; special-use, single-label, wildcard-DNS and rebinding names, fetchers, proxies and shorteners refused before resolution; every A/AAAA address public, with IPv4 embedded in IPv6 (mapped, NAT64, 6to4) judged as IPv4 | every IPv4 spelling (`127.1`, `0x7f.1`, decimal), IPv6 ranges and embeddings, zone id, special and wildcard names unresolved, ports, schemes, AWS/GCS/Azure/CloudFront signatures, `r.jina.ai` itself, one private address among public ones, unresolved names. Mutation-checked |
+| `source-containment.ts` | `envelope()`: retrieved text inside a `<sophia-source … trust="untrusted">` envelope it cannot close or reopen. `createQueryGuard()`: `disclosure_denied` for 6 consecutive words of a private source, a roster email or full name, or a secret-like string. `page()`: at most 6,000 characters, paging past 4,096, cuts declared, no split character | a page's forged closing and opening tags neutralized; spans across case and punctuation; a single given name allowed; key and token shapes; pages rebuild the text exactly |
+
+The bundle archive is re-recorded on linux-x64: `sha256:0e413faa42e30eb950425e1fd8dd9400eea59e79d5169edf6d9a9602fb34a5a0` (replacing §10's `b085f3f9…`). `pnpm check` exit 0 (478 unit; 79 integration, 77 passed, 2 skipped as before; runtime-service inside).
+
+Left for S4, with the tools that use them: the provenance-bound refs (a tool names a search result, an extracted link or an admitted input, never a free URL; cross-project refs never resolve), the registration on `ctx.web` with `searchProvider: tavily`, read caching (a stored re-read costs no paid call), and the injection fixtures that need a model (a page telling the model to search for private text, to read an attacker URL, to claim completion; a summary telling the guide to call a tool). The query guard and eligibility above are what those fixtures will find in place. S3 part 2 is the schema: provenance, allowance grants and reservations.
+
+## 12. S3 part 2: grants, allowances, reservations and provenance (0024)
+
+The spend authority and the source record, in SQL, before any caller exists. S4's authenticated runtime routes call these functions; none is granted to the API or worker logins, and the owner sets a grant only as a Codex operation under Davide's approval.
+
+| Surface | What it does | Evidence (`research-allowance.db.test.ts`, 10 tests) |
+|---|---|---|
+| `research_grants` + `set_research_grant` | One per project: the gate (`enabled`/`disabled`), the task cap and the total cap (D1: $5 and $40), the source policy, the approval reference, a revision | no grant or a closed gate: no allowance opens and no reservation is made; closing the gate stops new spend at once |
+| `research_allowances` + `open_research_allowance` | One per research lineage (by its root job): the grant's task cap, headroom kept for a partial result, and the pilot's limits (5 searches, 8 reads) copied once. Never reset | idempotent by job; a later grant change does not move an open allowance; headroom below the cap |
+| `research_reservations` + `reserve_research` | Before each paid call (model, search, read, render): idempotent by key (native session and call id), serialized by row locks (the grant's, then the allowance's), refused at the cap less headroom (only the partial-result call may use it), at the grant's total across allowances, or at the source policy's limit | two concurrent reservations that fit alone: one passes; two that reach the limit exactly: both pass (mutation: without the locks both over-cap ones pass); a reused key refused; a released call frees its policy slot |
+| `end_research_reservation` | `settled` at the reported cost, `released` when the call never left, `uncertain` when the outcome is unknown: its amount stays committed (an abort is not a refund) until reconciliation settles or releases it. A settled or released reservation never changes | the committed amounts after each outcome; reconciliation from uncertain; every reopening refused |
+| `source_provenance` | Per retrieved source: the paid call that produced it, the target it was bound to (`search:<results>#<rank>`, `link:…`, `input:…`), the provider's status and request id, the origin status and final URL only when known, extraction, coverage, limitations. Readable exactly when the source is | a member sees provenance of eligible sources, the owner of a private capture sees its own, an outsider nothing; a read with no target, or a paid read without its call, is refused by CHECK (mutation-checked) |
+
+The API login reads the four tables (members only) and can neither call the functions nor write. The amounts are US dollars; S4 prices each call from the route's recorded prices and the provider's credits.
+
+Also in this part: Tavily's local deadline is the source policy's 20 s (was 30 s). The bundle archive is re-recorded on linux-x64: `sha256:4d7b261bbfc61b324db981d9b1134d1885330b62045e108b553852d8a4c9f227` (replacing §11's `0e413faa…`). Run: `pnpm check` exit 0 (478 unit; 79 integration, 77 passed, 2 skipped as before), `pnpm test:sql` 23 migrations, `pnpm test:db` 226/226.
+
+## 13. M03-RF-0003: the route's output ceiling, and the Mac record
+
+| Change | Evidence |
+|---|---|
+| The bridge row's named routes carry `maxTokens` (16000 for `research-sol-medium-v1`), required and strictly parsed. The route guard refuses a bound call that asks for more output than its route's ceiling, or for an invalid cap, and journals the refusal like an off-route call. A call that names no cap runs at the model entry's default, which the gate keeps equal to the ceiling; compaction's 8000 passes. The attempt identity keeps recording the route alone. The default route keeps the default model's own cap | `routes.test.mjs` (ceiling, exact ceiling, compaction, 16001 and 128000 refused, invalid caps refused, default route unchanged; config requires the ceiling) |
+| dsh freezes an `llm/stream` call's options, and every adapter call passes that waterfall, so what the guard checks is what the adapter sends. A native caller can raise the cap only by making a new call, which passes the guard again | `route-ceiling.test.mjs` against the Responses stub with the test-only listener `tests/support/output-cap` placed before or after the guard: 8000 reaches the wire as set in both placements (the listener works); 128000 sends nothing in both, and the refusal is journaled. With the ceiling disabled, both 128000 cases fail (mutation-checked) |
+| The gate requires the bridge row's ceiling to equal the unit's `maxTokens` | `gate-parse.test.mjs` (a raised bridge ceiling is refused) |
+
+The bundle changes, so the linux-x64 archive is re-recorded: `sha256:88e9dc2ada0d8ba8d78d659015b5267aa3619ed9c1f68b19c4f73c13e63bac4e`. Run: `pnpm check` (479 unit; 83 integration, 81 passed, 2 skipped; the 5 runtime-service cases were re-run after the local PostgreSQL, killed mid-run with the container, was restarted), `pnpm test:sql` 23 migrations, `pnpm test:db` 226/226.
+
+**The Mac record.** CX-0004 recorded darwin-arm64 at `3c37f48`: bundle archive `sha256:49e170e09f602e504d656f6f92e6810d1a305eecdaac65eaf5ed0f20e9b2dfd9` (integrity `sha512-X5HbkTzLhOOb49W2g6hCAHqEIeV5dB2X7qFFWuNNZSIkmc0AUaycjmkXRLUhUJa0DXJmC7r3QK1dKyMvIL2x+w==`), profile lock `ed198fe3…f79f10`, and the runtime tree `sophia-tree-v2:sha256:e24cb887…374c` (28427 entries), which is the one already recorded for darwin-arm64. The archive differs from the linux-x64 one built from the same sources, and every bundle change since `3c37f48` (S3, this fix) changes it again, so those values are kept here as evidence that the Mac build reproduces, not written into the unit. The darwin-arm64 bundle archive and profile lock are recorded once, at the release candidate. Until then a Mac gate run fails on the missing record, as CX-0004 saw; Codex works around it with a local record that is discarded. CX-0005 found that only the gzip OS byte differs. The build now normalizes it, so one record serves both platforms and these values are superseded (§14).
+
+## 14. CX-0005: one archive for every platform, and M03-RF-0004..0007
+
+| Finding or change | Fix | Evidence |
+|---|---|---|
+| The Mac archive (`0d2e90b9…`) differs from the Linux one only in gzip header byte 9, the writer's OS (19 against 3). The tar inside is identical (`a4663d85…`), and setting the byte to 3 reproduces the Linux archive (CX-0005) | `pnpm artifacts` sets byte 9 to 3 after `pnpm pack`, only on a flagless deflate header, where no checksum covers it. One `sophia_bundle` record and one profile lock serve every platform; the per-platform record, its selection and the darwin lock path are removed. The runtime tree stays per platform (native prebuilds) | `platform-bundle.test.mjs`: a macOS-written archive normalizes to the Linux bytes, a flagged header is refused, and the unit has no per-platform archive record. Locally at `de6acd5`, the Linux archive with byte 9 set to 19 gives Codex's Mac `0d2e90b9…`, and the Linux lock with that archive's integrity gives Codex's Mac lock `d2865ded…` |
+| **M03-RF-0004 (P2)**: a token-bearing signed URL (a Supabase `/storage/v1/object/sign/…?token=…` link) passed eligibility, so the whole bearer link would have reached the extractor | Before resolution, eligibility refuses signed or authenticated Supabase storage paths (`signed_url`), and (`credentials`) a credential-named parameter in the query or in a `key=value` fragment (`token`, `access_token`, `key`, `sid`, `sessionid`, `X-Auth-Token`, names ending in `token` or `secret`, …), an OAuth code redirect (`code` with `state`), a JWT anywhere in the URL, and a known key format as a parameter value. A plain anchor and a slug such as `sk-learn-…` stay eligible. Stated limit: a capability URL whose secret is an opaque path segment cannot be told from a permalink; S4 binds every read to a search result, an extracted link or an admitted input | `sources.test.mjs`: 23 refused shapes, none resolved, and 4 ordinary URLs still eligible. Fails without the fix (mutation-checked) |
+| **M03-RF-0005 (P2)**: the disclosure guard lowercased before NFKC, so a private span or a roster name in mathematical bold capitals passed | One canonical form for the index and the query: NFKC, then case folding (upper then lower, so ß meets ss), NFKC again, default-ignorable characters removed; words include combining marks. Emails are compared in that form, and secret patterns are also checked on the NFKC text. Stated limit: look-alike letters from other scripts are not folded (no confusables table) | `sources.test.mjs`: refused are a bold span, a bold name, a full-width name and address, a zero-width space and a soft hyphen inside a span, ß against SS, a bold Tavily key, and a span or name indexed in bold; five words still pass. Fails without the fix (mutation-checked) |
+| **M03-RF-0006 (P2)**: headroom was granted by a boolean alone, so an ordinary search could take it | 0024, amended in place (unreleased): `research_reservations.purpose` (`call` or `partial_result`) replaces `uses_headroom`. Only `partial_result` reaches the headroom. It is a model call's alone (the function and a table CHECK), and one is in flight per allowance (the function and a partial unique index). S4's authenticated wrapper sets it from the attempt's own finalize step, never from a tool argument; a replay cannot change it | `research-allowance.db.test.ts`: Codex's reproduction (4.50 of 5.00, then a search asking for the headroom) is refused, and so are a read, an ordinary model call, an unknown or null purpose and a direct insert; a second in-flight partial is refused; partial calls together stay within the cap. Fails without the fix (mutation-checked) |
+| **M03-RF-0007 (P2)**: of two concurrent opens of one root job, the second failed with 23505 | `open_research_allowance` inserts with `ON CONFLICT (project_id, root_job_id) DO NOTHING`, then returns the existing row. The second opener waits for the first and returns its allowance with caps and counters untouched | Two connections; the second is blocked on the first's uncommitted insert (`pg_blocking_pids`), then both return the same id. A later reopen with another headroom, after a reservation and a grant change, returns the same cap, headroom and reserved amount. Fails without the fix (mutation-checked: 23505) |
+
+The bundle archive, now the same on every platform, is re-recorded: `sha256:9f911688f251e44f78f881c33a5c6e0006fd36db1706d359e2143e9037d8d7e7` (header `1f 8b 08 00 00 00 00 00 00 03`, tar `4042b758…`). Run at `d525c18`: `pnpm check` exit 0 (481 unit; 83 integration, 81 passed, 2 skipped), `pnpm test:sql` 23 migrations, `pnpm test:db` 228/228.
+
+## 15. S4 part 1: research admission and the runtime research operations (0025)
+
+Admission and the writers the research tools call. No runtime advertises a research role until the bridge's part (S4 part 2), so nothing is admitted on a hosted service before then.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `runtime_hello` (replaced) + `runtime_instances.roles` | Records the roles a runtime advertises (id, route, preset digest). Malformed ones are refused; an older hello advertises none | `research.db.test.ts` |
+| `admit_research_task` + `research_tasks` | One task with the ordinary records (goal, attempt, binding, command, job `research`, outbox) and its manifest (`sophia.research-manifest.v1`), plus its lineage row (root, amended task, allowance, exchange, specialist, route, question, given URLs). A new lineage opens its allowance from the grant (10% headroom). It refuses: no grant or a closed gate (`research_gate_closed`), no ready runtime carrying the specialist and its route, viewers, unknown formats (Markdown is always one), ineligible inputs and non-web addresses. Idempotent by key. The same person in the same exchange gets the task already under way unless the request is declared new. An amendment is a new attempt under the same goal and allowance once the task has ended; a task with a later one in its lineage cannot be amended (`stale_revision`) | `research.db.test.ts`: gate, specialist and route, the records, replay and conflict, the running task, a declared new request, refusals, amendment and the lineage fork |
+| `dispatch_runtime_outbox` (replaced) | A research create takes role and route from its manifest and the task statement from `research_prompt`. While another research task of the project is under way, a create is deferred with "waiting for the research worker"; the reason clears when it is dispatched. Brief creates and every other command are built as before | `research.db.test.ts`; the existing runtime suites unchanged |
+| `research_scope_of` and the operations `runtime_research_{context,reserve,settle,capture,draft}` | The runtime lease, then a research binding the runtime owns. All but settle are fenced (goal active; the session's latest dispatched command is a create, resume, steer or input under the current epoch). Context: the task (request, inputs, URLs, allowance, latest draft, the guard's roster) or a page of a source the task may read. Reserve: idempotent by session and call id. A read's target ref is resolved within the lineage, and a search names its query. Capture: one per paid call, search results as JSON with `search:` refs, a page as Markdown with `link:` refs, and the provenance row. Settle: its own session's calls only. Draft: compare-and-set by hash | `research.db.test.ts`: the task and a page; another runtime, session or lease; search, capture, settle, then reads by search result, link and given URL; a replayed capture; no cross-lineage target and no free URL; stale and replayed drafts; Hold refuses all but settle; the cap less headroom, then the partial result; settling another session's call; RLS. Mutation-checked: without the fence, the lineage binding or the one-worker rule, the matching test fails |
+| API | `/v1/runtime/research/*` (bodies up to 2 MiB), `start_research` over `/v1/media/tool-calls` (`admitted`, the task under way, `clarify`, `not_started:<code>`, `unconfirmed:<code>`), `?guide=` on the tool surface, `/ready` requires 0025 | `apps/api/src/research.db.test.ts` over HTTP: the surface by guide, the tool call and its refusals (PDF until S5, closed gate), the five routes with 403, 409 (stale draft, limit), 422 (a URL as a target, an unknown field) and 401 (a member token) |
+
+A11 gains `RuntimeRole`, `RuntimeHello.roles`, the research operation schemas and paths, `start_research` and the tool surface's `guide` parameter. The runtime wire carries the new schemas for the bridge, and the specialist module is also generated into `@sophia/contracts`. The bundle archive is re-recorded: `sha256:778ce55d1627f91df62926a107e686ee4237a8ca99aac5ecd93e759312fe65ad`. Two earlier tests follow the contract:
+- 0024's provenance case gives each captured page its own read (one capture per call);
+- M01's T22 refusal case names `render_research` instead of `start_research`, which the contract now names.
+
+The media bridge still declares the six v1.1 operations.
+
+Run at `347ef86`: `pnpm check` exit 0 (481 unit; 83 integration, 81 passed, 2 skipped), `pnpm test:sql` 24 migrations, `pnpm test:db` 247/247.
+
+## 16. S4 part 2: the research tools, the model-call meter and roles in hello
+
+The runtime's side of research. With part 1, a research task can now be admitted, run its tools against the service and pay for every call from its allowance, all against local stubs. Submitting and publishing a report comes next.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `research-tools.ts` | `research_read_context` returns the task (the guard's roster held back) or a page of a stored source in its envelope. `research_search` runs the disclosure guard over every admitted input and the roster, then reserves, calls Tavily, settles from credits and captures as `search:` refs. `research_read_source` reserves by ref, passes the resolved URL through eligibility, then calls Jina, settles from tokens and captures with `link:` refs (256 KiB, cut declared); a binary is released unread. `research_write_draft` is compare-and-set by hash. A refused call is released, an unknown outcome uncertain, and service refusals reach the model as one sentence | `tests/unit/research-tools.test.mjs` (12): the hidden roster and the input envelope; a disclosing span or roster name sends nothing; the reserve, settle and capture order and amounts; released versus uncertain by provider error; refusals with no provider call; a private address and a signed URL never reach the extractor; read, settle, capture and first page; a binary released; draft hashes; tools outside an attempt; call keys, byte clamps, links |
+| Bridge | Registers the tools in each research agent's scope (filtered by role policy). Meters every call on a priced route: reserved at its worst case, settled from usage, refused (and journaled) when the allowance cannot cover it. The hello advertises the roles mapped to named routes with their preset digests | `tests/integration/research-tools.test.mjs` on the real runtime: the hello's roles; a research turn that reads its task and writes a draft for its own session; three model calls, each reserved before and settled after at the reported usage; an allowance refusal that sends nothing to the provider and is journaled |
+| Config and gate | Route prices on the bridge row and the unit (`$2 / $0.10 / $2.50 / $10` per million), held equal by the gate; `research_sources` (Tavily and Jina keys by reference) in the unit and the row, passed by the runtime host; no endpoint override in the committed row | `gate-parse.test.mjs`: a changed or missing price, a renamed key and an endpoint override are refused |
+
+`research-route.test.mjs` (S2) now expects the research role's tools to include the four registered research tools. The fixture service answers the research operations with well-formed defaults, and a test can refuse one. The bundle archive is re-recorded: `sha256:3d9f4db0344066b09a56e95ba6823733670c512e017db4dc3d4fe528efc6782a`. Run at `736e80b`: `pnpm check` exit 0 (494 unit; 85 integration, 83 passed, 2 skipped), `pnpm test:sql` 24 migrations, `pnpm test:db` 247/247.
+
+## 17. S4 part 3: submit, publication, turn-end rules and the research prompt (0026)
+
+A research task can now end. It publishes a sourced Markdown report as a stable version in Knowledge, or it reports why it could not. A task that ends neither way is nudged once, then failed with its draft kept.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `runtime_research_submit` (result) | One transaction checks the current draft by hash, that every citation is readable by the task (inputs, captures under its allowance, the amended version), and the current authority. It then writes the version as `stable` with its validation source, notes ("First version", or the amendment's required change note and optional kept note), change facts (cited, added, dropped, sizes), trigger and job link. The previous version is superseded, the citations become dependencies, and the job succeeds with a bounded result summary. The attempt is accepted and the goal completed. Idempotent by the call; another call on an ended task is refused | `research.db.test.ts`: the first version and every row it touches; a replay; a second call refused; the tools refused after it; no draft, a stale draft, an unreadable citation, the draft citing itself, a citation from another project, both forms at once; an amendment as version 2 of the same report, superseding version 1, with change facts and a required change note. Mutation-checked (citation closure, change note) |
+| `runtime_research_submit` (blocker) | The task fails with `blocked: <reason>`; the reason and remaining work become its result source; the draft is kept | `research.db.test.ts` (the blocker, its replay) |
+| `research_turn_end` via `capture_native_result` | An errored, max-tokens or blocked turn fails the task and leaves its session's still-reserved calls uncertain, with the amounts moved. A completed turn without a submit gets one nudge (an `input` command with fixed text), and the next completed turn, run under that nudge, fails it with `no_result_submitted`. A turn under an older authority changes nothing; a brief's turn end is as before | `research.db.test.ts`: one nudge even when judged twice, its dispatch and delivery, then the failure; the errored turn's uncertain call; no nudge while held. Mutation-checked (the nudge's owner rule) |
+| Bridge | `research_submit_result` and `research_report_blocker`; the research section (`sophia.research-base.v1+markdown.v1`, bound from the pack's candidates, hash `30af50b8…`) in the research agent's scope, at order 650; the finalize step, which reserves a call that no longer fits as the partial-result call | `research-prompt.test.mjs` (the pinned hash; it names only existing tools, each offered to every specialist); `research-tools.test.mjs` (submit and blocker, a stale draft); `tests/integration/research-tools.test.mjs` on the real runtime: a turn that reads, drafts and submits; the section in every request's system prompt, identical each time; four metered calls; the finalize reservation (`call`, then `partial_result`) |
+
+A11 adds `ResearchResult`, `ResearchBlocker`, `ResearchSubmitRequest`, `ResearchSubmission` and the submit route. `/ready` requires 0026, and the diagnostics vocabulary knows `native_task.nudged`, `no_result_yet` and `no_result_submitted`. The bundle archive is re-recorded: `sha256:b5ddbdac97c9298f9db63389764472ae184e1187a85ebbbf5866a7dcc061c4ae`. Run at `20c8bce`: `pnpm check` exit 0 (497 unit; 86 integration, 84 passed, 2 skipped), `pnpm test:sql` 25 migrations, `pnpm test:db` 254/254.
+
+Still to come in S4:
+- revocation (T19);
+- the S3-key byte store, which Markdown reports do not need: they stay inline up to 256 KiB;
+- the delivery UI;
+- the Knowledge UI.
+
+## 18. S4 part 4: report facts, the delivery UI and Knowledge (0027)
+
+A finished report can now be read, checked and kept. The team opens it beside the page or full screen, sees which sources it cites and how each was retrieved, downloads exactly the version on screen, and finds it again in Knowledge with what each version changed.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0027 section facts | At publication the service splits the new and the previous version's Markdown into sections by heading (fenced code is not a heading; text before the first heading is the introduction). It records which sections were added, revised, removed and kept, and whether a conclusion or recommendation section changed, in the version's `change_facts.sections` | `research.db.test.ts`: the split, with fenced code; the comparison of two versions |
+| 0027 truth gate | The model's notes must agree with those facts. "No changes" when sections changed, a conclusion called unchanged when it changed, or a kept note naming a removed section is refused once: the submit answers `notes_rejected` with the problems and the facts, and nothing is published. A retry of that same call is refused the same way. The next submit that still contradicts the facts publishes with notes written from them (`notesFromFacts`). A first version has no "kept" note. A replay of a published submit returns the same body | `research.db.test.ts`: the three problems; the same refusal on retry; nothing published; the template notes; v1 and v2 facts and triggers through the reader; notes that agree published as written. The replay test caught the missing `notesFromFacts` and `runtime_research_submit` is replaced to return it |
+| Readers | A version's history carries `changeFacts` and `trigger`. A research task carries its progress: question, specialist, outputs, allowance committed and spent, searches and reads used of their maxima. `GET …/versions/{id}/sources` lists what a version cites with its provenance (kind, route, title, URL, coverage, origin status only when known, limitations), RLS-bound. `PATCH …/summary` edits a report's description, attributed, against the revision the editor saw; a member's description survives later versions. A read keeps the extractor's page title | `research.db.test.ts` (sources, the edit with viewer, outsider, empty and stale cases, progress); `knowledge.db.test.ts` over HTTP (sources to members only; the edit, 409 on a stale revision, 422 on a bad body, an outsider) |
+| Bridge | On `notes_rejected` the submit tool tells the model what disagreed and keeps the task running. The read capture sends the page title. Provider text is cut well formed: a cut through a surrogate pair, or a lone surrogate, becomes U+FFFD, because the service's JSON input refuses an unpaired surrogate | `research-tools.test.mjs` (the refusal, the title, the cut) |
+| Studio: Work | A research task is its own card: its state in words (Starting, Researching, Held, Stopped, Report ready, Partly delivered, Not produced with the blocker's reason; a partial is never a fallback), elapsed time and spend against the allowance, the allowance bar with "N of M reads · N of M searches" while it runs, one row per output that opens the viewer and a separate Download, and footer buttons for its sources and limitations | `report-view.test.ts`; browser |
+| Studio: viewer | A side pane (46% of the viewport, 480 to 720px, resizable and remembered, always leaving 400px; it covers the page on a phone) or a full page in the same frame. The page and the room narrow beside it. Its head names what is on screen (format, version, words, size, short hash). Tabs: Document (limitations first, then the report), Sources (a numbered row per cited source, matching the document's superscripts) and History. The text is checked against the version's hash before it is shown, and the viewer's Download saves those same bytes after checking them again. Esc steps down (full, side, closed), F toggles the full page, Back undoes each open and enlarge. `?report=<artifact>&version=<version>&view=full` deep-links it, and the report stays open across the project's views. One pane at a time with the side panel; in the room its head offers the chat | `markdown.test.ts`, `download.test.ts`, `report-view.test.ts`; browser |
+| Studio: Markdown | Our own small parser: headings, paragraphs, lists, quotes, code, tables, rules, emphasis, links. Nothing it returns is HTML: tags stay text, images are named and never loaded, links open only for http, https and mailto (with noopener). A source id the report cites, in any of the forms the research prompt allows, becomes a numbered citation into the Sources tab | `markdown.test.ts` |
+| Studio: Knowledge | The Reports tab: this project, all projects or one other, a format filter, a search over titles, descriptions and notes, pages of 30. A card names the report, its description and who wrote it (Sophia, or a member with the date), its version and what last changed. Editors and admins edit the description; someone else's newer edit is shown, never overwritten. History compares any version with the one before by section, computed in the browser | browser |
+
+**Browser.** On the dev stack (synthetic identities, PostgreSQL 16), seeded through the real SQL (grant, a ready runtime, admission, dispatch, searches, reads, drafts, v1, an amendment that passed the truth gate, and a task still researching), 55 checks pass at 1440×900 and 390×844 with measurements. They cover:
+- the three cards and their states, "0 of 8 reads · 1 of 5 searches" and "$0.01 of $5.00";
+- the pane at 662px against the right edge, with the page ending before it;
+- focus on the title, the meta line, the 613px measure, the table wrapper, fenced code, the heading order and the citations;
+- a citation opening Sources on its row, links with noopener, the chips and the section comparison;
+- the downloaded file's name and its SHA-256 equal to the version's;
+- F to a full page under the bar, Esc to the side, Back closed with a clean address;
+- the report kept across a change of view and closed there by Esc;
+- the description edit, attributed and searchable;
+- the room narrowing beside the pane and its chat swap;
+- on a phone, a covering pane with no horizontal scroll;
+- no page errors.
+
+They found two faults, both fixed before this commit:
+- Esc after a change of view stepped back into the router's history entry. The viewer now marks its own entries in `history.state`.
+- In the room, the pane covered the side panel's toggles. The room now narrows beside the pane, and the pane's head offers the chat.
+
+Not in this part:
+- the PDF switch and `PdfView` (S5);
+- "Try PDF again" (S5);
+- the card's "asked by" name, because a card has no member names. It says when the task was asked;
+- the Sources and Decisions tabs of Knowledge (S1-08).
+
+Run at `84a705d`:
+- `pnpm check` exit 0: 520 unit; 86 integration, 84 passed and 2 skipped, with the runtime-service crossings run against a disposable PostgreSQL;
+- `pnpm test:sql` 26 migrations;
+- `pnpm test:db` 262/262.
+
+The bundle archive is re-recorded: `sha256:289c0f7c96a9b8668c9d800bad749ae9dd3cba7c4b7750c3f6c1101cda1b5a90`. CI on `a56eba0` passed all eight jobs. The review request is [CC-0007](../coordination/SMC-M03/SMC-M03-CC-0007.md), which supersedes CC-0006.
+
+Still to come in S4:
+- revocation (T19);
+- the S3-key byte store, before the PDF (S5).
+
+## 19. S4 part 5: revocation (T19) and the S3-key byte store (0028)
+
+Research now stops when a source it read is withdrawn, and continues without it. The report byte store takes a Storage-only key.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0028 revocation | Forgetting a mission note erases its source (0018); since 0028 that also revokes every research task still under way that consumed it. "Consumed" means the task's admitted inputs and the version it amends. The attempt becomes `revoked`, which is terminal: a trigger keeps it through late receipts and later Stops. Its task fails with a `revoked:` reason, and its live session is stopped by an ordinary `native.stop` cleanup under a stop command. A binding that never launched is settled where it stands, and the session's queued deliveries are superseded | `research.db.test.ts`: the revoked attempt, task, binding and stop; the old session's operations refused; the rebuilt task's context without the input and without the old draft; the withdrawn source unreadable |
+| Restart and refusals | The hello reports a revoked attempt's binding as `stopped`, so a restarted bridge never loads it. Resume, steer and input are refused for a revoked attempt, or for one whose consumed sources are no longer eligible (`native_delivery_ineligible`) | `research.db.test.ts`: a restart's hello; a steer admitted before the old session stopped, refused for it and delivered to the rebuilt task |
+| Rebuild and placement | In the same transaction, the task is rebuilt under the same goal, allowance and lineage, from the same request without the withdrawn inputs. Its manifest says how many inputs were withdrawn and names the task it replaces. The draft is not carried over, because it may quote the withdrawn text; captures stay readable. A working goal gets the rebuilt task queued at once. A held goal keeps it waiting until Resume, and at Resume (a commit-time trigger) research that never started is queued under the Resume's authority. Resume rows naming a revoked or never-started session give way, and a Resume left with nothing else to deliver is settled. A stopping or stopped goal gets no rebuild | `research.db.test.ts`: the held task revoked, nothing queued while held, then exactly the create, the stop and the Resume's settle; the Resume ends `checked`, never denied; the rebuilt task runs. Mutation-checked (the hello label, the refusal, the Resume trigger, the placement) |
+| Byte store | An S3 adapter (Signature Version 4, path-style, as Supabase's S3 endpoint uses) replaces the REST one. A write is a HEAD first, then a PUT with `If-None-Match: *`; either refusal is 409, so an object is never replaced. A read is a presigned GET for the content route's 120 s (`CONTENT_URL_SECONDS`), with `response-content-disposition` carrying the file name when the reader asked to save it. Configured by `SOPHIA_STORAGE_S3_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` and `SOPHIA_STORAGE_BUCKET`, all or none. The retired REST settings stop the API from starting | `byte-store.test.ts`: AWS's two published signatures (header and presigned); the put's signed headers and body hash; both refusals; the presigned read and named download; the secret never in a request |
+| Studio and diagnostics | A revoked task reads "Replaced": a source it read was withdrawn, so it stopped, and the task continues without it. A `no_result_submitted` reason is now matched by its prefix. The diagnostics vocabulary knows `native_task.revoked` and `native_task.rebuilt`. `/ready` requires 0027's `edit_report_summary` (missing since part 4) and 0028's `research_revoke_source` | `report-view.test.ts` |
+
+Run at `938102d`: `pnpm check` exit 0 (522 unit; 86 integration, 84 passed and 2 skipped, with the runtime-service crossings), `pnpm test:sql` 27 migrations, `pnpm test:db` 265/265. The bundle is unchanged.
+
+The review request is [CC-0008](../coordination/SMC-M03/SMC-M03-CC-0008.md), which supersedes CC-0007 before Codex answered it, so that one review covers all of S4.
+
+Not live-verified: the S3 adapter has not run against Supabase. Codex's qualification checks it before any hosted release, in particular whether Supabase's S3 endpoint honours `If-None-Match` on PUT. If it does not, the byte store is not qualified, and the header is never dropped. A HEAD alone cannot make a PUT write-once, because two writers can both see 404 and the second replaces the first. An immutable alternative would have to be designed and qualified first (M03-RF-0016, §26).
+
+
+## 20. CX-0006: M03-RF-0008..0012
+
+Codex's [CX-0006](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5937451492), at `84a705d`, passed the rechecks of M03-RF-0004..0007 and raised five P2 findings. Each one now has a fix and a regression that fails without the fix.
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| **M03-RF-0008 (P2)**: the committed gate failed on the Mac. `platform-bundle.test.mjs` assumed the local zlib writes gzip OS byte 3, but macOS zlib writes 19 | The test builds the canonical Unix archive itself (the local deflate stream with byte 9 set to 3). It then normalizes archives packed with OS bytes 19, 3, 0, 11 and whatever the local zlib writes. The normalization and the identity assertions are unchanged | Under a preload that makes `gzipSync` write 19, as macOS zlib does, the old test fails ("Linux writes 3") and the new one passes. Both pass on Linux |
+| **M03-RF-0009 (P2)**: the disclosure guard stopped indexing after 1,048,576 characters and still let searches through. A later input's text could leave the host in a query | The guard indexes the whole private context: every admitted input and the version an amendment builds on, each read page by page to its end. Its budget is what admission can let in: 9 × 262,144 (eight inputs and the base, each at most 256 KiB of stored text, and a text never has more UTF-16 units than bytes). Admitted text therefore never reaches it. If any of it cannot be indexed, there is no guard: every search is refused with `disclosure_unchecked` before any reservation, and the model is told to work from its inputs, the pages it read and the URLs it was given. "Cannot be indexed" means longer than the budget, a page that does not continue where the last one stopped or does not advance, or a reply that is not a page. The guard is built once per attempt | `research-tools.test.mjs`: Codex's reproduction (four 256 KiB inputs, then a 41-byte fifth) refuses the fifth's phrase, with nothing reserved or searched. The largest admissible context (eight 256 KiB inputs and a 256 KiB base) refuses phrases from the end of the eighth input and of the base. An oversized context and a stalled source refuse every search and log it once. All three fail on the old guard (mutation-checked) |
+| **M03-RF-0010 (P2)**: a settlement above its reservation was accepted as reported, so a 0.01 reservation could settle at 6.00 and spend past the 5.00 cap | 0029: a settlement above its reservation is an overrun. The billed cost is kept as reported in the reservation, the allowance's spend and the grant's total; it is never clipped. The reservation (`overrun_usd`, generated) and the allowance (`overrun_usd`) record by how much. An allowance with an unreconciled overrun reserves nothing more, of any kind or purpose. The owner's `reconcile_research_overrun(project, allowance, approval_ref)` resumes it within the cap and the costs stay spent; it is owner-only, names its approval, and runs as a Codex operation. The bridge reserves each call at its worst case, now more strictly. It prices the input at the dearest input-side price, since a cache write can cost more than uncached input. It counts every non-ASCII UTF-16 unit as a token, so accented letters, other scripts and emoji are not estimated at three characters a token. It also journals a model call above its reservation (`sophia/spend-overrun`), and the research tools log a search or read billed above its reservation | `research.db.test.ts`, through the runtime functions as the API login. Codex's reproduction (reserve 0.01, settle 6.00): kept at 6.00, overrun 5.99 counted once and never rewritten, every further reservation (model, partial, search) refused. An oversized search (two credits), a read, and a model call settled after being uncertain: the same. Reconciliation: owner-only, needs its approval, idempotent, resumes within the cap. `research-tools.test.mjs`: a fully cache-written input stays within the estimate, as do Italian, Japanese and emoji text, and a two-credit search settles at 0.016 and is logged. Mutation-checked: without the stop or the accounting, the tests fail |
+| **M03-RF-0011 (P2)**: every exhausted ordinary model call was retried as a partial-result call with the same request, so the headroom carried ordinary research on (`call, partial_result, call, partial_result`) | The finalize step is now a phase of the task. In 0029, the first partial-result reservation enters it (`research_tasks.finalizing_at`), and only once an ordinary call of that size no longer fits the allowance; the service makes that check. From then on the task reserves no ordinary call (search, read or model), and at most four partial-result calls in all, one in flight at a time. The bridge enters the step once, when the service refuses an ordinary call for a spent allowance, and journals it (`sophia/finalize`). After that, its model calls are partial-result calls with no ordinary retry. The tool guard allows only `research_read_context`, `research_write_draft`, `research_submit_result` and `research_report_blocker`, and a steer tells the model to write up now. After a restart, the service's "finalizing" refusal puts the attempt back in the step | `research.db.test.ts`: a partial before the allowance is spent is refused. After it starts, an ordinary model call and a search are refused even once money frees up, a replay is not counted again, and a fifth finalize call is refused. Each SQL rule is mutation-checked. `tests/integration/research-tools.test.mjs`, on the real runtime, with Codex's probe (the first headroom call asks for a search): the search gets the guard's refusal and the model gets the notice. The reservations are one ordinary call and then partial-result calls only; no search is reserved; draft and submit run. On the old bundle, the same test reproduces Codex's sequence |
+| **M03-RF-0012 (P2)**: the card's download of a stored file went to the storage URL without reading or checking the bytes | `downloadSource` takes the selected version's hash and refuses a content record for other bytes. It fetches the stored bytes, as the viewer does, checks them, and saves a Blob under the record's file name. A mismatch, a failed read or a missing file shows on the card, and nothing is saved | `download.test.ts`, with API, storage and save doubles: matching bytes are saved exactly. Codex's reproduction (mismatching stored bytes) is refused after the bytes are read. A record for another version is refused before reading. Inline text is checked against the version. A failed read and a missing file are shown. Mutation-checked (without the byte check, and without the record check) |
+
+Run (linux-x64, Node 24.21.0, pnpm 11.7.0, PostgreSQL 16.13): `pnpm check` exit 0 (531 unit; 87 integration, 85 passed and 2 skipped), `pnpm test:sql` 28 migrations, `pnpm test:db` 270/270. The bundle is re-recorded at `sha256:b70b259226bb8fb3c63dfeebbf57e398193e99e87787d07f77954ef7f7499faf`, because the bridge and the research tools changed. The review request is [CC-0009](../coordination/SMC-M03/SMC-M03-CC-0009.md).
+
+Other notes from CX-0006:
+- Markdown links allow `http:`, `https:` and `mailto:` (`safeHref`), as Codex observed. That is intended, and CC-0009 says so instead of "http only".
+- §18 (the 55 browser checks) landed in `1d29985`, after CC-0007's candidate. CC-0009's candidate includes §18–§20.
+- 0029 is now the spend bounds, so the PDF's schema, if it needs one, moves to 0030 (contract binding).
+
+Not live-verified: the card now fetches stored bytes from the browser, as the viewer already did. The storage endpoint must therefore allow the Studio origin to GET (CORS). The hosted qualification checks this together with the S3 adapter (§19).
+
+## 21. S5a part 1: the PDF kernel, confined (`renderers/web/pdf/`)
+
+The donor PDF kernel is extracted, adapted per architecture 14 §5, and run against a real headless Chromium with its sandbox asserted. Nothing here renders a project's report yet: render jobs, the supervisor and `research_render_pdf` are S5a part 2, and the PDF preset and viewer are S5b.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| Extraction | `docs/pack/scripts/extract_renderers.py` staged the donor files from `davidelaverga/Sophia-Agent@d467ab97`, blob IDs verified: `render_html_to_pdf.mjs` `f2e808cf…` and `LICENSE` `9dc98a4a…`, the latter kept as `THIRD_PARTY_LEGACY_LICENSE.txt`. The kernel stays JavaScript (architecture 14 §1). JSDoc types are checked by the package's `tsconfig` (`checkJs`), and the code is under the lint gate. The deck kernels are staged but not adopted | the extraction receipt's hashes; `git hash-object` of the notice |
+| Source package (`source-manifest.mjs`) | An explicit, immutable `sourceRoot`, an entry HTML and up to 64 images, each named by a relative path and its SHA-256, replace the donor's guessed `outputs` root. Before any browser starts, the job is refused for any of: an absolute path; a `..` or empty segment; a symlink out of the root; a missing or non-regular file; a hash mismatch; a duplicate; an extension outside the allowlist (`.png .jpg .jpeg .webp .gif`); a file over its bound; a malformed language. After the print, the files are hashed again (`source_unchanged`) | `render-html.test.ts`: nine refusals, each with its code, no sandbox verdict and no output |
+| Requests | Deny by default. Only these load: the entry document, `data:` and `blob:` images (images only), and the manifest's images matched by real path. Undeclared local files fail the job as `undeclared_asset`, anything else as `blocked_request`, before printing; the receipt names them without host paths. Page JavaScript stays off. Language: the job's `lang` is set when the source declares none, and a different one is a warning. CSS is added that wraps long URLs, code and table cells | a remote image and stylesheet, a path out of the root and a `file:` iframe are all blocked, an inline image is allowed, and nothing is printed; an unlisted image is an undeclared asset |
+| Confinement (`confine.mjs`, `bin/confine-chromium`) | Playwright launches the wrapper instead of Chromium. The wrapper refuses every sandbox-off flag (`--no-sandbox`, `--no-zygote`, `--single-process`, the remote debugging port, …). It clears the environment, sets limits (no core files; bounded files, size and CPU time) and runs as non-root with no new privileges; as root it switches to `SOPHIA_RENDER_UID`. The browser starts in fresh user, network, PID and mount namespaces, and killing the wrapper kills the namespace. A self-test after the load reads `/proc` and fails closed unless the browser is non-root, has no new privileges and has its own PID, user and network namespaces, and every renderer has a seccomp filter and its own user and network namespaces. There is no fallback | A real render passes the self-test. `--no-sandbox` is refused before Chromium runs. Ten synthetic process trees, each with one gap, are judged inactive. Root without a render user is refused. Mutation-checked, each failing tests: the sandbox flag off (5 fail), the wrapper without namespaces (5), the request policy open (1) |
+| Measurements and receipt | A CDP probe (`Page.getLayoutMetrics`) at the A4 printable width (672 px) measures horizontal overflow and lists up to 20 elements that reach past it. A probe that fails is `unavailable`, and its check is `unknown`. The receipt (`sophia.pdf-render-receipt.v1`) carries: the status and a stable error code; the renderer's hash, donor, playwright-core and browser versions; the manifest hash; the sandbox verdict; the PDF's SHA-256, size, `%PDF-` header, `%%EOF`, page count (page objects against the page tree, null when they disagree) and embedded images; the visible SVG and image counts. Checks are `passed`, `failed` or `unknown`. Blank and short pages stay `unknown` until S5b | A report in Italian and Spanish, with a 360-character URL, an inline SVG and a PNG: every check passes, overflow is measured at 0, the SVG and PNG are counted, and no process is left. A 2000 px element is measured and named. An unavailable probe is `unknown`, never a pass (mutation-checked) |
+| Cancel and command | A cancel or a timeout kills the namespace. Nothing is kept: a written PDF is removed, and the scratch directory is deleted. `render-html.mjs --job job.json` writes `report.pdf` and `receipt.json` and never replaces an existing file | A cancel mid-render leaves no output and no process. The command's second run into the same directory fails and leaves the first PDF untouched |
+| CI | A `renderer` job: lifts Ubuntu 24.04's AppArmor user-namespace restriction for that runner; installs the headless shell playwright-core pins (`--with-deps`); runs the tests with `SOPHIA_RENDERER_REQUIRED=1`, so a skip fails. Elsewhere (macOS, or no browser) the browser tests skip and say why | locally: no browser gives 6 skipped; no browser with `SOPHIA_RENDERER_REQUIRED=1` fails the requirement test |
+
+Run (linux-x64, as root with the render user uid 1000): `pnpm check` exit 0 (541 unit, the 10 renderer tests on the real headless shell among them; 87 integration, 85 passed and 2 skipped). SQL and the database are unchanged since §20.
+
+Workspace: `renderers/web/*` joins `pnpm-workspace.yaml`. `playwright-core@1.56.1` is the audited baseline (`dependency-closure.json`); it pins headless shell 1194, Chromium 141.0.7390.37. The lock change moves the recorded `workspace_lock_sha256` to `1fa975f9…`; the runtime tree and the bundle are unchanged. The DESTINATION_MAP row for `renderers/` is now partial.
+
+Not here, by design:
+- **Scratch.** A per-job directory owned by the render user, not a private tmpfs: an unprivileged mount needs a root-mapped namespace, and Chromium refuses to run as root.
+- **Memory.** A cgroup limit comes with the qualified renderer host.
+- **GPU process.** It runs without seccomp. Its state is in the receipt; the renderers, which parse the report, are sandboxed.
+- **Fonts.** The host's; licensed EN, IT and ES fonts and glyph fixtures come with the renderer image (S5b).
+- **The host itself.** The renderer host is qualified by Codex's probe (OP-C), never from here.
+
+## 22. S5a part 2: render jobs, the render runner and the supervisor (0030)
+
+A render now runs end to end, locally: a queued source package is claimed by the supervisor, fetched through the API, rendered confined, uploaded once and settled. No admission path calls it yet: S5b's `research_render_pdf` and `render_research` will, once the PDF preset defines the package (the report HTML and its images).
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0030 render jobs | A render job is a research task's child job (`jobs.kind='render'`, `parent_job_id`), with `render_jobs` (format, language, package hash, runner, claims, receipt, output) and `render_job_files` (one HTML entry and up to 64 raster images, each a ready, eligible project source by a relative ASCII path). `enqueue_render_job` is internal: it refuses a task that has ended, a fourth render of one task, two entries, a path out of the package, a source that is not ready, eligible and the project's, and a wrong extension. The package hash is the kernel's: one `role\tpath\tsha256` line per file, the entry first, then the assets in byte order | `research.db.test.ts` (7 tests): the hash equals the kernel's formula, and every malformed package is refused |
+| Runner capability | Render runners are registered and revoked by the owner (a Codex operation) by the SHA-256 of their token. An unknown or revoked token is a 401, like an unknown runtime capability. The runner can claim, read its job's files, heartbeat, upload once and settle, and nothing else | an unknown and a revoked runner refused; RLS: members read render jobs, outsiders nothing |
+| Claim, lease, Hold and Stop | A claim takes the oldest pending render whose goal is working, under a 5-minute lease extended by heartbeats. A heartbeat answers `cancel` after a Stop or the task's end (the job is cancelled), or under a Hold (the job goes back to the queue, not counted as a claim, and is claimed again after Resume). A lost lease is claimed again, at most three claims, then the job fails as `renderer_lost` | Hold, Resume, then Stop; the lease expired three times. Each rule mutation-checked (5 mutations, each fails a test) |
+| Output and settle | The PDF is stored once in the byte store under a new source of the job's project (`objects/<project>/<id>`) and recorded as a byte-stored source derived from every file of the package. A succeeded settle must name the package hash the kernel recomputed and the recorded output's hash. A settle under a Hold queues the render again. A settle after a Stop, or after the task ended, is recorded as stale (`cancelled`), never the job's result. Replays return the same state | settled once and replayed; another package or another output refused; Hold and Stop at settle |
+| API (`/v1/renderer/*`, A11) | Claim, heartbeat, file, output and settle, with a `renderRunnerCapability` bearer. Files come through the API: inline text, or the byte store's object (the store gained `get`), each checked against the package's hash before it is sent. A stored file that changed is a 503, never its bytes. Uploads must start with `%PDF-` and are at most 32 MiB. The settle body is the kernel's receipt, validated against `RenderReceipt` | `renderer.db.test.ts` (5 tests over real HTTP). Mutation-checked: without the stored-byte hash check, or without the PDF signature check, tests fail. `byte-store.test.ts`: the signed GET |
+| Supervisor (`renderers/web/pdf/supervisor.mjs`) | It claims a job, fetches and checks each file, writes the kernel's job file, and runs the kernel as its own process group. The kernel's environment carries only the render user and the browser, never the capability. It sends heartbeats, and a `cancel` or a lost lease kills the kernel. It uploads only a succeeded PDF whose hash matches the receipt, then settles, and always removes the job directory. As root, it takes no job when the render user cannot reach its work directory | `tests/integration/render-supervisor.test.mjs` on the real API, PostgreSQL and confined Chromium. End to end, the receipt's package hash equals the service's, the sandbox is active, and the stored PDF's hash is the source's. A Stop before the render kills the kernel and keeps nothing. A work directory the render user cannot reach takes no job. A tampered stored image is never rendered. CI's renderer job now runs it with PostgreSQL |
+
+Run (linux-x64, as root with the render user uid 1000): `pnpm check` exit 0 (542 unit; 91 integration, 89 passed and 2 skipped, the four supervisor crossings among them), `pnpm test:sql` 29 migrations, `pnpm test:db` 282/282. The bundle is unchanged.
+
+Decisions recorded in the contract binding:
+- **Files through the API.** Files reach the renderer through the API, not through signed storage URLs, so the renderer host needs no Storage access at all.
+- **The receipt.** The service keeps the kernel's receipt, and `render-result.v1` is derived from it where it is reported (S5b).
+- **Byte-stored sources.** A render's output is the first byte-stored source the service writes itself.
+
+Not here: the renderer host itself (Codex's OP-C probe), the PDF preset and report contract, the repair loop, publication of a rendition, and the viewer (S5b).
+
+## 23. S5b part 1: the research PDF, printed by the service (0031)
+
+A PDF research task can now produce its PDF: the model writes Markdown, Sophia prints it with a fixed template, the renderer renders it, and submit publishes it as the version's rendition. Nothing here is hosted: the renderer host is Codex's qualification (OP-C). Until a registered runner is asking for work, `start_research` still offers Markdown only.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `@sophia/report` (new package) | The viewer's Markdown parser, moved from Studio (Studio re-exports it), and the pdf-report-v1 template. One self-contained HTML document per report: a title block, contents from three sections, one `<section>` per top-level heading (sections print at h2 whatever level the report used), tables as identified figures, numbered citations and a sources list with each source's title and URL. Every string is escaped, links keep only http, https and mailto, and images are named, never loaded. The same input gives the same bytes. The stylesheet is adapted from the donor's `report.css` (MIT), with a compact layout for the format repair. The derived `report_manifest_v1` (sections with roles and words, visuals, contents, words, citations) is checked before anything renders: a title, at least one section, at least 100 words, at most 200 sections and 200 tables, every citation resolved, unique ids and contents links that land. Ids (80 characters) and titles (300) are cut so the manifest stays within the contract | `report-html.test.ts` (14 tests): determinism, no script, image, link or object tag, escaping of raw HTML, attributes, code and link targets, ids unique against repeated headings and the template's own ids, roles in EN, IT and ES, the compact layout, and words counted as a reader sees them. Mutation-checked: without the text escape, or without id deduplication, a test fails. The link policy is the parser's, tested there; the template's own check is a second guard nothing reaches |
+| 0031 render operation | `POST /v1/runtime/research/render` runs in one transaction. Step 1 (`runtime_research_render_input`) gives the API the current draft (the one the model names), the question and every source the draft names that the task may read, with its title and URL. The API prints and checks it. Step 2 (`runtime_research_render`) checks everything again under the task's lock, then stores the HTML as a source derived from the draft and the cited sources and queues it as the render's package (0030). A report that fails its checks is answered `rejected` with them, and nothing is queued. The request carries no markup (the contract refuses an `html` field) | `research.db.test.ts` "the research PDF (0031)" (8 tests); `apps/api` "the research PDF's runtime routes" over real HTTP |
+| Repairs | The service classifies each render: the first (`none`), then the same draft again as the format repair (compact layout), another draft as the revision (in the last render's layout). One of each, inside 0030's three renders. One render runs at a time; a draft that already has its PDF is not rendered again; a finalizing task renders nothing; a Markdown task has no render | mutation-checked: each of 7 rules (one at a time, one repair of each kind, the compact format repair, the current draft only, PDF tasks only, the submit wait, the exact-draft rendition) fails a test when removed. The "one repair of each kind" test needed a second case; the first passed by the three-render cap alone |
+| Submit and the rendition | While a render of the task is queued or running, a result is refused, for ten minutes; past that, or in the finalize step, the render is given up (cancelled) and the report is published without it, so a renderer that stopped answering never costs the task its report. A published version gets the PDF of a succeeded render of exactly its draft as its `artifact_renditions` row (pages from the receipt; each check the kernel left unknown becomes one of its limitations). Without one it is published as Markdown and the task records why, from the facts: not rendered, rendered from an earlier draft, or the render's failure. The reply says which; a replay returns the same | the DB tests above; `readArtifactVersions` lists the PDF rendition |
+| `research_inspect_output` | `POST /v1/runtime/research/render-result`: a render's state, its report manifest and, once settled, the kernel's checks, the PDF's pages and size, and its `sophia.render-result.v1` record (the pack's render contract; in a task its source is the draft) | the DB test reads the record field by field |
+| Bundle tools | `research_render_pdf` queues the render and waits for it (it asks the service, never the model, every 1.5 s for up to 150 s), then returns the outcome with what to do next. A refusal because a render is still running, or because this draft already has its PDF, is told as such: the service's message is never kept, so the tool reads the latest render to say it. `research_inspect_output` reads a render. Submit tells the model whether its PDF was published. The finalize step still offers neither. A PDF specialist gets a second prompt section (`sophia.research-format-pdf.v1`, hash-pinned): write Markdown for the page, render when final, one format repair and one revision, then submit the Markdown and name the missing PDF | `research-tools.test.mjs` on the real runtime: a PDF attempt drafts, renders, waits through `rendering` to `succeeded` and submits with its PDF; its render request carries only the draft it names; a Markdown attempt sees neither the tools nor the section. `research-prompt.test.mjs` pins the section |
+| The registry | `research_inspect_output` reads PDF renders only, so the registry now requires it with `research_render_pdf` and the Markdown specialist no longer lists it | `specialists.test.mjs`: a renderer without its inspector is refused |
+| Admission | `start_research` offers a PDF only while a registered render runner asked for work in the last ten minutes (`pdf_renderer_ready`); otherwise `not_started:pdf_unavailable`, with Markdown offered | API test: no runner, a runner silent for 11 minutes, then a live one admits |
+| Through the real kernel | A report printed by the template, with Italian and Spanish text, an eight-column table of long unbroken values, a 300-character URL and a long code line, rendered by the supervisor in the confined Chromium | `render-supervisor.test.mjs`: every kernel check passes, overflow measured at 0 px, nothing blocked or undeclared; blank and short pages stay `unknown` |
+
+Run (linux-x64, as root with the render user uid 1000): `pnpm check` exit 0 (557 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 30 migrations, `pnpm test:db` 291/291. The bundle changed (wire module, tools, prompt, registry): re-recorded.
+
+Decisions recorded in the contract binding:
+- **The service prints the PDF.** It is printed from the Markdown draft with a fixed template, and the model never writes HTML.
+- **One parser.** The parser is shared by Studio and the template.
+- **Its own route.** `research_inspect_output` has its own route.
+- **Repairs are the service's to classify.**
+- **Admission follows the renderer.** A PDF is admitted only while a renderer is live.
+- **Unknown checks are named.** Unknown page checks become rendition limitations.
+
+Not here (S5b part 2 and later): the Studio PDF viewer, the card's PDF rows and its "Partly delivered" state, "Try PDF again" (`render_research`), CSP for the pdf worker, and text extraction for the blank and short page checks.
+
+## 24. S5b part 2a: the PDF in Studio
+
+A version's PDF opens in the report viewer as a PDF: from its row on the work card, or with the Markdown/PDF switch in the pane. It reads, zooms, pages and downloads with the same hash discipline as the Markdown.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `PdfView` | pdf.js 6.3.289 (dsh's pin), legacy build, loaded with the first PDF opened (its own chunk, 435 kB; the worker a same-origin asset). Options: no XFA, no worker fetch, stop at errors, no WebAssembly. Fit-width by default, at most 150 %; zoom 25–400 %. Every page is laid out at its size and drawn only on screen or next to it, at most at 2× device pixels, each drawing on a canvas and text layer of its own, released when it leaves. A text layer keeps the text selectable and findable. A pager; in the full page, a rail of page numbers. A page that cannot be drawn says so; a cancelled one does not. The document is destroyed with the view | `pdf-zoom.test.ts`; the browser check below |
+| Viewer | `?format=pdf` in the address; the head names the PDF on screen exactly (`PDF · v2 · 2 pages · 68.0 KB · <hash>`) and downloads those bytes. The bytes are checked against the rendition's SHA-256 before anything is drawn, and again before they are saved. A version with a PDF gets the Markdown/PDF switch | `report-view.test.ts` (the link with its format) |
+| Work card | The PDF row opens the PDF. A partly delivered card says the reason the service recorded (`ResearchProgress.pdfReason`). Rows stack where they would truncate their file names. The Markdown and PDF rows of one version no longer share a React key (a fault from S4 that only a rendition shows) | `research.db.test.ts`: the reader returns the reason; `report-view.test.ts`: the card's words |
+| CSP | Unchanged, verified: a production build of the viewer under `vercel.json`'s policy, enforced, draws with its text layer and reports no violation | the CSP check below |
+
+Browser check on the dev stack (32 checks; unprivileged user, Chromium's sandbox on). The dev API has no byte store, so the harness answers the one stored PDF's content read in the contract's shape and serves its bytes; the rest is the real API and Studio. What was checked:
+- the card's two rows;
+- pdf.js absent until a PDF opens;
+- the address and the exact head;
+- a same-origin worker;
+- ink on the canvas;
+- the text layer's text;
+- fit, zoom and pager;
+- page 2 drawn when near;
+- the download's hash;
+- the switch to Markdown and back;
+- the full page with its rail;
+- Esc to side, then closed;
+- a tampered PDF not shown and not downloadable;
+- the phone width with no sideways scroll;
+- no console errors.
+
+The run found three faults, fixed before the commit:
+- **The modern pdf.js build drew nothing.** It calls JavaScript that Chromium 141 lacks, and the check's canvas-size test had hidden it. The fix is the legacy build, and the check now looks for ink.
+- **Overlapping renders shared one canvas,** so the text layer never built.
+- **The card's rows had duplicate React keys.**
+
+Run (linux-x64): `pnpm check` exit 0 (559 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:db` 291/291. `pdfjs-dist@6.3.289` is added to Studio; the bundle is unchanged.
+
+Not here (S5b part 2b): "Try PDF again" (`render_research`, a binding-less rendition, and its rendition-only version), and text extraction for the kernel's blank and short page checks.
+
+## 25. S5b part 2b: Try PDF again (0032)
+
+A report published without the PDF it asked for can get it later: an editor presses "Try PDF again" on the work card. The service prints that published version with the same template and queues the render. While it renders, the goal is working again (Hold and Stop apply). When it succeeds, the PDF arrives as the report's next version. Nothing here is hosted.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| 0032 request | `research_rendition_input` gives the API the version's text, the question, the language of the task's renders and the sources the version cites. The API prints and checks it in the same transaction, and `request_research_rendition` checks everything again, stores the HTML (derived from the version and its sources) and queues it as a rendition (`render_jobs.kind`, `base_version_id`, `requested_by`, `reopened_goal`). Refused for: a viewer or outsider, a task that asked no PDF, one not published or already with its PDF, a version that is no longer the report's current one, a goal held, stopped or with research under way, a rendition already in flight, three on one version, or no live render runner. The same key returns the same rendition | `research.db.test.ts` "Try PDF again (0032)" (6 tests) |
+| 0032 settle | `renderer_settle` and `render_sweep`, replaced with the same signatures. A rendition ending under a Hold is queued again for after Resume. A succeeded one publishes the rendition-only version and sets the task's PDF produced, with `artifact.rendition_ready`. A failed one records the reason on the task. Either way the goal completes again unless other work is under way. A deferred trigger handles a settled Stop: its renditions are cancelled with the reason, and a goal whose latest attempt was accepted completes again. A rendition whose report has a newer version is cancelled | the DB tests; mutation-checked: each of 10 rules (the reopen, the settle hook, the Stop completion, the Stop reason, the stale-base sweep, the newer-version guard, the Hold requeue, the per-version cap, the editor check, the PDF-limitation filter) fails a test when removed. The limitation filter needed a fixture that mentions the PDF: the first one passed without it |
+| API | `POST /api/v1/projects/{projectId}/native-tasks/{taskId}/rendition` with an Idempotency-Key: `202` with the rendition's state and render job (never the printed report), `403` for a viewer, `409` while one renders, `503` with no runner, `422` without a key; a replay answers the same | `apps/api` "Try PDF again over HTTP" over real HTTP |
+| Readers | `ResearchProgress.pdfRendering`. The task's outputs already read a rendition's version, because it is written by a child job of the task. A version's `trigger` and `changeFacts` read `rendition` and `renditionOnly`, and the DB test now validates the history against the contract | the DB test's contract check fails with the old enum (mutation-checked) |
+| Studio | On a partly delivered card, editors get "Try PDF again" (one key per press, kept for a retry after no reply). While it renders, the card says so and reads the task every 5 s. When the PDF lands, the card turns to "Report ready" with both rows on the new version. A version that fails the report checks says which, in the checks' own words. A refusal is told plainly (no renderer, three tries used, a role that can't ask). A rendition-only version's chip is "PDF added" | `report-view.test.ts` (the words and the chip); the browser check below |
+
+Browser check on the dev stack (14 checks; unprivileged user, Chromium's sandbox on). The seeded v2 task is a PDF task published without its PDF, and a root-side helper plays the render runner once Studio queues the rendition. What was checked:
+- the partly delivered card, its reason and the button;
+- one request with an idempotency key;
+- the rendering state, with no second button;
+- the card turning to "Report ready" by itself;
+- the Markdown and PDF rows on v3;
+- the new PDF drawn in the viewer with its exact head;
+- no console errors.
+
+The first run found one fault, fixed before the commit:
+- **The client refused the report's version list once it held a rendition-only version.** The contract's `trigger.kind` allowed only `research`, so every card on that report lost its file names. A11 now has `rendition`, and the DB test validates the history against the contract.
+
+Run (linux-x64): `pnpm check` exit 0 (560 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 31 migrations, `pnpm test:db` 298/298. The bundle is unchanged.
+
+Not here: the voice tool `render_research` (S6, guide v1.2, the same operation); a rendition crossed with the real supervisor and Chromium (it is the same package and claim path as a task render, which the supervisor test crosses); text extraction for the kernel's blank and short page checks.
+
+## 26. CX-0007: M03-RF-0013..0016
+
+Codex's [CX-0007](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5939394308), at `ce34062`, passed the rechecks of M03-RF-0008..0012 and the committed Mac gate. It raised three P2 findings in revocation and one in the release plan. Each code finding now has a fix (migration 0033) and regressions that fail without it.
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| **M03-RF-0013 (P2)**: revocation missed indirect consumers. An amendment of a report that quoted an erased input kept running, read the unchanged base and reserved again | What a piece of work drew on is a closure (`source_closure`), not a list. It follows: <ul><li>a source's dependencies;</li><li>a research manifest's base;</li><li>for a draft, the manifest of the task that wrote it, whose inputs, question and base it may quote;</li></ul>each one transitively. A source is withdrawn from research (`source_withdrawn`) when anything in its closure is no longer an eligible, ready project source. Revocation and the refusals of Resume, steer and input use the closure, and so does a create's dispatch ("a source its work would read was withdrawn"). After publication, an amendment of a report that draws on a withdrawn source is refused at admission (`source_ineligible`), as is an input drawn from it and a "Try PDF again" of it. A fresh request is the way on | `research.db.test.ts` "withdrawal reaches what research drew on (0033)". Codex's reproduction, with the input cited and with it only quoted: the amendment is revoked and rebuilt without the base, and its new session cannot read the report. Withdrawal after publication refuses the amendment and an input drawn from the report. A create held back since eligibility ended is denied at dispatch. A held amendment is rebuilt, started at Resume, and never loaded by a restart |
+| **M03-RF-0014 (P2)**: a rebuild kept a withdrawn base, and publication accepted it as a citation | A rebuild drops an input or a base that is withdrawn (`withdrawnBase: true` in its manifest). It still writes into the same report, so the artifact lineage is kept and the withdrawn text is not. `research_readable` now requires everything a task reads or cites to be withdrawn from nothing, captures included, so a citation is checked for current eligibility at submit | Codex's direct-base reproduction: the rebuilt session cannot cite the erased base (`not_found`), and publishes without it as the next version of the same report. An erased capture can no longer be read or cited. A task given a report as an input is rebuilt without it once that report's input is withdrawn |
+| **M03-RF-0015 (P2)**: the latest-lineage check compared timestamps, and rebuilds in one transaction share one | A research task has an explicit successor: an amendment of it, or the task rebuilt from it. A guard on every new research task refuses an amendment of a task that has one (`stale_revision`), whatever the clocks say. The same guard refuses a base or an input that is withdrawn | Codex's reproduction, two inputs erased in one transaction: the intermediate and the first task are both stale to amend, the replacement is under way, and all three share one allowance |
+| **M03-RF-0016 (P2, release plan)**: §19 said a HEAD check could replace `If-None-Match` if Supabase rejected the header | The fallback is removed from the plan (§19). An unsupported atomic conditional PUT blocks the byte store's qualification until an immutable alternative is designed and qualified. The adapter is unchanged: it sends the header and treats both refusals as 409 | docs only; `byte-store.test.ts` unchanged |
+
+Mutation-checked: each of 12 rules fails a test when removed. The rules are the closure's three edges, the readable check, the rebuild's base and input drops, the guard's successor, base and input checks, the create clause, and the rendition check. With 0033 removed, every new test fails. The first run of the successor test passed by luck: it took the two same-timestamp rebuilds in row order. It now follows the explicit links.
+
+Other changes:
+- The diagnostics sanitizer knows the two withdrawal denials (`source_withdrawn`).
+- The voice refusal for `source_ineligible` says a source it would build on is not released (it may have been forgotten).
+- Studio says the same for "Try PDF again".
+
+Run (linux-x64): `pnpm check` exit 0 (560 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 32 migrations, `pnpm test:db` 306/306. The bundle is unchanged.
+
+Not changed: a published version stays readable as the record of what was published, even when it quoted a source that was later forgotten. What Forget means for published reports is a product decision for Davide, raised in CC-0010.
+
+The review request is [CC-0010](../coordination/SMC-M03/SMC-M03-CC-0010.md) ([#31](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5941632143)), at `bce59ed`. It also asks for the first review of S5.
+
+## 27. S5b part 3: the printed pages read back, and the service judges the PDF (0034)
+
+The kernel's blank and short page checks were `unknown` until now. The kernel now reads the printed pages back, and the service no longer publishes a PDF that fails a check.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| `pdf-text.mjs` (kernel) | pdf.js 6.3.289 (legacy build, the version Studio pins), in-process, with system fonts, font faces, WebAssembly and XFA off, stopping at the first error. For each printed page it counts the body words (text inside the 16 mm margins, so the page-number footer is never counted) and the raster images painted. The donor's rules (`render_markdown_to_pdf.py`): a page with at most one word and no image fails `blank_pages`; a page between the first (the title and contents) and the last with fewer than 80 words and no image fails `short_pages`. The detail names the pages. A PDF that cannot be read, or whose pages disagree with the page count, leaves both `unknown` | `render-html.test.ts`: the rules on page facts, unknown on unreadable bytes, and a real four-page render (a full page, an empty one with only its footer, a short one and a full one) reading 200, 0, 12 and 200 words and naming page 2 and page 3. Mutation-checked: without the margin strip, the footer makes the empty page count as text and the test fails. The template-printed report through the supervisor now passes every check |
+| 0034 (service) | The kernel reports, and a PDF that exists is `succeeded`. At settle, the service fails a succeeded receipt that fails any check except the advisory `short_pages` (overflow, a blank page, a broken signature or page count), with reason `failed: <checks>`. It never becomes a version's PDF, and the next render is the format repair. A short page is named on the rendition as a limitation ("Some pages of the PDF are nearly empty (page 3)"), as an unknown check is. A rendition that fails a check records the reason on the task | `research.db.test.ts`: an overflow fails the render and the format repair follows; a short page is a limitation; a blank page fails the render and the report is published without a PDF, saying why; a Try PDF again with a blank page records the reason. Mutation-checked: the gate, the advisory exception and the short-page limitation each fail a test when removed |
+
+Before this, a PDF whose overflow check failed was published as ready. The plan's "1 semantic + 1 format repair, then a truthful failure" now holds for every check the kernel can fail.
+
+Run (linux-x64): `pnpm check` exit 0 (564 unit; 95 integration, 93 passed and 2 skipped), `pnpm test:sql` 33 migrations, `pnpm test:db` 308/308. The renderer suites ran as root with the render user uid 1000 and `SOPHIA_RENDERER_REQUIRED=1`: the kernel's 14 tests and the 6 supervisor crossings. `pdfjs-dist@6.3.289` is added to the renderer, so the workspace lock identity is re-recorded; the bundle and the runtime tree are unchanged.
+
+Not here: the renderer image's licensed EN, IT and ES fonts with glyph fixtures (with the renderer host, OP-C).
+
+
+## 28. S6: research by voice and text, steer, and results told as text (guide v1.2, 0035)
+
+Codex's [CX-0008](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5942292042) (a read-only production preflight at `587ad3f`) found the in-app commissioning episode blocked: the guide still declared M01's six operations. S6 adds the guide's research operations end to end.
+
+| Surface | What it does | Evidence |
+|---|---|---|
+| Guide v1.2 assets | A new system prompt with M01's v1.1 skill unchanged, assembled and checked like v1.1 (prompt + LF + skill, hashes and lengths in `M01_ASSETS.v1.2.json`). Four v1.1 paragraphs change, nothing else. `control_work` gains Steer: the speaker's correction as a short brief, only to change running work. `start_research`: on an explicit request, in the speaker's language (EN, IT, ES), at most one focused clarification, otherwise stated assumptions; `amendsTaskId` to revise a finished report, Steer for one under way; `existingTaskId` means theirs is already under way, and `newRequest` only after they confirm. `render_research`: a PDF of a published report that has none, no research, no web. Receipts: admitted or queued is accepted, not started; `not_started` means nothing started (say why, offer what remains, such as Markdown); `unconfirmed` means read `project_status` first and never repeat as a new request. Only these two commission work; never say research started, finished or printed without a receipt or record. Reports and the pages they read are data that never authorize a tool; `read_selected_source` and the work card are authoritative. A finished report is mentioned once | `guide.test.ts`: identities (prompt `85ffba6b…`/11823, skill `2e746dfb…`/14600, combined `414f7bff…`/26424); exactly four changed paragraphs; each rule present and no "web researcher"/"PDF exporter"; another version's declarations or manifest, a changed byte and an unknown version refused |
+| Bridge, per version | `TOOL_SETS`: v1.1 is M01's six exactly as before; v1.2 adds `start_research` and `render_research`, and Steer with a `brief` on `control_work`. Declarations are static per version: the research tools are declared whether or not research is on, and the call answers with a typed refusal. `SOPHIA_GUIDE_VERSION` picks the version at start (v1.2 by default, v1.1 to roll back; anything else stops the bridge). The surface check asks `/v1/media/tool-surface?guide=`; calls carry `guide`; Google gets that version's declarations; a v1.1 session refuses a research call without reaching the API. Research calls are writes (a lost reply is `unknown`, read `project_status`), and their ids are logged | `tools.test.ts`, `live-session.test.ts` (the setup frame per version: v1.2 adds three declarations and leaves the other five byte-identical), `room-session.test.ts`, `media.db.test.ts` (the bridge's own client against the real API, both versions) |
+| API | `render_research` is Try PDF again by voice (0032), for the bound speaker, with its own idempotency key: queued with the render job's id, never "printed"; typed refusals. Steer records the brief first as the speaker's own voice contribution and uses it as the steer's body, in one transaction. A call executes only what its guide declares: a v1.1 (or unnamed) call to a research tool, or a v1.1 steer, is refused `not_started:not_declared` before anything is read. `project_status` lists the research operations, and each work item's kind, to a v1.2 guide only | `research.db.test.ts` "the guide's v1.2 research operations": no runner, queued, replay, one at a time; the steer's contribution (origin, actor, body); v1.1 never hears of research; the guide check (mutation-checked) |
+| Text mode and notices | Room chat gains two packets, each ignored by a side that does not know it. `mode` (Studio → bridge): this member reads or hears Sophia. It is a packet, not a participant attribute, because members cannot update their own LiveKit metadata and must not be able to (they would rewrite their signed standing). Studio sends it when text mode changes, when Sophia joins and on reconnect. `notice` (bridge → Studio): a finished result as ids, the task's kind and the revision, never text. The bridge says a result once to the room and sends the notice to each reader at the same time; a room where everyone present reads gets the notices alone; a reader who leaves, or turns voice back on, is a listener again; a notice no reader could receive is not recorded and is sent again | `room-chat.test.ts`; `room-session.test.ts` "results for members who read Sophia (T16)": all-text, mixed and older-Studio rooms, leaving and voice again, an unreachable reader (three rules mutation-checked) |
+| 0035 | An announcement is recorded with both classes: whether the room heard it, and how many members received it as text (counts only, never who). Rows before 0035, and an older bridge's three-argument call, are "heard". A record that reached nobody is refused. (Amended in CX-0009: a later record of the same announcement adds to it, §31) | `research.db.test.ts` "records how an announcement reached the room" |
+| Studio | The notice card in the chat, worded by the task's kind ("Research report ready"), after the turn that was last when it came, once per result revision: Open (the viewer, its PDF when it has one), Download (the file, hash-checked before it is saved), Markdown (when Open shows the PDF) | `chat-view.test.ts` |
+| Notice spoof | Typed words reach Google after the bridge's typed marker, and an opening bracket before "Sophia" or "Project" becomes a parenthesis, so a member cannot type a line that reads as a system notice or a marker | `room-session.test.ts` "typed words cannot pose as the bridge's markers" (mutation-checked) |
+| CSP (CX-0008) | Studio's report-only `connect-src` names the actual storage host, `https://ikigawvpaxnvdjzzzhws.storage.supabase.co`, where presigned downloads go. §24's "CSP verified" check ran against a stand-in host, so it did not catch this | `vercel.json` |
+
+Not live-verified: no Gemini Live session ran with guide v1.2 (the provider-facing setup frame is checked against a local endpoint); the notice card and the mode packet were not exercised in a browser against a LiveKit room. EN/IT/ES commissioning is a prompt rule; its behaviour needs the live qualification (OP-E).
+
+## 29. OP-C proposal: the renderer host (probe, image, resources)
+
+| Part | Proposal | Evidence |
+|---|---|---|
+| Probe (`renderers/web/pdf/host-probe.mjs`) | Run on the candidate host as the supervisor runs (root, with the render user named), with the supervisor's environment. It renders an Italian/Spanish fixture in the confined browser (sandbox self-test, kernel and page checks). Then, through `bin/confine-chromium` itself with Node in the browser's place (so it tests the wrapper the browser starts through, not a copy of its recipe), it checks that the job has a network namespace of its own with no interface up and only its own four environment variables; that public TCP, DNS, 169.254.169.254 and the API host are refused at once (no answer within 3 s is not a refusal); and that the supervisor's environment, the runner token file and each `--secret` path are refused by permission, EACCES or EPERM (any other error, such as a path the job does not see, shows nothing and fails). A named directory is tried entry by entry, links followed, since a directory the job cannot list may still let a file be opened by name. One JSON line per check; exit 0 only when all pass, 1 when one fails, 2 (running nothing) on a command line it does not understand. A check that was not performed fails "not run" (M03-RF-0019): no `SOPHIA_API_URL`, one that is not a URL or names no host, a host that does not resolve here, or one this host cannot reach either (the positive control); no `SOPHIA_RENDER_RUNNER_TOKEN_FILE`; a named path that does not exist, is not a file or a directory, or that the probe itself cannot read (the same positive control: run it as the supervisor); a directory with more than 256 entries | `host-probe.test.ts` (14 tests), run as root with render user uid 1000 (13 pass, one skips: root reads every file) and as a non-root user (14 pass); without a render user the job runs as the supervisor and exactly the runner token fails, as it must. The negative controls fail by name with exit 1: a readable file, a job environment with one extra variable, a file under a directory the job cannot list, one reached through a link, and a path the job sees as missing. Mutation-checked: 21 probe rules each fail a test, and so does a wrapper without `env -i`, its network namespace, its PID namespace or its render user (root and non-root branches). One mutant survives by design: dropping the network-namespace comparison alone, since the interface check beside it still fails a job that shares the host's network. Two earlier flaws were found by running it in a container: `kernel_checks` passed when no PDF was rendered, and the environment check misread PID 1 inside the namespace as the supervisor (now compared by hash) |
+| Image (`renderers/web/pdf/Dockerfile`) | `node:24.21.0-bookworm-slim` pinned by digest; the renderer from the workspace lock (`pnpm deploy`); Noto and DejaVu fonts (EN/IT/ES); the headless shell playwright-core 1.56.1 pins, with its libraries; a render user with no login, home or files; the supervisor starts as root only to start each browser as that user; no public port; secrets from the host at run time (`SOPHIA_API_URL`, `SOPHIA_RENDER_RUNNER_TOKEN_FILE`) | The deploy stage builds here. The apt step could not run in this session: its egress policy refuses `deb.debian.org` (403), so the image is not built yet |
+| Host requirement | The confinement needs unprivileged user namespaces and a fresh `/proc`. In a stock Docker container (default seccomp profile, masked `/proc` paths) `unshare` is refused, even as root: the probe fails closed ("the confinement did not run"). With seccomp unconfined and `systempaths=unconfined` (or `CAP_SYS_ADMIN` and `systempaths=unconfined`), every network and secret check passes | Local Docker 29.3.1 runs of the probe in `node:24.21.0-bookworm-slim`, with the renderer mounted read-only, the render user uid 10001, a runner token at 0600 and a loopback API listener. Re-run with CX-0009's probe: with Docker's defaults it fails closed ("the confinement did not run: unshare: … Operation not permitted"); with `seccomp=unconfined` and `systempaths=unconfined`, the job has its own network namespace with no interface up and only its four variables, and public TCP, DNS, the metadata address, the supervisor's environment, the API host and the runner token (EACCES) are all refused. In that stock image the render itself fails (it has none of the browser's libraries; the renderer image is not built), so `render`, `kernel_checks` and `sandbox` fail, as they must |
+| Resources | One render at a time; 1 vCPU and 2 GiB RAM; a 1 GiB ephemeral work directory (per job: the source package, each file at most 16 MiB; Chromium's profile; and the PDF, at most 32 MiB); the kernel's own limits (`prlimit`: no core files, 4096 files, 256 MiB per file, 600 s CPU; the job timeout); egress to the API host only, over HTTPS | `bin/confine-chromium`, `supervisor.mjs` |
+
+**Co-location on the runtime host (CX-0015):** measured and blocked as proposed; see §36.
+
+**Where it can run.** A host passes only if the probe passes there. Expect a managed container service with Docker's default profile (Render's Docker services included, unless Render documents otherwise) to fail the namespace step; that is for Codex to probe, not assumed. Alternatives for Davide, each with its price and data-recipient implications to be confirmed at OP-C:
+1. A small VM the team controls (one vCPU, 2 GiB), running the image with `--security-opt seccomp=<profile allowing unshare> --security-opt systempaths=unconfined`, or the supervisor directly under systemd. The report HTML and PDF reach only that VM's provider.
+2. A container platform that runs each container in its own micro-VM, where the namespaces are available inside. To be probed.
+3. No PDF until a host qualifies: Markdown ships; `start_research` refuses PDF (`pdf_unavailable`) while no runner has asked for work in the last ten minutes.
+
+Never: `--no-sandbox`, a privileged container, or a renderer that skips the self-test.
+
+**What the probe does not prove** (CX-0009), so OP-C must show it otherwise, on the host Davide chooses, with its price and data-recipient terms:
+- that nothing else on the host is open to the job: it tries only the paths it is given. The job context sees the host's whole filesystem, under the render user's permissions, so every credential on the host must be named (or kept where the render user cannot reach it);
+- the host's CPU, memory and disk caps, and the supervisor's own egress being limited to the API host (the probe tests the job context, not the supervisor);
+- that the deployed image is the reviewed one (its digest, and a reproducible build of it);
+- the fonts' licences and their glyph coverage for EN, IT and ES (the fixture renders; it does not inspect the glyphs);
+- recovery over a long run (restarts, a runner whose lease expires mid-render).
+
+## 30. Release and recovery matrix (forward-only)
+
+Hosted state from CX-0008: the database ledger is 0001–0020 on PostgreSQL 17.6; the API, bridge, worker, runtime and Studio run pre-M03 sources; no storage bucket, no S3 key, no research keys and no renderer exist. Every step below is a Codex `execution_request` with Davide's bound approval, in this order. Nothing goes down: the recovery for a schema step is a fix forward.
+
+| Step | What | Check after | Recovery |
+|---|---|---|---|
+| 0 | M02 OP-0003 verified (step-A Stops settled, zero non-final s1-03 bindings); the candidate pinned; a PostgreSQL 17.6 copy for rehearsal | the ledger and hashes match CX-0008 | none needed |
+| 1 Schema (OP-A) | 0021 when it is not on the ledger yet, then 0022–0035, in order, each file in its own transaction, on the rehearsal copy first, then production. 0021 is the personal space (PS-01, Luis's #30), on `main` and merged into this branch (§32): the merged API's `/ready` requires its functions as well as 0035's, so it is applied first unless PS-01's own release has applied it | ledger 0001–0035 with the candidate's hashes. The rehearsal runs on PostgreSQL 17.6 (production's version; the suites here run on 16) with the services' **deployed** sources (the commits CX-0008 observed): the old API's `/ready` stays 200, and an old-API, old-bridge and old-worker smoke (assignments, a tool call, a note, a brief's dispatch) passes. 0022's readers were checked old against new (CX-0002); later files add functions and replace some with the same signatures, which the smoke covers | a failed file rolls back alone; fix forward with a new file. No down-migration. The old services keep running on the new schema |
+| 2 API | the M03 API (`/ready` requires 0035's function), research gate closed, no storage settings yet | `/ready` 200; `/v1/media/tool-surface` answers v1.1's six without `?guide` and eight with `?guide=v1.2` | the previous API deploy, only while no M03 record exists (no research task, rendition or announcement with text recipients). After research is enabled, the recovery target is this release, not pre-M03 |
+| 3 Bridge | the M03 bridge with `SOPHIA_GUIDE_VERSION=v1.1` | `guide.loaded` logs version v1.1 and M01's identities; Sophia binds | the previous bridge deploy (it asks without `?guide` and gets v1.1's six). **The bridge rolls back before the API**: a v1.2 bridge against an API without `?guide` stays unavailable, failing closed |
+| 4 Studio | the M03 Studio with the CSP naming the storage host (still report-only, with no reporting destination) | the policy is observed, not inferred: a scripted browser session on the deployed Studio listens for `securitypolicyviolation` events (and the console) while it opens a report, draws a PDF and downloads both files, and records none. A download that works is not a clean-CSP verdict | the previous Vercel deployment, while no research record exists; after that, this release |
+| 5 Storage and keys (OP-C) | the bucket and storage-only S3 keys provisioned outside migrations, the five `SOPHIA_STORAGE_*` settings on the API; Davide enters the research keys (`OPENAI_RESEARCH_API_KEY`, `TAVILY_API_KEY`, `JINA_API_KEY`) on the runtime host only. Codex checks presence booleans, an atomic conditional PUT (M03-RF-0016) and browser CORS for a presigned GET | presence true; a second conditional PUT of the same key refused; a presigned GET read by the browser | **before any stored output exists**: remove the settings (stored bytes answer 503, inline Markdown keeps working). **After** (a PDF is stored): keep the storage settings and the API's S3 key pair (one pair both reads and writes; there is no read-only key), so published PDFs stay readable, and stop the only writer: revoke the render runner (`revoke_render_runner`; the renderer's output upload is the one path that writes to storage, and a revoked runner gets neither an output slot nor a record). An upload already under way when it is revoked can still land. Revoking the key pair would make retained PDFs unavailable. Research keys: revoke at the provider |
+| 6 Runtime unit (OP-D) | `sophia-runtime-m03-dev`: gate off → drain → register → no overlap on the runtime home → deploy → ready lists the research presets and route → gate stays off | three identities, each against its own reference: the bundle archive's SHA-256 against `config/runtime-unit.json` (`sophia_bundle.archive_sha256`, `6a01ce0e…`); the installed profile lock's SHA-256 against the committed lock itself (`config/dsh/profile/pnpm-lock.yaml`, `914b4595…`; `runtime-unit.json` names only its path, `profile_install.lock`); and the platform's runtime tree digest against `config/runtime-unit.json` (`dsh.artifacts_by_platform.<platform>.digest`). None stands in for another. Ready lists the presets | gate off before the token swap; old-unit research finished or Stopped, never Held across a unit change (T19 rebuilds if needed) |
+| 7 Enable research | `set_research_grant` for the pilot project (CX-0008's proposal, to be approved: one worker, one cumulative $5 allowance, at most 5 searches and 8 reads across the lineage, a 35-minute deadline); then the bridge's `SOPHIA_GUIDE_VERSION=v1.2` and a restart. The grant and the allowance enforce money and the search and read caps; **nothing enforces a wall-clock deadline**. The operator's procedure: note each task's admission time from its work card; at 35 minutes, if it is not terminal, Davide (or an editor Davide names) presses Stop on its goal; Codex then checks that the attempt ended, its reservations settled and no call left after the Stop | `project_status` lists the research operations; a typed and a voice request are admitted | grant disabled (admission refuses `research_gate_closed`, running work is Stopped by the owner if needed); the bridge back to v1.1 (env and restart) |
+| 8 Renderer (OP-C) | the qualified host (§29) with its runner registered (`register_render_runner`); PDF admission follows from the runner's heartbeat | the probe's lines all pass on that host; a Try PDF again renders | stop the renderer: within ten minutes PDF is no longer offered; queued renders wait or fail truthfully, and reports stay Markdown |
+| 9 Qualification (OP-E) | CX-0008's prepared episode, then a two-person episode | §24, §25 and the episode's checks | as above, per step |
+
+What never happens: a destructive down-migration, a Hold across a unit change, a key in chat or on the issue, a hosted step without Davide's bound approval, or a merge before S7.
+
+## 31. CX-0009: M03-RF-0017..0020
+
+Codex's [CX-0009](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5943162387), at `4bd6c0f`, ran every local gate on Apple silicon (592 unit: 581 passed, 11 skipped; `test:sql` 34; `test:db` 313/313) and raised four P2 findings, with clarifications for the release matrix. Each finding now has a fix and regressions that fail without it. Two rounds of local adversarial review of the fixes (review workflows, no hosted effect) found further gaps of the same kinds, each fixed here too; the second round's reviewers' own probes all pass against this candidate.
+
+| Finding | Fix | Evidence |
+|---|---|---|
+| **M03-RF-0017 (P2)**: in a mixed room, the chat notices readers received for a voice notice nobody heard were never recorded | **The record.** When the room did not hear the notice, the readers' delivery is recorded at once (`heard: false`, the count); a later retry the room hears adds "heard". 0035 keeps the union of the records (heard once heard, the largest count; amended in place, it is unreleased), and the bridge merges a waiting record the same way, dropping a receipt only when the one it sent is still the latest.<br>**What is still owed.** Recording a delivery stops the API listing the result, so the bridge keeps what it still owes (`owed`): the listeners' voice retries, and text retries (every 5 s, three attempts) for readers whose notice did not get through, in an all-text room or in a room that heard Sophia, which is never told again. An owed revision is dropped once a newer one of its task is listed or announced, and a result waiting for its text retry does not hold back the next.<br>**Closing and replacing.** A close records the readers of a pending notice, owes it again, records a heard notice still waiting on its readers, and waits at most 3 s for deliveries in flight. A session replaced on the same exchange (its room was lost) hands over what it owes, with what was in flight when the close stopped waiting, every unrecorded announcement and what it already delivered (`Handover`, `told` naming only confirmed readers); the replacement announces nothing until it has it, so it never says again what the room heard, even from a listing read before the record landed. A result whose attempts ran out with nothing delivered is left to a later session, as before. The bridge applies the API's assignments to live rooms without waiting for any close to settle.<br>**Also.** A reader's mode that arrives before the room's people update is kept; an empty room waits; a member who turns to text while the notice is being said gets the card | `room-session.test.ts` (results for members who read Sophia, 29 tests); `bridge.test.ts` (the handover reaches the replacement; live rooms are not held by an ended one); `apps/api/src/research.db.test.ts` "records how an announcement reached the room" (text first, a replay, heard last with fewer readers). Mutation-checked in three rounds: 38 mutations of these rules (the union's two halves, the merge, the receipt identity, the close's flush, waits and heard record, the presence check, the empty-room guard, late cards, the all-readers rule, the retry delay and the held-back result, the text and heard-room retries, the owed voice and text, the superseded revision, each part of the handover and of its taking over, the handover gate, the shared close and the bridge's wiring and non-blocking apply) each fail a test. One mutant is equivalent: the all-readers check reading the optimistic `carded` set instead of `confirmed` (they differ only while another card to the same reader is in flight, which the handover already owes) |
+| **M03-RF-0018 (P2)**: `KERNEL_FILES` omitted `pdf-text.mjs`, so a different page judge reported the same kernel identity | `KERNEL_FILES` lists every module the kernel runs, transitively, and the wrapper it starts the browser through. The identity also covers the packages that judge with it (`JUDGE_PACKAGES`): for each, its version and the bytes of the files a judgement loads from it, resolved as the kernel resolves them (pdf.js's main and worker builds; the `@napi-rs/canvas` files pdf.js loads to fill in its geometry in Node), or "absent". Three tests hold the lists: a static closure that follows every literal import form (static, side-effect, re-export, dynamic, `require`, either quote, `../`, files started through `new URL`, across lines) and fails on any other way of loading code until it is reviewed (template-literal or commented imports, `createRequire` aliases, `import.meta.resolve` or `dirname`, workers, child processes, a shell `source`); a runtime check that records every module a judgement loads (the kernel loaded and a one-page PDF read back in a child process); and the identity changing with each file, version or absence. The review also found that importing the kernel crashed in a process whose first argument is not a path; its main-module check no longer can | `render-html.test.ts` "the kernel identity (M03-RF-0018)" (4 tests). Mutation-checked: dropping `pdf-text.mjs`, emptying or shortening `JUDGE_PACKAGES` (pdf.js's worker, `@napi-rs/canvas`), hashing versions only, resolving from the wrong directory, a new module loaded by side effect with double quotes, dynamically, or through a template literal, and the unguarded main-module check each fail a test |
+| **M03-RF-0019 (P2)**: an API check that was never performed passed | A check not performed fails "not run", and named paths are checked outside first (see §29 for the full rule). From the reviews: the checks inside run through `bin/confine-chromium` itself, so a weaker wrapper fails the probe; a network-namespace check and the job's environment (names only) are checked; only a permission refusal shows a path closed, and only an immediate network refusal shows a host closed; named paths are absolute, tried entry by entry with links followed, and must be files or directories the probe itself can read; the command line is strict (exit 2, nothing run, on anything it does not understand) and works through a link; on a host other than Linux the confinement is "not run" | `host-probe.test.ts` (14 tests) as root and as a non-root user (CI's case); §29 records what the probe still does not prove |
+| **M03-RF-0020 (P2)**: a notice card's Open showed the Markdown while Download saved the PDF | Open asks the viewer for the primary file's version and format (`noticeOpenRequest`), the PDF when there is one, which is also what Download saves; Markdown is offered beside a PDF only. From the reviews: a link to a version the viewer's cached list does not hold reads the list again, once per version, and shows the version loading until then (never "This version isn't available"); a read paused offline is not a read | `chat-view.test.ts`, `report-view.test.ts` (`noticeOpenRequest`, `versionMissing`, `rereadFor`) |
+
+Also fixed, found by the review (pre-existing): after Try PDF again, the new version's Markdown downloaded under the previous version's name, because the version that names a shared source was picked by an unordered `LIMIT 1`. It is now the latest version holding it, the one the card and the viewer show (`packages/persistence/src/research.db.test.ts` "publishes a rendition-only version"; mutation-checked).
+
+The release clarifications CX-0009 asked for are in §29 ("What the probe does not prove") and §30: step 1 rehearses on PostgreSQL 17.6 with the services' deployed sources; step 4's CSP evidence is observed in a scripted browser; step 5's recovery differs before and after a stored output exists (after: keep the key pair so stored PDFs stay readable, and stop the only writer by revoking the render runner); step 6 names three identities, each against its own reference; step 7 says nothing enforces a wall-clock deadline and gives the operator's Stop procedure.
+
+Trade-offs, documented rather than changed:
+- What a session owes its room survives an in-process replacement, not a bridge restart. After a restart, a result whose delivery to some was recorded is not voiced again to listeners (they still find it on its work card); one nothing recorded is listed and announced again.
+- A delivery still under way when a close stops waiting (3 s) is owed again, so a reader may get a card twice; Studio shows one card per result revision.
+- The renderer identity covers code, not the host's inputs (fonts, the Node runtime, the browser binary beyond its version, a native binary beneath a judging package beyond its version); those are a host's qualification evidence (OP-C).
+- The probe tests the job context and only the paths it is given; it does not test the supervisor's own egress.
+- A Markdown that two versions share downloads under the latest version's number, also from the older version's history entry (the bytes are the same).
+
+Run (linux-x64): see the CC-0012 request for the counts at the pinned candidate.
+
+## 32. `main` merged (2026-10-02): the personal space and LFE-00
+
+PR #32 conflicted with `main`, which had moved 160 commits past `aadd192`. They bring Luis's personal space (PS-01: #30 and #35, with migration 0021 and amendment A10, and #37), the Studio follow-ups (#33, #34, #38) and LFE-00's v2.0 continuation (#39) with its Chromium preservation checks (#40, and #41, which drives the real room controller over a fake LiveKit). `origin/main` at `55ddc1e`, then at `9dd0019`, is merged into this branch, keeping both sides throughout:
+- **API.** CORS allows the personal space's epoch header and the report description's PATCH. `app.ts` mounts both route sets, and `/ready` requires both sets of functions (0021's and 0022–0035's). `server.ts` builds both the companion and the byte store.
+- **Studio.** The route hook keeps `main`'s places (home, personal, work) and its replace-in-history, and an open report still follows a change of view in the same project. `ProjectShell` imports both the call switches and the report viewer. The icon set holds both sides' icons. `main`'s fake room for the preservation checks gained the result notices this branch's room carries; #41 then replaced that fake room with the real controller, which carries them itself.
+- **Contracts.** A10 and A11 apply together. `validate.ts` and the validator generator list both sides' parsers. The OpenAPI document, types and validators are regenerated by `pnpm --filter @sophia/contracts run generate`.
+- **Lock and runtime unit.** `pnpm-lock.yaml` is `main`'s, brought to both sides' manifests by `pnpm install`. `config/runtime-unit.json` keeps this branch's unit (`sophia-runtime-m03-dev`), re-recorded by `pnpm artifacts:record`: only the workspace lock's SHA-256 changes; the bundle archive (`6a01ce0e…`), the profile lock and the runtime tree are unchanged, and `pnpm artifacts` reproduces every identity.
+- **Docs.** The destination map's rows carry both goals; `main`'s SOURCE_MAP §2d (the continuation's sources) keeps its number and anchor, and this mission's upstream sources move to §2e.
+
+The release matrix's step 1 now applies 0021 first when PS-01's own release has not (§30). `AGENTS.md` on `main` keeps M03's in-flight ownership (#31, #32) binding under the v2.0 continuation.
+
+Run on the merge (linux-x64): see the CC-0013 request for the counts. `main`'s Chromium preservation checks (`pnpm --filter @sophia/studio test:browser`, 6 cases after #41) pass here on the merged tree, against this container's Chromium build.
+
+## 33. LFE-02.1: the report viewer over the room, and a sweep of its kind (2026-10-02)
+
+Luis's team read PR #32's Studio side for LFE-02 and posted six findings on #31 ([LFE-02.1](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5945335532)), offering to fix them after the merge. They are M03's code, so M03 took them ([reply](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5945567798)). Each was checked against the code by an independent verifier, then fixed with a check that fails without the fix. A completeness sweep of the viewer, Knowledge and the cards found more defects of the same kinds, and an adversarial review of the fixes (five lenses, every finding put to a skeptic: 26 confirmed, 2 refuted) found more again. `main`'s #42 is merged first (`7c97ab2`), so its phone check of the side panel runs against the fixes. The fixes are `aa9a02e`, Studio only.
+
+| LFE-02.1 finding | Fix | Check |
+|---|---|---|
+| P1 · ART-02: a report opened without a version swaps to a newer one on the next read of the list, and nothing offers it | A report opened without a version is pinned to the version first read: the link names it, by replace, once a settled read (not a cached list being read again) names it, and only while its project is in sight. A version other than the current one gets an offer in the head ("v3 is the current version. Show it"); nothing is swapped in. A Work card whose output changes tells an open viewer at once | unit (`pinTo`, `currentOffer`); browser "ART-02 ·", "Esc held down … pinning names the version in place" |
+| P1 · phone and full page: the pane covers the dock, the mini dock and the lobby, and has no call switches | Where the pane covers the dock or the mini dock (760 px and below, or the full page), its top carries the call's switches and the room's note, as the side panel's head does (`PanelCallSwitches`, now exported; room keys named only in the room). The lobby and a project's opening note come under the pane's top (`--report-top-h`, its height), over the pane. The pane's layer is 12: over the dock (4) and the mini dock (10), under the lobby (15) and the top bar (20), whose menus now open over it | browser "@phone · a report over the room keeps mute, sending and the door in reach", "the full page covers the dock", "the top bar's menus open over a report" |
+| P2 · Esc ignores `ShortcutScope` | Esc steps down only in a project in sight, with no modal sheet on screen, once per press (not on key repeat), and never from a field or a dialog | unit (`escapeStepsDown`); browser "stays closed once the person comes back from home", "Esc held down" |
+| P2 · notices don't mark Chat unread | `chatSignature` folds in the newest notice's key: a new notice is new, the same one delivered again is not | unit; browser "a result notice marks Chat" |
+| P2 · focus on `<body>` after closing a report opened from a chat notice | The opener is read at the click, before the side panel closes; closing returns the focus to it while it is on screen, else to the toggle of the side panel it sat in, and never takes it from where it went. On inspection the reported case did not lose the focus (the side panel's own close handed it to the Chat toggle before the pane read its opener), but the old code did take it back out of the message bar when the chat opened in the report's place | unit (`focusReturn`); browser "closing the report it opened hands the focus to Chat", "the chat opened in the report's place keeps the focus" (fails on the old code) |
+| P2 · `format=pdf` without a rendition shows Markdown without saying so | One line: "This version has no PDF, so its Markdown is shown." The version's limitations say why | unit (`pdfMissing`); browser "a PDF asked for that the version lacks" |
+
+Found by the sweep and the review, confirmed in code and fixed (checks in brackets):
+- A read of the versions again that failed (the window's focus) turned a readable report into "not available"; what was read is kept (`failedOutright`) [browser "a read again that fails"].
+- A description was saved against the revision current at the save, so a list read meanwhile let it overwrite a teammate's newer one without a word; it is saved against the revision it began from, and the focus goes into the form and back to Edit, only when the form had it [unit `summaryEdit`; browser "a description edit never overwrites"].
+- A report left open in a project kept for its call came back after the places, though the address no longer named it; the viewer reads the address again when its project is back in sight [browser "comes back from home"].
+- The pane's Chat did not carry the corner toggle's mark it covers [browser "marks the pane's own Chat"].
+- A citation dropped the focus with the Document tab, and its source row scrolled back into view on every render and again whenever Sources was chosen; the row takes the focus once, cleared on any move off Sources, and its number is said [browser "a citation shows its source"].
+- History's "Show this version", the head's "Show it", a comparison's Close, More reports, Try PDF again and the PDF toolbar removed or disabled the control under the focus; the house rule (aria-disabled, never disabled) is kept, and a control that goes hands the focus on: to "On screen" in place, the title, the Compare that opened it, the first new card, the card [browser "History keeps the focus", "ART-02", "More reports"; Try PDF again and the PDF toolbar by review only].
+- Sources and History loaded forever for a report or version that is not available; every tab says so, and a gone version offers the current one [browser "a version that is gone"].
+- A chat left open in the room closed a report that Back or Forward brought on another page; one pane at a time is decided by what changed (the panel opened over the report, or a report came while the panel was open), and only in the room.
+- Re-opening the report on screen switched a PDF being read to its Markdown; the format on screen is kept for the same report (`openedLink`) [unit], except the card's limitations, which head the Markdown and open it.
+- The report's tabs were not a tab row (no roving focus or arrow keys; the format switch inside the tab list); they are now [browser "the report's tabs are a tab row"]. Knowledge's format filter was tabs with no panel; it is pressed buttons [browser].
+- A card's two rows were both "Open Report" until the versions loaded; the label names the format. Status lines were added with their words (often not read); they are there before they speak and take no room while empty.
+- A page whose drawing failed kept the mark after drawing again at another zoom; the mark follows the latest drawing (review only).
+- The pane's two breakpoints left a gap at fractional widths (`> 760px` and `<= 760px` now); the lobby and the opening note beside a side pane are never wider than the room left.
+
+Not fixed here: another member's card learns that Try PDF again was pressed only on its next read (the rendition is a child job: neither the task's phase nor its result changes, so nothing tells the card); that needs an event on the project's feed and goes to S7. Recorded trade-offs: someone at the door covers the top of the document (on a PDF, its toolbar) while they wait, as over the side panel; a report opened and enlarged before its first read settles pins the entry it is on, and the entry before it pins again on Back.
+
+The fixture page (`apps/studio/fixtures/`) now serves the report viewer's and Knowledge's reads from `report-data.ts` (two versions, a cited page, the content with its hashes, a research task and its notice, someone at the door, Knowledge's cards over two pages, a description edit refused when stale, a failing read on request), keeps the project out of sight as the app does (`Kept`), and shows the account menu in the bar. `e2e/report.spec.ts` holds 17 checks.
+
+`main`'s #43–#46 (Explore's direction gallery, LFE-03, with its own fixture page and checks; the follow-ups to #42 and #43) are merged after the fixes (`f8b9c35`); no file this branch changes, no conflict. CONTRIBUTING lists the report viewer's checks beside the room's and Explore's.
+
+Run here (linux-x64): at `aa9a02e`, `pnpm --filter @sophia/studio test:browser` 23/23 (6 room checks, 17 report checks) three times over with no flake, every new check run against the code without its fix and failing, `pnpm test:sql` 35 migrations and `pnpm test:db` 376/376; at `f8b9c35`, `pnpm check` (776 unit: 775 passed, 1 skipped; 95 integration, 2 skipped) and `test:browser` 35/35 (7 room, 11 Explore, 17 report).
+
+## 34. CX-0011: M03-RF-0021..0023, and `main`'s #47–#48 (2026-10-02)
+
+Codex reviewed CC-0015 at `f8b9c35` ([CX-0011](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5950629855)). On Apple silicon every gate passes: 776 unit (762 passed, 14 skipped), 89 integration (2 skipped), `test:sql` 35, `test:db` 376/376, and 35/35 browser checks. RF-0017..0020 are verified, both merges keep both sides, and mute and Close stay in reach at seven widths in both sizes. It returned three findings, fixed in `ebcbbc0`, each with a check that fails without its fix.
+
+| Finding | Fix | Check |
+|---|---|---|
+| **M03-RF-0021 (P2)**: v1 was in the cached list, a link to v2 was followed, and reading the list again failed. The pane said "Loading the report…" for good | When the versions read has failed and the version asked for is not to hand, the pane says so as an alert, with Try again, which reads the list again (`versionReadFailure`). The words are "This version couldn’t be loaded.", or "The report couldn’t be loaded." when nothing of it was read. A version the list read earlier holds stays on screen, as before. A refusal is told by the API's code, not its status (`not_found` is a 422, `forbidden` a 403), and is still said as "This report isn’t available to you.", with no Try again. Any other error is a failure, so a 503 is no longer called a refusal. An error left by an earlier read is not this version's: a version the list lacks is first read for (the reread no longer waits for a successful list), then said | unit (`versionReadFailure`); browser "M03-RF-0021 ·", three checks. A failed read for v2 is said, as an alert, and Try again shows v2 (on the old code the pane stays loading). A version asked for after a failed read again is read for. A 422 refusal is said as refused, with no Try again |
+| **M03-RF-0022 (P2)**: a citation was followed while its sources were still loading, and the person moved on (Sign out, in the account menu). The source row took the focus from them when the sources came | The row takes the focus only while nobody holds it (`focusFree`): nothing has it, the page has it, or what had it went (the citation's button goes with the Document tab). Otherwise the row is shown and marked, and the focus stays where it is | unit (`focusFree`); browser "M03-RF-0022 ·", twice. Sources come late, the focus is nowhere else, and the row takes it. Sources come late after the person moved, and Sign out keeps it (this one fails on the old code) |
+| **M03-RF-0023 (P3)**: importing the renderer's public entry threw (ENOENT) when the process's first argument was not a path, because of the supervisor's main-module check | The supervisor uses the same check as the kernel and the probe (`isMain`): it never throws, and both sides are resolved | `renderers/web/pdf/test/entry.test.ts`: the entry and each module it exports import with a URL or a missing file as the first argument. 6 of the 8 fail on the old code: the entry, the supervisor, and the probe, which imports it. The supervisor still runs when named directly or through a link (the package's bin) |
+
+An independent review of the first version of this fix found three more faults, all fixed before the commit:
+- It told a refusal by a 403 or 404 status, but the API refuses an unreadable report with `not_found`, a 422. That refusal would have been said as a failure, with a Try again that can never work.
+- After a failed read again, a version asked for was said failed from the old error, without being read for.
+- The new state was not announced.
+
+The fixture's failed reads now carry the API's own error bodies (`unavailable` 503 `safe_read`, `not_found` 422 `never`); its 503 had none before.
+
+Also fixed: a gone version's "Show the current version" removed the button that had the focus, which dropped it to the page. That button and Try again now hand the focus to the title, as "Show it" does. Checked by browser "a version that is gone" and "M03-RF-0021", each of which fails without it. The rest of the viewer, Knowledge and the cards was swept for the same kind of focus handoff after a delayed read. History's comparison, the description form, More reports and Try PDF again either act at once or already check that the focus is free.
+
+The fixture page can now:
+- hold the report's sources until a check lets them through (`hold=sources`, `window.fixture.releaseSources`);
+- refuse reads of the versions as the API does, or let them succeed again (`failVersions('not_found')`, `failVersions(false)`).
+
+`e2e/report.spec.ts` holds 22 checks.
+
+Not changed: a refused read is still tried four times (TanStack Query's default retries, about seven seconds) before the pane says so.
+
+`main`'s #47 (the resource panel, LFE-06, `cb78c86`) is merged at `2709330`, and #48 (capacity that honours `valid_until` and applicability, `3e46e48`) at `5033ff5`. They bring Studio's resources feature, its own fixture page and checks, and LFE-06's docs. CONTRIBUTING keeps both sections. Neither changes a file this branch changes otherwise, and neither changes SQL, persistence or the API.
+
+Run here (linux-x64): at `ebcbbc0`, `pnpm check` (794 unit: 793 passed, 1 skipped; 95 integration, 2 skipped), `pnpm --filter @sophia/studio test:browser` 48/48 (7 room, 11 Explore, 8 resource, 22 report), the room and report checks twice more with no flake, `pnpm test:sql` 35 migrations and `pnpm test:db` 376/376. Every new check was run against the code without its fix and failed.
+
+## 35. CX-0012: the whole head reviewed, and M03-RF-0024 handed to LFE-06 (2026-10-02)
+
+Codex re-reviewed RF-0021..0023 on exactly `ebcbbc0`, and all of `f8b9c35..ebcbbc0`, `main`'s #47 and #48 included ([CX-0012](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951619757)).
+- **All three fixes verified.** Its reproducers now pass. Its own mutations fail as expected: removing the error classification or the focus guard fails two browser checks, and the old main-module guard fails six entry tests.
+- **Every gate passes on Apple silicon.** 794 unit (780 passed, 14 skipped), 89 integration (2 skipped), `test:sql` 35, `test:db` 376/376, and 48/48 browser checks.
+- **No P0–P2 finding.**
+
+One new finding, **M03-RF-0024 (P3)**, is in LFE-06's resource panel (`apps/studio/src/features/resources/resource.ts`, `capacityLine`), which came from `main`:
+- An observed `tokens_remaining` or `credits_remaining` window has no percentage, so the headline says "No window observed".
+- A window whose state is unknown says the same, rather than "Capacity unknown".
+
+It was confirmed here. It is LFE-06's code (`029b6ba`, `cecea8b`), which is still moving, and M03 changes nothing under `features/resources/`, so it is handed to LFE-06 rather than fixed in PR #32 ([disposition](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5951638955)). The panel is not mounted in production. A fix on `main` reaches this branch at its next merge, where the resource checks run with everything else.
+
+**Closed.** LFE-06 [took it](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5960039362) and fixed it in #49 (`8816d66`), with unit tests for both balance units and the unknown window. #49 also fixes #48's open P2 in the same function: a due reset on a window that may not apply no longer heads the line. `main` is merged at `3ec41b2`. The reproduction now reads "5-hour window: 100000 tokens left, resets in 2 h" and "42 credits left, resets in 2 h"; an unknown window reads "Capacity unknown"; and "No window observed" is kept for a reading with no windows. At `3ec41b2`, `pnpm check` passes with 797 unit tests (796 passed, 1 skipped) and 95 integration tests (2 skipped), and `test:browser` passes 48/48.
+
+## 36. CX-0015: the PDF renderer on the existing runtime host, measured: blocked as proposed (2026-10-02)
+
+Davide ruled out a new $25/month renderer service. Codex then proposed ([CX-0015](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5956497250)) one Docker image on the existing runtime service (one instance, 0.5 CPU, 512 MB), running dsh and the PDF supervisor side by side. Its acceptance: a total cgroup peak of at most 384 MiB, no OOM, and the runtime within its deadlines. It asked Claude for a feasible-or-blocked verdict with evidence. **The verdict is blocked as proposed.**
+
+**How it was measured.** Locally, linux-x64, with cgroup v1 limits matching the plan (memory 512, 384 and 256 MiB; CPU quota 50000/100000):
+- the real kernel and headless shell, with reports printed by the real template;
+- the real dsh runtime under the RuntimeSupervisor, against the fixture service and the keyless mock model: idle, research turns and briefs.
+
+Four reviews then looked from separate angles (capacity, isolation on a shared host, supervision and limits, Render's platform), and three skeptics tried to refute the result. Nothing hosted ran: no provider call, no key.
+
+| Measured (0.5 CPU) | rss + shmem | Outcome |
+|---|---|---|
+| Runtime alone, idle / research turn | 150 / 166–176 MiB | fits even 384 MiB; boot 9.3 s against the 60 s ready timeout |
+| Render alone: typical (13 pages), draft-limit prose (95 pages), wide tables (156 pages) | 140 / 250–262 / 390–420 MiB | 3.5 / 8.5 / 11.6 s per render |
+| Render alone: dense tables (262,144 B Markdown, 199 tables, 275 pages; a legal draft) | about 1.3 GiB | Chromium OOM-killed even in a 1 GiB cgroup |
+| Runtime plus typical and draft-limit renders, one cgroup, 512 MiB | 444–452 MiB (working set 499–507) | 90 of 90 renders succeeded, no OOM; research turns about 35% slower; probes at most 118 ms |
+| The same pair, hard limit 384 MiB | — | thrashing: research turns 8–20 times slower, draft-limit renders time out, poll gap about 50 s |
+| Runtime plus wide-table renders, 512 MiB | 494 MiB | 0 of 4 renders; a research turn fails; poll gap about 100 s, past the runtime's 90 s `seen_at` deadline, so research admission refuses ("No research runtime is ready") |
+| Runtime plus wide-table renders, Chromium capped at 256 MiB (RLIMIT_DATA), 512 MiB | 444 MiB | every wide render fails fast ("PDF not produced"); the runtime unaffected (gap 20 s, probes at most 54 ms) |
+
+Lowering the render's priority (`nice 19`) brought no benefit, because one CPU quota covers both. Memory follows layout (pages, table cells), not bytes: the proposed 8 MiB input bound is 12 times the largest legal HTML, so it bounds nothing.
+
+**Why it is blocked.**
+- **Capacity.** The 384 MiB acceptance is not met by any combined run, and a hard 384 MiB limit thrashes. A legal draft can take the runtime past its `seen_at` deadline at 512 MiB, and a legal dense draft needs about 1.3 GiB on its own. No instance size prints every legal draft, so a PDF needs admission by structure (pages, table cells) whatever the host.
+- **No hard boundary for the render.** Only a delegated sub-cgroup with its own memory limit bounds a render, and whether Render's Docker containers allow one is unknown. The other levers do not hold:
+  - `oom_score_adj` is not pinned: without CAP_SYS_RESOURCE the render uid can lower it again, and Chromium lowers its renderer to 300 on its own;
+  - the browser can fill the container's shared `/dev/shm`, and those pages outlive the render;
+  - RLIMIT_DATA works only per process, and cannot usefully apply to the kernel's Node, which aborts at start with a limit of 512 MiB or less.
+- **Isolation.** The reviewed layout runs the supervisor and the kernel as root. Inside the runtime's container that is not safe:
+  - root processes with Docker's default capabilities can read each other's environment, including PID 1's, which holds every Render-injected secret;
+  - job directories (0755/0644) are readable by the runtime's uid, so dsh's file tools could read other projects' report HTML;
+  - one container boundary would hold the provider keys, every project's `/var/data` and the cross-project runner capability, all reachable from report content through a Chromium escape plus a kernel exploit.
+
+  Fixing this means changing the reviewed kernel files, which changes the kernel identity and couples renderer releases to runtime redeploys.
+- **Platform.** Only a hosted probe can show whether:
+  - a Render Docker service runs as root with CAP_SETUID and CAP_SETGID;
+  - it allows a fresh `/proc` mount (any `/proc` mask refuses `--mount-proc`; reproduced locally);
+  - a memory-cgroup OOM kills the whole instance (`memory.oom.group`);
+  - `/var/data` keeps its ownership across a native-to-Docker change.
+
+**Options for Davide** (prices for Codex to confirm on Render's pricing page):
+1. **Markdown now, PDF later.** No cost. This is already built: `start_research` refuses PDF while no runner has asked for work in ten minutes, and reports arrive as Markdown.
+2. **A separate small renderer service** (a Starter background worker: 512 MB, 0.5 CPU), with admission by structure and a Chromium cap. It keeps the runtime untouched and keeps the service boundary. Alone at 512 MiB (warm) the renderer printed every input except the dense one, which would be refused before printing. The wide-table input with its own file pages charged was not measured and may need the cap. The platform questions above still need the hosted probe.
+3. **The runtime moved to Standard (2 GB, 1 CPU) and shared**, with the isolation changes, admission by structure and a render sub-cgroup if Render delegates one. A plan upgrade; the dense draft still needs admission.
+
+Not run, and needed before any choice is accepted:
+- the real supervisor (claim, heartbeat, settle) under contention;
+- Hold, Stop and `start_research` during a render under load;
+- a run at 488 MiB, in case Render's 512 MB is decimal;
+- the dense draft beside the runtime;
+- a cold start from storage the host does not cache;
+- a memory soak over hours.
+
+Some combined results rest on a single run each: the 384 MiB run and the uncapped wide-table run. The raw logs and harnesses are in this session's private scratch, and Claude can add the harness to the repository if Codex wants to reproduce the runs.
+
+
+## 37. CX-0016: the first release without PDF, checked, and its P3s fixed (2026-10-02)
+
+Davide chose a first release without PDF. Codex prepared it ([CX-0016](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5960693454)): no render runner, no byte store (no `SOPHIA_STORAGE_*`), migrations 0021–0035 in order, and Markdown reports shown formatted in Studio and downloaded as `.md`. Before Davide approves the batch, five reviews checked PR #32 against exactly that configuration: the PDF refusal, the byte store, Studio, the guide and voice, and the release delta with its migrations. Skeptics stood ready to test any P1 or P2.
+
+Since then Davide chose that batch, and Codex deployed `6ec64f3` ([CX-0018](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006)): migrations 0021–0035, the API, the bridge with guide v1.1, and Studio. The runtime cutover, the pilot grant and the bridge's move to v1.2 are next. [CX-0017](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5961830273), an amendment for `16a7480`, was superseded by that choice.
+
+**Result: ready, with no P1 or P2** (this applies to `6ec64f3` as deployed, and to `16a7480`).
+- A PDF request is refused before admission: nothing is admitted, reserved or charged.
+- No step of the pilot reaches the byte store. Drafts, captures, publication and the content route are inline. The only store-dependent branch is a renderer's PDF upload, which no release step reaches.
+- The API starts without the store settings.
+- `6ec64f3..16a7480` (`main`'s #49 and docs) reaches no released service. LFE-06's resource panel is mounted only on its fixture page.
+
+**Fixed in `fc0a935`**, a follow-up to the deployed release. Only the API, persistence and Studio change, so only the API and Studio would redeploy. The guide's prompt bytes, the runtime bundle and the migrations are unchanged, and `pnpm artifacts` reproduces every identity. Each fix has a check that fails without it:
+
+| P3 | Fix | Check |
+|---|---|---|
+| `render_research` refused a Markdown-only report with "This research task does not produce a PDF", as if another task would have one, and `project_status` offered it | With no PDF renderer running, that refusal becomes `not_started:native_capability_unavailable`, "PDF reports are not available, so nothing was started.", the same answer as the database's own "No PDF renderer is running". It is decided after the database, so a replay of a queued rendition and the database's specific refusals (forbidden, already rendering, already has its PDF, stale) still answer first. `project_status` (guide v1.2) marks it unavailable, so Sophia promises no PDF for later | `research.db.test.ts`: render_research (including a replay with the renderer gone quiet) and project_status |
+| The PDF refusal said "right now" and offered a Markdown report before anything checked that one would be admitted (role, gate, runtime, allowance) | The refusal says "PDF reports are not available, so nothing was started." and offers nothing. A malformed format is asked as "Which format should the report be in?" | `research.db.test.ts`: start_research |
+| A page read with no text (a JavaScript-only page) was paid, then refused as a 503 "Unexpected database error" by a CHECK on `source_texts` | The capture refuses it as `invalid_request` ("The page had no text, so nothing was kept: cite it only as unread"), so nothing invites a retry | `research.db.test.ts` (persistence): an empty capture |
+| Knowledge offered "With PDF", which could only come back empty, and then said "No reports here yet" | The format filter is offered once a listed report has a PDF, stays while a format is chosen, and stays while a new filter's reports load, so a press keeps its focus. An empty list under a format or words says "No reports match these filters." with "Clear the filters", and the focus goes to the search field | unit (`formatsOffered`); browser "No-PDF release ·" |
+
+The fixture page now filters Knowledge by words (each a prefix, all required) and format as the API does, and lists a project only with at least one report (the contract's minimum; the first version of the fixture sent a zero count, which the client rightly refused). Its older report has a PDF, so the filter's pressed buttons are still checked once one is listed.
+
+An independent review of these fixes found no P1 or P2. Its P3s are folded in above: the first version decided `render_research`'s answer before the database, which broke a replay and hid specific refusals; the format filter left while a new filter loaded; and nits (a search of spaces, a check's wait, the fixture's search). One is accepted: the frozen bundle replaces the empty-capture refusal's reason with its own `invalid_request` message, so the model never sees "cite it only as unread" (note 6).
+
+**Notes for the release, not code changes:**
+1. **Guide version.** The bridge runs guide v1.2 when `SOPHIA_GUIDE_VERSION` is unset. Met: CX-0018's bridge loaded v1.1. Every fix to `render_research`, `project_status` and `start_research` reaches a person only through guide v1.2, so the API should be at `fc0a935` before the bridge moves to v1.2. The empty-capture fix applies once research runs.
+2. **Stop with the old worker.** Codex's old-worker rehearsal covers no Stop, and a Stop now fires 0032's deferred trigger in the worker's session. By the code it is a no-op without renditions (SECURITY DEFINER, empty loop), but the pilot's 35-minute Stop relies on it. Add one Stop of a queued task and one of a running task to the rehearsal.
+3. **No runner before the store.** PDF admission is checked in the API only. Never register a render runner before the byte store is set.
+4. **Rolling the bridge back to v1.1 after research exists.** v1.1 still lists and announces research results, though its prompt says no researcher runs. Accept this in the release matrix, or limit research notices to v1.2.
+5. **For the next guide revision** (its prompt bytes are frozen for this release):
+   - a steer cannot add a PDF to research under way;
+   - `render_research` applies only to a report whose task asked for a PDF;
+   - research operations get their own reason for viewers.
+6. **For the next bundle revision.** Skip the capture of an empty page and tell the model to cite it as unread. Until then the API's refusal reaches the model as the bundle's generic "check each field" message.
+
+**Open with Davide.** Is "HTML only" the in-app formatted view plus the `.md` download, as this release has it, or also a standalone `.html` download? The latter would be a small Studio addition: the report template could build the file in the browser from the hash-checked Markdown.
+
+Run here (linux-x64) at `fc0a935`:
+- `pnpm check`: 798 unit (797 passed, 1 skipped) and 95 integration (2 skipped); `pnpm artifacts` reproduces every identity;
+- `pnpm test:db` 376/376 and `pnpm test:sql` 35;
+- `test:browser` 49/49, with the report checks once more and the new no-PDF check five times in a row;
+- each fix's check run without it, and failing.
+
+## 38. `main`'s #50 merged (2026-10-02)
+
+`main` merged #50 (`14687b8`, LFE-06's Resources view: tiles, search, filters, a sheet and each tool's mark). It is merged here at `8f54dca`, after `fc0a935`, so the follow-up candidate for the deployed release stays `fc0a935` (CC-0018).
+
+**What #50 changes in production Studio.** Only `ProjectShell`'s structure: a `PageBody` for the pages, and a `resources` slot for the Resources view. Nothing outside its fixture page fills that slot, so production keeps the view's "coming" note until SCM-01/02 serve resources. The panel and its marks (`@lobehub/icons-static-svg`) are reached only from `fixtures/resources.html`. CC-0018 said #50 "mounts in Studio's `ProjectShell`"; it mounts there only on its fixture page.
+
+**Resolutions** (both sides kept):
+- `ProjectShell`: `main`'s `PageBody` and `resources` slot, inside this branch's report viewer (`withViewer`); Knowledge is a `PageBody` case.
+- `apps/studio/package.json`: both new dependencies (`@lobehub/icons-static-svg`, `@sophia/report`).
+- `pnpm-lock.yaml`: this branch's lock, with `main`'s one package added by `pnpm install` (the same version and integrity as `main`'s). `config/runtime-unit.json`'s `workspace_lock_sha256` is re-recorded with `pnpm artifacts:record`; the bundle archive (`6a01ce0e…`) and the dsh identities are unchanged.
+- `CONTRIBUTING.md`: `main`'s new resource-panel text, then this branch's report-viewer checks.
+- `fixtures/resources.tsx` (`main`'s, new to the fixture API): it now passes this branch's report fields, at rest, to the fixture API it shares with the room page.
+
+Run here at `8f54dca`: `pnpm check` with 804 unit tests (803 passed, 1 skipped) and 95 integration (2 skipped), and `pnpm artifacts` reproducing every identity; `test:browser` 63/63 (7 room, 11 Explore, 22 resource and 23 report checks). #50 changes no SQL, persistence or API, so `test:sql` (35) and `test:db` (376/376) stand from `fc0a935`.
+
+## 39. The pilot's findings (CX-0019..0023), the fact checks (0036) and HTML reports (2026-10-03)
+
+Davide piloted `6ec64f3` in production with Codex, reported in [CX-0019](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962521036) to [CX-0023](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962896818). Voice research worked end to end: the steer, the follow-up, publication, and downloads that match the stored versions. The pilot also found five problems for M03, and Davide asked for one change. Claude answered with the plan and its defaults in [CC-0019](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5963335355).
+
+Davide then decided (2026-10-03):
+- fix both fact-check defects now, with a migration;
+- `read_selected_source` keeps returning the summary;
+- "the research agent should be able to deliver html format. Pdf is postponed but html can work already right now and it should work."
+
+**How it was done.**
+- **Design.** Seven read-only investigations and a critic designed the pilot fixes. For HTML, a map, two competing designs and a judge; for 0036, a design and a critic.
+- **Implementation.** Implementers worked in separate worktrees.
+- **Checks.** Every fix has a check that fails without it, confirmed by reverting the fix. Each branch then had adversarial reviews and a fix pass.
+- **Cross-feature review.** A final review covered the whole delta across features, with skeptics on its serious findings. Its findings were fixed in turn, each change reviewed again.
+- **One design changed during review.** At first SQL mirrored the Markdown parser to decide which ids a report cites. Two parsers in two languages drift, so the API now takes the ids from the parser itself, and SQL verifies them.
+
+### What changed
+
+**CX-0019 #1: the pane clipped Download, Enlarge and Close at 1280.**
+- *Cause:* the pane's grid had no column template, so its column grew to the one-line title's width.
+- *Change:* `grid-template-columns: minmax(0, 1fr)`, and a long title ends in an ellipsis. Checks at 1024, 1280, 1440 and on a phone, with a long title: every control is inside the pane and responds to the mouse.
+
+**CX-0019 #2: citations showed as plain numbers, and every Sources row said "Not cited".**
+- *Cause:* the parser kept only http(s) and mailto link targets, so `[1](<id>)` became "1". The manifest was exactly the model's list, which for v2 was only the base.
+- *Parser:* a link whose target is a source ref (`[1](<id>)`, `[1](source: <id>)`) is a citation. Studio, the HTML page and a rendition number only the version's own sources.
+- *Submit:* the API reads the current draft and offers what `parseMarkdown` numbers. 0036's `research_draft_citations` adds each offered id that:
+  - appears in the draft;
+  - the task may cite: an input, the base, or a capture of its allowance;
+  - is not the task's question, its manifest or a draft.
+
+  The model's own list comes first, then these, up to 200 in all.
+
+**CX-0019 #3: "Conclusion changed" for a recommendations-only update.**
+- *Cause:* 0027 groups the two sections.
+- *Change:* History names what changed ("Recommendations changed", "Conclusion changed", or both), with the grouped label as the fallback.
+
+**CX-0020: research looked available while the grant was closed.**
+- *Cause:* `project_status` decided `start_research` from edit rights alone.
+- *Change:* it reads the grant: "Research reports are not available: research is not switched on for this project." Viewers hear research's own reason.
+
+**CX-0022: no card reached a member in voice mode.**
+- *Cause:* cards went only to members in text mode.
+- *Change:*
+  - Every signed member present gets the card, whatever their mode. Spoken announcements and their retries are unchanged.
+  - When a member's Studio says its mode (on joining, reconnecting or switching), the bridge sends the exchange's cards again, at most once every 3 s.
+  - Studio keeps one card per task, its newest revision.
+  - `text_recipients` counts distinct members who got the card.
+
+**CX-0023: the chat did not update in voice mode (Davide).**
+- *Cause:* the bridge withheld voice transcripts by design (D14, T10).
+- *Change:* live captions in the one Chat timeline.
+  - **What:** the floor holder's words and Sophia's, marked partial, final or cut off.
+  - **Who:** the members present, never guests.
+  - **Kept:** nothing is stored or logged.
+  - **Fences:** a stop, an end, a new floor holder, an input epoch, a reconnect, and the bridge losing its room. On a handover, the ends of open captions are passed on, never their words.
+  - **Off switch:** `SOPHIA_LIVE_CAPTIONS=off`. A value the bridge does not understand counts as off and is logged.
+  - **T10 now reads:** transcript text reaches only the present members' caption packets.
+
+**Fact check 1: a true note was refused** ("Recommendations expanded; conclusion unchanged.").
+- *Cause:* 0027's gate read the grouped fact, and its claims crossed clauses.
+- *Change:* 0036 `note_problems` checks each noun against its own sections, within its own clause. "No changes to the report" is still refused.
+
+**Fact check 2: repeated headings were miscounted.** One edit read as several revisions, and the count grew quadratically in large reports.
+- *Cause:* 0027 paired sections by anchor, many to many.
+- *Change:* 0036 `section_facts` pairs each section with at most one other, in this order: by heading path and occurrence, then by the path below the title, then by name in order. `markdown_outline` splits as Studio's `sectionsOf` does, with JavaScript whitespace, and runs in linear time. Studio's `compareSections` pairs the same way. Persistence tests check that the stored facts equal Studio's comparison, and fuzz the two splitters against each other.
+
+**HTML reports (Davide).**
+- Every published report downloads as one self-contained HTML page, `html-report-v1`: a strict CSP meta, no script, escaped text, citations and sources as links, and it works offline.
+- Studio prints it from the hash-checked Markdown. It can be downloaded from the work card, the pane, Knowledge and the chat card.
+- `start_research` accepts `html`. The task is a Markdown task, HTML never enters the manifest, and the receipt says the page will be on the card.
+- The bridge's tool declarations list `html`.
+- Nothing is stored.
+
+**Also.**
+- **Version byte caps.** The contract capped `changeFacts.bytes` at 100,000 while a draft may be 262,144 bytes, so History failed for long reports. The caps are now 262,144.
+- **Parser.**
+  - It closes a label on its own bracket, never puts a link inside a link, and numbers citations in reading order.
+  - It reads in linear time. Timing tests hold 256 KiB inputs of emphasis, headings, lists, tables, autolinks and link labels under 1 s.
+  - A table fills at most 65,536 cells; rows past that read as text.
+- **Readiness.** `/ready` requires 0036.
+- **`aria-disabled` while loading,** never `disabled`: Download, the notice card's Open and Download, and the new HTML buttons.
+
+### Unchanged
+
+- The guide's prompt, skill and manifest (v1.1 and v1.2), and their hashes.
+- The runtime bundle (`6a01ce0e…`); `pnpm artifacts` reproduces every identity.
+- Migrations 0001–0035.
+- `read_selected_source`, which still returns the summary.
+- Spoken announcements and their retries.
+
+### Deferred
+
+- **The PDF path's own looser rule.** `runtime_research_render_input` (0031) still counts the question, the manifest and earlier drafts as citable. PDF is postponed; align it when PDF returns.
+- **A model's own citations list naming the question, the manifest or a draft.** `research_publish` still checks that list as before.
+- **Heading anchors for non-ASCII letters, numbers and marks.** `heading_anchor` (`[:alnum:]`, as in 0027) and Studio's `anchorOf` (`\p{L}\p{N}`) can differ.
+- **Return recall (CX-0019 #5).** CC-0019 asks for the pilot's private rows and logs, and proposes an acceptance protocol.
+- **Stop with the retained worker.** It is still an acceptance gap.
+- **The pilot's v2 record and published versions.** They are not repaired: their link citations stay unnumbered.
+- **An HTML button on the pane's PDF view.** The pane offers the page on the Markdown view only; PDF is postponed.
+
+### Release order
+
+1. **0036.** `/ready` requires it.
+2. **Studio,** then the **API**, in that order or together. Studio reads the deployed API's routes, and must have the raised byte cap before any API serves a version over 100,000 bytes.
+3. **The bridge, last.** Its declarations offer `html` and promise the page on the card, so the API and Studio must already be live. Its cards and captions want the new Studio. Set `SOPHIA_LIVE_CAPTIONS=off` to hold captions back.
+
+Roll back in reverse order, bridge first. Nothing new is stored except 0036's facts, which keep their shape.
+
+Run here (linux-x64) at `4a33c2b`:
+- `pnpm check`: 929 unit (928 passed, 1 skipped) and 95 integration (93 passed, 2 skipped); `pnpm artifacts` reproduces every identity;
+- `pnpm test:sql`: 36 migrations, 2 test files; `pnpm test:db`: 395/395;
+- `test:browser`: 118/118 (room, Explore, Resources, the report viewer and the new voice chat checks);
+- each fix's check run without it, and failing.
+

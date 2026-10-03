@@ -18,15 +18,16 @@ import {
 } from 'livekit-client'
 import {
   CHAT_INPUT_TOPIC,
-  CHAT_REPLY_TOPIC,
   encodeChatPacket,
-  parseChatPacket,
+  type ChatCaption,
   type ChatInput,
+  type ChatNotice,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import { deviceChange } from './device-change.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
+import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
@@ -74,6 +75,12 @@ export interface RoomConnection {
 
 export interface RoomCallbacks {
   onChat?: (packet: ChatReply) => void
+  /** A finished result's card, for every member present, whether they hear Sophia or read her (S6, CX-0022). */
+  onNotice?: (packet: ChatNotice) => void
+  /** A live caption of what is said aloud, for every member present (CX-0023). */
+  onCaption?: (packet: ChatCaption) => void
+  /** Captions under way may never get their end here: Sophia left or joined again, or this connection is reconnecting. */
+  onCaptionsLost?: () => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -91,17 +98,6 @@ const toView = (p: Participant, local: boolean): RoomParticipant => ({
   local,
   standing: standingOf(p.metadata),
 })
-
-/** The bridge: the identity no person can be issued, with the standing only the API signs (amendment A06). */
-function isSophia(p: Participant): boolean {
-  if (p.identity !== 'sophia') return false
-  try {
-    const value: unknown = JSON.parse(p.metadata ?? 'null')
-    return typeof value === 'object' && value !== null && 'sophia' in value && value.sophia === true
-  } catch {
-    return false
-  }
-}
 
 function sophiaSignal(p: Participant | undefined): SophiaSignal | null {
   if (!p) return null
@@ -186,6 +182,29 @@ const CHANGES = [
   RoomEvent.AudioPlaybackStatusChanged,
 ] as const
 
+/**
+ * Tells Sophia whether this person reads or hears her (SMC-M03 S6): when it changes, and again whenever she joins or
+ * the connection comes back, because her bridge keeps it only while both are in the room. Each one is also the hello
+ * after which the bridge sends this page the result cards the exchange has shown (CX-0022). Best effort: a signal
+ * that is lost leaves this person a listener, who still finds the result on its work card.
+ */
+function modeSignal(room: Room, textOnly: () => boolean): () => void {
+  const send = () => {
+    room.localParticipant
+      .publishData(encodeChatPacket({ kind: 'mode', textMode: textOnly() }), {
+        reliable: true,
+        destinationIdentities: ['sophia'],
+        topic: CHAT_INPUT_TOPIC,
+      })
+      .catch(() => undefined)
+  }
+  room.on(RoomEvent.ParticipantConnected, (p) => {
+    if (isSophia(p)) send()
+  })
+  room.on(RoomEvent.Reconnected, send)
+  return send
+}
+
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room({
     adaptiveStream: true,
@@ -204,11 +223,8 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     audio.clear()
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
-  room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
-    if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
-    const packet = parseChatPacket(bytes)
-    if (packet && packet.kind !== 'input') cb.onChat?.(packet)
-  })
+  listenToSophia(room, cb)
+  const signalMode = modeSignal(room, () => textOnly)
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
@@ -227,6 +243,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     setTextMode: (on) => {
       textOnly = on
       for (const el of audio) if (el.dataset.sophiaRoomAudio === 'sophia') el.muted = on
+      signalMode()
     },
     textMode: () => textOnly,
     participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],

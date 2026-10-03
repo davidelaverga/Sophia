@@ -1,9 +1,9 @@
 // Views whose records do not exist yet say what they will hold, in the user's words (the goal that brings
 // each one is noted beside it, for us). Nothing here pretends to work; where a view's job is already done
-// elsewhere, it leads there.
+// elsewhere, it leads there. Knowledge has its Reports (SMC-M03); its Sources and Decisions come with S1-08.
 import type { View } from '../../app/route.ts'
 
-type PendingViewName = Extract<View, 'knowledge' | 'updates' | 'resources'>
+type PendingViewName = Extract<View, 'updates' | 'resources'>
 
 interface Pending {
   title: string
@@ -13,11 +13,6 @@ interface Pending {
 }
 
 const PENDING: Record<PendingViewName, Pending> = {
-  // S1-08, source imports.
-  knowledge: {
-    title: 'Knowledge',
-    body: 'Current decisions, imported sources and what Sophia understands about the project will live here.',
-  },
   // S1-09, owner actions.
   updates: {
     title: 'Updates',
