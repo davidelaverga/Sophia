@@ -76,6 +76,7 @@ export const resources: Resource[] = [
 
 const percent = (window_id: string, value: number, resetsIn: number): QuotaWindow => ({
   window_id,
+  window_epoch: `${window_id}@${resetsIn}`,
   unit: 'percent_used',
   value,
   resets_at: at(resetsIn),

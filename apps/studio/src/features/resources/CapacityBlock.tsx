@@ -3,7 +3,7 @@
 import { useId, useState } from 'react'
 import { Icon, Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
-import { windowHistory, type Point } from './history.ts'
+import { spanOf, windowHistory, type Point } from './history.ts'
 import { pace } from './pace.ts'
 import { Sparkline } from './Sparkline.tsx'
 import { ago, capacity, expired, windowView, type QuotaObservation, type QuotaWindow } from './resource.ts'
@@ -49,7 +49,12 @@ function Windows({ observation, now, earlier, shown }: Reading & { shown: QuotaW
                 />
               )}
               {v.state === 'observed' && (
-                <Sparkline name={`${v.name} window`} points={windowHistory(w, [...earlier, observation])} now={now} />
+                <Sparkline
+                  name={`${v.name} window`}
+                  points={windowHistory(w, [...earlier, observation])}
+                  now={now}
+                  caption
+                />
               )}
             </dd>
           </div>
@@ -65,11 +70,10 @@ function Windows({ observation, now, earlier, shown }: Reading & { shown: QuotaW
  * "shared by 2 sessions · 6 readings in 3 h · 1 min ago".
  */
 function Meta({ observation, sessions, reservePercent, now, points }: Props & { points: Point[] }) {
-  const first = points[0]
-  const span = first ? ago(new Date(first.at).toISOString(), now).replace(/ ago$/, '') : ''
+  const span = spanOf(points)
   const parts = [
     sessions > 1 ? `shared by ${sessions} sessions` : null,
-    points.length > 1 ? `${points.length} readings in ${span}` : null,
+    span ? `${points.length} readings in ${span}` : null,
     observation ? ago(observation.observed_at, now) : 'never observed',
     reservePercent !== null ? `${reservePercent}% kept back` : null,
   ]

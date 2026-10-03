@@ -63,6 +63,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 14** ([handoff](../handoffs/LFE-06-attempt-14.md)): a last pass. J and K step through the resources from the sheet; the head takes its tool's light; two Claude Codes side by side greet and look at each other; a secret (type "ultracode").
 - **Attempt 15** ([handoff](../handoffs/LFE-06-attempt-15.md)): the windows, each said once: the list holds only the windows the headline doesn't ("2 more windows"), and no toggle when nothing is left.
 - **Attempt 16** ([handoff](../handoffs/LFE-06-attempt-16.md)): arranging the tiles by hand: drag one onto another, or Alt and an arrow; a Custom order kept per viewer.
+- **Attempt 17** ([handoff](../handoffs/LFE-06-attempt-17.md)): Codex's twelve P2s across #53 to #60, fixed together (history by `window_epoch`, model names kept whole, GPT alive only at Ultra, the history's own span, flashes for every change, nothing said while reading, the phone sheet's head, the Tab stop after a drag).
 
 ## Acceptance cases
 

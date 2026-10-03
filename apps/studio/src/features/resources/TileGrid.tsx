@@ -27,6 +27,11 @@ function moveTo(key: string, from: number, count: number, columns: number): numb
 
 const openOn = (actions: RequiredAction[], id: string) =>
   actions.filter((a) => a.resourceId === id && a.state === 'open').length
+const openIds = (actions: RequiredAction[], id: string) =>
+  actions
+    .filter((a) => a.resourceId === id && a.state === 'open')
+    .map((a) => a.id)
+    .join(' ')
 const observationOf = (observations: QuotaObservation[], r: Resource) =>
   observations.find((o) => o.entitlement_id === r.entitlementId)
 const nameOf = (r: Resource) => `${r.owner.name} · ${TOOL[r.tool]}`
@@ -60,7 +65,7 @@ function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
     const to = moveTo(e.key, current, shown.length, columns)
     const from = shown[current]
     const target = to === null ? undefined : shown[to]
-    if (to === null || !from || !target) return
+    if (to === null || !from || !target || to === current) return
     e.preventDefault()
     if (e.altKey) {
       moving.current = from.id
@@ -70,7 +75,11 @@ function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
     setActive(to)
     tiles.current[to]?.focus()
   }
-  return { tiles, current, setActive, onKeyDown }
+  /** A tile moved another way (dragged): it becomes the Tab stop once in its new place. */
+  const follow = (id: string) => {
+    moving.current = id
+  }
+  return { tiles, current, setActive, onKeyDown, follow }
 }
 
 /** A tile dragged onto another: which is dragged, which it is over, and the handlers each tile takes. */
@@ -116,7 +125,10 @@ export function TileGrid(props: Props) {
     props.onArrange(id, target)
   }
   const keys = useKeys(shown, arrange)
-  const drag = useDrag(arrange)
+  const drag = useDrag((id, target) => {
+    keys.follow(id)
+    arrange(id, target)
+  })
   const list = useRef<HTMLUListElement>(null)
   const buddies = useBuddies(list, shown.map((r) => r.id).join(' '))
   return (
@@ -139,6 +151,7 @@ export function TileGrid(props: Props) {
               now={now}
               mine={r.owner.id === viewerId}
               waiting={openOn(actions, r.id)}
+              waitingKey={openIds(actions, r.id)}
               onOpen={() => onOpen(r.id)}
               buddy={buddies.get(r.id)}
               current={i === keys.current}

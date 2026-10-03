@@ -60,6 +60,8 @@ export interface Resource {
 
 export interface QuotaWindow {
   window_id: string
+  /** One continuous window: a reset starts a new epoch, even with the same id (and maybe the same or no reset time). */
+  window_epoch?: string
   unit: 'percent_used' | 'credits_remaining' | 'tokens_remaining' | 'spend_percent_used'
   value: number | null
   resets_at: string | null

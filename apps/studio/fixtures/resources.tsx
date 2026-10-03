@@ -4,8 +4,10 @@
 // unexpected. The query string picks who is looking, `viewer=davide` (default: Luis); `stale=1` (Codex's reading has
 // expired); `more=1` (Grok and Gemini CLI join the three enrollments); `quiet=1` (nothing waits on an owner);
 // `busy=1` (Codex's account at 92 % and 78 %, Davide's Claude Code at 95 %); `spent=1` (Codex's spend limit passed, at 120 %);
-// `loading=1` (the resources not read yet, until `resourcesFixture.load()`). Live, `resourcesFixture.addRequest()` brings a request to wait on Davide, `answerRequest()` answers the first, and
-// `setHost(id, state)` moves a host, as a live read would.
+// `loading=1` (the resources not read yet, until `resourcesFixture.load()`); `refreshing=1` (read again, the last read's
+// data still in hand). Live, as a live read would: `resourcesFixture.addRequest()` brings a request to wait on Davide,
+// `answerRequest()` answers the first, `swapRequest()` answers it while another comes, `spendCredits(n)` moves Gemini's
+// balance, and `setHost(id, state)` moves a host.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -42,6 +44,8 @@ declare global {
       answerRequest?: () => void
       load?: () => void
       setHost?: (id: string, state: Resource['host']['state']) => void
+      spendCredits?: (left: number) => void
+      swapRequest?: () => void
     }
   }
 }
@@ -69,25 +73,55 @@ const waitingOn = (list: typeof actions, id: string) =>
   list.filter((a) => a.ownerId === id && a.state === 'open').length
 
 /** The view over data that can change while it is open, as a live read's would. */
+type LiveState = {
+  actions: typeof actions
+  resources: typeof shown
+  observations: typeof read
+  loading: boolean
+}
+
+/** What a test can change while the page is open, as a live read would. */
+function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): NonNullable<Window['resourcesFixture']> {
+  return {
+    unexpected,
+    load: () => setLive((l) => ({ ...l, loading: false })),
+    answerRequest: () =>
+      setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
+    addRequest: () => setLive((l) => ({ ...l, actions: [...l.actions, arriving(l.actions.length + 1)] })),
+    // Gemini's balance moves: only its count changes, no percentage.
+    spendCredits: (left) =>
+      setLive((l) => ({
+        ...l,
+        observations: l.observations.map((o) =>
+          o.entitlement_id === 'ent-luis-google' ? { ...o, windows: o.windows.map((w) => ({ ...w, value: left })) } : o,
+        ),
+      })),
+    // In one read, the request waiting is answered and another comes to wait on the same tool: the count stays 1.
+    swapRequest: () =>
+      setLive((l) => ({
+        ...l,
+        actions: [
+          ...l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' as const } : a)),
+          { ...arriving(l.actions.length + 1), resourceId: 'davide-claude', sessionId: 'claude-worker' },
+        ],
+      })),
+    setHost: (id, state) =>
+      setLive((l) => ({
+        ...l,
+        resources: l.resources.map((r) => (r.id === id ? { ...r, host: { ...r.host, state } } : r)),
+      })),
+  }
+}
+
 function Live() {
-  const [live, setLive] = useState({
+  const [live, setLive] = useState<LiveState>({
     actions: query.get('quiet') === '1' ? [] : actions,
     resources: shown,
-    loading: query.get('loading') === '1',
+    observations: read,
+    loading: query.get('loading') === '1' || query.get('refreshing') === '1',
   })
   useEffect(() => {
-    window.resourcesFixture = {
-      unexpected,
-      load: () => setLive((l) => ({ ...l, loading: false })),
-      answerRequest: () =>
-        setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
-      addRequest: () => setLive((l) => ({ ...l, actions: [...l.actions, arriving(l.actions.length + 1)] })),
-      setHost: (id, state) =>
-        setLive((l) => ({
-          ...l,
-          resources: l.resources.map((r) => (r.id === id ? { ...r, host: { ...r.host, state } } : r)),
-        })),
-    }
+    window.resourcesFixture = controls(setLive)
   }, [])
   return (
     <ProjectShell
@@ -102,8 +136,8 @@ function Live() {
       resourcesWaiting={waitingOn(live.actions, viewer.id)}
       resources={
         <ResourcePanel
-          resources={live.loading ? [] : live.resources}
-          observations={read}
+          resources={live.loading && query.get('refreshing') !== '1' ? [] : live.resources}
+          observations={live.observations}
           actions={live.actions}
           viewerId={viewer.id}
           now={NOW}
