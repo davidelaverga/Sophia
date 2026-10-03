@@ -22,20 +22,24 @@ const v = (n: number): ReportVersion => ({
   sections: null,
 })
 
-const standing = (over: Partial<TaskStanding> = {}): TaskStanding => ({
-  taskId: TASK,
-  kind: 'research',
-  goalId: TASK,
-  goalStatus: 'running',
-  state: 'running',
-  phase: 'running',
-  published: null,
-  previous: null,
-  current: null,
-  latestTaskId: TASK,
-  inFlight: [{ taskId: TASK, state: 'running', phase: 'running' }],
-  ...over,
-})
+/** One task, under way unless `over` says otherwise; its goal has nothing else under way unless `over` adds it. */
+function standing(over: Partial<TaskStanding> = {}): TaskStanding {
+  const own = { state: over.state ?? 'running', phase: over.phase ?? 'running' }
+  const underWay = own.state === 'pending' || own.state === 'running'
+  return {
+    taskId: TASK,
+    kind: 'research',
+    goalId: TASK,
+    goalStatus: 'running',
+    published: null,
+    previous: null,
+    current: null,
+    latestTaskId: TASK,
+    inFlight: underWay ? [{ taskId: TASK, ...own }] : [],
+    ...over,
+    ...own,
+  }
+}
 
 const refused = (action: Control, s: TaskStanding | null, over: Partial<Refused> = {}) =>
   refusedControl({ action, refusedAs: 'invalid_state', standing: s, researchGate: true, ...over })
@@ -64,6 +68,12 @@ describe('control_work’s explanation table', () => {
       assert.doesNotMatch(`${out.reason} ${out.next ?? ''}`, NEVER_SAID)
     }
     assert.equal(refused('hold', standing(), { refusedAs: 'stale_revision' }).code, 'not_applied:changed')
+    // A finished task whose goal holds a follow-up: the Hold refused the steer, not the finished report.
+    const follow = { taskId: NEXT, state: 'running' as const, phase: 'held' as const }
+    const heldFollowUp = standing({ goalStatus: 'held', state: 'succeeded', phase: 'held', inFlight: [follow] })
+    const held = refused('steer', { ...heldFollowUp, published: v(1), latestTaskId: NEXT })
+    assert.deepEqual([held.code, held.next], ['not_applied:on_hold', undefined])
+    assert.equal(refused('hold', { ...heldFollowUp, goalStatus: 'ready' }).code, 'not_applied:not_started')
   })
 
   it('offers a follow-up only for a steer on research that ended, and says when none can start', () => {
@@ -101,6 +111,12 @@ describe('control_work’s explanation table', () => {
       inFlight: [{ taskId: NEXT, state: 'running', phase: 'running' }],
     })
     assert.match(steerAccepted(finished), new RegExp(`^Steer accepted for running research \\(taskId ${NEXT}\\)\\.`))
+    // A task whose outcome is unknown is named, never called running.
+    const unconfirmed = { state: 'outcome_unknown' as const, phase: 'outcome_unknown' as const }
+    assert.equal(
+      steerAccepted(standing({ ...unconfirmed, inFlight: [{ taskId: TASK, ...unconfirmed }] })),
+      `Steer accepted for research (taskId ${TASK}). It is not applied yet, and no confirmation comes back here.`,
+    )
     assert.equal(
       steerAccepted(standing({ state: 'failed', phase: 'failed', inFlight: [] })),
       'Steer accepted. No confirmation comes back here; project_status says where the work stands.',

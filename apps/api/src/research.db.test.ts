@@ -1,6 +1,7 @@
 // SMC-M03 S4 part 1 through real HTTP (level: sql-run): start_research over /v1/media/tool-calls, the guide-versioned
 // tool surface, and the runtime research routes (A11), which take a runtime capability, validate the declared
-// schemas and answer the database's typed refusals. Synthetic HS256 tokens stand in for Supabase Auth.
+// schemas and answer the database's typed refusals; and what read_selected_source and control_work tell the guide of
+// a report's versions and of a control (CX-0026, CX-0027). Synthetic HS256 tokens stand in for Supabase Auth.
 import { createHash, randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
@@ -89,7 +90,8 @@ after(async () => {
   await db.drop()
 })
 
-const ROLES = [{ id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }]
+const MD_ROLE = { id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }
+const ROLES = [MD_ROLE]
 const PDF_ROLE = { id: 'sophia-research-pdf-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:pdf' }
 
 /**
@@ -964,7 +966,7 @@ async function researched(w: World, r: Research): Promise<string> {
         outputs: ['markdown'],
         ...(r.amends ? { amendsTaskId: r.amends } : {}),
       },
-      specialist: { role: ROLES[0]!.id, route: ROLES[0]!.route },
+      specialist: { role: MD_ROLE.id, route: MD_ROLE.route },
     }),
   )
   assert.ok('admitted' in admission)
@@ -1051,7 +1053,8 @@ async function renditionOnly(w: World, taskId: string): Promise<string> {
       `INSERT INTO sophia.jobs(project_id,kind,state,parent_job_id) VALUES($1,'render','succeeded',$2) RETURNING id`,
       [w.projectId, taskId],
     )
-    const renderJob = job.rows[0]!.id
+    const renderJob = job.rows[0]?.id
+    assert.ok(renderJob)
     const { rows } = await owner.query<{ id: string }>(
       `WITH v AS (UPDATE sophia.artifact_versions SET state='superseded' WHERE project_id=$1 AND job_id=$2 RETURNING *)
        INSERT INTO sophia.artifact_versions(project_id,artifact_id,parent_id,source_id,source_hash,goal_id,goal_revision,
@@ -1067,7 +1070,8 @@ async function renditionOnly(w: World, taskId: string): Promise<string> {
          FROM v JOIN sophia.source_texts t ON t.project_id=v.project_id AND t.source_id=v.source_id RETURNING id`,
       [w.projectId, taskId, renderJob],
     )
-    const version = rows[0]!.id
+    const version = rows[0]?.id
+    assert.ok(version)
     await owner.query(
       `UPDATE sophia.artifacts a SET stable_version_id=v.id FROM sophia.artifact_versions v
         WHERE v.project_id=$1 AND v.id=$2 AND a.project_id=v.project_id AND a.id=v.artifact_id`,

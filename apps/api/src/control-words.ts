@@ -148,13 +148,19 @@ function notNow(r: Refused, s: TaskStanding): NotApplied {
   return changed()
 }
 
-/** Why a control was not applied, from where the task stands now. */
+/**
+ * Why a control was not applied, from where the task stands now. A task that ended answers for itself only while
+ * nothing of its goal is under way; otherwise the goal's state refused it (a follow-up held, say), and says why.
+ */
 export function refusedControl(r: Refused): NotApplied {
   const s = r.standing
   if (!s) return notApplied('unread', `${NOTHING} Read project_status.`)
   if (r.refusedAs === 'stale_revision') return changed()
-  return ended(r, s) ?? notNow(r, s)
+  return (s.inFlight.length === 0 ? ended(r, s) : null) ?? notNow(r, s)
 }
+
+/** How an accepted steer names the state of the work it reaches; any other state (unconfirmed, say) is not named. */
+const STEERED: Partial<Record<TaskState, string>> = { waiting_to_start: 'waiting-to-start', running: 'running' }
 
 /** The task an accepted steer reaches: the named one while under way, else the goal's newest under way. */
 function receiver(s: TaskStanding): { taskId: string; state: TaskState } | null {
@@ -171,6 +177,7 @@ export function steerAccepted(s: TaskStanding | null): string {
   const after = 'It is not applied yet, and no confirmation comes back here.'
   const to = s && receiver(s)
   if (!s || !to) return 'Steer accepted. No confirmation comes back here; project_status says where the work stands.'
-  const when = to.state === 'waiting_to_start' ? 'waiting-to-start' : 'running'
-  return `Steer accepted for ${when} ${s.kind === 'research' ? 'research' : 'work'} (taskId ${to.taskId}). ${after}`
+  const when = STEERED[to.state]
+  const what = `${when ? `${when} ` : ''}${s.kind === 'research' ? 'research' : 'work'}`
+  return `Steer accepted for ${what} (taskId ${to.taskId}). ${after}`
 }
