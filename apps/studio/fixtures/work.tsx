@@ -8,12 +8,14 @@
 // decision is past its expiry; `unknown=1`: an answer comes back not confirmed; `unplanned=1`: a goal without a plan;
 // `staggered=1`: Sophia answers the first question slower than the next. `workFixture.replan()` replaces the first
 // goal's plan with a new one (a new plan id), as the lead would. `later=1` (with `two=1`): the second goal's plan is
-// held back until `workFixture.arrive()`, as a slower read would.
+// held back until `workFixture.arrive()`, as a slower read would. `review=…`: how the lead answers the goal's Request
+// review (work-review.ts); `workFixture.commands` lists each goal command sent, with its key.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import type { GoalCommand } from '@sophia/contracts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import type { Decide } from '../src/features/work/planning/Decision.tsx'
@@ -30,6 +32,7 @@ import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions, NOW, observations, people, resources, tightClaude } from './resources-data.ts'
 import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
+import { openedWith, reviewer, reviewMode } from './work-review.ts'
 import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan, unplannedGoal } from './work-data.ts'
 
 declare global {
@@ -42,6 +45,7 @@ declare global {
       begin?: (workId: string) => void
       replan?: () => void
       arrive?: () => void
+      commands?: { kind: string; key: string }[]
     }
   }
 }
@@ -50,7 +54,10 @@ const query = new URLSearchParams(window.location.search)
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
+/** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
+let onCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
+  onCommand: (command, key) => onCommand?.(command, key),
   revision: 1,
   exchange: false,
   messages: [],
@@ -98,6 +105,7 @@ if (query.get('since') === '1') {
   }
 }
 const state = query.get('superseded') === '1' ? 'superseded' : query.get('proposed') === '1' ? 'proposed' : 'accepted'
+const review = reviewMode(query.get('review'))
 
 /** The decider's answer, taken as a lead would: recorded, or refused when the page asked for a stale decision. */
 const decide: Decide = (decision, choice) => {
@@ -163,7 +171,7 @@ function slot(p: WorkPlan, now: Date, shared: Shared) {
         {...shared}
       />
     ),
-    next: <PlanNext plan={p} />,
+    next: <PlanNext plan={p} now={now} people={shared.people} viewerId={shared.viewerId} />,
     tab: <PlanTab plan={p} now={now} {...shared} />,
     words: p.items.map((i) => i.purpose).join(' '),
     tasks: p.items.map((i) => i.id),
@@ -171,7 +179,13 @@ function slot(p: WorkPlan, now: Date, shared: Shared) {
 }
 
 function Tasks() {
-  const [first, setFirst] = useState(() => expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))
+  const [first, setFirst] = useState(() =>
+    openedWith(review, expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state))),
+  )
+  const [lead] = useState(() => reviewer(review, viewer, setFirst))
+  useEffect(() => {
+    onCommand = lead.command
+  }, [lead])
   const [live, setLive] = useState(() => withActivity(resources))
   const [arrived, setArrived] = useState(query.get('later') !== '1')
   // The page's clock runs from NOW, so ages count up and the freshness rings empty as they would.
@@ -196,8 +210,9 @@ function Tasks() {
       begin: (workId) => moving(() => setLive((l) => begun(l, workId))),
       replan: () => setFirst((p) => ({ ...p, plan_id: 'plan-1b', revision: 1 })),
       arrive: () => setArrived(true),
+      commands: lead.commands,
     }
-  }, [])
+  }, [lead])
   const shared = { resources: live, people, viewerId: viewer, actions }
   // A plan in force or proposed fills its goal's slot; otherwise Tasks shows the goal as it does without one.
   const plans = Object.fromEntries(

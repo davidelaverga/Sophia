@@ -546,3 +546,91 @@ test('type · the board, a goal without a plan, and a task’s sheet keep to the
     sheet.join(' '),
   ).toEqual([])
 })
+
+// ---- Its progress review (LFE-07.2): asked with the goal's Request review, said on the goal's quiet line. ----
+
+const requestReview = (page: Page) => page.getByRole('button', { name: /^Request review/ })
+const reviewLine = (page: Page) => page.locator('.plan-next-review')
+const commandsOf = (page: Page) => page.evaluate(() => window.workFixture?.commands ?? [])
+
+/** The page with its clock held: time moves only as a check moves it. */
+async function heldAt(page: Page, query: string) {
+  await page.clock.install()
+  await page.goto(`${PAGE}${query}`)
+  await expect(requestReview(page)).toBeVisible({ timeout: 15_000 })
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000))
+}
+
+test('review · asked, the goal’s line says the lead is reviewing; a routine end is said only on that line', async ({
+  page,
+}) => {
+  await heldAt(page, '?')
+  await expect(reviewLine(page)).toHaveCount(0) // nothing before the first review
+  await requestReview(page).click()
+  // Its own receipt is Request review's: sent, never done.
+  await expect(page.locator('.controls .outcome')).toContainText('Sent')
+  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by you \d+ s ago$/)
+  await expect(reviewLine(page).locator('.activity-dot')).toBeVisible()
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText(/^Reviewed \d+ s ago · no change$/)
+  // PLAN-04: nothing announced, beyond the request's own receipt.
+  await expect(page.getByRole('status').filter({ hasText: /Reviewed|no change|reviewing/ })).toHaveCount(0)
+  expect(await commandsOf(page)).toEqual([{ kind: 'request_review', key: expect.any(String) }])
+})
+
+test('review · not enough to tell is said on the same quiet line, with what the lead waits for', async ({ page }) => {
+  await heldAt(page, '?review=insufficient')
+  await requestReview(page).click()
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText(/· not enough to tell until the retry passes the export tests$/)
+})
+
+test('review · one that didn’t finish is said so', async ({ page }) => {
+  await heldAt(page, '?review=failed')
+  await requestReview(page).click()
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText('The last review didn’t finish')
+})
+
+test('review · PLAN-01: asked while one runs, it joins it: still the one review, its asker named', async ({ page }) => {
+  await heldAt(page, '?review=running')
+  await expect(reviewLine(page)).toHaveText('The lead is reviewing · asked by Davide 3 min ago')
+  await requestReview(page).click()
+  await expect.poll(() => commandsOf(page)).toHaveLength(1)
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by Davide \d+ min ago$/)
+})
+
+test('review · a scheduled review says so', async ({ page }) => {
+  await heldAt(page, '?review=scheduled')
+  await expect(reviewLine(page)).toHaveText('The lead is reviewing · scheduled')
+})
+
+test('review · one of the plan’s previous revision says which', async ({ page }) => {
+  await heldAt(page, '?review=old')
+  await expect(reviewLine(page)).toHaveText('The lead is reviewing · asked by Davide 3 min ago · of r1')
+})
+
+test('review · unfunded, it waits and names who can extend the allowance', async ({ page }) => {
+  await heldAt(page, '?review=awaiting')
+  await expect(reviewLine(page)).toHaveText('Awaiting review: the project’s allowance is spent. Davide can extend it.')
+  await expect(reviewLine(page)).toHaveAttribute('data-kind', 'awaiting')
+})
+
+test('review · the lead reviewing pings, and is still under reduced motion', async ({ page }) => {
+  const ping = () =>
+    reviewLine(page)
+      .locator('.activity-dot')
+      .evaluate((d) => getComputedStyle(d, '::after').animationName)
+  await heldAt(page, '?review=running')
+  expect(await ping()).not.toBe('none')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await ping()).toBe('none')
+})
+
+test('@phone · review: the goal’s line wraps whole, nothing past the screen', async ({ page }) => {
+  await heldAt(page, '?review=awaiting')
+  await expect(reviewLine(page)).toBeVisible()
+  const box = await reviewLine(page).boundingBox()
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0)
+})
