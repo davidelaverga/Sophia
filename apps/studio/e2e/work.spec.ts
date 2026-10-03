@@ -509,6 +509,15 @@ test('a followed address whose plan arrives later still opens its task, the sear
   await expect(page.getByRole('searchbox')).toHaveValue('')
 })
 
+test('an address the page opens with waits for its plan too, the search giving way', async ({ page }) => {
+  await page.goto(`${PAGE}?two=1&later=1#task-pane-copy`)
+  await page.getByRole('searchbox').fill('PDF retry')
+  await page.evaluate(() => new Promise(requestAnimationFrame))
+  await page.evaluate(() => window.workFixture?.arrive?.())
+  await expect(page.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+  await expect(page.getByRole('searchbox')).toHaveValue('')
+})
+
 test('“What happens if I say yes?” is asked only by the one the request waits on', async ({ page }) => {
   await page.goto(PAGE) // Luis: the request waits on Davide
   await tile(page, 'work-1').click()

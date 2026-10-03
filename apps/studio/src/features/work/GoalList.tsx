@@ -128,7 +128,8 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
   const { tabbed, shown, listed, anyPlan, choose, followed } = useChosenGoal(snapshot, plans, query)
   // Each time an address is followed, a search hiding its task's goal is cleared once its task is on a plan, which may
   // arrive later: until then the address waits, and a search typed while it waits gives way too. One typed after is kept.
-  const handled = useRef(followed.seq)
+  // The address the page opens with is followed too: none is handled yet.
+  const handled = useRef<number | null>(null)
   useEffect(() => {
     if (handled.current === followed.seq || !followed.found) return
     handled.current = followed.seq
