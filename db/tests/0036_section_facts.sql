@@ -27,10 +27,35 @@ BEGIN
  IF f<>jsonb_build_object('added','["Option C","Pros"]'::jsonb,'revised','["Pros"]'::jsonb,'removed','[]'::jsonb,
    'unchanged','["Options","Option A","Cons","Option B","Pros","Cons"]'::jsonb,'conclusionChanged',false) THEN
   RAISE EXCEPTION 'Repeated headings miscounted: %',f; END IF;
+ -- The same path repeated ('## Update' three times under one title) pairs by occurrence, never each with each.
+ o:=E'# Log\n## Update\nMon.\n## Update\nTue.\n## Update\nWed.\n';
+ f:=sophia.section_facts(o,replace(o,'Tue.','Tue, late.'));
+ IF f<>'{"added":[],"revised":["Update"],"removed":[],"unchanged":["Log","Update","Update"],"conclusionChanged":false}' THEN
+  RAISE EXCEPTION 'One edit among repeated paths miscounted: %',f; END IF;
+ f:=sophia.section_facts(o,o||E'## Update\nThu.\n');
+ IF f<>'{"added":["Update"],"revised":[],"removed":[],"unchanged":["Log","Update","Update","Update"],"conclusionChanged":false}' THEN
+  RAISE EXCEPTION 'An appended repeated path miscounted: %',f; END IF;
 END $$;
--- What is left after the path pass pairs by anchor in order: a renamed title keeps its sections; a removed Option B
--- takes its own Pros, never A's.
-DO $$ DECLARE f jsonb; BEGIN
+-- What is left after the path pass pairs on the path below the title, then by anchor, each in order: a renamed title
+-- keeps its sections, repeated ones each with its own; a renamed parent keeps its children in order; a removed
+-- Option B takes its own Pros, never A's.
+DO $$ DECLARE f jsonb;
+ o text:=E'# Options\n\n## Option A\nFast.\n\n### Pros\nCheap.\n\n### Cons\nLoud.\n\n## Option B\nSlow.\n\n### Pros\nQuiet.\n\n### Cons\nCostly.\n';
+ l text:=E'# Log\n## Update\nMon.\n## Update\nTue.\n## Update\nWed.\n';
+ w text:=E'# T\n## Week\n### Update\nMon.\n### Update\nTue.\n### Update\nWed.\n';
+BEGIN
+ f:=sophia.section_facts(o,replace(o,'# Options','# Choices'));
+ IF f<>'{"added":["Choices"],"revised":[],"removed":["Options"],"unchanged":["Option A","Pros","Cons","Option B","Pros","Cons"],"conclusionChanged":false}' THEN
+  RAISE EXCEPTION 'A renamed title mixed up repeated sections: %',f; END IF;
+ f:=sophia.section_facts(o,replace(replace(o,'# Options','# Options, with C'),'## Option B',E'## Option C\nNew.\n\n### Pros\nFree.\n\n## Option B'));
+ IF f<>'{"added":["Options, with C","Option C","Pros"],"revised":[],"removed":["Options"],"unchanged":["Option A","Pros","Cons","Option B","Pros","Cons"],"conclusionChanged":false}' THEN
+  RAISE EXCEPTION 'A renamed title with a new option read an untouched section as revised: %',f; END IF;
+ f:=sophia.section_facts(l,replace(l,'# Log','# Journal'));
+ IF f<>'{"added":["Journal"],"revised":[],"removed":["Log"],"unchanged":["Update","Update","Update"],"conclusionChanged":false}' THEN
+  RAISE EXCEPTION 'A renamed title paired repeated paths out of order: %',f; END IF;
+ f:=sophia.section_facts(w,replace(w,'## Week','## Week 1'));
+ IF f<>'{"added":["Week 1"],"revised":[],"removed":["Week"],"unchanged":["T","Update","Update","Update"],"conclusionChanged":false}' THEN
+  RAISE EXCEPTION 'A renamed parent paired its children out of order: %',f; END IF;
  f:=sophia.section_facts(E'# Hosting\n\n## Pros\na\n\n## Cons\nb\n',E'# Hosting, with costs\n\n## Pros\na\n\n## Cons\nb2\n');
  IF f<>'{"added":["Hosting, with costs"],"revised":["Cons"],"removed":["Hosting"],"unchanged":["Pros"],"conclusionChanged":false}' THEN
   RAISE EXCEPTION 'A renamed title lost its sections: %',f; END IF;
@@ -67,10 +92,52 @@ BEGIN
   ('c','Recommendations expanded but the conclusion is unchanged.',NULL,'{"The note calls the conclusion unchanged, but it changed."}'),
   ('c','No change to the conclusion.',NULL,'{"The note calls the conclusion unchanged, but it changed."}'),
   ('c','No changes.','The conclusion stays the same.',
-   '{"The note says nothing changed, but 1 sections changed.","The note calls the conclusion unchanged, but it changed."}')
+   '{"The note says nothing changed, but 1 sections changed.","The note calls the conclusion unchanged, but it changed."}'),
+  -- "Nothing changed" about the whole text is refused whatever follows; about a section left as it was, published.
+  ('c','Unchanged.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','No changes to the report.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','No changes to any section.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','No changes in substance.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','Nothing changed in the text.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','No changes in this version.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','Nothing changed in the content.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','No changes to speak of.',NULL,'{"The note says nothing changed, but 1 sections changed."}'),
+  ('c','No change in the findings.',NULL,'{}'),
+  ('c','No changes to the methods or findings.',NULL,'{}'),
+  ('c','Nothing changed in the conclusion.',NULL,'{"The note calls the conclusion unchanged, but it changed."}'),
+  ('r','Nothing changed in the recommendations.',NULL,'{"The note calls the recommendations unchanged, but they changed."}'),
+  -- A claim on a coordinated subject (a list, "and its/all", a parenthesis, "as before") still names each noun.
+  ('c','Light edits.','The conclusion and its recommendations are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion and all recommendations are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion and all the recommendations are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion and its two recommendations are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion (and the recommendations) are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The recommendations, and the conclusion, are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','Conclusion, recommendations: unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','Conclusion, methods and sources are unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion, methods and sources stay the same.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion, as before, is unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion now reads the same as before.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','Unchanged: conclusion and findings.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion did not change.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion stays.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','Light edits.','The conclusion of this long and careful report is unchanged.','{"The note calls the conclusion unchanged, but it changed."}'),
+  ('c','The conclusion favours B – the findings stay.',NULL,'{}'),
+  ('c','The conclusion now favours B and the findings stay.',NULL,'{}'),
+  ('c','New conclusion, findings unchanged.',NULL,'{}'),
+  ('c','Revised the conclusion, methods unchanged.',NULL,'{}'),
+  ('r','Light edits.','The recommendations, like the rest, are unchanged.','{"The note calls the recommendations unchanged, but they changed."}'),
+  ('r','Light edits.','Recommendations, conclusion: unchanged.','{"The note calls the recommendations unchanged, but they changed."}'),
+  ('r','Same conclusion and recommendations.',NULL,'{"The note calls the recommendations unchanged, but they changed."}'),
+  ('r','Unchanged conclusion and recommendations.',NULL,'{"The note calls the recommendations unchanged, but they changed."}'),
+  ('r','Unchanged: conclusion and recommendations.',NULL,'{"The note calls the recommendations unchanged, but they changed."}')
   ) x(f,change,kept,want)
  WHERE sophia.note_problems(x.change,x.kept,CASE x.f WHEN 'r' THEN r ELSE c END)<>x.want::text[];
  IF bad IS NOT NULL THEN RAISE EXCEPTION E'The gate misread:\n%',bad; END IF;
+ -- A title named like the whole text does not make "no changes to the report" a note about one section.
+ c:=sophia.section_facts(replace(b,'# R','# Report'),replace(replace(b,'# R','# Report'),'A wins.','B wins.'));
+ IF sophia.note_problems('No changes to the report.',NULL,c)<>ARRAY['The note says nothing changed, but 1 sections changed.'] THEN
+  RAISE EXCEPTION 'A section named Report excused "No changes to the report."'; END IF;
 END $$;
 -- A removed heading the kept note names is refused once, and not while a section of that name remains; at most 20
 -- problems of at most 300 characters (the submission contract).

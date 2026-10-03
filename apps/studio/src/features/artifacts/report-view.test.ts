@@ -202,9 +202,9 @@ const topic = (changed: Partial<Record<'added' | 'revised' | 'removed', string[]
 const withRecommendation = (recommendation: string) =>
   `# Report\n\nBody.\n\n## Conclusion\n\nUse A.\n\n## Recommendations\n\n${recommendation}\n`
 
-/** A report whose Conclusion has a '### Notes' reading `notes`, after recommendations reading `recommendation`. */
-const withNotes = (recommendation: string, notes: string) =>
-  `# Report\n\n## Recommendations\n\n${recommendation}\n\n## Conclusion\n\nUse A.\n\n### Notes\n\n${notes}\n`
+/** Two options, each with its own '### Conclusion', after recommendations reading `recommendation`. */
+const withOptions = (recommendation: string) =>
+  `# Report\n\n## Option A\n\n### Conclusion\n\nFast.\n\n## Option B\n\n### Conclusion\n\nQuiet.\n\n## Recommendations\n\n${recommendation}\n`
 
 describe('what a changed conclusion fact covers (CX-0019)', () => {
   it('names the part whose heading changed', () => {
@@ -227,11 +227,10 @@ describe('what a changed conclusion fact covers (CX-0019)', () => {
     )
   })
 
-  it('reads 0036 facts, which name a subheading by its own heading, as the gate does', () => {
-    // A '### Notes' under the Conclusion is 'Notes', never 'Conclusion › Notes': only the recommendations changed.
-    assert.equal(topic({ revised: ['Recommendations', 'Notes'] }), 'Recommendations')
-    const facts = compareSections(withNotes('Do X.', 'Cheap.'), withNotes('Do X and Y.', 'Cheap now.'))
-    assert.deepEqual([facts.revised, conclusionTopic(facts)], [['Recommendations', 'Notes'], 'Recommendations'])
+  it('names only the recommendations when a repeated conclusion heading is as it was (0036 pairing)', () => {
+    // Each option's '### Conclusion' pairs with its own: under 0027's anchor-only pairing, A's read as revised.
+    const facts = compareSections(withOptions('Do X.'), withOptions('Do X and Y.'))
+    assert.deepEqual([facts.revised, conclusionTopic(facts)], [['Recommendations'], 'Recommendations'])
   })
 })
 

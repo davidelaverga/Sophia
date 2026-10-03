@@ -183,6 +183,15 @@ describe('the report Markdown parser', () => {
   })
 })
 
+/** Options with the same subheadings under each. */
+const OPTIONS =
+  '# Options\n\n## Option A\nFast.\n\n### Pros\nCheap.\n\n### Cons\nLoud.\n\n## Option B\nSlow.\n\n### Pros\nQuiet.\n\n### Cons\nCostly.\n'
+/** OPTIONS with an Option C, with its own pros, between A and B. */
+const OPTIONS_C = OPTIONS.replace('## Option B', '## Option C\nNew.\n\n### Pros\nFree.\n\n## Option B')
+/** The same path three times under one title. */
+const LOG = '# Log\n## Update\nMon.\n## Update\nTue.\n## Update\nWed.\n'
+const NONE = { added: [], revised: [], removed: [], unchanged: [], conclusionChanged: false }
+
 describe('section comparison (what Knowledge shows between two versions)', () => {
   const V1 = '# Hosts\nA and B.\n\n## Costs\nUnknown.\n\n## Conclusion\nUse A.\n\n```\n# not a heading\n```\n'
   const V2 = '# Hosts\nA and B.\n\n## Costs\nA is $1 a page.\n\n## Pricing tiers\nThree tiers.\n'
@@ -212,12 +221,7 @@ describe('section comparison (what Knowledge shows between two versions)', () =>
   })
 
   it('pairs each section at most once, as the service does (0036 section_facts)', () => {
-    const OPTIONS =
-      '# Options\n\n## Option A\nFast.\n\n### Pros\nCheap.\n\n### Cons\nLoud.\n\n## Option B\nSlow.\n\n### Pros\nQuiet.\n\n### Cons\nCostly.\n'
-    const v2 = OPTIONS.replace('Cheap.', 'Cheap and simple.').replace(
-      '## Option B',
-      '## Option C\nNew.\n\n### Pros\nFree.\n\n## Option B',
-    )
+    const v2 = OPTIONS_C.replace('Cheap.', 'Cheap and simple.')
     const none = { added: [], revised: [], removed: [] }
     assert.deepEqual(compareSections(OPTIONS, OPTIONS), {
       ...none,
@@ -253,5 +257,46 @@ describe('section comparison (what Knowledge shows between two versions)', () =>
       { ...none, removed: ['Option B', 'Pros'], unchanged: ['Option A', 'Pros'], conclusionChanged: false },
       'a removed option takes its own Pros',
     )
+  })
+
+  it('pairs a repeated path by occurrence, never each with each (0036)', () => {
+    assert.deepEqual(compareSections(LOG, LOG.replace('Tue.', 'Tue, late.')), {
+      ...NONE,
+      revised: ['Update'],
+      unchanged: ['Log', 'Update', 'Update'],
+    })
+    assert.deepEqual(compareSections(LOG, `${LOG}## Update\nThu.\n`), {
+      ...NONE,
+      added: ['Update'],
+      unchanged: ['Log', 'Update', 'Update', 'Update'],
+    })
+  })
+
+  it('keeps what sits under a renamed title or parent, each repeated section with its own (0036)', () => {
+    const options = ['Option A', 'Pros', 'Cons', 'Option B', 'Pros', 'Cons']
+    assert.deepEqual(compareSections(OPTIONS, OPTIONS.replace('# Options', '# Choices')), {
+      ...NONE,
+      added: ['Choices'],
+      removed: ['Options'],
+      unchanged: options,
+    })
+    assert.deepEqual(
+      compareSections(OPTIONS, OPTIONS_C.replace('# Options', '# Options, with C')),
+      { ...NONE, added: ['Options, with C', 'Option C', 'Pros'], removed: ['Options'], unchanged: options },
+      'a new option under a renamed title revises nothing',
+    )
+    assert.deepEqual(compareSections(LOG, LOG.replace('# Log', '# Journal')), {
+      ...NONE,
+      added: ['Journal'],
+      removed: ['Log'],
+      unchanged: ['Update', 'Update', 'Update'],
+    })
+    const week = '# T\n## Week\n### Update\nMon.\n### Update\nTue.\n### Update\nWed.\n'
+    assert.deepEqual(compareSections(week, week.replace('## Week', '## Week 1')), {
+      ...NONE,
+      added: ['Week 1'],
+      removed: ['Week'],
+      unchanged: ['T', 'Update', 'Update', 'Update'],
+    })
   })
 })

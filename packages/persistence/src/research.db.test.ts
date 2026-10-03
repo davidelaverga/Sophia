@@ -1416,6 +1416,31 @@ describe('report facts, each section once (0036)', () => {
     assert.deepEqual(compareSections(OPTIONS, OPTIONS_V2), sections, 'Studio compares as the service counted')
   })
 
+  it('stores the same facts Studio compares for repeated paths and renamed titles', async () => {
+    const log = '# Log\n## Update\nMon.\n## Update\nTue.\n## Update\nWed.\n'
+    const cases: [string, string][] = [
+      [OPTIONS, OPTIONS_V2],
+      [log, log.replace('Tue.', 'Tue, late.')],
+      [log, `${log}## Update\nThu.\n`],
+      [log, log.replace('# Log', '# Journal')],
+      [OPTIONS, OPTIONS_V2.replace('# Options', '# Options, with C').replace('Cheap and simple.', 'Cheap.')],
+    ]
+    for (const [was, now] of cases) {
+      const row = await one<{ f: unknown }>(`SELECT sophia.section_facts($1,$2) AS f`, [was, now])
+      assert.deepEqual(row.f, compareSections(was, now), now)
+    }
+  })
+
+  it('refuses "No changes to the report." when a section changed', async () => {
+    const w = await world()
+    const { submit } = await amending(w, { v1: REPORT, v2: REPORT.replace('A is fast.', 'A is fast and cheap.') })
+    const refused = await submit('s2', { changeNote: 'No changes to the report.' })
+    assert.deepEqual(
+      [refused.outcome, refused.problems],
+      ['notes_rejected', ['The note says nothing changed, but 1 sections changed.']],
+    )
+  })
+
   it('accepts "No changes." for an amendment whose repeated headings are all as they were', async () => {
     const w = await world()
     const { submit } = await amending(w, { v1: OPTIONS, v2: `${OPTIONS}\n` })

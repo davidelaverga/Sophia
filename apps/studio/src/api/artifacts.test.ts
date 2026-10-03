@@ -24,17 +24,27 @@ const version = (n: number, bytes: number, previousBytes: number | null) => ({
   changeFacts: { cited: 3, added: [], dropped: [], bytes, previousBytes },
 })
 
+/** The API answers every call with `body`. */
+const serve = (body: unknown) => {
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }),
+    )
+}
+
 describe('a report’s versions', () => {
   afterEach(() => {
     globalThis.fetch = realFetch
   })
 
   it('reads a long report’s history: a draft may be 262,144 bytes (0025), so may its version', async () => {
-    const list = [version(2, 200_000, 150_000), version(1, 150_000, null)]
-    globalThis.fetch = () =>
-      Promise.resolve(
-        new Response(JSON.stringify(list), { status: 200, headers: { 'content-type': 'application/json' } }),
-      )
+    const list = [version(2, 262_144, 262_144), version(1, 262_144, null)]
+    serve(list)
     assert.deepEqual(await listArtifactVersions('token', A), list)
+  })
+
+  it('refuses a version longer than a draft may be', async () => {
+    serve([version(2, 262_145, 262_144)])
+    await assert.rejects(listArtifactVersions('token', A))
   })
 })

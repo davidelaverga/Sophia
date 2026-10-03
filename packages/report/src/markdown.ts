@@ -564,7 +564,35 @@ function placed(text: string): Placed[] {
 
 const nameOf = (s: Section) => `${s.heading === null}:${s.anchor}`
 
-/** Each newer section's pair in the older text: the same path and occurrence, then what is left by anchor in order. */
+/** The path below the outermost heading ('' for that heading and the introduction): what a renamed title keeps. */
+const subOf = (s: Placed) => s.path.replace(/^\/[^/]*/, '')
+
+/** Pairs each newer section left unpaired with the first older one left unpaired that has the same key, in order. */
+function pairInOrder(
+  was: readonly Placed[],
+  now: readonly Placed[],
+  out: Map<number, Placed>,
+  key: (s: Placed) => string,
+) {
+  const used = new Set([...out.values()].map((o) => o.ord))
+  const rest = new Map<string, Placed[]>()
+  for (const o of was) {
+    const k = key(o)
+    if (used.has(o.ord) || k === '') continue
+    const queue = rest.get(k)
+    if (queue) queue.push(o)
+    else rest.set(k, [o])
+  }
+  for (const n of now) {
+    const o = out.has(n.ord) || key(n) === '' ? undefined : rest.get(key(n))?.shift()
+    if (o) out.set(n.ord, o)
+  }
+}
+
+/**
+ * Each newer section's pair in the older text: the same path and occurrence; then what is left on the path below the
+ * title, in order (a renamed title); then by anchor, in order (a renamed parent).
+ */
 function pairs(was: readonly Placed[], now: readonly Placed[]): Map<number, Placed> {
   const exact = new Map(was.map((o) => [`${o.path}#${o.occ}`, o]))
   const out = new Map<number, Placed>()
@@ -572,13 +600,8 @@ function pairs(was: readonly Placed[], now: readonly Placed[]): Map<number, Plac
     const o = exact.get(`${n.path}#${n.occ}`)
     if (o) out.set(n.ord, o)
   }
-  const used = new Set([...out.values()].map((o) => o.ord))
-  const rest = new Map<string, Placed[]>()
-  for (const o of was) if (!used.has(o.ord)) rest.set(nameOf(o), [...(rest.get(nameOf(o)) ?? []), o])
-  for (const n of now) {
-    const o = out.has(n.ord) ? undefined : rest.get(nameOf(n))?.shift()
-    if (o) out.set(n.ord, o)
-  }
+  pairInOrder(was, now, out, subOf)
+  pairInOrder(was, now, out, nameOf)
   return out
 }
 
