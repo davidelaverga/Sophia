@@ -20,6 +20,11 @@ export interface VoiceStatusInput {
   guide?: 'v1.1' | 'v1.2' | undefined
   /** Whether a PDF renderer is running (0031). Without one, render_research is not offered. Absent means unknown. */
   pdf?: boolean | undefined
+  /**
+   * Whether the project's research gate is open (0025: an enabled grant). Closed, start_research is not offered.
+   * Absent means unknown.
+   */
+  researchGate?: boolean | undefined
 }
 
 /** `speaker` for the current speaker, else `member-N` in order of first appearance. */
@@ -94,27 +99,44 @@ function missionView(ctx: MissionContext, who: Alias) {
   }
 }
 
+type Operation = { available: boolean; reason: string | null }
+const ALWAYS: Operation = { available: true, reason: null }
+const closed = (reason: string): Operation => ({ available: false, reason })
+
 /**
- * Per model-facing operation of the bridge's guide, whether it is available to this speaker now, and why not. The
- * research operations are an editor's, like control_work; whether research is switched on is answered by the call.
+ * The research operations, for v1.2's guide. They are an editor's, and the role answers first, as admission checks it
+ * first (0025), in the call's own words. For an editor, start_research waits on the project's research gate and
+ * render_research on a running PDF renderer; a rendition spends nothing from the grant (0032), so the gate does not
+ * close it. Unknown is never a closed operation: the call stays the answer.
  */
-function operations(ctx: MissionContext, guide: VoiceStatusInput['guide'], pdf: VoiceStatusInput['pdf']) {
+function researchOperations(editor: boolean, { pdf, researchGate }: Pick<VoiceStatusInput, 'pdf' | 'researchGate'>) {
+  if (!editor) {
+    return {
+      start_research: closed('Only editors and admins can start research. Viewers can talk with Sophia.'),
+      render_research: closed('Only editors and admins can ask for the PDF.'),
+    }
+  }
+  return {
+    start_research:
+      researchGate === false
+        ? closed('Research reports are not available: research is not switched on for this project.')
+        : ALWAYS,
+    render_research: pdf === false ? closed('PDF reports are not available: no PDF renderer is running.') : ALWAYS,
+  }
+}
+
+/** Per model-facing operation of the bridge's guide, whether it is available to this speaker now, and why not. */
+function operations(ctx: MissionContext, opts: Pick<VoiceStatusInput, 'guide' | 'pdf' | 'researchGate'>) {
   const c = ctx.capabilities
-  const always = { available: true, reason: null }
   const m01 = {
-    project_status: always,
-    read_selected_source: always,
+    project_status: ALWAYS,
+    read_selected_source: ALWAYS,
     record_mission_note: c.recordNote,
     propose_mission_change: c.propose,
     decide_mission_change: c.decide,
     control_work: c.controlWork,
   }
-  if (guide !== 'v1.2') return m01
-  const render =
-    c.controlWork.available && pdf === false
-      ? { available: false, reason: 'PDF reports are not available: no PDF renderer is running.' }
-      : c.controlWork
-  return { ...m01, start_research: c.controlWork, render_research: render }
+  return opts.guide === 'v1.2' ? { ...m01, ...researchOperations(c.controlWork.available, opts) } : m01
 }
 
 function targetView(target: ConfirmationTarget | null, speakerId: string, now: number) {
@@ -128,7 +150,8 @@ function targetView(target: ConfirmationTarget | null, speakerId: string, now: n
 }
 
 /** The project_status output for one speaker. */
-export function voiceStatus({ context: ctx, speakerId, discussion, target, now, guide, pdf }: VoiceStatusInput) {
+export function voiceStatus(input: VoiceStatusInput) {
+  const { context: ctx, speakerId, discussion, target, now, guide, pdf, researchGate } = input
   const who = aliases(speakerId)
   const notes = ctx.entries.slice(-NOTES)
   const policy = ctx.notePolicy
@@ -158,7 +181,7 @@ export function voiceStatus({ context: ctx, speakerId, discussion, target, now, 
       explicitProposals: policy.explicitProposals,
       exactTextRetention: policy.exactTextRetention,
     },
-    operations: operations(ctx, guide, pdf),
+    operations: operations(ctx, { guide, pdf, researchGate }),
     confirmationTarget: targetView(target, speakerId, now),
     missing: ctx.missing,
   }

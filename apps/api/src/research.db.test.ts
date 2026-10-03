@@ -82,8 +82,11 @@ after(async () => {
 const ROLES = [{ id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }]
 const PDF_ROLE = { id: 'sophia-research-pdf-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:pdf' }
 
-/** A project with a research grant, a ready runtime advertising the Markdown specialist, and an open exchange. */
-async function world(roles = ROLES) {
+/**
+ * A project with a research grant, a ready runtime advertising the Markdown specialist, and an open exchange whose
+ * floor `opener` holds (the editor unless a test speaks as someone else).
+ */
+async function world(roles = ROLES, opener = E) {
   const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
   const owner = new pg.Client({ connectionString: db.ownerUrl })
   await owner.connect()
@@ -107,9 +110,9 @@ async function world(roles = ROLES) {
   })
   assert.equal(hello.status, 200, JSON.stringify(hello.json))
   assert.equal((await runtime('/v1/runtime/ready', { state: 'ready', reason: null, unrecovered: [] })).status, 204)
-  const snap = await withActor(pool, E, 'read', (c) => readSnapshot(c, projectId))
+  const snap = await withActor(pool, opener, 'read', (c) => readSnapshot(c, projectId))
   assert.ok(snap)
-  const exchange = await withActor(pool, E, 'write', (c) =>
+  const exchange = await withActor(pool, opener, 'write', (c) =>
     startExchange(c, snap.room.id, randomUUID(), { expectedRoomRevision: snap.room.revision, allowVision: false }),
   )
   return { projectId, rt, runtime, exchangeId: exchange.exchangeId }
@@ -594,6 +597,60 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     for (const older of [await status('v1.1'), await status()]) {
       assert.equal('start_research' in older.output.operations, false, 'a v1.1 guide never hears of them')
     }
+  })
+
+  it('project_status says research is not switched on while the project’s gate is closed, as start_research does', async () => {
+    const gate = async (projectId: string, state: 'enabled' | 'disabled') => {
+      const owner = new pg.Client({ connectionString: db.ownerUrl })
+      await owner.connect()
+      try {
+        await owner.query(`SELECT sophia.set_research_grant($1, $2, 5, 40, 'web-pilot-v1', 'approval:test')`, [
+          projectId,
+          state,
+        ])
+      } finally {
+        await owner.end()
+      }
+    }
+    type Ops = Record<'start_research' | 'render_research', { available: boolean; reason: string | null }>
+    const ops = async (on: { exchangeId: string }, actorId = E): Promise<Ops> =>
+      (await tool(on, {}, actorId, { name: 'project_status', guide: 'v1.2' })).output.operations as Ops
+    const w = await world()
+    await renderer('now')
+    await gate(w.projectId, 'disabled')
+    const closed = await ops(w)
+    assert.deepEqual(closed.start_research, {
+      available: false,
+      reason: 'Research reports are not available: research is not switched on for this project.',
+    })
+    // A rendition spends nothing from the grant (0032), so the gate leaves Try PDF again offered.
+    assert.deepEqual(closed.render_research, { available: true, reason: null })
+    const refused = await tool(w, { question: 'Anything at all?' })
+    assert.deepEqual([refused.status, refused.output.code], ['refused', 'not_started:research_gate_closed'])
+    await gate(w.projectId, 'enabled')
+    assert.deepEqual((await ops(w)).start_research, { available: true, reason: null })
+    assert.equal((await tool(w, { question: 'Anything at all?' })).status, 'admitted')
+
+    // A viewer holding the floor hears the role first, as admission checks it first, in the research calls' words.
+    const viewed = await world(ROLES, V)
+    for (const state of ['disabled', 'enabled'] as const) {
+      await gate(viewed.projectId, state)
+      const seen = await ops(viewed, V)
+      assert.deepEqual(
+        [seen.start_research, seen.render_research],
+        [
+          {
+            available: false,
+            reason: 'Only editors and admins can start research. Viewers can talk with Sophia.',
+          },
+          { available: false, reason: 'Only editors and admins can ask for the PDF.' },
+        ],
+        `with the gate ${state}`,
+      )
+    }
+    const asked = await tool(viewed, { question: 'Anything at all?' }, V)
+    assert.deepEqual([asked.status, asked.output.code], ['refused', 'not_started:forbidden'])
+    await renderer('stale')
   })
 
   it('records how an announcement reached the room: heard, as text to readers, or both (0035)', async () => {
