@@ -63,6 +63,7 @@
 .resource-search input {
   flex: 1;
   min-width: 0;
+  font-size: var(--type-body);
 }
 .filter-count {
   margin-left: 6px;
