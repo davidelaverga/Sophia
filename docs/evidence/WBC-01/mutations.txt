@@ -1,0 +1,42 @@
+# WBC-01 mutation checks (darwin-arm64, 2026-10-03)
+# Each line reverts one repair, runs the check meant to catch it, and restores the file.
+# 'FAILS as it should' = a check caught the reverted repair.
+
+M01 exact assignment, not a session by work id: FAILS as it should
+M02 report bound to current attempt and generation: FAILS as it should
+M03 complete only with satisfied policy and evidence: FAILS as it should
+M04 a check of another version certifies nothing: FAILS as it should
+M05 failed work is closed, never begun or done: FAILS as it should
+M06 unknown stays unknown, never unassigned: FAILS as it should
+M07 owning the account is not a request for you: FAILS as it should
+M08 a command the view does not mention is unavailable: FAILS as it should
+M09 Recorded is never taken back: FAILS as it should
+M10 an older or repeated receipt changes nothing: FAILS as it should
+M10b an older or repeated receipt changes nothing (unit): FAILS as it should
+M11 a receipt for other work changes nothing: FAILS as it should
+M12 a lost reply is retried with the same operation: FAILS as it should
+M13 Stop promises nothing it cannot see: FAILS as it should
+M14 a delivered Stop is requested, not stopped: FAILS as it should
+M15 an unconfirmed answer is retried with its own operation: FAILS as it should
+M16 commands and drafts are kept by generation: FAILS as it should
+M17 another viewer starts afresh (the board): FAILS as it should (after the UI-20 lens assertion was added)
+M17b another viewer starts afresh (the store space): FAILS as it should
+M18 a proposed plan inherits no execution: FAILS as it should
+M19 chunks show as they arrive: FAILS as it should
+M20 the accepted plan stays the board beside a proposal: FAILS as it should
+M21 no fixture reaches the build: FAILS as it should
+M22 decision copy: the choice and the plan said apart: FAILS as it should
+R1 a Stop question is keyed by its exact scope: FAILS as it should
+R2a Send waits while its guidance goes: FAILS as it should
+R2b the same words again are the same operation: FAILS as it should
+R3 commands outlive the board: FAILS as it should
+R4 an earlier command has its own Try again: FAILS as it should
+R5 work outside the plan is said: FAILS as it should
+R6 a plan of another project or goal is refused: FAILS as it should
+R7 a later refusal never takes Recorded back: FAILS as it should
+R8 a bare completion after a gap is no answer: FAILS as it should
+R9 two current versions are no result: FAILS as it should
+R10 Try again after an unknown admission answers: FAILS as it should
+R11 a plan of another project is not operated: FAILS as it should
+R1b a Stop question belongs to its task: redundant by design (the inner scope key includes the work); removing both keys FAILS the J check
+L01 lens labels stay on one line on a phone: FAILS as it should
