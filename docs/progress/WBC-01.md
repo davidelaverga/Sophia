@@ -66,7 +66,7 @@ Every case is **fixture-ready only**: the real Studio components on `fixtures/wo
 
 | ID | Evidence on the fixture | Checks |
 |---|---|---|
-| UI-01 | Loops of parents and blockers, a missing blocker and a repeated id: each shown once, the plan says it doesn't hold together; three levels and an orphan shown once; work observed outside the plan listed, never hidden | `plan.test.ts`, `wbc · UI-01`, `review · work observed outside` |
+| UI-01 | Loops of parents and blockers, a missing blocker and a repeated id: each shown once, the plan says it doesn't hold together; three levels and an orphan shown once; work observed outside the plan listed, never hidden | `plan.test.ts`, `wbc · UI-01`, `pre-push · work observed outside` |
 | UI-02 | A new attempt of the same session: the earlier attempt's report isn't its state; commands carry generation 4 and attempt 4 | `plan.test.ts`, `actions.test.ts`, `wbc · UI-02` |
 | UI-03 | A replacement proposed beside the accepted plan, compared; a proposed-only plan has no commands or Ask | `plan.test.ts`, `proposal.test.ts`, `wbc · UI-03` |
 | UI-04 | The review with defects is Complete; the retry is Active, Changes needed; its findings open | `wbc · UI-04` |
@@ -76,7 +76,7 @@ Every case is **fixture-ready only**: the real Studio components on `fixtures/wo
 | UI-08 | Luis guides Davide's session within Davide's mandate; no permission or reserve control in the task; Mara reads and asks only | `actions.test.ts`, `wbc · UI-08`, the updated acting check |
 | UI-09 | Slow admission stays Sending; a lost reply is unknown, retried with the same operation; a refusal sent nothing | `receipts.test.ts`, `wbc · UI-09` (two) |
 | UI-10 | A delivered Stop is requested; unknown says so; only a settled Stop is Stopped, and the task moves to Closed work | `receipts.test.ts`, `wbc · UI-10`, `wbc · Resume` |
-| UI-11 | A draft survives J/K and close; the same session's next assignment starts with no command or draft; a Stop question never carries to another task or generation; commands outlive choosing another goal | `receipts.test.ts`, `command-store.test.ts`, `wbc · UI-11`, `review ·` (four) |
+| UI-11 | A draft survives J/K and close; the same session's next assignment starts with no command or draft; a Stop question never carries to another task or generation; commands outlive choosing another goal | `receipts.test.ts`, `command-store.test.ts`, `wbc · UI-11`, `pre-push ·` (four), `pr76 · P1` |
 | UI-12 | Receipts repeated, late and sent to another task change nothing | `receipts.test.ts`, `wbc · UI-12` |
 | UI-13 | Changed, expired and unconfirmed answers; the same operation on retry | `answers.test.ts`, `wbc · UI-13`, the existing decision checks |
 | UI-14 | A choice recorded while the plan updates; for the decider and anyone else | `wbc · UI-14`, the updated answer check |
@@ -117,6 +117,24 @@ Codex reviewed and app-tested `8afd007` in its own checkout ([CX-0001](https://g
 UI-20's call part is now exercised on the fixture, desktop and phone, over a fake LiveKit (`codex · F-003`). It still isn't tested on a physical iPhone or in a hosted call.
 
 Codex's second round, at `e4d9734` ([CX-0004](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973797796), [CX-0005](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973830528)), found F-001 and F-003 resolved, and F-002 partly so. A lost command's Try again still sent after its task stopped being observed or its action was denied. That is fixed in `38bb9d6` ([FIX_READY](../coordination/WBC-01/WBC-01-CC-0004.md)): one rule, `retryableNow`, for the button and the send. A command is retried only while its kind may be sent here now; otherwise it is kept, uncertain, with its operation, and that operation goes once sending is allowed again.
+
+## Codex's READY, the PR, and its review
+
+Codex found F-002 closed and nothing new at `10b9d32` ([CX-0006](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973969188), READY for source and fixture review). It then pushed the branch unchanged and opened [PR #76](https://github.com/davidelaverga/Sophia/pull/76). The repository's Codex reviewer on GitHub left three findings on that head, and main had moved: Luis's #73 (LFE-07.2) merged.
+
+**The merge** (`4e7a42b`): #73 put the progress review on the plan (`WorkPlan.active_review`, `last_review`). Here the plan is the v2 definition, and a review is a live observation, so it stays #73's own proposed read, a goal's review beside the board's view:
+- `review.ts` reads it with the plan's revision;
+- `PlanNext` takes it as `review`.
+
+Luis's words, tests and nine browser checks are kept. #73's goal commands are `workFixture.goalCommands`. This branch's pre-push checks are renamed `pre-push ·`, apart from #73's `review ·`.
+
+**The findings,** fixed in `9f3d872` ([FIX_READY](../coordination/WBC-01/WBC-01-CC-0005.md)):
+
+| Finding | Fix |
+|---|---|
+| **P1** A Stop pressed after the same assignment moved to a new attempt or session went again as the earlier attempt's lost request | An operation is reused only for the exact same target, attempt and session included |
+| **P2** An answer that never comes left "Thinking…" forever | Each question waits at most 30 s for its next event, then fails, keeping the question, with Ask again and the conversation |
+| **P2** Only the first of up to three proposals was shown | Every proposal gets its band. With none accepted, the first is the read-only board and the others are "also proposed" |
 
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 

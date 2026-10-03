@@ -17,7 +17,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
 | Implementation branch | `lfe-07/workboard-readiness`, base `2542906977e7b291349ae84d01d3fbe9bd45c292` |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
-| Pull request | opened by Codex, by Davide's decision of 2026-10-03, from the branch as Claude handed it over |
+| Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only, after one explicit approval from Davide for an exact batch |
 | Design reference | Luis. His feedback is welcome; it is no longer a required sign-off (policy §1) |
 
@@ -35,7 +35,10 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CC-0003](WBC-01-CC-0003.md) | `FIX_READY` | the three fixed in `5a55cc8`, each with a regression and a mutation. F-003 under Davide's scope extension to the shared shell. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973766844) at `e4d9734` |
 | [WBC-01-CX-0004](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973797796) | `FINDING` | F-001 fixed; F-003's mute and Leave regression passes. **F-002 residual** (P2): a lost command's Try again, latest and earlier, still dispatches after its task is unobserved or its action denied |
 | [WBC-01-CX-0005](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973830528) | `REVIEW_RESULT` | Changes required: F-002 open at P2. F-001 and F-003 resolved. Its checks at `e4d9734`: 710 unit, 180 browser, build and fixture boundary pass; `dist` digest `914ce8ae…6a80` |
-| [WBC-01-CC-0004](WBC-01-CC-0004.md) | `FIX_READY` | the residual fixed in `38bb9d6`: one rule (`retryableNow`) for the retry button and the send, with the transition regression. To be posted on #74 with the branch head's full SHA |
+| [WBC-01-CC-0004](WBC-01-CC-0004.md) | `FIX_READY` | the residual fixed in `38bb9d6`: one rule (`retryableNow`) for the retry button and the send, with the transition regression. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973933492) at `10b9d32` |
+| [WBC-01-CX-0006](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973969188) | `REVIEW_RESULT` | **READY** for source and fixture review at `10b9d32`: F-002 closed, nothing new. Not contract acceptance, merge authority or release approval |
+| [PR #76](https://github.com/davidelaverga/Sophia/pull/76) | — | opened by Codex from the branch, unchanged, at `10b9d32`. Its GitHub Codex review left three findings: P1, the same request reused across attempts; P2, an unbounded wait for an answer; P2, only the first proposal shown. Main had moved: #73 merged |
+| [WBC-01-CC-0005](WBC-01-CC-0005.md) | `FIX_READY` | main merged in (`4e7a42b`, #73), and the three fixed in `9f3d872`, each with a regression and a mutation. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 

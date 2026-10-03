@@ -57,3 +57,10 @@ D1b F-002 a retry needs its kind sendable now (board): FAILS as it should
 D2 F-002 the sheet uses the rule for its buttons: FAILS as it should
 D3 F-002 the words promise no retry where none may go: FAILS as it should
 # Not checkable through the UI: the retry handler's own guard, behind a button that isn't rendered (same rule).
+
+# The GitHub Codex review of PR #76 at 10b9d32, fixed in 9f3d872
+E1 P1 the same request needs the exact target (rule): FAILS as it should
+E1b P1 the same request needs the exact target (board): FAILS as it should
+E2 P2 an answer that never comes fails in time: FAILS as it should
+E2b P2 a stalled answer fails (rule): FAILS as it should
+E3 P2 every proposal gets its band: FAILS as it should

@@ -446,16 +446,20 @@ when you change the room:
   (decisions and results first, opened in full on press); four lanes, Active,
   Up next, Unassigned and Complete (`plan.ts`: a view over each item's
   observed state; Complete only by its own policy with evidence, and a check
-  of the version it holds), and Closed work with its reasons; a replacement
-  plan beside the accepted one, compared, never operated; threads to what a
+  of the version it holds), and Closed work with its reasons; every plan
+  proposed (up to three) beside the one shown, compared, never operated;
+  threads to what a
   task waits on; a task's sheet with its typed waits, its result (exact
   versions through a port), the commands the view allows this viewer
-  (`actions.ts`), and Ask (a port of real received chunks, no typing
-  animation); the board by keys. Its fixture's clock runs from NOW; its
-  receipts, answers and results are simulated. The `wbc ·` checks are the
-  mission's UI cases and the `review ·` checks its independent review's
-  findings; each repair was reverted once to see its check fail
-  (`docs/evidence/WBC-01/mutations.txt`).
+  (`actions.ts`; a command goes again with its operation only to the exact
+  target it was sent to), and Ask (a port of real received chunks, no typing
+  animation; at most 30 s per event, then failed, with Ask again); the board
+  by keys. Its fixture's clock runs from NOW; its receipts, answers and
+  results are simulated. The `wbc ·` checks are the mission's UI cases; the
+  `pre-push ·`, `codex · F-` and `pr76 ·` checks are the findings of its
+  pre-push review, Codex's review on #74 and the PR #76 review (`review ·`
+  is LFE-07.2's progress review); each repair was reverted once to see its
+  check fail (`docs/evidence/WBC-01/mutations.txt`).
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves
