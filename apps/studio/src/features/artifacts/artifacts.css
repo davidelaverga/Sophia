@@ -489,12 +489,38 @@
   padding: 0;
   list-style: none;
 }
+/* A version's entry keeps to the work views' type scale (theme.css --type-*): body for what it says and its controls,
+   small for its chips and for whose notes they are. A heading or a note with no space in it wraps, never widening the
+   pane. */
 .report-version {
   display: grid;
   gap: 6px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
+  font-size: var(--type-body);
+  overflow-wrap: anywhere;
+}
+.report-version .tag {
+  font-size: var(--type-small);
+}
+/* Sophia's notes, under the facts: who wrote them in small grey, or the line that unfolds them when they are folded. */
+.report-notes {
+  display: grid;
+  gap: 4px;
+}
+.report-notes-by,
+.report-notes > summary {
+  width: fit-content;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.report-notes > summary {
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.report-notes > summary:hover {
+  color: var(--text-2);
 }
 .report-version[data-shown] {
   border-color: var(--line-3);
@@ -640,9 +666,6 @@
   height: auto;
   padding: 8px 11px;
   resize: vertical;
-}
-.report-change {
-  font-size: 13px;
 }
 
 /* Beside the side pane, as beside the room's side panel: the page and the room narrow, and what floats on the right

@@ -33,6 +33,8 @@ interface Project {
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
   reportTitle: string
+  /** Its first two versions are shaped like the pilot's (`history=pilot`, report-data.ts). */
+  pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
   /** The report's description on Knowledge (report-data.ts). */
@@ -146,7 +148,8 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    return json(reportList(project.reportVersions, project.description, url.searchParams.get('cursor'), filter))
+    const published = versions(project.reportVersions, project.reportTitle, project.pilot)
+    return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
@@ -194,7 +197,7 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions, project.reportTitle))
+  return json(versions(project.reportVersions, project.reportTitle, project.pilot))
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */

@@ -1,6 +1,7 @@
 // Labelled fixture data for the report viewer's checks (e2e/report.spec.ts, SMC-M03): one research report with a
-// first version and, once the check publishes it, a second; the finished research task a chat notice names; and the
-// API's answers for them, typed against the contracts. Nothing here is live.
+// first version and, once the check publishes it, a second (or, with `history=pilot`, a first and second in the shape
+// of the pilot's, CX-0026); the finished research task a chat notice names; and the API's answers for them, typed
+// against the contracts. Nothing here is live.
 import type {
   ArtifactVersion,
   LobbyEntry,
@@ -60,29 +61,96 @@ const TEXTS: readonly Text[] = [
   },
 ]
 
+/** The pilot-shaped first version's own source, which its second cites in place of the five sources it dropped. */
+const PILOT_V1_SOURCE = '00000000-0000-4000-8000-0000000000c4'
+/** The five sources the pilot-shaped first version cites: the one page, and four more. */
+const PILOT_CITED = [CITED, ...['cb', 'cc', 'cd', 'ce'].map((id) => `00000000-0000-4000-8000-0000000000${id}`)]
+
+/** The first lines under the pilot-shaped title, the same in both its versions. */
+const PILOT_INTRO =
+  'A labelled fixture report in the shape of the pilot’s: seven sections under its title, one of them a table.'
+
+/**
+ * The pilot's shape (CX-0026), in the fixture's own words (`history=pilot`): a first version of seven sections under
+ * its title, one of them a table, and a second that keeps the title alone and adds two sections. It replaces the
+ * first two versions of the fixture report.
+ */
+const PILOT_TEXTS: readonly Text[] = [
+  {
+    sourceId: PILOT_V1_SOURCE,
+    sha256: '40983c8fd78ce1ad588ab4edcecf7adddad0b0102ec0e8852c6d3864598c9850',
+    text: `# Fixture report\n\n${PILOT_INTRO}\n\n## Summary\n\nWhat the fixture compares, in short.\n\n## Compatibility and standards\n\nWhich standard each fixture product follows.\n\n## Charging speed in practice\n\nHow fast each one charges, as the fixture measured it.\n\n## Product claims vs. evidence\n\nWhat each product claims, beside what was found.\n\n## Comparison table\n\n| Product | Standard | Speed |\n| --- | --- | --- |\n| A | One | Fast |\n| B | Two | Slow |\n\n## Recommendations for buyers\n\nBuy A for speed.\n\n## Limitations of this review\n\nThe fixture measures nothing real.\n`,
+  },
+  {
+    sourceId: '00000000-0000-4000-8000-0000000000c5',
+    sha256: 'aa629f71da26a81d735109a3a4b4fe3e061fa31290d6cc223b3141fc1d1cc940',
+    text: `# Fixture report\n\n${PILOT_INTRO}\n\n## Revised recommendations\n\nBuy A for speed, or B to spend less.\n\n## Sources\n\n- The first version of this report.\n`,
+  },
+]
+
 /** A text's size in bytes, as the API counts it. */
 const byteLengthOf = (text: string) => new TextEncoder().encode(text).byteLength
 
-/** What 0027 section_facts gives for the second version against the first: its recommendations revised, alone. */
-const V2_FACTS: NonNullable<ArtifactVersion['changeFacts']> = {
-  cited: 1,
-  added: [],
-  dropped: [],
-  notesFromFacts: false,
-  sections: {
+type VersionNotes = Pick<ArtifactVersion, 'changeFacts' | 'changeNote' | 'retainedNote'>
+
+/**
+ * The second version: what 0027 section_facts gives against the first (its introduction and recommendations revised),
+ * and notes that agree with it.
+ */
+const V2: VersionNotes = {
+  changeNote: 'Expanded the introduction and the recommendations.',
+  retainedNote: 'The conclusion is unchanged.',
+  changeFacts: {
+    cited: 1,
     added: [],
-    revised: ['Fixture report', 'Recommendations'],
-    removed: [],
-    unchanged: ['Conclusion'],
-    conclusionChanged: true,
+    dropped: [],
+    notesFromFacts: false,
+    sections: {
+      added: [],
+      revised: ['Fixture report', 'Recommendations'],
+      removed: [],
+      unchanged: ['Conclusion'],
+      conclusionChanged: true,
+    },
+  },
+}
+
+/**
+ * The pilot-shaped second version: what 0036 section_facts gives for its two texts (seven sections removed, two
+ * added, the title alone unchanged), its five sources dropped and the first version cited in their place, and notes
+ * that say the rest was kept, as the pilot's did (synthetic words). They passed the truth gate as it stood (0036).
+ */
+const PILOT_V2: VersionNotes = {
+  changeNote: 'Revised the recommendations; the rest of the report is unchanged.',
+  retainedNote: 'Compatibility, charging speed, product claims and limitations are kept as they were.',
+  changeFacts: {
+    cited: 1,
+    added: [PILOT_V1_SOURCE],
+    dropped: PILOT_CITED,
+    notesFromFacts: false,
+    sections: {
+      added: ['Revised recommendations', 'Sources'],
+      revised: [],
+      removed: [
+        'Summary',
+        'Compatibility and standards',
+        'Charging speed in practice',
+        'Product claims vs. evidence',
+        'Comparison table',
+        'Recommendations for buyers',
+        'Limitations of this review',
+      ],
+      unchanged: ['Fixture report'],
+      conclusionChanged: true,
+    },
   },
 }
 
 /** The id of version `n` (1-based). */
 export const versionId = (n: number) => `00000000-0000-4000-8000-0000000000d${String(n)}`
 
-function version(n: number, title: string): ArtifactVersion {
-  const text = TEXTS[n - 1]
+function version(n: number, title: string, pilot: boolean): ArtifactVersion {
+  const text = (pilot ? PILOT_TEXTS[n - 1] : undefined) ?? TEXTS[n - 1]
   if (!text) throw new Error(`no fixture version ${String(n)}`)
   return {
     id: versionId(n),
@@ -100,13 +168,13 @@ function version(n: number, title: string): ArtifactVersion {
     createdAt: AT,
     renditions: [],
     limitations: [],
-    ...(n === 2 ? { changeFacts: V2_FACTS } : {}),
+    ...(n === 2 ? (pilot ? PILOT_V2 : V2) : {}),
   }
 }
 
-/** The report's versions as the API lists them, newest first: `published` of them. */
-export const versions = (published: number, title = TITLE): ArtifactVersion[] =>
-  Array.from({ length: published }, (_, i) => version(published - i, title))
+/** The report's versions as the API lists them, newest first: `published` of them (with `pilot`, as in PILOT_TEXTS). */
+export const versions = (published: number, title = TITLE, pilot = false): ArtifactVersion[] =>
+  Array.from({ length: published }, (_, i) => version(published - i, title, pilot))
 
 /** What a version cites, as `GET …/versions/{id}/sources` answers it: the one page, read in full. */
 export const citedSources: ReportSourceList = {
@@ -131,7 +199,7 @@ export const citedSources: ReportSourceList = {
  * `tampered` (`tamper=text`): the text with one space more and the record's sha256 kept, bytes no record names.
  */
 export function content(sourceId: string, tampered = false): SourceContent | null {
-  const text = TEXTS.find((t) => t.sourceId === sourceId)
+  const text = [...TEXTS, ...PILOT_TEXTS].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
   return {
@@ -287,20 +355,12 @@ const OLDER: ReportList['reports'][number] = {
 /** A text's searchable words: letters and digits only, lower case. */
 const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
 
-/**
- * Knowledge's Reports, as `GET /knowledge/reports` answers it: the fixture report's card (`published` versions in) on
- * the first page, and an older report, with a PDF, on the second. Words and a format filter as the API does (each word
- * a prefix, all of them required, over the title, the description and the latest notes; `pdf` or `markdown_only`), in
- * one page; a project is listed only with at least one report.
- */
-export function reportList(
-  published: number,
-  d: Description,
-  cursor: string | null,
-  filter: { q: string | null; format: string | null } = { q: null, format: null },
-): ReportList {
+/** The fixture report's card: its current version (the first of `published`, newest first) with that version's notes. */
+function fixtureCard(published: readonly ArtifactVersion[], d: Description): ReportList['reports'][number] {
+  const latest = published[0]
+  if (!latest) throw new Error('the fixture report has no version')
   const s = summaryOf(d)
-  const current: ReportList['reports'][number] = {
+  return {
     artifactId: REPORT,
     projectId: PROJECT,
     projectTitle: 'Fixture project',
@@ -309,13 +369,28 @@ export function reportList(
     summaryAuthorId: s.summaryAuthorId,
     summaryRevision: s.summaryRevision,
     summaryUpdatedAt: s.summaryUpdatedAt,
-    currentVersionId: versionId(published),
-    currentVersionNumber: published,
-    versionCount: published,
+    currentVersionId: latest.id,
+    currentVersionNumber: latest.versionNumber ?? null,
+    versionCount: published.length,
     updatedAt: AT,
     formats: ['markdown'],
-    latestChange: { note: null, retained: null },
+    latestChange: { note: latest.changeNote ?? null, retained: latest.retainedNote ?? null },
   }
+}
+
+/**
+ * Knowledge's Reports, as `GET /knowledge/reports` answers it: the fixture report's card (fixtureCard) on the first
+ * page, and an older report, with a PDF, on the second. Words and a format filter as the API does (each word a prefix,
+ * all of them required, over the title, the description and the latest notes; `pdf` or `markdown_only`), in one page;
+ * a project is listed only with at least one report.
+ */
+export function reportList(
+  published: readonly ArtifactVersion[],
+  d: Description,
+  cursor: string | null,
+  filter: { q: string | null; format: string | null } = { q: null, format: null },
+): ReportList {
+  const current = fixtureCard(published, d)
   const words = wordsOf(filter.q ?? '').slice(0, 8)
   const format = filter.format ?? 'any'
   if (words.length > 0 || format !== 'any') {

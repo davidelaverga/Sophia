@@ -7,10 +7,10 @@
 // page with the research task's card), `hold=sources` (the report's sources come only once the check lets them through;
 // `hold=text`, its text; `hold=task`, the research task's record), `tamper=text` (its text arrives as bytes its record
 // does not name), `title=long` (the report's title runs far past the side pane's width), `versions=3` (that many of the
-// report's versions are published already); the report viewer's own parameters (`report=…`) open the fixture report
-// (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the call, publish the
-// report's next version, deliver a result notice (its revision, or a brief's) or a live caption, have Sophia leave, or
-// read what happened.
+// report's versions are published already), `history=pilot` (its first two are shaped like the pilot's, CX-0026); the
+// report viewer's own parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
+// move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice
+// (its revision, or a brief's) or a live caption, have Sophia leave, or read what happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
@@ -98,6 +98,7 @@ const project = {
   messages: [] as string[],
   reportVersions: Math.max(1, Number(query.get('versions')) || 1),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
+  pilot: query.get('history') === 'pilot',
   waiting: query.get('lobby') === 'waiting',
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
