@@ -1059,9 +1059,9 @@ test('wbc · UI-21 · no request leaves the page, and the view the page draws is
   // afterEach: nothing reached for anything else (fixture-api.ts refuses and records it).
 })
 
-// ---- The independent review's findings on f736ad7, each with its regression. ----
+// ---- The pre-push independent review's findings on f736ad7, each with its regression. ----
 
-test('review · a Stop asked on one task never stops the next: J turns away from the question', async ({ page }) => {
+test('pre-push · a Stop asked on one task never stops the next: J turns away from the question', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide`)
   await page.evaluate(() => window.workFixture?.begin?.('work-1-review')) // the next task by J takes Stop too
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
@@ -1074,7 +1074,7 @@ test('review · a Stop asked on one task never stops the next: J turns away from
   expect(await commanded(page)).toEqual([])
 })
 
-test('review · a Stop asked at one generation is never answered at the next', async ({ page }) => {
+test('pre-push · a Stop asked at one generation is never answered at the next', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide`)
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
   await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
@@ -1084,7 +1084,7 @@ test('review · a Stop asked at one generation is never answered at the next', a
   expect(await commanded(page)).toEqual([])
 })
 
-test('review · one press is one request: Send waits while its guidance goes', async ({ page }) => {
+test('pre-push · one press is one request: Send waits while its guidance goes', async ({ page }) => {
   await paused(page, `${PAGE}?viewer=davide&admission=slow`)
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
   await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
@@ -1096,7 +1096,7 @@ test('review · one press is one request: Send waits while its guidance goes', a
   expect(await commanded(page)).toHaveLength(1)
 })
 
-test('review · the same words sent again after a lost reply are the same operation', async ({ page }) => {
+test('pre-push · the same words sent again after a lost reply are the same operation', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&admission=lost`)
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
   await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
@@ -1109,7 +1109,7 @@ test('review · the same words sent again after a lost reply are the same operat
   expect(ops[1]).toBe(ops[0])
 })
 
-test('review · a lost Stop outlives choosing another goal, and is tried again with its own operation', async ({
+test('pre-push · a lost Stop outlives choosing another goal, and is tried again with its own operation', async ({
   page,
 }) => {
   await page.goto(`${PAGE}?viewer=davide&admission=lost&two=1`)
@@ -1127,7 +1127,7 @@ test('review · a lost Stop outlives choosing another goal, and is tried again w
   expect(ops[1]).toBe(ops[0])
 })
 
-test('review · an earlier command still open is named, and has its own Try again', async ({ page }) => {
+test('pre-push · an earlier command still open is named, and has its own Try again', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&admission=lost`)
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
   await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
@@ -1144,7 +1144,7 @@ test('review · an earlier command still open is named, and has its own Try agai
   expect(stops[1]).toBe(stops[0])
 })
 
-test('review · work observed outside the plan in force is said, never hidden', async ({ page }) => {
+test('pre-push · work observed outside the plan in force is said, never hidden', async ({ page }) => {
   await page.goto(`${PAGE}?viewer=davide&case=outside`)
   await expect(board(page).locator('.board-notice')).toContainText('1 observed task isn’t in the plan in force')
   const outside = board(page).getByRole('region', { name: 'Observed outside the plan' })
@@ -1264,4 +1264,92 @@ test('codex · F-002 · a lost command can’t be sent again while its task isn�
   const after = await sent()
   expect(after).toHaveLength(3)
   expect(after[2]).toBe(before[1]) // the Stop's own operation
+})
+
+// ---- Its progress review (LFE-07.2): asked with the goal's Request review, said on the goal's quiet line. ----
+
+const requestReview = (page: Page) => page.getByRole('button', { name: /^Request review/ })
+const reviewLine = (page: Page) => page.locator('.plan-next-review')
+const commandsOf = (page: Page) => page.evaluate(() => window.workFixture?.goalCommands ?? [])
+
+/** The page with its clock held: time moves only as a check moves it. */
+async function heldAt(page: Page, query: string) {
+  await page.clock.install()
+  await page.goto(`${PAGE}${query}`)
+  await expect(requestReview(page)).toBeVisible({ timeout: 15_000 })
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000))
+}
+
+test('review · asked, the goal’s line says the lead is reviewing; a routine end is said only on that line', async ({
+  page,
+}) => {
+  await heldAt(page, '?')
+  await expect(reviewLine(page)).toHaveCount(0) // nothing before the first review
+  await requestReview(page).click()
+  // Its own receipt is Request review's: sent, never done.
+  await expect(page.locator('.controls .outcome')).toContainText('Sent')
+  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by you \d+ s ago$/)
+  await expect(reviewLine(page).locator('.activity-dot')).toBeVisible()
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText(/^Reviewed \d+ s ago · no change$/)
+  // PLAN-04: nothing announced, beyond the request's own receipt.
+  await expect(page.getByRole('status').filter({ hasText: /Reviewed|no change|reviewing/ })).toHaveCount(0)
+  expect(await commandsOf(page)).toEqual([{ kind: 'request_review', key: expect.any(String) }])
+})
+
+test('review · not enough to tell is said on the same quiet line, with what the lead waits for', async ({ page }) => {
+  await heldAt(page, '?review=insufficient')
+  await requestReview(page).click()
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText(/· not enough to tell until the retry passes the export tests$/)
+})
+
+test('review · one that didn’t finish is said so', async ({ page }) => {
+  await heldAt(page, '?review=failed')
+  await requestReview(page).click()
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText('The last review didn’t finish')
+})
+
+test('review · PLAN-01: asked while one runs, it joins it: still the one review, its asker named', async ({ page }) => {
+  await heldAt(page, '?review=running')
+  await expect(reviewLine(page)).toHaveText('The lead is reviewing · asked by Davide 3 min ago')
+  await requestReview(page).click()
+  await expect.poll(() => commandsOf(page)).toHaveLength(1)
+  await page.clock.runFor(2100)
+  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by Davide \d+ min ago$/)
+})
+
+test('review · a scheduled review says so', async ({ page }) => {
+  await heldAt(page, '?review=scheduled')
+  await expect(reviewLine(page)).toHaveText('The lead is reviewing · scheduled')
+})
+
+test('review · one of the plan’s previous revision says which', async ({ page }) => {
+  await heldAt(page, '?review=old')
+  await expect(reviewLine(page)).toHaveText('The lead is reviewing · asked by Davide 3 min ago · of r1')
+})
+
+test('review · unfunded, it waits and names who can extend the allowance', async ({ page }) => {
+  await heldAt(page, '?review=awaiting')
+  await expect(reviewLine(page)).toHaveText('Awaiting review: the project’s allowance is spent. Davide can extend it.')
+  await expect(reviewLine(page)).toHaveAttribute('data-kind', 'awaiting')
+})
+
+test('review · the lead reviewing pings, and is still under reduced motion', async ({ page }) => {
+  const ping = () =>
+    reviewLine(page)
+      .locator('.activity-dot')
+      .evaluate((d) => getComputedStyle(d, '::after').animationName)
+  await heldAt(page, '?review=running')
+  expect(await ping()).not.toBe('none')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await ping()).toBe('none')
+})
+
+test('@phone · review: the goal’s line wraps whole, nothing past the screen', async ({ page }) => {
+  await heldAt(page, '?review=awaiting')
+  await expect(reviewLine(page)).toBeVisible()
+  const box = await reviewLine(page).boundingBox()
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0)
 })

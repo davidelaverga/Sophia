@@ -987,6 +987,17 @@
 .plan-next-plan .count {
   font-size: var(--type-label);
 }
+/* Its progress review, quietly (LFE-07.2): the one running, with a pinging dot, or how the last one ended. */
+.plan-next-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.plan-next-review[data-kind='awaiting'] {
+  color: var(--amber);
+}
 .goal-outcome-open {
   max-width: 64ch;
   margin-top: 4px;

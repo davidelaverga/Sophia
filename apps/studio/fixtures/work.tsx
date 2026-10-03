@@ -10,11 +10,14 @@
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `begin(workId)`, `reassign(workId)`, `replan()`, `arrive()`, `viewAs(viewer)`,
 // `reconnect()`, `replay(operationId)` and `misdeliver(from, to)`. Whoever does a task opens on the resources' fixture.
+// `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
+// `workFixture.goalCommands` lists each goal command sent, with its key.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import type { GoalCommand } from '@sophia/contracts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import type { Command, Receipt } from '../src/features/resources/receipts.ts'
@@ -61,6 +64,8 @@ import {
   serve,
   withActivity,
 } from './work-live.ts'
+import { openedWith, reviewer, reviewMode } from './work-review.ts'
+import type { Reviewed } from '../src/features/work/planning/review.ts'
 
 declare global {
   interface Window {
@@ -80,6 +85,8 @@ declare global {
       arrive?: () => void
       viewAs?: (viewer: Viewer) => void
       reconnect?: () => void
+      /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
+      goalCommands?: readonly { kind: string; key: string }[]
       replay?: (operationId: string) => void
       misdeliver?: (from: string, to: string) => void
       /** The service's next observation of a task: its lifecycle, or one action's availability for this viewer. */
@@ -93,7 +100,11 @@ const query = new URLSearchParams(window.location.search)
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
+/** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
+/** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
+let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
+  onCommand: (command, key) => onGoalCommand?.(command, key),
   revision: 1,
   exchange: false,
   messages: [],
@@ -106,6 +117,9 @@ installFixtureApi({
 })
 window.workFixture = { unexpected, answered: answers, commands, receipts }
 const nothing = () => undefined
+
+/** `review=…`: how the lead answers Request review (work-review.ts). */
+const reviewAs = reviewMode(query.get('review'))
 
 const asViewer = (v: string | null): Viewer => (v === 'davide' || v === 'mara' ? v : 'luis')
 const scenario = CASES.find((c) => c === query.get('case')) ?? null
@@ -239,9 +253,11 @@ function controls(
   setViewer: (v: Viewer) => void,
   setArrived: (a: boolean) => void,
   viewer: Viewer,
+  goalCommands: readonly { kind: string; key: string }[],
 ) {
   return {
     unexpected,
+    goalCommands,
     answered: answers,
     commands,
     receipts,
@@ -292,10 +308,12 @@ interface Shared {
   viewerId: Viewer
   now: Date
   board: BoardView
+  /** The first goal's progress review, read beside the view (LFE-07.2). */
+  review: Reviewed
 }
 
 /** One goal's slot in Tasks: its board, NEXT, its tab in the goals' rail, what finds it, and whether it calls the viewer. */
-function slot(g: GoalView, { resources, viewerId, now, board }: Shared, onCommand: ReturnType<typeof serve>) {
+function slot(g: GoalView, { resources, viewerId, now, board, review }: Shared, onCommand: ReturnType<typeof serve>) {
   const shown = boardOf(g, { resources, people, viewerId, project: board.project_id })
   const rows = shown?.rows ?? []
   return {
@@ -320,7 +338,15 @@ function slot(g: GoalView, { resources, viewerId, now, board }: Shared, onComman
         observations={readings}
       />
     ),
-    next: <PlanNext goal={g} />,
+    next: (
+      <PlanNext
+        goal={g}
+        review={g.goal_id === goal.id ? review : undefined}
+        now={now}
+        people={people}
+        viewerId={viewerId}
+      />
+    ),
     tab: <PlanTab goal={g} resources={resources} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
@@ -345,6 +371,23 @@ function useClock(update: (change: Change) => void) {
   return now
 }
 
+/**
+ * The lead's side of Request review (LFE-07.2): the first goal's review, read beside the board's view, on its plan's
+ * current revision; goal commands reach it through the fixture API's command route.
+ */
+function useLead(first: GoalView, viewer: Viewer) {
+  const [review, setReview] = useState<Reviewed>(() =>
+    openedWith(reviewAs, { revision: first.current_plan?.revision ?? 1 }),
+  )
+  const revision = useRef(1)
+  revision.current = first.current_plan?.revision ?? 1
+  const [lead] = useState(() => reviewer(reviewAs, viewer, setReview, () => revision.current))
+  useEffect(() => {
+    onGoalCommand = lead.command
+  }, [lead])
+  return { review, lead }
+}
+
 function Tasks() {
   const [viewer, setViewer] = useState<Viewer>(() => asViewer(query.get('viewer')))
   const [first, setFirst] = useState(() => opening(viewer))
@@ -355,6 +398,7 @@ function Tasks() {
   const looking = useRef(viewer)
   looking.current = viewer
   const [onCommand] = useState(() => serve((command, effect) => update(settled(command, effect, looking.current))))
+  const { review, lead } = useLead(first, viewer)
   useEffect(() => {
     window.workFixture = controls(
       update,
@@ -364,15 +408,16 @@ function Tasks() {
       },
       setArrived,
       viewer,
+      lead.commands,
     )
-  }, [update, viewer])
+  }, [update, viewer, lead])
   const board = viewOf(first, arrived, now)
   const read = readBoardView(board)
   if (!read.ok) {
     window.workFixture = { ...window.workFixture, unexpected, refused: read.problems }
     return <p role="alert">The fixture’s view was refused: {read.problems.join('; ')}</p>
   }
-  const shared = { resources: withActivity(owned), viewerId: viewer, now, board: read.value }
+  const shared = { resources: withActivity(owned), viewerId: viewer, now, board: read.value, review }
   const plans = Object.fromEntries(
     read.value.goals
       .filter((g) => boardOf(g, { resources: [], people, viewerId: viewer }) || g.items.length > 0)

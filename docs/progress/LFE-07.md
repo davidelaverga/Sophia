@@ -20,3 +20,7 @@ Package: [frontend/LFE-07](../execution/2026-10-01-unified/frontend/LFE-07.md). 
   It reads and doesn't act. It runs on `fixtures/work.html`.
 - **Then a board** (same handoff): goals one at a time; four lanes of live tiles; threads; a task's sheet with Act on it and Ask Sophia; what changed since the last look. It runs on fixtures. Endpoints are proposed in the pull request.
 - **Attempt 2** ([handoff](../handoffs/LFE-07-attempt-2.md)): Codex's P2s on the board, fixed (the tree, waiting on whom, decisions' revision and expiry, goals without a plan, a task's draft and Sophia's latest answer, what was seen per plan).
+
+## LFE-07.2 — a progress review you can see
+
+- **Attempt 3** ([handoff](../handoffs/LFE-07-attempt-3.md), [design note](../plans/LFE-07.2-progress-review.md)): the review that follows the goal's Request review, said on the goal's quiet line: running (joined, scheduled, of an older revision), awaiting its allowance, and how the last one ended. No card or announcement for a routine end. The result card and Challenge come next.
