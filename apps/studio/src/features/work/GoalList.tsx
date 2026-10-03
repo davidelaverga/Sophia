@@ -61,10 +61,17 @@ function listedGoals(
     .toSorted((a, b) => Number(unplanned(a)) - Number(unplanned(b)))
 }
 
-/** A followed address, and whether the search hides its task's goal (it then gives way, so the task opens). */
+/**
+ * A followed address: whether its task is on a plan yet (one may arrive after the address), and whether the search
+ * hides its task's goal (it then gives way, so the task opens).
+ */
 function followedOf(named: { id: string | null; seq: number }, plans: Props['plans'], tabbed: readonly Goal[]) {
   const addressed = goalOf(plans, named.id)
-  return { seq: named.seq, hidden: Boolean(addressed && !tabbed.some((g) => g.id === addressed)) }
+  return {
+    seq: named.seq,
+    found: addressed !== undefined,
+    hidden: Boolean(addressed && !tabbed.some((g) => g.id === addressed)),
+  }
 }
 
 /**
@@ -120,13 +127,14 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
   const planned = (id: string) => plans?.[id]?.view
   const [query, setQuery] = useState('')
   const { tabbed, shown, listed, anyPlan, choose, followed } = useChosenGoal(snapshot, plans, query)
-  // Each time an address is followed, a search hiding its task's goal is cleared; a search typed after it is kept.
+  // Each time an address is followed, a search hiding its task's goal is cleared once its task is on a plan, which may
+  // arrive later: until then the address waits, and a search typed while it waits gives way too. One typed after is kept.
   const handled = useRef(followed.seq)
   useEffect(() => {
-    if (handled.current === followed.seq) return
+    if (handled.current === followed.seq || !followed.found) return
     handled.current = followed.seq
     if (followed.hidden) setQuery('')
-  }, [followed.seq, followed.hidden])
+  }, [followed.seq, followed.found, followed.hidden])
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />

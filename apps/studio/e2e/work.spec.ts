@@ -428,6 +428,28 @@ test('an answer not confirmed holds the other choice: only the same can be tried
   await expect(choices.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
 })
 
+test('an answer not confirmed holds when the decisions close and open, and when another goal is chosen', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&unknown=1&two=1`)
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  const choices = ask.getByRole('group', { name: 'Your choice' })
+  await choices.getByRole('button', { name: 'Ship it now' }).click()
+  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  const pill = board(page).locator('.decision-pill')
+  await pill.click()
+  await expect(ask).toHaveCount(0)
+  await pill.click()
+  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
+  await page.getByRole('tab', { name: /The report pane says/ }).click()
+  await page.getByRole('tab', { name: /Reports export to PDF/ }).click()
+  // A new board: the decider's own decisions open by themselves, and the answer is still there.
+  await expect(ask.getByRole('status')).toHaveText('Not confirmed. Nothing is assumed: check before choosing again.')
+  await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
+  await expect(choices.getByRole('button', { name: 'Ship it now' })).toBeEnabled()
+})
+
 test('a goal without a plan keeps its row beside the planned one', async ({ page }) => {
   await page.goto(`${PAGE}?unplanned=1`)
   await expect(page.locator('.board')).toBeVisible()
@@ -473,6 +495,18 @@ test('a followed address opens its task even when the search hides its goal', as
   await expect(page.getByRole('tab')).toHaveCount(0) // one goal answers
   await page.evaluate(() => (window.location.hash = '#task-pane-copy'))
   await expect(page.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+})
+
+test('a followed address whose plan arrives later still opens its task, the search giving way', async ({ page }) => {
+  await page.goto(`${PAGE}?two=1&later=1`)
+  await page.getByRole('searchbox').fill('PDF retry')
+  await page.evaluate(() => (window.location.hash = '#task-pane-copy'))
+  // The address is followed and drawn before its plan arrives, not in the same render.
+  await page.evaluate(() => new Promise(requestAnimationFrame))
+  await page.evaluate(() => new Promise(requestAnimationFrame))
+  await page.evaluate(() => window.workFixture?.arrive?.())
+  await expect(page.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+  await expect(page.getByRole('searchbox')).toHaveValue('')
 })
 
 test('“What happens if I say yes?” is asked only by the one the request waits on', async ({ page }) => {
