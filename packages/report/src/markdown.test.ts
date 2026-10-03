@@ -247,6 +247,21 @@ describe('the report Markdown parser', () => {
     assert.ok(timed(`${'[]('.repeat((64 * 1024) / 3)}\n${'[x]('.repeat(1024)}`) < 1000, 'two lines of [](')
   })
 
+  it('reads a paragraph of many short lines in linear time, its hard breaks kept (a draft may hold 256 KiB)', () => {
+    assert.ok(timed('x(\n'.repeat((256 * 1024) / 3)) < 1000, '256 KiB of x( lines in one paragraph')
+    assert.ok(timed('abcd\n'.repeat((256 * 1024) / 5)) < 1000, '256 KiB of short lines in one paragraph')
+    assert.ok(timed('[]((\n'.repeat((256 * 1024) / 5)) < 1000, '256 KiB of [](( lines in one paragraph')
+    const p = only('a  \nb \nc\\\nd \\ \ne\t\nf')
+    assert.equal(p.kind, 'paragraph')
+    assert.deepEqual(p.kind === 'paragraph' ? p.children.map((i) => (i.kind === 'break' ? '<br>' : plain([i]))) : [], [
+      'a',
+      '<br>',
+      'b  c\nd',
+      '<br>',
+      'e\t f',
+    ])
+  })
+
   it('ends a link target on its own parenthesis, those inside it balanced, and never past its line', () => {
     assert.deepEqual(shape('See [the docs](https://x.example/a "Title") then.'), [
       'See ',

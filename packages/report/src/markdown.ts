@@ -354,26 +354,35 @@ function special(s: Scan, i: number): Step {
   return null
 }
 
-/** One line's (or one cell's) inline content. */
+/**
+ * One line's (or one cell's) inline content. The spaces that end the text so far are counted as it grows: asking the
+ * text at every line break reads all of it again, and one paragraph of short lines took seconds at the cap.
+ */
 function inlines(s: Scan): Inline[] {
   const out: Inline[] = []
   let text = ''
+  let spaces = 0
+  const add = (piece: string) => {
+    text += piece
+    spaces = piece === ' ' ? spaces + 1 : 0
+  }
   const flush = () => {
     out.push(...citing(text, s.cites))
     text = ''
+    spaces = 0
   }
   let i = 0
   while (i < s.src.length) {
     const c = s.src[i] ?? ''
     if (c === '\\' && i + 1 < s.src.length) {
-      text += s.src[i + 1] === '\n' ? '\n' : (s.src[i + 1] ?? '')
+      add(s.src[i + 1] ?? '')
       i += 2
       continue
     }
     if (c === '\n') {
-      const hard = text.endsWith('  ')
-      text = hard ? text.trimEnd() : `${text} `
-      if (hard) {
+      if (spaces < 2) add(' ')
+      else {
+        text = text.trimEnd()
         flush()
         out.push({ kind: 'break' })
       }
@@ -387,7 +396,7 @@ function inlines(s: Scan): Inline[] {
       i = step.next
       continue
     }
-    text += c
+    add(c)
     i += 1
   }
   flush()
