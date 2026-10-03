@@ -202,6 +202,10 @@ const topic = (changed: Partial<Record<'added' | 'revised' | 'removed', string[]
 const withRecommendation = (recommendation: string) =>
   `# Report\n\nBody.\n\n## Conclusion\n\nUse A.\n\n## Recommendations\n\n${recommendation}\n`
 
+/** Two options, each with its own '### Conclusion', after recommendations reading `recommendation`. */
+const withOptions = (recommendation: string) =>
+  `# Report\n\n## Option A\n\n### Conclusion\n\nFast.\n\n## Option B\n\n### Conclusion\n\nQuiet.\n\n## Recommendations\n\n${recommendation}\n`
+
 describe('what a changed conclusion fact covers (CX-0019)', () => {
   it('names the part whose heading changed', () => {
     assert.equal(topic({ revised: ['Conclusion'] }), 'Conclusion')
@@ -221,6 +225,12 @@ describe('what a changed conclusion fact covers (CX-0019)', () => {
       conclusionTopic(compareSections(withRecommendation('Do X.'), withRecommendation('Do X and Y.'))),
       'Recommendations',
     )
+  })
+
+  it('names only the recommendations when a repeated conclusion heading is as it was (0036 pairing)', () => {
+    // Each option's '### Conclusion' pairs with its own: under 0027's anchor-only pairing, A's read as revised.
+    const facts = compareSections(withOptions('Do X.'), withOptions('Do X and Y.'))
+    assert.deepEqual([facts.revised, conclusionTopic(facts)], [['Recommendations'], 'Recommendations'])
   })
 })
 

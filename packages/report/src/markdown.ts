@@ -500,26 +500,35 @@ export interface SectionChange {
 interface Section {
   heading: string | null
   anchor: string
+  /** 1–6 for a heading, 0 for the text before the first one. */
+  depth: number
   body: string
 }
 
-/** A Markdown text as sections, the way the service splits it for section facts (0027 markdown_sections). */
+/** A Markdown text as sections, the way the service splits it for section facts (0036 markdown_outline). */
 export function sectionsOf(text: string): Section[] {
   const out: Section[] = []
   let inFence = false
   let heading: string | null = null
+  let depth = 0
   let body = ''
   const push = () => {
     if (heading !== null || body.trim() !== '') {
-      out.push({ heading, anchor: heading === null ? '' : anchorOf(heading), body: body.replace(/\s+/g, ' ').trim() })
+      out.push({
+        heading,
+        anchor: heading === null ? '' : anchorOf(heading),
+        depth,
+        body: body.replace(/\s+/g, ' ').trim(),
+      })
     }
   }
   for (const line of text.split(/\r?\n/)) {
     if (/^\s{0,3}(```|~~~)/.test(line)) inFence = !inFence
-    const m = inFence ? null : /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/.exec(line)
-    if (m && (m[1] ?? '').trim() !== '') {
+    const m = inFence ? null : /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line)
+    if (m && (m[2] ?? '').trim() !== '') {
       push()
-      heading = (m[1] ?? '').trim()
+      heading = (m[2] ?? '').trim()
+      depth = (m[1] ?? '').length
       body = ''
     } else {
       body += `${line}\n`
@@ -529,23 +538,93 @@ export function sectionsOf(text: string): Section[] {
   return out
 }
 
+interface Placed extends Section {
+  ord: number
+  /** '' before the first heading, else '/' and the anchors of the headings it sits under (by level) and its own. */
+  path: string
+  /** Its occurrence on that path, from 1. */
+  occ: number
+}
+
+/** Each section with its heading path and its occurrence on that path. */
+function placed(text: string): Placed[] {
+  const stack: Section[] = []
+  const seen = new Map<string, number>()
+  return sectionsOf(text).map((s, ord) => {
+    if (s.heading !== null) {
+      while ((stack.at(-1)?.depth ?? 0) >= s.depth) stack.pop()
+      stack.push(s)
+    }
+    const path = s.heading === null ? '' : `/${stack.map((x) => x.anchor).join('/')}`
+    const occ = (seen.get(path) ?? 0) + 1
+    seen.set(path, occ)
+    return { ...s, ord, path, occ }
+  })
+}
+
+const nameOf = (s: Section) => `${s.heading === null}:${s.anchor}`
+
+/** The path below the outermost heading ('' for that heading and the introduction): what a renamed title keeps. */
+const subOf = (s: Placed) => s.path.replace(/^\/[^/]*/, '')
+
+/** Pairs each newer section left unpaired with the first older one left unpaired that has the same key, in order. */
+function pairInOrder(
+  was: readonly Placed[],
+  now: readonly Placed[],
+  out: Map<number, Placed>,
+  key: (s: Placed) => string,
+) {
+  const used = new Set([...out.values()].map((o) => o.ord))
+  const rest = new Map<string, Placed[]>()
+  for (const o of was) {
+    const k = key(o)
+    if (used.has(o.ord) || k === '') continue
+    const queue = rest.get(k)
+    if (queue) queue.push(o)
+    else rest.set(k, [o])
+  }
+  for (const n of now) {
+    const o = out.has(n.ord) || key(n) === '' ? undefined : rest.get(key(n))?.shift()
+    if (o) out.set(n.ord, o)
+  }
+}
+
+/**
+ * Each newer section's pair in the older text: the same path and occurrence; then what is left on the path below the
+ * title, in order (a renamed title); then by anchor, in order (a renamed parent).
+ */
+function pairs(was: readonly Placed[], now: readonly Placed[]): Map<number, Placed> {
+  const exact = new Map(was.map((o) => [`${o.path}#${o.occ}`, o]))
+  const out = new Map<number, Placed>()
+  for (const n of now) {
+    const o = exact.get(`${n.path}#${n.occ}`)
+    if (o) out.set(n.ord, o)
+  }
+  pairInOrder(was, now, out, subOf)
+  pairInOrder(was, now, out, nameOf)
+  return out
+}
+
 const CONCLUSION = /(conclusion|recommendation)/
 
 const sectionName = (s: Section) => s.heading ?? '(introduction)'
 
-/** What changed between two versions, by section: the comparison Knowledge shows (computed here, never stored). */
+/**
+ * What changed between two versions, by section: the comparison Knowledge shows (computed here, never stored), paired
+ * as the service pairs them for a version's facts (0036 section_facts), each section at most once.
+ */
 export function compareSections(older: string, newer: string): SectionChange {
-  const was = sectionsOf(older)
-  const now = sectionsOf(newer)
-  const before = new Map(was.map((s) => [s.anchor, s]))
-  const kept = new Set(now.map((s) => s.anchor))
-  const change = (s: Section) => {
-    const old = before.get(s.anchor)
+  const was = placed(older)
+  const now = placed(newer)
+  const paired = pairs(was, now)
+  const kept = new Set([...paired.values()].map((o) => o.ord))
+  const change = (s: Placed) => {
+    const old = paired.get(s.ord)
     if (!old) return 'added'
     return old.body === s.body ? 'unchanged' : 'revised'
   }
   const pick = (kind: string) => now.filter((s) => change(s) === kind).map(sectionName)
-  const gone = was.filter((s) => !kept.has(s.anchor))
+  const gone = was.filter((s) => !kept.has(s.ord))
   return {
     added: pick('added'),
     revised: pick('revised'),

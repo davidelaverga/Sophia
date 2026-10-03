@@ -8,6 +8,7 @@ import { after, before, describe, it } from 'node:test'
 import type { RenderJob, RenderReceipt, RuntimeCommand, RuntimeReceipt, RuntimeRole } from '@sophia/contracts'
 import { parseArtifactVersionList } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
+import { compareSections } from '@sophia/report/markdown'
 import {
   createTestDatabase,
   registerRuntime,
@@ -1324,11 +1325,11 @@ const V1 = '# Hosts\nA and B.\n\n## Costs\nUnknown.\n\n## Conclusion\nUse A.\n\n
 const V2 = '# Hosts\nA and B.\n\n## Costs\nA is $1 a page.\n\n## Pricing tiers\nThree tiers.\n'
 
 /** A first version (V1) and an admitted amendment with its V2 draft: what the truth-gate tests submit. */
-async function amending(w: World) {
+async function amending(w: World, texts: { v1: string; v2: string } = { v1: V1, v2: V2 }) {
   const first = await started(w)
   const cited = await citable(w, first.at)
   const d1 = await service((c) =>
-    runtimeResearchDraft(c, w.who, { ...first.at, callId: 'd1', expectedSha256: null, text: V1 }),
+    runtimeResearchDraft(c, w.who, { ...first.at, callId: 'd1', expectedSha256: null, text: texts.v1 }),
   )
   const v1 = await service((c) =>
     runtimeResearchSubmit(c, w.who, {
@@ -1339,7 +1340,7 @@ async function amending(w: World) {
   )
   const amended = await started(w, { question: 'Add the costs.', amendsTaskId: first.receipt.taskId })
   const d2 = await service((c) =>
-    runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text: V2 }),
+    runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text: texts.v2 }),
   )
   const submit = (callId: string, notes: { changeNote: string; retainedNote?: string }) =>
     service((c) =>
@@ -1347,6 +1348,106 @@ async function amending(w: World) {
     )
   return { first, cited, v1, amended, submit }
 }
+
+/** A report whose recommendations and conclusion are separate sections. */
+const REPORT = '# Hosts\n\n## Findings\nA is fast.\n\n## Recommendations\nUse A.\n\n## Conclusion\nA wins.\n'
+/** Options with the same subheadings under each. */
+const OPTIONS =
+  '# Options\n\n## Option A\nFast.\n\n### Pros\nCheap.\n\n### Cons\nLoud.\n\n## Option B\nSlow.\n\n### Pros\nQuiet.\n\n### Cons\nCostly.\n'
+/** OPTIONS with Option A's pros revised and an Option C, with its own pros, between A and B. */
+const OPTIONS_V2 = OPTIONS.replace('Cheap.', 'Cheap and simple.').replace(
+  '## Option B',
+  '## Option C\nNew.\n\n### Pros\nFree.\n\n## Option B',
+)
+
+describe('report facts, each section once (0036)', () => {
+  it('publishes "conclusion unchanged" as written when only the recommendations changed', async () => {
+    const w = await world()
+    const { submit } = await amending(w, { v1: REPORT, v2: REPORT.replace('Use A.', 'Use A; budget for B.') })
+    const done = await submit('s2', { changeNote: 'Recommendations expanded; conclusion unchanged.' })
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', false])
+    const row = await one<{ change_note: string }>(`SELECT change_note FROM sophia.artifact_versions WHERE id=$1`, [
+      done.versionId,
+    ])
+    assert.equal(row.change_note, 'Recommendations expanded; conclusion unchanged.')
+  })
+
+  it('refuses "recommendations unchanged" when they changed, with the facts', async () => {
+    const w = await world()
+    const { submit } = await amending(w, { v1: REPORT, v2: REPORT.replace('Use A.', 'Use A; budget for B.') })
+    const refused = await submit('s2', {
+      changeNote: 'Findings tightened.',
+      retainedNote: 'Recommendations unchanged.',
+    })
+    assert.deepEqual(
+      [refused.outcome, refused.problems, refused.sections],
+      [
+        'notes_rejected',
+        ['The note calls the recommendations unchanged, but they changed.'],
+        {
+          added: [],
+          revised: ['Recommendations'],
+          removed: [],
+          unchanged: ['Hosts', 'Findings', 'Conclusion'],
+          conclusionChanged: true,
+        },
+      ],
+    )
+  })
+
+  it('counts a repeated subheading once, and Studio compares as the service counted', async () => {
+    const w = await world()
+    const { v1, submit } = await amending(w, { v1: OPTIONS, v2: OPTIONS_V2 })
+    const done = await submit('s2', {
+      changeNote: "Revised Option A's pros; added Option C.",
+      retainedNote: 'Option B as it was.',
+    })
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', false])
+    const history = await withActor(pool, V, 'read', (c) => readArtifactVersions(c, v1.artifactId!))
+    assert.deepEqual(parseArtifactVersionList(history), history, 'the deployed readers parse the facts')
+    const sections = {
+      added: ['Option C', 'Pros'],
+      revised: ['Pros'],
+      removed: [],
+      unchanged: ['Options', 'Option A', 'Cons', 'Option B', 'Pros', 'Cons'],
+      conclusionChanged: false,
+    }
+    assert.deepEqual(history[0]?.changeFacts?.sections, sections)
+    assert.deepEqual(compareSections(OPTIONS, OPTIONS_V2), sections, 'Studio compares as the service counted')
+  })
+
+  it('stores the same facts Studio compares for repeated paths and renamed titles', async () => {
+    const log = '# Log\n## Update\nMon.\n## Update\nTue.\n## Update\nWed.\n'
+    const cases: [string, string][] = [
+      [OPTIONS, OPTIONS_V2],
+      [log, log.replace('Tue.', 'Tue, late.')],
+      [log, `${log}## Update\nThu.\n`],
+      [log, log.replace('# Log', '# Journal')],
+      [OPTIONS, OPTIONS_V2.replace('# Options', '# Options, with C').replace('Cheap and simple.', 'Cheap.')],
+    ]
+    for (const [was, now] of cases) {
+      const row = await one<{ f: unknown }>(`SELECT sophia.section_facts($1,$2) AS f`, [was, now])
+      assert.deepEqual(row.f, compareSections(was, now), now)
+    }
+  })
+
+  it('refuses "No changes to the report." when a section changed', async () => {
+    const w = await world()
+    const { submit } = await amending(w, { v1: REPORT, v2: REPORT.replace('A is fast.', 'A is fast and cheap.') })
+    const refused = await submit('s2', { changeNote: 'No changes to the report.' })
+    assert.deepEqual(
+      [refused.outcome, refused.problems],
+      ['notes_rejected', ['The note says nothing changed, but 1 sections changed.']],
+    )
+  })
+
+  it('accepts "No changes." for an amendment whose repeated headings are all as they were', async () => {
+    const w = await world()
+    const { submit } = await amending(w, { v1: OPTIONS, v2: `${OPTIONS}\n` })
+    const done = await submit('s2', { changeNote: 'No changes.' })
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', false])
+  })
+})
 
 describe('report facts (0027)', () => {
   it('splits Markdown into sections by heading, skipping fenced code, and compares two versions', async () => {

@@ -3360,7 +3360,7 @@
               {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 100000
+                "maximum": 262144
               },
               {
                 "type": "null"
@@ -3372,7 +3372,7 @@
               {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 100000
+                "maximum": 262144
               },
               {
                 "type": "null"
