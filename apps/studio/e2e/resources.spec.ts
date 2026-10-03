@@ -939,6 +939,46 @@ test('effort · a restart, step by step: asked, its work kept as it stops, start
   await expect(worker.getByRole('status')).toHaveCount(0, { timeout: 500 })
 })
 
+test('effort · its line sits in the session’s column: dot under dot, text under text, evenly spaced', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.locator('.resource-session').filter({ hasText: 'worker' })
+  await worker.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await page.keyboard.press('ArrowLeft')
+  await claude.getByRole('button', { name: 'Restart now with Max…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  // Measured at rest, once it has arrived.
+  await worker.locator('.effort-asked').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+  const m = await worker.evaluate((row) => {
+    const box = (s: string) => row.querySelector(s)?.getBoundingClientRect() ?? new DOMRect()
+    const mid = (s: string) => box(s).left + box(s).width / 2
+    // Where an element's own words start, past its dot.
+    const text = (s: string) => {
+      const range = document.createRange()
+      const words = [...(row.querySelector(s)?.childNodes ?? [])].find((n) => n.nodeType === 3 && n.textContent?.trim())
+      if (words) range.selectNodeContents(words)
+      return range.getBoundingClientRect().left
+    }
+    const [chip, line, tag] = [box('.model-chip'), box('.effort-asked'), box('.resource-work .tag')]
+    return {
+      dot: { chip: mid('.model-dot'), line: mid('.effort-asked-dot'), tag: mid('.resource-work .tag .dot') },
+      text: { chip: text('.model-chip'), line: text('.effort-asked'), tag: text('.resource-work .tag') },
+      above: line.top - chip.bottom,
+      below: tag.top - line.bottom,
+      height: { chip: chip.height, line: line.height },
+    }
+  })
+  expect(Math.abs(m.dot.line - m.dot.chip)).toBeLessThanOrEqual(0.5) // dot under dot
+  expect(Math.abs(m.dot.tag - m.dot.chip)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(m.text.line - m.text.chip)).toBeLessThanOrEqual(1) // text under text
+  expect(Math.abs(m.text.tag - m.text.chip)).toBeLessThanOrEqual(1)
+  expect(m.above).toBeGreaterThan(0)
+  expect(m.above).toBeCloseTo(m.below, 1) // as far from the tag below as from the chip above
+  expect(m.height.line).toBe(m.height.chip)
+})
+
 test('effort · a next run starts with it; a stop not confirmed restarts nothing, and anyone sees it', async ({
   page,
 }) => {

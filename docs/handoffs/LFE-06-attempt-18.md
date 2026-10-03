@@ -103,6 +103,13 @@ Each step is said only as the runtime reports it, in a new optional `Session.cha
 
   The live-reads one first passed, because the check had no reads arriving. Now reads arrive while the request is let go.
 
+## Luis's note: the line wasn't aligned
+
+Luis showed "Restart asked · Max" out of line. Measured: its dot sat 6 px left of the model chip's and the work tag's (its halo out of the column), its text 5 px left of theirs, and it was 22 px tall, overlapping the tag below by 1 px. Now it shares their column: dot under dot, text under text, as tall as the chip, and as far from the tag below as from the chip above.
+
+- **Checked:** a browser check measures all four at rest, after the line's entrance animation (measured mid-animation, it read 3 px off). Two mutations each made it fail: the line off the column, and the line closer to the tag below. A third rule (the Undo's own height) changed nothing measurable and was removed.
+- `test:browser --repeat-each=2`: 164 of 164.
+
 ## Remaining obligations
 
 - **Davide:**
