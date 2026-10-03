@@ -18,6 +18,10 @@ const picture = `data:image/svg+xml,${encodeURIComponent(
     '<path d="M5 32c1.5-7 6-10 11-10s9.5 3 11 10z" fill="#0b0a0f" opacity=".55"/></svg>',
 )}`
 
+/** The levels each tool says its sessions can start with (its native catalog), as a host would report them. */
+const CLAUDE_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode']
+const GPT_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'ultra']
+
 export const people = {
   davide: { id: 'davide', name: 'Davide', avatarUrl: picture },
   luis: { id: 'luis', name: 'Luis', avatarUrl: null },
@@ -36,6 +40,7 @@ export const resources: Resource[] = [
         role: 'reviewer',
         model: 'gpt-6.1-sol',
         effort: 'ultra',
+        efforts: GPT_EFFORTS,
         assignment: { workId: 'work-2', title: 'Review the report pane', state: 'running' },
       },
     ],
@@ -55,9 +60,17 @@ export const resources: Resource[] = [
         model: 'claude-opus-5-5',
         effort: 'high',
         mode: 'ultracode',
+        efforts: CLAUDE_EFFORTS,
         assignment: { workId: 'work-1', title: 'Implement the PDF retry', state: 'waiting' },
       },
-      { id: 'claude-reviewer', role: 'reviewer', model: 'claude-sonnet-5-5', effort: null, assignment: null },
+      {
+        id: 'claude-reviewer',
+        role: 'reviewer',
+        model: 'claude-sonnet-5-5',
+        effort: null,
+        efforts: CLAUDE_EFFORTS,
+        assignment: null,
+      },
     ],
     controls: { steer: 'supported', hold: 'supported', stop: 'supported', permissions: 'unqualified' },
     reservePercent: null,
@@ -95,6 +108,15 @@ export const busyCodex = (o: QuotaObservation): QuotaObservation => ({
 export const busyClaude = (o: QuotaObservation): QuotaObservation => ({
   ...o,
   windows: o.windows.map((w) => (w.window_id === 'five_hour' ? percent('five_hour', 95, 59) : w)),
+})
+
+/**
+ * `tight=1`: Davide's Claude Code at 81 % of its 5-hour window halfway through it: at this pace it is used up in ~35
+ * min, ~2 h before it resets, while his Codex has room.
+ */
+export const tightClaude = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: o.windows.map((w) => (w.window_id === 'five_hour' ? percent('five_hour', 81, 150) : w)),
 })
 
 /** `spent=1`: Codex's spend limit passed, at 120 % (a spend percentage has no ceiling). */
@@ -223,7 +245,7 @@ export const moreResources: Resource[] = [
         role: 'worker',
         model: 'gemini-2.5-pro',
         effort: 'high',
-        assignment: { workId: 'work-3', title: 'Draft the onboarding copy', state: 'queued' },
+        assignment: { workId: 'onboarding-copy', title: 'Draft the onboarding copy', state: 'queued' },
       },
     ],
     controls: { steer: 'unqualified', hold: 'supported', stop: 'supported', permissions: 'unqualified' },

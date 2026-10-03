@@ -25,6 +25,10 @@ export interface Pace {
   passed: number
   /** "used up ~20 min before it resets", when the account runs out first at this pace; null otherwise. */
   early: string | null
+  /** When it runs out from now, "~35 min", whenever `early` is said; "now" once it should have. */
+  runsOut: string | null
+  /** The same, in milliseconds from now (zero or less once it should have), to find the window that runs out first. */
+  outIn: number | null
 }
 
 /** A stretch of time in the fewest words: "~20 min", "~3 h", "~2 d". */
@@ -39,6 +43,19 @@ function runsOutAt(used: number, passed: number, length: number, readAt: number)
   if (passed < EARLY || used <= 0 || used >= 100) return null
   const perMs = used / (passed * length)
   return readAt + (100 - used) / perMs
+}
+
+/** What a pace says once it knows when the account runs out, if it does: only when that is well before the reset. */
+function ahead(passed: number, out: number | null, reset: number, now: Date): Pace {
+  const before = out === null ? 0 : reset - out
+  if (out === null || before < NEAR) return { passed, early: null, runsOut: null, outIn: null }
+  const left = out - now.getTime()
+  return {
+    passed,
+    early: `At this pace, used up ${span(before)} before it resets`,
+    runsOut: left < MINUTE ? 'now' : span(left),
+    outIn: left,
+  }
 }
 
 /** The reading a window comes from: when it was read, and which source named its windows. */
@@ -57,7 +74,5 @@ export function pace(w: QuotaWindow, reading: Reading, now: Date): Pace | null {
   if (reset <= now.getTime()) return null
   const readAt = Date.parse(reading.observed_at)
   const passed = Math.min(1, Math.max(0, (readAt - (reset - length)) / length))
-  const out = runsOutAt(w.value, passed, length, readAt)
-  const before = out === null ? 0 : reset - out
-  return { passed, early: before >= NEAR ? `At this pace, used up ${span(before)} before it resets` : null }
+  return ahead(passed, runsOutAt(w.value, passed, length, readAt), reset, now)
 }

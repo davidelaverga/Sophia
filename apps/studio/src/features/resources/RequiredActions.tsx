@@ -66,7 +66,12 @@ export function ResourceRequests({ actions, resource, viewerId, now }: Props) {
   if (own.length === 0) return null
   return (
     <section className="sheet-section resource-requests" aria-labelledby="requests-title">
-      <h3 id="requests-title">Waiting on {resource.owner.id === viewerId ? 'you' : resource.owner.name}</h3>
+      <h3 id="requests-title">
+        {/* Once none is open, nothing waits: the heading doesn't say it does. */}
+        {own.some((a) => a.state === 'open')
+          ? `Waiting on ${resource.owner.id === viewerId ? 'you' : resource.owner.name}`
+          : 'Earlier requests'}
+      </h3>
       <ol className="events">
         {own.map((a) => (
           <Request key={a.id} action={a} resource={resource} viewerId={viewerId} now={now} />

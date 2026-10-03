@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { linkedId, linkHash } from './link.ts'
+import { linkedId, linkHash, TASK } from './link.ts'
 import { DEFAULT_PREFS, prefsKey, readPrefs, savePrefs } from './prefs.ts'
 
 /** A browser's storage, held in a map. */
@@ -49,5 +49,10 @@ describe('a resource’s address', () => {
     assert.equal(linkedId('#resource-'), null)
     assert.equal(linkedId(''), null)
     assert.equal(linkedId('#resource-%E0%A4%A'), null) // a broken escape names nothing
+    // A task's sheet has its own, beside a resource's: neither reads the other's.
+    assert.equal(linkHash('work-1', TASK), '#task-work-1')
+    assert.equal(linkedId('#task-work-1', TASK), 'work-1')
+    assert.equal(linkedId('#task-work-1'), null)
+    assert.equal(linkedId('#resource-davide-codex', TASK), null)
   })
 })

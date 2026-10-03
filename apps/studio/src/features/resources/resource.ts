@@ -28,6 +28,12 @@ export type ControlName = 'steer' | 'hold' | 'stop' | 'permissions'
 /** As the control-support matrix says it: qualified for this route, not qualified yet, or not offered by it. */
 export type Support = 'supported' | 'unqualified' | 'unsupported'
 
+/** One thing a session's tool reported doing, in its own words, and when it was observed. */
+export interface Report {
+  said: string
+  observedAt: string
+}
+
 export interface Session {
   id: string
   /** What this session does in the project: "worker", "reviewer"… */
@@ -40,8 +46,38 @@ export interface Session {
    * session can be at max effort without it. The Studio's proposal for SCM-01.
    */
   mode?: string | null
+  /**
+   * The levels its tool says this session can be started with, lowest first, from its native catalog; a mode beyond
+   * them last (Claude Code's ultracode). Absent when the tool doesn't say: then none is offered. The Studio's proposal
+   * for SCM-01, as OMNIGENT's launch sets `reasoning_effort` from the native catalog.
+   */
+  efforts?: string[] | null
+  /**
+   * A change of its configuration underway, as its runtime reports it: its attempt stopping (its work kept for the
+   * next), the next starting with the level asked, or a stop it couldn't confirm (OMNIGENT's "stopping, outcome
+   * unknown"), where nothing restarts. Absent when none is. The Studio's proposal for SCM-01.
+   */
+  change?: { level: string; phase: 'stopping' | 'starting' | 'unconfirmed' } | null
   assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
+  /**
+   * The last thing its tool reported doing, in its own words, and when it was observed ("ran the export tests"). Never
+   * its reasoning (07_STUDIO_VOICE_AND_ARTIFACTS). The Studio's proposal for SCM-02.
+   */
+  activity?: Report | null
+  /**
+   * What it reported before that, newest first, a few at most: what it did in its last minutes, without opening its
+   * tool. The Studio's proposal for SCM-02, beside `activity`.
+   */
+  recent?: Report[] | null
 }
+
+/** A session's work as its tool reports it, said and toned as the Studio says it, in the sheet and in the plan. */
+export const WORK_STATE = {
+  recorded: ['muted', 'Recorded'],
+  queued: ['muted', 'Queued'],
+  running: ['teal', 'Working'],
+  waiting: ['amber', 'Waiting'],
+} as const
 
 export interface Resource {
   /** The enrollment: `davide-codex`, `davide-claude`, `luis-claude`. */
@@ -109,6 +145,19 @@ export function ago(at: string | null, now: Date): string {
   if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h ago`
   return `${Math.round(minutes / (24 * 60))} d ago`
 }
+
+/** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
+export function observedAgo(observed: string, now: Date): string {
+  const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(observed)) / 1000))
+  return seconds < 60 ? `${String(seconds)} s ago` : ago(observed, now)
+}
+
+/** How long a session's report stays live, in seconds: its ring empties over this span. */
+export const LIVE_S = 120
+
+/** How fresh an observation still is, from 1 when just made to 0 at `span` seconds old. */
+export const freshness = (observed: string, now: Date, span = LIVE_S) =>
+  Math.min(1, Math.max(0, 1 - (now.getTime() - Date.parse(observed)) / 1000 / span))
 
 /** How long until, in the same words: "in 40 min", "in 2 h", "in 4 d". */
 function until(at: string, now: Date): string {
@@ -207,6 +256,8 @@ export interface Capacity {
   pace: Pace | null
   /** The window the line comes from (the limiting one, or a balance): the sheet doesn't list it again. */
   windowId: string | null
+  /** The balance the line reports, when it is one. */
+  balance?: WindowView
 }
 
 const unresolved = (line: string) => ({ line, limiting: null, known: false, windowId: null })
@@ -225,7 +276,7 @@ function fromKnown(known: WindowView[]): Omit<Capacity, 'pace'> | null {
   if (known.some((v) => v.state === 'refresh_pending')) return unresolved('Refresh pending')
   if (known.some((v) => v.state === 'unknown')) return unresolved('Capacity unknown')
   const balance = known.find((v) => v.state === 'observed')
-  return balance ? { line: balanceLine(balance), limiting: null, known: true, windowId: balance.id } : null
+  return balance ? { line: balanceLine(balance), limiting: null, known: true, windowId: balance.id, balance } : null
 }
 
 /**
@@ -235,11 +286,26 @@ function fromKnown(known: WindowView[]): Omit<Capacity, 'pace'> | null {
  */
 const none = (line: string): Capacity => ({ line, limiting: null, known: false, pace: null, windowId: null })
 
+/** The window known to apply that runs out first at its pace, with that pace; null when none runs out. */
+function firstOut(obs: QuotaObservation, views: WindowView[], now: Date): { view: WindowView; pace: Pace } | null {
+  let first: { view: WindowView; pace: Pace; outIn: number } | null = null
+  for (const [i, w] of obs.windows.entries()) {
+    const p = pace(w, obs, now)
+    const view = views[i]
+    const outIn = p?.outIn ?? Infinity
+    if (p && view && outIn < (first?.outIn ?? Infinity)) first = { view, pace: p, outIn }
+  }
+  return first
+}
+
 export function capacity(obs: QuotaObservation | undefined, now: Date): Capacity {
   if (!obs || obs.coverage === 'unavailable') return none('Capacity unknown')
   if (expired(obs, now)) return none(`Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`)
   if (obs.windows.length === 0) return none('No window observed')
   const views = obs.windows.map((w) => windowView(w, now))
+  // A window that runs out first at its pace limits sooner than the fullest one: it heads the line.
+  const out = firstOut(obs, views, now)
+  if (out) return { line: headline(out.view), limiting: out.view, known: true, pace: out.pace, windowId: out.view.id }
   const known = fromKnown(views.filter((v) => v.applies === 'known'))
   if (!known) return none('Capacity unknown: no window is known to apply here')
   const limiting = obs.windows.find((w) => w.window_id === known.limiting?.id)
@@ -348,4 +414,40 @@ export function activity(r: Resource): string {
   const first = r.sessions.find((s) => s.assignment)?.assignment
   if (!first) return n > 1 ? `${n} sessions, none assigned` : 'No assignment'
   return n > 1 ? `${first.title} · ${n} sessions` : first.title
+}
+
+/** A resource's latest observation: its account's, which every resource on that account shares. */
+export const observationOf = (observations: readonly QuotaObservation[], r: Resource) =>
+  observations.find((o) => o.entitlement_id === r.entitlementId)
+
+/** The session a tile speaks for: the first one at work with a report; null when none. */
+export const liveSession = (r: Resource): Session | null => r.sessions.find((s) => s.assignment && s.activity) ?? null
+
+/**
+ * Whether a session's report is live now: its host online and the report younger than `LIVE_S`. An older one is still
+ * said, still, without its ring.
+ */
+export const reportsLive = (r: Resource, s: Session | null, now: Date): boolean =>
+  r.host.state === 'online' && Boolean(s?.activity) && freshness(s?.activity?.observedAt ?? '', now) > 0
+
+/** A tile's capacity, short enough for its width: the window and how full on one end, what comes on the other. */
+export interface TileCapacityLine {
+  /** "5-hour · 63%". */
+  head: string
+  /** "resets in 55 min", or "out in ~35 min" when it runs out first at its pace; null when nothing comes. */
+  next: string | null
+  /** Whether it runs out before it resets. */
+  out: boolean
+}
+
+/**
+ * The tile's short capacity, from a percentage window or a balance ("820 credits left · resets in 9 h"); null for any
+ * other line, which the tile says as it is.
+ */
+export function tileCapacity({ limiting, pace: p, balance }: Capacity): TileCapacityLine | null {
+  if (balance) return { head: balance.value, next: balance.reset, out: false }
+  if (!limiting || limiting.percent === null) return null
+  const head = `${limiting.name} · ${String(limiting.percent)}%`
+  if (p?.runsOut) return { head, next: p.runsOut === 'now' ? 'out now' : `out in ${p.runsOut}`, out: true }
+  return { head, next: limiting.reset, out: false }
 }

@@ -2,6 +2,7 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
+import type { Snapshot } from '@sophia/contracts'
 import { projectEvent, membership, mission, PROJECT, roomToken, snapshot } from './data.ts'
 import {
   content,
@@ -53,6 +54,8 @@ interface Project {
   textTampered: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
+  /** The project's goals (the work fixture's one, LFE-07). */
+  goals?: Snapshot['goals']
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -99,7 +102,7 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  * task in its work on the Work page (`place=work`).
  */
 function snapshotOf(project: Project) {
-  const now = snapshot(project.revision, project.exchange, project.messages)
+  const now = snapshot(project.revision, project.exchange, project.messages, project.goals)
   const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] } : now
   return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
 }

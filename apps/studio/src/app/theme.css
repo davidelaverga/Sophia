@@ -738,7 +738,8 @@ button.mark:hover {
   border-color: var(--line);
 }
 .account-menu [role='menuitem'],
-.menu-list [role='menuitem'] {
+.menu-list [role='menuitem'],
+.menu-list [role='menuitemradio'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -755,7 +756,9 @@ button.mark:hover {
 .account-menu [role='menuitem']:hover,
 .account-menu [role='menuitem']:focus-visible,
 .menu-list [role='menuitem']:hover,
-.menu-list [role='menuitem']:focus-visible {
+.menu-list [role='menuitem']:focus-visible,
+.menu-list [role='menuitemradio']:hover,
+.menu-list [role='menuitemradio']:focus-visible {
   outline: none;
   background: rgba(236, 235, 241, 0.06);
 }
@@ -2725,7 +2728,8 @@ div.empty {
     min-height: 40px;
   }
   .account-menu [role='menuitem'],
-  .menu-list [role='menuitem'] {
+  .menu-list [role='menuitem'],
+  .menu-list [role='menuitemradio'] {
     height: 40px;
   }
   .sheet-head .round {

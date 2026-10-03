@@ -1,16 +1,21 @@
 // One resource up close, in the app's sheet (as Invite opens): its host, each session with what it reported and what
-// it works on, its account's capacity window by window, the controls its route supports (shown, not offered: they
-// come with LFE-06.4) and the requests waiting on its owner. Esc or Close returns to the tile it was opened from.
-import { Fragment, useRef } from 'react'
+// it works on (a way to that task, when it is on the plan's board), its account's capacity window by window and, when
+// it runs short, a resource with room. Its owner acts on a session at work from its row (Act: guidance, Hold, Stop, as
+// its route supports them, LFE-06.4). Then what its route supports, and the requests waiting on its owner. Esc or Close
+// returns to the tile it was opened from.
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
 import { useDialog } from '../../app/useDialog.ts'
 import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
 import {
   ago,
+  observedAgo,
+  reportsLive,
   SUPPORT,
   TOOL,
   VENDOR,
+  WORK_STATE,
   type ControlName,
   type QuotaObservation,
   type RequiredAction,
@@ -20,17 +25,15 @@ import {
 } from './resource.ts'
 import { CopyLink } from './CopyLink.tsx'
 import { EffortMeter } from './EffortMeter.tsx'
+import { changeLine, currentLevel, levelName, type ChangeLine, type EffortAsk } from './change.ts'
+import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
+import type { Room } from './room.ts'
+import { actsSaid, canAct, SessionActs, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
-const WORK = {
-  recorded: ['muted', 'Recorded'],
-  queued: ['muted', 'Queued'],
-  running: ['teal', 'Working'],
-  waiting: ['amber', 'Waiting'],
-} as const
 const CONTROL: Record<ControlName, string> = { stop: 'Stop', hold: 'Hold', steer: 'Guidance', permissions: 'Requests' }
 const CONTROL_TIP: Record<ControlName, string> = {
   stop: 'Ends its work at once, whatever else is waiting',
@@ -51,28 +54,250 @@ function Since({ at, now }: { at: string | null; now: Date }) {
   )
 }
 
-function SessionRow({ session, tool }: { session: Session; tool: Resource['tool'] }) {
+/** The owner's way to a session's effort: its bar, which opens the picker; a request waits beside it, with Undo. */
+export interface EffortControl {
+  asked: Record<string, EffortAsk | undefined>
+  set: (sessionId: string, ask: EffortAsk) => void
+  undo: (sessionId: string) => void
+  /** Lets a request go once what the session runs is what was asked. */
+  settle: (sessionId: string) => void
+}
+
+/** How long "Now on Low" stays once the change is done. */
+const SETTLED_MS = 4000
+
+/** The line beside the bar: a request, with Undo while it is still its owner's; then each step its runtime reports. */
+function ChangeNote({ line, onUndo }: { line: ChangeLine; onUndo: () => void }) {
+  return (
+    <span className="effort-asked" role="status" data-tone={line.tone}>
+      <span className="effort-asked-dot" aria-hidden />
+      {line.text}
+      {line.tone === 'asked' && (
+        <button type="button" className="text-button" onClick={onUndo}>
+          Undo
+        </button>
+      )}
+    </span>
+  )
+}
+
+/** Once what it runs is what was asked, the request is done: said for a moment, then let go. */
+function useSettled(done: boolean, settle: ((sessionId: string) => void) | undefined, sessionId: string) {
+  useEffect(() => {
+    if (!done || !settle) return undefined
+    const t = setTimeout(() => settle(sessionId), SETTLED_MS)
+    return () => clearTimeout(t)
+  }, [done, settle, sessionId])
+}
+
+function Effort({
+  session,
+  tool,
+  control,
+}: {
+  session: Session
+  tool: Resource['tool']
+  control?: EffortControl | undefined
+}) {
+  const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  // Closing the scale (set, cancelled or Escape) hands the focus back to its bar, so the sheet's keys keep working.
+  const close = () => {
+    button.current?.focus()
+    setOpen(false)
+  }
+  const levels = session.efforts ?? []
+  const line = changeLine(session, control?.asked[session.id])
+  useSettled(line?.tone === 'done', control?.settle, session.id)
+  const shown = session.effort ? <EffortMeter effort={session.effort} tool={tool} mode={session.mode} /> : null
+  const note = line && <ChangeNote line={line} onUndo={() => control?.undo(session.id)} />
+  if (!control || levels.length === 0) {
+    return (
+      <>
+        {shown}
+        {note}
+      </>
+    )
+  }
+  const now = currentLevel(session)
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className="effort-button has-tip"
+        aria-expanded={open}
+        aria-label={`Effort: ${now ? levelName(now) : 'not reported'}. Change it`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {shown ?? <span className="effort-set">Set effort</span>}
+        <Icon name="chevron" />
+        <Tip label="Choose its effort" side="top" />
+      </button>
+      {note}
+      {open && (
+        <EffortPicker
+          session={session}
+          tool={tool}
+          levels={levels}
+          onSet={(next) => {
+            control.set(session.id, next)
+            close()
+          }}
+          onCancel={close}
+        />
+      )}
+    </>
+  )
+}
+
+/** A session's task: a way to it on the board when that task is on one, its title otherwise. */
+function WorkTitle({ work, tasks }: { work: NonNullable<Session['assignment']>; tasks: TaskLinks | undefined }) {
+  if (!tasks?.has(work.workId)) return <>{work.title}</>
+  return (
+    <button type="button" className="resource-work-link has-tip" onClick={() => tasks.open(work.workId)}>
+      {work.title}
+      <span className="sr-only">, open in Tasks</span>
+      <Icon name="forward" />
+      <Tip label="Open in Tasks" side="top" />
+    </button>
+  )
+}
+
+/** What a session at work last reported, and how long ago; still once it isn't live. */
+function SessionLive({ session, live, now }: { session: Session; live: boolean; now: Date }) {
+  const reported = session.activity
+  if (!reported || !session.assignment) return null
+  return (
+    <span className="resource-session-live">
+      <span
+        className="activity-dot"
+        data-waiting={session.assignment.state === 'waiting' || undefined}
+        data-still={live ? undefined : true}
+        aria-hidden
+      />
+      <span className="resource-session-said" title={reported.said}>
+        {reported.said}
+      </span>
+      <span className="resource-session-ago">{observedAgo(reported.observedAt, now)}</span>
+    </span>
+  )
+}
+
+/**
+ * What a session at work reported before its last report: folded under it ("3 earlier"), then a short thread, newest
+ * first, each with how long ago.
+ */
+function SessionEarlier({ session, now }: { session: Session; now: Date }) {
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const earlier = session.recent ?? []
+  if (!session.assignment || !session.activity || earlier.length === 0) return null
+  return (
+    <div className="session-earlier">
+      <button
+        type="button"
+        className="session-earlier-toggle"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {earlier.length} earlier
+        <Icon name="chevron" />
+      </button>
+      {open && (
+        <ol id={listId} className="session-earlier-list" aria-label="Earlier reports">
+          {earlier.map((r) => (
+            <li key={`${r.observedAt}-${r.said}`}>
+              <span className="session-earlier-said" title={r.said}>
+                {r.said}
+              </span>
+              <span className="resource-session-ago">{observedAgo(r.observedAt, now)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+/** The way to a session's task on the plan's board: whether a task is on one, and opening it there. */
+export interface TaskLinks {
+  has: (workId: string) => boolean
+  open: (workId: string) => void
+}
+
+interface SessionProps {
+  session: Session
+  resource: Resource
+  /** Whether its report is live now (reportsLive). */
+  live: boolean
+  now: Date
+  control?: EffortControl | undefined
+  tasks?: TaskLinks | undefined
+  /** Its owner's acts, kept by the view; absent for anyone else, or where its route supports none. */
+  acts?: Acts | undefined
+}
+
+interface ToggleProps {
+  open: boolean
+  controls: string
+  /** What its route's acts are, in words: "Hold or Stop". */
+  said: string
+  onToggle: () => void
+}
+
+/** Act, under its role, level with its task: it opens the acts under its row, and closes them. */
+function ActToggle({ open, controls, said, onToggle }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      className="session-act-toggle has-tip"
+      aria-expanded={open}
+      aria-controls={open ? controls : undefined}
+      onClick={onToggle}
+    >
+      Act
+      <Icon name="chevron" />
+      <Tip label={said} side="top" align="end" />
+    </button>
+  )
+}
+
+function SessionRow({ session, resource, live, now, control, tasks, acts }: SessionProps) {
   const work = session.assignment
+  const [acting, setActing] = useState(false)
+  const actsId = useId()
   return (
     <li className="resource-session">
       <span className="resource-role">{session.role}</span>
       <span className="resource-model">
         {session.model ? <ModelChip model={session.model} /> : 'Model not reported'}
-        {session.effort && <EffortMeter effort={session.effort} tool={tool} mode={session.mode} />}
+        <Effort session={session} tool={resource.tool} control={control} />
       </span>
       {work ? (
         <span className="resource-work">
-          <Tag tone={WORK[work.state][0]}>{WORK[work.state][1]}</Tag>
-          {work.title}
+          <Tag tone={WORK_STATE[work.state][0]}>{WORK_STATE[work.state][1]}</Tag>
+          <WorkTitle work={work} tasks={tasks} />
         </span>
       ) : (
         <span className="resource-work idle">No assignment</span>
+      )}
+      {work && acts && (
+        <ActToggle open={acting} controls={actsId} said={actsSaid(resource)} onToggle={() => setActing((o) => !o)} />
+      )}
+      <SessionLive session={session} live={live} now={now} />
+      <SessionEarlier session={session} now={now} />
+      {work && acts && acting && (
+        <div id={actsId} className="resource-session-acts">
+          <SessionActs resource={resource} sessionId={session.id} acts={acts} />
+        </div>
       )}
     </li>
   )
 }
 
-/** The route's controls as small mono labels with a glyph: never buttons; a tip says what each does. */
+/** What the route supports, as small mono labels with a glyph; a tip says what each does. Its owner acts per session. */
 function Controls({ controls }: { controls: Resource['controls'] }) {
   return (
     <ul className="resource-controls" aria-label="Controls">
@@ -169,21 +394,97 @@ interface Props {
   onClose: () => void
   /** Steps to the previous or next resource; absent when there is only this one. */
   onStep?: ((by: 1 | -1) => void) | undefined
+  /** Its owner's way to choose each session's effort; absent where none can be asked for. */
+  effort?: EffortControl | undefined
+  /** The way to a session's task on the plan's board; absent where Tasks has no plan to open it in. */
+  tasks?: TaskLinks | undefined
+  /** Where there is room when this one runs short (room.ts); absent when none is, or it isn't short. */
+  room?: Room | null
+  /** Shows another resource's sheet: the one with room. */
+  onShow?: (id: string) => void
+  /** Its owner's acts on its sessions, kept by the panel (LFE-06.6); absent, nothing is offered. */
+  acts?: Acts | undefined
 }
 
-export function ResourceSheet(props: Props) {
-  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep } = props
-  const panel = useRef<HTMLDivElement>(null)
-  useDialog(panel, onClose)
-  // A step turns the page: the control pressed may go with it, so the focus stays in the sheet, where J and K work.
+/** Each session: its role, model, effort (its owner can choose it), what it works on and what it last reported. */
+function Sessions({
+  resource,
+  now,
+  control,
+  tasks,
+  acts,
+}: {
+  resource: Resource
+  now: Date
+  control?: EffortControl | undefined
+  tasks?: TaskLinks | undefined
+  acts?: Acts | undefined
+}) {
+  return (
+    <section className="sheet-section" aria-labelledby="sessions-title">
+      <h3 id="sessions-title">Sessions</h3>
+      <ul className="resource-sessions" aria-label="Sessions">
+        {resource.sessions.map((s) => (
+          <SessionRow
+            key={s.id}
+            session={s}
+            resource={resource}
+            live={reportsLive(resource, s, now)}
+            now={now}
+            control={control}
+            tasks={tasks}
+            acts={acts}
+          />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** Where there is room, when this account runs short: whose, how full, and a way to its sheet. It assigns nothing. */
+function RoomLine({ room, onShow }: { room: Room; onShow: ((id: string) => void) | undefined }) {
+  return (
+    <p className="capacity-room">
+      <ToolLogo tool={room.resource.tool} size="sm" />
+      <span className="capacity-room-words">{room.line}</span>
+      {onShow && (
+        <button type="button" className="text-button" onClick={() => onShow(room.resource.id)}>
+          Show
+        </button>
+      )}
+    </p>
+  )
+}
+
+/**
+ * Turning the page (a step, or Show) may take the control pressed with it: the focus stays in the sheet, where J and K
+ * work.
+ */
+function usePageTurns(panel: React.RefObject<HTMLDivElement | null>, onStep: Props['onStep'], onShow: Props['onShow']) {
+  const keepFocus = () =>
+    requestAnimationFrame(() => {
+      if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
+    })
   const turn = onStep
     ? (by: 1 | -1) => {
         onStep(by)
-        requestAnimationFrame(() => {
-          if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
-        })
+        keepFocus()
       }
     : undefined
+  const show = onShow
+    ? (id: string) => {
+        onShow(id)
+        keepFocus()
+      }
+    : undefined
+  return { turn, show }
+}
+
+export function ResourceSheet(props: Props) {
+  const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort, room, onShow } = props
+  const panel = useRef<HTMLDivElement>(null)
+  useDialog(panel, onClose)
+  const { turn, show } = usePageTurns(panel, onStep, onShow)
   const host = resource.host
   return (
     <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -205,14 +506,13 @@ export function ResourceSheet(props: Props) {
             Host {HOST[host.state]} · <Since at={host.observedAt} now={now} />
           </p>
           <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
-          <section className="sheet-section" aria-labelledby="sessions-title">
-            <h3 id="sessions-title">Sessions</h3>
-            <ul className="resource-sessions" aria-label="Sessions">
-              {resource.sessions.map((s) => (
-                <SessionRow key={s.id} session={s} tool={resource.tool} />
-              ))}
-            </ul>
-          </section>
+          <Sessions
+            resource={resource}
+            now={now}
+            control={resource.owner.id === viewerId ? effort : undefined}
+            tasks={props.tasks}
+            acts={resource.owner.id === viewerId && canAct(resource) ? props.acts : undefined}
+          />
           <section className="sheet-section" aria-labelledby="capacity-title">
             <h3 id="capacity-title">Capacity</h3>
             <CapacityBlock
@@ -221,6 +521,7 @@ export function ResourceSheet(props: Props) {
               reservePercent={resource.reservePercent}
               now={now}
               earlier={earlier}
+              room={room && <RoomLine room={room} onShow={show} />}
             />
           </section>
           <section className="sheet-section" aria-labelledby="controls-title">
