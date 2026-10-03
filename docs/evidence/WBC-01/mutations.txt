@@ -40,3 +40,13 @@ R10 Try again after an unknown admission answers: FAILS as it should
 R11 a plan of another project is not operated: FAILS as it should
 R1b a Stop question belongs to its task: redundant by design (the inner scope key includes the work); removing both keys FAILS the J check
 L01 lens labels stay on one line on a phone: FAILS as it should
+
+# Codex's findings on 8afd007 (#74, WBC-01-CX-0001), fixed in 5a55cc8
+C1 F-001 a receipt of another project changes nothing: FAILS as it should
+C2 F-002 work past planning with no assignment is not observed: FAILS as it should
+C3 F-002 nothing is offered to send while unobserved: FAILS as it should
+C3b F-002 nothing is offered to send while unobserved (unit): FAILS as it should
+C4 F-003 a sheet shows the call: FAILS as it should
+C5 F-003 a resource sheet shows the call: FAILS as it should
+C6 F-003 the shell hands the call to its sheets: FAILS as it should
+C7 F-003 leaving from a sheet keeps the focus in it: FAILS as it should

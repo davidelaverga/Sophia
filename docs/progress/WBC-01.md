@@ -85,7 +85,7 @@ Every case is **fixture-ready only**: the real Studio components on `fixtures/wo
 | UI-17 | A 9-minute-old report during a healthy call ages, is never called stuck; a lost connection is said apart | `wbc · UI-17` |
 | UI-18 | A failed revision keeps the last usable version openable, marked; the withdrawn one isn't offered | `results.test.ts`, `wbc · UI-18` |
 | UI-19 | By keys alone and on a phone: conditions, result and actions reached without hover, nothing past the screen | `wbc · UI-19` (two), the existing phone check |
-| UI-20 | Reduced motion (existing check); another account looking starts afresh. **Not exercised:** an active call on the Tasks page (the work fixture has no call; the call controls are unchanged and covered by the room's BASE checks) | `wbc · UI-20`, the existing motion check |
+| UI-20 | Reduced motion (existing check); another account looking starts afresh; during a call, the microphone and Leave stay in reach with a sheet open, by pointer, keyboard and on a phone (Codex F-003; fake LiveKit) | `wbc · UI-20`, the existing motion check, `codex · F-003` (three) |
 | UI-21 | No request leaves the page; the view drawn is the one its reader accepted; no fixture or test builder reaches the build; the app's shell is never given plans | `fixture-boundary.test.ts`, `wbc · UI-21`, the bundle grep below |
 
 ## Independent review before the push
@@ -103,6 +103,18 @@ One reviewer read the whole diff at `f736ad7`, given the code and CONTRIBUTING's
 | **P3** A later refusal replaced Recorded · a bare completion after a missing chunk read as the whole answer · Try again after an unknown admission changed nothing · the pill named the viewer in the third person · two "current" versions picked one · the fixture's attention wasn't gated on a plan in force · the cross-task receipt check proved nothing in the browser | Recorded is kept and delivery/effect become unknown · no answer is shown · it says Sending again · "for you" · neither is the result, and the sheet says so · gated · the check now runs on a guidance only recorded, on the page's clock |
 
 Not changed: the while-away line still announces its full text when pressed open. It is the viewer's own request, and the line keeps Luis's existing live region.
+
+## Codex's review on #74
+
+Codex reviewed and app-tested `8afd007` in its own checkout ([CX-0001](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973418530)–[CX-0003](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973428310)). Its gates and the 176 browser checks passed. Its own probes reproduced three findings, fixed in `5a55cc8` ([FIX_READY](../coordination/WBC-01/WBC-01-CC-0003.md)):
+
+| Finding | Fix |
+|---|---|
+| **F-001** (P2): a receipt from another project, with the same ids, settled a local Stop | Receipts match the command's project too |
+| **F-002** (P2): an unobserved task kept its write commands; work past planning with no assignment showed as Queued or Working | Such work is Active, said not observed, and offers nothing to send; the sheet says why. Read and Ask stay |
+| **F-003** (P1): during a call, the modal task sheet covered the mini dock's microphone and Leave (QA-09, UI-20's call part) | Under Davide's scope extension to the shared shell, every project sheet shows the call's switches under its head while a call is live (task, resource and invitation sheets), reachable by pointer, keyboard and screen reader. This changes production behavior during real calls |
+
+UI-20's call part is now exercised on the fixture, desktop and phone, over a fake LiveKit (`codex · F-003`). It still isn't tested on a physical iPhone or in a hosted call.
 
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 

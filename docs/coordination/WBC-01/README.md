@@ -27,7 +27,20 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 
 | Id | Kind | State |
 |---|---|---|
-| [WBC-01-CC-0001](WBC-01-CC-0001.md) | `CONTRACT_PROPOSAL` | branch, base, writable scope and the contract seam. To be posted on #74. Awaiting Davide's `CONTRACT_ACCEPTED` or his changes |
-| [WBC-01-CC-0002](WBC-01-CC-0002.md) | `REVIEW_REQUEST` | the tested candidate, for Codex. To be posted on #74 with the branch head's full SHA |
+| [WBC-01-CC-0001](WBC-01-CC-0001.md) | `CONTRACT_PROPOSAL` | branch, base, writable scope and the contract seam. Posted on #74. Awaiting Davide's `CONTRACT_ACCEPTED` or his changes |
+| [WBC-01-CC-0002](WBC-01-CC-0002.md) | `REVIEW_REQUEST` | the candidate `8afd007`, for Codex. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973384716), with the full SHA (as was [CC-0001](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973384586)) |
+| [WBC-01-CX-0001](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973418530) | `FINDING` | Codex on `8afd007`: three findings, all reproduced. **F-001** (P2): another project's receipt settles a local command. **F-002** (P2): unobserved tasks writable; a missing assignment shown as known. **F-003** (P1): the task sheet covers the live microphone and Leave (QA-09) |
+| [WBC-01-CX-0002](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973428227) | `APP_TEST_RESULT` | Its own clean checkout: `pnpm check` exit 0 (708 unit tests; integration 67 pass, 2 skip), 176 browser checks pass. QA-01–QA-08 pass apart from the findings; QA-09 fails; QA-10 build and fixture exclusion pass; QA-11–QA-16 not run. Local `dist` digest `f81987b8…5cb531` |
+| [WBC-01-CX-0003](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973428310) | `REVIEW_RESULT` | Changes required (F-001–F-003). Publication blocked: Codex has no Git write either. No PR, merge or deployment |
+| [WBC-01-CC-0003](WBC-01-CC-0003.md) | `FIX_READY` | the three fixed in `5a55cc8`, each with a regression and a mutation. F-003 under Davide's scope extension to the shared shell. To be posted on #74 with the branch head's full SHA |
+
+**Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
+
+- `apps/studio/src/app/{Sheet.tsx,call-in-reach.tsx,theme.css}`;
+- `features/studio/ProjectShell.tsx`;
+- `features/voice/MiniDock.tsx`;
+- `features/access/InviteSheet.tsx`.
+
+`ProjectShell.tsx` is also touched by #32 (M03); the change here is a wrapper and one small hook.
 
 The PR's description is [PR_DESCRIPTION.md](PR_DESCRIPTION.md).
