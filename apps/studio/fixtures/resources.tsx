@@ -15,7 +15,7 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
-import { SOPHIAS_DESCRIPTION } from './report-data.ts'
+import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import {
   actions,
   busyCodex,
@@ -40,10 +40,12 @@ installFixtureApi({
   messages: [],
   // The room page's report (SMC-M03), at rest: this page reads none of it.
   reportVersions: 1,
+  reportTitle: TITLE,
   waiting: false,
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false,
   sourcesHeld: false,
+  textHeld: false,
 })
 window.resourcesFixture = { unexpected }
 const nothing = () => undefined

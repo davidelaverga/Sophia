@@ -17,8 +17,19 @@ export const TASK = '00000000-0000-4000-8000-0000000000b2'
 const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
-/** The one page both versions cite. */
+/** The one page every version cites. */
 const CITED = '00000000-0000-4000-8000-0000000000c9'
+/** An id that is none of a version's sources, which version 3 names in a link (CX-0019). */
+const STRAY = '00000000-0000-4000-8000-0000000000ca'
+
+/** The fixture report's title. */
+export const TITLE = 'Fixture report'
+/**
+ * A title far wider than the side pane at every width (`title=long`): the head must cut it, never widen the pane
+ * (CX-0019).
+ */
+export const LONG_TITLE =
+  'A labelled fixture report whose title runs on far past the width of the side pane, so that its head has to cut it short'
 
 interface Text {
   sourceId: string
@@ -26,24 +37,51 @@ interface Text {
   text: string
 }
 
-/** Each version's Markdown, with its SHA-256 (the viewer shows nothing that does not match it). */
+/**
+ * Each version's Markdown, with its SHA-256 (the viewer shows nothing that does not match it). The second revises its
+ * recommendations and keeps its conclusion; the third writes its citation as a link, as the pilot's model did, and
+ * links an id that is none of its sources (CX-0019).
+ */
 const TEXTS: readonly Text[] = [
   {
     sourceId: '00000000-0000-4000-8000-0000000000c1',
-    sha256: '9bc1b3fd2e5c11db643ae254a7967db35a33b83021c3f4e7aa4125e96a71af24',
-    text: `# Fixture report\n\nThe first version of a labelled fixture report.\n\nIt cites one page [${CITED}].\n`,
+    sha256: 'd0c34bb26c92f59495bc2ae33604e871cdb98c31febf5b54b09fcc233cced80b',
+    text: `# Fixture report\n\nThe first version of a labelled fixture report.\n\nIt cites one page [${CITED}].\n\n## Conclusion\n\nThe fixture holds.\n\n## Recommendations\n\nRead it once.\n`,
   },
   {
     sourceId: '00000000-0000-4000-8000-0000000000c2',
-    sha256: '666e6cd2c53cc82d83793d89e2cb1bb08180214cdf0e1628182da645a9e081af',
-    text: `# Fixture report\n\nThe second version of a labelled fixture report, published while the first was read.\n\nIt cites one page [${CITED}].\n`,
+    sha256: 'e5f81a3936fc9f20ab857429698a823fddf4cc8aa75d9a73d1987a477fc50a26',
+    text: `# Fixture report\n\nThe second version of a labelled fixture report, published while the first was read.\n\nIt cites one page [${CITED}].\n\n## Conclusion\n\nThe fixture holds.\n\n## Recommendations\n\nRead it once, then again.\n`,
+  },
+  {
+    sourceId: '00000000-0000-4000-8000-0000000000c3',
+    sha256: 'd18be2f23ecd7956104984c56804d6de22996f7f683fd6b8fc59335d4296c5ac',
+    text: `# Fixture report\n\nThe third version of a labelled fixture report, its citation written as a link.\n\nIt cites one page [1](<${CITED}>) and names an id that is none of its sources [2](${STRAY}).\n`,
   },
 ]
+
+/** A text's size in bytes, as the API counts it. */
+const byteLengthOf = (text: string) => new TextEncoder().encode(text).byteLength
+
+/** What 0027 section_facts gives for the second version against the first: its recommendations revised, alone. */
+const V2_FACTS: NonNullable<ArtifactVersion['changeFacts']> = {
+  cited: 1,
+  added: [],
+  dropped: [],
+  notesFromFacts: false,
+  sections: {
+    added: [],
+    revised: ['Fixture report', 'Recommendations'],
+    removed: [],
+    unchanged: ['Conclusion'],
+    conclusionChanged: true,
+  },
+}
 
 /** The id of version `n` (1-based). */
 export const versionId = (n: number) => `00000000-0000-4000-8000-0000000000d${String(n)}`
 
-function version(n: number): ArtifactVersion {
+function version(n: number, title: string): ArtifactVersion {
   const text = TEXTS[n - 1]
   if (!text) throw new Error(`no fixture version ${String(n)}`)
   return {
@@ -57,17 +95,18 @@ function version(n: number): ArtifactVersion {
     previewId: null,
     format: 'markdown',
     exportEditability: 'source_editable',
-    title: 'Fixture report',
+    title,
     versionNumber: n,
     createdAt: AT,
     renditions: [],
     limitations: [],
+    ...(n === 2 ? { changeFacts: V2_FACTS } : {}),
   }
 }
 
 /** The report's versions as the API lists them, newest first: `published` of them. */
-export const versions = (published: number): ArtifactVersion[] =>
-  Array.from({ length: published }, (_, i) => version(published - i))
+export const versions = (published: number, title = TITLE): ArtifactVersion[] =>
+  Array.from({ length: published }, (_, i) => version(published - i, title))
 
 /** What a version cites, as `GET …/versions/{id}/sources` answers it: the one page, read in full. */
 export const citedSources: ReportSourceList = {
@@ -95,7 +134,7 @@ export function content(sourceId: string): SourceContent | null {
     sourceId,
     sha256: text.sha256,
     mime: 'text/markdown',
-    byteLength: new TextEncoder().encode(text.text).byteLength,
+    byteLength: byteLengthOf(text.text),
     filename: 'fixture-report.md',
     disposition: 'inline',
     text: text.text,
@@ -138,7 +177,7 @@ export const researchTask: NativeTaskDetail = {
         format: 'markdown',
         sourceId: TEXTS[0]?.sourceId ?? '',
         sha256: TEXTS[0]?.sha256 ?? '',
-        byteLength: 125,
+        byteLength: byteLengthOf(TEXTS[0]?.text ?? ''),
         limitations: [],
       },
     ],

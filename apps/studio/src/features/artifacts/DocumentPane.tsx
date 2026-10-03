@@ -112,7 +112,13 @@ function usePaneData(identity: Identity, link: ReportLink) {
     queryFn: () => listReportSources(identity.token, link.artifactId, version?.id ?? ''),
     enabled: version !== undefined,
   })
-  const parsed = useMemo(() => (text.data ? parseMarkdown(text.data.text) : null), [text.data])
+  // A link to a source's id is a citation only when the version cites that source (CX-0019), never a link to any other
+  // id; until the sources arrive, such a link reads as its label.
+  const listed = sources.data?.sources
+  const parsed = useMemo(
+    () => (text.data ? parseMarkdown(text.data.text, { citable: (listed ?? []).map((s) => s.sourceId) }) : null),
+    [text.data, listed],
+  )
   // The PDF is the one rendition format (A11).
   const rendition = version?.renditions?.[0]
   const showPdf = link.format === 'pdf' && rendition !== undefined
@@ -575,11 +581,7 @@ function PaneHead(props: HeadProps) {
           </p>
         )}
       </div>
-      <button type="button" className="pill report-download has-tip" onClick={onDownload} disabled={!canDownload}>
-        <Icon name="download" />
-        <span className="report-download-label">Download</span>
-        <Tip label="Download this version" side="bottom" align="end" />
-      </button>
+      <DownloadButton ready={canDownload} onDownload={onDownload} />
       <button type="button" className="round has-tip" aria-label={size} onClick={full ? onStepDown : onEnlarge}>
         <Icon name={full ? 'collapse' : 'expand'} />
         <Tip label={size} keys="F" side="bottom" align="end" />
@@ -590,6 +592,28 @@ function PaneHead(props: HeadProps) {
         <Tip label="Close" keys="Esc" side="bottom" align="end" />
       </button>
     </header>
+  )
+}
+
+/**
+ * The bytes on screen, once they are checked: until then a press does nothing, and the button says so (aria-disabled,
+ * never disabled), so it keeps the focus and its tip. Named on its own: a phone hides the word.
+ */
+function DownloadButton({ ready, onDownload }: { ready: boolean; onDownload: () => void }) {
+  return (
+    <button
+      type="button"
+      className="pill report-download has-tip"
+      aria-label="Download"
+      aria-disabled={!ready || undefined}
+      onClick={() => {
+        if (ready) onDownload()
+      }}
+    >
+      <Icon name="download" />
+      <span className="report-download-label">Download</span>
+      <Tip label="Download this version" side="bottom" align="end" />
+    </button>
   )
 }
 

@@ -154,6 +154,9 @@
      which come under its top where it covers them, and the top bar (20), whose menus open over it. */
   z-index: 12;
   display: grid;
+  /* One column, the pane's own width: a long title is cut in the head, never widens the column past the pane and takes
+     Download, Enlarge and Close off screen (CX-0019). */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: var(--report-w, 560px);
   border-left: 1px solid var(--line-2);
@@ -880,7 +883,7 @@
 }
 
 /* A press that does nothing for now keeps the focus (aria-disabled, never disabled): drawn as a disabled button. */
-:is(.pdf-toolbar, .retry-pdf, .knowledge) button[aria-disabled='true'] {
+:is(.pdf-toolbar, .retry-pdf, .knowledge, .report-pane-head) button[aria-disabled='true'] {
   cursor: default;
   opacity: 0.45;
 }

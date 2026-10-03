@@ -9,7 +9,7 @@ import { Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
-import { factChips } from './report-view.ts'
+import { conclusionTopic, factChips } from './report-view.ts'
 
 interface Props {
   identity: Identity
@@ -146,6 +146,7 @@ const LISTS: [keyof Omit<SectionChange, 'conclusionChanged'>, string][] = [
 ]
 
 function ChangeLists({ change }: { change: SectionChange }) {
+  const topic = conclusionTopic(change)
   return (
     <dl className="report-compare-lists">
       {LISTS.filter(([k]) => change[k].length > 0).map(([k, label]) => (
@@ -154,9 +155,9 @@ function ChangeLists({ change }: { change: SectionChange }) {
           <dd>{change[k].join(', ')}</dd>
         </div>
       ))}
-      {change.conclusionChanged && (
+      {topic && (
         <div>
-          <dt>Conclusion</dt>
+          <dt>{topic}</dt>
           <dd>Changed</dd>
         </div>
       )}

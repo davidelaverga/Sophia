@@ -6,12 +6,14 @@ import type {
   ArtifactVersion,
   NativeTask,
   NativeTaskDetail,
+  ReportSections,
   ReportSource,
   ReportSummaryEdit,
   ResearchProgress,
   ResearchRendition,
 } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
+import { anchorOf } from './markdown.ts'
 
 export type ResearchState =
   'starting' | 'researching' | 'ready' | 'partial' | 'not_produced' | 'replaced' | 'held' | 'stopped'
@@ -300,8 +302,27 @@ export interface Chip {
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 /**
+ * What a changed conclusion fact covers, in words. The service puts conclusion and recommendation sections in one fact
+ * (0027 section_facts); the headings that changed say which of them did, and when none can be told apart, the words
+ * name either (CX-0019).
+ */
+export function conclusionTopic(
+  s: Pick<ReportSections, 'added' | 'revised' | 'removed' | 'conclusionChanged'>,
+): string | null {
+  if (!s.conclusionChanged) return null
+  const anchors = [...s.added, ...s.revised, ...s.removed].map(anchorOf)
+  const conclusion = anchors.some((a) => a.includes('conclusion'))
+  const recommendations = anchors.some((a) => a.includes('recommendation'))
+  if (conclusion && recommendations) return 'Conclusion and recommendations'
+  if (recommendations) return 'Recommendations'
+  if (conclusion) return 'Conclusion'
+  return 'Conclusion or recommendations'
+}
+
+/**
  * The chips of a version's history entry, from the facts the service computed at publication (never from the notes):
- * sources added and dropped, sections added, revised and removed, a changed conclusion, and notes the service wrote.
+ * sources added and dropped, sections added, revised and removed, a changed conclusion or recommendations section
+ * (named by the headings that changed), and notes the service wrote.
  */
 export function factChips(version: Pick<ArtifactVersion, 'changeFacts' | 'versionNumber'>): Chip[] {
   const f = version.changeFacts
@@ -317,7 +338,8 @@ export function factChips(version: Pick<ArtifactVersion, 'changeFacts' | 'versio
       chips.push({ label: `${plural(s.added.length, 'section', 'sections')} added`, tone: 'teal' })
     if (s.revised.length > 0) chips.push({ label: `${s.revised.length} revised`, tone: 'lav' })
     if (s.removed.length > 0) chips.push({ label: `${s.removed.length} removed`, tone: 'rose' })
-    if (s.conclusionChanged) chips.push({ label: 'Conclusion changed', tone: 'amber' })
+    const topic = conclusionTopic(s)
+    if (topic) chips.push({ label: `${topic} changed`, tone: 'amber' })
   }
   if (f.notesFromFacts) chips.push({ label: 'Notes written from the facts', tone: 'muted' })
   return chips

@@ -30,6 +30,8 @@ interface Project {
   messages: string[]
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
+  /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
+  reportTitle: string
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
   /** The report's description on Knowledge (report-data.ts). */
@@ -41,6 +43,8 @@ interface Project {
   versionsFail: false | 'unavailable' | 'not_found'
   /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
   sourcesHeld: boolean
+  /** So do reads of a version's text (`hold=text`). */
+  textHeld: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -133,7 +137,7 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source) : null
-  if (text) return json(text)
+  if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return json(researchTask)
   return null
 }
@@ -158,7 +162,7 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions))
+  return json(versions(project.reportVersions, project.reportTitle))
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
@@ -174,6 +178,21 @@ function sourcesRead(project: Project): Response | Promise<Response> {
 export function releaseSources(project: Project): void {
   project.sourcesHeld = false
   for (const release of heldSources.splice(0)) release()
+}
+
+/** Reads of text the page holds, each waiting to be let through (`window.fixture.releaseText`). */
+const heldTexts: (() => void)[] = []
+
+/** A version's text; while the page holds it, a read that answers once let through. */
+function textRead(project: Project, text: unknown): Response | Promise<Response> {
+  if (!project.textHeld) return json(text)
+  return new Promise((resolve) => heldTexts.push(() => resolve(json(text))))
+}
+
+/** Lets the held reads of text through, and every later one. */
+export function releaseText(project: Project): void {
+  project.textHeld = false
+  for (const release of heldTexts.splice(0)) release()
 }
 
 export function installFixtureApi(project: Project): void {
