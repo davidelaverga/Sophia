@@ -16,3 +16,6 @@ The protocol is the packet's [Claude ↔ Codex working protocol](../../missions/
 | Id | Kind | State |
 |---|---|---|
 | [WBC-01-CC-0001](WBC-01-CC-0001.md) | `CONTRACT_PROPOSAL` | written before the shared DTO code; awaiting Davide's agreement |
+| [WBC-01-CC-0002](WBC-01-CC-0002.md) | `REVIEW_REQUEST` | for Codex, on the exact head; to be posted with the PR |
+
+The PR's description is [PR_DESCRIPTION.md](PR_DESCRIPTION.md).
