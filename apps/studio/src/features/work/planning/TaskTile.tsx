@@ -87,12 +87,25 @@ export interface TileProps {
   now: Date
   onLight: (id: string | null) => void
   onOpen: (id: string) => void
+  /** What its doer's account is short of, in a tile's few words (room.ts): "out in ~34 min"; null when it isn't. */
+  shortOf: (row: PlanRow) => string | null
 }
 
-export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOpen }: TileProps) {
+/** Its doer's account running short, said under a task that moves: amber, after a small gauge, on one line. */
+function Short({ words }: { words: string }) {
+  return (
+    <span className="task-tile-short">
+      <span className="task-short-gauge" aria-hidden />
+      <span className="task-tile-short-words">Account {words}</span>
+    </span>
+  )
+}
+
+export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOpen, shortOf }: TileProps) {
   const { item, doer, status } = row
   const moving = SAID.has(status.mark)
   const activity = (moving && doer.session?.activity) || null
+  const short = shortOf(row)
   return (
     <li>
       <button
@@ -105,6 +118,7 @@ export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOp
         data-dim={flags.dim || undefined}
         data-changed={flags.changed || undefined}
         data-task={item.id}
+        data-short={short ? true : undefined}
         // Its own name for the glide: when where it stands changes, it travels to its new lane.
         style={{ '--i': Math.min(index, 6), viewTransitionName: `task-${item.id.replaceAll(/[^\w-]/g, '-')}` }}
         onPointerMove={followPointer}
@@ -127,6 +141,7 @@ export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOp
             )}
           </span>
           <Foot activity={activity} hangs={relation(item, plan)} waiting={status.mark === 'waiting'} now={now} />
+          {short && <Short words={short} />}
         </span>
       </button>
     </li>

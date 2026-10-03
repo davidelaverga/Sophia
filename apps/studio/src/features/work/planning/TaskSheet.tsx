@@ -9,9 +9,11 @@ import { Sheet } from '../../../app/Sheet.tsx'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
 import { observedAgo, type Resource } from '../../resources/resource.ts'
+import type { Room } from '../../resources/room.ts'
 import { AskSophia, type Ask } from './AskSophia.tsx'
 import { waitsOn, type PlanRow, type WorkPlan } from './plan.ts'
-import { TaskActions, type Act } from './TaskActions.tsx'
+import type { Acts } from '../../resources/SessionActs.tsx'
+import { TaskActions } from './TaskActions.tsx'
 
 type Person = Resource['owner']
 
@@ -27,8 +29,36 @@ interface Props {
   onClose: () => void
   now: Date
   viewerId: string | null
-  onAct?: Act | undefined
+  /** The acts on its session, kept by the board; absent, none is offered. */
+  acts?: Acts | undefined
   onAsk?: Ask | undefined
+  /** Its doer's account: what it is short of, in a few words, and where there is room (room.ts). */
+  account?: { short: string | null; room: Room | null } | undefined
+}
+
+/** Its doer's account running short, and where there is room, one press from it in Resources. It assigns nothing. */
+function Account({ account, onOpenResource }: Pick<Props, 'account' | 'onOpenResource'>) {
+  if (!account?.short) return null
+  const { short, room } = account
+  return (
+    <div className="task-sheet-account">
+      <p className="task-sheet-short">
+        <span className="task-short-gauge" aria-hidden />
+        Its account {short}.
+      </p>
+      {room && (
+        <p className="capacity-room">
+          <ToolLogo tool={room.resource.tool} size="sm" />
+          <span className="capacity-room-words">{room.line}</span>
+          {onOpenResource && (
+            <button type="button" className="text-button" onClick={() => onOpenResource(room.resource.id)}>
+              Show
+            </button>
+          )}
+        </p>
+      )}
+    </div>
+  )
 }
 
 const face = (p: Person) => ({ name: p.name, displayName: p.name, avatarUrl: p.avatarUrl ?? null })
@@ -112,7 +142,7 @@ function Activity({ row, now }: { row: PlanRow; now: Date }) {
   if (!activity) return null
   return (
     <p className="task-sheet-activity">
-      <span className="activity-dot" aria-hidden />
+      <span className="activity-dot" data-waiting={row.status.mark === 'waiting' || undefined} aria-hidden />
       {activity.said}
       <span className="muted">{observedAgo(activity.observedAt, now)}</span>
     </p>
@@ -120,7 +150,7 @@ function Activity({ row, now }: { row: PlanRow; now: Date }) {
 }
 
 export function TaskSheet(props: Props) {
-  const { row, rows, plan, onOpen, onStep, onClose, now, viewerId, onAct, onAsk, onOpenResource } = props
+  const { row, rows, plan, onOpen, onStep, onClose, now, viewerId, acts, onAsk, onOpenResource } = props
   useSteps(onStep)
   const { item } = row
   const before = rows.filter((r) => waitsOn(item).includes(r.item.id))
@@ -132,6 +162,7 @@ export function TaskSheet(props: Props) {
       <div className="task-sheet">
         <Who row={row} viewerId={viewerId} onOpenResource={onOpenResource} />
         <Activity row={row} now={now} />
+        <Account account={props.account} onOpenResource={onOpenResource} />
         {next && (
           <p className="task-sheet-next">
             <span className="field-label">Next checkpoint</span>
@@ -140,7 +171,7 @@ export function TaskSheet(props: Props) {
         )}
         <Links title="Waits on" rows={before} onOpen={onOpen} />
         <Links title="Waited on by" rows={after} onOpen={onOpen} />
-        <TaskActions row={row} viewerId={viewerId} onAct={onAct} />
+        <TaskActions row={row} viewerId={viewerId} acts={acts} />
         <AskSophia key={item.id} row={row} onAsk={onAsk} />
         <p className="task-sheet-plan muted">
           Plan r{plan.revision} · {plan.state === 'accepted' ? 'accepted' : 'proposed, not accepted yet'} · <kbd>J</kbd>{' '}

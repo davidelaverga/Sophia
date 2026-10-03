@@ -4,6 +4,7 @@
 import type { Resource } from '../src/features/resources/resource.ts'
 import type { Ask } from '../src/features/work/planning/AskSophia.tsx'
 import type { PlanRow } from '../src/features/work/planning/plan.ts'
+import type { SessionAct } from '../src/features/resources/SessionActs.tsx'
 import type { Act } from '../src/features/work/planning/TaskActions.tsx'
 import { NOW } from './resources-data.ts'
 
@@ -42,10 +43,29 @@ export const nextActivity = (list: Resource[], at: Date, n: number): Resource[] 
     ),
   }))
 
-/** An act, taken as a runtime would: recorded, then queued, then delivered to its session. */
-export const act: Act = (_row, _act, report) => {
+/** Each act an owner sent, in order: for the checks to read. */
+export const acted: { sessionId: string; kind: string; text?: string }[] = []
+
+/** An act on a session, taken as a runtime would: recorded, then queued, then delivered to it. */
+export const actOn: SessionAct = (sessionId, asked, report) => {
+  acted.push({ sessionId, ...asked })
   setTimeout(() => report('queued'), 700)
   setTimeout(() => report('delivered'), 1700)
+}
+
+/** The same, from a task's sheet: to the session doing it. */
+export const act: Act = (row, asked, report) => actOn(row.doer.session?.id ?? '', asked, report)
+
+/** What one fixture page carries to the other when a link crosses: who is looking, and an account running short. */
+export function carried(search: string): string {
+  const given = new URLSearchParams(search)
+  const kept = new URLSearchParams()
+  for (const key of ['viewer', 'tight']) {
+    const value = given.get(key)
+    if (value) kept.set(key, value)
+  }
+  const query = kept.toString()
+  return query ? `?${query}` : ''
 }
 
 /** Sophia's answer, from the task's own facts: who, where it stands, what it waits on. */

@@ -1145,6 +1145,55 @@
   -webkit-mask-position: center;
 }
 
+/* Act, under the session's role, level with its task: quiet until wanted; its acts open under the row, in the
+   task's column. */
+.session-act-toggle {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.session-act-toggle:hover,
+.session-act-toggle[aria-expanded='true'] {
+  border-color: var(--line-2);
+  color: var(--text);
+}
+.session-act-toggle .icon {
+  width: 12px;
+  height: 12px;
+  transition: transform var(--fast) var(--ease);
+}
+.session-act-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.session-act-toggle:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.resource-session-acts {
+  grid-column: 2;
+  margin-top: 6px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.session-acts {
+  display: grid;
+  gap: 10px;
+}
+
 @media (max-width: 560px) {
   .resource-sheet-head {
     flex-wrap: wrap;
@@ -1170,8 +1219,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .resource-work,
-  .resource-session-live {
+  .resource-session-live,
+  .resource-session-acts {
     grid-column: 1;
+  }
+  .session-act-toggle {
+    grid-row: auto;
   }
 }
 
@@ -1255,6 +1308,93 @@
   border: 1px solid var(--amber);
   animation: waiting-ping 2.4s var(--ease) infinite;
 }
+/* ---- Acting on a session, shared with the plan's board: guidance, Hold, Stop, and the steps an act goes through
+   as they are observed. ---- */
+.act-guide {
+  display: flex;
+  gap: 8px;
+}
+.act-guide input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  color: var(--text);
+  font-size: 13px;
+}
+.act-guide input:focus {
+  outline: none;
+  border-color: rgba(156, 130, 245, 0.6);
+  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
+}
+.act-note {
+  font-size: 12.5px;
+}
+.act-steps {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+  animation: arrive 0.3s var(--ease) both;
+}
+.act-steps ol {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.act-steps li {
+  position: relative;
+  padding-top: 10px;
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color var(--base) var(--ease);
+}
+.act-steps li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(236, 235, 241, 0.08);
+}
+.act-steps li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--teal);
+  box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
+  transition: width 0.5s var(--ease);
+}
+.act-steps li[data-reached] {
+  color: var(--teal);
+}
+.act-steps li[data-reached]::after {
+  width: 100%;
+}
+.act-steps p {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.act-steps[data-at='refused'] p {
+  color: var(--amber);
+}
+
 /* ---- Live, shared with the plan's board: a ring around a picture, emptying as its session's last report ages (its
    `--fresh`, 1 to 0), amber while the session waits; and a dot that pings while a session reports. ---- */
 .live-ring {
@@ -1555,6 +1695,8 @@
 /* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
 @media (prefers-reduced-motion: reduce) {
   .resource-tile,
+  .act-steps,
+  .resource-session-acts,
   .activity-dot::after,
   .capacity-room,
   .resource-tile[data-changed],
@@ -1588,6 +1730,9 @@
   .effort-knob,
   .effort-button .icon,
   .live-ring[data-live]::before,
+  .act-steps li,
+  .act-steps li::after,
+  .session-act-toggle .icon,
   .resource-work-link .icon,
   .task-who-link .icon {
     transition: none;

@@ -1,8 +1,9 @@
 // One resource up close, in the app's sheet (as Invite opens): its host, each session with what it reported and what
 // it works on (a way to that task, when it is on the plan's board), its account's capacity window by window and, when
-// it runs short, a resource with room. Then the controls its route supports (shown, not offered: they come with
-// LFE-06.4) and the requests waiting on its owner. Esc or Close returns to the tile it was opened from.
-import { Fragment, useEffect, useRef, useState } from 'react'
+// it runs short, a resource with room. Its owner acts on a session at work from its row (Act: guidance, Hold, Stop, as
+// its route supports them, LFE-06.4). Then what its route supports, and the requests waiting on its owner. Esc or Close
+// returns to the tile it was opened from.
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
 import { useDialog } from '../../app/useDialog.ts'
 import { CapacityBlock } from './CapacityBlock.tsx'
@@ -29,6 +30,7 @@ import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import type { Room } from './room.ts'
+import { actsSaid, canAct, SessionActs, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
@@ -190,22 +192,51 @@ export interface TaskLinks {
 
 interface SessionProps {
   session: Session
-  tool: Resource['tool']
+  resource: Resource
   /** Whether its report is live now (reportsLive). */
   live: boolean
   now: Date
   control?: EffortControl | undefined
   tasks?: TaskLinks | undefined
+  /** Its owner's acts, kept by the view; absent for anyone else, or where its route supports none. */
+  acts?: Acts | undefined
 }
 
-function SessionRow({ session, tool, live, now, control, tasks }: SessionProps) {
+interface ToggleProps {
+  open: boolean
+  controls: string
+  /** What its route's acts are, in words: "Hold or Stop". */
+  said: string
+  onToggle: () => void
+}
+
+/** Act, under its role, level with its task: it opens the acts under its row, and closes them. */
+function ActToggle({ open, controls, said, onToggle }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      className="session-act-toggle has-tip"
+      aria-expanded={open}
+      aria-controls={open ? controls : undefined}
+      onClick={onToggle}
+    >
+      Act
+      <Icon name="chevron" />
+      <Tip label={said} side="top" align="end" />
+    </button>
+  )
+}
+
+function SessionRow({ session, resource, live, now, control, tasks, acts }: SessionProps) {
   const work = session.assignment
+  const [acting, setActing] = useState(false)
+  const actsId = useId()
   return (
     <li className="resource-session">
       <span className="resource-role">{session.role}</span>
       <span className="resource-model">
         {session.model ? <ModelChip model={session.model} /> : 'Model not reported'}
-        <Effort session={session} tool={tool} control={control} />
+        <Effort session={session} tool={resource.tool} control={control} />
       </span>
       {work ? (
         <span className="resource-work">
@@ -215,12 +246,20 @@ function SessionRow({ session, tool, live, now, control, tasks }: SessionProps) 
       ) : (
         <span className="resource-work idle">No assignment</span>
       )}
+      {work && acts && (
+        <ActToggle open={acting} controls={actsId} said={actsSaid(resource)} onToggle={() => setActing((o) => !o)} />
+      )}
       <SessionLive session={session} live={live} now={now} />
+      {work && acts && acting && (
+        <div id={actsId} className="resource-session-acts">
+          <SessionActs resource={resource} sessionId={session.id} acts={acts} />
+        </div>
+      )}
     </li>
   )
 }
 
-/** The route's controls as small mono labels with a glyph: never buttons; a tip says what each does. */
+/** What the route supports, as small mono labels with a glyph; a tip says what each does. Its owner acts per session. */
 function Controls({ controls }: { controls: Resource['controls'] }) {
   return (
     <ul className="resource-controls" aria-label="Controls">
@@ -325,6 +364,8 @@ interface Props {
   room?: Room | null
   /** Shows another resource's sheet: the one with room. */
   onShow?: (id: string) => void
+  /** Its owner's acts on its sessions, kept by the panel (LFE-06.6); absent, nothing is offered. */
+  acts?: Acts | undefined
 }
 
 /** Each session: its role, model, effort (its owner can choose it), what it works on and what it last reported. */
@@ -333,11 +374,13 @@ function Sessions({
   now,
   control,
   tasks,
+  acts,
 }: {
   resource: Resource
   now: Date
   control?: EffortControl | undefined
   tasks?: TaskLinks | undefined
+  acts?: Acts | undefined
 }) {
   return (
     <section className="sheet-section" aria-labelledby="sessions-title">
@@ -347,11 +390,12 @@ function Sessions({
           <SessionRow
             key={s.id}
             session={s}
-            tool={resource.tool}
+            resource={resource}
             live={reportsLive(resource, s, now)}
             now={now}
             control={control}
             tasks={tasks}
+            acts={acts}
           />
         ))}
       </ul>
@@ -429,6 +473,7 @@ export function ResourceSheet(props: Props) {
             now={now}
             control={resource.owner.id === viewerId ? effort : undefined}
             tasks={props.tasks}
+            acts={resource.owner.id === viewerId && canAct(resource) ? props.acts : undefined}
           />
           <section className="sheet-section" aria-labelledby="capacity-title">
             <h3 id="capacity-title">Capacity</h3>

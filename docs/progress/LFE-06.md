@@ -66,6 +66,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 17** ([handoff](../handoffs/LFE-06-attempt-17.md)): Codex's twelve P2s across #53 to #60, fixed together (history by `window_epoch`, model names kept whole, GPT alive only at Ultra, the history's own span, flashes for every change, nothing said while reading, the phone sheet's head, the Tab stop after a drag).
 - **Attempt 18** ([handoff](../handoffs/LFE-06-attempt-18.md)): choosing a session's effort: its owner opens the bar into a scale in its tool's look, previews it, and sets it for its next run (or restarts, confirmed); only the levels its tool says it takes.
 - **Attempt 19** ([handoff](../handoffs/LFE-06-attempt-19.md)): Resources live and one with Tasks: what a session last reported and a freshness ring on its tile; a session's task opens on the board, and a task's doer opens here; a tile says when its account runs out, and its sheet names where there is room.
+- **Attempt 20** ([handoff](../handoffs/LFE-06-attempt-20.md)): acting from Resources (Act on a session's row: guidance, Hold, Stop, said as observed), and Tasks warned when a task's account runs short, with where there is room.
 
 ## Acceptance cases
 

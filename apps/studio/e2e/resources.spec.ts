@@ -1408,3 +1408,87 @@ test('@phone · a session’s live line keeps to the sheet’s one column', asyn
   expect(live, 'under the role, not beside it').toBeCloseTo(role, 0)
   expect(await session.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
 })
+
+test('act · its owner acts on a session at work from its row, each step said; no one else is offered it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  const worker = s.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  const act = worker.getByRole('button', { name: 'Act' })
+  await expect(act).toHaveAttribute('aria-expanded', 'false')
+  await act.click()
+  await expect(act).toHaveAttribute('aria-expanded', 'true')
+  await worker.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging report fixtures')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  const steps = worker.locator('.act-steps')
+  await expect(steps.locator('li[data-reached]')).toHaveCount(3) // recorded, queued, delivered, as observed
+  await expect(steps).toContainText('Delivered to its session. Not seen acting on it yet.')
+  expect(await page.evaluate(() => window.resourcesFixture?.acted)).toEqual([
+    { sessionId: 'claude-worker', kind: 'guidance', text: 'Use the staging report fixtures' },
+  ])
+  // Stop asks first; keeping it working sends nothing, and the focus comes back to Stop, where J and K still work.
+  const stop = worker.getByRole('button', { name: 'Stop', exact: true })
+  await stop.click()
+  await expect(worker.getByText('Ends its session’s work at once.')).toBeVisible()
+  await worker.getByRole('button', { name: 'Keep it working' }).click()
+  await expect(stop).toBeFocused()
+  expect(await page.evaluate(() => window.resourcesFixture?.acted?.length)).toBe(1)
+  // Confirmed, it is sent, and said.
+  await stop.click()
+  await worker.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  await expect(stop).toBeFocused()
+  await expect(steps).toContainText('Its session was asked to stop.')
+  expect(await page.evaluate(() => window.resourcesFixture?.acted?.at(-1)?.kind)).toBe('stop')
+  // Closed and opened again, its row still says its last act.
+  await act.click()
+  await expect(steps).toHaveCount(0)
+  await act.click()
+  await expect(steps).toContainText('Its session was asked to stop.')
+  // A session with nothing at work has no Act.
+  const reviewer = s.locator('.resource-session').filter({ hasText: 'No assignment' })
+  await expect(reviewer.getByRole('button', { name: 'Act' })).toHaveCount(0)
+  // Only what its route supports: Codex takes Hold and Stop, not guidance.
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-codex`)
+  await page.reload()
+  const codex = sheet(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Act' }).click()
+  await expect(codex.getByRole('button', { name: 'Hold' })).toBeVisible()
+  await expect(codex.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  // Anyone else sees whose they are, and no Act.
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  await page.reload()
+  await expect(sheet(page, 'Davide · Claude Code').getByRole('button', { name: 'Act' })).toHaveCount(0)
+})
+
+test('act · a late step of an earlier act never speaks over the latest one', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  await worker.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.clock.runFor(300)
+  await worker.getByRole('button', { name: 'Hold' }).click() // before the guidance is queued
+  // The guidance is delivered (1.7 s) while the Hold is only queued: the row says the Hold's step, not the guidance's.
+  await page.clock.runFor(1500)
+  const steps = worker.locator('.act-steps')
+  await expect(steps).toContainText('Queued…')
+  await expect(steps).not.toContainText('Delivered to its session')
+  await page.clock.runFor(1500) // then the Hold is delivered
+  await expect(steps).toContainText('It holds at its next safe point.')
+})
+
+test('@phone · its owner opens Act and the row keeps to one column', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  const [role, work, acts] = await Promise.all([
+    leftOf(worker.locator('.resource-role')),
+    leftOf(worker.locator('.resource-work')),
+    leftOf(worker.locator('.resource-session-acts')),
+  ])
+  expect(work, 'the task under the role').toBeCloseTo(role, 0)
+  expect(acts, 'the acts under it too').toBeCloseTo(role, 0)
+  expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})

@@ -26,12 +26,23 @@ export function ConfirmButton(props: Props) {
   const confirmDisabled = props.confirmDisabled ?? false
   const [asking, setAsking] = useState(false)
   const safe = useRef<HTMLButtonElement>(null)
+  const rest = useRef<HTMLButtonElement>(null)
+  // Whichever answer is given, the focus comes back to the button at rest, so it stays where it was, in a sheet or a
+  // dialog, never dropped to the page.
+  const asked = useRef(false)
   useEffect(() => {
-    if (asking) safe.current?.focus()
+    if (asking) {
+      asked.current = true
+      safe.current?.focus()
+    } else if (asked.current) {
+      asked.current = false
+      rest.current?.focus()
+    }
   }, [asking])
   if (!asking) {
     return (
       <button
+        ref={rest}
         type="button"
         className={className}
         disabled={disabled}

@@ -502,6 +502,12 @@ when you change the room:
   its sheet names one resource with room (`room.ts`: online, another account,
   under 75 % and on pace; the owner's own first); it only shows. `tight=1`
   shows it.
+  A session's owner acts on it from its row (LFE-06.6): Act opens guidance,
+  Hold and Stop as its route supports them (`SessionActs.tsx`, shared with a
+  task's sheet; the panel's `onAct`), each said as observed (recorded, queued,
+  delivered), Stop asked first. A task whose session is at it says on its
+  tile when its doer's account runs short, and its sheet names where there is
+  room (the board's `observations`; `work.html?tight=1`).
 
 ## The personal space
 

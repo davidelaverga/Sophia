@@ -10,7 +10,7 @@ import {
   type QuotaWindow,
   type Resource,
 } from './resource.ts'
-import { roomElsewhere, short } from './room.ts'
+import { roomElsewhere, short, shortTileWords, shortWords } from './room.ts'
 
 const now = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString()
@@ -184,5 +184,26 @@ describe('room elsewhere', () => {
     assert.equal(roomElsewhere(claude, [claude, codex], full, now, 'luis'), null)
     assert.equal(roomElsewhere(claude, [claude, codex], runs, now, 'luis'), null)
     assert.equal(roomElsewhere(claude, [claude, codex], [tight], now, 'luis'), null)
+  })
+})
+
+describe('a short account in a few words', () => {
+  it('says when it runs out, or how full it is past the full line, and nothing otherwise', () => {
+    const runs = capacity(reading('e', [five(81, 150)]), now)
+    assert.equal(shortWords(runs), 'runs out in ~35 min')
+    assert.equal(shortTileWords(runs), 'out in ~35 min')
+    // 92 % with 10 min to go: past the full line, but not out before its reset.
+    const full = capacity(reading('e', [five(92, 10)]), now)
+    assert.equal(shortWords(full), 'is at 92% of its 5-hour window')
+    assert.equal(shortTileWords(full), 'at 92%')
+    const fine = capacity(reading('e', [five(40, 150)]), now)
+    assert.equal(shortWords(fine), null)
+    assert.equal(shortTileWords(fine), null)
+  })
+
+  it('says "now" once a reading says it should have run out', () => {
+    const gone = capacity({ ...reading('e', [five(81, 110)]), observed_at: at(-40) }, now)
+    assert.equal(shortWords(gone), 'runs out now')
+    assert.equal(shortTileWords(gone), 'out now')
   })
 })
