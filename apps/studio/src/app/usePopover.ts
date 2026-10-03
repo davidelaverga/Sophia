@@ -10,8 +10,9 @@ import { useEffect, useRef } from 'react'
 
 const FIRST = '[role="menuitem"], button:not([disabled]), input, a[href]'
 
-/** A menu's items. */
+/** A menu's items, and the fields a popover may hold beside them. */
 const ITEMS = '[role="menuitem"], [role="menuitemradio"]'
+const FIELDS = 'input, select, textarea'
 
 function moveFocus(e: React.KeyboardEvent<HTMLElement>) {
   const items = [...e.currentTarget.querySelectorAll<HTMLElement>(ITEMS)]
@@ -43,7 +44,10 @@ export function usePopover(open: boolean, close: () => void) {
   }, [open])
   const onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') moveFocus(e)
-    if (e.key === 'Tab' && e.currentTarget.querySelector(ITEMS)) {
+    // A menu of items only: one that also holds a field (the development account selector) keeps Tab native, so the
+    // field stays reachable (Shift+Tab from its first item).
+    const itemsOnly = e.currentTarget.querySelector(ITEMS) && !e.currentTarget.querySelector(FIELDS)
+    if (e.key === 'Tab' && itemsOnly) {
       latest.current()
       ;(opener.current ?? before.current)?.focus() // the Tab itself then moves on from here
       return

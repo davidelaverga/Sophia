@@ -149,8 +149,11 @@ function Effort({
   // focus stays on it; the scale closes, and doesn't come back by itself once the change is done.
   const busy = Boolean(session.change)
   useEffect(() => {
-    if (busy) setOpen(false)
-  }, [busy])
+    if (!busy) return
+    // The scale closes: the focus, if it was in it, comes back to the bar first, so it is never dropped to the page.
+    if (open) button.current?.focus()
+    setOpen(false)
+  }, [busy, open])
   const shown = session.effort ? <EffortMeter effort={session.effort} tool={tool} mode={session.mode} /> : null
   if (!control || levels.length === 0) {
     return (
