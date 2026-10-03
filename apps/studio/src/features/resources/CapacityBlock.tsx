@@ -19,6 +19,8 @@ interface Props {
   now: Date
   /** This account's earlier readings, for each window's history (history.ts); none when only the latest is kept. */
   earlier: QuotaObservation[]
+  /** Said under the pace when it runs short: where there is room (ResourceSheet). */
+  room?: React.ReactNode
 }
 
 interface Reading {
@@ -125,10 +127,12 @@ function Headline({
   observation,
   now,
   points,
+  room,
 }: {
   observation: QuotaObservation | undefined
   now: Date
   points: Point[]
+  room: React.ReactNode
 }) {
   const { line, limiting, known, pace: headPace } = capacity(observation, now)
   return (
@@ -143,6 +147,7 @@ function Headline({
         />
       )}
       {headPace?.early && <p className="capacity-pace">{headPace.early}.</p>}
+      {room}
       {limiting && <Sparkline name={`${limiting.name} window`} points={points} now={now} />}
     </>
   )
@@ -155,7 +160,7 @@ export function CapacityBlock(props: Props) {
   const missing = observation?.missing_capabilities ?? []
   return (
     <div className="capacity" role="group" aria-label="Capacity">
-      <Headline observation={observation} now={now} points={points} />
+      <Headline observation={observation} now={now} points={points} room={props.room} />
       <Meta {...props} points={points} />
       {readable && (
         <WindowsDisclosure

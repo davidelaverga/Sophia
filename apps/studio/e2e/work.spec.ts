@@ -231,7 +231,8 @@ test('pressing a task opens it: who and what it last did, what it waits on and w
   await page.goto(`${PAGE}?viewer=davide`)
   await tile(page, 'work-1').click()
   const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
-  await expect(sheet.locator('.task-sheet-name')).toHaveText('Davide’s Claude Codeworker')
+  await expect(sheet.getByRole('button', { name: 'Davide’s Claude Code' })).toBeVisible() // a way to it in Resources
+  await expect(sheet.locator('.task-sheet-name .muted')).toHaveText('worker')
   await expect(sheet.locator('.task-chip')).toHaveText('Waiting on you')
   await expect(sheet.locator('.task-sheet-activity')).toContainText('Asked to run pnpm --filter @sophia/report test')
   await expect(sheet.locator('.task-links').last().locator('.task-link-name')).toHaveText([
@@ -333,4 +334,47 @@ test('@phone · one lane under another, the goal’s actions under its words, no
   const a = await lane(page, 'In motion').boundingBox()
   const b = await lane(page, 'Up next').boundingBox()
   expect(b?.y ?? 0).toBeGreaterThan((a?.y ?? 0) + (a?.height ?? 0) - 1)
+})
+
+test('an address names a task: it opens with its goal, and its sheet keeps the address while open', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?two=1#task-pane-copy`)
+  // The task is on the second goal's board: the rail chose that goal, and the task's sheet opened with the page.
+  await expect(page.getByRole('tab', { selected: true })).toContainText('pane')
+  await expect(page.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(new URL(page.url()).hash).toBe('') // closing takes it away
+  await tile(page, 'pane-states').click()
+  expect(new URL(page.url()).hash).toBe('#task-pane-states')
+  // A link followed within the page opens its task, on its goal, over a goal chosen before.
+  await page.keyboard.press('Escape')
+  await page.getByRole('tab', { name: /Reports export to PDF/ }).click()
+  await page.evaluate(() => (window.location.hash = '#task-pane-copy'))
+  await expect(page.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+  await expect(page.getByRole('tab', { selected: true })).toContainText('pane')
+  await page.keyboard.press('Escape')
+  // A task on no board opens nothing, and the first goal stays.
+  await page.goto(`${PAGE}?two=1#task-nowhere`)
+  await page.reload() // only the fragment changed: the page opens again from it
+  await expect(page.getByRole('tab', { selected: true })).toContainText('Reports export to PDF reliably')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('whoever does a task opens in Resources; nobody, or no way there, is only a name', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#task-work-1`)
+  const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await sheet.getByRole('button', { name: 'Davide’s Claude Code' }).click()
+  await expect(page).toHaveURL(/\/resources\.html\?viewer=davide#resource-davide-claude$/)
+  await expect(page.getByRole('dialog', { name: 'Davide · Claude Code' })).toBeVisible()
+  await page.goto(`${PAGE}#task-work-4`) // nobody has it
+  const nobody = page.getByRole('dialog', { name: 'Measure render time on large reports' })
+  await expect(nobody).toBeVisible()
+  await expect(nobody.locator('.task-who-link')).toHaveCount(0)
+  await page.goto(`${PAGE}#task-work-3`)
+  await page.reload() // only the fragment changed: the page opens again from it
+  const person = page.getByRole('dialog', { name: 'Write the export’s release note' })
+  await expect(person).toBeVisible() // a person, not a session: no resource to open
+  await expect(person.locator('.task-who-link')).toHaveCount(0)
 })

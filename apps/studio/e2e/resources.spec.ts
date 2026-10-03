@@ -15,6 +15,7 @@ async function open(page: Page, name: string) {
   await expect(sheet(page, name)).toBeVisible()
   return sheet(page, name)
 }
+const leftOf = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().left)
 const capacity = (page: Page, name: string) => sheet(page, name).getByRole('group', { name: 'Capacity' })
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })
 const filter = (page: Page, name: string) => page.getByRole('tablist', { name: 'Show' }).getByRole('tab', { name })
@@ -182,7 +183,7 @@ test('what waits on an owner is one line on top, and it opens that resource', as
   await expect(tile(page, 'Davide · Claude Code').getByText('1 waiting')).toBeVisible()
   // A screen reader hears the tile's lines, not only whose it is.
   await expect(tile(page, 'Davide · Claude Code')).toHaveAccessibleDescription(
-    'Online 1 waiting Opus 5.5 Implement the PDF retry · 2 sessions 5-hour window: 63% used, resets in 55 min',
+    /^Online 1 waiting Opus 5\.5 Implement the PDF retry · 2 sessions Asked to run pnpm --filter @sophia\/report test \d+ s ago 5-hour window: 63% used, resets in 55 min$/,
   )
   await expect(tile(page, 'Luis · Claude Code')).toHaveAccessibleDescription(
     'Unknown You No assignment Capacity unknown',
@@ -1279,4 +1280,131 @@ test('motion · with less motion asked for, the same changes come at once and no
   await open(page, 'Davide · Codex')
   const chevron = capacity(page, 'Davide · Codex').locator('.capacity-toggle .icon')
   await expect(chevron).toHaveCSS('transition-duration', '0s') // the windows' chevron turns at once
+})
+
+test('live · a session at work says what its tool last reported, and a ring around its owner empties as that ages', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.goto(PAGE)
+  const codex = tile(page, 'Davide · Codex')
+  const live = codex.locator('.resource-tile-live')
+  await expect(live).toHaveText('Reading ReportPane.tsx6 s ago')
+  const fresh = () =>
+    codex.locator('.resource-face').evaluate((e) => Number(getComputedStyle(e).getPropertyValue('--fresh')))
+  const first = await fresh()
+  await page.clock.runFor(5000) // its age counts to the second, and the ring empties
+  await expect(live).toContainText('11 s ago')
+  expect(await fresh()).toBeLessThan(first)
+  await page.clock.runFor(4000) // its reviewer moves on: a new report, a full ring
+  await expect(live).toContainText('Reading ExportStatus.tsx')
+  expect(await fresh()).toBeGreaterThan(first)
+  // Waiting, its ring and dot are amber; a resource with nothing at work says nothing live.
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude.locator('.resource-face')).toHaveAttribute('data-waiting', 'true')
+  await expect(claude.locator('.resource-tile-live .activity-dot')).toHaveAttribute('data-waiting', 'true')
+  await expect(tile(page, 'Luis · Claude Code').locator('.resource-tile-live, .resource-face[data-live]')).toHaveCount(
+    0,
+  )
+  // The ring is a fine circle around the picture, its edge on the tile's column: never an oval swelling into it.
+  const ring = await codex.evaluate((t) => {
+    const face = t.querySelector('.resource-face')
+    const logo = t.querySelector('.tool-logo')?.getBoundingClientRect()
+    if (!face || !logo) return null
+    const box = face.getBoundingClientRect()
+    const before = getComputedStyle(face, '::before')
+    // Its stroke is measured from its own edge (closest-side), so it stays fine at any size.
+    const fine = before.maskImage.includes('closest-side')
+    return { w: box.width, h: box.height, ring: before.width, fine, edge: box.left - 3 - logo.left }
+  })
+  expect(ring).toEqual({ w: 16, h: 16, ring: '22px', fine: true, edge: 0 })
+  // The sheet says it too, under the session.
+  const s = await open(page, 'Davide · Codex')
+  await expect(s.locator('.resource-session-live')).toContainText('Reading ExportStatus.tsx')
+})
+
+test('one with Tasks · a session’s task opens on the board, as whoever looks, and its doer opens back here', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  await expect(s.getByRole('button', { name: 'No assignment' })).toHaveCount(0) // the reviewer has no task to open
+  await s.getByRole('button', { name: /^Implement the PDF retry\W+open in Tasks$/ }).click()
+  await expect(page).toHaveURL(/\/work\.html\?viewer=davide#task-work-1$/)
+  const task = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(task.locator('.task-chip')).toHaveText('Waiting on you') // still Davide looking
+  await task.getByRole('button', { name: 'Davide’s Claude Code' }).click()
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+})
+
+test('capacity · a window that runs out first says when on its tile, and its sheet names where there is room', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?tight=1`)
+  const next = tile(page, 'Davide · Claude Code').locator('.resource-tile-next')
+  await expect(next).toHaveText(/^out in ~3\d min$/)
+  const amber = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--amber').trim())
+  expect(await next.evaluate((e) => getComputedStyle(e).color)).toBe(rgb(amber))
+  await expect(tile(page, 'Davide · Codex').locator('.resource-tile-next')).toHaveText('resets in 2 h')
+  const s = await open(page, 'Davide · Claude Code')
+  const room = s.locator('.capacity-room')
+  await expect(room).toContainText('Davide’s Codex has room: 5-hour at 42%')
+  await room.getByRole('button', { name: 'Show' }).press('Enter')
+  await expect(sheet(page, 'Davide · Codex')).toBeVisible()
+  // The pressed Show went with the page: the focus stays in the sheet, where K steps back.
+  await expect(sheet(page, 'Davide · Codex')).toBeFocused()
+  await page.keyboard.press('k')
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+  await page.keyboard.press('j')
+  await expect(sheet(page, 'Davide · Codex').locator('.capacity-room')).toHaveCount(0) // on pace: nothing to offer
+  // At its usual pace, Davide's Claude Code offers nothing either.
+  await page.goto(`${PAGE}#resource-davide-claude`)
+  await expect(sheet(page, 'Davide · Claude Code').locator('.capacity-room')).toHaveCount(0)
+})
+
+test('capacity · each tile says its capacity whole, in its own width', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  const lines = grid(page).locator('.resource-tile-capacity-line')
+  await expect(lines).toHaveCount(5)
+  const cut = await lines.evaluateAll((all) => all.filter((e) => e.scrollWidth > e.clientWidth).length)
+  expect(cut).toBe(0)
+  await expect(tile(page, 'Davide · Claude Code').locator('.resource-tile-capacity-line')).toHaveText(
+    '5-hour window: 63% used, resets in 55 min5-hour · 63%resets in 55 min',
+  )
+})
+
+test('live · a report goes still once old or its host offline, and the clock never steps back', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(PAGE)
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude).toContainText('resets in 55 min')
+  // Claude's worker last reported 22 s before the read: two minutes on, it is still said, but no longer live.
+  await page.clock.runFor('02:00')
+  await expect(claude.locator('.resource-tile-live')).toContainText('Asked to run pnpm')
+  await expect(claude.locator('.resource-tile-live .activity-dot')).toHaveAttribute('data-still', 'true')
+  await expect(claude.locator('.resource-face')).not.toHaveAttribute('data-live')
+  await expect(claude).toContainText('resets in 53 min')
+  // Codex's host goes offline: nothing is live, the clock ticks each minute, and it counts on from where it was.
+  await page.evaluate(() => window.resourcesFixture?.setHost?.('davide-codex', 'offline'))
+  await expect(tile(page, 'Davide · Codex').locator('.activity-dot')).toHaveAttribute('data-still', 'true')
+  await page.clock.runFor('03:00')
+  await expect(claude).toContainText('resets in 50 min')
+})
+
+test('one with Tasks · work on no board stays its title, with nothing to press', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1#resource-luis-gemini`)
+  const s = sheet(page, 'Luis · Gemini CLI')
+  await expect(s.getByText('Draft the onboarding copy')).toBeVisible()
+  await expect(s.getByRole('button', { name: /Draft the onboarding copy/ })).toHaveCount(0)
+})
+
+test('@phone · a session’s live line keeps to the sheet’s one column', async ({ page }) => {
+  await page.goto(`${PAGE}#resource-davide-codex`)
+  const session = sheet(page, 'Davide · Codex').locator('.resource-session').filter({ hasText: 'Reading' })
+  const [role, live] = await Promise.all([
+    leftOf(session.locator('.resource-role')),
+    leftOf(session.locator('.resource-session-live')),
+  ])
+  expect(live, 'under the role, not beside it').toBeCloseTo(role, 0)
+  expect(await session.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
 })

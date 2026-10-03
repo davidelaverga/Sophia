@@ -5,8 +5,8 @@ import { Tip } from '@sophia/ui'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { followPointer } from '../../resources/motion.ts'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
-import type { Resource } from '../../resources/resource.ts'
-import { freshness, observedAgo, relation, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
+import { freshness, observedAgo, type Resource } from '../../resources/resource.ts'
+import { relation, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 
 type Person = Resource['owner']
 type Activity = NonNullable<NonNullable<PlanRow['doer']['session']>['activity']>
@@ -39,8 +39,9 @@ function Who({ row, activity, now }: { row: PlanRow; activity: Activity | null; 
   const who = doer.role ? `${doer.name} · ${doer.role}` : doer.name
   return (
     <span
-      className="task-who has-tip"
+      className="task-who live-ring has-tip"
       data-live={activity ? true : undefined}
+      data-waiting={row.status.mark === 'waiting' || undefined}
       style={activity ? { '--fresh': freshness(activity.observedAt, now) } : undefined}
     >
       {doer.person ? (
@@ -54,12 +55,20 @@ function Who({ row, activity, now }: { row: PlanRow; activity: Activity | null; 
   )
 }
 
+interface FootProps {
+  activity: Activity | null
+  hangs: string | null
+  /** Its session waits: the dot is amber, as its ring is. */
+  waiting: boolean
+  now: Date
+}
+
 /** Its foot: what its session last reported while it moves, else what it hangs on. */
-function Foot({ activity, hangs, now }: { activity: Activity | null; hangs: string | null; now: Date }) {
+function Foot({ activity, hangs, waiting, now }: FootProps) {
   if (activity) {
     return (
       <span className="task-tile-activity">
-        <span className="activity-dot" aria-hidden />
+        <span className="activity-dot" data-waiting={waiting || undefined} aria-hidden />
         <span className="task-tile-said">{activity.said}</span>
         <span className="task-tile-ago">{observedAgo(activity.observedAt, now)}</span>
       </span>
@@ -117,7 +126,7 @@ export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOp
               </span>
             )}
           </span>
-          <Foot activity={activity} hangs={relation(item, plan)} now={now} />
+          <Foot activity={activity} hangs={relation(item, plan)} waiting={status.mark === 'waiting'} now={now} />
         </span>
       </button>
     </li>

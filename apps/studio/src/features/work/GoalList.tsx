@@ -4,6 +4,8 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { TaskCard } from '../conversation/TaskCard.tsx'
 import { GoalTabs } from './GoalTabs.tsx'
 import { GoalCard } from './GoalCard.tsx'
+import { TASK } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 import { moving } from '../resources/motion.ts'
 import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
 
@@ -15,6 +17,8 @@ export interface GoalPlan {
   words?: string
   /** Its next checkpoint, said on the goal's second line. */
   next?: React.ReactNode
+  /** Its tasks' ids: an address naming one of them (`#task-<id>`) chooses this goal. */
+  tasks?: readonly string[]
 }
 
 interface Props {
@@ -31,6 +35,10 @@ interface Props {
   plans?: Readonly<Record<string, GoalPlan>> | undefined
 }
 
+/** The goal whose plan has a task, by its id; undefined when none has. */
+const goalOf = (plans: Props['plans'], task: string | null) =>
+  task ? Object.entries(plans ?? {}).find(([, p]) => p.tasks?.includes(task))?.[0] : undefined
+
 /**
  * Several goals with plans: one at a time, chosen from the rail, so a project with many goals stays calm. A search
  * narrows the rail to the goals whose title, outcome or tasks answer it.
@@ -40,13 +48,17 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
     const plan = plans?.[g.id]
     return plan !== undefined && answers(query, g.title, g.outcome, plan.words)
   })
-  const [chosen, setChosen] = useState<string | null>(null)
-  const shown = tabbed.length > 1 ? (tabbed.find((g) => g.id === chosen) ?? tabbed[0]) : null
+  // An address naming a task chooses its goal, so the task opens on its board: when the page opens, when plans
+  // arrive, and each time a link is followed. A goal chosen from the rail holds until the address is followed again.
+  const named = useAddressed(TASK)
+  const [chosen, setChosen] = useState<{ id: string; seq: number } | null>(null)
+  const goal = (chosen?.seq === named.seq ? chosen.id : null) ?? goalOf(plans, named.id)
+  const shown = tabbed.length > 1 ? (tabbed.find((g) => g.id === goal) ?? tabbed[0]) : null
   const anyPlan = Object.keys(plans ?? {}).length > 0
   // With plans, a goal answers a search or steps out of the list; without, every goal stays.
   const listed = (snapshot?.goals ?? []).filter((g) => (shown ? g.id === shown.id : !anyPlan || tabbed.includes(g)))
   // The board glides from one goal's plan to the other's (View Transitions, as Resources' filters).
-  return { tabbed, shown, listed, anyPlan, choose: (id: string) => moving(() => setChosen(id)) }
+  return { tabbed, shown, listed, anyPlan, choose: (id: string) => moving(() => setChosen({ id, seq: named.seq })) }
 }
 
 /** The view's head: its name, then its goals' count, or, with plans, the search. */

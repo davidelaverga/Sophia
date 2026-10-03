@@ -1,17 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { Resource } from '../../resources/resource.ts'
-import {
-  current,
-  freshness,
-  observedAgo,
-  planRows,
-  status,
-  waitsOn,
-  whoDoes,
-  type PlanItem,
-  type WorkPlan,
-} from './plan.ts'
+import { freshness, observedAgo, type Resource } from '../../resources/resource.ts'
+import { current, planRows, status, waitsOn, whoDoes, type PlanItem, type WorkPlan } from './plan.ts'
 
 const item = (id: string, over: Partial<PlanItem> = {}): PlanItem => ({
   id,

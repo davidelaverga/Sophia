@@ -110,6 +110,15 @@ export const busyClaude = (o: QuotaObservation): QuotaObservation => ({
   windows: o.windows.map((w) => (w.window_id === 'five_hour' ? percent('five_hour', 95, 59) : w)),
 })
 
+/**
+ * `tight=1`: Davide's Claude Code at 81 % of its 5-hour window halfway through it: at this pace it is used up in ~35
+ * min, ~2 h before it resets, while his Codex has room.
+ */
+export const tightClaude = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: o.windows.map((w) => (w.window_id === 'five_hour' ? percent('five_hour', 81, 150) : w)),
+})
+
 /** `spent=1`: Codex's spend limit passed, at 120 % (a spend percentage has no ceiling). */
 export const spentCodex = (o: QuotaObservation): QuotaObservation => ({
   ...o,
@@ -236,7 +245,7 @@ export const moreResources: Resource[] = [
         role: 'worker',
         model: 'gemini-2.5-pro',
         effort: 'high',
-        assignment: { workId: 'work-3', title: 'Draft the onboarding copy', state: 'queued' },
+        assignment: { workId: 'onboarding-copy', title: 'Draft the onboarding copy', state: 'queued' },
       },
     ],
     controls: { steer: 'unqualified', hold: 'supported', stop: 'supported', permissions: 'unqualified' },

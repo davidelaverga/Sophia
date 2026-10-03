@@ -13,15 +13,19 @@ import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
 import type { EffortAsk } from './change.ts'
-import { ResourceSheet, type EffortControl } from './ResourceSheet.tsx'
+import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceSheet.tsx'
+import { roomElsewhere } from './room.ts'
 import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
   FILTER_LABEL,
   FILTERS,
   inFilter,
+  liveSession,
   matches,
+  observationOf,
   plural,
+  reportsLive,
   summary,
   TOOL,
   type Filter,
@@ -50,6 +54,8 @@ interface Props {
    * effort can be chosen and the bars stay read-only. `level` null withdraws the request.
    */
   onEffort?: (sessionId: string, ask: EffortAsk | null) => void
+  /** The way to a session's task on the plan's board (LFE-07.1); absent, a session's task is only its title. */
+  tasks?: TaskLinks
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -224,9 +230,6 @@ function useView({ resources, actions, viewerId }: Props) {
   return { query, setQuery, filter, setFilter, order, setOrder, counts, shown, arrange }
 }
 
-const observationOf = (observations: QuotaObservation[], r: Resource) =>
-  observations.find((o) => o.entitlement_id === r.entitlementId)
-
 /** The enrolled tools to browse: the search and filters over the tiles, or what to do when none is shown. */
 type View = ReturnType<typeof useView>
 
@@ -313,8 +316,20 @@ function useEffort(onEffort: Props['onEffort']): EffortControl | undefined {
   }
 }
 
+/** While a session reports live, the view's clock moves each second, so its age counts as a task tile's does. */
+const SECOND = 1000
+
+/** The view's clock: each second while any session reports live, else each minute. */
+function useViewClock(given: Props): Date {
+  const [fast, setFast] = useState(true)
+  const now = useClock(given.now, fast ? SECOND : undefined)
+  const live = given.resources.some((r) => reportsLive(r, liveSession(r), now))
+  useEffect(() => setFast(live), [live])
+  return now
+}
+
 export function ResourcePanel(given: Props) {
-  const now = useClock(given.now)
+  const now = useViewClock(given)
   const props = { ...given, now }
   const { resources, observations, actions, viewerId } = props
   // The address's resource is kept until the resources are read; it opens when it is among them.
@@ -354,6 +369,9 @@ export function ResourcePanel(given: Props) {
           onClose={() => show(null)}
           onStep={order.length > 1 ? step : undefined}
           effort={effort}
+          tasks={props.tasks}
+          room={roomElsewhere(selected, resources, observations, now, viewerId)}
+          onShow={show}
         />
       )}
     </section>

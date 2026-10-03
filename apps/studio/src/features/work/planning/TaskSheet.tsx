@@ -1,15 +1,16 @@
-// A task up close, in the app's sheet (as Resources opens a resource): who does it (picture, tool, role), where it
-// stands, what it waits on and what waits on it, each of those one press away, and whether it is the plan's next
-// checkpoint. Escape or Close returns to the tile it was opened from. It reads; acting on a task (guidance, Hold,
+// A task up close, in the app's sheet (as Resources opens a resource): who does it (picture, tool, role, and a way to
+// their resource), where it stands, what it waits on and what waits on it, each of those one press away, and whether
+// it is the plan's next checkpoint. Escape or Close returns to the tile it was opened from. It reads; acting on a task (guidance, Hold,
 // Stop, discussion) comes with LFE-06.4 and LFE-07.3.
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Icon, Tip } from '@sophia/ui'
 import { Sheet } from '../../../app/Sheet.tsx'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
-import type { Resource } from '../../resources/resource.ts'
+import { observedAgo, type Resource } from '../../resources/resource.ts'
 import { AskSophia, type Ask } from './AskSophia.tsx'
-import { observedAgo, waitsOn, type PlanRow, type WorkPlan } from './plan.ts'
+import { waitsOn, type PlanRow, type WorkPlan } from './plan.ts'
 import { TaskActions, type Act } from './TaskActions.tsx'
 
 type Person = Resource['owner']
@@ -19,6 +20,8 @@ interface Props {
   rows: readonly PlanRow[]
   plan: WorkPlan
   onOpen: (id: string) => void
+  /** Opens the resource doing it in Resources; absent, who does it is only a name. */
+  onOpenResource?: ((resourceId: string) => void) | undefined
   /** J and K: the next task on the board, or the one before, without closing. */
   onStep: (by: 1 | -1) => void
   onClose: () => void
@@ -73,8 +76,9 @@ function useSteps(onStep: Props['onStep']) {
 }
 
 /** Who does it, large, and where it stands: to the one it waits on, "Waiting on you". */
-function Who({ row, viewerId }: { row: PlanRow; viewerId: string | null }) {
+function Who({ row, viewerId, onOpenResource }: Pick<Props, 'row' | 'viewerId' | 'onOpenResource'>) {
   const { doer, status } = row
+  const resource = doer.resource
   return (
     <div className="task-sheet-who">
       <span className="task-who" data-size="lg">
@@ -82,7 +86,16 @@ function Who({ row, viewerId }: { row: PlanRow; viewerId: string | null }) {
         {doer.resource && <ToolLogo tool={doer.resource.tool} size="sm" />}
       </span>
       <span className="task-sheet-name">
-        {doer.name}
+        {resource && onOpenResource ? (
+          <button type="button" className="task-who-link has-tip" onClick={() => onOpenResource(resource.id)}>
+            {doer.name}
+            <span className="sr-only">, open in Resources</span>
+            <Icon name="forward" />
+            <Tip label="Open in Resources" side="top" />
+          </button>
+        ) : (
+          doer.name
+        )}
         {doer.role && <span className="muted">{doer.role}</span>}
       </span>
       <span className="task-chip" data-mark={status.mark}>
@@ -106,7 +119,8 @@ function Activity({ row, now }: { row: PlanRow; now: Date }) {
   )
 }
 
-export function TaskSheet({ row, rows, plan, onOpen, onStep, onClose, now, viewerId, onAct, onAsk }: Props) {
+export function TaskSheet(props: Props) {
+  const { row, rows, plan, onOpen, onStep, onClose, now, viewerId, onAct, onAsk, onOpenResource } = props
   useSteps(onStep)
   const { item } = row
   const before = rows.filter((r) => waitsOn(item).includes(r.item.id))
@@ -116,7 +130,7 @@ export function TaskSheet({ row, rows, plan, onOpen, onStep, onClose, now, viewe
   return createPortal(
     <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose}>
       <div className="task-sheet">
-        <Who row={row} viewerId={viewerId} />
+        <Who row={row} viewerId={viewerId} onOpenResource={onOpenResource} />
         <Activity row={row} now={now} />
         {next && (
           <p className="task-sheet-next">
