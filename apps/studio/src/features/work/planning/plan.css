@@ -1,0 +1,219 @@
+/* The plan's shared parts, for its board (board.css): a decision and its choices, the marks of where a task stands, an
+   empty picture, the goal's quiet fold, and what the plan assumes and decided. */
+/* What waits on someone's decision: raised above the tasks, in the attention colour, with who decides. */
+.plan-ask {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(239, 191, 134, 0.18);
+  border-radius: var(--r-3);
+  background: linear-gradient(90deg, rgba(239, 191, 134, 0.07), rgba(239, 191, 134, 0.02));
+  animation: arrive 0.4s var(--ease) both;
+}
+.plan-ask-body {
+  display: grid;
+  gap: 4px;
+}
+.plan-ask-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.plan-ask .field-label {
+  color: var(--amber);
+}
+.plan-ask-due {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+/* Its decider's choices: two equal buttons, neither chosen for them; the one pressed keeps a ring while it is sent. */
+.plan-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.plan-choice {
+  height: 32px;
+  transition:
+    background-color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.plan-choice:not(:disabled):hover {
+  border-color: rgba(239, 191, 134, 0.45);
+  background: rgba(239, 191, 134, 0.1);
+  transform: translateY(-1px);
+}
+.plan-choice:not(:disabled):active {
+  transform: translateY(0);
+}
+.plan-choice[data-chosen],
+.plan-choice[data-chosen]:disabled {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+  color: var(--text);
+  opacity: 1;
+}
+.plan-choice:disabled:not([data-chosen]) {
+  opacity: 0.4;
+}
+.plan-ask-said {
+  color: var(--text-2);
+  font-size: 13px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.plan-ask-said[data-state='recorded'] {
+  color: var(--teal);
+}
+.plan-ask-said[data-state='conflict'],
+.plan-ask-said[data-state='unknown'],
+.plan-ask-said[data-state='denied'] {
+  color: var(--amber);
+}
+.plan-ask-question {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.plan-ask-choices {
+  color: var(--text-3);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+/* The marks. Filled once it runs (amber when it waits on someone, with a slow ping; teal when it works); hollow before
+   it starts; dashed when no one has it. */
+.plan-mark {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+  transition: box-shadow var(--base) var(--ease);
+}
+.plan-mark[data-mark='waiting'] {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+.plan-mark[data-mark='waiting']::after {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: waiting-ping 2.4s var(--ease) infinite;
+}
+.plan-mark[data-mark='working'] {
+  border-color: var(--teal);
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.14);
+}
+.plan-mark[data-mark='queued'] {
+  border-color: var(--text-3);
+  background: var(--text-3);
+}
+.plan-mark[data-mark='free'] {
+  border-style: dashed;
+  border-color: var(--text-4);
+}
+
+.plan-nobody {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-3);
+  border-radius: 50%;
+  background: rgba(236, 235, 241, 0.03);
+}
+.plan-nobody[data-free] {
+  border-style: dashed;
+  border-color: var(--text-4);
+  background: none;
+}
+
+/* The goal above its plan: its status beside its title, its criteria behind one quiet line. */
+.goal.compact .goal-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.goal.compact .goal-outcome {
+  font-size: 13px;
+}
+.goal-criteria-button {
+  justify-self: start;
+  margin-left: -8px;
+  color: var(--text-3);
+}
+.goal-criteria-button .icon {
+  transition: transform var(--fast) var(--ease);
+}
+.goal-criteria-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+
+/* What it assumes and what was decided: one quiet line, opened on request. */
+.plan-fold {
+  display: grid;
+  gap: 10px;
+}
+.plan-fold-button {
+  justify-self: start;
+  margin-left: -8px;
+  color: var(--text-3);
+}
+.plan-fold-button .icon {
+  transition: transform var(--fast) var(--ease);
+}
+.plan-fold-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.plan-fold-body {
+  display: grid;
+  gap: 10px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.plan-assumed,
+.plan-decided {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.plan-assumed li {
+  position: relative;
+  padding-left: 16px;
+}
+.plan-assumed li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0.5em;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--text-3);
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-choice:not(:disabled):hover {
+    transform: none;
+  }
+  .plan-ask,
+  .plan-ask-said,
+  .plan-fold-body,
+  .plan-mark[data-mark='waiting']::after {
+    animation: none;
+  }
+}

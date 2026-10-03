@@ -40,9 +40,14 @@ const said = (text: string, n: number): DiscussionEntry => ({
 /**
  * The project as a snapshot at `revision`: a later revision is a background update reaching the viewer. `exchange`:
  * a conversation with Sophia is open and this viewer holds the floor, so the chat's message bar is there. `messages`:
- * what other members wrote in the discussion, oldest first.
+ * what other members wrote in the discussion, oldest first. `goals`: the project's goals (the work fixture's one).
  */
-export function snapshot(revision: number, exchange: boolean, messages: readonly string[] = []): Snapshot {
+export function snapshot(
+  revision: number,
+  exchange: boolean,
+  messages: readonly string[] = [],
+  goals: Snapshot['goals'] = [],
+): Snapshot {
   return {
     projectId: PROJECT,
     title: 'Fixture project',
@@ -50,7 +55,7 @@ export function snapshot(revision: number, exchange: boolean, messages: readonly
     missionRevision: revision,
     audienceRevision: 1,
     eligibilityRevision: 1,
-    goals: [],
+    goals,
     resources: [],
     humanActions: [],
     artifacts: [],

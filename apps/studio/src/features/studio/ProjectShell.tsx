@@ -18,7 +18,7 @@ import { MiniDock } from '../voice/MiniDock.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
-import { GoalList } from '../work/GoalList.tsx'
+import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
@@ -137,6 +137,11 @@ interface Props {
    * it is coming. The resource fixture fills it (fixtures/resources.tsx).
    */
   resources?: React.ReactNode
+  /**
+   * Each goal's plan from the lead, by the goal's id, shown in Tasks inside that goal's row, once something serves
+   * plans (SCM-04, LFE-07.1); until then Tasks shows the goals alone. The work fixture fills it (fixtures/work.tsx).
+   */
+  plans?: Readonly<Record<string, GoalPlan>>
   /** Requests waiting on this person in their own tools (ResourcePanel's actions): counted in the tab's title. */
   resourcesWaiting?: number
 }
@@ -251,6 +256,7 @@ export function ProjectShell(props: Props) {
           onInvite={invite}
           background={!!props.background}
           resources={props.resources}
+          plans={props.plans}
         />
       )}
     </div>
@@ -331,6 +337,7 @@ interface BodyProps {
   /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
   background: boolean
   resources: React.ReactNode
+  plans: Readonly<Record<string, GoalPlan>> | undefined
 }
 
 /**
@@ -367,12 +374,12 @@ function ProjectBody(props: BodyProps) {
     )
   }
   const work = view === 'work'
-  // A served Resources view takes the page's whole width: its tiles fill it.
+  // A served Resources view takes the page's whole width: its tiles fill it. So does Tasks with a plan, its pulse under.
   const resources = view === 'resources' ? props.resources : undefined
   return (
     <>
       {lobby}
-      <main className={`page${work ? ' split' : ''}`}>
+      <main className={pageClass(work, props.plans)}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
@@ -381,8 +388,14 @@ function ProjectBody(props: BodyProps) {
   )
 }
 
+/** Tasks beside its pulse; with a plan, Tasks takes the page's width and its pulse goes under. */
+function pageClass(work: boolean, plans: BodyProps['plans']): string {
+  if (!work) return 'page'
+  return Object.keys(plans ?? {}).length > 0 ? 'page planned' : 'page split'
+}
+
 /** A page other than the room: Goals and Work list the goals; the views still to come say so. */
-function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite }: BodyProps) {
+function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plans }: BodyProps) {
   if (view === 'goals' || view === 'work') {
     return (
       <GoalList
@@ -391,6 +404,7 @@ function PageBody({ view, projectId, identity, membership, snapshot, onShow, onI
         identity={identity}
         controls={view === 'work'}
         canAct={canInvite(membership)}
+        plans={view === 'work' ? plans : undefined}
         onOpenStudio={() => onShow('studio')}
         onInvite={onInvite}
       />
