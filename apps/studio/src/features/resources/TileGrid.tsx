@@ -51,11 +51,14 @@ interface Props {
 function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([])
   const [active, setActive] = useState(0)
-  const moving = useRef<string | null>(null)
+  // The tile being moved, and where it was: the move lands a frame or more later when it glides (motion.ts), and the
+  // view may render before then (its clock, a live read) with the tile still in its old place.
+  const moving = useRef<{ id: string; from: number } | null>(null)
   const current = Math.min(active, Math.max(0, shown.length - 1))
   useEffect(() => {
-    const at = moving.current ? shown.findIndex((r) => r.id === moving.current) : -1
-    if (at < 0) return
+    const m = moving.current
+    const at = m ? shown.findIndex((r) => r.id === m.id) : -1
+    if (!m || at < 0 || at === m.from) return
     moving.current = null
     // The moved tile keeps the focus by itself (the same element, in its new place); it becomes the Tab stop.
     setActive(at)
@@ -68,7 +71,7 @@ function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
     if (to === null || !from || !target || to === current) return
     e.preventDefault()
     if (e.altKey) {
-      moving.current = from.id
+      moving.current = { id: from.id, from: current }
       onArrange(from.id, target.id)
       return
     }
@@ -77,7 +80,7 @@ function useKeys(shown: Resource[], onArrange: Props['onArrange']) {
   }
   /** A tile moved another way (dragged): it becomes the Tab stop once in its new place. */
   const follow = (id: string) => {
-    moving.current = id
+    moving.current = { id, from: shown.findIndex((r) => r.id === id) }
   }
   return { tiles, current, setActive, onKeyDown, follow }
 }

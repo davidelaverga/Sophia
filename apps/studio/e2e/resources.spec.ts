@@ -784,6 +784,29 @@ test('Alt and an arrow move the focused tile, and the focus follows it', async (
   await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
 })
 
+test('a move that lands after the view renders again still leaves the moved tile the Tab stop', async ({ page }) => {
+  // The glide holds the move back a beat (motion.ts); the view renders in between, as its clock or a live read would.
+  await page.addInitScript(() => {
+    Object.defineProperty(document, 'startViewTransition', {
+      value: (update: () => void) => {
+        window.resourcesFixture?.load?.()
+        setTimeout(update, 100)
+        const done = Promise.resolve()
+        return { ready: done, finished: done, updateCallbackDone: done, skipTransition: () => undefined }
+      },
+    })
+  })
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Davide · Grok').focus()
+  await page.keyboard.press('Alt+ArrowLeft')
+  await expect.poll(() => order(page)).toHaveProperty('3', 'Davide · Grok')
+  await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0')
+  await page.keyboard.press('Alt+Home') // the tile moved, not the one now where it was
+  await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
+  await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0')
+  await expect(tile(page, 'Davide · Grok')).toBeFocused()
+})
+
 test('arranging within a filter keeps the hidden tiles where they were', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
   await filter(page, 'Mine 2').click()
