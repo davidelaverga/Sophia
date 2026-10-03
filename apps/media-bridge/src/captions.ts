@@ -51,6 +51,17 @@ export function captionPieces(text: string, overhead: number): string[] {
   return piece ? [...pieces, piece] : pieces
 }
 
+/**
+ * SOPHIA_LIVE_CAPTIONS as the bridge reads it: unset, empty, on, true, 1 or yes is on; off, false, 0 or no is off, in
+ * any case and with spaces around. Anything else is not understood, and is off: this is the switch an operator turns
+ * in an incident, so a mistyped value must not leave captions on.
+ */
+export function liveCaptionsSetting(raw: string | undefined): { on: boolean; understood: boolean } {
+  const value = (raw ?? '').trim().toLowerCase()
+  if (['', 'on', 'true', '1', 'yes'].includes(value)) return { on: true, understood: true }
+  return { on: false, understood: ['off', 'false', '0', 'no'].includes(value) }
+}
+
 export class Captions {
   private readonly exchangeId: string
   private readonly send: (packet: ChatCaption) => void
@@ -117,9 +128,13 @@ export class Captions {
     }
   }
 
-  /** The model turn ended; one the connection lost cuts off whatever was still being said. */
-  turnEnded(lost: boolean): void {
-    if (this.member) this.endMember(lost ? 'interrupted' : 'final')
+  /**
+   * The model turn ended; one the connection lost cuts off whatever was still being said. Google's barge-in ends it
+   * while the holder is still talking: their caption stays open for the rest of their words, which the next turn's end,
+   * Google's finished marker or another holder ends.
+   */
+  turnEnded(lost: boolean, holderTalking = false): void {
+    if (this.member && !holderTalking) this.endMember(lost ? 'interrupted' : 'final')
     if (lost) for (const s of this.sophia.filter((open) => open.generating)) this.endSophia(s, 'interrupted')
     this.memberThisTurn = false
   }

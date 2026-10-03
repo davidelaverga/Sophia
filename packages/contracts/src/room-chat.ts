@@ -5,7 +5,8 @@
  * - `mode` (Studio → bridge, input topic): whether this person reads Sophia (text mode) or hears her. It is a packet,
  *   not a participant attribute: members cannot update their own LiveKit metadata or attributes, and granting that
  *   would let them rewrite their signed standing. Studio says it on every join, reconnect and switch, which is also
- *   the bridge's cue to send that member the cards the exchange has shown (CX-0022).
+ *   the bridge's cue to send that member the cards the exchange has shown (CX-0022), at most once every few seconds
+ *   per member (hellos in between are answered once, when that has passed).
  * - `notice` (bridge → Studio, reply topic): a finished result's card, for every member present, whether they hear
  *   Sophia say it or read her (CX-0022); sent again when their Studio says its mode, so the receiver keeps one per task
  *   (its newest revision) and ignores the repeats. A fixed template of ids and a bounded kind name, never text: Studio
@@ -15,7 +16,9 @@
  * floor holder's words (Google transcribes only the holder's forwarded audio) and Sophia's spoken reply, sent as they
  * arrive to the members present (never a guest). Who spoke comes from the bridge's floor, never from Google or the
  * payload. The bridge keeps no text past the fragment it passes on; Studio keeps captions in memory for the page only.
- * They are display, never note provenance, and a typed request is never made of them.
+ * They are display, never note provenance, and a typed request is never made of them. An end the bridge could not send
+ * (its room link lost) goes to the session that replaces it; Studio shows a caption cut off when its end may never
+ * reach the page (Sophia leaves or joins again, its own connection reconnects), until more of it comes.
  */
 export const CHAT_INPUT_TOPIC = 'sophia.chat.input.v1'
 export const CHAT_REPLY_TOPIC = 'sophia.chat.reply.v1'
@@ -39,7 +42,7 @@ export type ChatNotice = {
 }
 /**
  * One fragment of a caption, or its end. `sequence` counts every packet of the caption from 1, also those that never
- * reached this member (a gap shows); `final` or `interrupted` ends it, with the last words or none.
+ * reached this member (a gap shows); `final` or `interrupted` ends it, with the last words or none, for good.
  */
 export type ChatCaption = {
   kind: 'caption'

@@ -2114,6 +2114,10 @@ describe('room session: every member present gets the result card (CX-0022)', ()
     await settle()
     room.events.textMode?.(LUIS, false)
     await settle()
+    assert.equal(cardsFor(room, LUIS).length, 2, 'a hello within BACKFILL_MS of the last waits for it to pass')
+    clock += 3000
+    session.tick()
+    await settle()
     const luis = cardsFor(room, LUIS)
     assert.equal(luis.length, 3, 'the first card, and one per hello')
     assert.deepEqual(new Set(luis.map((c) => `${c.taskId}:${String(c.resultRevision)}`)), new Set([`${TASK}:1`]))
@@ -2126,6 +2130,33 @@ describe('room session: every member present gets the result card (CX-0022)', ()
     session.tick()
     await settle()
     assert.deepEqual(service.announcedEvents.at(-1), told(true, 2)[0])
+  })
+
+  it('hellos in a loop cost the room one round of cards every few seconds, not one per hello', async () => {
+    const { session, room } = await sayHeard()
+    for (let i = 0; i < 50; i += 1) room.events.textMode?.(LUIS, i % 2 === 0)
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 2, 'the first hello is answered at once')
+    clock += 1000
+    session.tick()
+    for (let i = 0; i < 50; i += 1) room.events.textMode?.(LUIS, i % 2 === 0)
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 2)
+    clock += 2000
+    session.tick()
+    session.tick()
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 3, 'the hellos meanwhile, answered once when it has passed')
+    clock += 3000
+    session.tick()
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 3, 'and nothing more until another hello')
+    room.join([member(DAVIDE)])
+    room.join([member(LUIS), member(DAVIDE)])
+    room.events.textMode?.(LUIS, false)
+    await settle()
+    assert.equal(cardsFor(room, LUIS).length, 4, 'back after leaving: answered at once')
+    assert.equal(cardsFor(room, DAVIDE).length, 1)
   })
 
   it('a reload or a late arrival: the member whose Studio says hello gets the card', async () => {
@@ -2194,6 +2225,7 @@ describe('room session: every member present gets the result card (CX-0022)', ()
       await settle()
     }
     assert.equal(cardsFor(room, LUIS).length, 21)
+    clock += 3000
     room.events.textMode?.(LUIS, true)
     await settle()
     const again = cardsFor(room, LUIS).slice(21)
@@ -3222,6 +3254,85 @@ describe('room session: live captions (CX-0023)', () => {
     room.events.audio(LUIS, voice16k(), 16000, 1)
     live.events.inputTranscript('Back', false)
     assert.deepEqual(sentTo(room), ['0:member:1:partial:Words', '0:member:2:interrupted:', '1:member:1:partial:Back'])
+    await session.close()
+  })
+
+  it('a room link lost for good hands the ends of what it cut off to the replacement, which sends them once in', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Words', false)
+    live.events.outputTranscript('Reply', false)
+    room.events.connection('reconnecting', null)
+    room.events.connection('disconnected', null)
+    await session.close()
+    assert.deepEqual(sentTo(room), ['0:member:1:partial:Words', '1:sophia:1:partial:Reply'])
+    const handover = session.handover()
+    assert.equal(JSON.stringify(handover).includes('Words'), false, 'ids and sequences, never words')
+    assert.equal(JSON.stringify(handover).includes('Reply'), false)
+    const ids = new Map(room.captions.map((c) => [c.packet.id, c.packet.speaker]))
+    const next = await ready({}, undefined, handover)
+    const ended = (identity: string) =>
+      next.room.captions
+        .filter((c) => c.identity === identity)
+        .map(({ packet: p }) => `${String(ids.get(p.id))}:${String(p.sequence)}:${p.state}:${p.text}`)
+        .toSorted()
+    for (const identity of [LUIS, DAVIDE]) {
+      assert.deepEqual(ended(identity), ['member:2:interrupted:', 'sophia:2:interrupted:'], identity)
+    }
+    await next.session.close()
+  })
+
+  it('Google’s barge-in keeps one caption of the holder’s words: the rest after it is the same caption', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Question', true)
+    live.events.outputTranscript('A long answer', false)
+    live.events.audio(speech(), OUT)
+    live.events.inputTranscript('Wait, I', false)
+    live.events.interrupted()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript(' meant something else', false)
+    live.events.inputTranscript('', true)
+    assert.deepEqual(sentTo(room), [
+      '0:member:1:final:Question',
+      '1:sophia:1:partial:A long answer',
+      '2:member:1:partial:Wait, I',
+      '1:sophia:2:interrupted:',
+      '2:member:2:partial: meant something else',
+      '2:member:3:final:',
+    ])
+    await session.close()
+  })
+
+  it('while a guest is in, her words are not captioned once the stopped reply’s fence lapses, as she is not heard', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.outputTranscript('A reply', false)
+    live.events.audio(speech(), OUT)
+    room.join([member(LUIS), member(DAVIDE), { identity: 'guest', standing: 'guest' }])
+    live.events.turnComplete()
+    clock += 9000
+    session.tick()
+    live.events.outputTranscript('Said while the guest is here', false)
+    live.events.audio(speech(), OUT)
+    assert.deepEqual(sentTo(room), ['0:sophia:1:partial:A reply', '0:sophia:2:interrupted:'])
+    await session.close()
+  })
+
+  it('in each model turn, the holder’s first words after her reply began go before it', async () => {
+    const { session, room, live } = await ready()
+    for (const [answer, question] of [
+      ['An answer', 'The question'],
+      ['The next answer', 'The next question'],
+    ] as const) {
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      live.events.outputTranscript(answer, false)
+      live.events.inputTranscript(question, true)
+      live.events.turnComplete()
+      const sent = room.captions.filter((c) => c.identity === LUIS).map((c) => c.packet)
+      const reply = sent.find((p) => p.text === answer)
+      assert.equal(sent.find((p) => p.text === question)?.before, reply?.id, question)
+    }
     await session.close()
   })
 

@@ -13,7 +13,10 @@ export function useCaptions(arrival: Arrivals) {
     const at = arrival.next()
     setCaptions((turns) => receiveCaption(turns, packet, at))
   }
-  /** Out of the call: what was still being said is cut off. */
+  /**
+   * Out of the call, or what was being said may never end here (Sophia left or joined again, this connection is
+   * reconnecting): it is shown cut off, until more of it comes (closeCaptions).
+   */
   const interrupted = () => setCaptions(closeCaptions)
   return { captions, onCaption, interrupted }
 }

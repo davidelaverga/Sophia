@@ -4,7 +4,7 @@ import { CAPTION_PACKET_BYTES, encodeChatPacket, parseChatPacket, type ChatCapti
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { inspect } from 'node:util'
-import { Captions } from './captions.ts'
+import { Captions, liveCaptionsSetting } from './captions.ts'
 
 const EXCHANGE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const LUIS = { actorId: '11111111-1111-4111-8111-111111111111', inputEpoch: 1 }
@@ -77,6 +77,31 @@ describe('captions (CX-0023)', () => {
     c.generated()
     c.heard('Over a reply that finished', LUIS, false)
     assert.equal(sent.at(-1)?.before, undefined, 'nothing of hers is still being generated')
+    c.heard('', LUIS, true)
+    c.turnEnded(false)
+    c.spoken('The next answer', 2)
+    const next = sent.at(-1)
+    c.heard('The next question', LUIS, true)
+    assert.equal(sent.at(-1)?.before, next?.id, 'each model turn: its first words go before her reply again')
+  })
+
+  it('Google’s barge-in leaves the holder’s caption open: the rest of their words are the same caption', () => {
+    const { c, seen } = captions()
+    c.heard('Wait, I', LUIS, false)
+    c.spoken('A long answer', 1)
+    c.turnEnded(false, true)
+    c.heard(' meant something else', LUIS, false)
+    c.heard('', LUIS, true)
+    c.heard('Then', LUIS, false)
+    c.turnEnded(false)
+    assert.deepEqual(seen(), [
+      '0:member:1:partial:Wait, I',
+      '1:sophia:1:partial:A long answer',
+      '0:member:2:partial: meant something else',
+      '0:member:3:final:',
+      '2:member:1:partial:Then',
+      '2:member:2:final:',
+    ])
   })
 
   it('a lost connection and a cut end everything open as interrupted', () => {
@@ -115,6 +140,18 @@ describe('captions (CX-0023)', () => {
       sent.map((p) => p.sequence),
       sent.map((_, i) => i + 1),
     )
+  })
+
+  it('SOPHIA_LIVE_CAPTIONS: on unless switched off; a value not understood is off, and says so', () => {
+    for (const raw of [undefined, '', 'on', 'TRUE', ' 1 ', 'yes']) {
+      assert.deepEqual(liveCaptionsSetting(raw), { on: true, understood: true }, String(raw))
+    }
+    for (const raw of ['off', 'OFF', ' Off', 'false', '0', 'No']) {
+      assert.deepEqual(liveCaptionsSetting(raw), { on: false, understood: true }, raw)
+    }
+    for (const raw of ['of', 'disabled', 'off;']) {
+      assert.deepEqual(liveCaptionsSetting(raw), { on: false, understood: false }, raw)
+    }
   })
 
   it('keeps no words: after a fragment, nothing of it is held', () => {

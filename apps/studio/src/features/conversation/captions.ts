@@ -10,9 +10,12 @@ export interface CaptionTurn {
   actorId: string | null
   /** Its fragments, by sequence: one delivered again or late takes its own place, once. */
   parts: readonly { sequence: number; text: string }[]
-  /** Partial while it is being said; final or interrupted (cut off) once it ended, which it never takes back. */
+  /**
+   * Partial while it is being said; final or interrupted (cut off) once it ended. An end the bridge sent is never taken
+   * back; a cut-off this page made itself (closeCaptions, `end` still null) is, when newer words of it come.
+   */
   state: ChatCaption['state']
-  /** The sequence its end came with: nothing after it belongs to it. */
+  /** The sequence the bridge's end came with: nothing after it belongs to it. */
   end: number | null
   /** Its place in the chat: the arrival count of its first fragment (chat-view.ts), or just before the one it precedes. */
   at: number
@@ -47,9 +50,16 @@ function extended(t: CaptionTurn, p: ChatCaption): CaptionTurn {
     p.text && length + p.text.length <= MAX_CHARS
       ? [...t.parts, { sequence: p.sequence, text: p.text }].toSorted((a, b) => a.sequence - b.sequence)
       : t.parts
-  const ends = p.state !== 'partial'
-  if (parts === t.parts && !ends) return t
-  return { ...t, parts, ...(ends ? { state: p.state, end: p.sequence } : {}) }
+  const state = stateAfter(t, p)
+  if (parts === t.parts && state === t.state) return t
+  return { ...t, parts, state, end: p.state === 'partial' ? t.end : p.sequence }
+}
+
+/** An end ends it. One only this page cut off is being said again when words newer than all it has come. */
+function stateAfter(t: CaptionTurn, p: ChatCaption): ChatCaption['state'] {
+  if (p.state !== 'partial') return p.state
+  const newest = t.parts.at(-1)?.sequence ?? 0
+  return t.end === null && p.sequence > newest ? 'partial' : t.state
 }
 
 /**
@@ -77,7 +87,10 @@ export function captionText(turn: CaptionTurn): string {
   return text.trim()
 }
 
-/** The call ended: what was still being said is cut off. The same list when nothing was. */
+/**
+ * The call ended, or what was still being said may never end here: it is cut off, until newer words of it come (the
+ * bridge goes on with it after this page reconnected). The same list when nothing was.
+ */
 export function closeCaptions(turns: CaptionTurn[]): CaptionTurn[] {
   if (!turns.some((t) => t.state === 'partial')) return turns
   return turns.map((t) => (t.state === 'partial' ? { ...t, state: 'interrupted' } : t))

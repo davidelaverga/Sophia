@@ -233,4 +233,26 @@ test('CX-0023 · a call that drops cuts off what was still being said; joining a
   await expect(lines(page).nth(0).getByText('Cut off')).toHaveCount(0)
   await expect(lines(page).nth(1)).toContainText('Half a')
   await expect(lines(page).nth(1).getByText('Cut off')).toBeVisible()
+  // She went on talking while this page was away: the cut-off was this page's own, and her words take it back.
+  await say(page, caption('e2', 3, 'partial', ' sentence', SOPHIA))
+  await expect(lines(page).nth(1).getByText('Cut off')).toHaveCount(0)
+  await expect(lines(page).nth(1).getByText('Half a … sentence')).toHaveAttribute('aria-hidden', 'true')
+  await say(page, caption('e2', 4, 'final', '', SOPHIA))
+  await expect(lines(page).nth(1).getByText('Half a … sentence')).not.toHaveAttribute('aria-hidden')
+  await expect(lines(page).nth(1).getByText('Cut off')).toHaveCount(0)
+})
+
+test('CX-0023 · Sophia leaving the room cuts off what she was still saying, and its words reach screen readers', async ({
+  page,
+}) => {
+  await enterByVoice(page)
+  await say(page, caption('f1', 1, 'partial', 'A reply she never finished', SOPHIA), caption('f2', 1, 'final', 'Done'))
+  await chatToggle(page).click()
+  const reply = lines(page).nth(0)
+  await expect(reply.getByText('A reply she never finished')).toHaveAttribute('aria-hidden', 'true')
+  await page.evaluate(() => window.fixture?.sophiaLeaves())
+  await expect(reply.getByText('Cut off')).toBeVisible()
+  await expect(reply.getByText('A reply she never finished')).not.toHaveAttribute('aria-hidden')
+  await expect(lines(page).nth(1).getByText('Cut off')).toHaveCount(0)
+  await expect(leave(page)).toBeAttached()
 })

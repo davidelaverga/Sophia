@@ -191,6 +191,9 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
       onCaption: (packet) => {
         if (calls.isCurrent(call)) typedChat.onCaption(packet)
       },
+      onCaptionsLost: () => {
+        if (calls.isCurrent(call)) typedChat.captionsLost()
+      },
       onStatus: (s) => {
         if (calls.isCurrent(call)) setStatus(s)
       },
@@ -244,7 +247,8 @@ function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<b
 
 /**
  * The conversation's state: typed turns and cards (useTypedChat) and live captions (useCaptions), on one arrival count
- * so the chat reads as one conversation. Out of the call, both cut off what was still under way.
+ * so the chat reads as one conversation. Out of the call, both cut off what was still under way; captions also when
+ * theirs may never end here (`captionsLost`).
  */
 function useConversation(connection: { current: RoomConnection | null }, silence: () => Promise<boolean>) {
   const [arrival] = useState(arrivals)
@@ -254,7 +258,13 @@ function useConversation(connection: { current: RoomConnection | null }, silence
     typedChat.interrupted()
     live.interrupted()
   }
-  return { ...typedChat, captions: live.captions, onCaption: live.onCaption, interrupted }
+  return {
+    ...typedChat,
+    captions: live.captions,
+    onCaption: live.onCaption,
+    captionsLost: live.interrupted,
+    interrupted,
+  }
 }
 
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */

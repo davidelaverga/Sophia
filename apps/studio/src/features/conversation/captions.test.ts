@@ -79,3 +79,17 @@ it('the call ending cuts off what was still being said, and only that', () => {
   )
   assert.equal(closeCaptions(closed), closed)
 })
+
+it('a cut-off this page made is taken back by newer words of it; one the bridge sent, or a late fragment, is not', () => {
+  const closed = closeCaptions(fold([packet(1, 'Half a sentence')]))
+  assert.equal(closed[0]?.state, 'interrupted')
+  assert.equal(receiveCaption(closed, packet(1, 'Half a sentence'), 9), closed, 'a repeat changes nothing')
+  const more = receiveCaption(closed, packet(3, ' more'), 9)
+  assert.deepEqual([captionText(more[0] as CaptionTurn), more[0]?.state], ['Half a sentence …  more', 'partial'])
+  const late = receiveCaption(closeCaptions(more), packet(2, ' and'), 9)
+  assert.deepEqual([captionText(late[0] as CaptionTurn), late[0]?.state], ['Half a sentence and more', 'interrupted'])
+  const final = receiveCaption(late, packet(4, '', { state: 'final' }), 9)
+  assert.deepEqual([final[0]?.state, final[0]?.end], ['final', 4])
+  const ended = fold([packet(1, 'Said'), packet(2, '', { state: 'interrupted' })])
+  assert.equal(receiveCaption(closeCaptions(ended), packet(3, ' again'), 9), ended, 'the bridge’s end stands')
+})

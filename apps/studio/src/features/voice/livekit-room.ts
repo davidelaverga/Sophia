@@ -18,18 +18,16 @@ import {
 } from 'livekit-client'
 import {
   CHAT_INPUT_TOPIC,
-  CHAT_REPLY_TOPIC,
   encodeChatPacket,
-  parseChatPacket,
   type ChatCaption,
   type ChatInput,
   type ChatNotice,
-  type ChatPacket,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import { deviceChange } from './device-change.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
+import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
@@ -81,6 +79,8 @@ export interface RoomCallbacks {
   onNotice?: (packet: ChatNotice) => void
   /** A live caption of what is said aloud, for every member present (CX-0023). */
   onCaption?: (packet: ChatCaption) => void
+  /** Captions under way may never get their end here: Sophia left or joined again, or this connection is reconnecting. */
+  onCaptionsLost?: () => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -98,17 +98,6 @@ const toView = (p: Participant, local: boolean): RoomParticipant => ({
   local,
   standing: standingOf(p.metadata),
 })
-
-/** The bridge: the identity no person can be issued, with the standing only the API signs (amendment A06). */
-function isSophia(p: Participant): boolean {
-  if (p.identity !== 'sophia') return false
-  try {
-    const value: unknown = JSON.parse(p.metadata ?? 'null')
-    return typeof value === 'object' && value !== null && 'sophia' in value && value.sophia === true
-  } catch {
-    return false
-  }
-}
 
 function sophiaSignal(p: Participant | undefined): SophiaSignal | null {
   if (!p) return null
@@ -192,25 +181,6 @@ const CHANGES = [
   RoomEvent.ParticipantAttributesChanged,
   RoomEvent.AudioPlaybackStatusChanged,
 ] as const
-
-/**
- * Sophia's chat replies, result notices and live captions; anything else on the reply topic, or from anyone else, is
- * ignored.
- */
-function listenToSophia(room: Room, cb: RoomCallbacks): void {
-  room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
-    if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
-    const packet = parseChatPacket(bytes)
-    if (packet) fromSophia(packet, cb)
-  })
-}
-
-/** Each packet to its kind's callback; what Studio itself sends (input, mode) is never taken from her. */
-function fromSophia(packet: ChatPacket, cb: RoomCallbacks): void {
-  if (packet.kind === 'notice') cb.onNotice?.(packet)
-  else if (packet.kind === 'caption') cb.onCaption?.(packet)
-  else if (packet.kind !== 'input' && packet.kind !== 'mode') cb.onChat?.(packet)
-}
 
 /**
  * Tells Sophia whether this person reads or hears her (SMC-M03 S6): when it changes, and again whenever she joins or
