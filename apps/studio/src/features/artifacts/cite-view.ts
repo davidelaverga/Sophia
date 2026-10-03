@@ -3,8 +3,8 @@
 // this returns. A citation is a button, and a button lays out as one solid box: a line may break before it even with no
 // space between, so dropping the space is not enough. The word before a citation and the citation go together in one
 // piece the viewer sets without a break (`cite-bound`); citations with only spaces between them are one group, shown
-// with commas. Not bound: a citation right after a link or inline code (splitting either would split a link or a code
-// span), or after bold or emphasis that ends in a space.
+// with commas, also across the end of bold or emphasis. Not bound: a citation right after a link or inline code
+// (splitting either would split a link or a code span), or after bold or emphasis that ends in a space.
 import type { ReportSource } from '@sophia/contracts'
 import type { Inline } from './markdown.ts'
 
@@ -52,15 +52,26 @@ type Plain = Exclude<Inline, Cite>
 export type Piece = Plain | Bound
 
 /**
- * At most this many characters go with a citation onto its line, so a long address before one still wraps: with them
- * and a group of citations, it stays within the narrowest phone's column (320 px, 17 px type).
+ * At most this many characters go with a citation onto its line, so a long address before one still wraps. With a
+ * group's first numbers (KEPT_WITH_WORD) they measure 241 px in the reading fixture's address (17 px type), inside a
+ * 320 px phone's 272 px column. Binding adds no break before the piece; it only takes away the one before the
+ * citation.
  */
 const MOST_BOUND = 24
+
+/**
+ * How many numbers of a group stay on the line of the word before them; past them, a group may wrap after a comma.
+ * Kept whole, a group after a 24-character word ran past a 390 px phone's column from 11 numbers (at 320 px, from 7).
+ */
+export const KEPT_WITH_WORD = 3
+
+/** Letters a line may break between with no space (Chinese, Japanese, Korean): a word there is one letter long. */
+const BREAKS_BETWEEN = /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}]/u
 
 /** A run with its citations bound to the word before them, and the spaces before each citation dropped. */
 export function bindCites(run: readonly Inline[]): Piece[] {
   const out: Piece[] = []
-  for (const node of run) {
+  for (const node of liftCites(run)) {
     if (node.kind !== 'cite') {
       out.push(node)
       continue
@@ -73,8 +84,39 @@ export function bindCites(run: readonly Inline[]): Piece[] {
   return out
 }
 
+type Mark = Extract<Inline, { kind: 'strong' | 'em' }>
+
+/**
+ * A run with the citations that end bold or emphasis moved out after it: "**claim [A]** [B]" binds as "**claim** [A]
+ * [B]", one group, where the citation inside would have been a group of its own beside the next, with nothing between
+ * the numbers. A numeral sets its own weight and style, so nothing else changes on screen.
+ */
+function liftCites(run: readonly Inline[]): Inline[] {
+  return run.flatMap((node) => (node.kind === 'strong' || node.kind === 'em' ? liftFrom(node) : [node]))
+}
+
+function liftFrom(mark: Mark): Inline[] {
+  const children = liftCites(mark.children)
+  const at = trailingCites(children)
+  if (at === children.length) return [{ ...mark, children }]
+  const kept = children.slice(0, at)
+  trimEnd(kept)
+  return [...(kept.length > 0 ? [{ ...mark, children: kept }] : []), ...children.slice(at)]
+}
+
+/** Where the citations at the end of `children` start (spaces between them included), or its length when none. */
+function trailingCites(children: readonly Inline[]): number {
+  let at = children.length
+  for (let k = children.length - 1; k >= 0; k--) {
+    const node = children[k]
+    if (node?.kind === 'cite') at = k
+    else if (node?.kind !== 'text' || node.text.trim()) break
+  }
+  return at
+}
+
 /** Drops the spaces at the end of the text before a citation, and that text when it held nothing else. */
-function trimEnd(out: Piece[]): void {
+function trimEnd(out: (Inline | Piece)[]): void {
   for (let last = out.at(-1); last?.kind === 'text'; last = out.at(-1)) {
     const text = last.text.trimEnd()
     if (text) {
@@ -100,7 +142,7 @@ function splitWord(node: Plain): { rest: Plain | null; word: Plain } | null {
   if (node.kind === 'text') {
     const tail = /\S+$/u.exec(node.text)?.[0]
     if (!tail) return null
-    const word = Array.from(tail).slice(-MOST_BOUND).join('')
+    const word = boundPart(tail)
     const rest = node.text.slice(0, node.text.length - word.length)
     return { rest: rest ? { kind: 'text', text: rest } : null, word: { kind: 'text', text: word } }
   }
@@ -110,4 +152,18 @@ function splitWord(node: Plain): { rest: Plain | null; word: Plain } | null {
   if (!split) return null
   const kept = [...node.children.slice(0, -1), ...(split.rest ? [split.rest] : [])]
   return { rest: kept.length > 0 ? { ...node, children: kept } : null, word: { ...node, children: [split.word] } }
+}
+
+/**
+ * The end of a word that goes with a citation: at most MOST_BOUND characters, and from the last letter a line may break
+ * before with no space ("…境内处理" binds "理"). Twenty-four of those would be over 400 px, wider than a phone's column.
+ */
+function boundPart(tail: string): string {
+  const chars = Array.from(tail)
+  const from = Math.max(
+    chars.findLastIndex((c) => BREAKS_BETWEEN.test(c)),
+    chars.length - MOST_BOUND,
+    0,
+  )
+  return chars.slice(from).join('')
 }

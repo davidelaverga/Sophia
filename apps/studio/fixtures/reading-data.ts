@@ -1,8 +1,9 @@
 // Labelled fixture data for the reading checks (e2e/report-reading.spec.ts, html-report-v2 SPEC §4b): a long report to
 // read in the viewer, with every case its reading grammar covers (a summary, nested and numbered lists, a quote, code,
-// a six-column and a four-column table, grouped citations, a citation after a long address) and every kind of source
-// (read in full, read in part, a search listing, the project's own file), and a short Italian version. Illustrative
-// vendors and figures; nothing here is live. The room's fixture page serves it (`report=` READING).
+// a six-column and a four-column table, grouped citations, a group of six after a long address, a quotation in Chinese,
+// which has no spaces) and every kind of source (read in full, read in part, a search listing, the project's own file),
+// and a short Italian version. Illustrative vendors and figures; nothing here is live. The room's fixture page serves
+// it (`report=` READING).
 import type { ArtifactVersion, ReportSourceList, SourceContent } from '@sophia/contracts'
 import { PROJECT } from './data.ts'
 
@@ -19,7 +20,7 @@ const S6 = '00000000-0000-4000-8000-0000000000f8'
 
 /**
  * The English version (v2, current): a comparison of managed database hosts. A bullet is nested in its numbered tests,
- * and a citation follows an address of over a hundred characters.
+ * a group of six citations follows an address of over a hundred characters, and a Chinese quotation cites a source.
  */
 const ENGLISH = `# Managed PostgreSQL hosts for an EU-resident product
 
@@ -60,6 +61,10 @@ replicas: 1 read replica, same region
 ### Residency and access
 
 Harbor Cloud and Calder DB state EU-only processing for primary data, backups and support access in their data-processing agreements [${S1}] [${S5}]. Northwind keeps backups in-region but reserves follow-the-sun support from outside the EU, with customer consent per incident [${S3}]. Ostrava Systems is EU-only but small; Lumen Managed Postgres replicates backups to a second region the customer cannot pin.
+
+A Chinese summary of the same agreements says it without a single space:
+
+> 数据驻留不仅是区域问题，也是合同问题。只有两家供应商以书面形式承诺支持访问仅限欧盟境内处理[${S5}]。
 
 ### Recovery
 
@@ -104,7 +109,7 @@ This review read documentation and contracts, not the systems themselves. Three 
 - Prices change often; the figures are from one day's calculators, before any negotiated discount.
 - A small host can be acquired: Ostrava's terms allow the agreement to transfer to a buyer [${S6}].
 
-A long reference copied from a pricing page shows how unbroken text behaves: https://pricing.harbor.example/calculator?region=eu-central-1&instance=pg-4x16&storage=250&replicas=1&backup_retention_days=14&currency=USD [${S1}]
+A long reference copied from a pricing page, cited with every source at once, shows how unbroken text behaves: https://pricing.harbor.example/calculator?region=eu-central-1&instance=pg-4x16&storage=250&replicas=1&backup_retention_days=14&currency=USD (${S1}; ${S2}; ${S3}; ${S4}; ${S5}; ${S6})
 
 ---
 
@@ -148,7 +153,7 @@ const TEXTS: readonly Text[] = [
   },
   {
     sourceId: '00000000-0000-4000-8000-0000000000fa',
-    sha256: 'e9cb25599e99cc14b779448546d8b4962f40f9bf30f137723860609cef416842',
+    sha256: '3e5346960d051b8dd3e6b7441fbde3f3d77a334148fe5ae0f829fb5a7d9bb417',
     text: ENGLISH,
   },
 ]

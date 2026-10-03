@@ -297,8 +297,12 @@
   padding: 20px 24px 48px;
 }
 .report-pane[data-size='full'] .report-pane-body > * {
-  max-width: var(--measure);
+  max-width: 780px;
   margin-inline: auto;
+}
+/* The Document tab keeps the one reading measure on the full page: its text, and the lines above it on its edge. */
+.report-pane[data-size='full'] .report-pane-body > :is(.md, .page-download, .report-limits, .report-format-note) {
+  max-width: var(--measure);
 }
 .report-pane .report-status {
   padding: 0 16px 8px;
@@ -450,15 +454,24 @@
 }
 
 /* A citation: its number raised without opening the line (the leading stays even), on the line of the word before it
-   (cite-view.ts binds them), a group's numbers joined by commas. A dotted number cites a source read only in part, as
-   a search snippet or not at all. */
+   (cite-view.ts binds them), a group's numbers joined by commas. The numbers are 0.8 of the text, as on the page: set
+   on the sup, whose own smaller size would otherwise shrink them again, to 11 px. A dotted number cites a source read
+   only in part, as a search snippet or not at all. */
 .md .cite-bound {
+  white-space: nowrap;
+}
+/* Past a group's first three numbers, a line may break after a comma (MarkdownView), never before one. */
+.md .cite-more {
+  white-space: normal;
+}
+.md .cite-more > span {
   white-space: nowrap;
 }
 .md sup.cite {
   position: relative;
   top: -0.45em;
   vertical-align: baseline;
+  font-size: 0.8em;
   line-height: 0;
 }
 .md .cite button {
@@ -466,7 +479,7 @@
   border: 0;
   background: none;
   color: var(--halo-text);
-  font: 700 0.8em/1 var(--sans);
+  font: 700 1em/1 var(--sans);
   font-variant-numeric: lining-nums tabular-nums;
 }
 .md .cite button[data-weak] {
@@ -476,19 +489,32 @@
 }
 .md .cite .sep {
   color: var(--text-2);
-  font: 400 0.8em var(--sans);
+  font: 400 1em var(--sans);
 }
 
 /* Tables: booktabs, in a frame that scrolls. A cell never breaks a word (break-word, never anywhere): a table too wide
    for its column scrolls instead, and from five columns on it keeps readable columns with its row label pinned. Five
-   columns take the reading column's width (they fit the full page and scroll on a phone), six or more are wider. */
+   columns fit any column but a phone's (the side pane's narrowest is 431 px); there they scroll, by a good part of the
+   table, never by a sliver. Six or more are wider than the reading column. Once the pane is enlarged, the pinned
+   label's cells are painted on their own and cover a pixel row past their box, and are cut at the frame's edge: so
+   each rule is the top border of the cells under it (the last, their bottom border; separate borders), never a border
+   of the table or of the cells above, and the frame keeps a pixel clear above and below the table. A frame with more
+   to see is shaded at that edge, as on the page: the shades stay at the frame's edges, and covers that move with the
+   table hide them at its ends. */
 .md-table {
   overflow-x: auto;
+  container-type: inline-size;
+  padding-block: 1px;
+  background:
+    linear-gradient(to right, var(--plane) 40%, transparent) left / 1.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--plane) 40%, transparent) right / 1.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--line-3), transparent) left / 0.6rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--line-3), transparent) right / 0.6rem 100% no-repeat scroll;
 }
 .md-table table {
   width: 100%;
-  border-collapse: collapse;
-  border-block: 1px solid var(--text-2);
+  border-collapse: separate;
+  border-spacing: 0;
   font: 13.5px/1.4 var(--sans);
   font-variant-numeric: lining-nums tabular-nums;
 }
@@ -502,7 +528,7 @@
   padding-right: 0;
 }
 .md-table th {
-  border-bottom: 1px solid var(--text-2);
+  border-top: 1px solid var(--text-2);
   color: var(--text);
   font-weight: 700;
   vertical-align: bottom;
@@ -511,13 +537,19 @@
   border-top: 1px solid var(--line-2);
 }
 .md-table tbody tr:first-child td {
-  border-top: 0;
+  border-top-color: var(--text-2);
+}
+.md-table tbody tr:last-child td,
+.md-table table:not(:has(td)) th {
+  border-bottom: 1px solid var(--text-2);
 }
 .md-table tbody td:first-child {
   font-weight: 700;
 }
-.md-table:has(th:nth-child(5)) table {
-  min-width: var(--measure);
+@container (width < 26rem) {
+  .md-table:has(th:nth-child(5)) table {
+    min-width: 30rem;
+  }
 }
 .md-table:has(th:nth-child(6)) table {
   min-width: 42rem;
@@ -810,6 +842,19 @@
   .filter-chip,
   .report-pane-head .round {
     min-height: 44px;
+  }
+  /* A citation's number gets its target from an empty box around it, as an inline text button does, so no line moves.
+     Not in a table: past the edge of its frame, the box would make the frame scroll. */
+  .md .cite button {
+    position: relative;
+  }
+  .md .cite button::after {
+    content: '';
+    position: absolute;
+    inset: -7px -4px;
+  }
+  .md-table .cite button::after {
+    content: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

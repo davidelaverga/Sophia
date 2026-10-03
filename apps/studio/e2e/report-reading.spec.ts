@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { READING, READING_TITLE, readingVersionId } from '../fixtures/reading-data.ts'
+import { KEPT_WITH_WORD } from '../src/features/artifacts/cite-view.ts'
 
 // How the viewer's Document tab reads (html-report-v2, SPEC §4b), on the room's fixture page with the long reading
 // report (fixtures/reading-data.ts): one measure in both pane sizes, the serif reading voice, booktabs tables that never
 // break a word, nested items that take no number, the limitations under an amber rule, citations bound to their word,
 // grouped with commas, and marked and named when their source was read only in part. Each number is measured in the
-// real page, never judged by eye.
+// real page, never judged by eye; what only pixels show (a rule under a pinned label, a shade) is read from a
+// screenshot.
 
 const S1 = '00000000-0000-4000-8000-0000000000f3'
 const S3 = '00000000-0000-4000-8000-0000000000f5'
@@ -38,6 +40,14 @@ async function openReading(page: Page) {
   await page.goto(`/room.html?report=${READING}`)
   await expect(page.locator('.md')).toContainText(SUMMARY)
   await expect(page.getByRole('tab', { name: 'Sources 6' })).toBeVisible()
+}
+
+/** Enlarges the pane and waits until it has grown: it grows by a scale, which any box measured meanwhile has too. */
+async function enlarge(page: Page) {
+  await pane(page).getByRole('button', { name: 'Enlarge' }).click()
+  const full = page.locator('.report-pane')
+  await expect(full).toHaveAttribute('data-size', 'full')
+  await full.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
 }
 
 /** Each glyph's box (its top and width) in each block `selector` names, citation numbers left out. */
@@ -87,6 +97,31 @@ const edge = (page: Page, selector: string) =>
     return { left: Math.round(r.left * 2) / 2, width: Math.round(r.width * 2) / 2 }
   })
 
+/**
+ * What the screenshot shows at each of `points` (viewport pixels): its red channel, the brightest within a pixel above
+ * or below, read back through a canvas.
+ */
+async function pixels(page: Page, points: readonly { x: number; y: number }[]) {
+  const png = (await page.screenshot()).toString('base64')
+  return page.evaluate(
+    async ({ data, at }) => {
+      const img = new Image()
+      img.src = `data:image/png;base64,${data}`
+      await img.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const g = canvas.getContext('2d')
+      if (!g) throw new Error('no canvas')
+      g.drawImage(img, 0, 0)
+      const k = img.width / window.innerWidth
+      const red = (x: number, y: number) => g.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data[0] ?? 0
+      return at.map(({ x, y }) => Math.max(red(x, y - 1), red(x, y), red(x, y + 1)))
+    },
+    { data: png, at: points },
+  )
+}
+
 test('reading · one measure in both pane sizes: 60 to 80 characters a line, the column at most 34rem', async ({
   page,
 }) => {
@@ -99,8 +134,7 @@ test('reading · one measure in both pane sizes: 60 to 80 characters a line, the
   expect(side.median, 'beside the room').toBeLessThanOrEqual(80)
   expect((await edge(page, '.md')).width).toBeLessThanOrEqual(544)
 
-  await pane(page).getByRole('button', { name: 'Enlarge' }).click()
-  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+  await enlarge(page)
   const full = await lineLengths(page)
   expect(full.median, 'the full page').toBeGreaterThanOrEqual(60)
   expect(full.median, 'the full page').toBeLessThanOrEqual(80)
@@ -128,15 +162,22 @@ test('reading · the serif reading voice at 17/1.6, with the apparatus in the St
           const el = document.querySelector(`.report-pane ${selector}`)
           if (!el) throw new Error(`no ${selector}`)
           const s = getComputedStyle(el, pseudo)
-          return [name, { family: s.fontFamily.split(',')[0]?.trim(), size: s.fontSize, leading: s.lineHeight }]
+          const family = s.fontFamily.split(',')[0]?.trim()
+          return [
+            name,
+            { family, size: s.fontSize, leading: s.lineHeight, wrap: s.getPropertyValue('text-wrap-style') },
+          ]
         }),
       ),
     parts,
   )
-  expect(voice.text).toEqual({ family: 'Charter', size: '17px', leading: '27.2px' })
+  // Paragraphs avoid a lone word on their last line, as the page's do (theme.css sets it for every paragraph).
+  expect(voice.text).toEqual({ family: 'Charter', size: '17px', leading: '27.2px', wrap: 'pretty' })
   expect(voice.title?.family).toBe('Charter')
   expect(voice.section?.family).toBe('Charter')
   for (const part of [voice.table, voice.cite, voice.marker]) expect(part?.family).toBe('"Geist Variable"')
+  // A citation's number is 0.8 of the text, as on the page, not shrunk again by the sup's own smaller size (11.3 px).
+  expect(voice.cite?.size).toBe('13.6px')
 })
 
 /** Words of up to 14 characters in table cells whose letters land on two lines (the page's own C5). */
@@ -163,8 +204,7 @@ const brokenInCells = (page: Page) =>
 test('reading · no word in a table cell is broken, beside the room and on the full page', async ({ page }) => {
   await openReading(page)
   expect(await brokenInCells(page), 'beside the room').toEqual([])
-  await pane(page).getByRole('button', { name: 'Enlarge' }).click()
-  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+  await enlarge(page)
   expect(await brokenInCells(page), 'the full page').toEqual([])
 })
 
@@ -186,36 +226,125 @@ test('reading @phone · tables keep their words whole, and a wide one scrolls wi
   })
   expect(pinned.scrolled, 'the table is wider than its frame').toBeGreaterThan(0)
   expect(pinned.gap, 'the row label stays at the frame’s edge').toBe(0)
+  // Five columns, too, keep readable columns on a phone: the table scrolls by a good part of itself.
+  await page.goto(`/room.html?report=${READING}&version=${readingVersionId(1)}`)
+  const five = page.locator('.report-pane .md-table')
+  await expect(five).toContainText('Costo mensile')
+  expect(await five.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(60)
+})
+
+test('reading · a table’s rules run under its pinned row label, also once the pane is enlarged', async ({ page }) => {
+  test.slow() // eight screenshots, read back through a canvas
+  await openReading(page)
+  await enlarge(page)
+  // The six-column comparison, which scrolls on the full page: each of its rules (the table's top and bottom, the
+  // head's, each row's), read under the pinned label and under the third column, with the table landing on each eighth
+  // of a pixel (a rule can go missing at one and not at the next).
+  const wide = page.locator('.md-table').filter({ hasText: 'Restore granularity' })
+  await wide.scrollIntoViewIfNeeded()
+  expect(await wide.evaluate((el) => el.scrollWidth - el.clientWidth), 'the table scrolls').toBeGreaterThan(0)
+  const missing: string[] = []
+  for (let eighth = 0; eighth < 8; eighth++) {
+    const rules = await wide.evaluate((frame, nudge) => {
+      const md = frame.closest<HTMLElement>('.md')
+      const table = frame.querySelector('table')
+      if (!md || !table) throw new Error('no table')
+      md.style.paddingTop = `${String(nudge)}px`
+      const rows = [...table.rows]
+      const middle = (k: number) => {
+        const cell = rows[1]?.cells[k]?.getBoundingClientRect()
+        return cell ? cell.left + cell.width / 2 : 0
+      }
+      const box = table.getBoundingClientRect()
+      const ys = [box.top, ...rows.slice(1).map((row) => row.getBoundingClientRect().top), box.bottom - 1]
+      return ys.flatMap((y) => [
+        { x: middle(0), y },
+        { x: middle(2), y },
+      ])
+    }, eighth / 8)
+    const shown = await pixels(page, rules)
+    for (let k = 0; k < shown.length; k += 2) {
+      const [label = 0, other = 0] = shown.slice(k, k + 2)
+      if (other <= 30 || Math.abs(label - other) > 12) missing.push(`${String(eighth)}/8 px, rule ${String(k / 2)}`)
+    }
+  }
+  expect(missing).toEqual([])
+  // A table with a head and no rows has no cells under its head to own the rule there: its head does.
+  const headOnly = await page
+    .locator('.md-table')
+    .filter({ hasText: 'Connection pooling' })
+    .evaluate((frame) => {
+      frame.querySelector('tbody')?.replaceChildren()
+      const head = frame.querySelector('th')
+      return head ? getComputedStyle(head).borderBottomWidth : null
+    })
+  expect(headOnly).toBe('1px')
+})
+
+test('reading @phone · a table with more to see is shaded at that edge, and not once it is scrolled to its end', async ({
+  page,
+}) => {
+  test.slow() // three screenshots, read back through a canvas
+  await openReading(page)
+  /** How much brighter the frame's last pixels are than its ground, in the blank above a row's text. */
+  const shade = async (frame: Locator) => {
+    const at = await frame.evaluate((el) => {
+      el.scrollIntoView({ block: 'center' })
+      const box = el.getBoundingClientRect()
+      const y = (el.querySelector('tbody tr')?.getBoundingClientRect().top ?? 0) + 4
+      return [
+        { x: box.right - 2, y },
+        { x: box.right - 40, y },
+      ]
+    })
+    const [rim = 0, ground = 0] = await pixels(page, at)
+    return rim - ground
+  }
+  const wide = page.locator('.md-table').filter({ hasText: 'Restore granularity' })
+  expect(await shade(wide), 'more to the right').toBeGreaterThan(10)
+  await wide.evaluate((el) => (el.scrollLeft = el.scrollWidth))
+  expect(await shade(wide), 'scrolled to its end').toBeLessThanOrEqual(3)
+  const fits = page.locator('.md-table').filter({ hasText: 'Connection pooling' })
+  expect(await fits.evaluate((el) => el.scrollWidth - el.clientWidth), 'the four columns fit').toBe(0)
+  expect(await shade(fits), 'a table that fits').toBeLessThanOrEqual(3)
 })
 
 /**
  * Over a sweep of the column's width, where a line starts with a citation or with the comma between two: a part of a
  * group (a number, a comma) whose middle is below the bottom of what comes before it (the end of the text before the
- * group, or the part before it). A sweep, because where a line ends depends on the width and on the fonts.
+ * group, or the part before it). Only past a group's first KEPT_WITH_WORD numbers may a number start a line, and only
+ * after a comma. A sweep, because where a line ends depends on the width and on the fonts.
  */
 const brokenBindings = (page: Page, widths: readonly number[]) =>
-  page.evaluate((sweep) => {
-    const md = document.querySelector<HTMLElement>('.report-pane .md')
-    if (!md) throw new Error('no text')
-    const starts: string[] = []
-    for (const width of sweep) {
-      md.style.maxWidth = `${String(width)}px`
-      for (const sup of md.querySelectorAll('sup.cite')) {
-        const before = document.createRange()
-        before.setStart(sup.closest('p, li, td, th') ?? md, 0)
-        before.setEndBefore(sup)
-        const text = [...before.getClientRects()].filter((q) => q.width > 0).at(-1)
-        const boxes = [text, ...[...sup.children].map((el) => el.getBoundingClientRect())]
-        const broken = boxes.slice(1).some((box, k) => {
-          const prior = boxes[k]
-          return !!box && !!prior && box.top + box.height / 2 > prior.bottom
-        })
-        if (broken) starts.push(`${String(width)}: ${sup.textContent}`)
+  page.evaluate(
+    ({ sweep, kept }) => {
+      const md = document.querySelector<HTMLElement>('.report-pane .md')
+      if (!md) throw new Error('no text')
+      const starts: string[] = []
+      for (const width of sweep) {
+        md.style.maxWidth = `${String(width)}px`
+        for (const sup of md.querySelectorAll('sup.cite')) {
+          const before = document.createRange()
+          before.setStart(sup.closest('p, li, td, th') ?? md, 0)
+          before.setEndBefore(sup)
+          const text = [...before.getClientRects()].filter((q) => q.width > 0).at(-1)
+          const parts = [...sup.querySelectorAll('button, .sep')]
+          const boxes = [text, ...parts.map((el) => el.getBoundingClientRect())]
+          const broken = parts.some((part, k) => {
+            const [prior, box] = [boxes[k], boxes[k + 1]]
+            const opensLine = !!box && !!prior && box.top + box.height / 2 > prior.bottom
+            const number = parts.slice(0, k + 1).filter((el) => el.tagName === 'BUTTON').length
+            const mayOpen = part.tagName === 'BUTTON' && number > kept && parts[k - 1]?.className === 'sep'
+            return opensLine && !mayOpen
+          })
+          if (broken) starts.push(`${String(width)}: ${sup.textContent}`)
+        }
       }
-    }
-    md.style.maxWidth = ''
-    return starts
-  }, widths)
+      md.style.maxWidth = ''
+      return starts
+    },
+    { sweep: widths, kept: KEPT_WITH_WORD },
+  )
 
 test('reading @phone · no line starts with a citation or its comma, at any width of the column', async ({ page }) => {
   await openReading(page)
@@ -223,6 +352,39 @@ test('reading @phone · no line starts with a citation or its comma, at any widt
   const widths = Array.from({ length: 52 }, (_, i) => natural.width - 2 * i)
   expect(widths.at(-1), 'the sweep reaches a narrow column').toBeLessThan(250)
   expect(await brokenBindings(page, widths)).toEqual([])
+})
+
+test('reading @phone · a long group of citations wraps after a comma rather than run past the column', async ({
+  page,
+}) => {
+  await openReading(page)
+  // The address's group of six, down to the narrowest column its word and first three numbers fit: kept whole, the
+  // group ran past the column long before that.
+  const sweep = await page
+    .locator('.md p')
+    .filter({ hasText: 'pricing.harbor.example' })
+    .evaluate((p, kept) => {
+      const md = p.closest<HTMLElement>('.md')
+      const bound = p.querySelector('.cite-bound')
+      const numbers = [...p.querySelectorAll('sup.cite button')]
+      const start = bound?.getClientRects()[0]?.left
+      const last = numbers[kept - 1]?.getBoundingClientRect().right
+      if (!md || start === undefined || last === undefined) throw new Error('no group')
+      const lead = Math.ceil(last - start)
+      const past: string[] = []
+      let width = Math.floor(md.getBoundingClientRect().width)
+      for (; width >= lead + 2; width -= 2) {
+        md.style.maxWidth = `${String(width)}px`
+        const right = md.getBoundingClientRect().right
+        const over = Math.max(...numbers.map((b) => b.getBoundingClientRect().right)) - right
+        if (over > 0.5) past.push(`${String(width)}: ${String(Math.round(over))} px`)
+      }
+      md.style.maxWidth = ''
+      return { numbers: numbers.length, lead, narrowest: width + 2, past }
+    }, KEPT_WITH_WORD)
+  expect(sweep.numbers).toBe(6)
+  expect(sweep.narrowest, 'the sweep reaches the word and three numbers').toBeLessThan(300)
+  expect(sweep.past).toEqual([])
 })
 
 test('reading @phone · the Document tab never scrolls sideways: a long address wraps before its citation', async ({
@@ -236,6 +398,9 @@ test('reading @phone · the Document tab never scrolls sideways: a long address 
   const address = page.locator('.md p').filter({ hasText: 'pricing.harbor.example' })
   const lines = await address.evaluate((p) => Math.round(p.getBoundingClientRect().height / 27.2))
   expect(lines).toBeGreaterThan(2)
+  // Chinese has no spaces, and a line may break between any two of its letters: a citation keeps only the last one.
+  const quote = page.locator('.md blockquote').filter({ hasText: '数据驻留' })
+  await expect(quote.locator('.cite-bound')).toHaveText('理5')
 })
 
 test('reading · a line with a citation keeps the paragraph’s leading', async ({ page }) => {
@@ -259,6 +424,32 @@ test('reading · a line with a citation keeps the paragraph’s leading', async 
   }
 })
 
+test('reading @phone · a citation’s number has a finger-sized target, which moves no line; none in a table', async ({
+  page,
+}) => {
+  await openReading(page)
+  const reach = await page
+    .locator('.report-pane .md > p .cite button')
+    .first()
+    .evaluate((button) => {
+      button.scrollIntoView({ block: 'center' })
+      const box = button.getBoundingClientRect()
+      const hits = (y: number) => document.elementFromPoint(box.left + box.width / 2, y) === button
+      return { above: hits(box.top - 5), below: hits(box.bottom + 5) }
+    })
+  expect(reach).toEqual({ above: true, below: true })
+  // In a table, a target past the frame's edge would make the frame scroll.
+  const inTable = page.locator('.md-table .cite button').first()
+  expect(await inTable.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('none')
+})
+
+/** How a citation's number is drawn: its weight and its underline. */
+const look = (button: Locator) =>
+  button.evaluate((el) => {
+    const s = getComputedStyle(el)
+    return { weight: s.fontWeight, line: s.textDecorationLine, style: s.textDecorationStyle }
+  })
+
 test('reading · a citation of a source read in part or as a snippet is marked and named so; a group joins with a comma', async ({
   page,
 }) => {
@@ -267,11 +458,18 @@ test('reading · a citation of a source read in part or as a snippet is marked a
   await expect(md.getByRole('button', { name: 'Source 1', exact: true }).first()).not.toHaveAttribute('data-weak')
   const part = md.getByRole('button', { name: 'Source 3, read in part', exact: true })
   await expect(part.first()).toHaveAttribute('data-weak', 'part')
-  await expect(md.getByRole('button', { name: 'Source 4, snippet only', exact: true })).toHaveAttribute(
+  await expect(md.getByRole('button', { name: 'Source 4, snippet only', exact: true }).first()).toHaveAttribute(
     'data-weak',
     'snippet',
   )
-  await expect(md.getByRole('button', { name: 'Source 6', exact: true })).not.toHaveAttribute('data-weak') // a file
+  await expect(md.getByRole('button', { name: 'Source 6', exact: true }).first()).not.toHaveAttribute('data-weak') // a file
+  // For the eye, a weak number is regular and dotted; one read in full is bold and plain.
+  expect(await look(part.first())).toEqual({ weight: '400', line: 'underline', style: 'dotted' })
+  expect(await look(md.getByRole('button', { name: 'Source 1', exact: true }).first())).toEqual({
+    weight: '700',
+    line: 'none',
+    style: 'solid',
+  })
   // "a single zone (2; 3)": one superscript, the numbers joined by a comma, bound to "zone".
   await expect(md.locator('sup.cite', { hasText: /^2,3$/ })).toHaveCount(1)
   await expect(md.locator('.cite-bound', { hasText: /^zone2,3$/ })).toHaveCount(1)
@@ -302,6 +500,35 @@ test('reading · a five-column table takes the reading column’s width: on the 
   await expect(frame).toContainText('Costo mensile')
   expect(await frame.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
   expect((await frame.boundingBox())?.width).toBe(544)
+})
+
+test('reading · a five-column table fits the side pane beside the room, at its narrowest (1024) and at 1280', async ({
+  page,
+}) => {
+  for (const width of [1024, 1280]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(`/room.html?report=${READING}&version=${readingVersionId(1)}`)
+    const frame = page.locator('.report-pane .md-table')
+    await expect(frame).toContainText('Costo mensile')
+    expect(await frame.evaluate((el) => el.scrollWidth - el.clientWidth), `at ${String(width)} px`).toBe(0)
+  }
+})
+
+test('reading · on the full page the measure is the Document tab’s: Sources and History keep their width', async ({
+  page,
+}) => {
+  await page.goto(`/room.html?report=${READING}&view=full`)
+  await expect(page.locator('.md')).toContainText(SUMMARY)
+  // The full page opens growing (a scale), as Enlarge does: measured once it has grown.
+  await page
+    .locator('.report-pane')
+    .evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
+  await pane(page).getByRole('tab', { name: 'Sources 6' }).click()
+  expect((await page.locator('.report-pane .sources').boundingBox())?.width).toBe(780)
+  await pane(page)
+    .getByRole('tab', { name: /^History/ })
+    .click()
+  expect((await page.locator('.report-pane .report-history').boundingBox())?.width).toBe(780)
 })
 
 test('reading · a bullet nested in a numbered list takes no number: the next item is 2', async ({ page }) => {

@@ -56,6 +56,26 @@ describe('a citation keeps to the word before it', () => {
     assert.equal(shown(bindCites(runOf(`*fast* [${A}]`))), '{*fast*|1}')
   })
 
+  it('joins a citation that ends bold or emphasis with the next one, as one group on the word', () => {
+    assert.equal(
+      shown(bindCites(runOf(`**Harbor is EU-only [${A}]** [${B}] and more.`))),
+      '**Harbor is **{**EU-only**|1,2} and more.',
+    )
+    assert.equal(shown(bindCites(runOf(`*fast [${A}] [${B}]* [${C}]`))), '{*fast*|1,2,3}')
+    assert.equal(shown(bindCites(runOf(`**[${A}]** [${B}]`))), '{|1,2}')
+    // One with more of the mark after it stays inside, where it binds to its own word as the mark is set.
+    assert.equal(shown(bindCites(runOf(`**one [${A}] two** [${B}]`))), '**one ^1 **{**two**|2}')
+  })
+
+  it('takes one letter of Chinese or Japanese, where a line may break between any two letters', () => {
+    assert.equal(
+      shown(bindCites(runOf(`也是合同问题。仅限欧盟境内处理[${A}]。`))),
+      `也是合同问题。仅限欧盟境内处{理|1}。`,
+    )
+    assert.equal(shown(bindCites(runOf(`データはEU内（フランクフルト）[${A}]`))), `データはEU内（フランクフル{ト）|1}`)
+    assert.equal(shown(bindCites(runOf(`Harbor云Cloud [${A}]`))), `Harbor{云Cloud|1}`)
+  })
+
   it('takes at most 24 characters of a long word, so an address before a citation still wraps', () => {
     const address = 'https://pricing.harbor.example/calculator?region=eu-central-1&currency=USD'
     const pieces = bindCites(runOf(`see ${address} [${A}]`))

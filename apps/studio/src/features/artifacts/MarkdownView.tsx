@@ -6,7 +6,16 @@
 // level under the viewer's own title.
 import { Fragment, useMemo } from 'react'
 import type { ReportSource } from '@sophia/contracts'
-import { bindCites, citeLabel, weaknessOf, type Bound, type Cite, type Piece, type Weakness } from './cite-view.ts'
+import {
+  bindCites,
+  citeLabel,
+  KEPT_WITH_WORD,
+  weaknessOf,
+  type Bound,
+  type Cite,
+  type Piece,
+  type Weakness,
+} from './cite-view.ts'
 import type { Block, Inline, ParsedReport } from './markdown.ts'
 
 interface Props {
@@ -160,21 +169,41 @@ function PieceView({ piece, citing }: { piece: Piece; citing: Citing }) {
   }
 }
 
-/** The word before a group of citations and the group, on one line: the numbers joined by commas. */
+/**
+ * The word before a group of citations and the group's first numbers, on one line, the numbers joined by commas. A
+ * longer group goes on after a comma, each further number with the comma after it, so it may wrap but never starts a
+ * line with a comma.
+ */
 function BoundCites({ bound, citing }: { bound: Bound; citing: Citing }) {
+  const more = bound.cites.slice(KEPT_WITH_WORD)
   return (
     <span className="cite-bound">
       <Inlines inline={bound.word} citing={citing} />
       <sup className="cite">
-        {bound.cites.map((cite, k) => (
+        {bound.cites.slice(0, KEPT_WITH_WORD).map((cite, k) => (
           <Fragment key={k}>
-            {k > 0 && <span className="sep">,</span>}
+            {k > 0 && <Sep />}
             <CiteButton cite={cite} citing={citing} />
           </Fragment>
         ))}
+        {more.length > 0 && (
+          <span className="cite-more">
+            <Sep />
+            {more.map((cite, k) => (
+              <span key={k}>
+                <CiteButton cite={cite} citing={citing} />
+                {k < more.length - 1 && <Sep />}
+              </span>
+            ))}
+          </span>
+        )}
       </sup>
     </span>
   )
+}
+
+function Sep() {
+  return <span className="sep">,</span>
 }
 
 function CiteButton({ cite, citing }: { cite: Cite; citing: Citing }) {
