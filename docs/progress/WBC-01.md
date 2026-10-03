@@ -116,6 +116,8 @@ Codex reviewed and app-tested `8afd007` in its own checkout ([CX-0001](https://g
 
 UI-20's call part is now exercised on the fixture, desktop and phone, over a fake LiveKit (`codex · F-003`). It still isn't tested on a physical iPhone or in a hosted call.
 
+Codex's second round, at `e4d9734` ([CX-0004](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973797796), [CX-0005](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973830528)), found F-001 and F-003 resolved, and F-002 partly so. A lost command's Try again still sent after its task stopped being observed or its action was denied. That is fixed in `38bb9d6` ([FIX_READY](../coordination/WBC-01/WBC-01-CC-0004.md)): one rule, `retryableNow`, for the button and the send. A command is retried only while its kind may be sent here now; otherwise it is kept, uncertain, with its operation, and that operation goes once sending is allowed again.
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

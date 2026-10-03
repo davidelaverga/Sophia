@@ -41,17 +41,17 @@ All on fixtures. See [progress](../progress/WBC-01.md) for the before/after tabl
 Each line names the command and its result, on darwin-arm64 with Node 24.21.0 and pnpm 11.7.0:
 
 - `pnpm toolchain:check`, `pnpm format:check`, `pnpm lint`, `pnpm build`, `pnpm typecheck`, `pnpm contracts:check`: exit 0.
-- `pnpm test`: 710 pass, 0 fail (708 before Codex's findings). On the baseline, the Studio's own unit tests were 423; they are now 473.
+- `pnpm test`: 711 pass, 0 fail (708 before Codex's findings). On the baseline, the Studio's own unit tests were 423; they are now 474.
 - `pnpm artifacts`: every identity reproduced for darwin-arm64.
 - `pnpm test:integration`: 69 tests, 67 pass, 2 skipped, 0 fail.
 - `pnpm --filter @sophia/studio run build`: passes, with Vite's existing large-chunk warning. Strings found only on the board (`Closed work`, `sophia.work.board.v1`, the new Stop copy) are absent from `dist/`. Its one "Simulated" is LiveKit's own code.
-- `pnpm --filter @sophia/studio exec playwright test`: 180 of 180 pass, desktop and phone. That includes:
+- `pnpm --filter @sophia/studio exec playwright test`: 181 of 181 pass, desktop and phone. That includes:
   - 25 `wbc ·` checks for the UI cases;
   - 7 `review ·` checks for the pre-push review's findings;
-  - 4 `codex · F-` checks for Codex's.
+  - 5 `codex · F-` checks for Codex's.
 
   `e2e/work.spec.ts --repeat-each=2` passed before the reviews' fixes.
-- **Mutations:** 45 in all. Each reverted one repair; 44 made a check fail. The 8 for Codex's findings are C1–C7, all failing.
+- **Mutations:** 50 in all. Each reverted one repair; 49 made a check fail. The ones for Codex's findings are C1–C7 and D1–D3, all failing. The retry handler's own guard sits behind a button that isn't rendered, so the UI can't check it.
   - The one that doesn't is the per-task key of the Stop question. It is redundant by design: the scope key inside it already includes the work. Removing both keys fails the J check.
   - Four first passed and showed a gap in a test. Each now fails with the gap closed:
     - the same attempt at an older generation;
@@ -75,7 +75,7 @@ None operational: no effect, job or deployment was started.
 
 Pending:
 - Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
-- Codex's verification of the fixes (WBC-01-CC-0003), and its `REVIEW_RESULT`.
+- Codex's verification of the F-002 residual fix (WBC-01-CC-0004), and its `REVIEW_RESULT`.
 - Git write authentication, for Codex or this session, to publish the branch (CX-0003).
 - Luis's optional feedback.
 

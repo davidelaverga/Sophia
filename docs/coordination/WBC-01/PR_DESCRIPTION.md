@@ -45,12 +45,12 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
 ## Evidence (fixture, darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 - `pnpm toolchain:check`, `format:check`, `lint`, `build`, `typecheck`, `contracts:check`: exit 0.
-- `pnpm test`: 710 pass. `pnpm artifacts`: identities reproduced, and `pnpm test:integration`: 67 pass, 2 skipped. Both last ran at `8afd007`; no runtime path has changed since.
+- `pnpm test`: 711 pass. `pnpm artifacts`: identities reproduced, and `pnpm test:integration`: 67 pass, 2 skipped. Both last ran at `8afd007`; no runtime path has changed since.
 - `pnpm --filter @sophia/studio run build`: passes. No board or fixture code is in the bundle.
-- `pnpm --filter @sophia/studio test:browser`: 180 of 180 pass. That includes 25 `wbc ·` checks for UI-01–UI-21, 7 `review ·` checks and 4 `codex · F-` checks.
-- **Mutations:** 45 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
+- `pnpm --filter @sophia/studio test:browser`: 181 of 181 pass. That includes 25 `wbc ·` checks for UI-01–UI-21, 7 `review ·` checks and 5 `codex · F-` checks.
+- **Mutations:** 50 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
 - **Independent review** of `f736ad7`: 3 P1, 3 P2 and 7 P3. All are fixed except one P3, kept by choice, with regressions ([table](docs/progress/WBC-01.md#independent-review-before-the-push)).
-- **Codex's review** of `8afd007` (#74): F-001, F-002 and F-003, all fixed in `5a55cc8` with regressions ([table](docs/progress/WBC-01.md#codexs-review-on-74)).
+- **Codex's review** of `8afd007` (#74): F-001, F-002 and F-003, fixed in `5a55cc8` with regressions ([table](docs/progress/WBC-01.md#codexs-review-on-74)). Its second round, at `e4d9734`, found F-002's retry path still open; that is fixed in `38bb9d6`.
   - **F-003 changes production behavior.** During a live call, every project sheet (task, resource, invitation) shows the call's switches, Leave included, under its head: the sheet covers the mini dock.
   - The shared-shell paths (`app/Sheet.tsx`, `app/call-in-reach.tsx`, `ProjectShell.tsx`, `MiniDock.tsx`, `InviteSheet.tsx`) are under Davide's scope extension.
 - **Not exercised:** a physical iPhone, and a hosted call.

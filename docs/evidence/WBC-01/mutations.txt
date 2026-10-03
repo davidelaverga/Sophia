@@ -50,3 +50,10 @@ C4 F-003 a sheet shows the call: FAILS as it should
 C5 F-003 a resource sheet shows the call: FAILS as it should
 C6 F-003 the shell hands the call to its sheets: FAILS as it should
 C7 F-003 leaving from a sheet keeps the focus in it: FAILS as it should
+
+# Codex's second round on e4d9734 (#74, WBC-01-CX-0004), F-002's residual, fixed in 38bb9d6
+D1 F-002 a retry needs its kind sendable now (rule): FAILS as it should
+D1b F-002 a retry needs its kind sendable now (board): FAILS as it should
+D2 F-002 the sheet uses the rule for its buttons: FAILS as it should
+D3 F-002 the words promise no retry where none may go: FAILS as it should
+# Not checkable through the UI: the retry handler's own guard, behind a button that isn't rendered (same rule).
