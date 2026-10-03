@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
@@ -16,13 +17,6 @@ async function open(page: Page, name: string) {
   await expect(sheet(page, name)).toBeVisible()
   return sheet(page, name)
 }
-/** Whether a press `by` px above an element still reaches it (its touch target, past what it draws). */
-const reaches = (l: Locator, by: number) =>
-  l.evaluate((e, dy) => {
-    const r = e.getBoundingClientRect()
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top - dy)
-    return Boolean(hit && (hit === e || e.contains(hit)))
-  }, by)
 const leftOf = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().left)
 const capacity = (page: Page, name: string) => sheet(page, name).getByRole('group', { name: 'Capacity' })
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })

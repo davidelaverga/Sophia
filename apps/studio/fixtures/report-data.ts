@@ -71,9 +71,15 @@ const PILOT_INTRO =
   'A labelled fixture report in the shape of the pilot’s: seven sections under its title, one of them a table.'
 
 /**
+ * A heading of 59 characters with nowhere a line may break (no space, hyphen or slash), which the facts line names
+ * whole: it must wrap in the pane all the same.
+ */
+export const LONG_HEADING = 'Measured_charging_times_for_each_charger_in_the_fixture_set'
+
+/**
  * The pilot's shape (CX-0026), in the fixture's own words (`history=pilot`): a first version of seven sections under
  * its title, one of them a table, and a second that keeps the title alone and adds two sections. It replaces the
- * first two versions of the fixture report.
+ * first two versions of the fixture report. A third (`versions=3`) adds one section, headed LONG_HEADING.
  */
 const PILOT_TEXTS: readonly Text[] = [
   {
@@ -86,12 +92,32 @@ const PILOT_TEXTS: readonly Text[] = [
     sha256: 'aa629f71da26a81d735109a3a4b4fe3e061fa31290d6cc223b3141fc1d1cc940',
     text: `# Fixture report\n\n${PILOT_INTRO}\n\n## Revised recommendations\n\nBuy A for speed, or B to spend less.\n\n## Sources\n\n- The first version of this report.\n`,
   },
+  {
+    sourceId: '00000000-0000-4000-8000-0000000000c6',
+    sha256: 'f8bf61e64c78d32705f52d620c94c182e0bf211619df0f7a355cd9c1f89c404f',
+    text: `# Fixture report\n\n${PILOT_INTRO}\n\n## Revised recommendations\n\nBuy A for speed, or B to spend less.\n\n## Sources\n\n- The first version of this report.\n\n## ${LONG_HEADING}\n\nHow long each fixture charger took to fill, from empty.\n`,
+  },
 ]
 
 /** A text's size in bytes, as the API counts it. */
 const byteLengthOf = (text: string) => new TextEncoder().encode(text).byteLength
 
 type VersionNotes = Pick<ArtifactVersion, 'changeFacts' | 'changeNote' | 'retainedNote'>
+
+/**
+ * A first version as 0027 research_publish stores it: every source it cites added, every section added (0036
+ * section_facts against no text), no kept note, and the service's own change note, "First version".
+ */
+const firstVersion = (cited: readonly string[], headings: readonly string[]): VersionNotes => ({
+  changeNote: 'First version',
+  changeFacts: {
+    cited: cited.length,
+    added: cited,
+    dropped: [],
+    notesFromFacts: false,
+    sections: { added: headings, revised: [], removed: [], unchanged: [], conclusionChanged: false },
+  },
+})
 
 /**
  * The second version: what 0027 section_facts gives against the first (its introduction and recommendations revised),
@@ -146,6 +172,46 @@ const PILOT_V2: VersionNotes = {
   },
 }
 
+/**
+ * The pilot-shaped third version: what 0036 section_facts gives against the second (LONG_HEADING added, the rest
+ * unchanged), the same source cited, and notes that agree with it, one of them naming a file a line cannot break in.
+ */
+const PILOT_V3: VersionNotes = {
+  changeNote:
+    'Added the charging times, from measured_charging_times_for_each_charger_in_the_labelled_fixture_set_from_empty_to_full.csv.',
+  retainedNote: 'The recommendations and the sources are unchanged.',
+  changeFacts: {
+    cited: 1,
+    added: [],
+    dropped: [],
+    notesFromFacts: false,
+    sections: {
+      added: [LONG_HEADING],
+      revised: [],
+      removed: [],
+      unchanged: ['Fixture report', 'Revised recommendations', 'Sources'],
+      conclusionChanged: false,
+    },
+  },
+}
+
+/** Each version's notes and facts, by number: the fixture report's, and the pilot-shaped ones (`history=pilot`). */
+const NOTES: readonly VersionNotes[] = [firstVersion([CITED], ['Fixture report', 'Conclusion', 'Recommendations']), V2]
+const PILOT_NOTES: readonly VersionNotes[] = [
+  firstVersion(PILOT_CITED, [
+    'Fixture report',
+    'Summary',
+    'Compatibility and standards',
+    'Charging speed in practice',
+    'Product claims vs. evidence',
+    'Comparison table',
+    'Recommendations for buyers',
+    'Limitations of this review',
+  ]),
+  PILOT_V2,
+  PILOT_V3,
+]
+
 /** The id of version `n` (1-based). */
 export const versionId = (n: number) => `00000000-0000-4000-8000-0000000000d${String(n)}`
 
@@ -168,7 +234,7 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
     createdAt: AT,
     renditions: [],
     limitations: [],
-    ...(n === 2 ? (pilot ? PILOT_V2 : V2) : {}),
+    ...(pilot ? PILOT_NOTES : NOTES)[n - 1],
   }
 }
 

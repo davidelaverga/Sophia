@@ -252,7 +252,8 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
       factsLine(PILOT, 1),
       'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
         'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-        '2 added: Revised recommendations, Sources. Sources: 5 dropped, 1 added.',
+        '2 added: Revised recommendations, Sources. Cited sources: 5 dropped, 1 added.',
+      'the sources count is "Cited sources", which the section called Sources cannot be read into',
     )
     assert.deepEqual(
       factChips({ versionNumber: 2, ...PILOT }).map((c) => c.label),
@@ -262,7 +263,7 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
     assert.equal(factsLine(amended({ added: ['Pricing'] }), 1), 'Compared with v1: 1 section added: Pricing.')
     assert.equal(
       factsLine(amended({ removed: ['Costs'] }, { dropped: ['a'] }), 2),
-      'Compared with v2: 1 section removed: Costs. Sources: 1 dropped.',
+      'Compared with v2: 1 section removed: Costs. Cited sources: 1 dropped.',
     )
   })
 
@@ -283,6 +284,14 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
     assert.ok(line.endsWith('Part 7 and 2 more.'), line)
   })
 
+  it('counts a heading’s characters as the service does, never cutting a character in two', () => {
+    const cut = factsLine(amended({ added: [`${'x'.repeat(58)}🚀 launch plan`] }), 1) ?? ''
+    assert.equal(cut, `Compared with v1: 1 section added: ${'x'.repeat(58)}🚀….`, 'the emoji kept whole before the cut')
+    assert.doesNotMatch(cut, /[\ud800-\udbff](?![\udc00-\udfff])/, 'no half of a character')
+    const whole = `${'x'.repeat(59)}🚀` // 60 characters, 61 UTF-16 units
+    assert.equal(factsLine(amended({ added: [whole] }), 1), `Compared with v1: 1 section added: ${whole}.`)
+  })
+
   it('says a version that only adds the PDF shares the text of the one before', () => {
     const pdf = amended({ unchanged: ['Report'] }, {}, { notesFromFacts: true, renditionOnly: true })
     assert.equal(factsLine(pdf, 3), 'Same text as v3; adds the PDF.')
@@ -296,7 +305,11 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
       'Compared with the version before: 1 section added: Pricing.',
     )
     const older = { parentId: 'v1', changeFacts: { cited: 1, added: [], dropped: ['a'] } }
-    assert.equal(factsLine(older, 1), 'Sources compared with v1: 1 dropped.', 'a version published before sections')
+    assert.equal(
+      factsLine(older, 1),
+      'Cited sources compared with v1: 1 dropped.',
+      'a version published before sections',
+    )
     assert.equal(factsLine({ ...older, changeFacts: { ...older.changeFacts, dropped: [] } }, 1), null)
   })
 })
@@ -327,10 +340,20 @@ describe('whether a version’s notes fold under its facts (CX-0026)', () => {
     const notes = { changeNote: 'Revised the recommendations.', retainedNote: 'The rest is unchanged.' }
     assert.equal(notesShown({ ...PILOT, ...notes }), 'folded')
     assert.equal(notesShown({ ...amended({ revised: ['Pricing'] }), changeNote: 'Expanded the pricing.' }), 'open')
-    assert.equal(notesShown({ retainedNote: 'Everything in v1 is kept' }), 'open', 'a kept note alone')
+    assert.equal(notesShown({ parentId: 'v1', retainedNote: 'Everything in v1 is kept' }), 'open', 'a kept note alone')
     const fromFacts = { ...PILOT, changeFacts: { ...PILOT.changeFacts, notesFromFacts: true }, ...notes }
     assert.equal(notesShown(fromFacts), null, 'the facts line says the same')
     assert.equal(notesShown(PILOT), null, 'no notes')
+  })
+
+  it('shows none on a first version, whose note is the service’s own (0027), never Sophia’s', () => {
+    const first = { cited: 2, added: ['a', 'b'], dropped: [], notesFromFacts: false, sections: sectionFacts({}) }
+    assert.equal(notesShown({ parentId: null, changeNote: 'First version', changeFacts: first }), null)
+    assert.equal(
+      notesShown({ parentId: null, changeNote: 'A report on the pricing.' }),
+      null,
+      'nor words never checked',
+    )
   })
 })
 

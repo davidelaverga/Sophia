@@ -1,10 +1,11 @@
 // A report's History tab (plan §2.9): every published version, newest first. Each says first what the service's facts
 // show changed (factsLine, then its chips: never from the notes), then what the research worker said changed and was
 // kept, as Sophia's notes. Where the facts hold what the notes may leave out (a section removed, a source dropped), the
-// notes fold under the facts; notes the service wrote from the facts are not repeated (CX-0026). Any two versions
-// compare by section, computed here from their checked texts; nothing about the comparison is stored. A pressed control
-// keeps the focus: Show this version turns into "On screen" in place, a comparison takes the focus as it opens and
-// hands it back to its Compare.
+// notes fold under the facts; notes the service wrote from the facts are not repeated, and a first version's note, most
+// often the service's own "First version", is not credited to Sophia (CX-0026). Any two versions compare by section,
+// computed here from their checked texts; nothing about the comparison is stored. A pressed control keeps the focus:
+// Show this version turns into "On screen" in place, a comparison takes the focus as it opens and hands it back to its
+// Compare.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -109,7 +110,7 @@ function VersionRow({ version, before, shown, onShow, onCompare }: RowProps) {
 /**
  * What the research worker said about a version, as it submitted it: Sophia's notes, after the facts. Folded when the
  * facts hold what the notes may leave out, so the facts are read first; not shown when the service wrote them from the
- * facts (notesShown).
+ * facts, or on a first version (notesShown).
  */
 function VersionNotes({ version }: { version: ArtifactVersion }) {
   const shown = notesShown(version)
