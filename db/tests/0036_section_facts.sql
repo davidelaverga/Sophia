@@ -1,9 +1,22 @@
 -- 0036: section facts pair each section at most once, the truth gate reads the conclusion and the recommendations
 -- apart, and a result cites what its draft cites. Run by pnpm test:sql after every migration; it rolls back.
 BEGIN;
--- markdown_outline splits exactly as markdown_sections (0027): same sections, anchors, headings and body hashes.
+-- markdown_outline splits as markdown_sections (0027): same sections, anchors, headings and body hashes. One difference
+-- on purpose, as Studio's sectionsOf reads it: text before the first heading that is only newlines and tabs is no
+-- section (markdown_sections' btrim strips spaces alone, so it kept one).
 DO $$ DECLARE t text:=E'Intro.\r\n# Hosts ##\nA.\n\n##\tCosts\n```\n# not a heading\n```\n  ### ???\nx\n#### C# notes\ny\n## Pros #\n';
+ blank text:=E'\n \t\r\n# Hosts\nA.\n'; started timestamptz;
 BEGIN
+ IF (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord) FROM sophia.markdown_sections(blank))<>ARRAY['(introduction)','Hosts']
+   OR (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord) FROM sophia.markdown_outline(blank))<>ARRAY['Hosts']
+   OR (SELECT body_hash FROM sophia.markdown_outline(blank))<>(SELECT body_hash FROM sophia.markdown_sections(blank) WHERE ord=1) THEN
+  RAISE EXCEPTION 'Blank lines before the first heading: %',(SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(blank)); END IF;
+ -- Each body is joined once: a 256 KiB section of short lines (the draft cap) takes well under a second, where adding
+ -- line by line copied the body each time (about 2 s here).
+ started:=clock_timestamp();
+ PERFORM count(*) FROM sophia.markdown_outline(E'# Notes\n'||repeat(E'a\n',131068));
+ IF clock_timestamp()-started>interval '1 second' THEN
+  RAISE EXCEPTION 'A long section took %',clock_timestamp()-started; END IF;
  IF EXISTS((SELECT ord,anchor,heading,body_hash FROM sophia.markdown_sections(t)) EXCEPT ALL
    (SELECT ord,anchor,heading,body_hash FROM sophia.markdown_outline(t)))
   OR (SELECT count(*) FROM sophia.markdown_outline(t))<>(SELECT count(*) FROM sophia.markdown_sections(t)) THEN
@@ -166,7 +179,8 @@ DO $$ DECLARE
  inp uuid:='46000000-0000-0000-0000-00000000000a'; base uuid:='46000000-0000-0000-0000-00000000000b';
  gone uuid:='46000000-0000-0000-0000-00000000000c'; stray uuid:='46000000-0000-0000-0000-00000000000d';
  d0 uuid:='56000000-0000-0000-0000-000000000000'; d1 uuid:='56000000-0000-0000-0000-000000000001';
- d2 uuid:='56000000-0000-0000-0000-000000000002'; d3 uuid:='56000000-0000-0000-0000-000000000003'; many uuid[];
+ d2 uuid:='56000000-0000-0000-0000-000000000002'; d3 uuid:='56000000-0000-0000-0000-000000000003';
+ d4 uuid:='56000000-0000-0000-0000-000000000004'; many uuid[];
  s sophia.research_scope; r jsonb; t text;
 BEGIN
  INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who);
@@ -176,7 +190,7 @@ BEGIN
  SELECT array_agg(('66000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO many FROM generate_series(1,205) i;
  INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
   SELECT pr,x,who,'project',repeat('a',64),'text/markdown','cite-'||x,1,x<>gone,'ready'
-  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2,d3]||many) x;
+  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2,d3,d4]||many) x;
  INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES
   (pr,man,jsonb_build_object('schema','sophia.research-manifest.v1','base',jsonb_build_object('sourceId',base))::text),
   (pr,d0,'# Draft'||E'\n\nTo do.\n'),
@@ -233,13 +247,24 @@ BEGIN
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('3',64),'citations','[]'::jsonb));
  IF r->'citations'<>jsonb_build_array(many[9],many[10],many[11],many[12],many[13]) THEN
   RAISE EXCEPTION 'A source the report does not number was added: %',r; END IF;
+ -- Block by block, as the parser reads: a code span never spans a heading and the paragraph under it, two list items or
+ -- two cells, and a cell past the table's head is never read; an escaped '[' opens no link, so the id in what would be
+ -- its target is a bare URL's; and a link to a ref with a space after its prefix cites (the parser's reading of it).
+ INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES(pr,d4,format(E'## Head `x\nText %s and `y`.\n\n'
+  ||E'- run `a\n- see %s `b`\n\n\\[x](https://e.com/%s)\n\nClaim [1](source: %s).\n\n| a |\n|---|\n| `x` | %s |',
+  many[14],many[15],many[16],many[17],many[18]));
+ INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,5,'d4',d4,repeat('4',64));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('4',64),'citations','[]'::jsonb));
+ IF r->'citations'<>jsonb_build_array(many[14],many[15],many[16],many[17]) THEN
+  RAISE EXCEPTION 'The draft''s blocks were read unlike the parser: %',r; END IF;
 END $$;
 -- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.
 DO $$ DECLARE fn text; BEGIN
  FOREACH fn IN ARRAY ARRAY['sophia.heading_anchor(text)','sophia.markdown_outline(text)','sophia.note_keeps(text,text,text)',
    'sophia.section_facts(text,text)','sophia.note_problems(text,text,jsonb)',
-   'sophia.markdown_citing_text(text)','sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
+   'sophia.markdown_cells(text)','sophia.markdown_runs(text[],integer)','sophia.markdown_citing_text(text)',
+   'sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
   IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE') THEN
    RAISE EXCEPTION '% is callable by the API or worker role',fn; END IF;
  END LOOP;

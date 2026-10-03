@@ -16,11 +16,11 @@
 --   changed"; "no changes to the report" (or the text, this version, ...) still is. A kept note naming a removed
 --   heading contradicts the facts only when no section of that name remains. Problems are distinct and at most 20, as
 --   the submission contract allows.
--- * A submitted result cites what its draft cites (CX-0019) by an exact rule, in the submit's own transaction: to the
---   model's list, research_draft_citations adds every source the current draft names where the report's parser
---   numbers it (markdown_citing_text: never in a code span, a fenced block, an image, an autolink or a link to a page)
---   that the task may cite (research_readable), never its own question, manifest or a draft of this attempt, up to 200
---   in all.
+-- * A submitted result cites what its draft cites (CX-0019) by the parser's rule, in the submit's own transaction: to
+--   the model's list, research_draft_citations adds every source the current draft names where the report's parser
+--   numbers it (markdown_citing_text, which reads the draft block by block as the parser does: never in a code span,
+--   a fenced block, an image, an autolink or a link to a page) that the task may cite (research_readable), never its
+--   own question, manifest or a draft of this attempt, up to 200 in all.
 --   The API's reconciliation (probes through runtime_research_context, and guesses from a page's text at which source
 --   was the manifest or an earlier draft) is gone. That exclusion applies to what is added: the model's own list is
 --   checked by research_publish (0027) as before, which admits every source research_readable does, the question,
@@ -38,36 +38,41 @@ CREATE FUNCTION sophia.heading_anchor(p_heading text) RETURNS text LANGUAGE sql 
  SELECT btrim(regexp_replace(regexp_replace(lower(p_heading),'[^[:alnum:][:space:]-]','','g'),'\s+','-','g'),'-') $$;
 REVOKE ALL ON FUNCTION sophia.heading_anchor(text) FROM PUBLIC;
 
--- A Markdown text as sections, split exactly as markdown_sections (0027) splits it, each with its heading path: '' for
--- the text before the first heading, else '/' and the anchors of the headings it sits under (by level) and its own.
+-- A Markdown text as sections, split as markdown_sections (0027) splits it, each with its heading path: '' for the text
+-- before the first heading, else '/' and the anchors of the headings it sits under (by level) and its own. One
+-- difference, as Studio's sectionsOf reads it: text before the first heading that is only blank lines (newlines, tabs)
+-- is no section, where markdown_sections' btrim, which strips spaces alone, kept it. Each body's lines are joined
+-- once, so a long section costs its length, not its length times its lines.
 CREATE FUNCTION sophia.markdown_outline(p_text text)
 RETURNS TABLE(ord integer, anchor text, heading text, body_hash text, path text)
 LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
-DECLARE line text; fenced boolean:=false; cur_heading text:=NULL; cur_anchor text:=''; cur_path text:=''; cur_body text:='';
- n integer:=0; m text[]; levels integer[]:='{}'; anchors text[]:='{}'; k integer;
+DECLARE line text; fenced boolean:=false; cur_heading text:=NULL; cur_anchor text:=''; cur_path text:=''; cur_lines text[]:='{}';
+ body text; n integer:=0; m text[]; levels integer[]:='{}'; anchors text[]:='{}'; k integer;
 BEGIN
  FOREACH line IN ARRAY regexp_split_to_array(coalesce(p_text,''),E'\r?\n') LOOP
   IF line ~ '^\s{0,3}(```|~~~)' THEN fenced:=NOT fenced; END IF;
   m:=CASE WHEN fenced THEN NULL ELSE regexp_match(line,'^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$') END;
   IF m IS NOT NULL AND btrim(m[2])<>'' THEN
-   IF cur_heading IS NOT NULL OR btrim(cur_body)<>'' THEN
+   body:=array_to_string(cur_lines,E'\n');
+   IF cur_heading IS NOT NULL OR body ~ '\S' THEN
     ord:=n; anchor:=cur_anchor; heading:=cur_heading; path:=cur_path;
-    body_hash:=encode(sha256(convert_to(btrim(regexp_replace(cur_body,'\s+',' ','g')),'UTF8')),'hex');
+    body_hash:=encode(sha256(convert_to(btrim(regexp_replace(body,'\s+',' ','g')),'UTF8')),'hex');
     RETURN NEXT; n:=n+1;
    END IF;
-   cur_heading:=btrim(m[2]); cur_body:='';
+   cur_heading:=btrim(m[2]); cur_lines:='{}';
    cur_anchor:=sophia.heading_anchor(cur_heading);
    k:=cardinality(levels);
    WHILE k>0 AND levels[k]>=length(m[1]) LOOP k:=k-1; END LOOP;
    levels:=levels[1:k]||length(m[1]); anchors:=anchors[1:k]||cur_anchor;
    cur_path:='/'||array_to_string(anchors,'/');
   ELSE
-   cur_body:=cur_body||line||E'\n';
+   cur_lines:=array_append(cur_lines,line);
   END IF;
  END LOOP;
- IF cur_heading IS NOT NULL OR btrim(cur_body)<>'' THEN
+ body:=array_to_string(cur_lines,E'\n');
+ IF cur_heading IS NOT NULL OR body ~ '\S' THEN
   ord:=n; anchor:=cur_anchor; heading:=cur_heading; path:=cur_path;
-  body_hash:=encode(sha256(convert_to(btrim(regexp_replace(cur_body,'\s+',' ','g')),'UTF8')),'hex');
+  body_hash:=encode(sha256(convert_to(btrim(regexp_replace(body,'\s+',' ','g')),'UTF8')),'hex');
   RETURN NEXT;
  END IF;
 END $$;
@@ -165,32 +170,89 @@ BEGIN
  RETURN out[1:20];
 END $$;
 
--- A Markdown text with what the report's parser (packages/report markdown.ts) never reads as a citation blanked: a fenced
--- block (closed by a fence of its kind at least as long), a code span (never across a blank line), an image, an
--- autolink, and a link's target unless it is a source or a ref to one alone ([1](<id> "title") keeps its id where the
--- target stood). An escaped mark is text. What is left names a source where the report numbers it: bare, bracketed, in
--- a bare URL, or as a link's target. Nesting the parser reads apart (a link in a link's label, parentheses in a target)
--- is read as the common case.
-CREATE FUNCTION sophia.markdown_citing_text(p_text text) RETURNS text LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
-DECLARE line text; fence text:=NULL; m text[]; kept text[]:='{}';
+-- A table row's cells as the report's parser (packages/report markdown.ts, cells) splits them: on '|' outside code
+-- spans (each backtick opens or closes one) and not after a backslash, the outer pipes dropped.
+CREATE FUNCTION sophia.markdown_cells(p_row text) RETURNS text[] LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
+ SELECT string_to_array(string_agg(CASE WHEN u.k%2=1 THEN regexp_replace(u.part,'(?<!\\)\|',chr(1),'g') ELSE u.part END,'`'
+   ORDER BY u.k),chr(1))
+ FROM unnest(string_to_array(regexp_replace(regexp_replace(btrim(p_row,E' \t\f\v'),'^\|',''),'\|$',''),'`'))
+  WITH ORDINALITY u(part,k) $$;
+REVOKE ALL ON FUNCTION sophia.markdown_cells(text) FROM PUBLIC;
+
+-- The inline runs the report's parser reads in a text's lines (each a heading, a paragraph, a list item or a table
+-- cell: what a code span or a link may span), joined by U+0001, which markdown_citing_text takes out of the text first.
+-- Blocks as the parser splits them: a paragraph ends at a blank line or at a line that starts a block or a table; a
+-- fenced block (closed by a fence of its kind at least as long) and a rule are read as nothing; a list item takes the
+-- indented lines under it; a table's cells are as many as its head has; a quote's lines are read again as blocks, four
+-- deep at most.
+CREATE FUNCTION sophia.markdown_runs(p_lines text[], p_depth integer) RETURNS text LANGUAGE plpgsql IMMUTABLE
+SET search_path=pg_catalog AS $$
+DECLARE item constant text:='^(\s*)([-*+]|(\d{1,9})[.)])\s+(.*)$'; tab constant text:='^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$';
+ rule constant text:='^ {0,3}([-*_])(\s*\1){2,}\s*$'; i integer:=1; n integer:=cardinality(p_lines); m text[]; fence text;
+ ordered boolean; cols integer; body text[]; runs text[]:='{}';
 BEGIN
- FOREACH line IN ARRAY regexp_split_to_array(coalesce(p_text,''),E'\r\n?|\n') LOOP
-  IF fence IS NULL THEN
-   m:=regexp_match(line,'^ {0,3}(`{3,}|~{3,})');
-   IF m IS NULL THEN kept:=kept||line; ELSE fence:=m[1]; END IF;
-  ELSIF starts_with(btrim(line,E' \t\f\v'),fence) AND translate(btrim(line,E' \t\f\v'),'`~','')='' THEN
-   fence:=NULL;
+ WHILE i<=n LOOP
+  m:=regexp_match(p_lines[i],'^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$');
+  IF p_lines[i] ~ '^\s*$' OR p_lines[i] ~ rule OR m[2] ~ '\S' THEN
+   IF m[2] ~ '\S' THEN runs:=array_append(runs,m[2]); END IF;
+   i:=i+1;
+  ELSIF p_lines[i] ~ '^ {0,3}(`{3,}|~{3,})' THEN
+   fence:=substring(p_lines[i] FROM '^ {0,3}(`{3,}|~{3,})'); i:=i+1;
+   WHILE i<=n AND NOT (starts_with(btrim(p_lines[i],E' \t\f\v'),fence) AND translate(btrim(p_lines[i],E' \t\f\v'),'`~','')='') LOOP
+    i:=i+1; END LOOP;
+   i:=i+1;
+  ELSIF p_lines[i] ~ '^ {0,3}>' THEN
+   body:='{}';
+   WHILE i<=n AND p_lines[i] ~ '^ {0,3}>' LOOP body:=array_append(body,substring(p_lines[i] FROM '^ {0,3}>\s?(.*)$')); i:=i+1; END LOOP;
+   runs:=array_append(runs,CASE WHEN p_depth>=4 THEN array_to_string(body,E'\n') ELSE sophia.markdown_runs(body,p_depth+1) END);
+  ELSIF p_lines[i] ~ item THEN
+   -- A list: an item, the indented lines under it, a blank line before the next; a top-level item of the other kind
+   -- (a number after bullets) starts a new list.
+   ordered:=(regexp_match(p_lines[i],item))[3] IS NOT NULL; body:='{}';
+   LOOP
+    EXIT WHEN i>n; m:=regexp_match(p_lines[i],item);
+    IF m IS NOT NULL THEN
+     EXIT WHEN length(replace(m[1],E'\t','  '))<2 AND (m[3] IS NOT NULL)<>ordered;
+     IF cardinality(body)>0 THEN runs:=array_append(runs,array_to_string(body,E'\n')); END IF;
+     body:=ARRAY[m[4]];
+    ELSIF cardinality(body)>0 AND p_lines[i] ~ '^\s{2,}\S' THEN body:=array_append(body,p_lines[i]);
+    ELSIF p_lines[i] !~ '^\s*$' OR coalesce(p_lines[i+1] !~ item,true) THEN EXIT;
+    END IF;
+    i:=i+1;
+   END LOOP;
+   runs:=array_append(runs,array_to_string(body,E'\n'));
+  ELSIF strpos(p_lines[i],'|')>0 AND strpos(p_lines[i+1],'|')>0 AND p_lines[i+1] ~ tab THEN
+   body:=sophia.markdown_cells(p_lines[i]); cols:=cardinality(body); runs:=array_append(runs,array_to_string(body,chr(1))); i:=i+2;
+   WHILE i<=n AND strpos(p_lines[i],'|')>0 LOOP
+    runs:=array_append(runs,array_to_string((sophia.markdown_cells(p_lines[i]))[1:cols],chr(1))); i:=i+1; END LOOP;
+  ELSE
+   body:=ARRAY[p_lines[i]]; i:=i+1;
+   WHILE i<=n AND p_lines[i] !~ '^\s*$' AND p_lines[i] !~ '^ {0,3}(`{3,}|~{3,}|#{1,6}\s|>)|^\s*([-*+]|\d{1,9}[.)])\s'
+     AND p_lines[i] !~ rule AND NOT coalesce(strpos(p_lines[i],'|')>0 AND strpos(p_lines[i+1],'|')>0 AND p_lines[i+1] ~ tab,false) LOOP
+    body:=array_append(body,p_lines[i]); i:=i+1; END LOOP;
+   runs:=array_append(runs,array_to_string(body,E'\n'));
   END IF;
  END LOOP;
- RETURN regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
-  array_to_string(kept,E'\n'),'\\[`\[\]()<>!]',' ','g'),
-  '`(?:[^`\n]|\n(?![ \t]*\n))*`',' ','g'),
-  '!\[[^]\n]*\]\([^)\n]*\)',' ','g'),
-  '<(?:https?|mailto):[^>]*>',' ','gi'),
-  '\]\(\s*<?(?:(?:search|link|input|source):\s*)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:#\d{1,4})?>?(?:\s[^)\n]*)?\)',
-  '] \1 ','gi'),
-  '\]\([^)\n]*\)',']','g');
+ RETURN array_to_string(runs,chr(1));
 END $$;
+REVOKE ALL ON FUNCTION sophia.markdown_runs(text[],integer) FROM PUBLIC;
+
+-- A Markdown text with what the report's parser never reads as a citation blanked, run by run (markdown_runs): a fenced
+-- block, a code span, an image, an autolink, and a link's target unless it is a source or a ref to one alone
+-- ([1](<id> "title") and [1](source: <id>) keep the id where the target stood). An escaped mark is text, so an escaped
+-- '[' opens no link. What is left names a source where the report numbers it: bare, bracketed, in a bare URL, or as a
+-- link's target. Read in one pass where the parser reads left to right: brackets and parentheses nested more than one
+-- deep, a link in a link's label, and a code span that opens inside a link's target are read as the common case.
+CREATE FUNCTION sophia.markdown_citing_text(p_text text) RETURNS text LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
+ SELECT translate(regexp_replace(regexp_replace(regexp_replace(regexp_replace(regexp_replace(
+  sophia.markdown_runs(regexp_split_to_array(replace(coalesce(p_text,''),chr(1),' '),E'\r\n?|\n'),0),
+  '\\[^0-9A-Za-z\s\u0001]|`[^`\u0001]*`',' ','g'),
+  '!\[(?:[^][\u0001]|\[[^][\u0001]*\])*\]\((?:[^()\n\u0001]|\([^()\n\u0001]*\))*\)',' ','g'),
+  '<(?:https?|mailto):[^>\u0001]*>',' ','gi'),
+  '\[((?:[^][\u0001]|\[[^][\u0001]*\])*)\]\(\s*<?\s*(?:(?:search|link|input|source):\s*)?'
+  ||'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:#\d{1,4})?\s*>?(?:\s(?:[^()\n\u0001]|\([^()\n\u0001]*\))*)?\)',
+  '[\1] \2 ','gi'),
+  '\[((?:[^][\u0001]|\[[^][\u0001]*\])*)\]\((?:[^()\n\u0001]|\([^()\n\u0001]*\))*\)','[\1]','g'),chr(1),E'\n') $$;
 REVOKE ALL ON FUNCTION sophia.markdown_citing_text(text) FROM PUBLIC;
 
 -- The citations of a submitted result, and every source its current draft names where the report numbers it
