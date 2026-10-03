@@ -887,12 +887,80 @@ test('effort · restarting now is offered only while it works, said plainly, and
   expect(await askedOf(page)).toBe('[]') // nothing asked
   await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
   await claude.getByRole('button', { name: 'Restart', exact: true }).click()
-  await expect(claude.getByRole('status').filter({ hasText: 'Restarting with Low' })).toBeVisible()
+  await expect(claude.getByRole('status').filter({ hasText: 'Restart asked · Low' })).toBeVisible()
   expect(await askedOf(page)).toBe(JSON.stringify([{ sessionId: 'claude-worker', level: 'low', when: 'now' }]))
   // A session with no work running offers the next run only.
   const reviewer = claude.getByRole('listitem').filter({ hasText: 'reviewer' })
   await reviewer.getByRole('button', { name: 'Effort: not reported. Change it' }).click()
   await expect(reviewer.getByRole('button', { name: /Restart now/ })).toHaveCount(0)
+})
+
+/** Moves a session's change as its runtime would report it (the fixture's advance, failStop, nextRun). */
+const runtime = (page: Page, step: 'advance' | 'failStop' | 'nextRun', id = 'claude-worker') =>
+  page.evaluate(([s, i]) => window.resourcesFixture?.[s]?.(i), [step, id] as const)
+
+test('effort · a restart, step by step: asked, its work kept as it stops, started with it, then running it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await expect(claude.getByText('Run a shell command: pnpm --filter @sophia/report test')).toBeVisible()
+  await worker.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await page.keyboard.press('Home')
+  await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  const line = worker.getByRole('status')
+  await expect(line).toHaveText(/Restart asked · Low\s*Undo/) // still its owner's to take back
+  await runtime(page, 'advance')
+  await expect(line).toHaveText('Stopping · keeping its work') // past undoing
+  await expect(line).toHaveAttribute('data-tone', 'moving')
+  // The request its old attempt had waiting on Davide is retired with it: said so, nothing left to answer.
+  const request = claude
+    .getByRole('listitem')
+    .filter({ hasText: 'Run a shell command: pnpm --filter @sophia/report test' })
+  await expect(request.getByText('Superseded')).toBeVisible()
+  await expect(request.getByRole('button', { name: 'Copy session id' })).toHaveCount(0)
+  await expect(claude.getByRole('heading', { name: 'Earlier requests' })).toBeVisible() // nothing waits on him now
+  await expect(worker.getByText('Queued')).toBeVisible() // its work held for the next attempt
+  await runtime(page, 'advance')
+  await expect(line).toHaveText('Starting again with Low')
+  await expect(worker.getByRole('button', { name: 'Effort: Ultracode. Change it' })).toBeVisible() // still what it runs
+  await runtime(page, 'advance')
+  await expect(worker.getByRole('button', { name: 'Effort: Low. Change it' })).toBeVisible()
+  await expect(line).toHaveText('Now on Low')
+  await expect(line).toHaveAttribute('data-tone', 'done')
+  await expect(worker.getByText('Working')).toBeVisible()
+  // Said for a moment, then let go, while live reads keep arriving: none of them holds it there.
+  for (let left = 3200; left > 3194; left--) {
+    await page.evaluate((n) => window.resourcesFixture?.spendCredits?.(n), left)
+    await page.waitForTimeout(900)
+  }
+  await expect(worker.getByRole('status')).toHaveCount(0, { timeout: 500 })
+})
+
+test('effort · a next run starts with it; a stop not confirmed restarts nothing, and anyone sees it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const codex = await open(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Effort: Ultra. Change it' }).click()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('Enter')
+  await expect(codex.getByRole('status')).toHaveText(/Next run · Extra high/)
+  await runtime(page, 'advance', 'codex-reviewer') // a next-run request is not a restart: nothing moves
+  await expect(codex.getByRole('status')).toHaveText(/Next run · Extra high/)
+  await runtime(page, 'nextRun', 'codex-reviewer')
+  await expect(codex.getByRole('status')).toHaveText('Now on Extra high')
+  await expect(codex.getByRole('button', { name: 'Effort: Extra high. Change it' })).toBeVisible()
+  // A restart whose stop its runtime can't confirm: said so, nothing restarted, and seen by whoever looks.
+  await page.goto(`${PAGE}?more=1`)
+  await runtime(page, 'failStop')
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await expect(worker.getByRole('status')).toHaveText('Stop not confirmed · nothing restarted')
+  await expect(worker.getByRole('status')).toHaveAttribute('data-tone', 'warn')
+  await expect(worker.getByRole('button', { name: 'Undo' })).toHaveCount(0)
 })
 
 test('effort · Escape closes the scale, not the sheet; a click places the knob', async ({ page }) => {

@@ -500,6 +500,30 @@
   background: #b3a3f5;
   box-shadow: 0 0 0 3px rgba(179, 163, 245, 0.15);
 }
+/* The runtime on it: the dot breathes. Done: teal. A stop not confirmed: amber, still. */
+.effort-asked[data-tone='moving'] .effort-asked-dot {
+  animation: effort-breathe 1.2s ease-in-out infinite alternate;
+}
+.effort-asked[data-tone='done'] {
+  color: var(--teal);
+}
+.effort-asked[data-tone='done'] .effort-asked-dot {
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.15);
+}
+.effort-asked[data-tone='warn'] {
+  color: var(--amber);
+}
+.effort-asked[data-tone='warn'] .effort-asked-dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.15);
+}
+@keyframes effort-breathe {
+  to {
+    opacity: 0.35;
+    box-shadow: 0 0 0 5px rgba(179, 163, 245, 0.06);
+  }
+}
 .effort-asked .text-button {
   font-family: var(--sans);
   font-size: 12px;
@@ -1319,6 +1343,7 @@
   .effort-knob,
   .effort-picker,
   .effort-asked,
+  .effort-asked[data-tone='moving'] .effort-asked-dot,
   .resource-sheet-head .tool-logo {
     animation: none;
   }

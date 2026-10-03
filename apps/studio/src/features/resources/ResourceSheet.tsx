@@ -1,7 +1,7 @@
 // One resource up close, in the app's sheet (as Invite opens): its host, each session with what it reported and what
 // it works on, its account's capacity window by window, the controls its route supports (shown, not offered: they
 // come with LFE-06.4) and the requests waiting on its owner. Esc or Close returns to the tile it was opened from.
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
 import { useDialog } from '../../app/useDialog.ts'
 import { CapacityBlock } from './CapacityBlock.tsx'
@@ -20,7 +20,8 @@ import {
 } from './resource.ts'
 import { CopyLink } from './CopyLink.tsx'
 import { EffortMeter } from './EffortMeter.tsx'
-import { currentLevel, EffortPicker, levelName, type EffortAsk } from './EffortPicker.tsx'
+import { changeLine, currentLevel, levelName, type ChangeLine, type EffortAsk } from './change.ts'
+import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
@@ -57,18 +58,35 @@ export interface EffortControl {
   asked: Record<string, EffortAsk | undefined>
   set: (sessionId: string, ask: EffortAsk) => void
   undo: (sessionId: string) => void
+  /** Lets a request go once what the session runs is what was asked. */
+  settle: (sessionId: string) => void
 }
 
-function Asked({ ask, onUndo }: { ask: EffortAsk; onUndo: () => void }) {
+/** How long "Now on Low" stays once the change is done. */
+const SETTLED_MS = 4000
+
+/** The line beside the bar: a request, with Undo while it is still its owner's; then each step its runtime reports. */
+function ChangeNote({ line, onUndo }: { line: ChangeLine; onUndo: () => void }) {
   return (
-    <span className="effort-asked" role="status">
+    <span className="effort-asked" role="status" data-tone={line.tone}>
       <span className="effort-asked-dot" aria-hidden />
-      {ask.when === 'now' ? 'Restarting with' : 'Next run ·'} {levelName(ask.level)}
-      <button type="button" className="text-button" onClick={onUndo}>
-        Undo
-      </button>
+      {line.text}
+      {line.tone === 'asked' && (
+        <button type="button" className="text-button" onClick={onUndo}>
+          Undo
+        </button>
+      )}
     </span>
   )
+}
+
+/** Once what it runs is what was asked, the request is done: said for a moment, then let go. */
+function useSettled(done: boolean, settle: ((sessionId: string) => void) | undefined, sessionId: string) {
+  useEffect(() => {
+    if (!done || !settle) return undefined
+    const t = setTimeout(() => settle(sessionId), SETTLED_MS)
+    return () => clearTimeout(t)
+  }, [done, settle, sessionId])
 }
 
 function Effort({
@@ -88,9 +106,18 @@ function Effort({
     setOpen(false)
   }
   const levels = session.efforts ?? []
+  const line = changeLine(session, control?.asked[session.id])
+  useSettled(line?.tone === 'done', control?.settle, session.id)
   const shown = session.effort ? <EffortMeter effort={session.effort} tool={tool} mode={session.mode} /> : null
-  if (!control || levels.length === 0) return shown
-  const ask = control.asked[session.id]
+  const note = line && <ChangeNote line={line} onUndo={() => control?.undo(session.id)} />
+  if (!control || levels.length === 0) {
+    return (
+      <>
+        {shown}
+        {note}
+      </>
+    )
+  }
   const now = currentLevel(session)
   return (
     <>
@@ -106,7 +133,7 @@ function Effort({
         <Icon name="chevron" />
         <Tip label="Choose its effort" side="top" />
       </button>
-      {ask && <Asked ask={ask} onUndo={() => control.undo(session.id)} />}
+      {note}
       {open && (
         <EffortPicker
           session={session}

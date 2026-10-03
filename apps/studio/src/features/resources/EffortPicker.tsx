@@ -5,20 +5,9 @@
 // asked twice. Nothing changes in place: the change is a request, shown apart from what the session runs until its
 // tool reports it (02_RUNTIME_AND_RESEARCH: a new configuration, never a hot switch).
 import { useEffect, useId, useRef, useState } from 'react'
+import { currentLevel, levelName, type EffortAsk } from './change.ts'
 import { alive, effortLook, effortStyle } from './effort.ts'
 import type { Session, Tool } from './resource.ts'
-
-export type When = 'next' | 'now'
-export interface EffortAsk {
-  level: string
-  when: When
-}
-
-/** A level as people say it: "Extra high", "Max", "Ultracode". */
-export const levelName = (level: string) => effortLook(level).label
-
-/** What the session runs now, as one of its levels: its mode when it has one (ultracode), else its effort. */
-export const currentLevel = (s: Session) => s.mode ?? s.effort?.toLowerCase() ?? null
 
 const STEP: Record<string, number> = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }
 

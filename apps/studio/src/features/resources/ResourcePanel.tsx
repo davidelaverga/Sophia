@@ -2,7 +2,7 @@
 // they grow to tens, with one line on top only while a request waits on an owner. A tile opens the resource's sheet,
 // where everything else is. It goes in ProjectShell's `resources`. It shows; it doesn't steer, hold or stop
 // (LFE-06.4), and nothing here calls a tool.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
@@ -12,7 +12,7 @@ import { moving } from './motion.ts'
 import { ORDER_LABEL, ordered, ORDERS, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
-import type { EffortAsk } from './EffortPicker.tsx'
+import type { EffortAsk } from './change.ts'
 import { ResourceSheet, type EffortControl } from './ResourceSheet.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
@@ -323,9 +323,12 @@ function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
 /** Each session's requested effort, kept until withdrawn, and told on; none when nothing takes the request. */
 function useEffort(onEffort: Props['onEffort']): EffortControl | undefined {
   const [asked, setAsked] = useState<Record<string, EffortAsk | undefined>>({})
+  // Kept the same across renders: a session's line waits on it to let a done request go.
+  const settle = useCallback((sessionId: string) => setAsked((a) => ({ ...a, [sessionId]: undefined })), [])
   if (!onEffort) return undefined
   return {
     asked,
+    settle,
     set: (sessionId, ask) => {
       setAsked((a) => ({ ...a, [sessionId]: ask }))
       onEffort(sessionId, ask)
