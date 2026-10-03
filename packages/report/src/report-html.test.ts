@@ -151,6 +151,14 @@ describe('the PDF report template (pdf-report-v1, report_manifest_v1)', () => {
     assert.match(doc.html, /<li id="cite-3">Source not available<\/li>/)
   })
 
+  it('numbers a citation the report wrote as a link, and still refuses one the service did not resolve', () => {
+    const doc = renderReport(input({ markdown: REPORT.replace(`[${A}]`, `[1](<${A}>)`) }))
+    assert.equal(doc.manifest.citations, 2)
+    assert.match(doc.html, /<sup class="cite"><a href="#cite-1">\[1\]<\/a><\/sup>/)
+    assert.equal(doc.accepted, true)
+    assert.deepEqual(failed(renderReport(input({ markdown: `${REPORT}\nAlso [3](${C}).\n` }))), ['citations_resolved'])
+  })
+
   it('keeps ids and titles bounded, and refuses a report with too many sections', () => {
     const long = 'Word '.repeat(400)
     const doc = renderReport(input({ markdown: `# T\n\n## ${long}\n\n${filler(120)}\n` }))

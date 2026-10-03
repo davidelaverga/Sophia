@@ -1041,6 +1041,91 @@ describe('research submission (0026)', () => {
     assert.deepEqual(versions[1]?.facts.dropped, [])
   })
 
+  it('CX-0019 · a version cites every source its draft cites that the task may read, whatever the model listed', async () => {
+    const w = await world()
+    const own = (taskId: string) =>
+      one<{ question: string; manifest: string }>(
+        `SELECT t.question_source_id AS question, j.input_source_id AS manifest FROM sophia.research_tasks t
+         JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id WHERE t.project_id=$1 AND t.job_id=$2`,
+        [w.projectId, taskId],
+      )
+    const factsOf = (versionId: string) =>
+      one<{ facts: { cited: number; added: string[]; dropped: string[]; notesFromFacts: boolean }; note: string }>(
+        `SELECT change_facts AS facts, change_note AS note FROM sophia.artifact_versions WHERE project_id=$1 AND id=$2`,
+        [w.projectId, versionId],
+      )
+    const sourcesOf = async (artifactId: string, versionId: string) =>
+      (await withActor(pool, A, 'read', (c) => listReportSources(c, artifactId, versionId))).sources
+        .map((s) => s.sourceId)
+        .toSorted()
+    const other = await world()
+    const foreign = await citable(other, (await started(other)).at)
+    const stray = randomUUID()
+
+    // A first version: a search, a page read from it and an input, cited as models write them; the model lists one.
+    const first = await started(w, { inputSourceIds: [w.inputSourceId], urls: ['https://hosts.example.org/start'] })
+    const a = await citable(w, first.at, 'search_1')
+    const page = await readPage(w, first.at, a)
+    const q1 = await own(first.receipt.taskId)
+    const kept = `A [1](<${a.sourceId}>), its page [2](${page.sourceId}) and our notes [3](input:${w.inputSourceId}).`
+    const asked = `Asked as [4](input:${q1.question}#1) under [5](${q1.manifest}); never [6](${stray}) or [${foreign.sourceId}].`
+    const d1 = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...first.at,
+        callId: 'd1',
+        expectedSha256: null,
+        text: `# Hosts\n\n${kept}\n\n${asked}\n`,
+      }),
+    )
+    const v1 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...first.at, callId: 's1', result: resultOf(d1.sha256, [a.sourceId]) }),
+    )
+    assert.equal(v1.outcome, 'published')
+    assert.deepEqual(
+      await sourcesOf(v1.artifactId!, v1.versionId!),
+      [a.sourceId, page.sourceId, w.inputSourceId].toSorted(),
+    )
+    assert.equal((await factsOf(v1.versionId!)).facts.cited, 3)
+
+    // An amendment keeps v1's citations and adds a search; the model lists only the base, as the pilot's did.
+    const amended = await started(w, {
+      question: 'Add the costs.',
+      amendsTaskId: first.receipt.taskId,
+      inputSourceIds: [w.inputSourceId],
+    })
+    const more = await citable(w, amended.at, 'search_2')
+    const q2 = await own(amended.receipt.taskId)
+    const text = [
+      `# Hosts\n\n${kept}\n\n## Costs\n\nA is $1 a page [4](search:${more.sourceId}#1).`,
+      `Asked as [5](${q2.question}) under [6](${q2.manifest}), earlier [7](${q1.question}); never [8](${stray}).\n`,
+    ].join('\n\n')
+    const d2 = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text }),
+    )
+    const submit = () =>
+      service((c) =>
+        runtimeResearchSubmit(c, w.who, {
+          ...amended.at,
+          callId: 's2',
+          result: resultOf(d2.sha256, [v1.sourceId!], amendNotes),
+        }),
+      )
+    const v2 = await submit()
+    assert.deepEqual([v2.outcome, v2.versionNumber, v2.notesFromFacts], ['published', 2, false])
+    assert.deepEqual(
+      await sourcesOf(v2.artifactId!, v2.versionId!),
+      [v1.sourceId!, a.sourceId, page.sourceId, w.inputSourceId, more.sourceId].toSorted(),
+      'the base stays a cited source; never the task’s own question or manifest, an earlier question, a stray or foreign id',
+    )
+    const facts = await factsOf(v2.versionId!)
+    assert.deepEqual(facts.facts.added, [v1.sourceId!, more.sourceId].toSorted())
+    assert.deepEqual(facts.facts.dropped, [])
+    assert.equal(facts.facts.cited, 5)
+    // The notes are judged against the sections (0027), so the model's own notes stand: never ones from the facts.
+    assert.deepEqual([facts.facts.notesFromFacts, facts.note], [false, amendNotes.changeNote])
+    assert.deepEqual(await submit(), v2, 'a replay of the ended task returns the same version')
+  })
+
   it('records a blocker with the remaining work and keeps the draft; a replay returns it', async () => {
     const w = await world()
     const { at } = await started(w)
