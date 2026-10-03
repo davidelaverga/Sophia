@@ -14,6 +14,7 @@ import {
   createTestDatabase,
   registerRuntime,
   seedProject,
+  type Measure,
   type RegisteredRuntime,
   type TestDatabase,
 } from '@sophia/test-support'
@@ -1271,7 +1272,8 @@ describe('research submission (0026)', () => {
     // A head `width` cells wide over rows of one '|' each, to the draft's limit, then a citation. Each row filled in to
     // the head's width took the parser seconds and gigabytes at 100 cells; the cells it fills in are bounded now, so a
     // head ten times as wide costs the submit about the same, where filling every row cost it about ten times as much.
-    const submitted = async (width: number) => {
+    // The submit is timed in this process's CPU time, where the parser runs; the database's share is not counted.
+    const submitted = async (width: number, measure: Measure) => {
       const w = await world()
       const { at } = await started(w)
       const a = await citable(w, at, 'search_1')
@@ -1280,15 +1282,14 @@ describe('research submission (0026)', () => {
       const tail = `\nSee [${b.sourceId}].\n`
       const text = head + '|\n'.repeat(Math.floor((262_144 - head.length - tail.length) / 2)) + tail
       const d = await service((c) => runtimeResearchDraft(c, w.who, { ...at, callId: 'd', expectedSha256: null, text }))
-      const t0 = performance.now()
-      const v = await service((c) =>
-        runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
+      const v = await measure(() =>
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
+        ),
       )
-      const ms = performance.now() - t0
       const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!)))
         .sources
       assert.deepEqual(sources.map((s) => s.sourceId).toSorted(), [a.sourceId, b.sourceId].toSorted())
-      return ms
     }
     await assertGrowth('a submit whose table head is 10, then 100 cells wide', submitted, 10, {
       factor: 10,

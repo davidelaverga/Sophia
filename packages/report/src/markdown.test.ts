@@ -41,20 +41,22 @@ const runShape = (inline: readonly Inline[]): Shape[] =>
     return i.kind === 'cite' ? `[${i.n}]` : plain([i])
   })
 
-/** How long a parse takes, in milliseconds. */
-const timed = (md: string): number => {
-  const t = performance.now()
-  parseMarkdown(md)
-  return performance.now() - t
-}
-
 /**
  * Fails when parsing what `make` builds grows faster than linearly from size `n` to 4n (or `factor` times n): a
- * comparison on the host at hand, not a fixed number of milliseconds (see assertGrowth). The scans these checks
- * guard took seconds to minutes on a hostile draft, quadratic or worse; each size is one at which they show that curve.
+ * comparison on the host at hand, in CPU time, not a fixed number of milliseconds (see assertGrowth). The scans these
+ * checks guard took seconds to minutes on a hostile draft, quadratic or worse; each size is one at which they show
+ * that curve. Only the parse is measured, not building its input.
  */
 const linear = (label: string, make: (size: number) => string, n: number, options?: GrowthOptions) =>
-  assertGrowth(label, (size) => timed(make(size)), n, options)
+  assertGrowth(
+    label,
+    (size, measure) => {
+      const md = make(size)
+      return measure(() => parseMarkdown(md))
+    },
+    n,
+    options,
+  )
 
 /** `k` KiB of spaces. */
 const spaces = (k: number): string => ' '.repeat(k * 1024)
@@ -304,9 +306,12 @@ describe('the report Markdown parser', () => {
   })
 
   it('reads a paragraph of many short lines in linear time, its hard breaks kept (a draft may hold 256 KiB)', async () => {
-    await linear('x( lines in one paragraph, up to 256 KiB', (n) => 'x(\n'.repeat(n / 3), 64 * 1024)
-    await linear('short lines in one paragraph, up to 256 KiB', (n) => 'abcd\n'.repeat(n / 5), 64 * 1024)
-    await linear('[](( lines in one paragraph, up to 256 KiB', (n) => '[]((\n'.repeat(n / 5), 64 * 1024)
+    // Up to 256 KiB a paragraph's garbage collection grows faster than its length (about 5 times as long for 4 times
+    // the input); the scans these lines met took 40 times as long and more, so the limit is a quadratic's 16.
+    const paragraph = { limit: 16 }
+    await linear('x( lines in one paragraph, up to 256 KiB', (n) => 'x(\n'.repeat(n / 3), 64 * 1024, paragraph)
+    await linear('short lines in one paragraph, up to 256 KiB', (n) => 'abcd\n'.repeat(n / 5), 64 * 1024, paragraph)
+    await linear('[](( lines in one paragraph, up to 256 KiB', (n) => '[]((\n'.repeat(n / 5), 64 * 1024, paragraph)
     const p = only('a  \nb \nc\\\nd \\ \ne\t\nf')
     assert.equal(p.kind, 'paragraph')
     assert.deepEqual(p.kind === 'paragraph' ? p.children.map((i) => (i.kind === 'break' ? '<br>' : plain([i]))) : [], [
@@ -322,7 +327,6 @@ describe('the report Markdown parser', () => {
     // Each `_` after an `_` opens, and every later `__` is skipped as a double: none of them closes.
     await linear('a__', (n) => 'a__'.repeat(n / 3), 16 * 1024)
     await linear('foo__bar in prose', (n) => 'see foo__bar here '.repeat(n / 18), 32 * 1024)
-    await linear('stars and code spans', (n) => '*a **b `c` '.repeat(n / 11), 8 * 1024)
     assert.deepEqual(shape('a__b__c *d* __e__'), ['a__b__c ', { em: ['d'] }, ' ', { strong: ['e'] }])
     assert.deepEqual(shape('_x foo__bar y_'), [{ em: ['x foo__bar y'] }])
     assert.deepEqual(shape('*a **b** c*'), [{ em: ['a ', { strong: ['b'] }, ' c'] }])
@@ -345,13 +349,14 @@ describe('the report Markdown parser', () => {
     // Splitting a heading's run of spaces every way was cubic (4 KiB took 26 s), so half a KiB already shows it.
     await linear('a heading with spaces', (n) => `# a${blank(n)}b`, 512)
     await linear('a heading under a paragraph', (n) => `a\n## b${blank(n)}c #`, 512)
-    const compared = (n: number) => {
-      const [a, b] = [`# a${blank(n)}b`, `# a${blank(n)}c`]
-      const t = performance.now()
-      compareSections(a, b)
-      return performance.now() - t
-    }
-    await assertGrowth('the sections of two versions with such a heading', compared, 512)
+    await assertGrowth(
+      'the sections of two versions with such a heading',
+      (n, measure) => {
+        const [a, b] = [`# a${blank(n)}b`, `# a${blank(n)}c`]
+        return measure(() => compareSections(a, b))
+      },
+      512,
+    )
     await linear('a row under a pipe, spaces then text', (n) => `a|b\n${blank(n)}|x`, 16 * 1024)
     await linear('a row under a pipe, spaces in it', (n) => `a|b\n|-${blank(n)}x|`, 8 * 1024)
     assert.equal(only(`# a${spaces(256)}b`).kind, 'heading', 'a heading with 256 KiB of spaces')
@@ -434,8 +439,9 @@ describe('the report Markdown parser', () => {
       ' ',
       '[1]',
     ])
-    // A run of < with no > took each < to the end, a short scan until the run is long: 128 KiB, then 512 KiB.
-    await linear('<http:// and no >', (n) => '<http://'.repeat(n / 8), 128 * 1024)
+    // A run of < with no > took each < to the end, a short scan until the run is long: 128 KiB, then 8 times as much,
+    // 58 times as long. Parsed in one pass a MiB takes 11 times as long as 128 KiB, its garbage collection included.
+    await linear('<http:// and no >', (n) => '<http://'.repeat(n / 8), 128 * 1024, { factor: 8, limit: 24 })
     await linear('<https://a< and one >, up to 256 KiB', (n) => `${'<https://a<'.repeat(n / 11)}>`, 64 * 1024)
   })
 

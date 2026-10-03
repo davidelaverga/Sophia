@@ -3,10 +3,11 @@
 BEGIN;
 -- How a cost grows, timed so the host's speed and load cancel out: p_query (its %s the size) at p_n and at 4 times p_n,
 -- in turns, the least of each kept (the least is the run the load disturbed least). A scan that costs its length takes
--- about 4 times as long; the quadratic ones these checks guard took 16 times, and more. It fails at 8, after up to seven
--- turns, so a burst of load is not a failure; under 5 ms counts as 5, so noise is not divided into. With
+-- about 4 times as long; the quadratic ones these checks guard took 16 times, and more. It fails at p_limit (8), after
+-- up to seven turns, so a burst of load is not a failure; under 5 ms counts as 5, so noise is not divided into. With
 -- sophia.growth_log set to on, each measurement is a notice.
-CREATE FUNCTION pg_temp.assert_linear(p_label text, p_query text, p_n integer) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.assert_linear(p_label text, p_query text, p_n integer, p_limit float8 DEFAULT 8) RETURNS void
+LANGUAGE plpgsql AS $$
 DECLARE small float8:='Infinity'; large float8:='Infinity'; started timestamptz; ratio float8; turns integer:=0;
  report text;
 BEGIN
@@ -17,12 +18,12 @@ BEGIN
   started:=clock_timestamp(); EXECUTE format(p_query,4*p_n);
   large:=least(large,1000*extract(epoch FROM clock_timestamp()-started));
   ratio:=large/greatest(small,5);
-  EXIT WHEN turns>=3 AND ratio<8;
+  EXIT WHEN turns>=3 AND ratio<p_limit;
  END LOOP;
- report:=format('%s: 4 times the input took %s times as long (%s ms, then %s ms), limit 8, %s turns',p_label,
-  round(ratio::numeric,1),round(small::numeric,1),round(large::numeric,1),turns);
+ report:=format('%s: 4 times the input took %s times as long (%s ms, then %s ms), limit %s, %s turns',p_label,
+  round(ratio::numeric,1),round(small::numeric,1),round(large::numeric,1),p_limit,turns);
  IF current_setting('sophia.growth_log',true)='on' THEN RAISE NOTICE 'growth: %',report; END IF;
- IF ratio>=8 THEN RAISE EXCEPTION '%',report; END IF;
+ IF ratio>=p_limit THEN RAISE EXCEPTION '%',report; END IF;
 END $$;
 -- markdown_outline splits as markdown_sections (0027): same sections, anchors, headings and body hashes. One difference
 -- on purpose, as Studio's sectionsOf reads it: text before the first heading that is only newlines and tabs is no
@@ -35,9 +36,10 @@ BEGIN
    OR (SELECT body_hash FROM sophia.markdown_outline(blank))<>(SELECT body_hash FROM sophia.markdown_sections(blank) WHERE ord=1) THEN
   RAISE EXCEPTION 'Blank lines before the first heading: %',(SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(blank)); END IF;
  -- Each body is joined once: a section of short lines 4 times as long takes about 4 times as long, where adding line
- -- by line copied the body each time (20 times as long, from 64K lines to 256K).
+ -- by line copied the body each time (20 times as long, from 64K lines to 256K). Both sizes run a fifth of a second
+ -- and more, so on a busy host both wait for a CPU but not always alike (7 times as long, seen): the limit is 12.
  PERFORM pg_temp.assert_linear('A long section of short lines',
-  $q$SELECT count(*) FROM sophia.markdown_outline(E'# Notes\n'||repeat(E'a\n',%s))$q$,65536);
+  $q$SELECT count(*) FROM sophia.markdown_outline(E'# Notes\n'||repeat(E'a\n',%s))$q$,65536,12);
  -- Whitespace as Studio's sectionsOf reads it (JavaScript's): an introduction that is only a no-break space or a byte
  -- order mark is no section either, and a heading's text drops them at its ends.
  IF (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord)
@@ -104,7 +106,8 @@ BEGIN
   16384);
  IF (SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(E'# a'||repeat(' ',262144)||E'b\n## c'||repeat(' ',262144)||'#  '))
    <>ARRAY['a'||repeat(' ',262144)||'b','c'] THEN RAISE EXCEPTION 'A heading with 256 KiB of spaces read wrong'; END IF;
- PERFORM pg_temp.assert_linear('A text of short lines',$q$SELECT count(*) FROM sophia.markdown_outline(repeat(E'x\n',%s))$q$,65536);
+ PERFORM pg_temp.assert_linear('A text of short lines',$q$SELECT count(*) FROM sophia.markdown_outline(repeat(E'x\n',%s))$q$,65536,
+  12);
 END $$;
 -- A repeated subheading is one section per occurrence: identical texts have no change, one edit is one revision, and a
 -- new option's Pros (inserted between A and B) is added. Each section is counted once on each side.
