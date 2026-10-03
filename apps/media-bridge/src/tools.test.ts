@@ -157,6 +157,16 @@ describe('the Live tool surface', () => {
     assert.equal(v11, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
   })
 
+  it('names each version’s declarations by their SHA-256, which provider.setup logs (CX-0026)', () => {
+    for (const version of ['v1.1', 'v1.2'] as const) {
+      const json = JSON.stringify(TOOL_SETS[version].declarations)
+      assert.equal(TOOL_SETS[version].sha256, createHash('sha256').update(json, 'utf8').digest('hex'), version)
+    }
+    assert.equal(TOOL_SETS['v1.1'].sha256, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
+    // CX-0026, deliberately: v1.2's control_work and amendsTaskId texts.
+    assert.equal(TOOL_SETS['v1.2'].sha256, '4d1b9c5bcfe2ee3f26ff5a3d714915ec51a4528c8695ed602733c7b2e4ead4de')
+  })
+
   it('an unattributed call is answered with a question', () => {
     const r = refusedResponse({ id: 'c2', name: 'record_mission_note' }, 'Who asked?')
     assert.deepEqual(r.response, { output: { status: 'clarify', ask: 'Who asked?' } })

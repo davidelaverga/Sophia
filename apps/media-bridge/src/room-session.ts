@@ -1168,6 +1168,7 @@ export class RoomSession {
       instructionBytes: guide.combined.bytes,
       guide: guide.version,
       tools: this.tools.names.length,
+      declarations: this.tools.sha256,
     })
     try {
       const link = await this.deps.connectLive(

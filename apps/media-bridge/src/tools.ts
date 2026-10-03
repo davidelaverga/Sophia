@@ -9,7 +9,7 @@
 // finishes its call at once with top-level `scheduling` and `willContinue: false`.
 import { Behavior, FunctionResponseScheduling, type FunctionDeclaration, type FunctionResponse } from '@google/genai'
 import type { MediaToolCall, MediaToolResult } from '@sophia/contracts'
-import type { GuideVersion } from './guide.ts'
+import { sha256, type GuideVersion } from './guide.ts'
 
 export type ToolName = MediaToolCall['name']
 
@@ -213,11 +213,14 @@ const RENDER_RESEARCH: FunctionDeclaration = {
 export interface ToolSet {
   declarations: readonly FunctionDeclaration[]
   names: readonly string[]
+  /** The SHA-256 of the declarations as JSON, the bytes Google receives: what a setup log names, never their text. */
+  sha256: string
 }
 
 const toolSet = (declarations: FunctionDeclaration[]): ToolSet => ({
   declarations,
   names: declarations.map((t) => t.name ?? ''),
+  sha256: sha256(Buffer.from(JSON.stringify(declarations), 'utf8')),
 })
 
 export const TOOL_SETS: Readonly<Record<GuideVersion, ToolSet>> = {

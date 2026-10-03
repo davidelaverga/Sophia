@@ -2497,7 +2497,7 @@ describe('room session: guide v1.2, the research operations (SMC-M03 S6)', () =>
       TOOL_SETS['v1.2'].names,
     )
     const setup = logs.find(([event]) => event === 'provider.setup')?.[1]
-    assert.deepEqual([setup?.guide, setup?.tools], ['v1.2', 8])
+    assert.deepEqual([setup?.guide, setup?.tools, setup?.declarations], ['v1.2', 8, TOOL_SETS['v1.2'].sha256])
   })
 
   it('an API that serves only v1.1’s six leaves a v1.2 guide unavailable: roll the bridge back first', async () => {
@@ -2742,10 +2742,10 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
     resumed.events.setupComplete()
     const setups = logs.filter(([event]) => event === 'provider.setup').map(([, f]) => f)
     assert.deepEqual(
-      setups.map((f) => [f.resumed, f.instruction, f.instructionBytes, f.tools]),
+      setups.map((f) => [f.resumed, f.instruction, f.instructionBytes, f.tools, f.declarations]),
       [
-        [false, GUIDE.combined.sha256, GUIDE.combined.bytes, 6],
-        [true, GUIDE.combined.sha256, GUIDE.combined.bytes, 6],
+        [false, GUIDE.combined.sha256, GUIDE.combined.bytes, 6, TOOL_SETS['v1.1'].sha256],
+        [true, GUIDE.combined.sha256, GUIDE.combined.bytes, 6, TOOL_SETS['v1.1'].sha256],
       ],
     )
     for (const l of lives) {

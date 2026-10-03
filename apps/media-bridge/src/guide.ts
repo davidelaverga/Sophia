@@ -111,7 +111,8 @@ function parseManifest(raw: unknown, version: GuideVersion): Manifest {
   return { prompt, skill, assembled: assembled(raw.assembled), operationNames: names }
 }
 
-const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
+/** The hex SHA-256 of these bytes. */
+export const sha256 = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
 const basename = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 
 function readAsset(dir: string, path: string): Buffer {

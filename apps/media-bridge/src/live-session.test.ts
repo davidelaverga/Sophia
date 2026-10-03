@@ -173,6 +173,10 @@ describe('the provider setup frame (T19, T21)', () => {
     // M01's six as Google receives them, byte for byte as before CX-0026.
     const wire = createHash('sha256').update(JSON.stringify(older), 'utf8').digest('hex')
     assert.equal(wire, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
+    // v1.2's as Google receives them: the digest provider.setup logs, so a setup receipt names what was sent.
+    const wireV12 = createHash('sha256').update(JSON.stringify(newer), 'utf8').digest('hex')
+    assert.equal(wireV12, '4d1b9c5bcfe2ee3f26ff5a3d714915ec51a4528c8695ed602733c7b2e4ead4de')
+    assert.deepEqual([wire, wireV12], [TOOL_SETS['v1.1'].sha256, TOOL_SETS['v1.2'].sha256])
     assert.deepEqual(newer.slice(0, 5), older.slice(0, 5))
     assert.deepEqual(
       newer.slice(5).map((d) => d.name),
