@@ -10,6 +10,7 @@ import { parseArtifactVersionList } from '@sophia/contracts/validate'
 import { DomainError } from '@sophia/domain'
 import { compareSections, parseMarkdown, sectionsOf } from '@sophia/report/markdown'
 import {
+  assertGrowth,
   createTestDatabase,
   registerRuntime,
   seedProject,
@@ -1267,23 +1268,34 @@ describe('research submission (0026)', () => {
   })
 
   it('CX-0019 · a draft with a wide table over many short rows is read in time and still cites', async () => {
-    const w = await world()
-    const { at } = await started(w)
-    const a = await citable(w, at, 'search_1')
-    const b = await citable(w, at, 'search_2')
-    // A head 100 cells wide over rows of one '|' each, to the draft's limit: each row filled in to the head's width
-    // took the parser seconds and gigabytes; a citation after it.
-    const head = `${'a|'.repeat(100)}\n${'-|'.repeat(100)}\n`
-    const tail = `\nSee [${b.sourceId}].\n`
-    const text = head + '|\n'.repeat(Math.floor((262_144 - head.length - tail.length) / 2)) + tail
-    const d = await service((c) => runtimeResearchDraft(c, w.who, { ...at, callId: 'd', expectedSha256: null, text }))
-    const t0 = performance.now()
-    const v = await service((c) =>
-      runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
-    )
-    assert.ok(performance.now() - t0 < 5000, `the submit took ${Math.round(performance.now() - t0)} ms`)
-    const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
-    assert.deepEqual(sources.map((s) => s.sourceId).toSorted(), [a.sourceId, b.sourceId].toSorted())
+    // A head `width` cells wide over rows of one '|' each, to the draft's limit, then a citation. Each row filled in to
+    // the head's width took the parser seconds and gigabytes at 100 cells; the cells it fills in are bounded now, so a
+    // head ten times as wide costs the submit about the same, where filling every row cost it about ten times as much.
+    const submitted = async (width: number) => {
+      const w = await world()
+      const { at } = await started(w)
+      const a = await citable(w, at, 'search_1')
+      const b = await citable(w, at, 'search_2')
+      const head = `${'a|'.repeat(width)}\n${'-|'.repeat(width)}\n`
+      const tail = `\nSee [${b.sourceId}].\n`
+      const text = head + '|\n'.repeat(Math.floor((262_144 - head.length - tail.length) / 2)) + tail
+      const d = await service((c) => runtimeResearchDraft(c, w.who, { ...at, callId: 'd', expectedSha256: null, text }))
+      const t0 = performance.now()
+      const v = await service((c) =>
+        runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
+      )
+      const ms = performance.now() - t0
+      const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!)))
+        .sources
+      assert.deepEqual(sources.map((s) => s.sourceId).toSorted(), [a.sourceId, b.sourceId].toSorted())
+      return ms
+    }
+    await assertGrowth('a submit whose table head is 10, then 100 cells wide', submitted, 10, {
+      factor: 10,
+      limit: 3,
+      minReps: 2,
+      maxReps: 4,
+    })
   })
 
   it('CX-0019 · cites exactly what the report’s parser numbers among the sources the task may cite', async () => {

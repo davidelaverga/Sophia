@@ -10,6 +10,7 @@ import {
   type Block,
   type Inline,
 } from './markdown.ts'
+import { assertGrowth, type GrowthOptions } from '../../test-support/src/growth.ts'
 
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'
@@ -47,13 +48,38 @@ const timed = (md: string): number => {
   return performance.now() - t
 }
 
+/**
+ * Fails when parsing what `make` builds grows faster than linearly from size `n` to 4n (or `factor` times n): a
+ * comparison on the host at hand, not a fixed number of milliseconds (see assertGrowth). The scans these checks
+ * guard took seconds to minutes on a hostile draft, quadratic or worse; each size is one at which they show that curve.
+ */
+const linear = (label: string, make: (size: number) => string, n: number, options?: GrowthOptions) =>
+  assertGrowth(label, (size) => timed(make(size)), n, options)
+
 /** `k` KiB of spaces. */
 const spaces = (k: number): string => ' '.repeat(k * 1024)
+
+/** `n` spaces. */
+const blank = (n: number): string => ' '.repeat(n)
 
 /** A draft at its limit (262144 bytes): a table head k cells wide, then rows of one `|`, each filled in to k cells. */
 const wide = (k: number): string => {
   const head = `${'a|'.repeat(k)}\n${'-|'.repeat(k)}\n`
   return head + '|\n'.repeat(Math.floor((262_144 - head.length) / 2))
+}
+
+/** A link `depth` labels deep. */
+const deepLink = (depth: number): string => {
+  let md = 'a'
+  for (let k = 0; k < depth; k += 1) md = `[${md}](https://x.example/${k})`
+  return md
+}
+
+/** `brackets` balanced brackets inside 8 labels that each hold a link. */
+const around = (brackets: number): string => {
+  let md = `${'['.repeat(brackets)}${']'.repeat(brackets)}`
+  for (let k = 0; k < 8; k += 1) md = `[x ${md} [b](https://b.example/)](https://x.example/${k})`
+  return md
 }
 
 /** A one-paragraph report's shape. */
@@ -260,14 +286,10 @@ describe('the report Markdown parser', () => {
     ])
   })
 
-  it('reads a label once, so brackets in brackets take linear time (a web page a draft cites is parsed in the API)', () => {
-    let nested = 'a'
-    for (let k = 0; k < 24; k += 1) nested = `[${nested}](https://x.example/${k})`
-    assert.ok(timed(nested) < 250, 'a link 24 labels deep')
-    let around = `${'['.repeat(3000)}${']'.repeat(3000)}`
-    for (let k = 0; k < 8; k += 1) around = `[x ${around} [b](https://b.example/)](https://x.example/${k})`
-    assert.ok(timed(around) < 250, 'balanced brackets inside 8 labels that each hold a link')
-    assert.ok(timed('['.repeat(128 * 1024)) < 1000, '128 KiB of [')
+  it('reads a label once, so brackets in brackets take linear time (a web page a draft cites is parsed in the API)', async () => {
+    await linear('a link 12, then 24 labels deep', deepLink, 12, { factor: 2 })
+    await linear('balanced brackets inside 8 labels that each hold a link', around, 200)
+    await linear('a run of [', (n) => '['.repeat(n), 8 * 1024)
     assert.deepEqual(shape('[[a](https://x.example/0)](https://x.example/1)'), [
       '[',
       { link: 'https://x.example/0', label: ['a'] },
@@ -275,16 +297,16 @@ describe('the report Markdown parser', () => {
     ])
   })
 
-  it('finds every link target’s end in one pass, so unclosed targets take linear time (a draft may hold 256 KiB)', () => {
-    assert.ok(timed('[]((('.repeat((128 * 1024) / 5)) < 1000, '128 KiB of [](((')
-    assert.ok(timed('[a](b '.repeat((96 * 1024) / 6)) < 1000, '96 KiB of [a](b and a space')
-    assert.ok(timed(`${'[]('.repeat((64 * 1024) / 3)}\n${'[x]('.repeat(1024)}`) < 1000, 'two lines of [](')
+  it('finds every link target’s end in one pass, so unclosed targets take linear time (a draft may hold 256 KiB)', async () => {
+    await linear('[](((', (n) => '[]((('.repeat(n / 5), 16 * 1024)
+    await linear('[a](b and a space', (n) => '[a](b '.repeat(n / 6), 24 * 1024)
+    await linear('two lines of [](', (n) => `${'[]('.repeat(n / 3)}\n${'[x]('.repeat(n / 64)}`, 16 * 1024)
   })
 
-  it('reads a paragraph of many short lines in linear time, its hard breaks kept (a draft may hold 256 KiB)', () => {
-    assert.ok(timed('x(\n'.repeat((256 * 1024) / 3)) < 1000, '256 KiB of x( lines in one paragraph')
-    assert.ok(timed('abcd\n'.repeat((256 * 1024) / 5)) < 1000, '256 KiB of short lines in one paragraph')
-    assert.ok(timed('[]((\n'.repeat((256 * 1024) / 5)) < 1000, '256 KiB of [](( lines in one paragraph')
+  it('reads a paragraph of many short lines in linear time, its hard breaks kept (a draft may hold 256 KiB)', async () => {
+    await linear('x( lines in one paragraph, up to 256 KiB', (n) => 'x(\n'.repeat(n / 3), 64 * 1024)
+    await linear('short lines in one paragraph, up to 256 KiB', (n) => 'abcd\n'.repeat(n / 5), 64 * 1024)
+    await linear('[](( lines in one paragraph, up to 256 KiB', (n) => '[]((\n'.repeat(n / 5), 64 * 1024)
     const p = only('a  \nb \nc\\\nd \\ \ne\t\nf')
     assert.equal(p.kind, 'paragraph')
     assert.deepEqual(p.kind === 'paragraph' ? p.children.map((i) => (i.kind === 'break' ? '<br>' : plain([i]))) : [], [
@@ -296,12 +318,11 @@ describe('the report Markdown parser', () => {
     ])
   })
 
-  it('finds each emphasis closer once, so openers that never close take linear time (a draft may hold 256 KiB)', () => {
+  it('finds each emphasis closer once, so openers that never close take linear time (a draft may hold 256 KiB)', async () => {
     // Each `_` after an `_` opens, and every later `__` is skipped as a double: none of them closes.
-    assert.ok(timed('a__'.repeat((64 * 1024) / 3)) < 1000, '64 KiB of a__')
-    assert.ok(timed('a__'.repeat((256 * 1024) / 3)) < 1000, '256 KiB of a__')
-    assert.ok(timed('see foo__bar here '.repeat((256 * 1024) / 18)) < 1000, '256 KiB of foo__bar in prose')
-    assert.ok(timed('*a **b `c` '.repeat((256 * 1024) / 11)) < 1000, '256 KiB of stars and code spans')
+    await linear('a__', (n) => 'a__'.repeat(n / 3), 16 * 1024)
+    await linear('foo__bar in prose', (n) => 'see foo__bar here '.repeat(n / 18), 32 * 1024)
+    await linear('stars and code spans', (n) => '*a **b `c` '.repeat(n / 11), 8 * 1024)
     assert.deepEqual(shape('a__b__c *d* __e__'), ['a__b__c ', { em: ['d'] }, ' ', { strong: ['e'] }])
     assert.deepEqual(shape('_x foo__bar y_'), [{ em: ['x foo__bar y'] }])
     assert.deepEqual(shape('*a **b** c*'), [{ em: ['a ', { strong: ['b'] }, ' c'] }])
@@ -309,10 +330,10 @@ describe('the report Markdown parser', () => {
     assert.deepEqual(shape('`a__b` *c `*` d*'), ['a__b', ' ', { em: ['c ', '*', ' d'] }])
   })
 
-  it('reads an autolink up to the next <, so a run of them before one > takes linear time', () => {
-    assert.ok(timed(`${'<'.repeat(64 * 1024)}>`) < 1000, '64 KiB of < and one >')
-    assert.ok(timed(`${'<'.repeat(256 * 1024)}>`) < 1000, '256 KiB of < and one >')
-    assert.ok(timed(`${'<http://'.repeat((256 * 1024) / 8)}>`) < 1000, '256 KiB of <http:// and one >')
+  it('reads an autolink up to the next <, so a run of them before one > takes linear time', async () => {
+    // Each < looked as far as the >, a short scan per < until the run is long: 16 KiB, then 8 times as much.
+    await linear('a run of < and one >', (n) => `${'<'.repeat(n)}>`, 16 * 1024, { factor: 8 })
+    await linear('<http:// and one >, up to 256 KiB', (n) => `${'<http://'.repeat(n / 8)}>`, 64 * 1024)
     assert.deepEqual(shape('<<https://b.example/>'), [
       '<',
       { link: 'https://b.example/', label: ['https://b.example/'] },
@@ -320,19 +341,20 @@ describe('the report Markdown parser', () => {
     assert.deepEqual(shape('<https://x.example/a<b>'), ['<https://x.example/a<b>'])
   })
 
-  it('reads a heading and a table’s delimiter row in linear time, however many spaces they hold', () => {
-    assert.ok(timed(`# a${spaces(2)}b`) < 250, 'a heading with 2 KiB of spaces')
-    assert.ok(timed(`# a${spaces(256)}b`) < 1000, 'a heading with 256 KiB of spaces')
-    assert.ok(timed(`a\n## b${spaces(256)}c #`) < 1000, 'a heading under a paragraph')
-    const compared = (k: number) => {
+  it('reads a heading and a table’s delimiter row in linear time, however many spaces they hold', async () => {
+    // Splitting a heading's run of spaces every way was cubic (4 KiB took 26 s), so half a KiB already shows it.
+    await linear('a heading with spaces', (n) => `# a${blank(n)}b`, 512)
+    await linear('a heading under a paragraph', (n) => `a\n## b${blank(n)}c #`, 512)
+    const compared = (n: number) => {
+      const [a, b] = [`# a${blank(n)}b`, `# a${blank(n)}c`]
       const t = performance.now()
-      compareSections(`# a${spaces(k)}b`, `# a${spaces(k)}c`)
+      compareSections(a, b)
       return performance.now() - t
     }
-    assert.ok(compared(2) < 250, 'the sections of two versions with such a heading, 2 KiB of spaces')
-    assert.ok(compared(256) < 1000, 'the sections of two versions with such a heading, 256 KiB of spaces')
-    assert.ok(timed(`a|b\n${spaces(64)}|x`) < 1000, 'a row under a pipe, 64 KiB of spaces then text')
-    assert.ok(timed(`a|b\n|-${spaces(256)}x|`) < 1000, 'a row under a pipe, 256 KiB of spaces in it')
+    await assertGrowth('the sections of two versions with such a heading', compared, 512)
+    await linear('a row under a pipe, spaces then text', (n) => `a|b\n${blank(n)}|x`, 16 * 1024)
+    await linear('a row under a pipe, spaces in it', (n) => `a|b\n|-${blank(n)}x|`, 8 * 1024)
+    assert.equal(only(`# a${spaces(256)}b`).kind, 'heading', 'a heading with 256 KiB of spaces')
     const headings = parseMarkdown('# Title ##\n## a #b\n#   \n# a\u2028b\n####### x\n## x \u2028').blocks
     assert.deepEqual(
       headings.map((b) => (b.kind === 'heading' ? `${b.level}:${plain(b.children)}` : b.kind)),
@@ -346,8 +368,10 @@ describe('the report Markdown parser', () => {
     assert.equal(only('a|b\n|- x|').kind, 'paragraph')
   })
 
-  it('reads a wide table over many short rows in linear time: the cells it fills in are bounded', () => {
-    for (const k of [20, 200, 2000]) assert.ok(timed(wide(k)) < 1500, `a ${k}-cell head over rows of one pipe`)
+  it('reads a wide table over many short rows in linear time: the cells it fills in are bounded', async () => {
+    // At the draft's limit, a head ten times as wide costs about the same; filling every row cost ten times as much.
+    await linear('a 20-, then 200-cell head over rows of one pipe', wide, 20, { factor: 10, limit: 3 })
+    assert.ok(parseMarkdown(wide(2000)).blocks[0]?.kind === 'table', 'a 2000-cell head')
     const [table, rest] = parseMarkdown(wide(200)).blocks
     assert.ok(table?.kind === 'table' && rest?.kind === 'paragraph')
     assert.equal(table.rows.length, Math.floor((1 << 16) / 199), 'rows until 65536 cells are filled in, then text')
@@ -362,16 +386,11 @@ describe('the report Markdown parser', () => {
     )
   })
 
-  it('reads a list item and a citation’s marker label in linear time, however many spaces they hold', () => {
-    for (const [k, limit] of [
-      [2, 250],
-      [256, 1000],
-    ] as const) {
-      assert.ok(timed(`- ${spaces(k)}a\u2028b`) < limit, `an item with ${k} KiB of spaces and a U+2028`)
-      assert.ok(timed(`1. ${spaces(k)}a\u2029b`) < limit, `an ordered item with ${k} KiB of spaces and a U+2029`)
-      assert.ok(timed(`p\n- ${spaces(k)}a\u2028b`) < limit, `such an item under a paragraph, ${k} KiB`)
-      assert.ok(timed(`[${spaces(k)}x](${A})`) < limit, `a citing link's label of ${k} KiB of spaces`)
-    }
+  it('reads a list item and a citation’s marker label in linear time, however many spaces they hold', async () => {
+    await linear('an item with spaces and a U+2028', (n) => `- ${blank(n)}a\u2028b`, 16 * 1024)
+    await linear('an ordered item with spaces and a U+2029', (n) => `1. ${blank(n)}a\u2029b`, 16 * 1024)
+    await linear('such an item under a paragraph', (n) => `p\n- ${blank(n)}a\u2028b`, 16 * 1024)
+    await linear("a citing link's label of spaces", (n) => `[${blank(n)}x](${A})`, 16 * 1024)
     assert.deepEqual(parseMarkdown(`[ 1 ](${A}) [ ^2 ](${B}) [  ](${A})`).citations, [A, B])
     assert.equal(plain((only(`[ 1 ](${A}) [ [2] ](${B})`) as { children: Inline[] }).children), '[1] [2]')
     // The same lines are items as the pattern the parser used read them, on generated lines.
@@ -404,7 +423,7 @@ describe('the report Markdown parser', () => {
     assert.deepEqual(parseMarkdown(`Claim [1](\t${A} ), [2](<source:\t${B}>\t"t").`).citations, [A, B])
   })
 
-  it('cites nothing in a span that opens like an autolink and holds a <', () => {
+  it('cites nothing in a span that opens like an autolink and holds a <', async () => {
     assert.deepEqual(parseMarkdown(`See <https://x.example/a<${A}> here.`).citations, [])
     assert.deepEqual(parseMarkdown(`Open <HTTPS://app.example/s/<${A}>> or <mailto:a<${B}>.`).citations, [])
     assert.deepEqual(shape(`See <https://x.example/a<${A}> here.`), ['See ', `<https://x.example/a<${A}>`, ' here.'])
@@ -415,8 +434,9 @@ describe('the report Markdown parser', () => {
       ' ',
       '[1]',
     ])
-    assert.ok(timed('<http://'.repeat((256 * 1024) / 8)) < 1000, '256 KiB of <http:// and no >')
-    assert.ok(timed(`${'<https://a<'.repeat((256 * 1024) / 11)}>`) < 1000, '256 KiB of <https://a< and one >')
+    // A run of < with no > took each < to the end, a short scan until the run is long: 128 KiB, then 512 KiB.
+    await linear('<http:// and no >', (n) => '<http://'.repeat(n / 8), 128 * 1024)
+    await linear('<https://a< and one >, up to 256 KiB', (n) => `${'<https://a<'.repeat(n / 11)}>`, 64 * 1024)
   })
 
   it('ends a link target on its own parenthesis, those inside it balanced, and never past its line', () => {

@@ -1,22 +1,43 @@
 -- 0036: section facts pair each section at most once, the truth gate reads the conclusion and the recommendations
 -- apart, and a result cites what its draft cites. Run by pnpm test:sql after every migration; it rolls back.
 BEGIN;
+-- How a cost grows, timed so the host's speed and load cancel out: p_query (its %s the size) at p_n and at 4 times p_n,
+-- in turns, the least of each kept (the least is the run the load disturbed least). A scan that costs its length takes
+-- about 4 times as long; the quadratic ones these checks guard took 16 times, and more. It fails at 8, after up to seven
+-- turns, so a burst of load is not a failure; under 5 ms counts as 5, so noise is not divided into. With
+-- sophia.growth_log set to on, each measurement is a notice.
+CREATE FUNCTION pg_temp.assert_linear(p_label text, p_query text, p_n integer) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE small float8:='Infinity'; large float8:='Infinity'; started timestamptz; ratio float8; turns integer:=0;
+ report text;
+BEGIN
+ EXECUTE format(p_query,p_n);
+ WHILE turns<7 LOOP
+  turns:=turns+1; started:=clock_timestamp(); EXECUTE format(p_query,p_n);
+  small:=least(small,1000*extract(epoch FROM clock_timestamp()-started));
+  started:=clock_timestamp(); EXECUTE format(p_query,4*p_n);
+  large:=least(large,1000*extract(epoch FROM clock_timestamp()-started));
+  ratio:=large/greatest(small,5);
+  EXIT WHEN turns>=3 AND ratio<8;
+ END LOOP;
+ report:=format('%s: 4 times the input took %s times as long (%s ms, then %s ms), limit 8, %s turns',p_label,
+  round(ratio::numeric,1),round(small::numeric,1),round(large::numeric,1),turns);
+ IF current_setting('sophia.growth_log',true)='on' THEN RAISE NOTICE 'growth: %',report; END IF;
+ IF ratio>=8 THEN RAISE EXCEPTION '%',report; END IF;
+END $$;
 -- markdown_outline splits as markdown_sections (0027): same sections, anchors, headings and body hashes. One difference
 -- on purpose, as Studio's sectionsOf reads it: text before the first heading that is only newlines and tabs is no
 -- section (markdown_sections' btrim strips spaces alone, so it kept one).
 DO $$ DECLARE t text:=E'Intro.\r\n# Hosts ##\nA.\n\n##\tCosts\n```\n# not a heading\n```\n  ### ???\nx\n#### C# notes\ny\n## Pros #\n';
- blank text:=E'\n \t\r\n# Hosts\nA.\n'; started timestamptz;
+ blank text:=E'\n \t\r\n# Hosts\nA.\n';
 BEGIN
  IF (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord) FROM sophia.markdown_sections(blank))<>ARRAY['(introduction)','Hosts']
    OR (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord) FROM sophia.markdown_outline(blank))<>ARRAY['Hosts']
    OR (SELECT body_hash FROM sophia.markdown_outline(blank))<>(SELECT body_hash FROM sophia.markdown_sections(blank) WHERE ord=1) THEN
   RAISE EXCEPTION 'Blank lines before the first heading: %',(SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(blank)); END IF;
- -- Each body is joined once: a 256 KiB section of short lines (the draft cap) takes well under a second, where adding
- -- line by line copied the body each time (about 2 s here).
- started:=clock_timestamp();
- PERFORM count(*) FROM sophia.markdown_outline(E'# Notes\n'||repeat(E'a\n',131068));
- IF clock_timestamp()-started>interval '1 second' THEN
-  RAISE EXCEPTION 'A long section took %',clock_timestamp()-started; END IF;
+ -- Each body is joined once: a section of short lines 4 times as long takes about 4 times as long, where adding line
+ -- by line copied the body each time (20 times as long, from 64K lines to 256K).
+ PERFORM pg_temp.assert_linear('A long section of short lines',
+  $q$SELECT count(*) FROM sophia.markdown_outline(E'# Notes\n'||repeat(E'a\n',%s))$q$,65536);
  -- Whitespace as Studio's sectionsOf reads it (JavaScript's): an introduction that is only a no-break space or a byte
  -- order mark is no section either, and a heading's text drops them at its ends.
  IF (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord)
@@ -29,13 +50,12 @@ BEGIN
  IF sophia.heading_anchor('Fast'||chr(65279)||'hosts'||chr(160)||chr(160)||'2026')<>'fast-hosts-2026' THEN
   RAISE EXCEPTION 'An anchor read JavaScript whitespace unlike Studio: %',
    sophia.heading_anchor('Fast'||chr(65279)||'hosts'||chr(160)||chr(160)||'2026'); END IF;
- -- One heading line of spaces at the draft cap reads in well under a second (cutting its closing marks with a lazy
- -- match took minutes).
- started:=clock_timestamp();
+ -- One heading line of spaces costs its length (cutting its closing marks with a lazy match tried every split of them:
+ -- 16 times as long for 4 times the spaces, minutes at the draft cap), and keeps its text at the cap.
+ PERFORM pg_temp.assert_linear('A heading line of spaces',
+  $q$SELECT heading FROM sophia.markdown_outline('# a'||repeat(' ',%s)||'b ##')$q$,16384);
  IF (SELECT heading FROM sophia.markdown_outline('# a'||repeat(' ',262140)||'b ##'))<>'a'||repeat(' ',262140)||'b' THEN
   RAISE EXCEPTION 'A long heading lost its text'; END IF;
- IF clock_timestamp()-started>interval '1 second' THEN
-  RAISE EXCEPTION 'A heading line of spaces took %',clock_timestamp()-started; END IF;
  IF EXISTS((SELECT ord,anchor,heading,body_hash FROM sophia.markdown_sections(t)) EXCEPT ALL
    (SELECT ord,anchor,heading,body_hash FROM sophia.markdown_outline(t)))
   OR (SELECT count(*) FROM sophia.markdown_outline(t))<>(SELECT count(*) FROM sophia.markdown_sections(t)) THEN
@@ -47,7 +67,7 @@ END $$;
 -- markdown_outline reads a heading as Studio's sectionsOf does, in one pass. The reference is 0027's loop read as Studio
 -- reads it: its pattern with JavaScript's whitespace and '.' (which stops at CR, U+2028 and U+2029), an introduction
 -- of whitespace alone dropped. They agree on shapes and on 3000 generated texts (closing #s, tabs, line separators,
--- fences, no-break spaces); a heading with 256 KiB of spaces, or 128K short lines, take well under a second.
+-- fences, no-break spaces); a heading's run of spaces and a text's short lines cost their length.
 CREATE FUNCTION pg_temp.studio_outline(p_text text) RETURNS TABLE(ord integer, heading text, body_hash text)
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE ws constant text:='[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]';
@@ -68,7 +88,7 @@ BEGIN
   END IF;
  END LOOP;
 END $$;
-DO $$ DECLARE t text; started timestamptz;
+DO $$ DECLARE t text;
 BEGIN
  FOR t IN SELECT x FROM unnest(ARRAY[E'# Title ##\n## a #b\n#   \n# a'||chr(8232)||E'b\n####### x\n## x \t#  \n#\t#\n# #a#',
    E'# a'||repeat(' ',300)||E'b\n## c'||repeat(' ',300)||'#'||repeat(' ',300)]) x
@@ -79,14 +99,12 @@ BEGIN
    OR (SELECT count(*) FROM sophia.markdown_outline(t))<>(SELECT count(*) FROM pg_temp.studio_outline(t)) THEN
    RAISE EXCEPTION 'markdown_outline reads % differently from Studio',quote_literal(t); END IF;
  END LOOP;
- started:=clock_timestamp();
+ PERFORM pg_temp.assert_linear('Two headings with runs of spaces',
+  $q$SELECT array_agg(heading) FROM sophia.markdown_outline(E'# a'||repeat(' ',%1$s)||E'b\n## c'||repeat(' ',%1$s)||'#  ')$q$,
+  16384);
  IF (SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(E'# a'||repeat(' ',262144)||E'b\n## c'||repeat(' ',262144)||'#  '))
    <>ARRAY['a'||repeat(' ',262144)||'b','c'] THEN RAISE EXCEPTION 'A heading with 256 KiB of spaces read wrong'; END IF;
- IF clock_timestamp()-started>interval '1 second' THEN
-  RAISE EXCEPTION 'A heading with 256 KiB of spaces took %',clock_timestamp()-started; END IF;
- started:=clock_timestamp();
- PERFORM sophia.markdown_outline(repeat(E'x\n',131072));
- IF clock_timestamp()-started>interval '1 second' THEN RAISE EXCEPTION '128K short lines took %',clock_timestamp()-started; END IF;
+ PERFORM pg_temp.assert_linear('A text of short lines',$q$SELECT count(*) FROM sophia.markdown_outline(repeat(E'x\n',%s))$q$,65536);
 END $$;
 -- A repeated subheading is one section per occurrence: identical texts have no change, one edit is one revision, and a
 -- new option's Pros (inserted between A and B) is added. Each section is counted once on each side.
