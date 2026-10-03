@@ -346,6 +346,76 @@ test('the tiles sort by owner or by tool, and glide there', async ({ page }) => 
   expect(await glides(page)).toBe(2)
 })
 
+test('each owner shows as the Studio shows a person: their picture, or their initial', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(tile(page, 'Davide · Codex').locator('.resource-avatar img')).toHaveAttribute('src', /^data:image\/svg/)
+  await expect(tile(page, 'Luis · Claude Code').locator('.resource-avatar .avatar')).toHaveText('L')
+  await open(page, 'Davide · Codex')
+  await expect(sheet(page, 'Davide · Codex').locator('.resource-avatar img')).toBeVisible()
+})
+
+test('every tool has its own colour', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  const accent = (name: string) =>
+    tile(page, name).evaluate((t) => getComputedStyle(t).getPropertyValue('--tool-accent').trim())
+  const halo = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--halo').trim())
+  const colours = await Promise.all(
+    ['Davide · Codex', 'Davide · Claude Code', 'Luis · Gemini CLI', 'Davide · Grok'].map(accent),
+  )
+  expect(new Set(colours).size, 'four tools, four colours').toBe(4)
+  expect(colours, 'none borrows the app’s lavender').not.toContain(halo)
+})
+
+test('the view opens as its viewer left it: filter and order', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await filter(page, 'Mine 2').click()
+  await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  await page.reload()
+  await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('tool')
+  await expect(grid(page).getByRole('button')).toHaveCount(2)
+  await page.goto(`${PAGE}?more=1&viewer=davide`) // another viewer keeps their own
+  await expect(filter(page, 'All 5')).toHaveAttribute('aria-selected', 'true')
+})
+
+test('a resource’s sheet has its own address, to share; the address opens it', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(PAGE)
+  await open(page, 'Davide · Codex')
+  await expect(page).toHaveURL(/#resource-davide-codex$/)
+  await page.getByRole('button', { name: 'Copy link' }).click()
+  await expect(page.getByRole('button', { name: 'Link copied' })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/resources\.html#resource-davide-codex$/)
+  await page.reload()
+  await expect(sheet(page, 'Davide · Codex')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page).not.toHaveURL(/#/)
+  await page.goto(`${PAGE}#resource-nobody`) // an address naming no resource opens nothing
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('arrow keys move across the tiles; Tab leaves the grid in one step', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  const names = await grid(page)
+    .getByRole('button')
+    .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label') ?? ''))
+  const at = (i: number) => tile(page, names[i] ?? '')
+  await at(0).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(at(1)).toBeFocused()
+  await page.keyboard.press('ArrowDown') // three tiles to a row at this width
+  await expect(at(4)).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(at(0)).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(at(4)).toBeFocused()
+  await page.keyboard.press('ArrowRight') // the last stays the last
+  await expect(at(4)).toBeFocused()
+  await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
+  await page.keyboard.press('Tab')
+  await expect(grid(page).getByRole('button').and(page.locator(':focus'))).toHaveCount(0)
+})
+
 test('the viewer’s own resource says so', async ({ page }) => {
   await page.goto(PAGE)
   await expect(tile(page, 'Luis · Claude Code').getByText('You', { exact: true })).toBeVisible()
@@ -452,6 +522,22 @@ test('motion · a filter glides the tiles to their places; typing a search moves
     .getByRole('listitem')
     .evaluateAll((items) => items.map((li) => getComputedStyle(li).viewTransitionName))
   expect(new Set(names).size, 'one name per tile').toBe(names.length)
+})
+
+test('motion · glides cut short by the next one leave no error behind', async ({ page }) => {
+  await page.addInitScript(() => {
+    const rejected: string[] = []
+    Object.defineProperty(window, 'rejected', { get: () => rejected })
+    window.addEventListener('unhandledrejection', (e) => rejected.push(String(e.reason)))
+  })
+  await page.goto(`${PAGE}?more=1`)
+  // Every filter at once: each glide starts while the one before still runs, and cuts it short.
+  await page
+    .getByRole('tablist', { name: 'Show' })
+    .evaluate((list) => list.querySelectorAll<HTMLButtonElement>('[role="tab"]').forEach((tab) => tab.click()))
+  await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
+  await page.waitForTimeout(500)
+  expect(await page.evaluate(() => String(Reflect.get(window, 'rejected')))).toBe('')
 })
 
 test('motion · tiles arrive one after another, meters fill, and what waits keeps a pulse', async ({ page }) => {

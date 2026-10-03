@@ -41,7 +41,8 @@ export interface Session {
 export interface Resource {
   /** The enrollment: `davide-codex`, `davide-claude`, `luis-claude`. */
   id: string
-  owner: { id: string; name: string }
+  /** The owner, with their account's picture when the provider gives one. */
+  owner: { id: string; name: string; avatarUrl?: string | null }
   tool: Tool
   /** The owner's account behind it: sessions on one account share one allowance. */
   entitlementId: string

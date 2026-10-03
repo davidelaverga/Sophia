@@ -18,6 +18,8 @@ import {
   type Session,
   type Support,
 } from './resource.ts'
+import { CopyLink } from './CopyLink.tsx'
+import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
@@ -97,18 +99,19 @@ function Head({ resource, mine, onClose }: { resource: Resource; mine: boolean; 
               <span className="resource-vendor">{VENDOR[tool]}</span>
             </h2>
             <span className="resource-owner">
-              <span className="resource-initial" aria-hidden>
-                {owner.name.charAt(0)}
-              </span>
+              <OwnerAvatar owner={owner} />
               {owner.name}
               {mine && <Tag tone="lav">You</Tag>}
             </span>
           </span>
         </span>
-        <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
-          <Icon name="close" />
-          <Tip label="Close" keys="Esc" side="bottom" align="end" />
-        </button>
+        <span className="resource-sheet-actions">
+          <CopyLink />
+          <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
+            <Icon name="close" />
+            <Tip label="Close" keys="Esc" side="bottom" align="end" />
+          </button>
+        </span>
       </header>
     </div>
   )

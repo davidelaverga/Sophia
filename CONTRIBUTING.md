@@ -452,7 +452,10 @@ when you change the room:
   Code's `five_hour` and `seven_day`; Codex reports its own durations, which
   the observation can't carry yet), and the sheet says when the account runs
   out before the reset at that pace (`busy=1`; `spent=1` passes a spend
-  limit).
+  limit). Owners show as the app's `Avatar`; each tool has its own colour.
+  The filter and order are kept per viewer in this browser (`prefs.ts`); a
+  sheet's address is `#resource-<id>` (`link.ts`); arrow keys move across
+  the tiles, one Tab stop for the grid.
 
 ## The personal space
 

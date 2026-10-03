@@ -2,12 +2,14 @@
 // they grow to tens, with one line on top only while a request waits on an owner. A tile opens the resource's sheet,
 // where everything else is. It goes in ProjectShell's `resources`. It shows; it doesn't steer, hold or stop
 // (LFE-06.4), and nothing here calls a tool.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Tip, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { linkedResource, showInAddress } from './link.ts'
 import { glideName, moving } from './motion.ts'
 import { ORDER_LABEL, ordered, ORDERS, type Order } from './order.ts'
+import { readPrefs, savePrefs } from './prefs.ts'
 import { ResourceSheet } from './ResourceSheet.tsx'
 import { ResourceTile } from './ResourceTile.tsx'
 import {
@@ -197,8 +199,10 @@ function Sort({ order, onChange }: SortProps) {
 
 function useView({ resources, actions, viewerId }: Props) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [order, setOrder] = useState<Order>('attention')
+  const [kept] = useState(() => readPrefs(viewerId))
+  const [filter, setFilter] = useState<Filter>(kept.filter)
+  const [order, setOrder] = useState<Order>(kept.order)
+  useEffect(() => savePrefs(viewerId, { filter, order }), [viewerId, filter, order])
   const found = resources.filter((r) => matches(r, query))
   const count = (f: Filter) => found.filter((r) => inFilter(f, r, actions, viewerId)).length
   const counts: Record<Filter, number> = {
@@ -215,6 +219,39 @@ function useView({ resources, actions, viewerId }: Props) {
   return { query, setQuery, filter, setFilter, order, setOrder, counts, shown }
 }
 
+const STEP: Record<string, (columns: number) => number> = {
+  ArrowRight: () => 1,
+  ArrowLeft: () => -1,
+  ArrowDown: (columns) => columns,
+  ArrowUp: (columns) => -columns,
+}
+
+/** Which tile a key moves to, in a grid of `columns`: arrows by one or a row, Home and End to the ends. */
+function moveTo(key: string, from: number, count: number, columns: number): number | null {
+  if (key === 'Home') return 0
+  if (key === 'End') return count - 1
+  const step = STEP[key]?.(columns)
+  if (step === undefined) return null
+  const to = from + step
+  return to >= 0 && to < count ? to : null
+}
+
+/** One tile in the Tab order (the last one focused); arrow keys, Home and End move across the grid. */
+function useRoving(count: number) {
+  const tiles = useRef<(HTMLButtonElement | null)[]>([])
+  const [active, setActive] = useState(0)
+  const current = Math.min(active, Math.max(0, count - 1))
+  const onKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
+    const columns = getComputedStyle(e.currentTarget).gridTemplateColumns.split(' ').length
+    const to = moveTo(e.key, current, count, columns)
+    if (to === null) return
+    e.preventDefault()
+    setActive(to)
+    tiles.current[to]?.focus()
+  }
+  return { tiles, current, setActive, onKeyDown }
+}
+
 const observationOf = (observations: QuotaObservation[], r: Resource) =>
   observations.find((o) => o.entitlement_id === r.entitlementId)
 
@@ -222,6 +259,7 @@ const observationOf = (observations: QuotaObservation[], r: Resource) =>
 function Browse(props: Props & { onOpen: (id: string) => void }) {
   const { resources, observations, actions, viewerId, now, onOpen } = props
   const view = useView(props)
+  const roving = useRoving(view.shown.length)
   return (
     <>
       <div className="resources-toolbar">
@@ -240,7 +278,7 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
           onAll={() => moving(() => view.setFilter('all'))}
         />
       ) : (
-        <ul id="resource-grid" className="resource-grid" aria-label="Resources">
+        <ul id="resource-grid" className="resource-grid" aria-label="Resources" onKeyDown={roving.onKeyDown}>
           {view.shown.map((r, i) => (
             // Each arrives a beat after the one before (the first eight), and glides when a filter moves it.
             <li key={r.id} style={{ '--i': Math.min(i, 8), viewTransitionName: glideName(r.id) }}>
@@ -251,6 +289,11 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
                 mine={r.owner.id === viewerId}
                 waiting={openOn(actions, r.id)}
                 onOpen={() => onOpen(r.id)}
+                current={i === roving.current}
+                onFocus={() => roving.setActive(i)}
+                ref={(el) => {
+                  roving.tiles.current[i] = el
+                }}
               />
             </li>
           ))}
@@ -262,8 +305,17 @@ function Browse(props: Props & { onOpen: (id: string) => void }) {
 
 export function ResourcePanel(props: Props) {
   const { resources, observations, actions, viewerId, now } = props
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(() =>
+    linkedResource(
+      window.location.hash,
+      resources.map((r) => r.id),
+    ),
+  )
   const selected = resources.find((r) => r.id === open)
+  const show = (id: string | null) => {
+    setOpen(id)
+    showInAddress(id)
+  }
   return (
     <section className="resources" aria-labelledby="resources-title">
       <header className="view-head">
@@ -271,11 +323,11 @@ export function ResourcePanel(props: Props) {
         <span className="count">{resources.length}</span>
         <span className="resources-summary">{summary(resources, actions)}</span>
       </header>
-      <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={setOpen} />
+      <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />
       {resources.length === 0 ? (
         <p className="view-note">No tool is enrolled for this project yet. An owner enrolls one from their own host.</p>
       ) : (
-        <Browse {...props} onOpen={setOpen} />
+        <Browse {...props} onOpen={show} />
       )}
       {selected && (
         <ResourceSheet
@@ -284,7 +336,7 @@ export function ResourcePanel(props: Props) {
           actions={actions}
           viewerId={viewerId}
           now={now}
-          onClose={() => setOpen(null)}
+          onClose={() => show(null)}
         />
       )}
     </section>

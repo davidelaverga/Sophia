@@ -269,16 +269,18 @@
   color: var(--text-2);
   font-size: 13px;
 }
-.resource-initial {
-  display: grid;
-  place-items: center;
+/* An owner's picture, or their initial, at the size of the line it sits in. */
+.resource-avatar .avatar {
   width: 16px;
   height: 16px;
-  border-radius: 50%;
-  background: var(--line-2);
-  font-size: 10px;
-  font-weight: 600;
+  border-color: var(--line-2);
   color: var(--text);
+  font-size: 9.5px;
+  object-fit: cover;
+}
+.resource-sheet-actions {
+  display: flex;
+  gap: 2px;
 }
 .resource-host {
   display: flex;
@@ -515,6 +517,16 @@
 }
 [data-tool='gemini-cli'] {
   --tool-accent: #8e75b2;
+}
+/* Codex's mark is blue; the one-colour marks (Grok, Copilot, Cursor) take a cool silver, so none borrows the app's
+   own lavender. */
+[data-tool='codex'] {
+  --tool-accent: #6f8cff;
+}
+[data-tool='grok'],
+[data-tool='github-copilot'],
+[data-tool='cursor'] {
+  --tool-accent: #c3c7d4;
 }
 .tool-logo {
   display: inline-grid;
