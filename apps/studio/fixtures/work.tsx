@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import { PlanView } from '../src/features/work/planning/PlanView.tsx'
+import { current } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
@@ -27,6 +28,8 @@ const nothing = () => undefined
 
 const query = new URLSearchParams(window.location.search)
 const state = query.get('superseded') === '1' ? 'superseded' : query.get('proposed') === '1' ? 'proposed' : 'accepted'
+/** The plan in force or proposed: the slot stays empty otherwise, so Tasks shows its goal as it does without one. */
+const shown = current(plan(state))
 
 const root = document.getElementById('root')
 if (!root) throw new Error('work.html must contain #root')
@@ -47,7 +50,7 @@ createRoot(root).render(
           onLeave={nothing}
           onWork={nothing}
           onSignOut={nothing}
-          plan={<PlanView plan={plan(state)} resources={resources} people={people} />}
+          plan={shown && <PlanView plan={shown} resources={resources} people={people} />}
         />
       </ShortcutScope.Provider>
     </QueryClientProvider>

@@ -65,6 +65,58 @@ The plan's data is `sophia.work.plan.v1` as it is. The Studio proposes four more
   - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass;
   - `pnpm test`: 606 pass, plus the 5 known Windows failures.
 
+## Luis's evaluation: "it's all mixed, I don't know where to look first"
+
+Luis asked for a strict evaluation, then for the fix, keeping the app's premium look: icons and badges for contrast, quality of life, and micro-interactions such as the two Claude Codes greeting.
+
+- **What was measured on the first version:**
+  - one screen held about 177 words, 9 font sizes, 18 type styles, 6 colours, 4 tags, 5 pictures and 6 section labels, all at much the same weight;
+  - the one thing that asked for action (a decision for Davide) sat at the bottom;
+  - the plan ran 697 px under a 14 px heading, smaller than the goal's;
+  - each task's state sat at a different place along its line;
+  - "Implement the PDF retry" appeared three times;
+  - "Tasks 1" counted goals.
+- **What changed:**
+  - **The goal** reads in two lines: its status beside its title, its outcome under them. Its criteria fold into "2 criteria". The goal count leaves the head.
+  - **The plan's head:** PLAN r2 Accepted on the left, and on the right a tally of where its tasks stand, each with the same mark as its rows: "1 waiting · 1 working · 2 not started · 1 free".
+  - **The next checkpoint** is the plan's lead sentence, at 15 px.
+  - **What waits on a decision is raised above the tasks,** in the attention colour, with the decider's picture: "Davide decides", the question, and its choices, which are read, not pressed.
+  - **One line per task,** ordered by what moves (what waits on someone first, what no one has last), with each child under its parent:
+    - the mark: filled amber with a slow ping when the task waits on someone, filled teal while it works, hollow before it starts, dashed when no one has it;
+    - the task;
+    - where it stands, in its own column ("Waiting on Davide", "Working", "After …", "Once there is a candidate to review", "Free to take");
+    - who does it: their picture with their tool's logo set on its corner like a badge, named on hover. A quiet ring stands for a session not running yet, a dashed one for no one.
+  - **The micro-interaction:** hovering a task lights the tasks it waits on. Their row warms and their mark takes a lavender ring, the way the two Claude Codes notice each other in Resources.
+  - **Assumed and Decided** fold into one quiet line, "2 assumed · 1 decided".
+- **Measured after:**
+  - the whole plan ends at 740 px, inside a 1068 px screen (it ran to 1028 px before);
+  - 146 words;
+  - its own type is 15, 13 and 10.5 px; the view title and tags keep the app's sizes.
+- **Checked:**
+  - ten browser checks and five unit checks;
+  - the marks and the "where it stands" words each form one column;
+  - each picture is centred on its line, measured at rest after the rows arrive;
+  - the empty rings are whole: a capture showed them collapsed to slivers once a rule was dropped, and a check now measures them;
+  - with reduced motion asked for, nothing moves.
+- **Fifteen mutations** each made a check fail:
+  - the plan order instead of what moves;
+  - children not grouped;
+  - a superseded plan shown;
+  - "waiting" said as working;
+  - a review waiting on nothing;
+  - hovering lighting nothing;
+  - something decided raised again;
+  - the fold open from the start;
+  - the criteria open over the plan;
+  - "no one" and "not running" looking alike;
+  - the ping ignoring reduced motion;
+  - the status words out of their column;
+  - the pictures off their line;
+  - the empty ring collapsed.
+
+  A rule that changed nothing measurable was removed.
+- `test:browser --repeat-each=2`: 168 of 168. `pnpm test`: 607 pass, plus the 5 known Windows failures.
+
 ## Remaining obligations
 
 - **Davide (SCM-04):**

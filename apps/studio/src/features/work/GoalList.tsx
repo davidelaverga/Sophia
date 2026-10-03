@@ -22,14 +22,22 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
     <section className="goals" aria-labelledby="goals-title">
       <header className="view-head">
         <h2 id="goals-title">{controls ? 'Tasks' : 'Goals'}</h2>
-        {snapshot && <span className="count">{snapshot.goals.length}</span>}
+        {/* It counts goals: under a plan, its tasks are counted in the plan's own head instead. */}
+        {!plan && <GoalCount snapshot={snapshot} />}
       </header>
       {!snapshot && <div className="goal skeleton" aria-busy="true" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       <ol className="goal-list">
         {snapshot?.goals.map((g) => (
-          <GoalCard key={g.id} goal={g} projectId={projectId} identity={identity} controls={controls && canAct} />
+          <GoalCard
+            key={g.id}
+            goal={g}
+            projectId={projectId}
+            identity={identity}
+            controls={controls && canAct}
+            compact={!!plan}
+          />
         ))}
       </ol>
       {snapshot && snapshot.goals.length > 0 && plan}
@@ -37,6 +45,9 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
     </section>
   )
 }
+
+const GoalCount = ({ snapshot }: { snapshot: Snapshot | undefined }) =>
+  snapshot ? <span className="count">{snapshot.goals.length}</span> : null
 
 /** A viewer on Tasks is told who can act on the goals, once there are goals to act on. */
 function ViewerNote({ snapshot }: { snapshot: Snapshot | undefined }) {

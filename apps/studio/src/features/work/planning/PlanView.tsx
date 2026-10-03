@@ -1,12 +1,28 @@
-// The lead's plan in Tasks, under the goal it serves (LFE-07.1): its revision and whether it is accepted, the next
-// checkpoint, each item with who does it and when it starts, then what it assumes and what it leaves to someone to
-// decide. It reads; nothing here acts yet, so nothing looks like it does (editing a plan revision is a later slice).
-import { Tag } from '@sophia/ui'
-import { OwnerAvatar } from '../../resources/OwnerAvatar.tsx'
+// The lead's plan in Tasks, under the goal it serves (LFE-07.1). One thing to read first, then one line per task:
+// - its head: PLAN r2 and whether it is accepted, and a tally of where its tasks stand, each with its mark;
+// - the next checkpoint, as its lead sentence;
+// - what waits on someone's decision, raised, with who decides;
+// - its tasks, one line each, ordered by what moves: a mark, the task, where it stands in words, and who does it (a
+//   picture with their tool's logo on it). Hovering a task lights the tasks it waits on;
+// - what it assumes and what was decided, folded into one quiet line.
+// It reads; only the fold acts. Editing a plan revision is a later slice.
+import { useState } from 'react'
+import { Icon, Tag, Tip } from '@sophia/ui'
+import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
-import { WORK_STATE, type Resource } from '../../resources/resource.ts'
+import type { Resource } from '../../resources/resource.ts'
 import '../../resources/resources.css'
-import { current, planRows, startsWhen, whoDoes, type PlanDecision, type PlanItem, type WorkPlan } from './plan.ts'
+import {
+  current,
+  planRows,
+  tally,
+  waitsOn,
+  type Doer,
+  type Mark,
+  type PlanDecision,
+  type PlanRow,
+  type WorkPlan,
+} from './plan.ts'
 import './plan.css'
 
 type Person = Resource['owner']
@@ -19,101 +35,164 @@ interface Props {
   people: Record<string, Person>
 }
 
-const STATE = {
-  accepted: ['teal', 'Accepted'],
-  proposed: ['amber', 'Proposed · not accepted yet'],
-} as const
+const MARK_WORDS: Record<Mark, string> = {
+  waiting: 'waiting',
+  working: 'working',
+  queued: 'queued',
+  later: 'not started',
+  free: 'free',
+}
 
-function Item({ item, depth, plan, resources, people }: Omit<Props, 'plan'> & ItemProps) {
-  const doer = whoDoes(item, resources, people)
+/** Where a task stands, as a mark: filled when it runs, hollow before it starts, dashed when no one has it. */
+const StatusMark = ({ mark }: { mark: Mark }) => <span className="plan-mark" data-mark={mark} aria-hidden />
+
+const face = (p: Person) => ({ name: p.name, displayName: p.name, avatarUrl: p.avatarUrl ?? null })
+
+/** Who does it: their picture with their tool's logo on it, named on hover; an empty ring when no one does. */
+function Who({ doer }: { doer: Doer }) {
+  const label = doer.role ? `${doer.name} · ${doer.role}` : doer.name
   return (
-    <li className="plan-item" data-depth={depth}>
-      <p className="plan-purpose">
-        {item.purpose}
-        {doer.state && <Tag tone={WORK_STATE[doer.state][0]}>{WORK_STATE[doer.state][1]}</Tag>}
-      </p>
-      <p className="plan-who">
-        {doer.person && <OwnerAvatar owner={doer.person} />}
-        {doer.resource && <ToolLogo tool={doer.resource.tool} size="sm" />}
-        <span>{doer.name}</span>
-        {doer.role && <span className="muted">{doer.role}</span>}
-        {/* When it starts, until it has: then its session says what it is doing. */}
-        {!doer.state && <span className="plan-when">{startsWhen(item, plan)}</span>}
-      </p>
+    <span className="plan-who has-tip" aria-label={label}>
+      {doer.person ? (
+        <Avatar identity={face(doer.person)} />
+      ) : (
+        // Assigned to a session not running yet: a quiet ring. No one at all: a dashed one, free to take.
+        <span className="plan-nobody" data-free={doer.name === 'Unassigned' || undefined} />
+      )}
+      {doer.resource && <ToolLogo tool={doer.resource.tool} size="sm" />}
+      <Tip label={label} side="top" align="end" />
+    </span>
+  )
+}
+
+function Row({ row, lit, onLight }: { row: PlanRow; lit: boolean; onLight: (id: string | null) => void }) {
+  const { item, doer, status, depth } = row
+  return (
+    <li
+      className="plan-row"
+      data-mark={status.mark}
+      data-depth={depth}
+      data-lit={lit || undefined}
+      onPointerEnter={() => onLight(item.id)}
+      onPointerLeave={() => onLight(null)}
+    >
+      <StatusMark mark={status.mark} />
+      <span className="plan-task">{item.purpose}</span>
+      <span className="plan-status">{status.text}</span>
+      <Who doer={doer} />
     </li>
   )
 }
 
-interface ItemProps {
-  item: PlanItem
-  depth: number
-  plan: WorkPlan
-}
-
-/** A decision the plan reserves: who decides, and its choices, read here, answered where it is asked. */
-function Decision({ decision, people }: { decision: PlanDecision; people: Record<string, Person> }) {
+/** A decision the plan leaves to someone, raised above the tasks: who decides, the question, its choices. */
+function Ask({ decision, people }: { decision: PlanDecision; people: Record<string, Person> }) {
   const decider = people[decision.decider_id]
-  const chosen = decision.choices.find((c) => c.key === decision.selected_choice)
   return (
-    <li className="plan-decision">
-      <p>{decision.question}</p>
-      <p className="plan-who">
-        {decider && <OwnerAvatar owner={decider} />}
-        <span>{chosen ? `${decider?.name ?? 'Someone'} chose` : `${decider?.name ?? 'Someone'} decides`}</span>
-        <span className="plan-choices">{chosen ? chosen.label : decision.choices.map((c) => c.label).join(' · ')}</span>
-      </p>
-    </li>
+    <section className="plan-ask" aria-label={`${decider?.name ?? 'Someone'} decides`}>
+      {decider && <Avatar identity={face(decider)} />}
+      <div className="plan-ask-body">
+        <p className="field-label">{decider?.name ?? 'Someone'} decides</p>
+        <p className="plan-ask-question">{decision.question}</p>
+        <p className="plan-ask-choices">{decision.choices.map((c) => c.label).join('  or  ')}</p>
+      </div>
+    </section>
   )
 }
 
-function Decisions({ title, list, people }: { title: string; list: PlanDecision[]; people: Props['people'] }) {
-  if (list.length === 0) return null
+function Head({ plan, rows }: { plan: WorkPlan; rows: PlanRow[] }) {
   return (
-    <section className="plan-part" aria-label={title}>
-      <h4 className="field-label">{title}</h4>
-      <ul className="plan-list">
-        {list.map((d) => (
-          <Decision key={d.decision_id} decision={d} people={people} />
+    <header className="plan-head">
+      <h3 id="plan-title" className="plan-title">
+        <span className="field-label">Plan</span>
+        <span className="count">r{plan.revision}</span>
+        {plan.state === 'accepted' ? (
+          <Tag tone="teal">Accepted</Tag>
+        ) : (
+          <Tag tone="amber">Proposed · not accepted yet</Tag>
+        )}
+      </h3>
+      <ul className="plan-tally" aria-label="Where its tasks stand">
+        {tally(rows).map(({ mark, count }) => (
+          <li key={mark} data-mark={mark}>
+            <StatusMark mark={mark} />
+            {count} {MARK_WORDS[mark]}
+          </li>
         ))}
       </ul>
-    </section>
+    </header>
   )
 }
 
 export function PlanView({ plan: given, resources, people }: Props) {
+  const [lit, setLit] = useState<string | null>(null)
   const plan = current(given)
   if (!plan) return null
-  const state = plan.state === 'accepted' ? STATE.accepted : STATE.proposed
+  const rows = planRows(plan, resources, people)
+  const lighting = rows.find((r) => r.item.id === lit)?.item
+  const linked = new Set(lighting ? waitsOn(lighting) : [])
   return (
     <section className="plan" aria-labelledby="plan-title">
-      <h3 id="plan-title" className="view-subhead plan-head">
-        Plan
-        <span className="count">r{plan.revision}</span>
-        <Tag tone={state[0]}>{state[1]}</Tag>
-      </h3>
+      <Head plan={plan} rows={rows} />
       {plan.next_checkpoint && (
         <p className="plan-checkpoint">
-          <span className="field-label">Next checkpoint</span>
+          <span className="field-label">Next</span>
           {plan.next_checkpoint.label}
         </p>
       )}
-      <ol className="plan-items" aria-label="Its work">
-        {planRows(plan).map(({ item, depth }) => (
-          <Item key={item.id} item={item} depth={depth} plan={plan} resources={resources} people={people} />
+      {plan.decisions
+        .filter((d) => d.state === 'proposed')
+        .map((d) => (
+          <Ask key={d.decision_id} decision={d} people={people} />
+        ))}
+      <ol className="plan-rows" aria-label="Its tasks">
+        {rows.map((row) => (
+          <Row key={row.item.id} row={row} lit={linked.has(row.item.id)} onLight={setLit} />
         ))}
       </ol>
-      {plan.assumptions.length > 0 && (
-        <section className="plan-part" aria-label="Assumed">
-          <h4 className="field-label">Assumed</h4>
-          <ul className="plan-list plan-assumed">
-            {plan.assumptions.map((a) => (
-              <li key={a.id}>{a.text}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <Decisions title="To decide" list={plan.decisions.filter((d) => d.state === 'proposed')} people={people} />
-      <Decisions title="Decided" list={plan.decisions.filter((d) => d.state === 'accepted')} people={people} />
+      <Folded plan={plan} people={people} />
     </section>
+  )
+}
+
+/** What the plan assumes and what was decided: one quiet line, opened on request. */
+function Folded({ plan, people }: { plan: WorkPlan; people: Record<string, Person> }) {
+  const [open, setOpen] = useState(false)
+  const decided = plan.decisions.filter((d) => d.state === 'accepted')
+  if (plan.assumptions.length === 0 && decided.length === 0) return null
+  const said = [
+    plan.assumptions.length > 0 && `${plan.assumptions.length} assumed`,
+    decided.length > 0 && `${decided.length} decided`,
+  ].filter(Boolean)
+  return (
+    <div className="plan-fold">
+      <button type="button" className="ghost plan-fold-button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {said.join(' · ')}
+        <Icon name="chevron" size={12} />
+      </button>
+      {open && (
+        <div className="plan-fold-body">
+          {plan.assumptions.length > 0 && (
+            <ul className="plan-assumed" aria-label="Assumed">
+              {plan.assumptions.map((a) => (
+                <li key={a.id}>{a.text}</li>
+              ))}
+            </ul>
+          )}
+          {decided.length > 0 && (
+            <ul className="plan-decided" aria-label="Decided">
+              {decided.map((d) => (
+                <li key={d.decision_id}>
+                  {d.question}{' '}
+                  <span className="muted">
+                    {people[d.decider_id]?.name ?? 'Someone'} chose{' '}
+                    {d.choices.find((c) => c.key === d.selected_choice)?.label ?? 'one'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

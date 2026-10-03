@@ -1,122 +1,332 @@
-/* The lead's plan, in Tasks under its goal: the view's own ruled rows and quiet labels, nothing louder. */
+/* The lead's plan, in Tasks under its goal. Three sizes only: 15 px for what to read first (the next checkpoint, a
+   question), 13 px for the tasks, 10.5 px mono capitals for labels. Marks and pictures carry the contrast, not words. */
 .plan {
   display: grid;
-  gap: 4px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 22px;
 }
 .plan-head {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.plan-title {
+  display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 13px;
 }
+.plan-title .count {
+  font-size: 10.5px;
+}
+
+/* Where its tasks stand, counted, each with the mark its tasks carry below. */
+.plan-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.plan-tally li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .plan-checkpoint {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
-  margin: 4px 0 2px;
+  gap: 4px 12px;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 15px;
+  letter-spacing: -0.01em;
 }
-.plan-items,
-.plan-list {
+
+/* What waits on someone's decision: raised above the tasks, in the attention colour, with who decides. */
+.plan-ask {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(239, 191, 134, 0.18);
+  border-radius: var(--r-3);
+  background: linear-gradient(90deg, rgba(239, 191, 134, 0.07), rgba(239, 191, 134, 0.02));
+  animation: arrive 0.4s var(--ease) both;
+}
+.plan-ask-body {
+  display: grid;
+  gap: 4px;
+}
+.plan-ask .field-label {
+  color: var(--amber);
+}
+.plan-ask-question {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.plan-ask-choices {
+  color: var(--text-3);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+/* One line per task: its mark, the task, where it stands, who does it. The marks make one column to read down. */
+.plan-rows {
   margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--line);
 }
-/* One ruled row per item; one grouped under another steps in, with a short elbow from its parent. */
-.plan-item {
-  position: relative;
+.plan-row {
   display: grid;
-  gap: 6px;
-  padding: 14px 0;
+  grid-template-columns: 8px minmax(0, 1fr) minmax(0, 240px) 28px;
+  align-items: center;
+  gap: 14px;
+  min-height: 46px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  transition: background-color var(--fast) var(--ease);
   animation: arrive 0.4s var(--ease) both;
 }
-/* A parent and the item grouped under it read as one: no rule between them, an elbow from one to the other. */
-.plan-item:has(+ .plan-item[data-depth='1']) {
-  padding-bottom: 6px;
-  border-bottom: 0;
+.plan-row:nth-child(2) {
+  animation-delay: 40ms;
 }
-.plan-item[data-depth='1'] {
-  padding-top: 6px;
-  padding-left: 22px;
+.plan-row:nth-child(3) {
+  animation-delay: 80ms;
 }
-.plan-item[data-depth='1']::before {
+.plan-row:nth-child(4) {
+  animation-delay: 120ms;
+}
+.plan-row:nth-child(n + 5) {
+  animation-delay: 160ms;
+}
+.plan-row:hover {
+  background: rgba(236, 235, 241, 0.025);
+}
+.plan-task {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.plan-status {
+  overflow: hidden;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.plan-row[data-mark='waiting'] .plan-status {
+  color: var(--amber);
+}
+.plan-row[data-mark='working'] .plan-status {
+  color: var(--teal);
+}
+
+/* A task grouped under another: no rule between them, an elbow from its parent's mark to its own words. */
+.plan-row:has(+ .plan-row[data-depth='1']) {
+  border-bottom-color: transparent;
+}
+.plan-row[data-depth='1'] .plan-task {
+  position: relative;
+  padding-left: 20px;
+}
+.plan-row[data-depth='1'] .plan-task::before {
   content: '';
   position: absolute;
-  left: 6px;
-  top: 0;
-  width: 9px;
-  height: calc(6px + 0.7em);
-  border-left: 1px solid var(--line-2);
-  border-bottom: 1px solid var(--line-2);
+  left: 2px;
+  top: -16px;
+  width: 10px;
+  height: calc(16px + 0.7em);
+  border-left: 1px solid var(--line-3);
+  border-bottom: 1px solid var(--line-3);
   border-bottom-left-radius: var(--r-1);
 }
-.plan-purpose {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-  font-size: 14px;
-  line-height: 1.4;
+
+/* The marks. Filled once it runs (amber when it waits on someone, with a slow ping; teal when it works); hollow before
+   it starts; dashed when no one has it. */
+.plan-mark {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+  transition: box-shadow var(--base) var(--ease);
 }
+.plan-mark[data-mark='waiting'] {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+.plan-mark[data-mark='waiting']::after {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: waiting-ping 2.4s var(--ease) infinite;
+}
+.plan-mark[data-mark='working'] {
+  border-color: var(--teal);
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.14);
+}
+.plan-mark[data-mark='queued'] {
+  border-color: var(--text-3);
+  background: var(--text-3);
+}
+.plan-mark[data-mark='free'] {
+  border-style: dashed;
+  border-color: var(--text-4);
+}
+
+/* Hovering a task lights the tasks it waits on: their row warms and their mark takes a lavender ring. */
+.plan-row[data-lit] {
+  background: rgba(156, 130, 245, 0.07);
+}
+.plan-row[data-lit] .plan-mark {
+  box-shadow: 0 0 0 4px rgba(156, 130, 245, 0.28);
+}
+
+/* Who does it: their picture, their tool's logo set on its corner like a badge; an empty dashed ring when no one. */
 .plan-who {
+  position: relative;
+  justify-self: end;
+  width: 24px;
+  height: 24px;
+}
+.plan-who .avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 10.5px;
+}
+.plan-who .tool-logo.sm {
+  position: absolute;
+  right: -5px;
+  bottom: -4px;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border-radius: 50%;
+  background: var(--plane);
+  box-shadow: 0 0 0 1.5px var(--plane);
+}
+.plan-who .tool-logo.sm img,
+.plan-who .tool-logo.sm .tool-logo-mark {
+  width: 11px;
+  height: 11px;
+}
+.plan-nobody {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-3);
+  border-radius: 50%;
+  background: rgba(236, 235, 241, 0.03);
+}
+.plan-nobody[data-free] {
+  border-style: dashed;
+  border-color: var(--text-4);
+  background: none;
+}
+
+/* The goal above its plan: its status beside its title, its criteria behind one quiet line. */
+.goal.compact .goal-title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  color: var(--text-2);
+  gap: 6px 10px;
+}
+.goal.compact .goal-outcome {
   font-size: 13px;
 }
-/* A picture centred on its words: as a box of its own, not a letter sitting on the line's baseline. */
-.plan-who .resource-avatar {
-  display: inline-flex;
-}
-.plan-who .muted::before,
-.plan-when::before,
-.plan-choices::before {
-  content: '·';
-  margin-right: 8px;
-  color: var(--text-4);
-}
-.plan-when,
-.plan-choices {
+.goal-criteria-button {
+  justify-self: start;
+  margin-left: -8px;
   color: var(--text-3);
 }
-.plan-part {
-  display: grid;
-  gap: 8px;
-  margin-top: 18px;
+.goal-criteria-button .icon {
+  transition: transform var(--fast) var(--ease);
 }
-.plan-list {
+.goal-criteria-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+
+/* What it assumes and what was decided: one quiet line, opened on request. */
+.plan-fold {
   display: grid;
   gap: 10px;
 }
-.plan-decision {
-  display: grid;
-  gap: 4px;
-  font-size: 13.5px;
+.plan-fold-button {
+  justify-self: start;
+  margin-left: -8px;
+  color: var(--text-3);
 }
-/* What the plan takes as true without anyone accepting it: apart, quieter, each with an open mark. */
+.plan-fold-button .icon {
+  transition: transform var(--fast) var(--ease);
+}
+.plan-fold-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.plan-fold-body {
+  display: grid;
+  gap: 10px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.plan-assumed,
+.plan-decided {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 13px;
+}
 .plan-assumed li {
   position: relative;
   padding-left: 16px;
-  color: var(--text-2);
-  font-size: 13px;
 }
 .plan-assumed li::before {
   content: '';
   position: absolute;
   left: 1px;
-  top: 0.55em;
+  top: 0.5em;
   width: 5px;
   height: 5px;
   border: 1px solid var(--text-3);
   border-radius: 50%;
 }
+
+/* A phone: the task over where it stands, the picture at the line's end. */
+@media (max-width: 560px) {
+  .plan-row {
+    grid-template-columns: 8px minmax(0, 1fr) 28px;
+    row-gap: 2px;
+    padding: 10px 0;
+  }
+  .plan-status {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .plan-who {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .plan-item {
+  .plan-row,
+  .plan-ask,
+  .plan-fold-body,
+  .plan-mark[data-mark='waiting']::after {
     animation: none;
   }
 }

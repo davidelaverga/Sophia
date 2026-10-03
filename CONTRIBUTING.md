@@ -428,11 +428,13 @@ when you change the room:
   `fixtures/work.html`, labelled "Simulated — no lead, tool or host read"
   (`proposed=1`, `superseded=1`), the Studio's own `ProjectShell` on Tasks,
   with the real `PlanView` in its `plan` slot under the goal it serves
-  (production shows the goals alone until SCM-04 serves a plan). The plan
-  reads: its revision and state, the next checkpoint, each item with who does
-  it (found through the session assigned to it, LFE-06) and when it starts,
-  then what it assumes apart from what was decided, and who decides what is
-  left. Nothing in it looks like it acts.
+  (production shows the goals alone until SCM-04 serves a plan). One thing
+  reads first: the goal in two lines, the plan's head with a tally of where
+  its tasks stand, its next checkpoint, then what waits on someone's decision,
+  raised. Then one line per task, by what moves: a mark, the task, where it
+  stands, and who does it (a picture with their tool's logo as a badge, found
+  through the session assigned to it, LFE-06). Hovering a task lights what it
+  waits on. What it assumes and what was decided fold into one line.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves

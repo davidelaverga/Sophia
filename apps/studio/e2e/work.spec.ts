@@ -1,110 +1,164 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 // The lead's plan in Tasks (LFE-07.1), on its fixture page (fixtures/work.html): the real ProjectShell over a labelled
 // goal and plan. No request leaves the page.
 const PAGE = '/work.html'
 
 const plan = (page: Page) => page.getByRole('region', { name: /^Plan/ })
-const rows = (page: Page) => plan(page).getByRole('list', { name: 'Its work' }).getByRole('listitem')
-/** The item whose purpose this is, not one that only mentions it ("After “Implement the PDF retry”"). */
-const row = (page: Page, purpose: string) =>
-  rows(page).filter({ has: page.locator('.plan-purpose').filter({ hasText: new RegExp(`^${purpose}`) }) })
+const rows = (page: Page) => plan(page).getByRole('list', { name: 'Its tasks', exact: true }).getByRole('listitem')
+/** The task whose own words these are, not one that only mentions it ("After Implement the PDF retry"). */
+const row = (page: Page, task: string) =>
+  rows(page).filter({ has: page.locator('.plan-task').filter({ hasText: new RegExp(`^${task}$`) }) })
+/** Where an element sits up and down: its middle. */
+const middle = (l: Locator) =>
+  l.evaluate((el) => {
+    const b = el.getBoundingClientRect()
+    return b.top + b.height / 2
+  })
 
 test.afterEach(async ({ page }) => {
   expect(await page.evaluate(() => window.workFixture?.unexpected ?? [])).toEqual([])
 })
 
-test('the plan sits under its goal: its revision, accepted, its next checkpoint, its work in plan order', async ({
+test('one thing to read first: the goal in two lines, then the plan’s head, its tally and its next checkpoint', async ({
   page,
 }) => {
   await page.goto(PAGE)
-  await expect(page.getByRole('heading', { name: 'Reports export to PDF reliably' })).toBeVisible()
+  const goal = page.locator('.goal').first()
+  await expect(goal.getByRole('heading', { level: 3 })).toHaveText('RunningReports export to PDF reliably')
+  await expect(goal.locator('.criteria')).toHaveCount(0) // folded under the plan
+  await goal.getByRole('button', { name: '2 criteria' }).click()
+  await expect(goal.locator('.criteria li')).toHaveCount(2)
+  await expect(page.locator('.view-head .count')).toHaveCount(0) // it counted goals; the plan counts its tasks
   await expect(plan(page).getByRole('heading', { level: 3 })).toHaveText('Planr2Accepted')
-  await expect(plan(page).getByText('Next checkpoint')).toBeVisible()
-  await expect(plan(page)).toContainText('A retry candidate passes its review')
-  await expect(rows(page).locator('.plan-purpose')).toHaveText([
-    /^Implement the PDF retry/,
-    /^Review the retry’s candidate/,
-    /^Review the report pane/,
-    /^Write the export’s release note/,
-    /^Measure render time on large reports/,
+  await expect(plan(page).getByRole('list', { name: 'Where its tasks stand' }).getByRole('listitem')).toHaveText([
+    '1 waiting',
+    '1 working',
+    '2 not started',
+    '1 free',
   ])
-  // The review is grouped under the build it reviews; nothing else is.
-  await expect(row(page, 'Review the retry’s candidate')).toHaveAttribute('data-depth', '1')
-  await expect(plan(page).locator('.plan-item[data-depth="1"]')).toHaveCount(1)
-  // The goal comes first, then the plan: it serves the goal.
-  const goal = await page.locator('.goal').first().boundingBox()
-  const below = await plan(page).boundingBox()
-  expect(below?.y ?? 0).toBeGreaterThan((goal?.y ?? 0) + (goal?.height ?? 0) - 1)
+  await expect(plan(page).locator('.plan-checkpoint')).toHaveText('NextA retry candidate passes its review')
 })
 
-test('each item says who does it and when it starts, in words; a running one says what its session reports', async ({
+test('what waits on a decision is raised above the tasks, with who decides; what was decided is not', async ({
   page,
 }) => {
   await page.goto(PAGE)
-  const build = row(page, 'Implement the PDF retry')
-  await expect(build).toContainText('Davide’s Claude Code')
-  await expect(build).toContainText('worker')
-  await expect(build.getByText('Waiting', { exact: true })).toBeVisible() // its session waits on Davide
-  await expect(build).not.toContainText('Starts now') // it has started: its state says the rest
+  const ask = plan(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask).toContainText('Ship the retry before the report pane’s review is done?')
+  await expect(ask).toContainText('Ship it now or Wait for the review')
+  await expect(ask.locator('.avatar')).toBeVisible()
+  await expect(plan(page).locator('.plan-ask')).toHaveCount(1) // Luis's, decided, isn't asked again
+  const asked = await ask.boundingBox()
+  const first = await rows(page).first().boundingBox()
+  expect(asked?.y ?? 0).toBeLessThan(first?.y ?? 0)
+})
+
+test('one line per task, by what moves: a mark, the task, where it stands, who does it', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(rows(page).locator('.plan-task')).toHaveText([
+    'Implement the PDF retry',
+    'Review the retry’s candidate',
+    'Review the report pane',
+    'Write the export’s release note',
+    'Measure render time on large reports',
+  ])
+  await expect(rows(page).locator('.plan-status')).toHaveText([
+    'Waiting on Davide',
+    'Once there is a candidate to review',
+    'Working',
+    'After Implement the PDF retry',
+    'Free to take',
+  ])
+  expect(await rows(page).evaluateAll((all) => all.map((r) => r.getAttribute('data-mark')))).toEqual([
+    'waiting',
+    'later',
+    'working',
+    'later',
+    'free',
+  ])
+  await expect(row(page, 'Review the retry’s candidate')).toHaveAttribute('data-depth', '1') // under its build
+  // Who: a picture with the tool's logo on it, named on hover; a quiet ring for a session not running, dashed for no one.
+  const build = row(page, 'Implement the PDF retry').locator('.plan-who')
+  await expect(build).toHaveAttribute('aria-label', 'Davide’s Claude Code · worker')
   await expect(build.locator('.tool-logo')).toHaveAttribute('data-tool', 'claude-code')
-  await expect(row(page, 'Review the report pane').getByText('Working', { exact: true })).toBeVisible()
-  const review = row(page, 'Review the retry’s candidate')
-  await expect(review).toContainText('Assigned, not running yet')
-  await expect(review).toContainText('When “Implement the PDF retry” has a candidate')
-  const note = row(page, 'Write the export’s release note')
-  await expect(note).toContainText('Luis')
-  await expect(note.locator('.avatar')).toHaveText('L') // a person, shown as the Studio shows one
-  await expect(note).toContainText('After “Implement the PDF retry”')
-  const measure = row(page, 'Measure render time on large reports')
-  await expect(measure).toContainText('Unassigned')
-  await expect(measure).toContainText('Ready for someone to take')
-})
-
-test('each picture sits centred on its line’s words, a photo or an initial alike', async ({ page }) => {
-  await page.goto(PAGE)
-  await expect(rows(page)).toHaveCount(5)
-  const offsets = await plan(page)
-    .locator('.plan-who:has(.avatar)')
-    .evaluateAll((lines) =>
-      lines.map((line) => {
-        const words = [...line.children].find((c) => c.tagName === 'SPAN' && c.className === '')
-        const picture = line.querySelector('.avatar')?.getBoundingClientRect()
-        const text = words?.getBoundingClientRect()
-        return picture && text ? Math.abs(picture.top + picture.height / 2 - (text.top + text.height / 2)) : 99
-      }),
+  await expect(row(page, 'Write the export’s release note').locator('.avatar')).toHaveText('L')
+  await expect(row(page, 'Review the retry’s candidate').locator('.plan-nobody')).not.toHaveAttribute('data-free')
+  // Each is a whole ring, the size of a picture.
+  for (const ring of await plan(page).locator('.plan-nobody').all()) {
+    expect(await ring.boundingBox()).toMatchObject({ width: 24, height: 24 })
+  }
+  await expect(row(page, 'Measure render time on large reports').locator('.plan-nobody')).toHaveAttribute(
+    'data-free',
+    'true',
+  )
+  // The marks make one column to read down; the words where each stands, another.
+  const lefts = async (selector: string) =>
+    new Set(
+      await rows(page)
+        .locator(selector)
+        .evaluateAll((all) => all.map((e) => e.getBoundingClientRect().left)),
     )
-  expect(offsets.length).toBe(5) // the build, the pane's review, the note, and both decisions
-  for (const off of offsets) expect(off).toBeLessThanOrEqual(0.5)
+  expect((await lefts('.plan-mark')).size).toBe(1)
+  expect((await lefts('.plan-status')).size).toBe(1)
 })
 
-test('what it assumes stands apart from what was decided, and each decision names who decides', async ({ page }) => {
+test('hovering a task lights the tasks it waits on, and only those; leaving lets them rest', async ({ page }) => {
   await page.goto(PAGE)
-  const assumed = plan(page).getByRole('region', { name: 'Assumed' })
-  await expect(assumed.getByRole('listitem')).toHaveText([
+  await row(page, 'Write the export’s release note').hover()
+  await expect(plan(page).locator('.plan-row[data-lit]')).toHaveCount(1)
+  await expect(row(page, 'Implement the PDF retry')).toHaveAttribute('data-lit', 'true')
+  await row(page, 'Review the retry’s candidate').hover() // a review lights the build it reviews
+  await expect(row(page, 'Implement the PDF retry')).toHaveAttribute('data-lit', 'true')
+  await row(page, 'Review the report pane').hover() // it waits on nothing
+  await expect(plan(page).locator('.plan-row[data-lit]')).toHaveCount(0)
+  await row(page, 'Write the export’s release note').hover()
+  await page.mouse.move(5, 790)
+  await expect(plan(page).locator('.plan-row[data-lit]')).toHaveCount(0)
+})
+
+test('what it assumes and what was decided rest in one quiet line, opened on request', async ({ page }) => {
+  await page.goto(PAGE)
+  const fold = plan(page).getByRole('button', { name: '2 assumed · 1 decided' })
+  await expect(fold).toHaveAttribute('aria-expanded', 'false')
+  await expect(plan(page).getByRole('list', { name: 'Assumed' })).toHaveCount(0)
+  await fold.click()
+  await expect(plan(page).getByRole('list', { name: 'Assumed' }).getByRole('listitem')).toHaveText([
     'Reports stay under 20 MB.',
     'The PDF renderer keeps running on its current host.',
   ])
-  const open = plan(page).getByRole('region', { name: 'To decide' })
-  await expect(open).toContainText('Ship the retry before the report pane’s review is done?')
-  await expect(open).toContainText('Davide decides')
-  await expect(open).toContainText('Ship it now · Wait for the review')
-  await expect(open).not.toContainText('failed render') // what was decided isn't asked again
-  const decided = plan(page).getByRole('region', { name: 'Decided' })
-  await expect(decided).toContainText('Luis chose')
-  await expect(decided).toContainText('Three times')
-  await expect(decided).not.toContainText('Twice')
+  await expect(plan(page).getByRole('list', { name: 'Decided' })).toContainText('Luis chose Three times')
+  await fold.click()
+  await expect(plan(page).getByRole('list', { name: 'Decided' })).toHaveCount(0)
 })
 
-test('the plan reads; nothing in it looks like it acts', async ({ page }) => {
+test('the plan reads: its fold is the one control in it, and nothing else looks like one', async ({ page }) => {
   await page.goto(PAGE)
   await expect(rows(page)).toHaveCount(5)
-  await expect(plan(page).getByRole('button')).toHaveCount(0)
+  await expect(plan(page).getByRole('button')).toHaveCount(1)
   await expect(plan(page).getByRole('link')).toHaveCount(0)
   const pointers = await plan(page)
-    .locator('*')
+    .locator('*:not(.plan-fold-button, .plan-fold-button *)')
     .evaluateAll((all) => all.filter((el) => getComputedStyle(el).cursor === 'pointer').length)
   expect(pointers).toBe(0)
+})
+
+test('each picture sits centred on its task’s line, a photo or an initial alike', async ({ page }) => {
+  await page.goto(PAGE)
+  // Measured at rest, once the rows have arrived.
+  await plan(page).evaluate((p) =>
+    Promise.all(
+      p
+        .getAnimations({ subtree: true })
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  for (const task of ['Implement the PDF retry', 'Review the report pane', 'Write the export’s release note']) {
+    const line = row(page, task)
+    const off = Math.abs((await middle(line.locator('.avatar'))) - (await middle(line.locator('.plan-task'))))
+    expect(off, task).toBeLessThan(0.6)
+  }
 })
 
 test('a proposed plan says it isn’t accepted yet; a superseded one isn’t shown at all', async ({ page }) => {
@@ -112,16 +166,30 @@ test('a proposed plan says it isn’t accepted yet; a superseded one isn’t sho
   await expect(plan(page).getByText('Proposed · not accepted yet')).toBeVisible()
   await expect(plan(page).getByText('Accepted', { exact: true })).toHaveCount(0)
   await page.goto(`${PAGE}?superseded=1`)
-  await expect(page.getByRole('heading', { name: 'Reports export to PDF reliably' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Reports export to PDF reliably/ })).toBeVisible()
   await expect(page.locator('.plan')).toHaveCount(0)
+  await expect(page.locator('.goal .criteria li')).toHaveCount(2) // no plan under it: its criteria open, as before
 })
 
-test('@phone · the plan holds at phone width: nothing runs past the screen', async ({ page }) => {
+test('the mark of what waits pings slowly; with reduced motion asked for, it rests', async ({ page }) => {
+  await page.goto(PAGE)
+  const ping = () =>
+    row(page, 'Implement the PDF retry')
+      .locator('.plan-mark')
+      .evaluate((m) => getComputedStyle(m, '::after').animationName)
+  expect(await ping()).toBe('waiting-ping')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await ping()).toBe('none')
+})
+
+test('@phone · the plan holds at phone width: the task over where it stands, nothing past the screen', async ({
+  page,
+}) => {
   await page.goto(PAGE)
   await expect(rows(page)).toHaveCount(5)
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-  expect(overflow).toBeLessThanOrEqual(0)
-  for (const right of await rows(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().right))) {
-    expect(right).toBeLessThanOrEqual(390)
-  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+  const build = row(page, 'Implement the PDF retry')
+  const task = await build.locator('.plan-task').boundingBox()
+  const where = await build.locator('.plan-status').boundingBox()
+  expect(where?.y ?? 0).toBeGreaterThan((task?.y ?? 0) + (task?.height ?? 0) - 1)
 })

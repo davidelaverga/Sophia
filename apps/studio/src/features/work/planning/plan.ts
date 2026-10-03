@@ -44,34 +44,6 @@ export interface WorkPlan {
 export const current = (plan: WorkPlan | null | undefined) =>
   plan && (plan.state === 'accepted' || plan.state === 'proposed') ? plan : null
 
-export interface PlanRow {
-  item: PlanItem
-  /** 0 for a top item; 1 for one grouped under it. */
-  depth: number
-}
-
-/** The items in plan order, each grouped one under its parent; one whose parent isn't in the plan stands on its own. */
-export function planRows(plan: WorkPlan): PlanRow[] {
-  const ids = new Set(plan.items.map((i) => i.id))
-  const top = plan.items.filter((i) => i.parent_id === null || !ids.has(i.parent_id))
-  return top.flatMap((item) => [
-    { item, depth: 0 },
-    ...plan.items.filter((c) => c.parent_id === item.id).map((c) => ({ item: c, depth: 1 })),
-  ])
-}
-
-/**
- * When an item starts, in words: now (or, with no one on it, ready for someone), after the items it waits for, or once
- * its producer's candidate is ready.
- */
-export function startsWhen(item: PlanItem, plan: WorkPlan): string {
-  const purpose = (id: string | null) => plan.items.find((i) => i.id === id)?.purpose ?? 'other work'
-  if (item.activation.kind === 'candidate_ready')
-    return `When “${purpose(item.activation.producer_work_id)}” has a candidate`
-  if (item.blocked_by.length > 0) return `After ${item.blocked_by.map((id) => `“${purpose(id)}”`).join(' and ')}`
-  return item.assignee_kind === 'unassigned' ? 'Ready for someone to take' : 'Starts now'
-}
-
 type Person = Resource['owner']
 
 export interface Doer {
@@ -79,7 +51,7 @@ export interface Doer {
   name: string
   role: string | null
   resource: Resource | null
-  /** The person who does it by hand, when it is one. */
+  /** The person behind it: the resource's owner, or who does it by hand. */
   person: Person | null
   /** What its session reports of this work; null before it starts or when no session reports it. */
   state: NonNullable<Session['assignment']>['state'] | null
@@ -107,4 +79,70 @@ export function whoDoes(item: PlanItem, resources: readonly Resource[], people: 
     }
   }
   return { ...UNASSIGNED, name: 'Assigned, not running yet' }
+}
+
+/**
+ * Where an item stands, as one mark and a few words: waiting on its owner, working, queued, not started yet (and what
+ * for), or free for someone to take. `rank` orders the plan by what moves: what waits on someone first.
+ */
+export type Mark = 'waiting' | 'working' | 'queued' | 'later' | 'free'
+export interface Status {
+  mark: Mark
+  text: string
+  rank: number
+}
+
+/** The marks in the order they draw attention: what waits on someone first, what no one has last. */
+const MARKS: readonly Mark[] = ['waiting', 'working', 'queued', 'later', 'free']
+const at = (mark: Mark, text: string): Status => ({ mark, text, rank: MARKS.indexOf(mark) })
+
+/** The items an item waits on: its blockers, and the producer whose candidate it reviews. */
+export const waitsOn = (item: PlanItem) => [
+  ...item.blocked_by,
+  ...(item.activation.kind === 'candidate_ready' && item.activation.producer_work_id
+    ? [item.activation.producer_work_id]
+    : []),
+]
+
+export function status(item: PlanItem, doer: Doer, plan: WorkPlan): Status {
+  if (doer.state === 'waiting') return at('waiting', `Waiting on ${doer.person?.name ?? 'its owner'}`)
+  if (doer.state === 'running') return at('working', 'Working')
+  if (doer.state) return at('queued', 'Queued')
+  const purpose = (id: string) => plan.items.find((i) => i.id === id)?.purpose ?? 'other work'
+  if (item.activation.kind === 'candidate_ready') return at('later', 'Once there is a candidate to review')
+  if (item.blocked_by.length > 0) return at('later', `After ${item.blocked_by.map(purpose).join(' and ')}`)
+  if (item.assignee_kind === 'unassigned') return at('free', 'Free to take')
+  return at('later', 'Not started')
+}
+
+export interface PlanRow {
+  item: PlanItem
+  doer: Doer
+  status: Status
+  /** 0 for a top item; 1 for one grouped under it. */
+  depth: number
+}
+
+/**
+ * The plan's rows, ordered by what moves: each top item with what it groups right under it, and the groups by their
+ * head's mark, what waits on someone first; plan order within a mark. One whose parent isn't in the plan stands alone.
+ */
+export function planRows(plan: WorkPlan, resources: readonly Resource[], people: Record<string, Person>): PlanRow[] {
+  const row = (item: PlanItem, depth: number): PlanRow => {
+    const doer = whoDoes(item, resources, people)
+    return { item, doer, status: status(item, doer, plan), depth }
+  }
+  const ids = new Set(plan.items.map((i) => i.id))
+  return plan.items
+    .filter((i) => i.parent_id === null || !ids.has(i.parent_id))
+    .map((head) => [row(head, 0), ...plan.items.filter((c) => c.parent_id === head.id).map((c) => row(c, 1))])
+    .toSorted((a, b) => (a[0]?.status.rank ?? 0) - (b[0]?.status.rank ?? 0))
+    .flat()
+}
+
+/** How many items carry each mark, in the plan's order of attention; marks no item carries are left out. */
+export function tally(rows: readonly PlanRow[]): { mark: Mark; count: number }[] {
+  return MARKS.map((mark) => ({ mark, count: rows.filter((r) => r.status.mark === mark).length })).filter(
+    (t) => t.count > 0,
+  )
 }

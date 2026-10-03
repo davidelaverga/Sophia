@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Resource } from '../../resources/resource.ts'
-import { current, planRows, startsWhen, whoDoes, type PlanItem, type WorkPlan } from './plan.ts'
+import { current, planRows, status, tally, waitsOn, whoDoes, type PlanItem, type WorkPlan } from './plan.ts'
 
 const item = (id: string, over: Partial<PlanItem> = {}): PlanItem => ({
   id,
@@ -27,24 +27,23 @@ const plan = (items: PlanItem[], over: Partial<WorkPlan> = {}): WorkPlan => ({
   ...over,
 })
 
-const resource = (id: string, workId: string | null): Resource => ({
-  id,
+type Work = NonNullable<Resource['sessions'][number]['assignment']>['state']
+
+/** Davide's Claude Code, its one session on `workId` in `state`. */
+const resource = (workId: string, state: Work = 'running'): Resource => ({
+  id: `res-${workId}`,
   owner: { id: 'davide', name: 'Davide' },
   tool: 'claude-code',
   entitlementId: 'ent',
   host: { state: 'online', observedAt: null },
   sessions: [
-    {
-      id: `${id}-worker`,
-      role: 'worker',
-      model: null,
-      effort: null,
-      assignment: workId ? { workId, title: 'x', state: 'running' } : null,
-    },
+    { id: `s-${workId}`, role: 'worker', model: null, effort: null, assignment: { workId, title: 'x', state } },
   ],
   controls: { steer: 'unqualified', hold: 'unqualified', stop: 'unqualified', permissions: 'unqualified' },
   reservePercent: null,
 })
+
+const people = { luis: { id: 'luis', name: 'Luis' } }
 
 describe('the lead’s plan', () => {
   it('is shown while in force or proposed; a superseded or withdrawn one is history', () => {
@@ -55,48 +54,74 @@ describe('the lead’s plan', () => {
     assert.equal(current(null), null)
   })
 
-  it('lists its items in plan order, each grouped under its parent; an orphan stands on its own', () => {
-    const rows = planRows(
-      plan([item('build'), item('docs'), item('review', { parent_id: 'build' }), item('stray', { parent_id: 'gone' })]),
+  it('finds who does an item through the session it is assigned to, and never makes one up', () => {
+    const who = whoDoes(item('build'), [resource('build')], people)
+    assert.deepEqual(
+      [who.name, who.role, who.state, who.person?.name],
+      ['Davide’s Claude Code', 'worker', 'running', 'Davide'],
     )
+    assert.equal(whoDoes(item('docs'), [], people).name, 'Assigned, not running yet')
+    assert.equal(
+      whoDoes(item('call', { assignee_kind: 'human', assignee_id: 'luis' }), [], people).person?.name,
+      'Luis',
+    )
+    assert.equal(
+      whoDoes(item('free', { assignee_kind: 'unassigned', assignee_id: null }), [], people).name,
+      'Unassigned',
+    )
+  })
+
+  it('says where each task stands: waiting on whom, working, or not started and what for, or free', () => {
+    const build = item('build', { purpose: 'Implement the PDF retry' })
+    const p = plan([build])
+    const say = (i: PlanItem, resources: Resource[] = []) => {
+      const s = status(i, whoDoes(i, resources, people), p)
+      return [s.mark, s.text]
+    }
+    assert.deepEqual(say(build, [resource('build', 'waiting')]), ['waiting', 'Waiting on Davide'])
+    assert.deepEqual(say(build, [resource('build', 'running')]), ['working', 'Working'])
+    assert.deepEqual(say(build, [resource('build', 'queued')]), ['queued', 'Queued'])
+    assert.deepEqual(say(item('docs', { blocked_by: ['build'] })), ['later', 'After Implement the PDF retry'])
+    const review = item('review', { activation: { kind: 'candidate_ready', producer_work_id: 'build' } })
+    assert.deepEqual(say(review), ['later', 'Once there is a candidate to review'])
+    assert.deepEqual(say(item('free', { assignee_kind: 'unassigned', assignee_id: null })), ['free', 'Free to take'])
+    assert.deepEqual(say(item('soon')), ['later', 'Not started'])
+  })
+
+  it('knows what a task waits on: its blockers and the build whose candidate it reviews', () => {
+    assert.deepEqual(waitsOn(item('docs', { blocked_by: ['a', 'b'] })), ['a', 'b'])
+    assert.deepEqual(waitsOn(item('r', { activation: { kind: 'candidate_ready', producer_work_id: 'build' } })), [
+      'build',
+    ])
+    assert.deepEqual(waitsOn(item('now')), [])
+  })
+
+  it('orders tasks by what moves, keeps each child under its parent, and an orphan on its own', () => {
+    const p = plan([
+      item('free', { assignee_kind: 'unassigned', assignee_id: null }),
+      item('later'),
+      item('build'),
+      item('review', { parent_id: 'build' }),
+      item('stray', { parent_id: 'gone' }),
+      item('pane'),
+    ])
+    const rows = planRows(p, [resource('build', 'waiting'), resource('pane', 'running')], people)
     assert.deepEqual(
       rows.map((r) => [r.item.id, r.depth]),
       [
         ['build', 0],
         ['review', 1],
-        ['docs', 0],
+        ['pane', 0],
+        ['later', 0],
         ['stray', 0],
+        ['free', 0],
       ],
     )
-  })
-
-  it('says when an item starts: now, after what it waits for, or once a candidate is ready', () => {
-    const build = item('build', { purpose: 'Implement the PDF retry' })
-    const docs = item('docs', { blocked_by: ['build'] })
-    const review = item('review', { activation: { kind: 'candidate_ready', producer_work_id: 'build' } })
-    const p = plan([build, docs, review])
-    assert.equal(startsWhen(build, p), 'Starts now')
-    assert.equal(startsWhen(docs, p), 'After “Implement the PDF retry”')
-    assert.equal(startsWhen(review, p), 'When “Implement the PDF retry” has a candidate')
-    assert.equal(
-      startsWhen(item('free', { assignee_kind: 'unassigned', assignee_id: null }), p),
-      'Ready for someone to take',
-    )
-  })
-
-  it('finds who does an item through the session it is assigned to, and never makes one up', () => {
-    const resources = [resource('davide-claude', 'build')]
-    const people = { luis: { id: 'luis', name: 'Luis' } }
-    assert.deepEqual((({ name, role, state }) => ({ name, role, state }))(whoDoes(item('build'), resources, people)), {
-      name: 'Davide’s Claude Code',
-      role: 'worker',
-      state: 'running',
-    })
-    assert.equal(whoDoes(item('docs'), resources, people).name, 'Assigned, not running yet')
-    assert.equal(whoDoes(item('call', { assignee_kind: 'human', assignee_id: 'luis' }), resources, people).name, 'Luis')
-    assert.equal(
-      whoDoes(item('free', { assignee_kind: 'unassigned', assignee_id: null }), resources, people).name,
-      'Unassigned',
-    )
+    assert.deepEqual(tally(rows), [
+      { mark: 'waiting', count: 1 },
+      { mark: 'working', count: 1 },
+      { mark: 'later', count: 3 },
+      { mark: 'free', count: 1 },
+    ])
   })
 })

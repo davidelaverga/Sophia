@@ -44,6 +44,19 @@ The Studio reads the schema as it is, plus a proposal for SCM-04:
 
 The outcome is the goal's. Who does an item comes from the resource whose session has that work as its assignment (LFE-06's `Session.assignment.workId`).
 
+## Revised after Luis's evaluation
+
+The first version was "all mixed", so the view now has one thing to read first:
+
+1. the goal in two lines;
+2. the plan's head, with a tally of where its tasks stand;
+3. the next checkpoint;
+4. what waits on someone's decision, raised;
+5. one line per task, ordered by what moves, with a mark, where it stands, and who does it as a picture with a tool badge;
+6. Assumed and Decided folded into one line.
+
+Hovering a task lights what it waits on. The details and the measurements are in the [handoff](../handoffs/LFE-07-attempt-1.md).
+
 ## Out of this slice
 
 Editing or accepting the plan, Review work progress (07.2), the capacity warning (07.3) and handovers (07.4) are not here.
