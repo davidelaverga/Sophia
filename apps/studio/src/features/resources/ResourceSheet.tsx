@@ -11,6 +11,7 @@ import {
   SUPPORT,
   TOOL,
   VENDOR,
+  WORK_STATE,
   type ControlName,
   type QuotaObservation,
   type RequiredAction,
@@ -25,12 +26,6 @@ import { OwnerAvatar } from './OwnerAvatar.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
-const WORK = {
-  recorded: ['muted', 'Recorded'],
-  queued: ['muted', 'Queued'],
-  running: ['teal', 'Working'],
-  waiting: ['amber', 'Waiting'],
-} as const
 const CONTROL: Record<ControlName, string> = { stop: 'Stop', hold: 'Hold', steer: 'Guidance', permissions: 'Requests' }
 const CONTROL_TIP: Record<ControlName, string> = {
   stop: 'Ends its work at once, whatever else is waiting',
@@ -62,7 +57,7 @@ function SessionRow({ session, tool }: { session: Session; tool: Resource['tool'
       </span>
       {work ? (
         <span className="resource-work">
-          <Tag tone={WORK[work.state][0]}>{WORK[work.state][1]}</Tag>
+          <Tag tone={WORK_STATE[work.state][0]}>{WORK_STATE[work.state][1]}</Tag>
           {work.title}
         </span>
       ) : (

@@ -137,6 +137,11 @@ interface Props {
    * it is coming. The resource fixture fills it (fixtures/resources.tsx).
    */
   resources?: React.ReactNode
+  /**
+   * The lead's plan, in Tasks under its goal, once something serves it (SCM-04, LFE-07.1); until then Tasks shows the
+   * goals alone. The work fixture fills it (fixtures/work.tsx).
+   */
+  plan?: React.ReactNode
   /** Requests waiting on this person in their own tools (ResourcePanel's actions): counted in the tab's title. */
   resourcesWaiting?: number
 }
@@ -251,6 +256,7 @@ export function ProjectShell(props: Props) {
           onInvite={invite}
           background={!!props.background}
           resources={props.resources}
+          plan={props.plan}
         />
       )}
     </div>
@@ -331,6 +337,7 @@ interface BodyProps {
   /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
   background: boolean
   resources: React.ReactNode
+  plan: React.ReactNode
 }
 
 /**
@@ -382,7 +389,7 @@ function ProjectBody(props: BodyProps) {
 }
 
 /** A page other than the room: Goals and Work list the goals; the views still to come say so. */
-function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite }: BodyProps) {
+function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plan }: BodyProps) {
   if (view === 'goals' || view === 'work') {
     return (
       <GoalList
@@ -391,6 +398,7 @@ function PageBody({ view, projectId, identity, membership, snapshot, onShow, onI
         identity={identity}
         controls={view === 'work'}
         canAct={canInvite(membership)}
+        plan={view === 'work' ? plan : undefined}
         onOpenStudio={() => onShow('studio')}
         onInvite={onInvite}
       />

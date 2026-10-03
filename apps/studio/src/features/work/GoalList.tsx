@@ -13,9 +13,11 @@ interface Props {
   canAct: boolean
   onOpenStudio: () => void
   onInvite: () => void
+  /** Tasks: the lead's plan, under the goals it serves (LFE-07.1). */
+  plan?: React.ReactNode
 }
 
-export function GoalList({ snapshot, projectId, identity, controls, canAct, onOpenStudio, onInvite }: Props) {
+export function GoalList({ snapshot, projectId, identity, controls, canAct, onOpenStudio, onInvite, plan }: Props) {
   return (
     <section className="goals" aria-labelledby="goals-title">
       <header className="view-head">
@@ -24,17 +26,22 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
       </header>
       {!snapshot && <div className="goal skeleton" aria-busy="true" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
-      {controls && !canAct && snapshot && snapshot.goals.length > 0 && (
-        <p className="view-note">You’re a viewer. Editors and admins can pause, stop or ask for a review.</p>
-      )}
+      {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       <ol className="goal-list">
         {snapshot?.goals.map((g) => (
           <GoalCard key={g.id} goal={g} projectId={projectId} identity={identity} controls={controls && canAct} />
         ))}
       </ol>
+      {snapshot && snapshot.goals.length > 0 && plan}
       {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} />}
     </section>
   )
+}
+
+/** A viewer on Tasks is told who can act on the goals, once there are goals to act on. */
+function ViewerNote({ snapshot }: { snapshot: Snapshot | undefined }) {
+  if (!snapshot?.goals.length) return null
+  return <p className="view-note">You’re a viewer. Editors and admins can pause, stop or ask for a review.</p>
 }
 
 /** Briefs the runtime drafted (A05); their Hold and Stop are the goal controls above. */

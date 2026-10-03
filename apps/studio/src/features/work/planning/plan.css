@@ -1,0 +1,118 @@
+/* The lead's plan, in Tasks under its goal: the view's own ruled rows and quiet labels, nothing louder. */
+.plan {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plan-checkpoint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 4px 0 2px;
+  color: var(--text);
+  font-size: 13.5px;
+}
+.plan-items,
+.plan-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One ruled row per item; one grouped under another steps in, with a short elbow from its parent. */
+.plan-item {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  animation: arrive 0.4s var(--ease) both;
+}
+/* A parent and the item grouped under it read as one: no rule between them, an elbow from one to the other. */
+.plan-item:has(+ .plan-item[data-depth='1']) {
+  padding-bottom: 6px;
+  border-bottom: 0;
+}
+.plan-item[data-depth='1'] {
+  padding-top: 6px;
+  padding-left: 22px;
+}
+.plan-item[data-depth='1']::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  width: 9px;
+  height: calc(6px + 0.7em);
+  border-left: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  border-bottom-left-radius: var(--r-1);
+}
+.plan-purpose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.plan-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.plan-who .muted::before,
+.plan-when::before,
+.plan-choices::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--text-4);
+}
+.plan-when,
+.plan-choices {
+  color: var(--text-3);
+}
+.plan-part {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+.plan-list {
+  display: grid;
+  gap: 10px;
+}
+.plan-decision {
+  display: grid;
+  gap: 4px;
+  font-size: 13.5px;
+}
+/* What the plan takes as true without anyone accepting it: apart, quieter, each with an open mark. */
+.plan-assumed li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.plan-assumed li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--text-3);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-item {
+    animation: none;
+  }
+}

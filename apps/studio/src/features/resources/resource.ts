@@ -43,6 +43,14 @@ export interface Session {
   assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
 }
 
+/** A session's work as its tool reports it, said and toned as the Studio says it, in the sheet and in the plan. */
+export const WORK_STATE = {
+  recorded: ['muted', 'Recorded'],
+  queued: ['muted', 'Queued'],
+  running: ['teal', 'Working'],
+  waiting: ['amber', 'Waiting'],
+} as const
+
 export interface Resource {
   /** The enrollment: `davide-codex`, `davide-claude`, `luis-claude`. */
   id: string

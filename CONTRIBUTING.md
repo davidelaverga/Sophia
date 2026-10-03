@@ -424,6 +424,15 @@ when you change the room:
   time; a viewer sees who chooses; the keyboard and a phone reach everything.
   Explore in the Studio still says it is coming: it shows the gallery once
   S1-06 serves real candidates.
+- **The lead's plan has its own checks** (`e2e/work.spec.ts`, LFE-07.1): on
+  `fixtures/work.html`, labelled "Simulated — no lead, tool or host read"
+  (`proposed=1`, `superseded=1`), the Studio's own `ProjectShell` on Tasks,
+  with the real `PlanView` in its `plan` slot under the goal it serves
+  (production shows the goals alone until SCM-04 serves a plan). The plan
+  reads: its revision and state, the next checkpoint, each item with who does
+  it (found through the session assigned to it, LFE-06) and when it starts,
+  then what it assumes apart from what was decided, and who decides what is
+  left. Nothing in it looks like it acts.
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves
