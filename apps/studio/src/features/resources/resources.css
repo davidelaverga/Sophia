@@ -425,6 +425,136 @@
   }
 }
 
+/* Choosing a session's effort (EffortPicker): its bar is the way in; it opens into a scale in the tool's own look, from
+   Faster to Smarter, with a knob on the chosen level. A request waits beside the bar, apart from what runs, with Undo. */
+.effort-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.effort-button:hover {
+  background: rgba(236, 235, 241, 0.05);
+}
+.effort-button .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--text-3);
+  transition: transform var(--fast) var(--ease);
+}
+.effort-button[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.effort-asked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  animation: arrive 0.3s var(--ease) both;
+}
+.effort-asked-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b3a3f5;
+  box-shadow: 0 0 0 3px rgba(179, 163, 245, 0.15);
+}
+.effort-asked .text-button {
+  font-family: var(--sans);
+  font-size: 12px;
+}
+.effort-picker {
+  flex-basis: 100%;
+  font-family: var(--sans);
+  font-size: 13px;
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--tool-accent) 4%, var(--plane-2));
+  animation: arrive 0.25s var(--ease) both;
+}
+.effort-picker-level {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.effort-picker-now {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.effort-scale {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.effort-scale .effort-track {
+  width: 100%;
+  height: 12px;
+  overflow: visible;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+.effort-scale .effort-fill {
+  border-radius: 6px;
+  transition: width var(--fast) var(--ease);
+}
+.effort-scale .effort-track:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+}
+.effort-knob {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: left var(--fast) var(--ease);
+}
+.effort-end {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.effort-picker-foot,
+.effort-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font-size: 12.5px;
+}
+.effort-confirm {
+  color: var(--text-2);
+}
+.effort-restart {
+  justify-self: start;
+  font-size: 12.5px;
+}
+
 /* Nothing shown: said, with the ways back. */
 .resources-none {
   display: flex;
@@ -1153,6 +1283,10 @@
   .effort[data-look][data-alive] .effort-fill,
   .effort[data-look][data-alive] .effort-fill::after,
   .effort[data-look][data-alive] .effort-track::after,
+  .effort-scale .effort-fill,
+  .effort-knob,
+  .effort-picker,
+  .effort-asked,
   .resource-sheet-head .tool-logo {
     animation: none;
   }
@@ -1164,7 +1298,10 @@
   .resource-tile:active {
     transform: none;
   }
-  .capacity-toggle .icon {
+  .capacity-toggle .icon,
+  .effort-scale .effort-fill,
+  .effort-knob,
+  .effort-button .icon {
     transition: none;
   }
   .resources[data-ultra] .resource-grid::after {

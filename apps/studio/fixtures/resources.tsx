@@ -40,6 +40,8 @@ declare global {
   interface Window {
     resourcesFixture?: {
       unexpected: readonly string[]
+      /** What owners asked of their sessions' effort, in order: for the checks to read. */
+      asked?: { sessionId: string; level: string | null; when: string | null }[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
@@ -53,6 +55,8 @@ declare global {
 installFixtureApi({ revision: 1, exchange: false, messages: [] })
 window.resourcesFixture = { unexpected }
 const nothing = () => undefined
+/** Each effort an owner asks for: kept here, where a launch configuration would take it. */
+const asked: NonNullable<NonNullable<Window['resourcesFixture']>['asked']> = []
 
 const query = new URLSearchParams(window.location.search)
 const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
@@ -84,6 +88,7 @@ type LiveState = {
 function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): NonNullable<Window['resourcesFixture']> {
   return {
     unexpected,
+    asked,
     load: () => setLive((l) => ({ ...l, loading: false })),
     answerRequest: () =>
       setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
@@ -143,6 +148,7 @@ function Live() {
           now={NOW}
           loading={live.loading}
           history={earlierReadings(read)}
+          onEffort={(sessionId, ask) => asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })}
         />
       }
     />

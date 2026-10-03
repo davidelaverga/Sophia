@@ -15,7 +15,7 @@ const RANK: Record<string, number | undefined> = {
 }
 const TOP = 5
 
-const LABEL: Record<string, string | undefined> = { xhigh: 'Extra high' }
+const LABEL: Record<string, string | undefined> = { xhigh: 'Extra high', ultracode: 'Ultracode' }
 
 export interface EffortLook {
   label: string
@@ -31,7 +31,9 @@ export function effortLook(effort: string): EffortLook {
   const word = effort.toLowerCase()
   const rank = RANK[word]
   const label = LABEL[word] ?? word.charAt(0).toUpperCase() + word.slice(1)
-  return rank === undefined ? { label: effort, rank: null, top: false, word } : { label, rank, top: rank === TOP, word }
+  return rank === undefined
+    ? { label: LABEL[word] ?? effort, rank: null, top: false, word }
+    : { label, rank, top: rank === TOP, word }
 }
 
 export const EFFORT_TOP = TOP

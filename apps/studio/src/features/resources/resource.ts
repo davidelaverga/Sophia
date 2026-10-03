@@ -40,6 +40,12 @@ export interface Session {
    * session can be at max effort without it. The Studio's proposal for SCM-01.
    */
   mode?: string | null
+  /**
+   * The levels its tool says this session can be started with, lowest first, from its native catalog; a mode beyond
+   * them last (Claude Code's ultracode). Absent when the tool doesn't say: then none is offered. The Studio's proposal
+   * for SCM-01, as OMNIGENT's launch sets `reasoning_effort` from the native catalog.
+   */
+  efforts?: string[] | null
   assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
 }
 

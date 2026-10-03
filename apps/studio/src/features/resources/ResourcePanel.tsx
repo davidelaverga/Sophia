@@ -12,7 +12,8 @@ import { moving } from './motion.ts'
 import { ORDER_LABEL, ordered, ORDERS, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
-import { ResourceSheet } from './ResourceSheet.tsx'
+import type { EffortAsk } from './EffortPicker.tsx'
+import { ResourceSheet, type EffortControl } from './ResourceSheet.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
   FILTER_LABEL,
@@ -43,6 +44,11 @@ interface Props {
   loading?: boolean
   /** Earlier readings of the accounts, for each window's history in a sheet; none when only the latest is kept. */
   history?: QuotaObservation[]
+  /**
+   * Where an owner's choice of a session's effort goes (the runtime's launch configuration, SCM-01). Absent, no
+   * effort can be chosen and the bars stay read-only. `level` null withdraws the request.
+   */
+  onEffort?: (sessionId: string, ask: EffortAsk | null) => void
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -314,6 +320,23 @@ function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
   return <Browse {...props} />
 }
 
+/** Each session's requested effort, kept until withdrawn, and told on; none when nothing takes the request. */
+function useEffort(onEffort: Props['onEffort']): EffortControl | undefined {
+  const [asked, setAsked] = useState<Record<string, EffortAsk | undefined>>({})
+  if (!onEffort) return undefined
+  return {
+    asked,
+    set: (sessionId, ask) => {
+      setAsked((a) => ({ ...a, [sessionId]: ask }))
+      onEffort(sessionId, ask)
+    },
+    undo: (sessionId) => {
+      setAsked((a) => ({ ...a, [sessionId]: undefined }))
+      onEffort(sessionId, null)
+    },
+  }
+}
+
 export function ResourcePanel(given: Props) {
   const now = useClock(given.now)
   const props = { ...given, now }
@@ -327,6 +350,7 @@ export function ResourcePanel(given: Props) {
   }
   const view = useView(props)
   const ultra = useUltra()
+  const effort = useEffort(props.onEffort)
   // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
   const order = view.shown.some((r) => r.id === open) ? view.shown : resources
   const at = order.findIndex((r) => r.id === open)
@@ -353,6 +377,7 @@ export function ResourcePanel(given: Props) {
           now={now}
           onClose={() => show(null)}
           onStep={order.length > 1 ? step : undefined}
+          effort={effort}
         />
       )}
     </section>
