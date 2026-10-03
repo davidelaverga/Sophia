@@ -122,6 +122,12 @@ describe('the Live tool surface', () => {
       'amendsTaskId',
       'newRequest',
     ])
+    // HTML is a page every report downloads from its card: asked for, it adds nothing to admit, and needs no render.
+    const outputs = research.properties.outputs as { items: { enum: string[] }; maxItems: number; description: string }
+    assert.deepEqual([outputs.items.enum, outputs.maxItems], [['markdown', 'html', 'pdf'], 3])
+    assert.match(outputs.description, /HTML page/)
+    const render = TOOL_SETS['v1.2'].declarations.find((d) => d.name === 'render_research')
+    assert.match(String(render?.description), /HTML needs no call/)
     assert.deepEqual(schema('render_research').required, ['taskId'])
     for (const name of TOOL_SETS['v1.2'].names) assert.equal(schema(name).additionalProperties, false, name)
     // v1.1's control_work is M01's, unchanged.

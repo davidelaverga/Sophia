@@ -3,7 +3,8 @@
 // a title block, contents when there are three sections or more, one <section> per top-level heading, tables as
 // identified figures, numbered citations and a sources list the service resolved. The model never writes HTML: every
 // string is escaped here, links keep only http, https and mailto, and an image is named, never loaded. The same input
-// gives the same bytes, so a render's package is reproducible from its draft.
+// gives the same bytes, so a render's package is reproducible from its draft. The web page (report-page.ts) prints the
+// same parts (printReport) in its own shell.
 //
 // The report's manifest (report_manifest_v1, the donor's report contract) is derived from the same parse and checked
 // before anything renders: a title, at least one section of content, enough words, every citation a resolved source,
@@ -91,8 +92,11 @@ const ROLES: [SectionRole, RegExp][] = [
   ['summary', /\b(summary|overview|executive|sintesi|riepilogo|sommario|resumen)/],
 ]
 
-const esc = (s: string): string =>
+/** Text as HTML: every markup character escaped. */
+export const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c)
+
+const esc = escapeHtml
 
 /** The plain text of inline content (citations as [n]), for titles, anchors and word counts. */
 export function plainText(inline: readonly Inline[]): string {
@@ -319,8 +323,16 @@ function contentsHtml(sections: readonly PrintedSection[], words: Words): string
 
 const matches = (html: string, re: RegExp) => [...html.matchAll(re)].map((m) => m[1] ?? '')
 
-/** The report as one HTML document, its manifest and its checks (see the header). */
-export function renderReport(input: ReportInput): ReportDocument {
+/** What every profile prints of a report: its title, its body's parts in order, its manifest and the ids it cites. */
+export interface PrintedReport {
+  title: string
+  body: string[]
+  manifest: ReportManifest
+  citations: string[]
+}
+
+/** The report's title block, lead, contents, sections and sources: the parts its PDF and its web page share. */
+export function printReport(input: ReportInput): PrintedReport {
   const parsed = parseMarkdown(input.markdown, input.citable ? { citable: input.citable } : {})
   const parts = split(parsed.blocks)
   const words = WORDS[input.language.toLowerCase().split('-')[0] ?? ''] ?? EN
@@ -348,6 +360,12 @@ export function renderReport(input: ReportInput): ReportDocument {
     ...sections.map((s) => s.html),
     sourcesHtml(parsed.citations, input, words),
   ].filter((p) => p !== '')
+  return { title, body, manifest, citations: parsed.citations }
+}
+
+/** The report as one HTML document, its manifest and its checks (see the header). */
+export function renderReport(input: ReportInput): ReportDocument {
+  const { title, body, manifest, citations } = printReport(input)
   const html =
     `<!doctype html>\n<html lang="${esc(input.language)}"><head><meta charset="utf-8"><title>${esc(title)}</title>` +
     `<style>${REPORT_CSS}</style></head>\n<body class="${input.layout}">\n${body.join('\n')}\n</body></html>\n`
@@ -356,7 +374,7 @@ export function renderReport(input: ReportInput): ReportDocument {
     manifest,
     ids: matches(html, /\sid="([^"]+)"/g),
     links: matches(html, /\shref="#([^"]+)"/g),
-    unresolved: parsed.citations.filter((id) => !known.has(id)).length,
+    unresolved: citations.filter((id) => !known.has(id)).length,
   })
   return { html, manifest, checks, accepted: checks.every((c) => c.outcome === 'passed') }
 }

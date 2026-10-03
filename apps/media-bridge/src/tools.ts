@@ -152,10 +152,11 @@ const START_RESEARCH: FunctionDeclaration = {
       question: { type: 'string', maxLength: 2000, description: 'The research question, in the speaker’s language.' },
       outputs: {
         type: 'array',
-        items: { type: 'string', enum: ['markdown', 'pdf'] },
+        items: { type: 'string', enum: ['markdown', 'html', 'pdf'] },
         minItems: 1,
-        maxItems: 2,
-        description: 'Markdown is always written; add pdf when the speaker asks for one.',
+        maxItems: 3,
+        description:
+          'Markdown is always written, and every report also downloads as an HTML page from its card; add html when the speaker asks for HTML or a web page, pdf when they ask for a PDF.',
       },
       inputSourceIds: {
         type: 'array',
@@ -195,7 +196,7 @@ const RENDER_RESEARCH: FunctionDeclaration = {
   name: 'render_research',
   behavior: Behavior.NON_BLOCKING,
   description:
-    'Ask for a PDF of a published research report that has none (taskId from project_status). Queued means not printed yet: the PDF arrives as the report’s next version. It starts no research.',
+    'Ask for a PDF of a published research report that has none (taskId from project_status). Queued means not printed yet: the PDF arrives as the report’s next version. It starts no research. HTML needs no call: every published report already downloads as an HTML page from its card.',
   parametersJsonSchema: {
     type: 'object',
     properties: { taskId: UUID_SCHEMA },

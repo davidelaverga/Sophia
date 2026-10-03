@@ -207,6 +207,46 @@ describe('start_research over /v1/media/tool-calls', () => {
   })
 })
 
+describe('start_research takes HTML as the Markdown report Studio prints its page from', () => {
+  /** The admitted task's specialist and the outputs its manifest (the runtime's input) names. */
+  const admittedAs = async (taskId: string) => {
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const { rows } = await owner.query<{ role: string; manifest: { outputs: string[] } }>(
+        `SELECT t.role, s.body::jsonb AS manifest FROM sophia.research_tasks t
+           JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id
+           JOIN sophia.source_texts s ON s.project_id=j.project_id AND s.source_id=j.input_source_id
+          WHERE t.job_id=$1`,
+        [taskId],
+      )
+      return rows.map((r) => [r.role, r.manifest.outputs])
+    } finally {
+      await owner.end()
+    }
+  }
+
+  it('admits html as the Markdown specialist, never in the manifest, and says the card downloads the page', async () => {
+    const w = await world()
+    const html = await tool(w, { question: 'Which hosts sandbox their renderers?', outputs: ['html'] })
+    assert.equal(html.status, 'admitted', JSON.stringify(html))
+    assert.match(html.output.note, /its card also downloads it as an HTML page\.$/)
+    assert.deepEqual(await admittedAs(html.output.taskId), [['sophia-research-md-v1', ['markdown']]])
+    const repeat = await tool(w, { question: 'Which hosts sandbox their renderers?', outputs: ['markdown', 'html'] })
+    assert.deepEqual([repeat.status, repeat.output.existingTaskId], ['ok', html.output.taskId])
+    assert.match(repeat.output.note, /downloads it as an HTML page/)
+    // A PDF with no renderer running is refused whole, HTML or not: nothing is started in its place.
+    const pdf = await tool(w, { question: 'As HTML and a PDF.', outputs: ['html', 'pdf'], newRequest: true })
+    assert.deepEqual([pdf.status, pdf.output.code], ['refused', 'not_started:pdf_unavailable'])
+    const docx = await tool(w, { question: 'As a Word file.', outputs: ['docx'], newRequest: true })
+    assert.equal(docx.status, 'clarify')
+
+    const plain = await tool(await world(), { question: 'Which hosts sandbox their renderers?' })
+    assert.equal(plain.status, 'admitted', JSON.stringify(plain))
+    assert.doesNotMatch(plain.output.note, /HTML/, 'promised only to whoever asked')
+  })
+})
+
 describe('the runtime research routes (A11)', () => {
   it('run the research tools’ operations for the session the runtime owns, with typed refusals', async () => {
     const w = await world()
