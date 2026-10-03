@@ -175,7 +175,7 @@ describe('the provider setup frame (T19, T21)', () => {
     assert.equal(wire, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
     // v1.2's as Google receives them: the digest provider.setup logs, so a setup receipt names what was sent.
     const wireV12 = createHash('sha256').update(JSON.stringify(newer), 'utf8').digest('hex')
-    assert.equal(wireV12, '4d1b9c5bcfe2ee3f26ff5a3d714915ec51a4528c8695ed602733c7b2e4ead4de')
+    assert.equal(wireV12, '7c2e6b5ec2f0157efad740c877a25c92af229b0145d1e9f21aa39a43fddd3368')
     assert.deepEqual([wire, wireV12], [TOOL_SETS['v1.1'].sha256, TOOL_SETS['v1.2'].sha256])
     assert.deepEqual(newer.slice(0, 5), older.slice(0, 5))
     assert.deepEqual(
@@ -193,6 +193,21 @@ describe('the provider setup frame (T19, T21)', () => {
       String(research?.parametersJsonSchema?.properties?.amendsTaskId?.description),
       /^A finished research task this request revises\. The report is edited in place: /,
     )
+  })
+
+  it('v1.2’s start_research asks Google for the whole request, and for the scope the speaker stated (CX-0030)', async () => {
+    type Research = {
+      name: string
+      parametersJsonSchema: {
+        properties: { question: { description: string }; scope: { properties: Record<string, unknown> } }
+      }
+    }
+    const tools = (await setupOf('v1.2', null)).tools as Array<{ functionDeclarations?: Research[] }>
+    const research = tools.flatMap((t) => t.functionDeclarations ?? []).find((d) => d.name === 'start_research')
+    assert.ok(research)
+    const { question, scope } = research.parametersJsonSchema.properties
+    assert.match(question.description, /^The whole request in the speaker’s own words and language: /)
+    assert.deepEqual(Object.keys(scope.properties), ['change', 'keep', 'length', 'sections', 'maxSearches', 'maxReads'])
   })
 
   it('a resumed connection sends the same instruction bytes with its handle, and nothing else changes', async () => {
