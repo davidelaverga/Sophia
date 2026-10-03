@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./markdown": "./src/markdown.ts",
+    "./language": "./src/language.ts",
     "./page": "./src/report-page.ts"
   },
   "scripts": {

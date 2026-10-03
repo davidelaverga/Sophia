@@ -530,6 +530,23 @@ when you change the room:
   page `@sophia/report/page` prints from the version's checked Markdown, and
   text that does not match its record (`tamper=text`) saves nothing.
   Change the viewer and they must still pass.
+- **The Document tab reads as the HTML page does** (`e2e/report-reading.spec.ts`,
+  html-report-v2 §4b): on the same page, a long labelled report with every
+  kind of source (`fixtures/reading-data.ts`). One measure in both pane sizes
+  (`--measure`, 34rem: 60 to 80 characters a line, measured); a serif reading
+  voice at 17/1.6, the Studio's sans for tables, code, numbers and markers,
+  with sizes of its own, outside the work views' scale. A table never breaks
+  a word (break-word, never anywhere); from five columns it scrolls with its
+  row label pinned. A bullet nested in a numbered list takes no number. The
+  version's limitations sit under an amber rule. A citation stays on the line
+  of the word before it, and adjacent ones are one group with commas
+  (`bindCites` in `cite-view.ts`, with tests): a citation is a button, and a
+  line may break before a button even with no space, so the word and the
+  group are set without a break, taking at most 24 characters of the word so
+  a long address still wraps. A citation of a source read in part, as a
+  snippet or not at all is dotted (`data-weak`) and named so in the report's
+  language (`reportLanguage`, from `@sophia/report/language`, which loads
+  without the page's template). Change the viewer and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake
   delivers result cards and live captions as encoded packets through the

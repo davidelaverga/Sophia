@@ -7,6 +7,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
+import { reportLanguage } from '@sophia/report/language'
 import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -121,6 +122,8 @@ function usePaneData(identity: Identity, link: ReportLink) {
     () => (text.data ? parseMarkdown(text.data.text, { citable: (listed ?? []).map((s) => s.sourceId) }) : null),
     [text.data, listed],
   )
+  // The report's own language: the viewer names a citation in it, as its HTML page does.
+  const language = useMemo(() => (text.data ? reportLanguage(text.data.text) : 'und'), [text.data])
   // The PDF is the one rendition format (A11).
   const rendition = version?.renditions?.[0]
   const showPdf = link.format === 'pdf' && rendition !== undefined
@@ -132,7 +135,7 @@ function usePaneData(identity: Identity, link: ReportLink) {
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
   })
-  return { versions, version, versionSettled, text, sources, parsed, rendition, showPdf, noPdf, pdf }
+  return { versions, version, versionSettled, text, sources, parsed, language, rendition, showPdf, noPdf, pdf }
 }
 
 type PaneData = ReturnType<typeof usePaneData>
@@ -755,7 +758,12 @@ function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
       )}
       <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
-      <MarkdownView report={data.parsed} onCite={onCite} />
+      <MarkdownView
+        report={data.parsed}
+        sources={data.sources.data?.sources}
+        language={data.language}
+        onCite={onCite}
+      />
     </>
   )
 }
