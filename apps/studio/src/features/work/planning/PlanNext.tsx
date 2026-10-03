@@ -19,7 +19,8 @@ export function PlanNext({ goal, review, now, people, viewerId }: Props) {
   const shown = shownPlan(goal)
   if (!goal || !shown) return null
   const { plan, operable } = shown
-  const replacements = operable ? proposed(goal) : []
+  // Every other proposal, not only the first (PR #76 review, P2).
+  const others = proposed(goal).filter((p) => p !== plan)
   const line = review
     ? reviewLine({ ...review, revision: plan.revision }, viewerId, (id) => people[id]?.name ?? 'someone', now)
     : null
@@ -31,8 +32,10 @@ export function PlanNext({ goal, review, now, people, viewerId }: Props) {
         <span className="field-label">Plan</span>
         <span className="count">r{plan.revision}</span>
         {operable ? <Tag tone="teal">Accepted</Tag> : <Tag tone="amber">Proposed</Tag>}
-        {replacements.length > 0 && (
-          <Tag tone="amber">{replacements.map((p) => `r${String(p.revision)}`).join(', ')} proposed</Tag>
+        {others.length > 0 && (
+          <Tag tone="amber">
+            {others.map((p) => `r${String(p.revision)}`).join(', ')} {operable ? 'proposed' : 'also proposed'}
+          </Tag>
         )}
       </span>
       {line && (

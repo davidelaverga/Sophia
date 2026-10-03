@@ -55,6 +55,9 @@ describe('the command store', () => {
     added(space, { operation_id: 'op-s', kind: 'stop', target })
     assert.equal(repeatOf(space, 'stop', target)?.command.operation_id, 'op-s')
     assert.equal(repeatOf(space, 'stop', { ...target, assignment_generation: 4 }), null) // another generation
+    // The same generation's next attempt, or another session: another execution, so another request (PR #76, P1).
+    assert.equal(repeatOf(space, 'stop', { ...target, attempt_id: 'at-next' }), null)
+    assert.equal(repeatOf(space, 'stop', { ...target, session_id: 's-next' }), null)
   })
 
   it('clears the words sent, once recorded, even with the sheet closed or a Hold sent since; never words typed after', () => {

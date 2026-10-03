@@ -443,7 +443,7 @@ function BoardBody(props: BodyProps) {
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
       <Bar view={view} rows={rows} viewerId={viewerId} asks={asks} people={people} away={away} onSeen={markSeen} />
       <Notices board={board} coverage={props.coverage} operable={operable} />
-      {operable && <ProposalBand current={plan} proposals={proposed(goal)} />}
+      <ProposalBand current={plan} proposals={proposed(goal).filter((p) => p !== plan)} operable={operable} />
       <Decisions decisions={decidedOf(goal.decisions)} className="board-decisions board-decided" {...decisionProps} />
       {asks.shown && <Decisions decisions={asks.open} {...decisionProps} />}
       <Lanes rows={rows} board={view} tile={tile} />

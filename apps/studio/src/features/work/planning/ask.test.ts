@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { asking, heard, shownOf, unanswerable, type AskEvent, type Question } from './ask.ts'
+import { asking, heard, shownOf, stalled, unanswerable, type AskEvent, type Question } from './ask.ts'
 
 const question = (id: string, work = 'work-1'): Question => ({
   question_id: id,
@@ -53,6 +53,18 @@ describe('an answer from Sophia', () => {
       event('q2', 3, 'complete'),
     )
     assert.deepEqual([whole.state, whole.answer], ['answered', 'One. Two.'])
+  })
+
+  it('fails a question that hears nothing more within the limit, and only that one (PR #76 review, P2)', () => {
+    const silent = asking(question('q1'))
+    const failed = stalled(silent, 'q1', 0)
+    assert.deepEqual([failed.state, failed.reason], ['failed', 'No answer came in time. Nothing was changed.'])
+    const partly = after('q2', event('q2', 1, 'chunk', 'It waits '))
+    assert.equal(stalled(partly, 'q2', 1).state, 'failed') // it stopped arriving
+    assert.equal(stalled(partly, 'q2', 0), partly) // an event came since the wait began
+    assert.equal(stalled(partly, 'q1', 1), partly) // another question's wait
+    const done = after('q3', event('q3', 1, 'complete', 'Whole.'))
+    assert.equal(stalled(done, 'q3', 1), done)
   })
 
   it('keeps a question that can’t be answered here, with why, and makes no answer up', () => {

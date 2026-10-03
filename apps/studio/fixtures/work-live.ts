@@ -2,7 +2,7 @@
 // last report, a clock that runs from NOW, the receipts a service would give each command, the events an answer from
 // the shared conversation would arrive as, a labelled source text for a result, and a decision's receipt. Nothing
 // here reaches a network. The query string chooses how the service behaves: `admission=slow|lost|refused`,
-// `settle=confirmed|unknown`, `ask=down|whole`, `result=down`.
+// `settle=confirmed|unknown`, `ask=down|whole|silent`, `result=down`.
 import type { Resource } from '../src/features/resources/resource.ts'
 import type { Receipt } from '../src/features/resources/receipts.ts'
 import type { SendCommand } from '../src/features/resources/SessionActs.tsx'
@@ -243,6 +243,8 @@ function eventsFor(question: Question): AskEvent[] {
 
 /** The shared conversation, simulated: `staggered=1` answers the first question slower than the next. */
 export const ask: Ask = (question, on) => {
+  // `ask=silent`: the conversation takes the question and never answers (PR #76 review, P2).
+  if (query().get('ask') === 'silent') return
   const late = query().get('staggered') === '1' && question.text === 'Why is it waiting?'
   const start = late ? 1800 : 900
   const record = { on, events: [] as AskEvent[] }

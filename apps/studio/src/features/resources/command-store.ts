@@ -77,16 +77,28 @@ export const unanswered = (space: string, operationId: string) => updated(space,
 /** On its way again, the same operation. */
 export const resent = (space: string, operationId: string) => updated(space, operationId, retried)
 
+/** Whether two targets are the same execution, field for field: a new attempt or session is another target. */
+const TARGET_FIELDS = [
+  'project_id',
+  'work_id',
+  'assignment_id',
+  'assignment_generation',
+  'attempt_id',
+  'session_id',
+] as const satisfies readonly (keyof CommandTarget)[]
+const sameTarget = (a: CommandTarget, b: CommandTarget) => TARGET_FIELDS.every((field) => a[field] === b[field])
+
 /**
- * The same request again, when it is one: a control of the same kind still unresolved for the same target, or the
- * same guidance, word for word. It goes again with its own operation, never as a second one.
+ * The same request again, when it is one: a control of the same kind still unresolved for exactly the same target
+ * (project, work, assignment, generation, attempt and session), or the same guidance, word for word. It goes again with
+ * its own operation, never as a second one. A command for an earlier attempt or session is not the same request:
+ * pressing Stop on the attempt shown now stops that attempt, with a new operation (PR #76 review, P1).
  */
 export function repeatOf(space: string, kind: CommandKind, target: CommandTarget, text?: string): Known | null {
-  const scope = scopeOf(target)
   return (
     spaceOf(space).known.findLast(
       (k) =>
-        scopeOf(k.command.target) === scope &&
+        sameTarget(k.command.target, target) &&
         k.command.kind === kind &&
         unresolved(k) &&
         (kind !== 'guidance' || k.command.text === text),

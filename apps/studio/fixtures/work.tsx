@@ -91,6 +91,8 @@ declare global {
       misdeliver?: (from: string, to: string) => void
       /** The service's next observation of a task: its lifecycle, or one action's availability for this viewer. */
       setLifecycle?: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) => void
+      /** The same assignment and generation, its next attempt in another native session. */
+      nextAttempt?: (workId: string) => void
       setAvailability?: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') => void
     }
   }
@@ -162,7 +164,9 @@ function opening(viewer: Viewer): GoalView {
   }
   const current = g.current_plan
   if (current && query.get('proposed') === '1') {
-    g = { ...g, current_plan: null, items: [], proposed_plans: [{ ...current, state: 'proposed', decision_ref: null }] }
+    // Its scenario's own proposals stay beside it (`case=replan`).
+    const shown = { ...current, state: 'proposed' as const, decision_ref: null }
+    g = { ...g, current_plan: null, items: [], proposed_plans: [shown, ...g.proposed_plans] }
   }
   // Superseded, with no replacement and its work no longer observed: the goal shows as it does without a plan.
   if (current && query.get('superseded') === '1')
@@ -273,6 +277,20 @@ function controls(
     misdeliver,
     setLifecycle: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) =>
       update(observed(workId, () => ({ lifecycle }))),
+    nextAttempt: (workId: string) =>
+      update(
+        observed(workId, (v) =>
+          v.assignment
+            ? {
+                assignment: {
+                  ...v.assignment,
+                  attempt_id: `${v.assignment.attempt_id ?? 'attempt'}-again`,
+                  native_session_id: `${v.assignment.native_session_id ?? 'session'}-again`,
+                },
+              }
+            : {},
+        ),
+      ),
     setAvailability: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') =>
       update(
         observed(workId, (v) => ({

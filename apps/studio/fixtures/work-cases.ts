@@ -148,7 +148,15 @@ const replan: Change = (g) => {
       .map((i) => (i.id === 'work-3' ? { ...i, blocked_by: ['work-1', 'work-2'] } : i)),
     planned('work-6', 'Retry renders on a second host', { assignee_kind: 'unassigned', assignee_id: null }),
   ]
-  return { ...g, proposed_plans: [{ ...current, revision: 3, state: 'proposed', decision_ref: null, items }] }
+  // A second replacement beside it (PR #76 review, P2): the review pane's work dropped instead.
+  const other = [...current.items.filter((i) => i.id !== 'work-2'), planned('work-7', 'Retry from the report pane', {})]
+  return {
+    ...g,
+    proposed_plans: [
+      { ...current, revision: 3, state: 'proposed', decision_ref: null, items },
+      { ...current, plan_id: 'plan-1-alt', revision: 4, state: 'proposed', decision_ref: null, items: other },
+    ],
+  }
 }
 
 /** UI-14: Davide's choice is recorded; the lead hasn't taken it into the plan yet. */

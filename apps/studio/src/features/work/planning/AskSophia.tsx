@@ -7,8 +7,8 @@
 // says so, or no conversation is connected), the question is kept with why, and the way to the conversation is
 // offered; no answer is made up.
 import { useState, useSyncExternalStore } from 'react'
-import { asking, shownOf, unanswerable, type Ask, type Asked, type Question } from './ask.ts'
-import { askedOf, asksOf, heardOf, subscribe } from './ask-store.ts'
+import { ASK_LIMIT_MS, asking, shownOf, unanswerable, type Ask, type Asked, type Question } from './ask.ts'
+import { askedOf, asksOf, heardOf, stalledOf, subscribe } from './ask-store.ts'
 import { actionOf, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { resultsOf } from './results.ts'
 
@@ -17,11 +17,25 @@ export interface Asks {
   of: (workId: string) => Asked | null
   /** Asks; `unavailable` keeps the question with why instead of sending it. */
   ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
+  /** Asks a task's latest question again, the same question, after it failed. */
+  again: (workId: string) => void
 }
 
 /** The questions of one space (a project as one viewer sees it), kept while the page lives (ask-store.ts). */
 export function useAsks(onAsk: Ask | undefined, space: string, newId: () => string = () => crypto.randomUUID()): Asks {
   const asked = useSyncExternalStore(subscribe, () => asksOf(space))
+  /** Sends a question and watches its wait: each event starts it again; none within the limit fails it. */
+  const send = (question: Question, port: Ask) => {
+    const watch = (seq: number) =>
+      setTimeout(() => stalledOf(space, question.work_id, question.question_id, seq), ASK_LIMIT_MS)
+    askedOf(space, asking(question))
+    watch(0)
+    port(question, (event) => {
+      heardOf(space, question.work_id, event)
+      const now = asksOf(space)[question.work_id]
+      if (now?.question.question_id === question.question_id && now.state === 'answering') watch(now.seq)
+    })
+  }
   return {
     of: (workId) => asked[workId] ?? null,
     ask: (q, unavailable) => {
@@ -30,8 +44,11 @@ export function useAsks(onAsk: Ask | undefined, space: string, newId: () => stri
         askedOf(space, unanswerable(question, unavailable ?? 'Sophia can’t be asked from here yet.'))
         return
       }
-      askedOf(space, asking(question))
-      onAsk(question, (event) => heardOf(space, q.work_id, event))
+      send(question, onAsk)
+    },
+    again: (workId) => {
+      const failed = asksOf(space)[workId]
+      if (onAsk && failed?.state === 'failed') send(failed.question, onAsk)
     },
   }
 }
@@ -59,23 +76,48 @@ const invited = (row: PlanRow, viewerId: string | null) =>
 
 const FAILED = 'I couldn’t reach the conversation just now. Nothing was changed.'
 
+interface ThreadProps {
+  asked: Asked
+  onOpenConversation?: (() => void) | undefined
+  /** Asks the same question again, after it failed. */
+  onAgain?: (() => void) | undefined
+}
+
+/** No answer here, and why: a question that failed can be asked again; either can be taken to the conversation. */
+function NotAnswered({
+  why,
+  failed,
+  onAgain,
+  onOpenConversation,
+}: { why: string; failed: boolean } & Omit<ThreadProps, 'asked'>) {
+  return (
+    <p className="ask-a ask-none">
+      {why}{' '}
+      {failed && onAgain && (
+        <button type="button" className="text-button" onClick={onAgain}>
+          Ask again
+        </button>
+      )}{' '}
+      {onOpenConversation && (
+        <button type="button" className="text-button" onClick={onOpenConversation}>
+          Open the conversation
+        </button>
+      )}
+    </p>
+  )
+}
+
 /** The question and what came back of it. */
-function Thread({ asked, onOpenConversation }: { asked: Asked; onOpenConversation?: (() => void) | undefined }) {
+function Thread({ asked, onOpenConversation, onAgain }: ThreadProps) {
   const said = shownOf(asked)
-  const quiet = asked.state === 'unavailable' || asked.state === 'failed'
-  const why = asked.state === 'failed' ? FAILED : `Not answered here: ${asked.reason ?? ''}`
+  const failed = asked.state === 'failed'
+  const quiet = failed || asked.state === 'unavailable'
+  const why = failed ? (asked.reason ?? FAILED) : `Not answered here: ${asked.reason ?? ''}`
   return (
     <div className="ask-thread" data-state={asked.state}>
       <p className="ask-q">{asked.question.text}</p>
       {quiet ? (
-        <p className="ask-a ask-none">
-          {why}{' '}
-          {onOpenConversation && (
-            <button type="button" className="text-button" onClick={onOpenConversation}>
-              Open the conversation
-            </button>
-          )}
-        </p>
+        <NotAnswered why={why} failed={failed} onAgain={onAgain} onOpenConversation={onOpenConversation} />
       ) : (
         // Seen as it arrives; heard once, whole.
         <p className="ask-a" data-thinking={said === '' || undefined} aria-hidden>
@@ -142,7 +184,9 @@ export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Pro
           Ask
         </button>
       </form>
-      {asked && <Thread asked={asked} onOpenConversation={onOpenConversation} />}
+      {asked && (
+        <Thread asked={asked} onOpenConversation={onOpenConversation} onAgain={() => asks.again(row.item.id)} />
+      )}
     </section>
   )
 }

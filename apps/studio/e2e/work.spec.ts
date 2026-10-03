@@ -655,7 +655,7 @@ test('wbc · UI-03 · a proposed replacement sits beside the accepted plan, comp
 }) => {
   await page.goto(`${PAGE}?viewer=davide&case=replan`)
   await expect(page.locator('.plan-next')).toContainText('r2')
-  await expect(page.locator('.plan-next')).toContainText('r3 proposed')
+  await expect(page.locator('.plan-next')).toContainText('r3, r4 proposed') // every proposal (PR #76 review)
   await expect(tile(page, 'work-4')).toBeVisible() // the accepted plan stays the board
   await expect(tile(page, 'work-6')).toHaveCount(0)
   const band = board(page).getByRole('button', { name: /Plan r3, not accepted yet/ })
@@ -1352,4 +1352,57 @@ test('@phone · review: the goal’s line wraps whole, nothing past the screen',
   await expect(reviewLine(page)).toBeVisible()
   const box = await reviewLine(page).boundingBox()
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0)
+})
+
+// ---- The PR #76 review (Codex on GitHub), each finding with its regression. ----
+
+test('pr76 · P1 · Stop on the attempt shown now is a new request, not the earlier attempt’s lost one', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  await stopReview(page)
+  await expect(page.getByRole('dialog').locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  // The same assignment and generation moves to its next attempt, in another session.
+  await page.evaluate(() => window.workFixture?.nextAttempt?.('work-2'))
+  const sheet = page.getByRole('dialog', { name: 'Review the report pane' })
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  await expect.poll(async () => (await commanded(page)).length).toBe(2)
+  const [first, second] = await commanded(page)
+  expect(second?.operation_id).not.toBe(first?.operation_id)
+  expect(second?.target.attempt_id).toBe(`${first?.target.attempt_id ?? ''}-again`)
+  expect(second?.target.session_id).toBe(`${first?.target.session_id ?? ''}-again`)
+})
+
+test('pr76 · P2 · an answer that never comes is said so in time, and the question can be asked again', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=silent`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await page.clock.runFor(29_000)
+  await expect(sheet.locator('.ask-a')).toHaveText('Thinking…')
+  await page.clock.runFor(2_000)
+  await expect(sheet.locator('.ask-none')).toContainText('No answer came in time. Nothing was changed.')
+  await expect(sheet.locator('.ask-q')).toHaveText('Why is it waiting?') // the question is kept
+  await expect(sheet.getByRole('button', { name: 'Open the conversation' })).toBeVisible()
+  await sheet.getByRole('button', { name: 'Ask again' }).click()
+  await expect(sheet.locator('.ask-a')).toHaveText('Thinking…')
+})
+
+test('pr76 · P2 · every proposed plan is shown, beside the accepted one or beside the first proposal', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=replan`)
+  await expect(board(page).getByRole('button', { name: /Plan r3, not accepted yet/ })).toBeVisible()
+  await expect(board(page).getByRole('button', { name: /Plan r4, not accepted yet/ })).toContainText(
+    '1 added · 1 removed',
+  )
+  // With none accepted: the first proposal is the board, read only, and the others are said beside it.
+  await page.goto(`${PAGE}?viewer=davide&case=replan&proposed=1`)
+  await expect(page.locator('.plan-next')).toContainText('r3, r4 also proposed')
+  const also = board(page).getByRole('button', { name: /^Also proposed/ })
+  await expect(also).toHaveCount(2)
+  await expect(also.first()).toContainText('Plan r3, not accepted yet')
+  await expect(board(page).locator('.board-notice')).toContainText('Proposed, not accepted yet: nothing in it runs.')
 })

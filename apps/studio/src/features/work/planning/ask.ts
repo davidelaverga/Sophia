@@ -71,5 +71,21 @@ export function heard(asked: Asked, e: AskEvent): Asked {
   return { ...asked, state: e.kind, reason: e.text ?? null, seq: e.seq }
 }
 
+/**
+ * How long a question waits for its next event before it is said not answered (CONTRIBUTING: no wait is endless; a
+ * read waits 30 s). Each event that arrives starts the wait again.
+ */
+export const ASK_LIMIT_MS = 30_000
+
+/**
+ * A question that heard nothing more since `seq` within the limit: failed, said so, and can be asked again. A later
+ * question, an event since, or an answer already complete is left as it is (PR #76 review, P2).
+ */
+export function stalled(asked: Asked, questionId: string, seq: number): Asked {
+  if (asked.question.question_id !== questionId || asked.seq !== seq) return asked
+  if (asked.state !== 'waiting' && asked.state !== 'answering') return asked
+  return { ...asked, state: 'failed', reason: 'No answer came in time. Nothing was changed.' }
+}
+
 /** What is shown of an answer: the completed one, or what has arrived of it. */
 export const shownOf = (asked: Asked) => asked.answer ?? asked.chunks.join('')
