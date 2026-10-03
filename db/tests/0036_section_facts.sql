@@ -234,6 +234,16 @@ BEGIN
  IF r->'citations'<>jsonb_build_array(many[9],many[10],many[11],many[12],many[13]) THEN
   RAISE EXCEPTION 'A source the report does not number was added: %',r; END IF;
 END $$;
+-- A link to a ref with a space after its prefix cites, as the parser numbers it (packages/report markdown.ts, CITE_LINK)
+-- and as the bracketed form does; a space after the `<` does not, there or here.
+DO $$ DECLARE a text:='11111111-1111-4111-8111-111111111111'; b text:='22222222-2222-4222-8222-222222222222';
+ t text;
+BEGIN
+ t:=sophia.markdown_citing_text(format('Claim [1](source: %s). More [2](input: %s#1). Not [3](< %s).',a,b,
+  '33333333-3333-4333-8333-333333333333'));
+ IF position(a IN t)=0 OR position(b IN t)=0 OR position('33333333' IN t)>0 THEN
+  RAISE EXCEPTION 'A spaced ref link reads differently from the parser: %',t; END IF;
+END $$;
 -- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.
 DO $$ DECLARE fn text; BEGIN
