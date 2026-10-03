@@ -210,4 +210,48 @@ describe('section comparison (what Knowledge shows between two versions)', () =>
     })
     assert.deepEqual(compareSections(V2, V2).conclusionChanged, false)
   })
+
+  it('pairs each section at most once, as the service does (0036 section_facts)', () => {
+    const OPTIONS =
+      '# Options\n\n## Option A\nFast.\n\n### Pros\nCheap.\n\n### Cons\nLoud.\n\n## Option B\nSlow.\n\n### Pros\nQuiet.\n\n### Cons\nCostly.\n'
+    const v2 = OPTIONS.replace('Cheap.', 'Cheap and simple.').replace(
+      '## Option B',
+      '## Option C\nNew.\n\n### Pros\nFree.\n\n## Option B',
+    )
+    const none = { added: [], revised: [], removed: [] }
+    assert.deepEqual(compareSections(OPTIONS, OPTIONS), {
+      ...none,
+      unchanged: ['Options', 'Option A', 'Pros', 'Cons', 'Option B', 'Pros', 'Cons'],
+      conclusionChanged: false,
+    })
+    assert.deepEqual(compareSections(OPTIONS, v2), {
+      added: ['Option C', 'Pros'],
+      revised: ['Pros'],
+      removed: [],
+      unchanged: ['Options', 'Option A', 'Cons', 'Option B', 'Pros', 'Cons'],
+      conclusionChanged: false,
+    })
+    assert.deepEqual(
+      compareSections(
+        '# Hosting\n\n## Pros\na\n\n## Cons\nb\n',
+        '# Hosting, with costs\n\n## Pros\na\n\n## Cons\nb2\n',
+      ),
+      {
+        added: ['Hosting, with costs'],
+        revised: ['Cons'],
+        removed: ['Hosting'],
+        unchanged: ['Pros'],
+        conclusionChanged: false,
+      },
+      'a renamed title keeps its sections',
+    )
+    assert.deepEqual(
+      compareSections(
+        '## Option A\nx\n\n### Pros\na\n\n## Option B\ny\n\n### Pros\nb\n',
+        '## Option A\nx\n\n### Pros\na\n',
+      ),
+      { ...none, removed: ['Option B', 'Pros'], unchanged: ['Option A', 'Pros'], conclusionChanged: false },
+      'a removed option takes its own Pros',
+    )
+  })
 })

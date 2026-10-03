@@ -202,6 +202,10 @@ const topic = (changed: Partial<Record<'added' | 'revised' | 'removed', string[]
 const withRecommendation = (recommendation: string) =>
   `# Report\n\nBody.\n\n## Conclusion\n\nUse A.\n\n## Recommendations\n\n${recommendation}\n`
 
+/** A report whose Conclusion has a '### Notes' reading `notes`, after recommendations reading `recommendation`. */
+const withNotes = (recommendation: string, notes: string) =>
+  `# Report\n\n## Recommendations\n\n${recommendation}\n\n## Conclusion\n\nUse A.\n\n### Notes\n\n${notes}\n`
+
 describe('what a changed conclusion fact covers (CX-0019)', () => {
   it('names the part whose heading changed', () => {
     assert.equal(topic({ revised: ['Conclusion'] }), 'Conclusion')
@@ -221,6 +225,13 @@ describe('what a changed conclusion fact covers (CX-0019)', () => {
       conclusionTopic(compareSections(withRecommendation('Do X.'), withRecommendation('Do X and Y.'))),
       'Recommendations',
     )
+  })
+
+  it('reads 0036 facts, which name a subheading by its own heading, as the gate does', () => {
+    // A '### Notes' under the Conclusion is 'Notes', never 'Conclusion › Notes': only the recommendations changed.
+    assert.equal(topic({ revised: ['Recommendations', 'Notes'] }), 'Recommendations')
+    const facts = compareSections(withNotes('Do X.', 'Cheap.'), withNotes('Do X and Y.', 'Cheap now.'))
+    assert.deepEqual([facts.revised, conclusionTopic(facts)], [['Recommendations', 'Notes'], 'Recommendations'])
   })
 })
 
