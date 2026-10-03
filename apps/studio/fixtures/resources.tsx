@@ -3,7 +3,7 @@
 // reads are answered at fetch (fixture-api.ts); the panel has no port that acts, and any other request is recorded as
 // unexpected. The query string picks who is looking, `viewer=davide` (default: Luis); `stale=1` (Codex's reading has
 // expired); `more=1` (Grok and Gemini CLI join the three enrollments); `quiet=1` (nothing waits on an owner);
-// `busy=1` (Codex's account at 92 % and 78 %).
+// `busy=1` (Codex's account at 92 % and 78 %, Davide's Claude Code at 95 %); `spent=1` (Codex's spend limit passed, at 120 %).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -17,7 +17,9 @@ import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import {
   actions,
+  busyClaude,
   busyCodex,
+  spentCodex,
   expiredAt,
   moreObservations,
   moreResources,
@@ -43,9 +45,12 @@ const more = query.get('more') === '1'
 const shown = more ? [...resources, ...moreResources] : resources
 const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
+const spent = query.get('spent') === '1'
 const read = [...observations, ...(more ? moreObservations : [])].map((o) => {
+  if (busy && o.entitlement_id === 'ent-davide-anthropic') return busyClaude(o)
   if (o.entitlement_id !== 'ent-davide-openai') return o
   if (stale) return { ...o, valid_until: expiredAt() }
+  if (spent) return spentCodex(o)
   return busy ? busyCodex(o) : o
 })
 

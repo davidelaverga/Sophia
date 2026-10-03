@@ -78,6 +78,18 @@ export const busyCodex = (o: QuotaObservation): QuotaObservation => ({
   windows: [percent('five_hour', 92, 40), percent('seven_day', 78, 3 * 1440)],
 })
 
+/** `busy=1`: Davide's Claude Code at 95 % of its 5-hour window, with 80 % of it passed when read: ahead of pace. */
+export const busyClaude = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: o.windows.map((w) => (w.window_id === 'five_hour' ? percent('five_hour', 95, 59) : w)),
+})
+
+/** `spent=1`: Codex's spend limit passed, at 120 % (a spend percentage has no ceiling). */
+export const spentCodex = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: [...o.windows, { ...percent('spend_limit', 120, 10 * 1440), unit: 'spend_percent_used', scope: 'spend' }],
+})
+
 export const observations: QuotaObservation[] = [
   {
     observation_id: 'obs-codex',

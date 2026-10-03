@@ -445,6 +445,14 @@ when you change the room:
   keeps a slow pulse. With reduced motion asked for, nothing moves. A meter
   turns amber from 75 % used and red from 90 % (`usageTone`; `busy=1` shows
   both). A tile's name is whose tool it is; its lines are its description.
+  Tiles sort by attention by default (what waits, then online, unknown and
+  offline, each by owner: never by how used across providers; `order.ts`); an offline tile steps back and says
+  how long it has been gone. A meter marks how much of its window had passed
+  when it was read (`pace.ts`), only where the length is certain (Claude
+  Code's `five_hour` and `seven_day`; Codex reports its own durations, which
+  the observation can't carry yet), and the sheet says when the account runs
+  out before the reset at that pace (`busy=1`; `spent=1` passes a spend
+  limit).
 
 ## The personal space
 

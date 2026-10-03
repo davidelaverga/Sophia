@@ -55,6 +55,7 @@ describe('a resource’s capacity', () => {
 
   it('keeps an unknown window unknown, and a reset already due pending, never fresh', () => {
     assert.deepEqual(windowView(window({}), now), {
+      id: 'five_hour',
       name: '5-hour',
       state: 'observed',
       value: '40% used',

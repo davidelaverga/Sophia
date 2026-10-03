@@ -3,6 +3,7 @@
 import { useId, useState } from 'react'
 import { Icon, Tag } from '@sophia/ui'
 import { Meter } from './Meter.tsx'
+import { pace } from './pace.ts'
 import { ago, capacity, expired, windowView, type QuotaObservation } from './resource.ts'
 
 /** A window that isn't observed says so as a tag, in words: never as a number. */
@@ -29,7 +30,12 @@ function Windows({ observation, now }: { observation: QuotaObservation; now: Dat
               {v.state === 'observed' ? <span>{v.value}</span> : <Tag tone={NOT_OBSERVED_TONE[v.state]}>{v.value}</Tag>}
               {v.reset && <span className="capacity-reset">{v.reset}</span>}
               {v.state === 'observed' && v.applies === 'known' && v.percent !== null && (
-                <Meter label={`${v.name} window`} percent={v.percent} value={v.value} />
+                <Meter
+                  label={`${v.name} window`}
+                  percent={v.percent}
+                  value={v.value}
+                  passed={pace(w, observation, now)?.passed}
+                />
               )}
             </dd>
           </div>
@@ -72,22 +78,33 @@ function WindowsDisclosure({ observation, now }: { observation: QuotaObservation
   )
 }
 
-export function CapacityBlock(props: Props) {
-  const { observation, now } = props
-  const { line, limiting, known } = capacity(observation, now)
-  const readable = observation && observation.coverage !== 'unavailable' && observation.windows.length > 0
-  const missing = observation?.missing_capabilities ?? []
+/** The capacity's line, its meter (a percentage; an empty, hatched track for what isn't known; nothing beside a
+ * balance) and, when the account runs out before its window resets at this pace, how long before. */
+function Headline({ observation, now }: { observation: QuotaObservation | undefined; now: Date }) {
+  const { line, limiting, known, pace: headPace } = capacity(observation, now)
   return (
-    <div className="capacity" role="group" aria-label="Capacity">
+    <>
       <p className="capacity-line">{line}</p>
-      {/* A meter for a percentage; an empty, hatched track for what isn't known; nothing beside a balance. */}
       {(limiting || !known) && (
         <Meter
           label={limiting ? `${limiting.name} window` : 'Capacity'}
           percent={limiting?.percent ?? null}
           value={line}
+          passed={headPace?.passed}
         />
       )}
+      {headPace?.early && <p className="capacity-pace">{headPace.early}.</p>}
+    </>
+  )
+}
+
+export function CapacityBlock(props: Props) {
+  const { observation, now } = props
+  const readable = observation && observation.coverage !== 'unavailable' && observation.windows.length > 0
+  const missing = observation?.missing_capabilities ?? []
+  return (
+    <div className="capacity" role="group" aria-label="Capacity">
+      <Headline observation={observation} now={now} />
       <Meta {...props} />
       {readable && <WindowsDisclosure observation={observation} now={now} />}
       {missing.length > 0 && <p className="capacity-missing">Not reported: {missing.join(', ')}.</p>}
