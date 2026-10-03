@@ -154,21 +154,16 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  if (method === 'POST') return posted(project, path, init)
-  return answerReport(project, method, url, init?.body)
+  return method === 'POST' ? posted(project, path, init) : answerReport(project, method, url, init)
 }
 
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
  */
-function answerReport(project: Project, method: string, url: URL, body: unknown) {
+function answerReport(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const path = url.pathname
-  if (method === 'PATCH' && path === `/api/v1/artifacts/${REPORT}/summary`) {
-    const { next, reply } = editDescription(project.description, body, membership.actorId)
-    project.description = next
-    return reply
-  }
+  if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
@@ -182,6 +177,14 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   return null
+}
+
+/** An edit of the report's description on Knowledge, answered as the API answers it. */
+function edited(project: Project, path: string, init: RequestInit | undefined) {
+  if (path !== `/api/v1/artifacts/${REPORT}/summary`) return null
+  const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
+  project.description = next
+  return reply
 }
 
 /** What the page posts: a room token, or a goal's command. */
