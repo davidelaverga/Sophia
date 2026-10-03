@@ -1687,3 +1687,20 @@ test('@phone · on touch, the effort bar and its scale reach past what they draw
   await bar.click()
   expect(await reaches(worker.getByRole('slider'), 10), 'the scale, 10 px above it').toBe(true)
 })
+
+test('effort · a change that comes while the scale is open brings the focus back to the bar', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await worker.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await page.keyboard.press('Home')
+  await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  // Asked, not yet underway: the scale can open again, and the focus is in it when the runtime takes the restart.
+  const bar = worker.locator('.effort-button')
+  await bar.click()
+  await expect(worker.getByRole('slider')).toBeFocused()
+  await page.evaluate(() => window.resourcesFixture?.advance?.('claude-worker'))
+  await expect(worker.locator('.effort-picker')).toHaveCount(0)
+  await expect(bar).toBeFocused()
+})
