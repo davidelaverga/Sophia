@@ -13,6 +13,7 @@ const refused = new URLSearchParams(window.location.search).get('refuse')
 
 let ended: RoomCallbacks['onEnded'] | null = null
 let notified: RoomCallbacks['onNotice'] | null = null
+let captioned: RoomCallbacks['onCaption'] | null = null
 
 /** The call is lost, as LiveKit reports a connection gone. */
 export function dropCall(): void {
@@ -22,6 +23,11 @@ export function dropCall(): void {
 /** The bridge tells this reader a result is ready, as its chat notice arrives (SMC-M03 S6). */
 export function deliverNotice(packet: Parameters<NonNullable<RoomCallbacks['onNotice']>>[0]): void {
   notified?.(packet)
+}
+
+/** A live caption of what is said aloud reaches this member, as the bridge sends one (CX-0023). */
+export function deliverCaption(packet: Parameters<NonNullable<RoomCallbacks['onCaption']>>[0]): void {
+  captioned?.(packet)
 }
 
 const blocked = () => new DOMException('Permission denied', 'NotAllowedError')
@@ -41,6 +47,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   let textOnly = false
   let open = true
   notified = cb.onNotice ?? null
+  captioned = cb.onCaption ?? null
   ended = (why) => {
     if (!open) return
     open = false

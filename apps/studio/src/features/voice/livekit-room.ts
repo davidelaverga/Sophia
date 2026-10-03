@@ -21,8 +21,10 @@ import {
   CHAT_REPLY_TOPIC,
   encodeChatPacket,
   parseChatPacket,
+  type ChatCaption,
   type ChatInput,
   type ChatNotice,
+  type ChatPacket,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
@@ -75,8 +77,10 @@ export interface RoomConnection {
 
 export interface RoomCallbacks {
   onChat?: (packet: ChatReply) => void
-  /** A finished result, told as text because this person reads Sophia (SMC-M03 S6). */
+  /** A finished result's card, for every member present, whether they hear Sophia or read her (S6, CX-0022). */
   onNotice?: (packet: ChatNotice) => void
+  /** A live caption of what is said aloud, for every member present (CX-0023). */
+  onCaption?: (packet: ChatCaption) => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -189,14 +193,23 @@ const CHANGES = [
   RoomEvent.AudioPlaybackStatusChanged,
 ] as const
 
-/** Sophia's chat replies and result notices; anything else on the reply topic, or from anyone else, is ignored. */
+/**
+ * Sophia's chat replies, result notices and live captions; anything else on the reply topic, or from anyone else, is
+ * ignored.
+ */
 function listenToSophia(room: Room, cb: RoomCallbacks): void {
   room.on(RoomEvent.DataReceived, (bytes, who, _kind, topic) => {
     if (topic !== CHAT_REPLY_TOPIC || !who || !isSophia(who)) return
     const packet = parseChatPacket(bytes)
-    if (packet?.kind === 'notice') cb.onNotice?.(packet)
-    else if (packet && packet.kind !== 'input' && packet.kind !== 'mode') cb.onChat?.(packet)
+    if (packet) fromSophia(packet, cb)
   })
+}
+
+/** Each packet to its kind's callback; what Studio itself sends (input, mode) is never taken from her. */
+function fromSophia(packet: ChatPacket, cb: RoomCallbacks): void {
+  if (packet.kind === 'notice') cb.onNotice?.(packet)
+  else if (packet.kind === 'caption') cb.onCaption?.(packet)
+  else if (packet.kind !== 'input' && packet.kind !== 'mode') cb.onChat?.(packet)
 }
 
 /**

@@ -11,6 +11,8 @@
 //   SOPHIA_BRIDGE_INSTANCE      a name for this host in presence reports (default: the host name); each process adds
 //                               a random suffix, so two overlapping processes (a rolling restart) stay distinct and
 //                               each must confirm a guest's quiesce request (0013)
+//   SOPHIA_LIVE_CAPTIONS        `off` sends the members present no live captions of what is said aloud (CX-0023);
+//                               unset or anything else, they are on. Words then only cut a reply, as before
 //
 // One bridge instance serves all rooms: two instances would both join as `sophia` and replace each other.
 //
@@ -50,6 +52,7 @@ const bridge = new MediaBridge({
   model,
   guide,
   bridgeInstanceId: instance,
+  liveCaptions: process.env.SOPHIA_LIVE_CAPTIONS !== 'off',
   now: Date.now,
   log: (event, detail) => console.log(JSON.stringify({ at: new Date().toISOString(), event, ...detail })),
 })

@@ -2,6 +2,19 @@
 // line says. React only renders them.
 import type { SophiaPresence } from '@sophia/contracts'
 import type { ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
+import type { CaptionTurn } from './captions.ts'
+
+/**
+ * One count for everything the chat shows, in the order it arrives: typed turns, result cards and captions (CX-0023),
+ * so the three read as one conversation. Each is stamped once, outside any state update (React may run one twice).
+ */
+export interface Arrivals {
+  next: () => number
+}
+export function arrivals(): Arrivals {
+  let count = 0
+  return { next: () => (count += 1) }
+}
 
 export interface ChatTurn {
   id: string
@@ -11,6 +24,8 @@ export interface ChatTurn {
   sequence: number
   state: 'sending' | 'responding' | 'complete' | 'refused' | 'unknown'
   reason: string | null
+  /** Its place in the chat (Arrivals): when it was sent. */
+  at: number
 }
 
 /** Duplicate/out-of-session packets cannot append another reply. No content is written to browser storage. */
@@ -30,15 +45,16 @@ export function receiveChat(turns: readonly ChatTurn[], packet: ChatReply): Chat
 
 /**
  * A finished result's card in the chat (SMC-M03 S6), for every member, whether they hear Sophia or read her
- * (CX-0022): the bridge's notice carries ids and the task's kind, and the words are Studio's own. It sits after the
- * turn that was last when it arrived.
+ * (CX-0022): the bridge's notice carries ids and the task's kind, and the words are Studio's own. It sits where it
+ * arrived.
  */
 export interface ChatNoticeItem {
   key: string
   taskId: string
   taskKind: string
   resultRevision: number
-  afterTurnId: string | null
+  /** Its place in the chat (Arrivals): when its newest revision came. */
+  at: number
 }
 
 const KEPT_NOTICES = 20
@@ -49,17 +65,13 @@ const KEPT_NOTICES = 20
  * again whenever this page says its mode, CX-0022), or an older revision, changes nothing: the same list comes back,
  * so nothing renders again and Chat is not marked.
  */
-export function receiveNotice(
-  notices: ChatNoticeItem[],
-  packet: ChatNotice,
-  afterTurnId: string | null,
-): ChatNoticeItem[] {
+export function receiveNotice(notices: ChatNoticeItem[], packet: ChatNotice, at: number): ChatNoticeItem[] {
   const { taskId, taskKind, resultRevision } = packet
   const held = notices.find((n) => n.taskId === taskId)
   if (held && held.resultRevision >= resultRevision) return notices
   const rest = notices.filter((n) => n.taskId !== taskId)
   const key = `${taskId}:${String(resultRevision)}`
-  return [...rest.slice(-(KEPT_NOTICES - 1)), { key, taskId, taskKind, resultRevision, afterTurnId }]
+  return [...rest.slice(-(KEPT_NOTICES - 1)), { key, taskId, taskKind, resultRevision, at }]
 }
 
 /** The notice's words, by the task's kind: never anything a report, a page or a model wrote. */
@@ -97,22 +109,23 @@ export function noticeOpenRequest(
   return { artifactId, versionId: file.artifactVersionId, format: file.format }
 }
 
-export type ChatEntryItem = { type: 'turn'; turn: ChatTurn } | { type: 'notice'; notice: ChatNoticeItem }
+export type ChatEntryItem =
+  | { type: 'turn'; turn: ChatTurn }
+  | { type: 'notice'; notice: ChatNoticeItem }
+  | { type: 'caption'; caption: CaptionTurn }
 
-/**
- * The chat in order: each turn, then the notices that arrived after it. A notice whose turn is no longer kept (or that
- * came before any) comes first.
- */
-export function chatTimeline(turns: readonly ChatTurn[], notices: readonly ChatNoticeItem[]): ChatEntryItem[] {
-  const ids = new Set(turns.map((t) => t.id))
-  const loose = notices.filter((n) => n.afterTurnId === null || !ids.has(n.afterTurnId))
-  return [
-    ...loose.map((notice) => ({ type: 'notice' as const, notice })),
-    ...turns.flatMap((turn) => [
-      { type: 'turn' as const, turn },
-      ...notices.filter((n) => n.afterTurnId === turn.id).map((notice) => ({ type: 'notice' as const, notice })),
-    ]),
+/** The chat in the order it arrived: typed turns, result cards and what was said aloud (CX-0023), as one timeline. */
+export function chatTimeline(
+  turns: readonly ChatTurn[],
+  notices: readonly ChatNoticeItem[],
+  captions: readonly CaptionTurn[] = [],
+): ChatEntryItem[] {
+  const entries: Array<{ at: number; entry: ChatEntryItem }> = [
+    ...turns.map((turn) => ({ at: turn.at, entry: { type: 'turn' as const, turn } })),
+    ...notices.map((notice) => ({ at: notice.at, entry: { type: 'notice' as const, notice } })),
+    ...captions.map((caption) => ({ at: caption.at, entry: { type: 'caption' as const, caption } })),
   ]
+  return entries.toSorted((a, b) => a.at - b.at).map((e) => e.entry)
 }
 
 /** What the foot of the chat offers: its one way in, or the message bar. Never both. */

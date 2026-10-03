@@ -7,9 +7,10 @@
 // report's sources come only once the check lets them through), `hold=task` (so does the research task's record); the
 // report viewer's own parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
 // move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice
-// (or its revision), or read what happened.
+// (or its revision) or a live caption, or read what happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
+import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -18,7 +19,7 @@ import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
-import { asked, deliverNotice, dropCall } from './fake-livekit.ts'
+import { asked, deliverCaption, deliverNotice, dropCall } from './fake-livekit.ts'
 import { installFixtureApi, publish, releaseSources, releaseTask, served, unexpected } from './fixture-api.ts'
 import { researchNotice, revisedNotice, SOPHIAS_DESCRIPTION, TEAMMATE } from './report-data.ts'
 
@@ -40,6 +41,8 @@ interface Fixture {
   noticeRevised: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
   releaseTask: () => void
+  /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
+  caption: (packet: ChatCaption) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -95,6 +98,7 @@ window.fixture = {
     deliverNotice(revisedNotice)
   },
   releaseTask: () => releaseTask(project),
+  caption: deliverCaption,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },

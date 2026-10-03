@@ -1,5 +1,7 @@
 import type { ChatInput } from '@sophia/contracts/room-chat'
-import type { ChatNoticeItem, ChatTurn } from '../conversation/chat-view.ts'
+import type { CaptionTurn } from '../conversation/captions.ts'
+import { arrivals, type ChatNoticeItem, type ChatTurn } from '../conversation/chat-view.ts'
+import { useCaptions } from './useCaptions.ts'
 import { arriveWithMicrophone, enterCall, switchMicrophone, useTypedChat } from './useTypedChat.ts'
 // The room's state for the Studio: join (token from the API, then LiveKit), microphone, camera, screen,
 // leave. Members join their project's room; an admitted guest joins with their lobby entry. Leaving the
@@ -20,6 +22,8 @@ export interface ProjectRoom {
   chat: ChatTurn[]
   /** Finished results' cards, one per task, for this member whether they hear or read Sophia (SMC-M03 S6, CX-0022). */
   notices: ChatNoticeItem[]
+  /** Live captions of what is said aloud, for this page only (CX-0023): they never mark Chat as something new. */
+  captions: CaptionTurn[]
   textMode: boolean
   /** Text mode as it is this moment, for code that awaited (a chat start, once its join settled): `textMode` is the render's. */
   textModeNow: () => boolean
@@ -151,7 +155,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
 interface JoinPorts {
   calls: CallFence<RoomConnection>
   issue: IssueToken | null
-  typedChat: ReturnType<typeof useTypedChat>
+  typedChat: ReturnType<typeof useConversation>
   setStatus: (status: DockStatus) => void
   setError: (error: string | null) => void
   refresh: () => void
@@ -183,6 +187,9 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
       },
       onNotice: (packet) => {
         if (calls.isCurrent(call)) typedChat.onNotice(packet)
+      },
+      onCaption: (packet) => {
+        if (calls.isCurrent(call)) typedChat.onCaption(packet)
       },
       onStatus: (s) => {
         if (calls.isCurrent(call)) setStatus(s)
@@ -235,6 +242,21 @@ function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<b
   return { call, join }
 }
 
+/**
+ * The conversation's state: typed turns and cards (useTypedChat) and live captions (useCaptions), on one arrival count
+ * so the chat reads as one conversation. Out of the call, both cut off what was still under way.
+ */
+function useConversation(connection: { current: RoomConnection | null }, silence: () => Promise<boolean>) {
+  const [arrival] = useState(arrivals)
+  const typedChat = useTypedChat(connection, silence, arrival)
+  const live = useCaptions(arrival)
+  const interrupted = () => {
+    typedChat.interrupted()
+    live.interrupted()
+  }
+  return { ...typedChat, captions: live.captions, onCaption: live.onCaption, interrupted }
+}
+
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   /**
@@ -258,7 +280,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     )
   }
   const { clearNote, arrive, silence, ...devices } = useDevices(calls, refresh)
-  const typedChat = useTypedChat(calls, silence)
+  const typedChat = useConversation(calls, silence)
 
   /**
    * Out of the call: nobody is shown as still here. A call that ended without this person leaving says why
@@ -292,9 +314,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
       leaveTextMode: () => typedChat.setTextMode(false),
     })
 
-  const startAudio = async () => {
-    await calls.current?.startAudio()
-  }
+  const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
 
   return {
     status,
@@ -305,6 +325,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setMicrophone,
     chat: typedChat.chat,
     notices: typedChat.notices,
+    captions: typedChat.captions,
     textMode: typedChat.textMode,
     textModeNow: typedChat.textModeNow,
     setTextMode: typedChat.setTextMode,

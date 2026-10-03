@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
+import type { ChatCaption } from '@sophia/contracts/room-chat'
 
-// A result's card in the chat of a member who hears Sophia (CX-0022), on the fixture page: the Studio's own
+// A result's card in the chat of a member who hears Sophia (CX-0022), and live captions (CX-0023), on the fixture page: the Studio's own
 // ProjectShell over the fixture report and its research task (fixtures/report-data.ts). Only the API and LiveKit are
 // faked; each check ends by asking the page whether anything reached for the API beyond what it answers.
 
@@ -112,4 +113,124 @@ test('CX-0022 · every join says its mode to Sophia, the hello after which the b
   await page.getByRole('button', { name: /^Try again/ }).click()
   await expect(leave(page)).toBeAttached()
   await expect.poll(hellos).toBe(before + 1)
+})
+
+// Live captions (CX-0023): synthetic caption packets, as the bridge sends what is said aloud, reach the fixture page's
+// real room controller and chat. Nothing here is a transcript of anyone.
+const ME = '00000000-0000-4000-8000-0000000000a1'
+const TEAMMATE = '00000000-0000-4000-8000-0000000000a2'
+const SPOKEN_EXCHANGE = '00000000-0000-4000-8000-0000000000e1'
+const caption = (id: string, sequence: number, state: ChatCaption['state'], text: string, over = {}): ChatCaption => ({
+  kind: 'caption',
+  id: `00000000-0000-4000-8000-0000000000${id}`,
+  exchangeId: SPOKEN_EXCHANGE,
+  speaker: 'member',
+  actorId: ME,
+  sequence,
+  state,
+  text,
+  ...over,
+})
+const SOPHIA = { speaker: 'sophia', actorId: null } as const
+const say = (page: Page, ...packets: ChatCaption[]) =>
+  page.evaluate((list) => {
+    for (const p of list) window.fixture?.caption(p)
+  }, packets)
+const conversation = (page: Page) => page.getByRole('list', { name: 'Conversation with Sophia' })
+const lines = (page: Page) => conversation(page).getByRole('listitem')
+const messageBar = (page: Page) => page.getByRole('textbox', { name: 'Message Sophia', exact: true })
+
+test('CX-0023 · while people talk the chat updates: partials, then the final, in order, once, and cut-offs marked', async ({
+  page,
+}) => {
+  await enterByVoice(page)
+  // Said while Chat is closed: there when it opens, and Chat is not marked (voice is heard live).
+  await say(page, caption('c1', 1, 'partial', 'Synthetic words'))
+  await expect(chatToggle(page)).toBeVisible()
+  await expect(marked(page)).toHaveCount(0)
+  await chatToggle(page).click()
+  await expect(lines(page)).toHaveCount(1)
+  const mine = lines(page).nth(0)
+  await expect(mine).toContainText('You')
+  await expect(mine).toContainText('Spoken')
+  await expect(mine).toContainText('Synthetic words')
+  await expect(mine.getByText('Synthetic words')).toHaveAttribute('aria-hidden', 'true') // still being said
+  await say(page, caption('c1', 2, 'partial', ' as they come'), caption('c1', 3, 'final', ''))
+  await expect(mine.getByText('Synthetic words as they come')).not.toHaveAttribute('aria-hidden')
+  await expect(conversation(page)).toMatchAriaSnapshot(`
+    - listitem:
+      - strong: You
+      - text: Spoken
+      - paragraph: Synthetic words as they come
+  `)
+
+  // Sophia's reply, its fragments repeated and out of order, then cut off.
+  await say(
+    page,
+    caption('c2', 1, 'partial', 'Sophia answers', SOPHIA),
+    caption('c2', 1, 'partial', 'Sophia answers', SOPHIA),
+    caption('c2', 3, 'partial', ' at last', SOPHIA),
+    caption('c2', 2, 'partial', ' slowly', SOPHIA),
+    caption('c2', 4, 'interrupted', '', SOPHIA),
+  )
+  const reply = lines(page).nth(1)
+  await expect(reply).toContainText('Sophia')
+  await expect(reply.getByText('Sophia answers slowly at last')).toBeVisible()
+  await expect(reply.getByText('Cut off')).toBeVisible()
+
+  // Words transcribed after her next reply began go before it; a teammate's are theirs.
+  await say(page, caption('c3', 1, 'partial', 'Her next reply', SOPHIA))
+  await say(
+    page,
+    caption('c4', 1, 'final', 'A teammate asked first', {
+      actorId: TEAMMATE,
+      before: caption('c3', 1, 'final', '').id,
+    }),
+  )
+  await expect(lines(page)).toHaveCount(4)
+  await expect(lines(page).nth(2)).toContainText('A memberSpokenA teammate asked first')
+  await expect(lines(page).nth(3)).toContainText('Her next reply')
+
+  // A result's card after what was said comes after it; closing and opening Chat keeps everything.
+  await page.evaluate(() => window.fixture?.notice())
+  await expect(lines(page).nth(4).getByRole('group', { name: 'Research report ready' })).toBeVisible()
+  await chatToggle(page).click()
+  await chatToggle(page).click()
+  await expect(lines(page)).toHaveCount(5)
+  await expect(lines(page).nth(1)).toContainText('Sophia answers slowly at last')
+})
+
+test('CX-0023 · switching to text and back keeps what was said; a typed message still goes, and no caption is sent back', async ({
+  page,
+}) => {
+  await enterByVoice(page)
+  await say(page, caption('d1', 1, 'final', 'Said before typing'))
+  await chatToggle(page).click()
+  await messageBar(page).fill('A question, typed')
+  await messageBar(page).press('Enter') // typing to Sophia puts the call in text mode
+  const textMode = page.getByRole('button', { name: /^Text mode/ })
+  await expect(textMode).toHaveAttribute('aria-pressed', 'true')
+  await say(page, caption('d2', 1, 'final', 'A teammate, aloud', { actorId: TEAMMATE }))
+  await textMode.click()
+  await expect(textMode).toHaveCount(0)
+  await expect(lines(page)).toHaveCount(3)
+  await expect(lines(page).nth(0)).toContainText('Said before typing')
+  await expect(lines(page).nth(1)).toContainText('A question, typed')
+  await expect(lines(page).nth(2)).toContainText('A teammate, aloud')
+  expect((await asked(page)).filter((a) => a === 'chat')).toEqual(['chat'])
+})
+
+test('CX-0023 · a call that drops cuts off what was still being said; joining again keeps the captions', async ({
+  page,
+}) => {
+  await enterByVoice(page)
+  await say(page, caption('e1', 1, 'final', 'Said in full', SOPHIA), caption('e2', 1, 'partial', 'Half a', SOPHIA))
+  await page.evaluate(() => window.fixture?.drop())
+  await page.getByRole('button', { name: /^Try again/ }).click()
+  await expect(leave(page)).toBeAttached()
+  await chatToggle(page).click()
+  await expect(lines(page)).toHaveCount(2)
+  await expect(lines(page).nth(0).getByText('Cut off')).toHaveCount(0)
+  await expect(lines(page).nth(1)).toContainText('Half a')
+  await expect(lines(page).nth(1).getByText('Cut off')).toBeVisible()
 })

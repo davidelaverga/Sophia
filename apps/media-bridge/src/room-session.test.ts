@@ -1,4 +1,4 @@
-import type { ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
+import type { ChatCaption, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
 // RoomSession against LABELLED FAKES: FakeRoom stands in for LiveKit, FakeLive for Gemini Live, FakeService
 // for the API. This is bridge-logic evidence only (S1-05A cases A06, A09–A14 and §7 holder departure); it is not a live model or media
 // test and does not count toward A04/A05 acceptance.
@@ -63,6 +63,12 @@ let guide: MissionGuide = GUIDE
 
 const member = (identity: string): RoomPerson => ({ identity, standing: 'editor' })
 
+/**
+ * The caption packets each fake room was sent, kept outside the room: T10 inspects the session (and so its room) for the
+ * words, which must reach these packets and nothing else.
+ */
+const captionsSent = new WeakMap<FakeRoom, Array<{ identity: string; packet: ChatCaption }>>()
+
 /** FAKE LiveKit room: records what the session asks of it. */
 class FakeRoom implements RoomLink {
   events: RoomEvents
@@ -76,12 +82,19 @@ class FakeRoom implements RoomLink {
   notices: Array<{ identity: string; packet: ChatNotice }> = []
   /** Identities whose chat delivery fails (the data channel refused it). */
   unreachable = new Set<string>()
-  sendChat = async (identity: string, packet: ChatReply | ChatNotice) => {
+  sendChat = async (identity: string, packet: ChatReply | ChatNotice | ChatCaption) => {
     if (this.unreachable.has(identity)) throw new Error('data channel closed')
     if (packet.kind === 'notice') this.notices.push({ identity, packet })
+    else if (packet.kind === 'caption') this.captions.push({ identity, packet })
     else this.chat.push({ identity, packet })
     await Promise.resolve()
     return true
+  }
+
+  get captions(): Array<{ identity: string; packet: ChatCaption }> {
+    const sent = captionsSent.get(this) ?? []
+    captionsSent.set(this, sent)
+    return sent
   }
 
   constructor(events: RoomEvents, present: RoomPerson[]) {
@@ -254,6 +267,8 @@ let joinFailures: number
 let joinTokens: string[]
 /** What the session logged: event names and fields, never content. */
 let logs: Array<[string, Record<string, unknown>]>
+/** SOPHIA_LIVE_CAPTIONS as the next session gets it: unset unless a test says otherwise. */
+let liveCaptions: boolean | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -290,6 +305,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       now: () => clock,
       log: (event, fields) => logs.push([event, fields ?? {}]),
       every: () => () => undefined,
+      ...(liveCaptions === undefined ? {} : { liveCaptions }),
     },
     handover,
   )
@@ -324,6 +340,7 @@ beforeEach(() => {
   joinFailures = 0
   joinTokens = []
   logs = []
+  liveCaptions = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -2628,7 +2645,7 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
     assert.notEqual(service.calls.at(-1)?.connectionGeneration, service.calls[0]?.connectionGeneration)
   })
 
-  it('keeps no transcript: the holder’s words reach no log, tool call or session state (T10)', async () => {
+  it('transcript text reaches only the present members’ caption packets: no logs, no API calls, no persistence (T10)', async () => {
     const { session, room, live } = await ready()
     room.events.audio(LUIS, pcm16k(), 16000, 1)
     live.events.inputTranscript('MARKER-7c1 my private remark about the budget', false)
@@ -2636,9 +2653,22 @@ describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
     live.events.toolCalls([{ id: 't-1', name: 'project_status', args: {} }])
     await flush()
     live.events.turnComplete()
-    const seen = inspect({ logs, calls: service.calls, presences: service.presences, session }, { depth: 12 })
+    await flush()
+    // The positive control (CX-0023): the words did reach the members present, as captions, and only there.
+    assert.deepEqual(
+      room.captions.filter((c) => c.packet.text.includes('MARKER')).map((c) => [c.identity, c.packet.text]),
+      [
+        [LUIS, 'MARKER-7c1 my private remark about the budget'],
+        [DAVIDE, 'MARKER-7c1 my private remark about the budget'],
+        [LUIS, 'MARKER-9d2 what Sophia said'],
+        [DAVIDE, 'MARKER-9d2 what Sophia said'],
+      ],
+    )
+    const api = { calls: service.calls, presences: service.presences, announced: service.announcedEvents }
+    const seen = inspect({ logs, api, chat: room.chat, notices: live.notices, session }, { depth: 12 })
     assert.equal(seen.includes('MARKER-7c1'), false)
     assert.equal(seen.includes('MARKER-9d2'), false)
+    assert.ok(seen.includes('RoomSession'), 'the session itself was inspected, its captions included')
   })
 
   it('a write whose reply is lost is retried with the same identity, then reported unknown; a read is an error (T18)', async () => {
@@ -2739,6 +2769,7 @@ describe('typed conversation uses the real exchange attribution', () => {
       ['accepted', 'delta', 'delta', 'complete'],
     )
     assert.ok(room.chat.every((c) => c.identity === LUIS))
+    assert.deepEqual(room.captions, [], 'a typed reply is its sender’s alone, never a caption')
     assert.equal(JSON.stringify(logs).includes('Synthetic continuation'), false)
     await session.close()
   })
@@ -2833,6 +2864,7 @@ describe('typed conversation uses the real exchange attribution', () => {
         room.chat.some((item) => item.packet.text.includes('Abandoned continuation')),
         false,
       )
+      assert.deepEqual(room.captions, [], 'nor does it become a caption')
       clock += 1000
       session.tick()
       await flush()
@@ -2970,10 +3002,18 @@ describe('typed conversation uses the real exchange attribution', () => {
     assert.ok(room.chat.every((c) => c.packet.kind === 'refused'))
     await session.close()
   })
-  it('fences a typed reply when a guest arrives, and never publishes a voice transcript as chat', async () => {
+  it('fences a typed reply when a guest arrives, and never publishes a voice transcript as typed chat', async () => {
     const { session, room, live } = await ready()
     live.events.outputTranscript('A voice reply', true)
     assert.equal(room.chat.length, 0)
+    assert.deepEqual(
+      room.captions.map((c) => [c.identity, c.packet.text]),
+      [
+        [LUIS, 'A voice reply'],
+        [DAVIDE, 'A voice reply'],
+      ],
+      'a voice reply is a caption, for the members present',
+    )
     room.events.typed?.(LUIS, packet())
     room.events.people([member(LUIS), { identity: 'guest', standing: 'guest' }])
     live.events.outputTranscript('Late sensitive reply', true)
@@ -2984,6 +3024,279 @@ describe('typed conversation uses the real exchange attribution', () => {
       room.chat.some((c) => c.packet.text.includes('Late sensitive')),
       false,
     )
+    assert.equal(
+      room.captions.some((c) => c.packet.text.includes('Late sensitive') || c.identity === 'guest'),
+      false,
+    )
+    await session.close()
+  })
+})
+
+/** What one member was sent, as `caption:speaker:sequence:state:text`, each caption numbered by first sight. */
+function sentTo(room: FakeRoom, identity = LUIS): string[] {
+  const ids: string[] = []
+  return room.captions
+    .filter((c) => c.identity === identity)
+    .map(({ packet: p }) => {
+      if (!ids.includes(p.id)) ids.push(p.id)
+      return `${String(ids.indexOf(p.id))}:${p.speaker}:${String(p.sequence)}:${p.state}:${p.text}`
+    })
+}
+
+describe('room session: live captions (CX-0023)', () => {
+  it('the holder’s words and Sophia’s reply reach every member present as they come, attributed by the floor', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Synthetic', false)
+    live.events.inputTranscript(' words', false)
+    live.events.inputTranscript('', true) // Google's end of the words, with none
+    room.holding = true
+    live.events.outputTranscript('A synthetic', false)
+    live.events.audio(speech(), OUT)
+    live.events.outputTranscript(' answer', false)
+    live.events.turnComplete()
+    await flush()
+    assert.equal(sentTo(room).at(-1), '1:sophia:2:partial: answer', 'her caption ends once it has played')
+    await room.release(2)
+    await flush()
+    const expected = [
+      '0:member:1:partial:Synthetic',
+      '0:member:2:partial: words',
+      '0:member:3:final:',
+      '1:sophia:1:partial:A synthetic',
+      '1:sophia:2:partial: answer',
+      '1:sophia:3:final:',
+    ]
+    assert.deepEqual(sentTo(room), expected)
+    assert.deepEqual(sentTo(room, DAVIDE), expected)
+    assert.deepEqual(
+      [...new Set(room.captions.map((c) => `${c.packet.speaker}:${String(c.packet.actorId)}`))],
+      [`member:${LUIS}`, 'sophia:null'],
+    )
+    assert.ok(room.captions.every((c) => c.packet.exchangeId === EXCHANGE))
+    await session.close()
+  })
+
+  it('a reply cut off is marked so: Google’s barge-in, Stop Speaking, or the holder talking over it as it plays', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.outputTranscript('First reply', false)
+    live.events.audio(speech(), OUT)
+    live.events.interrupted()
+    live.events.outputTranscript('Second reply', false)
+    live.events.audio(speech(), OUT)
+    session.update(assignment({ playbackEpoch: 2 }))
+    live.events.outputTranscript(' and the rest of it', false) // the stopped turn, still arriving
+    live.events.turnComplete()
+    room.holding = true
+    live.events.outputTranscript('Third reply', false)
+    live.events.audio(speech(4), OUT)
+    live.events.turnComplete()
+    await room.release(1)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('wait', false)
+    assert.deepEqual(sentTo(room), [
+      '0:sophia:1:partial:First reply',
+      '0:sophia:2:interrupted:',
+      '1:sophia:1:partial:Second reply',
+      '1:sophia:2:interrupted:',
+      '2:sophia:1:partial:Third reply',
+      '2:sophia:2:interrupted:',
+      '3:member:1:partial:wait',
+    ])
+    assert.equal(room.captions.at(-1)?.packet.before, undefined, 'said over a reply already generated: it comes after')
+    await session.close()
+  })
+
+  it('a reply stopped before it began is not captioned when its words come, as its audio is not played', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('A question', true)
+    session.update(assignment({ playbackEpoch: 2 }))
+    clock += 7000
+    live.events.outputTranscript('Stopped answer', false)
+    live.events.audio(speech(), OUT)
+    live.events.turnComplete()
+    live.events.outputTranscript('Next answer', false)
+    live.events.turnComplete() // nothing of it to play: it ended as said
+    assert.deepEqual(sentTo(room), [
+      '0:member:1:final:A question',
+      '1:sophia:1:partial:Next answer',
+      '1:sophia:2:final:',
+    ])
+    await session.close()
+  })
+
+  it('after a handoff settles, words no holder was forwarded for are dropped, and the new holder’s are theirs', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Luis speaking', false)
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE, roomRevision: 2 }))
+    live.events.inputTranscript(' still Luis', false) // settling: the old holder's turn
+    clock += SETTLE_MS
+    session.tick()
+    live.events.inputTranscript('Nobody’s words', false)
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    live.events.inputTranscript('Davide speaking', false)
+    assert.deepEqual(sentTo(room), [
+      '0:member:1:partial:Luis speaking',
+      '0:member:2:partial: still Luis',
+      '0:member:3:final:',
+      '1:member:1:partial:Davide speaking',
+    ])
+    assert.deepEqual([...new Set(room.captions.map((c) => c.packet.actorId))], [LUIS, DAVIDE])
+    await session.close()
+  })
+
+  it('a guest pauses captions: what was open is cut off for the members, and no words follow', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Before the guest', false)
+    live.events.outputTranscript('A reply', false)
+    room.join([member(LUIS), member(DAVIDE), { identity: 'guest', standing: 'guest' }])
+    live.events.inputTranscript('Private words', false)
+    live.events.outputTranscript('Private reply', false)
+    assert.deepEqual(sentTo(room), [
+      '0:member:1:partial:Before the guest',
+      '1:sophia:1:partial:A reply',
+      '1:sophia:2:interrupted:',
+      '0:member:2:interrupted:',
+    ])
+    assert.equal(
+      room.captions.some((c) => c.identity === 'guest'),
+      false,
+    )
+    await session.close()
+  })
+
+  it('closing cuts off what is open, and the old connection’s late words publish nothing', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Words', false)
+    live.events.outputTranscript('Reply', false)
+    await session.close()
+    live.events.inputTranscript('Late words', false)
+    live.events.outputTranscript('Late reply', false)
+    assert.deepEqual(sentTo(room), [
+      '0:member:1:partial:Words',
+      '1:sophia:1:partial:Reply',
+      '1:sophia:2:interrupted:',
+      '0:member:2:interrupted:',
+    ])
+  })
+
+  it('a lost provider connection cuts off what is open; the next connection’s words are new captions', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Words', false)
+    live.events.outputTranscript('Reply', false)
+    live.events.closed('network lost')
+    live.events.outputTranscript('Late reply', false)
+    clock += 1000
+    session.tick()
+    await flush()
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    next.events.inputTranscript('Words again', false)
+    assert.deepEqual(sentTo(room), [
+      '0:member:1:partial:Words',
+      '1:sophia:1:partial:Reply',
+      '0:member:2:interrupted:',
+      '1:sophia:2:interrupted:',
+      '2:member:1:partial:Words again',
+    ])
+    await session.close()
+  })
+
+  it('while the room link is down nothing is sent or queued but the ends, which go once it is back', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Words', false)
+    room.events.connection('reconnecting', null)
+    live.events.inputTranscript(' lost', false)
+    live.events.outputTranscript('Lost reply', false)
+    assert.deepEqual(sentTo(room), ['0:member:1:partial:Words'])
+    room.events.connection('connected', null)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Back', false)
+    assert.deepEqual(sentTo(room), ['0:member:1:partial:Words', '0:member:2:interrupted:', '1:member:1:partial:Back'])
+    await session.close()
+  })
+
+  it('a typed reply cut off by a handoff stays its sender’s: what still arrives of it is no caption', async () => {
+    const { session, room, live } = await ready()
+    room.events.typed?.(LUIS, {
+      kind: 'input',
+      id: REQUEST,
+      exchangeId: EXCHANGE,
+      inputEpoch: 1,
+      text: 'Synthetic typed request',
+    })
+    live.events.outputTranscript('Typed answer', false)
+    session.update(assignment({ inputEpoch: 2, inputActorId: DAVIDE, roomRevision: 2 }))
+    live.events.outputTranscript(' and the rest of it', false)
+    assert.deepEqual(
+      room.chat.map((c) => [c.identity, c.packet.kind, c.packet.text]),
+      [
+        [LUIS, 'accepted', ''],
+        [LUIS, 'delta', 'Typed answer'],
+        [LUIS, 'refused', 'Conversation changed; this reply was stopped.'],
+      ],
+    )
+    assert.deepEqual(room.captions, [])
+    await session.close()
+  })
+
+  it('the holder’s words that come after her reply began go before it', async () => {
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.outputTranscript('An answer', false)
+    live.events.inputTranscript('The question', true)
+    const [answer, question] = room.captions.filter((c) => c.identity === LUIS).map((c) => c.packet)
+    assert.equal(question?.speaker, 'member')
+    assert.equal(question?.before, answer?.id)
+    await session.close()
+  })
+
+  it('audio never waits on a caption: one that never settles or fails leaves the reply playing, logged without words', async () => {
+    const { session, room, live } = await ready()
+    const send = room.sendChat
+    room.sendChat = (identity, packet) =>
+      packet.kind !== 'caption'
+        ? send(identity, packet)
+        : identity === LUIS
+          ? new Promise<boolean>(() => undefined)
+          : Promise.reject(new Error('data channel closed'))
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.outputTranscript('Synthetic reply', false)
+    live.events.audio(speech(3), OUT)
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    assert.equal(room.played.length, 3)
+    assert.equal(replyLog()?.ended, 'played')
+    const failed = logs.filter(([event]) => event === 'caption.delivery_unknown').map(([, fields]) => fields)
+    assert.ok(failed.length > 0)
+    for (const fields of failed) assert.deepEqual(Object.keys(fields).toSorted(), ['exchangeId', 'turnId'])
+    assert.equal(JSON.stringify(logs).includes('Synthetic reply'), false)
+    await session.close()
+  })
+
+  it('SOPHIA_LIVE_CAPTIONS=off sends no caption, and the words still cut a reply as before', async () => {
+    liveCaptions = false
+    const { session, room, live } = await ready()
+    room.holding = true
+    live.events.audio(speech(4), OUT)
+    live.events.outputTranscript('A reply', false)
+    live.events.turnComplete()
+    await room.release(1)
+    const clears = room.clears
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('wait', false)
+    assert.equal(room.clears, clears + 1)
+    assert.deepEqual(room.captions, [])
     await session.close()
   })
 })

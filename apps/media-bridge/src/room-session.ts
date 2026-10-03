@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
+import type { ChatCaption, ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
 // One room exchange on the bridge (architecture 06 §2–§12, S1-05A §6): the LiveKit room, one Gemini Live
 // connection and the API's assignment, joined by the pure ExchangeState. This module acts; ExchangeState decides.
 //
@@ -29,6 +29,10 @@ import type { ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-ch
 //    how many members got the card. A member's Studio that says its mode (a join, a reconnect, a switch) is sent the
 //    cards this exchange has shown again, so a reloaded page or a late arrival has them too.
 //  - Typed words reach Google marked as typed, and cannot pose as the bridge's own markers (escapeMarkers).
+//  - What is said aloud is captioned live for the members present (CX-0023): the holder's words, attributed by the
+//    floor, and Sophia's spoken reply, under the same fences as her audio. Each fragment is passed on and forgotten
+//    (captions.ts); no transcript reaches a log, a tool call, the API or retained state. A typed reply stays the
+//    sender's. SOPHIA_LIVE_CAPTIONS=off sends none.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
 import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import {
@@ -42,6 +46,7 @@ import {
   ReplyAudio,
   type ReplyEnd,
 } from './audio.ts'
+import { Captions } from './captions.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { GuideContext } from './guide-context.ts'
 import type { MissionGuide } from './guide.ts'
@@ -70,6 +75,8 @@ export interface SessionDeps {
   lost?: (exchangeId: string) => void
   /** Waits before a tool call whose reply was lost is sent again, with the same identity; tests shorten them. */
   toolRetryMs?: readonly number[]
+  /** Live captions for the members present (CX-0023); false sends none (SOPHIA_LIVE_CAPTIONS=off). On by default. */
+  liveCaptions?: boolean
 }
 
 const everyInterval = (fn: () => void, ms: number) => {
@@ -105,6 +112,8 @@ const NOTICE_ATTEMPTS = 3
 const TEXT_RETRY_MS = 5000
 /** How many results' cards an exchange shows again to a member who says hello: as many as a Studio keeps. */
 const SHOWN_KEPT = 20
+/** Caption ends kept while the room link is down, to send once it is back. */
+const CAPTION_ENDS_KEPT = 20
 /** How long closing waits for the announcements it still owes the API (best effort; the API keeps listing the rest). */
 const CLOSE_FLUSH_MS = 3000
 /** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
@@ -414,6 +423,9 @@ export class RoomSession {
   private typedInputEpoch: number | null = null
   private typedStartedAt: number | null = null
   private readonly typedSeen = new Set<string>()
+  private readonly captions: Captions
+  /** Captions that ended while the room link was down: an end carries no words, so it waits to be sent. */
+  private captionEnds: ChatCaption[] = []
 
   constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | Promise<Handover> | null = null) {
     this.exchangeId = assignment.exchangeId
@@ -422,6 +434,7 @@ export class RoomSession {
     this.tools = TOOL_SETS[deps.guide.version]
     this.state = new ExchangeState(toAssignment(assignment))
     this.guideContext = new GuideContext(assignment)
+    this.captions = new Captions(this.exchangeId, (packet) => this.sendCaption(packet))
     // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
@@ -616,6 +629,7 @@ export class RoomSession {
     this.stopTicking?.()
     const owed = this.flushAnnouncements()
     this.logReply('closed')
+    this.captions.cut()
     this.framer.clear()
     this.connection += 1
     this.live?.close()
@@ -712,6 +726,7 @@ export class RoomSession {
       this.downAt = null
     }
     this.onPeople(this.room?.people() ?? [])
+    this.sendCaptionEnds()
     if (state === 'disconnected' && !this.lost) {
       this.lost = true
       void this.close()
@@ -922,6 +937,7 @@ export class RoomSession {
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
     this.silence(this.pendingReply(this.deps.now()), 'stopped')
+    this.captions.cut()
     if (this.typedTurn?.usedTools) this.rebuild('typed tool continuation paused')
   }
 
@@ -1089,12 +1105,12 @@ export class RoomSession {
       audio: (data, mimeType) => {
         if (current()) this.audioOut(data, mimeType)
       },
-      // Transcripts are not retained or published (S1-05A A05: only under a test's explicit scope).
-      inputTranscript: (text) => {
-        if (current() && text.trim()) this.wordsHeard()
+      // Captioned as they come, never retained (CX-0023; S1-05A A05).
+      inputTranscript: (text, finished) => {
+        if (current()) this.inputWords(text, finished)
       },
       outputTranscript: (text) => {
-        if (current()) this.typedOutput(text)
+        if (current()) this.outputWords(text)
       },
       generationComplete: () => undefined,
       turnComplete: () => {
@@ -1175,6 +1191,54 @@ export class RoomSession {
     this.awaitingReply = true
   }
 
+  /**
+   * Google transcribed the holder's words, or finished them. They are captioned for the holder whose audio was
+   * forwarded (the floor, as tool calls are attributed), while input is admitted or a handoff settles; words no holder
+   * can be found for are not shown.
+   */
+  private inputWords(text: string, finished: boolean): void {
+    if (text.trim()) this.wordsHeard()
+    const input = this.state.input(this.deps.now())
+    const who = this.state.attribution()
+    if (!who || (input !== 'admitted' && input !== 'settling')) return
+    this.captions.heard(text, who, finished)
+  }
+
+  /**
+   * Sophia's words: a typed reply's go to its sender alone; spoken ones are captioned under her audio's own fences (a
+   * typed turn's continuation, a pause or guest, a stopped reply still arriving), so no caption shows what is not heard.
+   */
+  private outputWords(text: string): void {
+    if (this.typedTurn) return this.typedOutput(text)
+    if (this.typedOutputUntilTurnEnd || this.fenced(this.deps.now())) return
+    const generation = this.state.currentGeneration()
+    if (this.state.mayPlay(generation)) this.captions.spoken(text, generation)
+  }
+
+  /**
+   * A caption packet to each member present (never a guest: words only come while none is here, inputWords and
+   * outputWords), never awaited, so audio never waits on it. Words the room link cannot take are dropped, never
+   * queued; an end carries no words, so one it could not take is sent once it is back.
+   */
+  private sendCaption(packet: ChatCaption): void {
+    const room = this.room
+    if (this.deps.liveCaptions === false || !room?.sendChat) return
+    if (this.roomDown) {
+      if (!packet.text) this.captionEnds = [...this.captionEnds, packet].slice(-CAPTION_ENDS_KEPT)
+      return
+    }
+    for (const identity of this.members()) {
+      room.sendChat(identity, packet).catch(() => {
+        this.deps.log('caption.delivery_unknown', { exchangeId: this.exchangeId, turnId: packet.id })
+      })
+    }
+  }
+
+  /** The room link is back: the captions that ended while it was down are told so. */
+  private sendCaptionEnds(): void {
+    if (!this.roomDown) for (const end of this.captionEnds.splice(0)) this.sendCaption(end)
+  }
+
   private turnComplete(): void {
     const turn = this.typedTurn
     if (turn && (turn.pendingTools > 0 || turn.responses.length > 0)) {
@@ -1189,6 +1253,9 @@ export class RoomSession {
     this.typedInputEpoch = null
     if (this.framer.flush(this.state.currentGeneration())) void this.pump()
     this.reply.generated()
+    this.captions.generated()
+    // Nothing of it is left to play: its caption has ended as said.
+    if (!this.reply.complete) this.captions.replyEnded('played')
     this.endTurn()
     this.replyDrained()
   }
@@ -1201,6 +1268,7 @@ export class RoomSession {
   private logReply(how: ReplyEnd): void {
     const figures = this.reply.end(how, this.framer.queued, this.framer.dropped)
     if (figures) this.deps.log('audio.reply', { exchangeId: this.exchangeId, ...figures })
+    this.captions.replyEnded(how)
   }
 
   /** The model turn ended; when the connection was lost instead, its speaker stands for a resumed repeat. */
@@ -1209,6 +1277,7 @@ export class RoomSession {
     this.typedOutputUntilTurnEnd = false
     this.typedInputEpoch = null
     this.typedStartedAt = null
+    this.captions.turnEnded(connectionLost)
     if (connectionLost) this.state.connectionLost()
     else this.state.turnEnded()
     this.responding = false
