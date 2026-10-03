@@ -9,7 +9,8 @@
 // The page is a pass over printReport's parts, made on strings: escaped text never holds "<", so every pattern below
 // that looks for markup meets the template's own (the one that looks for words, an image's, skips every tag). It
 // binds each citation to the word before it as a bare numeral (adjacent ones grouped, a weak source dotted and named),
-// gives a section a page role its heading names (an answer, limitations), puts a leading answer before the contents,
+// gives a section a page role its heading names (an answer, limitations) and a new id when one of the page's own parts
+// uses its id (a heading "Report method" or "Ref 1"), puts a leading answer before the contents,
 // and adds what Studio already holds of the version: when it was published, what was read of each source and when,
 // the limitations it stored, and what Sophia checked when it was published. A part whose input is absent is not
 // printed; the page never prints a fact the record does not hold.
@@ -178,16 +179,35 @@ interface PageSection {
   nums: ReadonlySet<number>
 }
 
-/** printReport's sections, each under its page role and passed (after the lead, so ids follow reading order). */
+/** The ids of the page's own parts that printReport does not reserve: a section's id may be one of them. */
+const PAGE_IDS = /^(report-method|report-limitations|ref-\d+)$/
+
+/**
+ * printReport's section ids, each one a page part uses renamed the way printReport renames a taken id ("Report method"
+ * becomes report-method-2). Only the page renames it, so pdf-report-v1 prints the ids and bytes it always did.
+ */
+function pageIds(ids: readonly string[]): string[] {
+  const used = new Set(ids)
+  return ids.map((id) => {
+    if (!PAGE_IDS.test(id)) return id
+    let k = 2
+    while (used.has(`${id}-${k}`)) k += 1
+    used.add(`${id}-${k}`)
+    return `${id}-${k}`
+  })
+}
+
+/** printReport's sections, each under its page id and role and passed (after the lead, so ids follow reading order). */
 function pageSections(printed: PrintedReport, pass: Pass): PageSection[] {
+  const ids = pageIds(printed.manifest.sections.map((s) => s.id))
   return printed.body
     .filter((part) => part.startsWith('<section id="'))
     .map((html, i) => {
-      const entry = printed.manifest.sections[i]
-      const id = entry?.id ?? ''
-      const title = entry?.title ?? ''
+      const id = ids[i] ?? ''
+      const title = printed.manifest.sections[i]?.title ?? ''
       const role = pageRole(/ data-report-role="([a-z]+)"/.exec(html)?.[1] ?? 'body', title)
-      const out = pagePass(html.replace(/^(<section id="[^"]+" data-report-role=")[a-z]+"/, `$1${role}"`), pass)
+      const open = () => `<section id="${esc(id)}" data-report-role="${role}"`
+      const out = pagePass(html.replace(/^<section id="[^"]+" data-report-role="[a-z]+"/, open), pass)
       return { id, role, title, html: out, nums: numsOf(out) }
     })
 }

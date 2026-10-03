@@ -228,8 +228,7 @@ function split(blocks: readonly Block[]): Split {
   return out
 }
 
-/** The ids the template and its web page (report-page.ts) give their own parts. */
-const RESERVED = new Set(['report-title', 'report-contents', 'report-sources', 'report-method', 'report-limitations'])
+const RESERVED = new Set(['report-title', 'report-contents', 'report-sources'])
 
 /** Unique section ids from the headings' anchors (as 0027 computes them), never one the template uses itself. */
 function sectionIds(titles: readonly string[]): string[] {
@@ -237,7 +236,7 @@ function sectionIds(titles: readonly string[]): string[] {
   return titles.map((title, i) => {
     const base = anchorOf(title).slice(0, ID_LENGTH).replace(/-+$/, '') || `section-${i + 1}`
     let id = base
-    for (let k = 2; used.has(id) || RESERVED.has(id) || /^(cite|table|ref)-\d+$/.test(id); k += 1) id = `${base}-${k}`
+    for (let k = 2; used.has(id) || RESERVED.has(id) || /^(cite|table)-\d+$/.test(id); k += 1) id = `${base}-${k}`
     used.add(id)
     return id
   })

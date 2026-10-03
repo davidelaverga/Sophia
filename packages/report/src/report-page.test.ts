@@ -485,6 +485,35 @@ describe('html-report-v2: what its bytes guarantee', () => {
     )
   })
 
+  it('U2 · renames a heading’s id the page gives its own part in the page only; pdf-report-v1 prints what it did', () => {
+    const md =
+      `# Hosts named like the page\n\nWhich hosts were compared [${A}].\n\n## Report method\n\n${filler(40)} [${A}]\n\n` +
+      `## Report limitations\n\n${filler(40)} [${B}]\n\n## Ref 1\n\n${filler(30)}\n`
+    const sources = [
+      { id: A, title: 'Alpha docs', url: 'https://alpha.test/docs' },
+      { id: B, title: 'Beta notes', url: null },
+    ]
+    const pdf = renderReport({ markdown: md, language: 'en', title: 'Fallback', sources, layout: 'standard' })
+    // What report-html.ts printed for this report before html-report-v2 (8019e41): its section ids and its bytes.
+    assert.equal(pdf.accepted, true)
+    assert.deepEqual(
+      pdf.manifest.sections.map((s) => s.id),
+      ['report-method', 'report-limitations', 'ref-1'],
+    )
+    assert.equal(
+      createHash('sha256').update(pdf.html).digest('hex'),
+      '2bf6675fe4c0a403fc669b8f651e645a56a265ba4eca7d24b889f1dd75d460c7',
+    )
+    const html = page({ markdown: md, sources, citable: [A, B] })
+    assert.deepEqual(audit(html), [])
+    assert.deepEqual(
+      [...html.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]),
+      ['report-method-2', 'report-limitations-2', 'ref-1-2'],
+    )
+    assert.ok(html.includes('<a href="#cite-1" id="ref-1" aria-label="Source 1">1</a>'), 'the citation keeps ref-1')
+    assert.ok(html.includes('<section class="method" id="report-method"'), 'the method keeps report-method')
+  })
+
   it('U3 · binds a citation to its word as a bare numeral; adjacent ones group; only the first carries the id', () => {
     const html = page({ markdown: `# T\n\n## S\n\nzone [${A}] [${B}].\n\nAgain\u00a0[${A}].` })
     assert.ok(

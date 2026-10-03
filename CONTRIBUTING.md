@@ -537,20 +537,21 @@ when you change the room:
   (`fixtures/report-pages.ts`: a research report with every element and every
   kind of source, and a stress report), opened as they are on a phone and a
   desktop, light and dark, and printed as A4. 60 to 80 characters a line on a
-  desktop and in print, at least 35 on a phone; body text at 17 px or more
-  (18 on a desktop), 1.5 to 1.7 lines apart; headings 1.2 times a step
-  apart, at most five font sizes, none under 14 px; nothing past the screen
-  or the column's box; no word of 14 characters or fewer broken in a table
-  cell; every text at 4.5:1 (3:1 when large), a section break's dots left
-  out as an ornament; the answer before the contents and the body, in the
-  first phone screen; on a desktop the contents beside the text as it
-  scrolls, never over it; every table cell in the PDF, its body at 10.5 pt,
-  and print light for a reader who prefers dark. What its bytes guarantee
-  (one policy, seven metas and one stylesheet, only the tags and attributes
-  it prints, ids used once and links that land, the same bytes in any time
-  zone, hostile text escaped, a draft of any length printed in linear time)
-  is checked by `packages/report/src/report-page.test.ts`. Change the page
-  and they must still pass.
+  desktop and in print, at least 35 on a phone; body text at 17 px or more (18
+  on a desktop), 1.5 to 1.7 lines apart; headings 1.2 times a step apart, at
+  most five font sizes, none under 14 px; nothing past the screen or the
+  column's box; no word of 14 characters or fewer broken in a table cell;
+  every text at 4.5:1 (3:1 when large), a section break's dots left out as an
+  ornament; the answer before the contents and the body, in the first phone
+  screen; on a desktop the contents beside the text as it scrolls, never over
+  it; every table cell in the PDF, its body at 10.5 pt, and print light for a
+  reader who prefers dark. What its bytes guarantee (one policy, seven metas
+  and one stylesheet, only the tags and attributes it prints, ids used once
+  and links that land, a heading named like one of the page's own parts
+  renamed in the page only, so pdf-report-v1 keeps its ids and bytes, the same
+  bytes in any time zone, hostile text escaped, a draft of any length printed
+  in linear time) is checked by `packages/report/src/report-page.test.ts`.
+  Change the page and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake
   delivers result cards and live captions as encoded packets through the
