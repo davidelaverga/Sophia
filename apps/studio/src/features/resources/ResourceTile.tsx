@@ -49,6 +49,8 @@ interface Props {
   buddy?: Buddy | undefined
   /** Dragging it onto another tile moves it there (TileGrid). */
   drag?: React.HTMLAttributes<HTMLButtonElement> & { draggable: boolean }
+  /** It changed since the viewer last looked: a small lavender dot breathes at its corner. */
+  away?: boolean
   /** The grid's roving focus: only the current tile is in the Tab order; arrow keys move between them. */
   current: boolean
   onFocus: () => void
@@ -184,6 +186,13 @@ function saysNow({ resource, observation, waiting, waitingKey }: Props, held: Ca
   ].join('|')
 }
 
+/** What the tile wears for its moments: a change just now, something waiting, a change since the last look. */
+const marks = ({ changed, waiting, away }: { changed: boolean; waiting: number; away?: boolean | undefined }) => ({
+  'data-changed': changed || undefined,
+  'data-waiting': waiting > 0 || undefined,
+  'data-away': away || undefined,
+})
+
 export function ResourceTile(props: Props) {
   const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
   const { tool, owner, host } = resource
@@ -208,8 +217,7 @@ export function ResourceTile(props: Props) {
       data-resource={resource.id}
       data-buddy={buddy}
       data-host={host.state}
-      data-changed={changed || undefined}
-      data-waiting={waiting > 0 || undefined}
+      {...marks({ changed, waiting, away: props.away })}
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
       aria-describedby={described}

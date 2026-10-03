@@ -1194,6 +1194,80 @@
   gap: 10px;
 }
 
+/* What a session reported before its last report: folded under it, then a short thread of quiet lines. */
+.session-earlier {
+  grid-column: 2;
+  display: grid;
+  gap: 4px;
+}
+.session-earlier-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  justify-self: start;
+  margin-left: 11px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.session-earlier-toggle:hover,
+.session-earlier-toggle[aria-expanded='true'] {
+  color: var(--text-2);
+}
+.session-earlier-toggle .icon {
+  width: 11px;
+  height: 11px;
+  transition: transform var(--fast) var(--ease);
+}
+.session-earlier-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+.session-earlier-toggle:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+/* The thread: a hairline down from the live dot, each earlier report a small ring on it. */
+.session-earlier-list {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0 0 0 11px;
+  border-left: 1px solid var(--line-2);
+  margin-left: 2px;
+  list-style: none;
+  animation: arrive 0.3s var(--ease) both;
+}
+.session-earlier-list li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.session-earlier-list li::before {
+  content: '';
+  position: absolute;
+  left: -14.5px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--plane-2);
+}
+.session-earlier-said {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 560px) {
   .resource-sheet-head {
     flex-wrap: wrap;
@@ -1220,6 +1294,7 @@
   }
   .resource-work,
   .resource-session-live,
+  .session-earlier,
   .resource-session-acts {
     grid-column: 1;
   }
@@ -1308,6 +1383,109 @@
   border: 1px solid var(--amber);
   animation: waiting-ping 2.4s var(--ease) infinite;
 }
+/* ---- While you were away, shared with the plan's board: one sentence from Sophia's light, and Mark seen. ---- */
+.away-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 32px;
+  margin: 0;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(156, 130, 245, 0.12), rgba(156, 130, 245, 0.03));
+  color: var(--text);
+  font-size: 12.5px;
+  animation: arrive 0.5s var(--ease) 0.2s both;
+}
+.away-line .field-label {
+  margin-right: 6px;
+  color: var(--halo-text);
+}
+.away-line-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.away-line-seen {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(236, 235, 241, 0.08);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background-color var(--fast) var(--ease);
+}
+.away-line-seen:hover {
+  background: rgba(236, 235, 241, 0.14);
+  color: var(--text);
+}
+.away-line-seen:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+/* On a phone the line wraps, whole: its words can't hide behind a title a touch never reaches. */
+@media (max-width: 560px) {
+  .away-line {
+    align-items: flex-start;
+    height: auto;
+    min-height: 32px;
+    padding-block: 7px;
+    border-radius: var(--r-4);
+  }
+  .away-line .ask-light {
+    margin-top: 5px;
+  }
+  .away-line-said {
+    white-space: normal;
+  }
+}
+.ask-light {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--core), var(--halo) 70%);
+  box-shadow: 0 0 10px var(--halo);
+  animation: ask-light 2.8s var(--ease) infinite alternate;
+}
+@keyframes ask-light {
+  to {
+    box-shadow: 0 0 16px var(--halo);
+    transform: scale(1.12);
+  }
+}
+/* A resource that changed since the last look: a small lavender dot breathing at its corner, as on the board. */
+.resource-tile[data-away] .resource-tile-head::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
+  box-shadow: 0 0 10px var(--halo);
+  animation: away-breathe 2.4s var(--ease) infinite alternate;
+}
+@keyframes away-breathe {
+  to {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+.resources-away {
+  margin-bottom: 14px;
+}
+
 /* ---- Acting on a session, shared with the plan's board: guidance, Hold, Stop, and the steps an act goes through
    as they are observed. ---- */
 .act-guide {
@@ -1696,6 +1874,10 @@
 @media (prefers-reduced-motion: reduce) {
   .resource-tile,
   .act-steps,
+  .session-earlier-list,
+  .away-line,
+  .ask-light,
+  .resource-tile[data-away] .resource-tile-head::after,
   .resource-session-acts,
   .activity-dot::after,
   .capacity-room,

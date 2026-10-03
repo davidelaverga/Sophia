@@ -10,18 +10,38 @@ import { NOW } from './resources-data.ts'
 
 const before = (seconds: number) => new Date(NOW.getTime() - seconds * 1000).toISOString()
 
-/** What each working session last reported, a little while before NOW. */
-const ACTIVITY: Record<string, { said: string; ago: number }> = {
-  'claude-worker': { said: 'Asked to run pnpm --filter @sophia/report test', ago: 22 },
-  'codex-reviewer': { said: 'Reading ReportPane.tsx', ago: 6 },
+/** What each working session last reported, a little while before NOW, and what it reported before, newest first. */
+const ACTIVITY: Record<string, { said: string; ago: number; earlier: [string, number][] }> = {
+  'claude-worker': {
+    said: 'Asked to run pnpm --filter @sophia/report test',
+    ago: 22,
+    earlier: [
+      ['Edited pdf-retry.ts: retries the render twice', 95],
+      ['Wrote the failing test for a timed-out render', 260],
+      ['Read ExportStatus.tsx', 420],
+    ],
+  },
+  'codex-reviewer': {
+    said: 'Reading ReportPane.tsx',
+    ago: 6,
+    earlier: [
+      ['Opened the review of the report pane', 70],
+      ['Read the pane’s spec', 180],
+    ],
+  },
 }
+
+/** How many earlier reports a session keeps. */
+const KEPT = 4
 
 export const withActivity = (list: Resource[]): Resource[] =>
   list.map((r) => ({
     ...r,
     sessions: r.sessions.map((s) => {
       const a = ACTIVITY[s.id]
-      return a ? { ...s, activity: { said: a.said, observedAt: before(a.ago) } } : s
+      if (!a) return s
+      const recent = a.earlier.map(([said, ago]) => ({ said, observedAt: before(ago) }))
+      return { ...s, activity: { said: a.said, observedAt: before(a.ago) }, recent }
     }),
   }))
 
@@ -33,12 +53,17 @@ const READING = [
   'Reading pdf-retry.ts',
 ]
 
+/** Its next report; the one before goes to the top of its earlier ones. */
 export const nextActivity = (list: Resource[], at: Date, n: number): Resource[] =>
   list.map((r) => ({
     ...r,
     sessions: r.sessions.map((s) =>
       s.id === 'codex-reviewer'
-        ? { ...s, activity: { said: READING[n % READING.length] ?? 'Reading', observedAt: at.toISOString() } }
+        ? {
+            ...s,
+            activity: { said: READING[n % READING.length] ?? 'Reading', observedAt: at.toISOString() },
+            recent: [...(s.activity ? [s.activity] : []), ...(s.recent ?? [])].slice(0, KEPT),
+          }
         : s,
     ),
   }))

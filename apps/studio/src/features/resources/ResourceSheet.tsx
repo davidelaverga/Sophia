@@ -184,6 +184,43 @@ function SessionLive({ session, live, now }: { session: Session; live: boolean; 
   )
 }
 
+/**
+ * What a session at work reported before its last report: folded under it ("3 earlier"), then a short thread, newest
+ * first, each with how long ago.
+ */
+function SessionEarlier({ session, now }: { session: Session; now: Date }) {
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const earlier = session.recent ?? []
+  if (!session.assignment || !session.activity || earlier.length === 0) return null
+  return (
+    <div className="session-earlier">
+      <button
+        type="button"
+        className="session-earlier-toggle"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {earlier.length} earlier
+        <Icon name="chevron" />
+      </button>
+      {open && (
+        <ol id={listId} className="session-earlier-list" aria-label="Earlier reports">
+          {earlier.map((r) => (
+            <li key={`${r.observedAt}-${r.said}`}>
+              <span className="session-earlier-said" title={r.said}>
+                {r.said}
+              </span>
+              <span className="resource-session-ago">{observedAgo(r.observedAt, now)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
 /** The way to a session's task on the plan's board: whether a task is on one, and opening it there. */
 export interface TaskLinks {
   has: (workId: string) => boolean
@@ -250,6 +287,7 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
         <ActToggle open={acting} controls={actsId} said={actsSaid(resource)} onToggle={() => setActing((o) => !o)} />
       )}
       <SessionLive session={session} live={live} now={now} />
+      <SessionEarlier session={session} now={now} />
       {work && acts && acting && (
         <div id={actsId} className="resource-session-acts">
           <SessionActs resource={resource} sessionId={session.id} acts={acts} />

@@ -14,6 +14,8 @@ import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
 import type { EffortAsk } from './change.ts'
 import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceSheet.tsx'
+import { glance, readSeen, whileAway, writeSeen, type Seen } from './away.ts'
+import { AwayLine } from './AwayLine.tsx'
 import { roomElsewhere } from './room.ts'
 import { useActs, type SessionAct } from './SessionActs.tsx'
 import { SortMenu } from './SortMenu.tsx'
@@ -59,6 +61,33 @@ interface Props {
   tasks?: TaskLinks
   /** Where an owner's guidance, Hold or Stop on a session goes (LFE-06.6); absent, none is offered. */
   onAct?: SessionAct
+  /** Where the viewer's last look is kept (LFE-06.7): the project's id, so two projects' never mix. */
+  scope?: string
+}
+
+/**
+ * What changed since the viewer last looked (away.ts): a glance kept in this browser, the line it makes, and the tiles
+ * that moved. A first visit, once the resources are read, remembers them as they are and says nothing.
+ */
+function useAway(props: Props) {
+  const { resources, actions, observations, viewerId, now, loading = false, scope = 'resources' } = props
+  // Kept for whose look, where: another scope or viewer reads its own.
+  const at = `${scope}.${viewerId}`
+  const [kept, setKept] = useState(() => ({ at, seen: readSeen(scope, viewerId) }))
+  const seen = kept.at === at ? kept.seen : readSeen(scope, viewerId)
+  const keep = (glanced: Seen) => setKept({ at, seen: writeSeen(scope, viewerId, glanced) })
+  const current = glance(resources, actions, observations, now)
+  // Read, even with nothing enrolled yet: one enrolled later is then new here.
+  const first = !seen && !loading
+  useEffect(() => {
+    if (first) setKept({ at, seen: writeSeen(scope, viewerId, glance(resources, actions, observations, now)) })
+  }, [first, at, scope, viewerId, resources, actions, observations, now])
+  const line = loading ? null : whileAway({ resources, observations, now: current, seen, at: now, viewerId })
+  return {
+    since: line?.ids ?? new Set<string>(),
+    line: line ?? { phrases: [], more: 0 },
+    markSeen: () => keep(current),
+  }
 }
 
 const openOn = (actions: RequiredAction[], id: string) =>
@@ -236,8 +265,10 @@ function useView({ resources, actions, viewerId }: Props) {
 /** The enrolled tools to browse: the search and filters over the tiles, or what to do when none is shown. */
 type View = ReturnType<typeof useView>
 
-function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
-  const { resources, observations, actions, viewerId, now, onOpen, view } = props
+type Shown = Props & { onOpen: (id: string) => void; view: View; since: ReadonlySet<string> }
+
+function Browse(props: Shown) {
+  const { resources, observations, actions, viewerId, now, onOpen, view, since } = props
   return (
     <>
       <div className="resources-toolbar">
@@ -264,6 +295,7 @@ function Browse(props: Props & { onOpen: (id: string) => void; view: View }) {
           now={now}
           onOpen={onOpen}
           onArrange={view.arrange}
+          since={since}
         />
       )}
     </>
@@ -289,7 +321,7 @@ function Placeholders() {
 }
 
 /** What the view shows under its head: placeholders while reading, the empty note, or the tiles to browse. */
-function Body(props: Props & { onOpen: (id: string) => void; view: View }) {
+function Body(props: Shown) {
   if (props.loading) return <Placeholders />
   if (props.resources.length === 0) {
     return (
@@ -347,6 +379,7 @@ export function ResourcePanel(given: Props) {
   const effort = useEffort(props.onEffort)
   // Each session's last act, kept here: still said after its row closes or the sheet turns.
   const acts = useActs(props.onAct)
+  const away = useAway(props)
   // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
   const order = view.shown.some((r) => r.id === open) ? view.shown : resources
   const at = order.findIndex((r) => r.id === open)
@@ -362,7 +395,8 @@ export function ResourcePanel(given: Props) {
         {!props.loading && <span className="resources-summary">{summary(resources, actions)}</span>}
       </header>
       {!props.loading && <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />}
-      <Body {...props} onOpen={show} view={view} />
+      {!props.loading && <AwayLine away={away.line} onSeen={away.markSeen} className="resources-away" />}
+      <Body {...props} onOpen={show} view={view} since={away.since} />
       {selected && !props.loading && (
         <ResourceSheet
           resource={selected}

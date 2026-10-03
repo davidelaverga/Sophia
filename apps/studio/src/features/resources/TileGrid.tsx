@@ -43,6 +43,8 @@ interface Props {
   onOpen: (id: string) => void
   /** Moves a resource into another's place, in the viewer's own order. */
   onArrange: (id: string, target: string) => void
+  /** The resources that changed since the viewer last looked (away.ts). */
+  since?: ReadonlySet<string>
 }
 
 /** One tile in the Tab order; arrows move the focus, Alt and an arrow move the tile, which stays the Tab stop. */
@@ -114,7 +116,7 @@ function useDrag(onArrange: Props['onArrange']) {
 }
 
 export function TileGrid(props: Props) {
-  const { shown, observations, actions, viewerId, now, onOpen } = props
+  const { shown, observations, actions, viewerId, now, onOpen, since } = props
   const [said, setSaid] = useState('')
   const arrange = (id: string, target: string) => {
     const to = shown.findIndex((r) => r.id === target)
@@ -150,6 +152,7 @@ export function TileGrid(props: Props) {
               mine={r.owner.id === viewerId}
               waiting={openOn(actions, r.id)}
               waitingKey={openIds(actions, r.id)}
+              away={since?.has(r.id) ?? false}
               onOpen={() => onOpen(r.id)}
               buddy={buddies.get(r.id)}
               current={i === keys.current}
