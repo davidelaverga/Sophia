@@ -56,6 +56,21 @@
   Recording the video found that last one: after Escape, the focus was lost and K did nothing. Now fixed.
 - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass. `pnpm test`: 602 pass, plus the 5 known Windows failures.
 
+## Luis's note: each tool's own look only at its top
+
+Luis showed both pickers. Claude's is plain below its top: a grey fill, a mark at each stop, a rounded-square knob. GPT's is plain too: a solid blue fill, marks, a round knob. The special look appears only at the top. He asked for the same here.
+
+- **The bars now follow their tools,** in the picker and in the session rows:
+  - Claude: a grey fill below Ultracode. The lavender dots, their glint and their twinkle are for Ultracode alone.
+  - GPT: a solid blue fill below Ultra. The violet gradient and its sparks are for Ultra alone.
+  - The picker marks each stop, which fade where the top look takes over. Claude's knob is a rounded square, GPT's a circle.
+- **Checked:**
+  - Ultracode draws the dotted, glinting fill and Max a plain one;
+  - Ultra draws the gradient, and Extra high a solid fill with no sparks;
+  - the stops are drawn.
+
+  Three mutations each made the check fail: Claude's dots below ultracode, GPT's gradient below ultra, and no stops. The last first passed, because the check counted the marks without seeing them; it now sees them. `test:browser --repeat-each=2`: 158 of 158.
+
 ## Remaining obligations
 
 - **Davide:**

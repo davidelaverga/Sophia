@@ -843,6 +843,37 @@ test('effort · its owner opens the bar into a scale, and sets it for the next r
   expect(await askedOf(page)).toContain('{"sessionId":"claude-worker","level":null,"when":null}')
 })
 
+/** An effort bar's fill as drawn: its paint, its dot mask, its animation. */
+const look = (scale: Locator) =>
+  scale.locator('.effort-fill').evaluate((f) => {
+    const s = getComputedStyle(f)
+    return { image: s.backgroundImage, mask: s.maskImage || s.webkitMaskImage, animation: s.animationName }
+  })
+
+test('effort · each tool’s own look only at its top: Ultracode’s dots, Ultra’s gradient; plain below', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  await claude.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  const scale = claude.locator('.effort-scale')
+  expect(await look(scale)).toMatchObject({ animation: 'effort-glint' }) // at its top: the dots, alive
+  expect((await look(scale)).mask).toMatch(/radial-gradient/)
+  await page.keyboard.press('ArrowLeft') // Max: plain
+  expect(await look(scale)).toEqual({ image: 'none', mask: 'none', animation: 'none' })
+  await expect(scale.locator('.effort-stop')).toHaveCount(6) // a mark at each of its levels
+  await expect(scale.locator('.effort-stop').nth(2)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('j')
+  const codex = sheet(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: 'Effort: Ultra. Change it' }).click()
+  const gpt = codex.locator('.effort-scale')
+  expect((await look(gpt)).image).toMatch(/linear-gradient/) // at Ultra: the gradient
+  await page.keyboard.press('ArrowLeft') // Extra high: solid
+  expect(await look(gpt)).toEqual({ image: 'none', mask: 'none', animation: 'none' })
+  expect(await gpt.locator('.effort-fill').evaluate((f) => getComputedStyle(f, '::after').animationName)).toBe('none')
+})
+
 test('effort · restarting now is offered only while it works, said plainly, and confirmed', async ({ page }) => {
   await page.goto(`${PAGE}?more=1&viewer=davide`)
   const claude = await open(page, 'Davide · Claude Code')

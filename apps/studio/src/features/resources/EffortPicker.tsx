@@ -65,6 +65,9 @@ function Scale({ levels, at, tool, onMove, onKey }: ScaleProps) {
         onPointerMove={(e) => e.buttons === 1 && pick(e)}
       >
         <span className="effort-fill" style={{ width: `${place * 100}%` }} />
+        {levels.map((l, i) => (
+          <span key={l} className="effort-stop" style={{ left: `${(i / Math.max(1, levels.length - 1)) * 100}%` }} />
+        ))}
         <span className="effort-knob" style={{ left: `${place * 100}%` }} />
       </span>
       <span className="effort-end">Smarter</span>

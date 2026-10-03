@@ -357,19 +357,25 @@
 .effort[data-look='claude'][data-alive] .effort-label {
   color: #b3a3f5;
 }
-/* Claude: a scale of dots, grey turning lavender; at max a glint runs along them and a few dots twinkle. */
-.effort[data-look='claude'] .effort-track {
+/* Below its top, each tool's bar is plain, as its own picker is: a quiet track, a fill, a mark at each stop. Its own
+   look is kept for its top alone: Claude's lavender dots and their glint in ultracode, GPT's violet gradient and its
+   sparks at ultra. */
+.effort[data-look='claude'] .effort-fill {
+  background: rgba(236, 235, 241, 0.32);
+}
+.effort[data-look='gpt'] .effort-fill {
+  background: #3b7cf6;
+}
+/* Claude in ultracode: a scale of lavender dots, a glint running along them, a few twinkling. */
+.effort[data-look='claude'][data-alive] .effort-track {
   background:
     radial-gradient(circle, rgba(236, 235, 241, 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
     rgba(236, 235, 241, 0.02);
 }
-.effort[data-look='claude'] .effort-fill {
-  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3), #b3a3f5);
-  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
-  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
-}
 .effort[data-look='claude'][data-alive] .effort-fill {
   background: linear-gradient(90deg, rgba(236, 235, 241, 0.3) 0%, #b3a3f5 38%, #f4f0ff 50%, #b3a3f5 62%) 0 0 / 250% 100%;
+  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   animation: effort-glint 2.6s linear infinite;
 }
 .effort[data-look='claude'][data-alive] .effort-track::after {
@@ -382,8 +388,8 @@
     radial-gradient(circle at 86% 25%, #e4dcff 0.9px, transparent 1.4px);
   animation: effort-twinkle 1.8s ease-in-out infinite alternate;
 }
-/* GPT: a gradient from deep blue to violet; at ultra, sparks drift along it. */
-.effort[data-look='gpt'] .effort-fill {
+/* GPT at ultra: a gradient from deep blue to violet, sparks drifting along it. */
+.effort[data-look='gpt'][data-alive] .effort-fill {
   background: linear-gradient(90deg, #2f4fd6, #7b61ff 60%, #b08cff);
 }
 .effort[data-look='gpt'][data-alive] .effort-fill::after {
@@ -399,6 +405,32 @@
   animation:
     effort-sparks 4s linear infinite,
     effort-twinkle 1.4s ease-in-out infinite alternate;
+}
+/* The picker's stops: a small mark at each level, as each tool's own picker has; gone where its top look takes over. */
+.effort-stop {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(236, 235, 241, 0.35);
+  pointer-events: none;
+}
+.effort-scale[data-alive] .effort-stop {
+  opacity: 0;
+}
+/* Claude's knob is a rounded square, GPT's a circle, as in their own pickers. */
+.effort-scale[data-look='claude'] .effort-knob {
+  width: 16px;
+  height: 20px;
+  margin: -10px 0 0 -8px;
+  border-radius: 6px;
+}
+.effort-scale[data-look='gpt'] .effort-knob {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
 }
 @keyframes effort-glint {
   from {
