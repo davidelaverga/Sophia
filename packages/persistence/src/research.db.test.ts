@@ -1139,7 +1139,7 @@ describe('research submission (0026)', () => {
     assert.deepEqual(await submit(), v2, 'a replay of the ended task returns the same version')
   })
 
-  it('CX-0019 · adds an input or a page whatever its text, never an earlier draft, and checks at most 50 ids', async () => {
+  it('CX-0019 · adds an input or a page whatever its text, and never a draft of the task, whether it cites or not', async () => {
     const w = await world()
     const json = await withActor(pool, E, 'write', (c) =>
       submitContribution(c, w.projectId, randomUUID(), {
@@ -1152,18 +1152,18 @@ describe('research submission (0026)', () => {
     )
     const { at } = await started(w, { inputSourceIds: [json.sourceId] })
     const a = await citable(w, at, 'search_1')
+    // Pages that read like JSON, one '{'-led and one longer than a page: captures like any other.
     const braced = await readPage(w, at, a, '{{Infobox host}}\nThe sandbox is a microVM {"cut": ')
     const api = await citable(w, at, 'search_2')
-    // A page of JSON-like text too long to read whole (6,000 characters a page): it never names the manifest's schema.
     const long = await readPage(w, at, api, `{"items": [${'"a host", '.repeat(4000)}`, 'read_2')
-    const late = await citable(w, at, 'search_3')
     const draft = (callId: string, text: string, expectedSha256: string | null) =>
       service((c) => runtimeResearchDraft(c, w.who, { ...at, callId, expectedSha256, text }))
-    const d1 = await draft('d1', `# Hosts\n\nA [${a.sourceId}].\n`, null)
-    const strays = Array.from({ length: 46 }, () => `[x](${randomUUID()})`).join(' ')
+    // Two earlier drafts, which the task reads and never cites: one that cites nothing, one that cites as the last does.
+    const d0 = await draft('d0', '# Hosts\n\nTo do.\n', null)
+    const d1 = await draft('d1', `# Hosts\n\nA [${a.sourceId}].\n`, d0.sha256)
     const text = [
       `# Hosts\n\nA [1](${a.sourceId}), our copy [2](input:${json.sourceId}), a wiki page [3](<${braced.sourceId}>), an API [4](${long.sourceId}).`,
-      `As drafted [4](${d1.sourceId}). ${strays} Past the checks [5](${late.sourceId}).\n`,
+      `As drafted [5](${d0.sourceId}) and [6](${d1.sourceId}).\n`,
     ].join('\n\n')
     const d2 = await draft('d2', text, d1.sha256)
     const v = await service((c) =>
@@ -1174,7 +1174,62 @@ describe('research submission (0026)', () => {
     assert.deepEqual(
       sources.map((s) => s.sourceId).toSorted(),
       [a.sourceId, json.sourceId, braced.sourceId, long.sourceId].toSorted(),
-      'an input that reads as a manifest and pages that are not JSON are added; an earlier draft and the 51st id are not',
+      'an input that reads as a manifest and pages that read as JSON are added; no draft of the task is',
+    )
+  })
+
+  it('CX-0019 · cites at most 200 sources: the model’s list, then the ones its draft names first', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const a = await citable(w, at, 'search_1')
+    const b = await citable(w, at, 'search_2')
+    // 205 more searches of the task's allowance, stored as the owner: more sources than a report may cite.
+    const many = Array.from({ length: 205 }, () => randomUUID())
+    await owner(async (c) => {
+      await c.query(
+        `INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+         SELECT $1, x, $2, 'project', repeat('c',64), 'text/markdown', 'cap-'||x, 1, true, 'ready' FROM unnest($3::uuid[]) x`,
+        [w.projectId, A, many],
+      )
+      await c.query(
+        `WITH r AS (INSERT INTO sophia.research_reservations(project_id,allowance_id,reservation_key,kind,provider,state,
+            reserved_usd,settled_usd,ended_at,query)
+           SELECT $1, rr.allowance_id, 'cap-'||x, 'search', 'tavily', 'settled', 0.01, 0.01, now(), 'q'
+            FROM unnest($3::uuid[]) x, sophia.source_provenance p
+            JOIN sophia.research_reservations rr ON rr.project_id=p.project_id AND rr.id=p.reservation_id
+           WHERE p.project_id=$1 AND p.source_id=$2 RETURNING id, reservation_key)
+         INSERT INTO sophia.source_provenance(project_id,source_id,kind,provider,reservation_id,coverage)
+         SELECT $1, substr(r.reservation_key,5)::uuid, 'search_results', 'tavily', r.id, 'complete' FROM r`,
+        [w.projectId, a.sourceId, many],
+      )
+    })
+    // Named once in capitals and again as written; an id it may not read never takes a place.
+    const named = [many[0]!.toUpperCase(), randomUUID(), ...many.slice(1), many[0]!].map((id) => `[${id}]`)
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...at,
+        callId: 'd',
+        expectedSha256: null,
+        text: `# Hosts\n\nA [${a.sourceId}], B [${b.sourceId}].\n\n${named.join(' ')}\n`,
+      }),
+    )
+    const v = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [b.sourceId, a.sourceId]) }),
+    )
+    assert.equal(v.outcome, 'published')
+    const cited = await owner(
+      async (c) =>
+        (
+          await c.query<{ id: string }>(
+            `SELECT source_id AS id FROM sophia.source_dependencies WHERE project_id=$1 AND derived_source_id=$2`,
+            [w.projectId, v.sourceId],
+          )
+        ).rows,
+    )
+    assert.deepEqual(
+      cited.map((r) => r.id).toSorted(),
+      [a.sourceId, b.sourceId, ...many.slice(0, 198)].toSorted(),
+      'the two listed, then the first 198 the draft names',
     )
   })
 

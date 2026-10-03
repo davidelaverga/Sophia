@@ -1,5 +1,5 @@
--- 0036: section facts pair each section at most once, and the truth gate reads the conclusion and the
--- recommendations apart. Pure functions: nothing to seed. Run by pnpm test:sql after every migration; it rolls back.
+-- 0036: section facts pair each section at most once, the truth gate reads the conclusion and the recommendations
+-- apart, and a result cites what its draft cites. Run by pnpm test:sql after every migration; it rolls back.
 BEGIN;
 -- markdown_outline splits exactly as markdown_sections (0027): same sections, anchors, headings and body hashes.
 DO $$ DECLARE t text:=E'Intro.\r\n# Hosts ##\nA.\n\n##\tCosts\n```\n# not a heading\n```\n  ### ???\nx\n#### C# notes\ny\n## Pros #\n';
@@ -155,12 +155,87 @@ DO $$ DECLARE f jsonb; p text[]; o text; BEGIN
  IF cardinality(p)<>20 OR EXISTS(SELECT 1 FROM unnest(p) x WHERE length(x)>300) THEN
   RAISE EXCEPTION 'Problems exceed the contract: % of them',cardinality(p); END IF;
 END $$;
--- Grants mirror 0027: nothing here is callable by the API or worker roles.
+-- research_draft_citations: the model's list as it came, then each source the current draft names that the task may
+-- cite (an input, the base), lower case, in order of first appearance, never its own question, manifest or drafts, nor
+-- a source it may not read; at most 200 distinct in all. A stale or missing draft, or citations that are not a list,
+-- add nothing. Seeded here: a task's scope needs only its project, attempt, manifest and question.
+DO $$ DECLARE
+ pr uuid:='16000000-0000-0000-0000-000000000001'; who uuid:='06000000-0000-0000-0000-000000000001';
+ g uuid:='26000000-0000-0000-0000-000000000001'; att uuid:='36000000-0000-0000-0000-000000000001';
+ man uuid:='46000000-0000-0000-0000-000000000001'; q uuid:='46000000-0000-0000-0000-000000000002';
+ inp uuid:='46000000-0000-0000-0000-00000000000a'; base uuid:='46000000-0000-0000-0000-00000000000b';
+ gone uuid:='46000000-0000-0000-0000-00000000000c'; stray uuid:='46000000-0000-0000-0000-00000000000d';
+ d0 uuid:='56000000-0000-0000-0000-000000000000'; d1 uuid:='56000000-0000-0000-0000-000000000001';
+ d2 uuid:='56000000-0000-0000-0000-000000000002'; many uuid[];
+ s sophia.research_scope; r jsonb; t text;
+BEGIN
+ INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who);
+ INSERT INTO sophia.project_revisions(project_id,revision,frame,accepted_by) VALUES(pr,1,'{}',who);
+ INSERT INTO sophia.goals(project_id,id,title,outcome,criteria,status,mission_revision) VALUES(pr,g,'Goal','Outcome','[]','running',1);
+ INSERT INTO sophia.work_attempts(project_id,id,goal_id,goal_revision,authority_epoch,state) VALUES(pr,att,g,1,1,'running');
+ SELECT array_agg(('66000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO many FROM generate_series(1,205) i;
+ INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
+  SELECT pr,x,who,'project',repeat('a',64),'text/markdown','cite-'||x,1,x<>gone,'ready'
+  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2]||many) x;
+ INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES
+  (pr,man,jsonb_build_object('schema','sophia.research-manifest.v1','base',jsonb_build_object('sourceId',base))::text),
+  (pr,d0,'# Draft'||E'\n\nTo do.\n'),
+  (pr,d1,format(E'# Hosts\n\nOurs [%s], the base [%s], ours again (input:%s#2).\n\nAsked as [%s] under [%s]; drafted [%s] and [%s]; '
+   ||'never [%s] or [%s]; a link [1](<%s>).',upper(inp::text),base,inp,q,man,d0,d1,gone,stray,inp)),
+  (pr,d2,(SELECT string_agg(format('[%s]',x),' ' ORDER BY i) FROM unnest(many) WITH ORDINALITY u(x,i)));
+ -- The manifest draws on the inputs, the 205 among them.
+ INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) SELECT pr,x,man FROM unnest(ARRAY[inp,gone]||many) x;
+ INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES
+  (pr,att,1,'d0',d0,repeat('0',64)),(pr,att,2,'d1',d1,repeat('1',64));
+ s:=ROW(pr,NULL,NULL,att,'sess',g,NULL,NULL,who,NULL,man,q)::sophia.research_scope;
+
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base)));
+ IF r<>jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base,inp)) THEN
+  RAISE EXCEPTION 'The current draft added the wrong sources: %',r; END IF;
+ -- The model's list stays as written, ids it may not cite and all (research_publish refuses them); what follows is new.
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_array('X',upper(base::text),q)));
+ IF r->'citations'<>jsonb_build_array('X',upper(base::text),q,inp) THEN RAISE EXCEPTION 'The model''s list was changed: %',r; END IF;
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb));
+ IF r->'citations'<>jsonb_build_array(inp,base) THEN RAISE EXCEPTION 'An empty list gained the wrong sources: %',r; END IF;
+ -- A stale draft (an earlier one's hash), citations that are not a list, or no draft at all: nothing is added.
+ SELECT string_agg(x::text,E'\n') INTO t FROM (VALUES
+  (jsonb_build_object('draftSha256',repeat('0',64),'citations',jsonb_build_array(base))),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations',base::text)),
+  (jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_object('id',base))),
+  (jsonb_build_object('draftSha256',repeat('1',64))),
+  (jsonb_build_object('citations',jsonb_build_array(base)))) v(x)
+  WHERE sophia.research_draft_citations(s,x) IS DISTINCT FROM x;
+ IF t IS NOT NULL THEN RAISE EXCEPTION E'A result gained citations it should not:\n%',t; END IF;
+ IF sophia.research_draft_citations(ROW(pr,NULL,NULL,g,'sess',g,NULL,NULL,who,NULL,man,q)::sophia.research_scope,
+   jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb))<>jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb) THEN
+  RAISE EXCEPTION 'An attempt with no draft gained citations'; END IF;
+
+ -- At most 200 distinct: the model's (a repeat counts once), then the draft's first 199.
+ INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,3,'d2',d2,repeat('2',64));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations',jsonb_build_array(base,base)));
+ IF r->'citations'<>jsonb_build_array(base,base)||(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[1:199]) WITH ORDINALITY u(x,i)) THEN
+  RAISE EXCEPTION 'The cap is not 200 in all, in order: %',r; END IF;
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),
+  'citations',(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[5:205]) WITH ORDINALITY u(x,i))));
+ IF jsonb_array_length(r->'citations')<>201 THEN RAISE EXCEPTION 'A list already past 200 gained citations'; END IF;
+ -- The earlier draft cites nothing the current one does, and is still never added.
+ UPDATE sophia.source_texts SET body=format('[%s] [%s] [%s]',d0,d1,many[1]) WHERE project_id=pr AND source_id=d2;
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb));
+ IF r->'citations'<>jsonb_build_array(many[1]) THEN RAISE EXCEPTION 'A draft of the task was added: %',r; END IF;
+END $$;
+-- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
+-- as its owner on the search path it had.
 DO $$ DECLARE fn text; BEGIN
  FOREACH fn IN ARRAY ARRAY['sophia.heading_anchor(text)','sophia.markdown_outline(text)','sophia.note_keeps(text,text,text)',
-   'sophia.section_facts(text,text)','sophia.note_problems(text,text,jsonb)'] LOOP
+   'sophia.section_facts(text,text)','sophia.note_problems(text,text,jsonb)',
+   'sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
   IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE') THEN
    RAISE EXCEPTION '% is callable by the API or worker role',fn; END IF;
  END LOOP;
+ fn:='sophia.runtime_research_submit(bytea,text,text,jsonb)';
+ IF NOT has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE')
+   OR EXISTS(SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a WHERE p.oid=fn::regprocedure AND a.grantee=0)
+   OR NOT (SELECT prosecdef AND proconfig=ARRAY['search_path=pg_catalog, sophia'] FROM pg_proc WHERE oid=fn::regprocedure) THEN
+  RAISE EXCEPTION 'The submit''s grants or definer changed'; END IF;
 END $$;
 ROLLBACK;

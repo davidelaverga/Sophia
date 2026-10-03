@@ -1,5 +1,5 @@
 -- SMC-M03 (PR #32; CC-0019's two deferred items): section facts that count each section once, and a truth gate that
--- reads the conclusion and the recommendations apart.
+-- reads the conclusion and the recommendations apart; and a result that cites what its draft cites (CX-0019).
 -- * section_facts (0027) paired old and new sections on the anchor alone, so a heading that repeats ('### Pros' under
 --   each option) was paired with every section of that name: one edit read as several revisions, and identical texts
 --   as revised. Now a section pairs with at most one: the section at the same heading path (its parent headings'
@@ -16,8 +16,14 @@
 --   changed"; "no changes to the report" (or the text, this version, ...) still is. A kept note naming a removed
 --   heading contradicts the facts only when no section of that name remains. Problems are distinct and at most 20, as
 --   the submission contract allows.
+-- * A submitted result cites what its draft cites (CX-0019) by an exact rule, in the submit's own transaction: to the
+--   model's list, research_draft_citations adds every source the current draft names that the task may cite
+--   (research_readable), never its own question, manifest or a draft of this attempt, up to 200 in all. The API's
+--   reconciliation (probes through runtime_research_context, and guesses from a page's text at which source was the
+--   manifest or an earlier draft) is gone.
 -- 0001-0035 are not edited. section_facts and note_problems are replaced with the same signatures; their callers
 -- (research_publish 0027, research_rendition_settled 0034) resolve them at call time and are not replaced.
+-- runtime_research_submit (0031) is replaced with the same signature and grants, one line changed.
 BEGIN;
 
 -- A heading's anchor, as markdown_sections (0027) computes it: lower case, punctuation dropped, spaces as hyphens.
@@ -150,6 +156,88 @@ BEGIN
    out:=out||format('The kept note names "%s", which was removed.',h); END IF;
  END LOOP;
  RETURN out[1:20];
+END $$;
+
+-- The citations of a submitted result, and every source its current draft names that the task may cite (CX-0019):
+-- research_readable admits it (an input, the base, a capture of its allowance), and it is not the task's own question,
+-- manifest or a draft of this attempt. The model's list comes first, as it came (research_publish still checks it); the
+-- draft's ids follow, lower case, in order of first appearance, up to 200 distinct in all. A stale or missing draft, or
+-- citations that are not a list, add nothing (research_publish refuses them).
+CREATE FUNCTION sophia.research_draft_citations(s sophia.research_scope, p_result jsonb) RETURNS jsonb LANGUAGE sql STABLE
+SET search_path=pg_catalog,sophia AS $$
+ WITH d AS (SELECT r.source_id, r.sha256 FROM sophia.research_drafts r WHERE r.project_id=s.project_id AND r.attempt_id=s.attempt_id
+   ORDER BY r.seq DESC LIMIT 1),
+  current AS (SELECT t.body FROM d JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=d.source_id
+   WHERE d.sha256=p_result->>'draftSha256' AND jsonb_typeof(p_result->'citations')='array'),
+  listed AS (SELECT lower(c) AS id FROM current, jsonb_array_elements_text(p_result->'citations') c),
+  named AS (SELECT lower(x.m[1]) AS id, min(x.o) AS first FROM current,
+    regexp_matches(current.body,'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})','g')
+     WITH ORDINALITY AS x(m,o) GROUP BY 1),
+  extra AS (SELECT n.id, n.first FROM named n
+   WHERE NOT EXISTS(SELECT 1 FROM listed l WHERE l.id=n.id)
+    AND n.id::uuid IS DISTINCT FROM s.question_source_id AND n.id::uuid IS DISTINCT FROM s.manifest_source_id
+    AND NOT EXISTS(SELECT 1 FROM sophia.research_drafts r WHERE r.project_id=s.project_id AND r.attempt_id=s.attempt_id
+     AND r.source_id=n.id::uuid)
+    AND sophia.research_readable(s,n.id::uuid)
+   ORDER BY n.first LIMIT greatest(0,200-(SELECT count(DISTINCT id) FROM listed)))
+ SELECT CASE WHEN EXISTS(SELECT 1 FROM extra)
+  THEN jsonb_set(p_result,'{citations}',(p_result->'citations')||(SELECT jsonb_agg(id ORDER BY first) FROM extra))
+  ELSE p_result END $$;
+REVOKE ALL ON FUNCTION sophia.research_draft_citations(sophia.research_scope,jsonb) FROM PUBLIC;
+
+-- runtime_research_submit (0031), replaced: the same, and a result cites what its draft cites (research_draft_citations).
+-- A replay returns the stored version before that is read.
+CREATE OR REPLACE FUNCTION sophia.runtime_research_submit(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE s sophia.research_scope:=sophia.research_scope_of(p_token_sha256,p_unit,p_bridge,p_request,false); t sophia.research_tasks;
+ j sophia.jobs; key text; v sophia.artifact_versions; src sophia.source_objects; v_reason text:=btrim(p_request->'blocker'->>'reason');
+ v_remaining text:=nullif(btrim(coalesce(p_request->'blocker'->>'remainingWork','')),''); out jsonb;
+BEGIN
+ IF coalesce(p_request->>'callId','') !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$' THEN RAISE EXCEPTION 'Invalid call id' USING ERRCODE='22023'; END IF;
+ IF (p_request ? 'result')=(p_request ? 'blocker') THEN RAISE EXCEPTION 'A submit carries a result or a blocker' USING ERRCODE='22023'; END IF;
+ key:=s.native_session_id||':'||(p_request->>'callId');
+ SELECT * INTO t FROM sophia.research_tasks WHERE project_id=s.project_id AND job_id=s.job_id;
+ IF t.closed_by_call=key THEN
+  SELECT * INTO j FROM sophia.jobs WHERE project_id=s.project_id AND id=s.job_id;
+  IF j.state='succeeded' AND p_request ? 'result' THEN
+   SELECT * INTO v FROM sophia.artifact_versions WHERE project_id=s.project_id AND job_id=j.id ORDER BY version_number DESC LIMIT 1;
+   RETURN sophia.without_null_members(jsonb_build_object('taskId',j.id,'outcome','published','artifactId',v.artifact_id,'versionId',v.id,
+    'versionNumber',v.version_number,'sourceId',v.source_id,'sha256',v.source_hash,'resultSourceId',j.result_source_id,
+    'notesFromFacts',coalesce((v.change_facts->>'notesFromFacts')::boolean,false),
+    'pdf',CASE WHEN t.pdf_state IS NULL THEN NULL ELSE sophia.without_null_members(jsonb_build_object('state',t.pdf_state,'reason',t.pdf_reason,
+     'sourceId',(SELECT r.source_id FROM sophia.artifact_renditions r WHERE r.project_id=s.project_id AND r.artifact_version_id=v.id AND r.format='pdf'),
+     'renderJobId',(SELECT r.job_id FROM sophia.artifact_renditions r WHERE r.project_id=s.project_id AND r.artifact_version_id=v.id AND r.format='pdf'))) END));
+  ELSIF j.state='failed' AND p_request ? 'blocker' THEN
+   RETURN jsonb_build_object('taskId',j.id,'outcome','blocked','resultSourceId',j.result_source_id);
+  END IF;
+  RAISE EXCEPTION 'Idempotency key reused for another submit' USING ERRCODE='23505';
+ END IF;
+ IF t.closed_by_call IS NOT NULL THEN RAISE EXCEPTION 'The research task has already ended' USING ERRCODE='40001'; END IF;
+ s:=sophia.research_scope_of(p_token_sha256,p_unit,p_bridge,p_request,true);
+ IF p_request ? 'result' THEN
+  IF t.finalizing_at IS NULL AND EXISTS(SELECT 1 FROM sophia.render_jobs r JOIN sophia.jobs rj ON rj.project_id=r.project_id AND rj.id=r.job_id
+    WHERE r.project_id=s.project_id AND r.parent_job_id=s.job_id AND rj.state IN ('pending','running') AND r.created_at>now()-interval '10 minutes') THEN
+   RAISE EXCEPTION 'A PDF render of this task is still running: wait for its result, then submit' USING ERRCODE='40001'; END IF;
+  UPDATE sophia.jobs rj SET state='cancelled', lease_until=NULL, reason='cancelled: the report was submitted while the PDF was still rendering'
+   FROM sophia.render_jobs r WHERE r.project_id=s.project_id AND r.parent_job_id=s.job_id AND rj.project_id=r.project_id AND rj.id=r.job_id
+    AND rj.state IN ('pending','running');
+  out:=sophia.research_publish(s,key,sophia.research_draft_citations(s,p_request->'result'));
+  IF out->>'outcome'='published' THEN
+   out:=sophia.without_null_members(out||jsonb_build_object('pdf',sophia.research_attach_pdf(s,(out->>'versionId')::uuid)));
+  END IF;
+  RETURN out;
+ END IF;
+ IF v_reason IS NULL OR length(v_reason) NOT BETWEEN 1 AND 500 OR length(v_remaining)>2000 THEN
+  RAISE EXCEPTION 'A blocker has a reason of 1 to 500 characters and at most 2000 of remaining work' USING ERRCODE='22023'; END IF;
+ SELECT * INTO j FROM sophia.jobs WHERE project_id=s.project_id AND id=s.job_id FOR UPDATE;
+ src:=sophia.put_text_source(s.project_id,s.actor_id,'text/markdown; charset=utf-8',
+  'Blocked: '||v_reason||CASE WHEN v_remaining IS NULL THEN '' ELSE E'\n\nRemaining work:\n'||v_remaining END);
+ UPDATE sophia.jobs SET state='failed', reason=left('blocked: '||v_reason,2000), result_source_id=src.id, result_revision=result_revision+1
+  WHERE project_id=s.project_id AND id=j.id RETURNING * INTO j;
+ UPDATE sophia.research_tasks SET closed_by_call=key WHERE project_id=s.project_id AND job_id=j.id;
+ UPDATE sophia.work_attempts SET state='failed' WHERE project_id=s.project_id AND id=s.attempt_id;
+ PERFORM sophia.emit_service_event(s.project_id,'native_task.failed','job',j.id,j.result_revision+3,'native_task.blocked',jsonb_build_array(src.id));
+ RETURN jsonb_build_object('taskId',j.id,'outcome','blocked','resultSourceId',src.id);
 END $$;
 
 COMMIT;
