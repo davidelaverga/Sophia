@@ -6,7 +6,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/effort-picker` from main `12d5dd2`, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `2deb6e6`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`: the new `EffortPicker.tsx`, plus `effort.ts`, `resource.ts` (the session's `efforts`), the sheet, the panel and the stylesheet;
   - the fixture (each tool's catalog, the requests recorded) and its checks;
