@@ -34,16 +34,19 @@ interface Props {
 
 function Request({ action, resource, viewerId, now }: Omit<Props, 'actions'> & { action: RequiredAction }) {
   const line = actionLine(action, viewerId, resource)
-  const mine = viewerId === action.ownerId && action.state === 'open'
+  const open = action.state === 'open'
+  const mine = viewerId === action.ownerId && open
   return (
     <li className={`event waiting ${action.state}`}>
       <span className="dot" aria-hidden />
       <div className="waiting-body">
         <p className="waiting-operation">{action.operation}</p>
-        <p className="waiting-session">Session {action.sessionId}</p>
+        {/* The owner's line already names the session; everyone else is told it here. */}
+        {!mine && <p className="waiting-session">Session {action.sessionId}</p>}
         {line && <p className="waiting-line">{line}</p>}
         <p className="waiting-foot">
-          <Tag tone={TONE[action.state]}>{actionState(action)}</Tag>
+          {/* What still waits is said by its heading; one answered, denied or expired says what it became. */}
+          {!open && <Tag tone={TONE[action.state]}>{actionState(action)}</Tag>}
           {action.deadline && <span className="muted">{expiry(action.deadline, now)}</span>}
           {mine && <CopySession sessionId={action.sessionId} />}
           {mine && action.openTarget && (

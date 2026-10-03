@@ -144,8 +144,8 @@ test('RES-03 · Luis sees Davide’s request and who answers it, with nothing to
   const claude = await open(page, 'Davide · Claude Code')
   await expect(claude.getByRole('heading', { name: 'Waiting on Davide' })).toBeVisible()
   const request = claude.getByRole('listitem').filter({ hasText: 'Run a shell command' })
-  await expect(request.getByText('Session claude-worker')).toBeVisible()
-  await expect(request.getByText('Waiting')).toBeVisible()
+  await expect(request.getByText('Session claude-worker')).toBeVisible() // his line doesn't name it: this does
+  await expect(request.getByText('Waiting', { exact: true })).toHaveCount(0) // the heading says it once
   await expect(request.getByText('expires in 40 min')).toBeVisible()
   await expect(request.getByText('Only Davide can answer this, in Claude Code.')).toBeVisible()
   await expect(request.getByRole('button')).toHaveCount(0)
@@ -161,10 +161,15 @@ test('RES-03 · Davide is told where to answer it, and the page still answers no
   await expect(claude.getByRole('heading', { name: 'Waiting on you' })).toBeVisible()
   const request = claude.getByRole('listitem').filter({ hasText: 'Run a shell command' })
   await expect(request.getByText('Answer it in Claude Code, session claude-worker.')).toBeVisible()
+  await expect(request.getByText('Session claude-worker', { exact: true })).toHaveCount(0) // named once, in the line
+  await expect(request.getByText('Waiting', { exact: true })).toHaveCount(0)
   await expect(request.getByRole('button', { name: /approve|allow|answer|deny/i })).toHaveCount(0)
   await expect(request.getByRole('link')).toHaveCount(0) // no safe target: none is made up
   await request.click() // seeing or touching it resolves nothing
-  await expect(request.getByText('Waiting')).toBeVisible()
+  await expect(claude.getByRole('heading', { name: 'Waiting on you' })).toBeVisible()
+  await expect(request.getByText('expires in 40 min')).toBeVisible()
+  await page.evaluate(() => window.resourcesFixture?.answerRequest?.()) // answered in Claude Code
+  await expect(request.getByText('Answered', { exact: true })).toBeVisible() // what it became is said
 })
 
 test('what waits on an owner is one line on top, and it opens that resource', async ({ page }) => {
@@ -375,6 +380,10 @@ test('the view opens as its viewer left it: filter and order', async ({ page }) 
   await page.goto(`${PAGE}?more=1`)
   await filter(page, 'Mine 2').click()
   await page.getByRole('combobox', { name: 'Sort' }).selectOption('tool')
+  // The order glides into place a frame later, and is kept once it has: reload after that, as a person would.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('sophia.resources.v1.luis')))
+    .toBe(JSON.stringify({ filter: 'mine', order: 'tool' }))
   await page.reload()
   await expect(filter(page, 'Mine 2')).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('tool')
