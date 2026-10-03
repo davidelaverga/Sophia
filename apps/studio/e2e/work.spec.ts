@@ -86,7 +86,9 @@ test('one line per task, by what moves: a mark, the task, where it stands, who d
   await expect(row(page, 'Review the retry’s candidate').locator('.plan-nobody')).not.toHaveAttribute('data-free')
   // Each is a whole ring, the size of a picture.
   for (const ring of await plan(page).locator('.plan-nobody').all()) {
-    expect(await ring.boundingBox()).toMatchObject({ width: 24, height: 24 })
+    const box = await ring.boundingBox()
+    expect(box?.width).toBeCloseTo(24, 1) // to a tenth: a row still arriving sits on a subpixel
+    expect(box?.height).toBeCloseTo(24, 1)
   }
   await expect(row(page, 'Measure render time on large reports').locator('.plan-nobody')).toHaveAttribute(
     'data-free',
