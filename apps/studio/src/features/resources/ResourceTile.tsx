@@ -3,6 +3,7 @@
 // is whose tool it is; what its lines say is its description, so assistive technology hears them too.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Tag } from '@sophia/ui'
+import type { Buddy } from './buddies.ts'
 import { Meter } from './Meter.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { followPointer } from './motion.ts'
@@ -26,6 +27,8 @@ interface Props {
   /** Requests waiting on this resource's owner: said on the tile, in amber. */
   waiting: number
   onOpen: () => void
+  /** A Claude Code neighbour in its row, and which way this tile's mark looks at it (buddies.ts). */
+  buddy?: Buddy | undefined
   /** The grid's roving focus: only the current tile is in the Tab order; arrow keys move between them. */
   current: boolean
   onFocus: () => void
@@ -97,7 +100,7 @@ function TileCapacity({ capacity: { line, limiting, known, pace }, id }: { capac
 }
 
 export function ResourceTile(props: Props) {
-  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref } = props
+  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy } = props
   const { tool, owner, host } = resource
   const held = capacity(observation, now)
   // The model of the session at work, else the first one reported.
@@ -115,6 +118,8 @@ export function ResourceTile(props: Props) {
       type="button"
       className="resource-tile"
       data-tool={tool}
+      data-resource={resource.id}
+      data-buddy={buddy}
       data-host={host.state}
       data-changed={changed || undefined}
       data-waiting={waiting > 0 || undefined}
