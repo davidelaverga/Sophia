@@ -74,6 +74,14 @@ const BLANK = /^\s*$/
 
 /** At most this deep: a quote in a quote in a quote… is flattened past it. */
 const MAX_DEPTH = 4
+/**
+ * At most this many cells a parse fills in for table rows shorter than their head; past it the table ends and its other
+ * rows read as text. A row's own cells cost what its text costs, filled ones would not: a wide head over many rows of
+ * one `|` each would cost the head's width times the rows.
+ */
+const MOST_FILLED_CELLS = 1 << 16
+/** What every empty cell holds, one array shared: there is nothing in it to number, and nothing changes it. */
+const EMPTY_CELL: Inline[] = []
 
 /**
  * A heading's level and text, as `^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$` reads a line (closing `#`s and the spaces around
@@ -547,6 +555,8 @@ interface Lines {
   at: number
   cites: Citations
   depth: number
+  /** The cells the parse may still fill in (MOST_FILLED_CELLS), shared by its quotes. */
+  room: { cells: number }
 }
 
 const peek = (l: Lines, k = 0) => l.lines[l.at + k]
@@ -592,7 +602,10 @@ function quote(l: Lines): Block {
   }
   if (l.depth >= MAX_DEPTH)
     return { kind: 'paragraph', children: inlines({ src: inner.join('\n'), cites: l.cites, depth: 0 }) }
-  return { kind: 'quote', blocks: parseLines({ lines: inner, at: 0, cites: l.cites, depth: l.depth + 1 }) }
+  return {
+    kind: 'quote',
+    blocks: parseLines({ lines: inner, at: 0, cites: l.cites, depth: l.depth + 1, room: l.room }),
+  }
 }
 
 /** An item's nesting: two spaces (or a tab) per level, at most three levels. */
@@ -635,13 +648,16 @@ function list(l: Lines, first: Item): Block {
 }
 
 function table(l: Lines): Block {
-  const cell = (text: string) => inlines({ src: text, cites: l.cites, depth: 0 })
+  const cell = (text: string) => (text === '' ? EMPTY_CELL : inlines({ src: text, cites: l.cites, depth: 0 }))
   const head = cells(peek(l) ?? '')
   const align = cells(peek(l, 1) ?? '').map(alignOf)
   l.at += 2
   const rows: Inline[][][] = []
   while (l.at < l.lines.length && (peek(l) ?? '').includes('|') && !BLANK.test(peek(l) ?? '')) {
     const row = cells(peek(l) ?? '')
+    const filled = Math.max(0, head.length - row.length)
+    if (filled > l.room.cells) break
+    l.room.cells -= filled
     rows.push(head.map((_, k) => cell(row[k] ?? '')))
     l.at += 1
   }
@@ -710,7 +726,8 @@ export function parseMarkdown(markdown: string, options: ParseOptions = {}): Par
   const citable =
     options.citable === undefined ? undefined : new Set([...options.citable].map((id) => id.toLowerCase()))
   const cites = new Citations(citable)
-  const blocks = parseLines({ lines: markdown.replace(/\r\n?/g, '\n').split('\n'), at: 0, cites, depth: 0 })
+  const lines = markdown.replace(/\r\n?/g, '\n').split('\n')
+  const blocks = parseLines({ lines, at: 0, cites, depth: 0, room: { cells: MOST_FILLED_CELLS } })
   return { blocks, citations: renumber(blocks) }
 }
 

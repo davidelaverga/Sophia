@@ -122,8 +122,11 @@ export const runtimeResearchDraft = (c: pg.PoolClient, who: RuntimeCaller, reque
 
 /** A draft is at most 262144 bytes (0025), so as many characters at most; a page of a source is 6000 of them. */
 const DRAFT_PAGES = Math.ceil(262_144 / 6000)
-/** As many as a result may cite. */
-const MOST_DRAFT_CITATIONS = 200
+/**
+ * As many ids as a draft can name: each takes 36 of its 262144 bytes. The service keeps the first that the task may
+ * cite, up to a result's 200 (0036), so ids it refuses never take the place of ones it keeps.
+ */
+const MOST_DRAFT_IDS = Math.ceil(262_144 / 36)
 
 /** The current draft's text, read as the model reads it (research_read_context): null unless it is the one submitted. */
 async function draftText(c: pg.PoolClient, who: RuntimeCaller, at: ResearchContextRequest, result: ResearchResult) {
@@ -164,8 +167,22 @@ async function submittedDraft(
 }
 
 /**
- * The ids the submitted draft cites, as the report's parser numbers them (the code Studio and the page read it with),
- * but those the model listed, at most 200; undefined when the draft cannot be read, so the model's list stands alone.
+ * The ids a draft's text cites as the report's parser numbers them (the code Studio and the page read it with), for
+ * any set of sources a link may cite: with none, a link reads as its label, which may cite another source than the
+ * link's target (Studio numbers that label when the target is not among the version's sources). Null if the parse
+ * fails.
+ */
+function citedIn(text: string): string[] | null {
+  try {
+    return [...new Set([...parseMarkdown(text).citations, ...parseMarkdown(text, { citable: [] }).citations])]
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The ids the submitted draft cites but those the model listed; undefined when the draft cannot be read or parsed, so
+ * the model's list stands alone.
  */
 async function citedByDraft(
   c: pg.PoolClient,
@@ -179,11 +196,10 @@ async function citedByDraft(
     { attemptId: request.attemptId, nativeSessionId: request.nativeSessionId },
     result,
   )
-  if (text === null) return undefined
+  const cited = text === null ? null : citedIn(text)
+  if (cited === null) return undefined
   const listed = new Set(result.citations)
-  return parseMarkdown(text)
-    .citations.filter((id) => !listed.has(id))
-    .slice(0, MOST_DRAFT_CITATIONS)
+  return cited.filter((id) => !listed.has(id)).slice(0, MOST_DRAFT_IDS)
 }
 
 /**

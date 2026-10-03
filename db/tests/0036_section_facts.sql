@@ -234,8 +234,9 @@ END $$;
 -- research_draft_citations: the model's list as it came, then each id the API's parser read in the current draft (the
 -- candidates), in their order, lower case, that the draft names and the task may cite (an input, the base), never its
 -- own question, manifest or drafts, a withdrawn source, another project's or one it may not read; malformed candidates
--- are ignored; at most 200 distinct in all, of the first 200 candidates. A stale or missing draft, citations that are
--- not a list, or candidates that are not one, add nothing. Seeded here: a task's scope needs only its project, attempt,
+-- are ignored; an id written with backslashes in it is named, as the parser reads it; at most 200 distinct in all, the
+-- cap applied after the checks, of the first 7282 candidates. A stale or missing draft, citations that are not a list,
+-- or candidates that are not one, add nothing. Seeded here: a task's scope needs only its project, attempt,
 -- manifest and question.
 DO $$ DECLARE
  pr uuid:='16000000-0000-0000-0000-000000000001'; pr2 uuid:='16000000-0000-0000-0000-000000000002';
@@ -245,9 +246,10 @@ DO $$ DECLARE
  inp uuid:='46000000-0000-0000-0000-00000000000a'; base uuid:='46000000-0000-0000-0000-00000000000b';
  gone uuid:='46000000-0000-0000-0000-00000000000c'; stray uuid:='46000000-0000-0000-0000-00000000000d';
  inp2 uuid:='46000000-0000-0000-0000-00000000000e'; inp3 uuid:='46000000-0000-0000-0000-00000000000f';
+ esc uuid:='46000000-0000-0000-0000-000000000010';
  other_src uuid:='76000000-0000-0000-0000-000000000001';
  d0 uuid:='56000000-0000-0000-0000-000000000000'; d1 uuid:='56000000-0000-0000-0000-000000000001';
- d2 uuid:='56000000-0000-0000-0000-000000000002'; many uuid[]; all_ids jsonb;
+ d2 uuid:='56000000-0000-0000-0000-000000000002'; many uuid[]; strays uuid[]; all_ids jsonb;
  s sophia.research_scope; r jsonb; t text;
 BEGIN
  INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who),(pr2,'Elsewhere',who);
@@ -255,9 +257,10 @@ BEGIN
  INSERT INTO sophia.goals(project_id,id,title,outcome,criteria,status,mission_revision) VALUES(pr,g,'Goal','Outcome','[]','running',1);
  INSERT INTO sophia.work_attempts(project_id,id,goal_id,goal_revision,authority_epoch,state) VALUES(pr,att,g,1,1,'running');
  SELECT array_agg(('66000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO many FROM generate_series(1,205) i;
+ SELECT array_agg(('86000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO strays FROM generate_series(1,60) i;
  INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
   SELECT pr,x,who,'project',repeat('a',64),'text/markdown','cite-'||x,1,x<>gone,'ready'
-  FROM unnest(ARRAY[man,q,inp,base,gone,stray,inp2,inp3,d0,d1,d2]||many) x;
+  FROM unnest(ARRAY[man,q,inp,base,gone,stray,inp2,inp3,esc,d0,d1,d2]||many) x;
  -- Another project's source, drawn on by that project's manifest of the same id: never this task's.
  INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
   VALUES(pr2,other_src,who,'project',repeat('a',64),'text/markdown','cite-'||other_src,1,true,'ready'),
@@ -267,19 +270,20 @@ BEGIN
   (pr,man,jsonb_build_object('schema','sophia.research-manifest.v1','base',jsonb_build_object('sourceId',base))::text),
   (pr,d0,'# Draft'||E'\n\nTo do.\n'),
   (pr,d1,format(E'# Hosts\n\nOurs [%s], the base [%s], more (input:%s#2).\n\nAsked as [%s] under [%s]; drafted [%s] and [%s]; '
-   ||'never [%s], [%s] or [%s].',upper(inp::text),base,inp3,q,man,d0,d1,gone,stray,other_src)),
-  (pr,d2,(SELECT string_agg(format('[%s]',x),' ' ORDER BY i) FROM unnest(many) WITH ORDINALITY u(x,i)));
+   ||'never [%s], [%s] or [%s]. Escaped: %s.',upper(inp::text),base,inp3,q,man,d0,d1,gone,stray,other_src,
+   '46000000\-0000-0000-0000-00000000001\0')),
+  (pr,d2,(SELECT string_agg(format('[%s]',x),' ' ORDER BY i) FROM unnest(strays||many) WITH ORDINALITY u(x,i)));
  -- The manifest draws on the inputs, the 205 among them; gone (no longer eligible) and stray are no input of it.
  INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id)
-  SELECT pr,x,man FROM unnest(ARRAY[inp,inp2,inp3]||many) x;
+  SELECT pr,x,man FROM unnest(ARRAY[inp,inp2,inp3,esc]||many) x;
  INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES
   (pr,att,1,'d0',d0,repeat('0',64)),(pr,att,2,'d1',d1,repeat('1',64));
  s:=ROW(pr,NULL,NULL,att,'sess',g,NULL,NULL,who,NULL,man,q)::sophia.research_scope;
  -- Every id the draft names, each a candidate, the task's own and all; inp2 may be cited but the draft never names it.
- all_ids:=jsonb_build_array(inp3,inp,base,q,man,d0,d1,gone,stray,other_src,inp2);
+ all_ids:=jsonb_build_array(inp3,inp,base,q,man,d0,d1,gone,stray,other_src,inp2,esc);
 
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base)),all_ids);
- IF r<>jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base,inp3,inp)) THEN
+ IF r<>jsonb_build_object('draftSha256',repeat('1',64),'title','T','citations',jsonb_build_array(base,inp3,inp,esc)) THEN
   RAISE EXCEPTION 'The current draft added the wrong sources: %',r; END IF;
  -- In the candidates' order, not the draft's; a candidate in capitals is read in lower case, as the draft is.
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),
@@ -287,7 +291,7 @@ BEGIN
  IF r->'citations'<>jsonb_build_array(inp,base,inp3) THEN RAISE EXCEPTION 'Candidates read out of order: %',r; END IF;
  -- The model's list stays as written, ids it may not cite and all (research_publish refuses them); what follows is new.
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations',jsonb_build_array('X',upper(base::text),q)),all_ids);
- IF r->'citations'<>jsonb_build_array('X',upper(base::text),q,inp3,inp) THEN RAISE EXCEPTION 'The model''s list was changed: %',r; END IF;
+ IF r->'citations'<>jsonb_build_array('X',upper(base::text),q,inp3,inp,esc) THEN RAISE EXCEPTION 'The model''s list was changed: %',r; END IF;
  -- Malformed candidates are passed over: refs, ids cut or padded, numbers, nulls, objects.
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb),
   jsonb_build_array('input:'||inp,inp||'#2',' '||inp,left(inp::text,35),'',42,NULL,jsonb_build_object('id',inp),jsonb_build_array(inp),base));
@@ -310,18 +314,19 @@ BEGIN
    <>jsonb_build_object('draftSha256',repeat('1',64),'citations','[]'::jsonb) THEN
   RAISE EXCEPTION 'An attempt with no draft gained citations'; END IF;
 
- -- At most 200 distinct: the model's (a repeat counts once), then the candidates' first 199.
+ -- At most 200 distinct: the model's (a repeat counts once), then the candidates' first 199 the task may cite; the 60
+ -- strays the draft names first, no sources of the project, take none of their places.
  INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,3,'d2',d2,repeat('2',64));
- r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations',jsonb_build_array(base,base)),to_jsonb(many));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations',jsonb_build_array(base,base)),to_jsonb(strays||many));
  IF r->'citations'<>jsonb_build_array(base,base)||(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[1:199]) WITH ORDINALITY u(x,i)) THEN
   RAISE EXCEPTION 'The cap is not 200 in all, in order: %',r; END IF;
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),
   'citations',(SELECT jsonb_agg(x ORDER BY i) FROM unnest(many[5:205]) WITH ORDINALITY u(x,i))),to_jsonb(many));
  IF jsonb_array_length(r->'citations')<>201 THEN RAISE EXCEPTION 'A list already past 200 gained citations'; END IF;
- -- Only the first 200 candidates are read.
+ -- Only the first 7282 candidates are read, as many ids as a draft can name.
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb),
-  (SELECT jsonb_agg('X'::text) FROM generate_series(1,200))||to_jsonb(many[1:1]));
- IF r->'citations'<>'[]' THEN RAISE EXCEPTION 'A candidate past the 200th was read: %',r; END IF;
+  (SELECT jsonb_agg('X'::text) FROM generate_series(1,7281))||to_jsonb(many[1:2]));
+ IF r->'citations'<>jsonb_build_array(many[1]) THEN RAISE EXCEPTION 'Candidates past the 7282nd were read: %',r; END IF;
  -- The earlier drafts, one that cites nothing, are named here and offered, and are still never added.
  UPDATE sophia.source_texts SET body=format('[%s] [%s] [%s] [%s]',d0,d1,many[1],many[2]) WHERE project_id=pr AND source_id=d2;
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('2',64),'citations','[]'::jsonb),

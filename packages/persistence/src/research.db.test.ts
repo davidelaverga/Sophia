@@ -1239,11 +1239,58 @@ describe('research submission (0026)', () => {
     )
   })
 
+  it('CX-0019 · ids the task may not cite take no place among the 200, however many the draft names first', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const a = await citable(w, at, 'search_1')
+    const b = await citable(w, at, 'search_2')
+    const many = await moreSearches(w, a.sourceId, 150)
+    const strays = Array.from({ length: 60 }, () => randomUUID())
+    const named = [...strays, ...many].map((id) => `[${id}]`)
+    const d = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...at,
+        callId: 'd',
+        expectedSha256: null,
+        text: `# Hosts\n\n${named.join(' ')}\n`,
+      }),
+    )
+    const v = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [b.sourceId, a.sourceId]) }),
+    )
+    const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
+    assert.deepEqual(
+      sources.map((s) => s.sourceId).toSorted(),
+      [a.sourceId, b.sourceId, ...many].toSorted(),
+      'the 60 strays named first leave every one of the 150 searches its place',
+    )
+  })
+
+  it('CX-0019 · a draft with a wide table over many short rows is read in time and still cites', async () => {
+    const w = await world()
+    const { at } = await started(w)
+    const a = await citable(w, at, 'search_1')
+    const b = await citable(w, at, 'search_2')
+    // A head 100 cells wide over rows of one '|' each, to the draft's limit: each row filled in to the head's width
+    // took the parser seconds and gigabytes; a citation after it.
+    const head = `${'a|'.repeat(100)}\n${'-|'.repeat(100)}\n`
+    const tail = `\nSee [${b.sourceId}].\n`
+    const text = head + '|\n'.repeat(Math.floor((262_144 - head.length - tail.length) / 2)) + tail
+    const d = await service((c) => runtimeResearchDraft(c, w.who, { ...at, callId: 'd', expectedSha256: null, text }))
+    const t0 = performance.now()
+    const v = await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...at, callId: 's', result: resultOf(d.sha256, [a.sourceId]) }),
+    )
+    assert.ok(performance.now() - t0 < 5000, `the submit took ${Math.round(performance.now() - t0)} ms`)
+    const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
+    assert.deepEqual(sources.map((s) => s.sourceId).toSorted(), [a.sourceId, b.sourceId].toSorted())
+  })
+
   it('CX-0019 · cites exactly what the report’s parser numbers among the sources the task may cite', async () => {
     const w = await world()
     const { at, receipt } = await started(w)
     const a = await citable(w, at, 'search_1')
-    const k = await moreSearches(w, a.sourceId, 16)
+    const k = await moreSearches(w, a.sourceId, 19)
     const own = await one<{ question: string; manifest: string }>(
       `SELECT t.question_source_id AS question, j.input_source_id AS manifest FROM sophia.research_tasks t
        JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id WHERE t.project_id=$1 AND t.job_id=$2`,
@@ -1251,8 +1298,9 @@ describe('research submission (0026)', () => {
     )
     // The reviewers' inputs: ids in a code span, a fence, a page's address, an autolink and an image; an escaped
     // bracket, an emphasis cutting a label, a spaced ref link, a space after '<', an autolink holding a '<', a ref link
-    // with a title, a search ref, escaped backticks, a code span across list items, a cell past the head's; and one id
-    // past the first pages of a draft longer than one page.
+    // with a title, a search ref, escaped backticks, a code span across list items, a cell past the head's; an id with
+    // an escaped hyphen in it, a ref for a label with a target the task may not cite (Studio numbers the label then);
+    // and one id past the first pages of a draft longer than one page.
     const text = [
       `# Hosts`,
       `Code \`${k[0]}\` and a fence:`,
@@ -1264,6 +1312,7 @@ describe('research submission (0026)', () => {
       `- run \`a\n- see ${k[13]} \`b\``,
       `| a |\n|---|\n| \`x\` | ${k[14]} |`,
       `Asked as [4](${own.question}) under [5](${own.manifest}); never [6](${randomUUID()}).`,
+      `Escaped ${k[16]!.slice(0, 8)}\\-${k[16]!.slice(9)}; [<${k[17]}>](<${randomUUID()}>), [source: ${k[18]}](${own.question}).`,
       `${'Padding. '.repeat(2000)}Last [9](${k[15]}).\n`,
     ].join('\n\n')
     const d = await service((c) => runtimeResearchDraft(c, w.who, { ...at, callId: 'd', expectedSha256: null, text }))
@@ -1273,16 +1322,25 @@ describe('research submission (0026)', () => {
     assert.equal(v.outcome, 'published')
     const sources = (await withActor(pool, A, 'read', (c) => listReportSources(c, v.artifactId!, v.versionId!))).sources
     const mayCite = new Set([a.sourceId, ...k])
-    const numbered = parseMarkdown(text).citations.filter((id) => mayCite.has(id))
+    // Whatever the sources a link may cite: every link to an id, or none (each then reads as its label).
+    const read = [...parseMarkdown(text).citations, ...parseMarkdown(text, { citable: [] }).citations]
+    const numbered = [...new Set(read)].filter((id) => mayCite.has(id))
+    const ids = sources.map((s) => s.sourceId)
     assert.deepEqual(
-      sources.map((s) => s.sourceId).toSorted(),
+      ids.toSorted(),
       [...new Set([a.sourceId, ...numbered])].toSorted(),
       'the version cites the model’s list and what the parser numbers among the citable, nothing else',
     )
     assert.deepEqual(
-      numbered,
-      [5, 6, 7, 10, 11, 12, 13, 15].map((i) => k[i]),
+      numbered.toSorted(),
+      [5, 6, 7, 10, 11, 12, 13, 15, 16, 17, 18].map((i) => k[i]!).toSorted(),
       'as the parser reads the reviewers’ inputs',
+    )
+    const studio = parseMarkdown(text, { citable: ids }).citations
+    assert.deepEqual(
+      studio.filter((id) => !ids.includes(id)),
+      [],
+      'every citation Studio numbers, reading the version with its own sources, is one of them',
     )
   })
 

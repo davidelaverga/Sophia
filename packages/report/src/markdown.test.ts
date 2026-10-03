@@ -50,6 +50,12 @@ const timed = (md: string): number => {
 /** `k` KiB of spaces. */
 const spaces = (k: number): string => ' '.repeat(k * 1024)
 
+/** A draft at its limit (262144 bytes): a table head k cells wide, then rows of one `|`, each filled in to k cells. */
+const wide = (k: number): string => {
+  const head = `${'a|'.repeat(k)}\n${'-|'.repeat(k)}\n`
+  return head + '|\n'.repeat(Math.floor((262_144 - head.length) / 2))
+}
+
 /** A one-paragraph report's shape. */
 const shape = (md: string): Shape[] => {
   const p = only(md)
@@ -338,6 +344,22 @@ describe('the report Markdown parser', () => {
     )
     assert.equal(only('a|b\n| :- | -: |\n|c|d|').kind, 'table')
     assert.equal(only('a|b\n|- x|').kind, 'paragraph')
+  })
+
+  it('reads a wide table over many short rows in linear time: the cells it fills in are bounded', () => {
+    for (const k of [20, 200, 2000]) assert.ok(timed(wide(k)) < 1500, `a ${k}-cell head over rows of one pipe`)
+    const [table, rest] = parseMarkdown(wide(200)).blocks
+    assert.ok(table?.kind === 'table' && rest?.kind === 'paragraph')
+    assert.equal(table.rows.length, Math.floor((1 << 16) / 199), 'rows until 65536 cells are filled in, then text')
+    const short = only('a|b|c\n-|-|-\n|x|\n|\n')
+    assert.ok(short.kind === 'table')
+    assert.deepEqual(
+      short.rows.map((r) => r.map(plain)),
+      [
+        ['x', '', ''],
+        ['', '', ''],
+      ],
+    )
   })
 
   it('reads a list item and a citation’s marker label in linear time, however many spaces they hold', () => {

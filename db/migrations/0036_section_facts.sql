@@ -183,29 +183,37 @@ END $$;
 -- the report with): the API parses the draft it reads back through runtime_research_context and offers what the parser
 -- numbers as p_candidates, in order. Here each is checked, not read again: added after the model's list (which comes
 -- first, as it came; research_publish still checks it) when it is an id (lower-cased; anything else is ignored) the
--- current draft names (anywhere, in any case), research_readable admits (an input, the base, a capture of its
--- allowance), and it is not the task's own question, manifest or a draft of this attempt; up to 200 distinct in all.
--- Only the first 200 candidates are read: the API offers no more. A stale or missing draft, citations that are not a
--- list, or no candidates, add nothing (research_publish refuses the first two).
+-- current draft names (anywhere, in any case, its backslashes dropped as the parser drops them: '22222222\-2222-...'
+-- is the id there), research_readable admits (an input, the base, a capture of its allowance), and it is not the task's
+-- own question, manifest or a draft of this attempt; up to 200 distinct in all, the cap applied after the checks, so
+-- ids refused never take the place of ones kept. Only the first 7282 candidates are read, as many ids as a draft's
+-- 262144 bytes can name. The cheap checks run first, then research_readable for the project's sources among them, and
+-- only then the search of the draft for each the task may read (a search of 7000 ids through 256 KiB took 2 s).
+-- A stale or missing draft, citations that are not a list, or no candidates, add nothing (research_publish refuses the
+-- first two).
 CREATE FUNCTION sophia.research_draft_citations(s sophia.research_scope, p_result jsonb, p_candidates jsonb) RETURNS jsonb
 LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
  WITH d AS (SELECT r.source_id, r.sha256 FROM sophia.research_drafts r WHERE r.project_id=s.project_id AND r.attempt_id=s.attempt_id
    ORDER BY r.seq DESC LIMIT 1),
-  current AS (SELECT lower(t.body) AS body FROM d JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=d.source_id
+  current AS (SELECT replace(lower(t.body),E'\\','') AS body FROM d
+   JOIN sophia.source_texts t ON t.project_id=s.project_id AND t.source_id=d.source_id
    WHERE d.sha256=p_result->>'draftSha256' AND jsonb_typeof(p_result->'citations')='array'),
   listed AS (SELECT lower(c) AS id FROM current, jsonb_array_elements_text(p_result->'citations') c),
   offered AS (SELECT CASE WHEN lower(c.v#>>'{}') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
      THEN lower(c.v#>>'{}')::uuid END AS id, c.o
     FROM jsonb_array_elements(CASE jsonb_typeof(p_candidates) WHEN 'array' THEN p_candidates ELSE '[]' END) WITH ORDINALITY c(v,o)
-    WHERE c.o<=200 AND jsonb_typeof(c.v)='string'),
-  extra AS (SELECT n.id, min(n.o) AS first FROM offered n, current
-   WHERE n.id IS NOT NULL AND strpos(current.body,n.id::text)>0
+    WHERE c.o<=7282 AND jsonb_typeof(c.v)='string'),
+  named AS MATERIALIZED (SELECT n.id, min(n.o) AS first FROM offered n
+   WHERE n.id IS NOT NULL AND EXISTS(SELECT 1 FROM current)
     AND NOT EXISTS(SELECT 1 FROM listed l WHERE l.id=n.id::text)
     AND n.id IS DISTINCT FROM s.question_source_id AND n.id IS DISTINCT FROM s.manifest_source_id
     AND NOT EXISTS(SELECT 1 FROM sophia.research_drafts r WHERE r.project_id=s.project_id AND r.attempt_id=s.attempt_id
      AND r.source_id=n.id)
-    AND sophia.research_readable(s,n.id)
-   GROUP BY n.id ORDER BY first LIMIT greatest(0,200-(SELECT count(DISTINCT id) FROM listed)))
+    AND EXISTS(SELECT 1 FROM sophia.source_objects o WHERE o.project_id=s.project_id AND o.id=n.id)
+   GROUP BY n.id),
+  readable AS MATERIALIZED (SELECT id, first FROM named WHERE sophia.research_readable(s,id)),
+  extra AS (SELECT r.id, r.first FROM readable r, current WHERE strpos(current.body,r.id::text)>0
+   ORDER BY r.first LIMIT greatest(0,200-(SELECT count(DISTINCT id) FROM listed)))
  SELECT CASE WHEN EXISTS(SELECT 1 FROM extra)
   THEN jsonb_set(p_result,'{citations}',(p_result->'citations')||(SELECT jsonb_agg(id ORDER BY first) FROM extra))
   ELSE p_result END $$;
