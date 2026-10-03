@@ -59,3 +59,13 @@ describe('a change of a session’s effort', () => {
     })
   })
 })
+
+describe('a refused request', () => {
+  it('says nothing changed, and is let go like a done one', () => {
+    const asked: Session = { id: 's', role: 'r', model: null, effort: 'high', assignment: null }
+    assert.deepEqual(changeLine(asked, { level: 'low', when: 'next', refused: true }), {
+      text: 'Not accepted · nothing changed',
+      tone: 'refused',
+    })
+  })
+})

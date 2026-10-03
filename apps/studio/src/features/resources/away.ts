@@ -9,7 +9,8 @@ import { short, shortWords } from './room.ts'
 /** One resource at a glance: what the line compares. */
 export interface Glance {
   host: Resource['host']['state']
-  waiting: number
+  /** The requests waiting on its owner, by id: one gone from here, now answered, is said, even when another came. */
+  requests: string[]
   /** Each session's work: `<work id>|<state>|<title>`, by session id; absent when it has none. */
   work: Record<string, string>
   short: boolean
@@ -27,7 +28,7 @@ export function glance(
       r.id,
       {
         host: r.host.state,
-        waiting: actions.filter((a) => a.resourceId === r.id && a.state === 'open').length,
+        requests: actions.filter((a) => a.resourceId === r.id && a.state === 'open').map((a) => a.id),
         work: Object.fromEntries(
           r.sessions.flatMap((s) =>
             s.assignment ? [[s.id, `${s.assignment.workId}|${s.assignment.state}|${s.assignment.title}`]] : [],
@@ -45,7 +46,8 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const isGlance = (v: unknown): v is Glance =>
   isRecord(v) &&
   HOSTS.has(v['host']) &&
-  typeof v['waiting'] === 'number' &&
+  Array.isArray(v['requests']) &&
+  v['requests'].every((id) => typeof id === 'string') &&
   typeof v['short'] === 'boolean' &&
   isRecord(v['work']) &&
   Object.values(v['work']).every((w) => typeof w === 'string')
@@ -55,7 +57,8 @@ const isSeen = (v: unknown): v is Seen => isRecord(v) && Object.values(v).every(
 /** A stored glance as it reads back: every resource's glance whole, or nothing. */
 export const asSeen = (value: unknown): Seen | null => (isSeen(value) ? value : null)
 
-const key = (scope: string, viewerId: string) => `sophia.resources.seen.v1.${scope}.${viewerId}`
+// v2: requests by id (v1 counted them). A v1 glance reads as none: a first visit, said nothing.
+const key = (scope: string, viewerId: string) => `sophia.resources.seen.v2.${scope}.${viewerId}`
 
 export function readSeen(scope: string, viewerId: string): Seen | null {
   try {
@@ -121,26 +124,42 @@ interface Context {
   before: Glance
   after: Glance
   viewerId: string
+  /** The requests as they are now: one that left the waiting is said only if it was answered (resolved or denied). */
+  actions: readonly RequiredAction[]
   /** Its account's short words now, when it runs short: "runs out in ~34 min". */
   shortNow: string | null
 }
 
 /** What changed on one resource, each change a phrase; a change no phrase says is no change here. */
-function resourceSaid({ resource, before, after, viewerId, shortNow }: Context): Said[] {
+function resourceSaid({ resource, before, after, viewerId, shortNow, actions }: Context): Said[] {
   const name = nameOf(resource, viewerId)
   const said: Said[] = []
   // A request that came to wait is said on top, while it waits (Attention): not said twice. One answered is.
-  if (after.waiting < before.waiting) said.push({ rank: RANK.answered, text: `A request on ${name} was answered` })
+  // Superseded (its attempt restarted), expired or not settled yet isn't answered: nothing is said of it here.
+  const answered = before.requests.filter((id) => !after.requests.includes(id) && wasAnswered(actions, id)).length
+  if (answered > 0) {
+    const what = answered === 1 ? 'A request' : `${String(answered)} requests`
+    said.push({ rank: RANK.answered, text: `${what} on ${name} ${answered === 1 ? 'was' : 'were'} answered` })
+  }
   if (after.short && !before.short && shortNow) said.push({ rank: RANK.short, text: `${name} ${shortNow}` })
   if (after.host !== before.host) {
     if (after.host === 'offline') said.push({ rank: RANK.offline, text: `${name} went offline` })
-    if (after.host === 'online') said.push({ rank: RANK.online, text: `${name} is back online` })
+    // Back online only from offline: from unknown, nothing was known to be away.
+    if (after.host === 'online' && before.host === 'offline') {
+      said.push({ rank: RANK.online, text: `${name} is back online` })
+    }
   }
   return [...said, ...workSaid(name, before, after)]
 }
 
+const ANSWERED: ReadonlySet<RequiredAction['state']> = new Set(['resolved', 'denied'])
+const wasAnswered = (actions: readonly RequiredAction[], id: string) =>
+  actions.some((a) => a.id === id && ANSWERED.has(a.state))
+
 interface AwayInput {
   resources: readonly Resource[]
+  /** The requests as they are now. */
+  actions: readonly RequiredAction[]
   observations: readonly QuotaObservation[]
   now: Seen
   seen: Seen | null
@@ -160,7 +179,7 @@ export interface Away {
 const NOTHING: Away = { phrases: [], more: 0, ids: new Set() }
 
 /** What changed while the viewer was away: a few phrases, the most pressing first, the rest counted. */
-export function whileAway({ resources, observations, now, seen, at, viewerId }: AwayInput): Away {
+export function whileAway({ resources, actions, observations, now, seen, at, viewerId }: AwayInput): Away {
   if (!seen) return NOTHING
   const said = resources.flatMap((resource) => {
     const after = now[resource.id]
@@ -168,12 +187,16 @@ export function whileAway({ resources, observations, now, seen, at, viewerId }: 
     if (!after) return []
     if (!before) return [{ id: resource.id, rank: RANK.isNew, text: `${nameOf(resource, viewerId)} is new here` }]
     const shortNow = shortWords(capacity(observationOf(observations, resource), at))
-    return resourceSaid({ resource, before, after, viewerId, shortNow }).map((s) => ({ ...s, id: resource.id }))
+    return resourceSaid({ resource, before, after, viewerId, shortNow, actions }).map((s) => ({
+      ...s,
+      id: resource.id,
+    }))
   })
   const ordered = said.toSorted((a, b) => a.rank - b.rank)
   return {
     phrases: ordered.slice(0, 3).map((s) => s.text),
     more: Math.max(0, ordered.length - 3),
-    ids: new Set(ordered.map((s) => s.id)),
+    // Only what is said marks a tile: the ones counted in "and N more" aren't named, so they aren't marked.
+    ids: new Set(ordered.slice(0, 3).map((s) => s.id)),
   }
 }

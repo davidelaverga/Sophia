@@ -3,7 +3,15 @@
 // there is no Approve here (phase one), and seeing a request answers nothing.
 import { SwapLabel, Tag } from '@sophia/ui'
 import { useCopy } from './copy.ts'
-import { actionLine, actionState, expiry, TOOL, type RequiredAction, type Resource } from './resource.ts'
+import {
+  actionLine,
+  actionState,
+  expiry,
+  requestsHeading,
+  TOOL,
+  type RequiredAction,
+  type Resource,
+} from './resource.ts'
 
 const TONE = {
   open: 'amber',
@@ -67,10 +75,8 @@ export function ResourceRequests({ actions, resource, viewerId, now }: Props) {
   return (
     <section className="sheet-section resource-requests" aria-labelledby="requests-title">
       <h3 id="requests-title">
-        {/* Once none is open, nothing waits: the heading doesn't say it does. */}
-        {own.some((a) => a.state === 'open')
-          ? `Waiting on ${resource.owner.id === viewerId ? 'you' : resource.owner.name}`
-          : 'Earlier requests'}
+        {/* Once none is open, nothing waits: the heading doesn't say it does; one not settled isn't "earlier". */}
+        {requestsHeading(own, resource.owner, viewerId)}
       </h3>
       <ol className="events">
         {own.map((a) => (

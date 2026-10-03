@@ -15,6 +15,13 @@ async function open(page: Page, name: string) {
   await expect(sheet(page, name)).toBeVisible()
   return sheet(page, name)
 }
+/** Whether a press `by` px above an element still reaches it (its touch target, past what it draws). */
+const reaches = (l: Locator, by: number) =>
+  l.evaluate((e, dy) => {
+    const r = e.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top - dy)
+    return Boolean(hit && (hit === e || e.contains(hit)))
+  }, by)
 const leftOf = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().left)
 const capacity = (page: Page, name: string) => sheet(page, name).getByRole('group', { name: 'Capacity' })
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })
@@ -969,8 +976,15 @@ test('effort · a restart, step by step: asked, its work kept as it stops, start
   await claude.getByRole('button', { name: 'Restart', exact: true }).click()
   const line = worker.getByRole('status')
   await expect(line).toHaveText(/Restart asked · Low\s*Undo/) // still its owner's to take back
+  const bar = worker.locator('.effort-button')
+  await expect(bar).toBeFocused() // the scale closed, its bar took the focus back
   await runtime(page, 'advance')
   await expect(line).toHaveText('Stopping · keeping its work') // past undoing
+  // While the change is underway, the bar stays, read only: the focus stays on it, and pressing it opens nothing.
+  await expect(bar).toBeFocused()
+  await expect(bar).toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Enter')
+  await expect(worker.locator('.effort-picker')).toHaveCount(0)
   await expect(line).toHaveAttribute('data-tone', 'moving')
   // The request its old attempt had waiting on Davide is retired with it: said so, nothing left to answer.
   const request = claude
@@ -982,9 +996,12 @@ test('effort · a restart, step by step: asked, its work kept as it stops, start
   await expect(worker.getByText('Queued')).toBeVisible() // its work held for the next attempt
   await runtime(page, 'advance')
   await expect(line).toHaveText('Starting again with Low')
-  await expect(worker.getByRole('button', { name: 'Effort: Ultracode. Change it' })).toBeVisible() // still what it runs
+  // Still what it runs, and read only while the change is underway: no other can be asked over it.
+  await expect(worker.locator('.resource-model .effort')).toContainText('Ultracode')
+  await expect(worker.getByRole('button', { name: /Change it/ })).toHaveCount(0)
   await runtime(page, 'advance')
   await expect(worker.getByRole('button', { name: 'Effort: Low. Change it' })).toBeVisible()
+  await expect(worker.locator('.effort-picker')).toHaveCount(0) // the scale doesn't come back by itself
   await expect(line).toHaveText('Now on Low')
   await expect(line).toHaveAttribute('data-tone', 'done')
   await expect(worker.getByText('Working')).toBeVisible()
@@ -1429,7 +1446,8 @@ test('act · its owner acts on a session at work from its row, each step said; n
   await expect(steps.locator('li[data-reached]')).toHaveCount(3) // recorded, queued, delivered, as observed
   await expect(steps).toContainText('Delivered to its session. Not seen acting on it yet.')
   expect(await page.evaluate(() => window.resourcesFixture?.acted)).toEqual([
-    { sessionId: 'claude-worker', kind: 'guidance', text: 'Use the staging report fixtures' },
+    // It names the work it was meant for, as shown: its runtime refuses it for any other.
+    { sessionId: 'claude-worker', kind: 'guidance', text: 'Use the staging report fixtures', workId: 'work-1' },
   ])
   // Stop asks first; keeping it working sends nothing, and the focus comes back to Stop, where J and K still work.
   const stop = worker.getByRole('button', { name: 'Stop', exact: true })
@@ -1442,13 +1460,13 @@ test('act · its owner acts on a session at work from its row, each step said; n
   await stop.click()
   await worker.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
   await expect(stop).toBeFocused()
-  await expect(steps).toContainText('Its session was asked to stop.')
+  await expect(steps).toContainText('Delivered: asked to stop. Not seen stopping yet.')
   expect(await page.evaluate(() => window.resourcesFixture?.acted?.at(-1)?.kind)).toBe('stop')
   // Closed and opened again, its row still says its last act.
   await act.click()
   await expect(steps).toHaveCount(0)
   await act.click()
-  await expect(steps).toContainText('Its session was asked to stop.')
+  await expect(steps).toContainText('Delivered: asked to stop. Not seen stopping yet.')
   // A session with nothing at work has no Act.
   const reviewer = s.locator('.resource-session').filter({ hasText: 'No assignment' })
   await expect(reviewer.getByRole('button', { name: 'Act' })).toHaveCount(0)
@@ -1468,6 +1486,7 @@ test('act · its owner acts on a session at work from its row, each step said; n
 test('act · a late step of an earlier act never speaks over the latest one', async ({ page }) => {
   await page.clock.install()
   await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000)) // time moves only as checked
   const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
   await worker.getByRole('button', { name: 'Act' }).click()
   await worker.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
@@ -1480,7 +1499,7 @@ test('act · a late step of an earlier act never speaks over the latest one', as
   await expect(steps).toContainText('Queued…')
   await expect(steps).not.toContainText('Delivered to its session')
   await page.clock.runFor(1500) // then the Hold is delivered
-  await expect(steps).toContainText('It holds at its next safe point.')
+  await expect(steps).toContainText('Delivered: asked to hold at its next safe point. Not seen holding yet.')
 })
 
 test('@phone · its owner opens Act and the row keeps to one column', async ({ page }) => {
@@ -1521,7 +1540,7 @@ test('away · a first visit remembers Resources as they are and says nothing', a
   await expect(grid(page).getByRole('button').first()).toBeVisible()
   await expect(page.locator('.resources-away')).toHaveCount(0)
   await expect(grid(page).locator('[data-away]')).toHaveCount(0)
-  expect(await page.evaluate(() => localStorage.getItem('sophia.resources.seen.v1.fixture.luis'))).toContain(
+  expect(await page.evaluate(() => localStorage.getItem('sophia.resources.seen.v2.fixture.luis'))).toContain(
     'davide-claude',
   )
 })
@@ -1584,4 +1603,104 @@ test('@phone · the away line wraps whole, its Mark seen in reach', async ({ pag
   await expect(said).toBeVisible()
   expect(await said.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
   await expect(page.locator('.resources-away').getByRole('button', { name: 'Mark seen' })).toBeInViewport()
+})
+
+test('effort · Escape anywhere in the picker closes the picker, never the sheet', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const s = sheet(page, 'Davide · Claude Code')
+  const worker = s.getByRole('listitem').filter({ hasText: 'worker' })
+  const bar = worker.getByRole('button', { name: /Change it/ })
+  await bar.click()
+  await page.keyboard.press('ArrowLeft')
+  await worker.getByRole('button', { name: 'Cancel' }).focus()
+  await page.keyboard.press('Escape')
+  await expect(worker.locator('.effort-picker')).toHaveCount(0)
+  await expect(s).toBeVisible()
+  await expect(bar).toBeFocused()
+  // From the restart's question too: the picker closes, the sheet stays.
+  await bar.click()
+  await page.keyboard.press('ArrowLeft')
+  await worker.getByRole('button', { name: /Restart now/ }).click()
+  await expect(worker.getByRole('button', { name: 'Keep it running' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(worker.locator('.effort-picker')).toHaveCount(0)
+  await expect(s).toBeVisible()
+})
+
+test('effort · a request its runtime refuses is said so, then let go', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  const worker = sheet(page, 'Davide · Claude Code').getByRole('listitem').filter({ hasText: 'worker' })
+  await worker.getByRole('button', { name: /Change it/ }).click()
+  await page.keyboard.press('ArrowLeft')
+  await worker.getByRole('button', { name: 'Set for its next run' }).click()
+  const line = worker.locator('.effort-asked')
+  await expect(line).toContainText('Next run')
+  await page.evaluate(() => window.resourcesFixture?.refuseEffort?.('claude-worker'))
+  await expect(line).toHaveText('Not accepted · nothing changed')
+  await expect(line.getByRole('button', { name: 'Undo' })).toHaveCount(0)
+  await page.clock.runFor(4500)
+  await expect(line).toHaveCount(0)
+})
+
+test('sort · its options aren’t Tab stops; Tab leaves the menu closed, from Sort onward', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.locator('.resource-sort-button').click()
+  const menu = page.getByRole('menu', { name: 'Sort' })
+  await expect(menu).toBeVisible()
+  expect(await menu.getByRole('menuitemradio').evaluateAll((all) => all.every((b) => b.tabIndex === -1))).toBe(true)
+  await page.keyboard.press('Tab')
+  await expect(menu).toHaveCount(0)
+  // The focus went on past Sort, to the tiles: not left in a closed menu, nor dropped to the page.
+  expect(await page.evaluate(() => Boolean(document.activeElement?.closest('.resource-grid')))).toBe(true)
+})
+
+test('act · sent is said "Sending…" until its runtime records it; a draft typed since is kept', async ({ page }) => {
+  await page.clock.install()
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  // Time moves only as the check moves it: a slow machine mustn't let the runtime's reply come first.
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000))
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  const field = worker.getByRole('textbox', { name: 'Guidance for its session' })
+  await field.fill('Use the staging fixtures')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  const steps = worker.locator('.act-steps')
+  await expect(steps).toContainText('Sending…')
+  await expect(steps.locator('li[data-reached]')).toHaveCount(0)
+  await field.fill('And the PDF ones') // typed while the first goes
+  await page.clock.runFor(200)
+  await expect(steps.locator('li[data-reached]')).toHaveCount(1) // recorded, as its runtime said
+  await page.clock.runFor(600) // queued: the guidance sent leaves its field, what was typed since stays
+  await expect(field).toHaveValue('And the PDF ones')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.clock.runFor(800)
+  await expect(field).toHaveValue('')
+})
+
+test('@phone · on touch, the effort bar and its scale reach past what they draw', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true)
+  const worker = page.locator('.resource-session').filter({ hasText: 'Implement the PDF retry' })
+  const bar = worker.getByRole('button', { name: /Change it/ })
+  expect(await reaches(bar, 10), 'the bar, 10 px above it').toBe(true)
+  await bar.click()
+  expect(await reaches(worker.getByRole('slider'), 10), 'the scale, 10 px above it').toBe(true)
+})
+
+test('effort · a change that comes while the scale is open brings the focus back to the bar', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  const claude = await open(page, 'Davide · Claude Code')
+  const worker = claude.getByRole('listitem').filter({ hasText: 'worker' })
+  await worker.getByRole('button', { name: 'Effort: Ultracode. Change it' }).click()
+  await page.keyboard.press('Home')
+  await claude.getByRole('button', { name: 'Restart now with Low…' }).click()
+  await claude.getByRole('button', { name: 'Restart', exact: true }).click()
+  // Asked, not yet underway: the scale can open again, and the focus is in it when the runtime takes the restart.
+  const bar = worker.locator('.effort-button')
+  await bar.click()
+  await expect(worker.getByRole('slider')).toBeFocused()
+  await page.evaluate(() => window.resourcesFixture?.advance?.('claude-worker'))
+  await expect(worker.locator('.effort-picker')).toHaveCount(0)
+  await expect(bar).toBeFocused()
 })

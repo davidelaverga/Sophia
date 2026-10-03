@@ -11,6 +11,7 @@ import {
   type Resource,
 } from './resource.ts'
 import { roomElsewhere, short, shortTileWords, shortWords } from './room.ts'
+import { anyLive, requestsHeading } from './resource.ts'
 
 const now = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString()
@@ -205,5 +206,49 @@ describe('a short account in a few words', () => {
     const gone = capacity({ ...reading('e', [five(81, 110)]), observed_at: at(-40) }, now)
     assert.equal(shortWords(gone), 'runs out now')
     assert.equal(shortTileWords(gone), 'out now')
+  })
+})
+
+/** A request in one state, for the heading. */
+const action = (state: 'open' | 'resolved' | 'unknown') => ({
+  id: state,
+  workId: 'w',
+  resourceId: 'r',
+  sessionId: 's',
+  ownerId: 'davide',
+  operation: 'Run a command',
+  deadline: null,
+  state,
+  openTarget: null,
+})
+
+describe('the requests’ heading', () => {
+  const owner = { id: 'davide', name: 'Davide' }
+  it('says what waits on whom, then one not settled, else the earlier ones', () => {
+    assert.equal(requestsHeading([action('open'), action('unknown')], owner, 'luis'), 'Waiting on Davide')
+    assert.equal(requestsHeading([action('open')], owner, 'davide'), 'Waiting on you')
+    // Its outcome isn't known: not "earlier", it must be checked first.
+    assert.equal(requestsHeading([action('resolved'), action('unknown')], owner, 'luis'), 'Not settled yet')
+    assert.equal(requestsHeading([action('resolved')], owner, 'luis'), 'Earlier requests')
+  })
+})
+
+describe('a resource live', () => {
+  it('is live while any of its sessions reports live, not only the first with a report', () => {
+    const report = (seconds: number) => ({
+      said: 'Reading',
+      observedAt: new Date(now.getTime() - seconds * 1000).toISOString(),
+    })
+    const s = (id: string, seconds: number) => ({
+      id,
+      role: 'r',
+      model: null,
+      effort: null,
+      assignment: { workId: id, title: 'T', state: 'running' as const },
+      activity: report(seconds),
+    })
+    const stale = s('a', 600)
+    assert.equal(anyLive(resource('x', 'davide', { sessions: [stale, s('b', 10)] }), now), true)
+    assert.equal(anyLive(resource('x', 'davide', { sessions: [stale] }), now), false)
   })
 })
