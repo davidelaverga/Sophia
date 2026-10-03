@@ -1,10 +1,11 @@
 // A research task as the team sees it (plan §2.8.2): its state in words, how long and how much of its allowance it
 // has used, the question, and once delivered one row per output. The whole row opens the viewer; a separate
-// Download saves that version. The footer opens the viewer on its sources and limitations. A report delivered
-// without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
-// (WorkControls), as for every task, a PDF rendering again included.
+// Download saves that version. Each Markdown row is followed by its HTML page's row, which only downloads. The footer
+// opens the viewer on its sources and limitations. A report delivered without the PDF it asked for offers editors
+// "Try PDF again" (RetryPdf). Hold and Stop live on its goal (WorkControls), as for every task, a PDF rendering again
+// included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
 import { Icon, Tag } from '@sophia/ui'
 import { listArtifactVersions } from '../../api/artifacts.ts'
@@ -12,6 +13,7 @@ import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer, type OpenRequest } from './DocumentViewer.tsx'
 import { downloadSource } from './download.ts'
+import { usePageDownload } from './PageDownload.tsx'
 import { RetryPdf } from './RetryPdf.tsx'
 import {
   elapsedText,
@@ -116,7 +118,7 @@ export function WorkCard(props: Props) {
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
-      <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} />
+      <Outputs outputs={outputs} versions={versions} token={identity.token} artifactId={task.artifactId} open={open} />
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
       {current && open && <CardFoot version={current} open={open} />}
@@ -130,23 +132,32 @@ interface OutputsProps {
   outputs: readonly Output[]
   versions: readonly ArtifactVersion[] | undefined
   token: string
+  /** The report the outputs are versions of: its HTML page is printed from a version's Markdown. */
+  artifactId: string | undefined
   open: Open | null
 }
 
-/** One row per delivered output, side by side (stacked in a narrow card). */
-function Outputs({ outputs, versions, token, open }: OutputsProps) {
+/** One row per delivered output, side by side (stacked in a narrow card); each Markdown row's HTML page after it. */
+function Outputs({ outputs, versions, token, artifactId, open }: OutputsProps) {
   if (outputs.length === 0) return null
   return (
     <div className="work-card-outputs">
-      {outputs.map((o) => (
-        <OutputRow
-          key={`${o.artifactVersionId}:${o.format}`}
-          output={o}
-          version={versions?.find((v) => v.id === o.artifactVersionId)}
-          token={token}
-          onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
-        />
-      ))}
+      {outputs.map((o) => {
+        const version = versions?.find((v) => v.id === o.artifactVersionId)
+        return (
+          <Fragment key={`${o.artifactVersionId}:${o.format}`}>
+            <OutputRow
+              output={o}
+              version={version}
+              token={token}
+              onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
+            />
+            {o.format === 'markdown' && artifactId && (
+              <PageRow output={o} version={version} token={token} artifactId={artifactId} />
+            )}
+          </Fragment>
+        )
+      })}
     </div>
   )
 }
@@ -257,6 +268,38 @@ function OutputRow({ output, version, token, onOpen }: RowProps) {
         <span className="output-download-label">Download</span>
       </button>
       {/* There before it speaks: a live region added with its words is often not read. */}
+      <p className="output-status" role="status" data-error={status.error || undefined}>
+        {status.text}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * A Markdown output's HTML page: printed from that version's checked Markdown and saved (report-page.ts), so the one
+ * button downloads; there is no viewer for it.
+ */
+function PageRow({ output, version, token, artifactId }: Omit<RowProps, 'onOpen'> & { artifactId: string }) {
+  const { status, download } = usePageDownload(token, artifactId, output.artifactVersionId)
+  const name = version ? reportFilename(version.title ?? 'report', version.versionNumber ?? null, 'html') : 'Report'
+  const meta = ['HTML page', version?.versionNumber ? `v${version.versionNumber}` : null].filter(Boolean).join(' · ')
+  return (
+    <div className="output-row">
+      <button
+        type="button"
+        className="output-open"
+        onClick={() => void download()}
+        aria-label={`Download ${name}, HTML page`}
+      >
+        <span className="report-tile" data-format="html" aria-hidden>
+          HTML
+        </span>
+        <span className="output-name">{name}</span>
+        <span className="output-meta">{meta}</span>
+        <span className="output-hint" aria-hidden>
+          Download
+        </span>
+      </button>
       <p className="output-status" role="status" data-error={status.error || undefined}>
         {status.text}
       </p>

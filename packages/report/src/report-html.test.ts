@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { anchorOf } from './markdown.ts'
 import { MAX_REPORT_PARTS, MIN_REPORT_WORDS, renderReport, type ReportInput } from './report-html.ts'
@@ -50,6 +51,11 @@ const failed = (doc: ReturnType<typeof renderReport>) =>
   doc.checks.filter((c) => c.outcome === 'failed').map((c) => c.name)
 
 describe('the PDF report template (pdf-report-v1, report_manifest_v1)', () => {
+  it('prints the bytes it has always printed for the same report (pinned: a change must be deliberate)', () => {
+    const html = renderReport(input()).html
+    const digest = createHash('sha256').update(html).digest('hex')
+    assert.equal(digest, 'f65f917138e6ef50c854dd43f6f1fa3fc1f07e9a1e7e6cc22855c72c0f17a189')
+  })
   it('prints one self-contained document, the same bytes for the same input', () => {
     const doc = renderReport(input())
     assert.equal(doc.html, renderReport(input()).html)
@@ -167,6 +173,15 @@ describe('the PDF report template (pdf-report-v1, report_manifest_v1)', () => {
     assert.match(doc.html, /Also 3, asked as 4, and <sup class="cite"><a href="#cite-1">\[1\]<\/a><\/sup>\./)
     const bracketed = renderReport(input({ markdown: `${markdown}\nNot [${C}].\n`, citable: [A, B] }))
     assert.deepEqual(failed(bracketed), ['citations_resolved'], 'a bracketed id is a citation still')
+  })
+
+  it('prints no anchor inside an anchor, whatever brackets a label holds', () => {
+    const md =
+      `${REPORT}\nPer [${A}], see [the docs](https://x.example/). [Report [${B}]](https://y.example/)\n` +
+      `[**the [docs](https://a.example/)**](https://b.example/) [*Report [${A}]*](https://c.example/)\n`
+    const { html } = renderReport(input({ markdown: md }))
+    assert.doesNotMatch(html, /<a [^>]*>(?:(?!<\/a>).)*<a /)
+    assert.match(html, /<a href="https:\/\/y\.example\/">Report <\/a><sup class="cite">/)
   })
 
   it('keeps ids and titles bounded, and refuses a report with too many sections', () => {

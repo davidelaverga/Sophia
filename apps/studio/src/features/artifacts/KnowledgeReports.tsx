@@ -2,7 +2,8 @@
 // Decisions tabs come with their data). Cards from this project or every project the reader is in, filtered by
 // project, format and words, newest first, a page at a time. A card names the report, its description (Sophia's, or
 // a member's edit, attributed), its current version and what last changed; it opens in the viewer, where its history
-// compares versions. Editors and admins edit a description against the revision they saw.
+// compares versions, and it downloads its current version as an HTML page. Editors and admins edit a description
+// against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ReportCard } from '@sophia/contracts'
@@ -10,6 +11,7 @@ import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
+import { PageDownload } from './PageDownload.tsx'
 import { formatsOffered } from './report-view.ts'
 import { SummaryEditor } from './SummaryEditor.tsx'
 import './artifacts.css'
@@ -26,7 +28,7 @@ interface Props {
 const FORMATS: [Format, string][] = [
   ['any', 'Any format'],
   ['pdf', 'With PDF'],
-  ['markdown_only', 'Markdown only'],
+  ['markdown_only', 'Without PDF'],
 ]
 
 /** The words typed, once the person pauses. */
@@ -296,6 +298,7 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
         >
           History and changes
         </button>
+        <PageDownload token={identity.token} artifactId={card.artifactId} versionId={card.currentVersionId} />
       </div>
     </li>
   )

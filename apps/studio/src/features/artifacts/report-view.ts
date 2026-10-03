@@ -380,6 +380,13 @@ export function hostOf(url: string): string {
   }
 }
 
+/**
+ * A source as the Sources tab and the HTML page name it: its title, else its site, else that it is the project's. A
+ * blank title is none (a page may be titled with a space), so neither prints the source's id or an empty row.
+ */
+export const sourceTitle = (s: Pick<ReportSource, 'title' | 'url'>): string =>
+  s.title?.trim() || (s.url ? hostOf(s.url) : 'A source from the project')
+
 /** The project's filter on Knowledge: this project, or every project the reader is in. */
 export type ProjectScope = 'this' | 'all'
 

@@ -3,6 +3,7 @@
 // its tabs are the Document, the Sources it cites and its History. A version with a PDF shows either its Markdown or
 // its PDF (S5b). Every file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary region: focus moves to its title on open
 // and back to the opener on close; Esc steps down, F toggles the full page.
+// The Document tab also saves its version as an HTML page, printed from the Markdown on screen (PageDownload).
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -23,6 +24,7 @@ import {
 } from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
+import { PageDownload } from './PageDownload.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import {
   currentOffer,
@@ -447,7 +449,7 @@ function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion 
   return (
     <>
       {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
-      {tab === 'document' && !data.showPdf && <DocumentTab data={data} onCite={onCite} />}
+      {tab === 'document' && !data.showPdf && <DocumentTab data={data} identity={identity} onCite={onCite} />}
       {tab === 'sources' && (
         <SourcesList
           sources={data.sources.data?.sources}
@@ -727,7 +729,13 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
   )
 }
 
-function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: string) => void }) {
+interface DocumentTabProps {
+  data: PaneData
+  identity: Identity
+  onCite: (sourceId: string) => void
+}
+
+function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -745,6 +753,7 @@ function DocumentTab({ data, onCite }: { data: PaneData; onCite: (sourceId: stri
           This version has no PDF, so its Markdown is shown.
         </p>
       )}
+      <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
       <MarkdownView report={data.parsed} onCite={onCite} />
     </>

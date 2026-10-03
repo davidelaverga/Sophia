@@ -3,9 +3,10 @@
 // (fixture-api.ts), and LiveKit (fake-livekit.ts, which the fixtures' Vite config puts in its place). It reaches no
 // server and says so on screen. The query string picks the scenario: `call=on` (join on opening), `exchange=open`
 // (Sophia's conversation is open and this viewer holds the floor), `refuse=camera` (the browser refuses it),
-// `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room), `hold=sources` (the
-// report's sources come only once the check lets them through; `hold=text`, its text; `hold=task`, the research task's
-// record), `title=long` (the report's title runs far past the side pane's width), `versions=3` (that many of the
+// `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room; `place=work`, the Work
+// page with the research task's card), `hold=sources` (the report's sources come only once the check lets them through;
+// `hold=text`, its text; `hold=task`, the research task's record), `tamper=text` (its text arrives as bytes its record
+// does not name), `title=long` (the report's title runs far past the side pane's width), `versions=3` (that many of the
 // report's versions are published already); the report viewer's own parameters (`report=…`) open the fixture report
 // (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the call, publish the
 // report's next version, deliver a result notice (or its revision) or a live caption, have Sophia leave, or read what
@@ -94,6 +95,8 @@ const project = {
   textHeld: query.get('hold') === 'text',
   taskRevision: 1 as 1 | 2,
   taskHeld: query.get('hold') === 'task',
+  textTampered: query.get('tamper') === 'text',
+  work: query.get('place') === 'work',
 }
 installFixtureApi(project)
 
@@ -139,6 +142,9 @@ window.fixture = {
 
 const nothing = () => undefined
 
+/** The page `place=` names: Knowledge, Work (with the research task's card), else the room. */
+const viewOf = (place: string | null) => (place === 'knowledge' || place === 'work' ? place : 'studio')
+
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
 
@@ -167,7 +173,7 @@ createRoot(root).render(
       <Kept>
         <ProjectShell
           projectId={PROJECT}
-          view={query.get('place') === 'knowledge' ? 'knowledge' : 'studio'}
+          view={viewOf(query.get('place'))}
           identity={identity}
           account={
             <AccountMenu

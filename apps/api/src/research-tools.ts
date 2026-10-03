@@ -19,6 +19,8 @@ import type { ToolContext } from './mission-tools.ts'
 
 /** No PDF renderer is running (0031): nothing was started, and no other format is promised in its place. */
 const PDF_UNAVAILABLE = 'PDF reports are not available, so nothing was started.'
+/** Said when the speaker asked for HTML: every report downloads as an HTML page Studio prints from its Markdown. */
+const HTML_NOTE = ' When it is ready, its card also downloads it as an HTML page.'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
@@ -72,12 +74,19 @@ const listOf = (v: unknown, ok: (x: unknown) => boolean): string[] | null =>
 
 const isWebAddress = (u: unknown) => typeof u === 'string' && u.length <= 2048 && /^https?:\/\/\S+$/i.test(u)
 
-/** The formats asked for: Markdown always (it is the authored format), and a PDF when asked. */
+const ASKABLE: ReadonlySet<unknown> = new Set(['markdown', 'html', 'pdf'])
+
+/**
+ * The formats asked for: Markdown always (it is the authored format), and a PDF when asked. HTML is accepted and adds
+ * nothing: it never reaches the registry (specialistFor), 0025's outputs check or the manifest the runtime validates.
+ */
 function formatsOf(outputs: unknown): Array<'markdown' | 'pdf'> | null {
   const asked = outputs === undefined ? ['markdown'] : outputs
-  if (!Array.isArray(asked) || asked.length === 0 || !asked.every((o) => o === 'markdown' || o === 'pdf')) return null
+  if (!Array.isArray(asked) || asked.length === 0 || !asked.every((o) => ASKABLE.has(o))) return null
   return asked.includes('pdf') ? ['markdown', 'pdf'] : ['markdown']
 }
+
+const htmlNote = (outputs: unknown) => (Array.isArray(outputs) && outputs.includes('html') ? HTML_NOTE : '')
 
 function preferencesOf(value: unknown): NonNullable<ResearchAdmissionRequest['preferences']> {
   const prefs = isRecord(value) ? value : {}
@@ -122,6 +131,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
   const specialist = specialistFor(request.outputs)
   if (!specialist)
     return { status: 'refused', output: { code: 'not_started:no_specialist', reason: 'The research was not started.' } }
+  const more = htmlNote(ctx.args.outputs)
   try {
     const result = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
       admitResearchTask(c, ctx.projectId, { key: ctx.key, exchangeId: ctx.call.exchangeId, request, specialist }),
@@ -131,7 +141,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
         status: 'ok',
         output: {
           existingTaskId: result.existingTaskId,
-          note: 'Research you asked for in this conversation is already under way. Say if this is a separate question.',
+          note: `Research you asked for in this conversation is already under way. Say if this is a separate question.${more}`,
         },
       }
     }
@@ -140,7 +150,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
       output: {
         taskId: result.admitted.taskId,
         stage: 'admitted',
-        note: 'Admitted, not started yet: the report arrives later, and the work card shows when it runs.',
+        note: `Admitted, not started yet: the report arrives later, and the work card shows when it runs.${more}`,
       },
     }
   } catch (err: unknown) {

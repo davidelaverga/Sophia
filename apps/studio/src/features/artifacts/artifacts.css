@@ -17,6 +17,9 @@
 .report-tile[data-format='pdf'] {
   background: var(--rose);
 }
+.report-tile[data-format='html'] {
+  background: var(--amber);
+}
 .report-meta {
   color: var(--text-2);
   font: 12px/1.4 var(--mono);
@@ -127,6 +130,17 @@
 .report-status[data-error],
 .report-problem {
   color: var(--rose);
+}
+/* "Download HTML page" and its status line: in the Document tab above the report, on a Knowledge card in its row. */
+.page-download {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+}
+.control-row .page-download {
+  margin-bottom: 0;
 }
 .work-card-foot {
   display: flex;

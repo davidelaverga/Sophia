@@ -22,6 +22,7 @@ import {
   renditionWords,
   reportFilename,
   researchState,
+  sourceTitle,
   sourceWords,
   pinTo,
   rereadFor,
@@ -252,6 +253,14 @@ describe('how a cited source was retrieved', () => {
       'Origin answered 200',
     )
     assert.equal(sourceWords({ kind: 'input', coverage: null, originHttpStatus: null }).coverage, 'From the project')
+  })
+
+  it('is named by its title, else its site, else as the project’s: never by its id', () => {
+    assert.equal(sourceTitle({ title: 'A page', url: 'https://example.org/a' }), 'A page')
+    assert.equal(sourceTitle({ title: null, url: 'https://example.org/a' }), 'example.org')
+    assert.equal(sourceTitle({ title: null, url: null }), 'A source from the project')
+    assert.equal(sourceTitle({ title: ' ', url: 'https://example.org/a' }), 'example.org', 'a blank title is none')
+    assert.equal(sourceTitle({ title: '', url: null }), 'A source from the project')
   })
 })
 
