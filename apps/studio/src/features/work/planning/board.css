@@ -125,7 +125,7 @@
   align-items: center;
   gap: 8px;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--type-body);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -154,7 +154,7 @@
   align-items: center;
   gap: 8px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .plan-tab-faces {
   display: inline-flex;
@@ -206,7 +206,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 12px;
-  font-size: 14.5px;
+  font-size: var(--type-title);
   font-weight: 500;
   letter-spacing: -0.015em;
 }
@@ -217,10 +217,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .board-plan .count {
-  font-size: 10.5px;
+  font-size: var(--type-label);
 }
 .board > .plan-ask {
   animation-delay: 80ms;
@@ -262,7 +262,7 @@
   padding: 1px 7px;
   border-radius: 999px;
   background: rgba(236, 235, 241, 0.05);
-  font-size: 10.5px;
+  font-size: var(--type-label);
 }
 .lane-empty {
   display: grid;
@@ -271,7 +271,7 @@
   border: 1px dashed var(--line);
   border-radius: var(--r-4);
   color: var(--text-4);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .task-grid {
   display: grid;
@@ -407,7 +407,7 @@
   display: grid;
   width: 100%;
   height: 100%;
-  font-size: 11px;
+  font-size: 11px; /* an initial: a glyph sized to its circle, not text on the scale */
   transition: transform var(--base) var(--ease);
 }
 .task-who .tool-logo.sm {
@@ -436,7 +436,7 @@
   border-radius: 999px;
   background: rgba(236, 235, 241, 0.05);
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--type-small);
   white-space: nowrap;
 }
 .task-chip[data-mark='waiting'] {
@@ -460,7 +460,7 @@
 .task-tile-title {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-title);
   font-weight: 500;
   line-height: 1.35;
   letter-spacing: -0.008em;
@@ -473,7 +473,7 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .task-tile-name {
   overflow: hidden;
@@ -484,7 +484,7 @@
 .task-tile-hangs {
   overflow: hidden;
   color: var(--text-4);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -504,7 +504,7 @@
   justify-self: start;
   height: 26px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 /* ---- A task up close (TaskSheet): who and where it stands, then the tasks it is linked to. ---- */
@@ -521,10 +521,10 @@
   display: grid;
   gap: 2px;
   margin-right: auto;
-  font-size: 14px;
+  font-size: var(--type-title);
 }
 .task-sheet-name .muted {
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .task-sheet-next {
   display: flex;
@@ -547,6 +547,7 @@
 .task-link {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto;
+  font-size: var(--type-body);
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -563,10 +564,10 @@
 }
 .task-link-where {
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .task-sheet-plan {
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 
 /* ---- The board's bar: lenses on the left, what changed since the last look on the right. ---- */
@@ -711,7 +712,7 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-1);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
 }
 
 /* ---- Live: what a session last reported (its ring and dot are shared, in resources.css). ---- */
@@ -721,7 +722,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .task-tile-said {
   overflow: hidden;
@@ -733,7 +734,7 @@
   flex: none;
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
 }
 .task-sheet-activity {
@@ -744,12 +745,12 @@
   padding: 10px 12px;
   border-radius: var(--r-3);
   background: rgba(127, 214, 196, 0.06);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .task-sheet-activity .muted {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
 }
 
 /* ---- While you were away: one sentence from Sophia's light, over the board. ---- */
@@ -764,7 +765,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  font-size: 14px;
+  font-size: var(--type-title);
 }
 .plan-next > .field-label {
   color: var(--halo-text);
@@ -776,7 +777,7 @@
   margin-left: 6px;
 }
 .plan-next-plan .count {
-  font-size: 10.5px;
+  font-size: var(--type-label);
 }
 .goal-outcome-open {
   max-width: 64ch;
@@ -794,7 +795,7 @@
   border-radius: 999px;
   background: rgba(236, 235, 241, 0.04);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-body);
   transition:
     background-color var(--fast) var(--ease),
     border-color var(--fast) var(--ease);
@@ -854,7 +855,7 @@
 }
 .board .plan-ask-question {
   grid-area: question;
-  font-size: 14px;
+  font-size: var(--type-title);
 }
 .board .plan-choices,
 .board .plan-ask-choices {
@@ -884,7 +885,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--amber);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .task-tile-short-words {
   overflow: hidden;
@@ -893,7 +894,7 @@
 }
 .task-sheet-short {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .task-short-gauge {
   flex: none;
@@ -941,7 +942,7 @@
   border-radius: 999px;
   background: rgba(156, 130, 245, 0.06);
   color: var(--halo-text);
-  font-size: 12.5px;
+  font-size: var(--type-body);
   transition:
     background-color var(--fast) var(--ease),
     transform var(--fast) var(--ease);
@@ -960,7 +961,7 @@
   padding: 8px 12px;
   border-radius: 12px 12px 4px 12px;
   background: rgba(236, 235, 241, 0.06);
-  font-size: 13px;
+  font-size: var(--type-body);
 }
 .ask-a {
   display: flex;
@@ -968,7 +969,7 @@
   gap: 10px;
   max-width: 95%;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: var(--type-body);
   line-height: 1.55;
 }
 .ask-a .ask-light {
@@ -995,12 +996,12 @@
   margin-left: 0;
   height: 22px;
   padding: 0 6px;
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .goal.compact .controls .pill {
   height: 28px;
   padding: 0 10px;
-  font-size: 12.5px;
+  font-size: var(--type-body);
 }
 .task-search {
   flex: 0 1 280px;
@@ -1012,7 +1013,7 @@
   border-bottom: 0;
 }
 .goal.compact .goal-title {
-  font-size: 17px;
+  font-size: var(--type-title);
   letter-spacing: -0.02em;
 }
 .goal.compact > :not(.controls) {
