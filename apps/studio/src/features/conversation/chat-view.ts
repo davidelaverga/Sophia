@@ -88,14 +88,15 @@ interface DeliveredFile {
 
 /**
  * What a result notice's buttons open and save (M03-RF-0020): Open and Download both take the primary file, the PDF
- * when there is one; Markdown is offered beside a PDF only. Each names its version, so all three show the same one.
+ * when there is one; Markdown is offered beside a PDF only. The HTML page (html-report-v1) is printed from the
+ * Markdown, so it is offered whenever there is one, beside a PDF too. Each names its version, so all show the same one.
  */
 export function noticeActions<T extends DeliveredFile>(
   outputs: readonly T[],
-): { primary: T | null; markdown: T | null } {
+): { primary: T | null; markdown: T | null; page: T | null } {
   const pdf = outputs.find((o) => o.format === 'pdf') ?? null
   const markdown = outputs.find((o) => o.format === 'markdown') ?? null
-  return { primary: pdf ?? markdown, markdown: pdf ? markdown : null }
+  return { primary: pdf ?? markdown, markdown: pdf ? markdown : null, page: markdown }
 }
 
 /**

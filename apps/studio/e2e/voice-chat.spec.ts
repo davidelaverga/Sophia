@@ -103,6 +103,49 @@ test('CX-0022 · until the task is read, the card’s Open and Download keep the
   await expect(pane(page)).toBeVisible()
 })
 
+test('HTML · a research card saves its HTML page once the task is read; until then it keeps the focus and saves nothing', async ({
+  page,
+}) => {
+  const downloads: string[] = []
+  page.on('download', (d) => downloads.push(d.suggestedFilename()))
+  await enterByVoice(page, `${IN_CALL}&hold=task`)
+  await page.evaluate(() => window.fixture?.notice())
+  await marked(page).click()
+  const html = cards(page).getByRole('button', { name: 'Download HTML page', exact: true })
+  await expect(html).toHaveText('HTML page')
+  await expect.poll(async () => (await fixture(page)).served).toContain('task:1') // the read is on its way
+  await expect(html).toHaveAttribute('aria-disabled', 'true')
+  await expect(html).not.toHaveAttribute('disabled')
+  await html.focus()
+  await page.keyboard.press('Enter')
+  await expect(html).toBeFocused() // a press that does nothing keeps the focus
+  await expect(cards(page).getByRole('status')).toHaveText('')
+  expect((await fixture(page)).served.filter((s) => s.startsWith('versions:'))).toEqual([]) // nothing was printed
+
+  await page.evaluate(() => window.fixture?.releaseTask())
+  await expect(html).not.toHaveAttribute('aria-disabled')
+  const download = page.waitForEvent('download')
+  await html.click()
+  const saved = await download
+  expect(saved.suggestedFilename()).toBe('fixture-report-v1.html') // the report's slug and the Markdown's version
+  const text = await readFile(await saved.path(), 'utf8')
+  expect(text).toMatch(/^<!doctype html>/)
+  expect(text).toContain('The first version of a labelled fixture report.')
+  await expect(cards(page).getByRole('status')).toHaveText(/^Downloading fixture-report-v1\.html · /)
+  expect(downloads).toEqual(['fixture-report-v1.html']) // the press before the read saved nothing
+})
+
+test('HTML · a brief’s card offers no HTML page: the page is a research report’s', async ({ page }) => {
+  await enterByVoice(page)
+  await page.evaluate(() => window.fixture?.noticeBrief())
+  await marked(page).click()
+  const brief = page.getByRole('group', { name: 'Brief ready' })
+  // The task is read, so an HTML page, were it offered, would be there by now.
+  await expect(brief.getByRole('button', { name: 'Download', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(brief.getByRole('button', { name: 'Download HTML page', exact: true })).toHaveCount(0)
+  await expect(cards(page)).toHaveCount(0)
+})
+
 test('CX-0022 · every join says its mode to Sophia, the hello after which the bridge sends the cards again', async ({
   page,
 }) => {

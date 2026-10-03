@@ -9,8 +9,8 @@
 // does not name), `title=long` (the report's title runs far past the side pane's width), `versions=3` (that many of the
 // report's versions are published already); the report viewer's own parameters (`report=…`) open the fixture report
 // (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the call, publish the
-// report's next version, deliver a result notice (or its revision) or a live caption, have Sophia leave, or read what
-// happened.
+// report's next version, deliver a result notice (its revision, or a brief's) or a live caption, have Sophia leave, or
+// read what happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
@@ -32,7 +32,15 @@ import {
   served,
   unexpected,
 } from './fixture-api.ts'
-import { LONG_TITLE, researchNotice, revisedNotice, SOPHIAS_DESCRIPTION, TEAMMATE, TITLE } from './report-data.ts'
+import {
+  briefNotice,
+  LONG_TITLE,
+  researchNotice,
+  revisedNotice,
+  SOPHIAS_DESCRIPTION,
+  TEAMMATE,
+  TITLE,
+} from './report-data.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -50,6 +58,8 @@ interface Fixture {
    * notice (revision 2) reaches the chat (CX-0022).
    */
   noticeRevised: () => void
+  /** The same task's result told as a brief's (synthetic): a card of another kind over the same files. */
+  noticeBrief: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
   releaseTask: () => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
@@ -116,6 +126,7 @@ window.fixture = {
     project.taskRevision = 2
     deliverNotice(revisedNotice)
   },
+  noticeBrief: () => deliverNotice(briefNotice),
   releaseTask: () => releaseTask(project),
   caption: deliverCaption,
   sophiaLeaves,
