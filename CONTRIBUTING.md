@@ -515,7 +515,8 @@ when you change the room:
   last one (`Session.recent`, newest first). `since=1` shows the line.
   The work views keep to one type scale (theme.css `--type-title` 14,
   `--type-body` 13, `--type-small` 12, `--type-label` 10.5, under a view's 20
-  and a sheet's 15): at most five sizes on a screen, checked (`type ·`).
+  and a sheet's 15): at most five sizes on a screen, a field's words included,
+  checked (`type ·`).
 
 ## The personal space
 
