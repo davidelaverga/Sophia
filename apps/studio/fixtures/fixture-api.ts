@@ -100,7 +100,7 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  */
 function snapshotOf(project: Project) {
   const now = snapshot(project.revision, project.exchange, project.messages)
-  const work = project.work ? { ...now, work: [researchTask.task] } : now
+  const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] } : now
   return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
 }
 
