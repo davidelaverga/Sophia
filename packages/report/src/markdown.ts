@@ -38,21 +38,78 @@ const REF = `(?:(?:search|link|input|source):\\s*)?(${UUID})(?:#\\d{1,4})?`
 /** A bracketed group of refs and nothing else: `[id]`, `(id, id)`, `[source: id; id]`. */
 const CITE_GROUP = new RegExp(`[\\[(]\\s*${REF}(?:\\s*[,;]\\s*${REF})*\\s*[\\])]`, 'gi')
 const CITE_ONE = new RegExp(REF, 'gi')
-/** A link whose destination is a source or a ref to one, and nothing else: `[1](<id>)`, `[2](search:<id>#3)`. */
+/** A source or a ref to one, and nothing else: a link label that says only that numbers its citation. */
 const CITE_TARGET = new RegExp(`^<?\\s*${REF}\\s*>?$`, 'i')
-/** A link label that only numbers its citation (`1`, `[2]`, `^3`, or none): the citation's own number replaces it. */
-const MARKER = /^\s*\[?\^?\d{0,4}\]?\s*$/
+/** A space in a link target, as every database reads `\s`: ASCII only (a no-break space or U+FEFF is not one there). */
+const LINK_SPACE = '[ \\t\\n\\v\\f\\r]'
+/**
+ * A link target that cites, as written (untrimmed): spaces, then a source or a ref to one (`<id>`, `search:<id>#3`, a
+ * space after the prefix allowed as in the bracketed form: `source: <id>`), then nothing or a space and anything, a
+ * title (`<id> "t"`) say. The service reads a draft's links the same way (0036 markdown_citing_text), so its spaces are
+ * `LINK_SPACE`: with a wider one the report would number a source the submit does not add.
+ */
+const CITE_LINK = new RegExp(
+  `^${LINK_SPACE}*<?(?:(?:search|link|input|source):${LINK_SPACE}*)?(${UUID})(?:#\\d{1,4})?>?(?:${LINK_SPACE}[\\s\\S]*)?$`,
+  'i',
+)
+/**
+ * A trimmed link label that only numbers its citation (`1`, `[2]`, `^3`, or none): the citation's own number replaces
+ * it. Matched on the trimmed label: with `\s*` at both ends, the two met when the rest was empty, and a label of spaces
+ * was split every way.
+ */
+const MARKER = /^\[?\^?\d{0,4}\]?$/
+/** An autolink-shaped span's opening, as the service blanks one (0036 markdown_citing_text: `<(?:https?|mailto):`). */
+const AUTOLINK_SCHEME = /^(?:https?|mailto):/i
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w+-]*)/
-const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/
+/** A heading's opening `#`s and the spaces after them (`headingOf` reads the rest). */
+const HEADING = /^ {0,3}(#{1,6})\s+/
 const RULE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/
 const QUOTE = /^ {0,3}>\s?(.*)$/
-const ITEM = /^(\s*)([-*+]|(\d{1,9})[.)])\s+(.*)$/
-const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/
+/** A list item's indent, its marker (the number of an ordered one) and the spaces after it (`itemOf` reads the rest). */
+const ITEM = /^(\s*)([-*+]|(\d{1,9})[.)])\s+/
+/** `| :-- | --: |`, written so that no two `\s*` meet: where two did, a long run of spaces was split every way. */
+const TABLE_RULE = /^\s*(?:\|\s*)?:?-+:?\s*(?:\|\s*:?-+:?\s*)*(?:\|\s*)?$/
 const BLANK = /^\s*$/
 
 /** At most this deep: a quote in a quote in a quote… is flattened past it. */
 const MAX_DEPTH = 4
+
+/**
+ * A heading's level and text, as `^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$` reads a line (closing `#`s and the spaces around
+ * them dropped), in one pass: that pattern tries every split of a run of spaces at every place the text could end, and
+ * a heading with a few thousand spaces in it took seconds. `open` is how it starts (`HEADING`; the sections' own).
+ */
+function headingOf(line: string, open: RegExp): { level: number; text: string } | null {
+  const m = open.exec(line)
+  if (!m) return null
+  const from = m[0].length
+  let end = line.length
+  while (end > from && /\s/.test(line[end - 1] ?? '')) end -= 1
+  while (end > from && line[end - 1] === '#') end -= 1
+  while (end > from && /\s/.test(line[end - 1] ?? '')) end -= 1
+  const text = line.slice(from, end)
+  // The pattern's text is on one line, as `.` reads it.
+  return /[\n\r\u2028\u2029]/.test(text) ? null : { level: (m[1] ?? '#').length, text }
+}
+
+interface Item {
+  indent: string
+  /** An ordered item's number, as written. */
+  number: string | undefined
+  text: string
+}
+
+/**
+ * A list item as `^(\s*)([-*+]|(\d{1,9})[.)])\s+(.*)$` reads a line, in one pass: where `.` could not reach the end (a
+ * U+2028 in the text), that pattern split the run of spaces after the marker every way before failing.
+ */
+function itemOf(line: string): Item | null {
+  const m = ITEM.exec(line)
+  if (!m) return null
+  const text = line.slice(m[0].length)
+  return /[\n\r\u2028\u2029]/.test(text) ? null : { indent: m[1] ?? '', number: m[3], text }
+}
 
 /** The anchor of a heading, as the service computes it for section facts (0027): lower case, words joined by `-`. */
 export function anchorOf(heading: string): string {
@@ -129,29 +186,55 @@ function bareCites(text: string, cites: Citations): Inline[] {
   return out
 }
 
-/** The closing `delim` for an opening at `from`, not inside a code span; -1 when none. */
-function closing(src: string, from: number, delim: string): number {
-  let i = from
-  while (i < src.length) {
-    if (src[i] === '`') {
-      const end = src.indexOf('`', i + 1)
-      if (end < 0) return -1
-      i = end + 1
-      continue
-    }
-    if (src[i] === '\\') {
-      i += 2
-      continue
-    }
-    // A single delimiter skips a double one: `*a **b** c*` closes at the last star.
-    if (delim.length === 1 && src[i] === delim && src[i + 1] === delim) {
-      i += 2
-      continue
-    }
-    if (src.startsWith(delim, i) && i > from) return i
-    i += 1
+/**
+ * Where the walk for a closing `delim` goes from `i`: past a code span, an escape or (for a single delimiter) a double
+ * one, so `*a **b** c*` closes at the last star; `i` itself when a closer is there; -1 when an unclosed code span ends it.
+ */
+function closeStep(src: string, i: number, delim: string): number {
+  if (src[i] === '`') {
+    const end = src.indexOf('`', i + 1)
+    return end < 0 ? -1 : end + 1
   }
-  return -1
+  if (src[i] === '\\') return i + 2
+  if (delim.length === 1 && src[i] === delim && src[i + 1] === delim) return i + 2
+  return src.startsWith(delim, i) ? i : i + 1
+}
+
+/** Not yet walked from. */
+const UNWALKED = -2
+
+/** What each walk for a closing `delim` from each index of a scan's text found, `UNWALKED` until one has. */
+function closersOf(s: Scan, delim: string): Int32Array {
+  const closers = (s.closers ??= new Map<string, Int32Array>())
+  const known = closers.get(delim) ?? new Int32Array(s.src.length).fill(UNWALKED)
+  closers.set(delim, known)
+  return known
+}
+
+/**
+ * The closing `delim` for an opening at `from`, not inside a code span; -1 when none. Past its first step, a walk goes
+ * the same way from wherever it is, so each index's answer is remembered: openers that never close (`foo__bar`, each
+ * `_` after an `_`) cost one pass for all of them, not one to the end of the text each.
+ */
+function closing(s: Scan, from: number, delim: string): number {
+  const first = closeStep(s.src, from, delim)
+  if (first < 0) return -1
+  const known = closersOf(s, delim)
+  const walked: number[] = []
+  let found = -1
+  for (let i = first === from ? from + 1 : first; i < s.src.length;) {
+    if (known[i] !== UNWALKED) {
+      found = known[i] ?? -1
+      break
+    }
+    walked.push(i)
+    const next = closeStep(s.src, i, delim)
+    if (next === i) found = i
+    if (next <= i) break
+    i = next
+  }
+  for (const i of walked) known[i] = found
+  return found
 }
 
 interface Scan {
@@ -162,6 +245,10 @@ interface Scan {
   ends?: Map<number, number>
   /** Where a link target opened at each index of `src` closes (-1: it does not), as `targetEnds` finds them: one pass. */
   targets?: Int32Array
+  /** Where a walk for each closing delimiter from each index of `src` ends, as `closing` finds them: one pass each. */
+  closers?: Map<string, Int32Array>
+  /** The `>` that `closerAfter` last found (-1: none past where it looked). */
+  gt?: number
 }
 
 /** A part of a scan's text (an emphasis or a label), read one level deeper. */
@@ -184,7 +271,7 @@ function emphasis(s: Scan, i: number): Step {
   if (c === '_' && isWordChar(s.src[i - 1])) return null
   const start = i + delim.length
   if (s.src[start] === undefined || /\s/.test(s.src[start] ?? '')) return null
-  const end = closing(s.src, start, delim)
+  const end = closing(s, start, delim)
   if (end < 0) return null
   const children = inlines(deeper(s, s.src.slice(start, end)))
   return { inline: [strong ? { kind: 'strong', children } : { kind: 'em', children }], next: end + delim.length }
@@ -221,10 +308,11 @@ function targetEnds(src: string): Int32Array {
 const targetEnd = (s: Scan, from: number): number => (s.targets ??= targetEnds(s.src))[from] ?? -1
 
 /** `[1](<id>)`: a link to a source the report may cite is a citation, its label kept if it says more than a number. */
-function citeLink(s: Scan, label: string, target: string): Inline[] | null {
-  const id = CITE_TARGET.exec(target)?.[1]?.toLowerCase()
+function citeLink(s: Scan, label: string, cited: string | undefined): Inline[] | null {
+  const id = cited?.toLowerCase()
   if (id === undefined || !s.cites.links(id)) return null
-  if (MARKER.test(label) || CITE_TARGET.test(label.trim())) return [{ kind: 'cite', sourceId: id, n: s.cites.n(id) }]
+  if (MARKER.test(label.trim()) || CITE_TARGET.test(label.trim()))
+    return [{ kind: 'cite', sourceId: id, n: s.cites.n(id) }]
   // The label first, so a citation inside it keeps its place in the numbering.
   const children = inlines(deeper(s, label))
   return [...children, { kind: 'cite', sourceId: id, n: s.cites.n(id) }]
@@ -322,21 +410,39 @@ function linkOrImage(s: Scan, i: number): Step {
   const end = targetEnd(s, close + 2)
   if (end < 0) return null
   const label = s.src.slice(open + 1, close)
-  const target =
-    s.src
-      .slice(close + 2, end)
-      .trim()
-      .split(/\s+/)[0] ?? ''
+  const raw = s.src.slice(close + 2, end)
   if (image) return { inline: [{ kind: 'text', text: `[image: ${label || 'untitled'}]` }], next: end + 1 }
-  const cited = citeLink(s, label, target)
+  const cited = citeLink(s, label, CITE_LINK.exec(raw)?.[1])
   if (cited) return { inline: cited, next: end + 1 }
-  return linkTo(s, label, safeHref(target), s.src.slice(close, end + 1), end + 1)
+  return linkTo(s, label, safeHref(raw.trim().split(/\s+/)[0] ?? ''), s.src.slice(close, end + 1), end + 1)
 }
 
-/** `<https://…>`: an autolink. Any other `<…>` stays text. */
+/** The first `>` after `i` in a scan's text, -1 when none; one pass for the whole scan, which asks in reading order. */
+function closerAfter(s: Scan, i: number): number {
+  if (s.gt === undefined || (s.gt !== -1 && s.gt <= i)) s.gt = s.src.indexOf('>', i + 1)
+  return s.gt
+}
+
+/**
+ * `<https://…>`: an autolink, with no `<` inside it (as in CommonMark). Any other `<…>` stays text. Each `<` looks no
+ * further than the next one, so a run of them before one `>` is read once, not once per `<` (the address is parsed).
+ * A span that opens with a scheme but holds a `<` is text up to its `>`, and cites nothing: the service blanks it all.
+ */
 function autolink(s: Scan, i: number): Step {
-  const end = s.src.indexOf('>', i + 1)
-  if (end < 0) return null
+  const step = linkAt(s, i)
+  if (step || !AUTOLINK_SCHEME.test(s.src.slice(i + 1, i + 8))) return step
+  const end = closerAfter(s, i)
+  return end < 0
+    ? null
+    : { inline: [{ kind: 'text', text: s.src.slice(i, end + 1).replace(/\n/g, ' ') }], next: end + 1 }
+}
+
+/** The autolink at `i`, if it is one. */
+function linkAt(s: Scan, i: number): Step {
+  const stop = s.src.indexOf('<', i + 1)
+  const inside = s.src.slice(i + 1, stop < 0 ? s.src.length : stop).indexOf('>')
+  if (inside < 0) return null
+  const end = i + 1 + inside
   const href = safeHref(s.src.slice(i + 1, end))
   if (!href) return null
   return {
@@ -451,7 +557,13 @@ const opensTable = (line: string, next: string | undefined) =>
 
 /** Whether a line starts a block other than a paragraph (it ends a paragraph above it). */
 function startsBlock(line: string): boolean {
-  return FENCE.test(line) || HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || ITEM.test(line)
+  return (
+    FENCE.test(line) ||
+    headingOf(line, HEADING) !== null ||
+    RULE.test(line) ||
+    QUOTE.test(line) ||
+    itemOf(line) !== null
+  )
 }
 
 function fenced(l: Lines, open: RegExpExecArray): Block {
@@ -490,20 +602,20 @@ type ListLine = { item: { depth: number; text: string } } | 'continue' | 'skip' 
 
 /** What a line means inside a list: another item, more of the last one, a blank between items, or its end. */
 function listLine(l: Lines, line: string, ordered: boolean, hasItem: boolean): ListLine {
-  const m = ITEM.exec(line)
+  const m = itemOf(line)
   if (m) {
-    const depth = depthOf(m[1] ?? '')
+    const depth = depthOf(m.indent)
     // A top-level item of the other kind (a number after bullets) starts a new list.
-    if (depth === 0 && (m[3] !== undefined) !== ordered) return 'end'
-    return { item: { depth, text: m[4] ?? '' } }
+    if (depth === 0 && (m.number !== undefined) !== ordered) return 'end'
+    return { item: { depth, text: m.text } }
   }
   if (hasItem && !BLANK.test(line) && /^\s{2,}/.test(line)) return 'continue'
-  if (BLANK.test(line) && ITEM.test(peek(l, 1) ?? '')) return 'skip'
+  if (BLANK.test(line) && itemOf(peek(l, 1) ?? '') !== null) return 'skip'
   return 'end'
 }
 
-function list(l: Lines, first: RegExpExecArray): Block {
-  const ordered = first[3] !== undefined
+function list(l: Lines, first: Item): Block {
+  const ordered = first.number !== undefined
   const items: { depth: number; text: string }[] = []
   for (;;) {
     const line = peek(l)
@@ -517,7 +629,7 @@ function list(l: Lines, first: RegExpExecArray): Block {
   return {
     kind: 'list',
     ordered,
-    start: ordered ? Number(first[3]) : 1,
+    start: ordered ? Number(first.number) : 1,
     items: items.map((it) => ({ depth: it.depth, children: inlines({ src: it.text, cites: l.cites, depth: 0 }) })),
   }
 }
@@ -553,13 +665,13 @@ function block(l: Lines): Block {
   const line = peek(l) ?? ''
   const fence = FENCE.exec(line)
   if (fence) return fenced(l, fence)
-  const heading = HEADING.exec(line)
-  if (heading && (heading[2] ?? '').trim() !== '') {
+  const heading = headingOf(line, HEADING)
+  if (heading && heading.text.trim() !== '') {
     l.at += 1
-    const text = heading[2] ?? ''
+    const { level, text } = heading
     return {
       kind: 'heading',
-      level: (heading[1] ?? '#').length,
+      level,
       anchor: anchorOf(text),
       children: inlines({ src: text, cites: l.cites, depth: 0 }),
     }
@@ -569,7 +681,7 @@ function block(l: Lines): Block {
     return { kind: 'rule' }
   }
   if (QUOTE.test(line)) return quote(l)
-  const item = ITEM.exec(line)
+  const item = itemOf(line)
   if (item) return list(l, item)
   if (opensTable(line, peek(l, 1))) return table(l)
   return paragraph(l)
@@ -650,6 +762,9 @@ interface Section {
   body: string
 }
 
+/** A section's heading opens as the service's does (0036 markdown_outline: `^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$`). */
+const SECTION_HEADING = /^\s{0,3}(#{1,6})\s+/
+
 /** A Markdown text as sections, the way the service splits it for section facts (0036 markdown_outline). */
 export function sectionsOf(text: string): Section[] {
   const out: Section[] = []
@@ -669,11 +784,11 @@ export function sectionsOf(text: string): Section[] {
   }
   for (const line of text.split(/\r?\n/)) {
     if (/^\s{0,3}(```|~~~)/.test(line)) inFence = !inFence
-    const m = inFence ? null : /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line)
-    if (m && (m[2] ?? '').trim() !== '') {
+    const m = inFence ? null : headingOf(line, SECTION_HEADING)
+    if (m && m.text.trim() !== '') {
       push()
-      heading = (m[2] ?? '').trim()
-      depth = (m[1] ?? '').length
+      heading = m.text.trim()
+      depth = m.level
       body = ''
     } else {
       body += `${line}\n`

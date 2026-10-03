@@ -41,6 +41,50 @@ BEGIN
    <>ARRAY['','/hosts','/hosts/costs','/hosts/costs/','/hosts/costs//c-notes','/hosts/pros'] THEN
   RAISE EXCEPTION 'Heading paths wrong: %',(SELECT array_agg(path ORDER BY ord) FROM sophia.markdown_outline(t)); END IF;
 END $$;
+-- markdown_outline reads a heading as Studio's sectionsOf does, in one pass. The reference is 0027's loop read as Studio
+-- reads it: its pattern with JavaScript's whitespace and '.' (which stops at CR, U+2028 and U+2029), an introduction
+-- of whitespace alone dropped. They agree on shapes and on 3000 generated texts (closing #s, tabs, line separators,
+-- fences, no-break spaces); a heading with 256 KiB of spaces, or 128K short lines, take well under a second.
+CREATE FUNCTION pg_temp.studio_outline(p_text text) RETURNS TABLE(ord integer, heading text, body_hash text)
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE ws constant text:='[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]';
+ line text; fenced boolean:=false; cur_heading text:=NULL; cur_body text:=''; n integer:=0; m text[];
+BEGIN
+ FOREACH line IN ARRAY regexp_split_to_array(coalesce(p_text,''),E'\r?\n')||NULL::text LOOP
+  IF line ~ ('^'||ws||'{0,3}(```|~~~)') THEN fenced:=NOT fenced; END IF;
+  m:=CASE WHEN fenced THEN NULL ELSE regexp_match(line,'^'||ws||'{0,3}#{1,6}'||ws||'+([^\r\u2028\u2029]*?)'||ws||'*#*'||ws||'*$') END;
+  IF line IS NULL OR m[1]<>'' THEN
+   IF cur_heading IS NOT NULL OR regexp_replace(cur_body,ws,'','g')<>'' THEN
+    ord:=n; heading:=cur_heading;
+    body_hash:=encode(sha256(convert_to(btrim(regexp_replace(cur_body,ws||'+',' ','g'),' '),'UTF8')),'hex');
+    RETURN NEXT; n:=n+1;
+   END IF;
+   cur_heading:=m[1]; cur_body:='';
+  ELSE
+   cur_body:=cur_body||line||E'\n';
+  END IF;
+ END LOOP;
+END $$;
+DO $$ DECLARE t text; started timestamptz;
+BEGIN
+ FOR t IN SELECT x FROM unnest(ARRAY[E'# Title ##\n## a #b\n#   \n# a'||chr(8232)||E'b\n####### x\n## x \t#  \n#\t#\n# #a#',
+   E'# a'||repeat(' ',300)||E'b\n## c'||repeat(' ',300)||'#'||repeat(' ',300)]) x
+  UNION ALL SELECT (SELECT string_agg((ARRAY[' ','#','a',E'\t',E'\n','#',' ','b',chr(8232),E'\r','`','~',chr(160),'##'])
+    [1+(('x'||substr(md5(i||'-'||j),1,4))::bit(16)::int % 14)],'') FROM generate_series(1,40) j) FROM generate_series(1,3000) i LOOP
+  IF EXISTS((SELECT ord,heading,body_hash FROM pg_temp.studio_outline(t)) EXCEPT ALL
+    (SELECT ord,heading,body_hash FROM sophia.markdown_outline(t)))
+   OR (SELECT count(*) FROM sophia.markdown_outline(t))<>(SELECT count(*) FROM pg_temp.studio_outline(t)) THEN
+   RAISE EXCEPTION 'markdown_outline reads % differently from Studio',quote_literal(t); END IF;
+ END LOOP;
+ started:=clock_timestamp();
+ IF (SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(E'# a'||repeat(' ',262144)||E'b\n## c'||repeat(' ',262144)||'#  '))
+   <>ARRAY['a'||repeat(' ',262144)||'b','c'] THEN RAISE EXCEPTION 'A heading with 256 KiB of spaces read wrong'; END IF;
+ IF clock_timestamp()-started>interval '1 second' THEN
+  RAISE EXCEPTION 'A heading with 256 KiB of spaces took %',clock_timestamp()-started; END IF;
+ started:=clock_timestamp();
+ PERFORM sophia.markdown_outline(repeat(E'x\n',131072));
+ IF clock_timestamp()-started>interval '1 second' THEN RAISE EXCEPTION '128K short lines took %',clock_timestamp()-started; END IF;
+END $$;
 -- A repeated subheading is one section per occurrence: identical texts have no change, one edit is one revision, and a
 -- new option's Pros (inserted between A and B) is added. Each section is counted once on each side.
 DO $$ DECLARE

@@ -1485,6 +1485,8 @@ describe('report facts, each section once (0036)', () => {
       // A no-break space or a byte order mark is whitespace to Studio, so an introduction of one alone is none either.
       ['\uFEFF\n# Hosts\nA.\n', '# Hosts\nA.\n'],
       ['# Hosts\nA.\n', '\u00A0\n# Hosts\nA.\n## Conclusion\nUse B.\n'],
+      // Headings read in one pass on both sides: closing #s, a # in the text, a long run of spaces.
+      [`# T\n## a${' '.repeat(4096)}b ##\nx\n`, `# T\n## a${' '.repeat(4096)}b ##\ny\n## c #d #  \nz\n`],
     ]
     for (const [was, now] of cases) {
       const row = await one<{ f: unknown }>(`SELECT sophia.section_facts($1,$2) AS f`, [was, now])

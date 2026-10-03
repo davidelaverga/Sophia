@@ -42,9 +42,10 @@ REVOKE ALL ON FUNCTION sophia.heading_anchor(text) FROM PUBLIC;
 -- before the first heading, else '/' and the anchors of the headings it sits under (by level) and its own. Read as
 -- Studio's sectionsOf reads it, with JavaScript's whitespace (U+00A0 and U+FEFF among it, which '\s' here is not): so
 -- text before the first heading that is only whitespace is no section, where markdown_sections' btrim, which strips
--- spaces alone, kept one; and a heading's closing marks are cut after the match (the lazy '(.*?)\s*#*\s*$' tried every
--- split of a run of spaces: one heading line of 160 KiB took 46 s). Each body's lines are joined once, so a long
--- section costs its length, not its length times its lines.
+-- spaces alone, kept one. A heading is read in one pass: 0027's lazy '(.*?)\s*#*\s*$' tried every split of a run of
+-- spaces (one heading line of 160 KiB took 46 s), so the opening is matched alone and the closing marks and the spaces
+-- around them are cut from the end, read reversed from its start. Each body's lines are joined once, so a long section
+-- costs its length, not its length times its lines.
 CREATE FUNCTION sophia.markdown_outline(p_text text)
 RETURNS TABLE(ord integer, anchor text, heading text, body_hash text, path text)
 LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
@@ -55,11 +56,12 @@ BEGIN
  -- A last line of NULL closes the last section.
  FOREACH line IN ARRAY regexp_split_to_array(coalesce(p_text,''),E'\r?\n')||NULL::text LOOP
   IF line ~ ('^'||ws||'{0,3}(```|~~~)') THEN fenced:=NOT fenced; END IF;
-  m:=CASE WHEN fenced THEN NULL ELSE regexp_match(line,'^'||ws||'{0,3}(#{1,6})'||ws||'+(.*)$') END;
-  -- A heading's text, its closing marks cut; '.' in Studio's pattern stops at U+2028 and U+2029, so with one inside
-  -- the line is no heading.
-  t:=regexp_replace(m[2],ws||'*#*'||ws||'*$','');
-  IF line IS NULL OR (t<>'' AND t !~ '[\u2028\u2029]') THEN
+  m:=CASE WHEN fenced THEN NULL ELSE regexp_match(line,'^('||ws||'{0,3}(#{1,6})'||ws||'+)') END;
+  -- A heading's text, its closing marks cut; '.' in Studio's pattern stops at CR, U+2028 and U+2029, so with one
+  -- inside the line is no heading.
+  t:=substr(line,length(m[1])+1);
+  t:=left(t,length(t)-length(substring(reverse(t) FROM '^'||ws||'*#*'||ws||'*')));
+  IF line IS NULL OR (t<>'' AND t !~ '[\r\u2028\u2029]') THEN
    body:=array_to_string(cur_lines,E'\n');
    IF cur_heading IS NOT NULL OR body ~ '[^\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]' THEN
     ord:=n; anchor:=cur_anchor; heading:=cur_heading; path:=cur_path;
@@ -70,8 +72,8 @@ BEGIN
    cur_heading:=t; cur_lines:='{}';
    cur_anchor:=sophia.heading_anchor(cur_heading);
    k:=cardinality(levels);
-   WHILE k>0 AND levels[k]>=length(m[1]) LOOP k:=k-1; END LOOP;
-   levels:=levels[1:k]||length(m[1]); anchors:=anchors[1:k]||cur_anchor;
+   WHILE k>0 AND levels[k]>=length(m[2]) LOOP k:=k-1; END LOOP;
+   levels:=levels[1:k]||length(m[2]); anchors:=anchors[1:k]||cur_anchor;
    cur_path:='/'||array_to_string(anchors,'/');
   ELSE
    cur_lines:=array_append(cur_lines,line);

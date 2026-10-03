@@ -47,6 +47,9 @@ const timed = (md: string): number => {
   return performance.now() - t
 }
 
+/** `k` KiB of spaces. */
+const spaces = (k: number): string => ' '.repeat(k * 1024)
+
 /** A one-paragraph report's shape. */
 const shape = (md: string): Shape[] => {
   const p = only(md)
@@ -59,6 +62,31 @@ const only = (md: string): Block => {
   const [b] = blocks
   assert.ok(b)
   return b
+}
+
+/** `n` generated eight-character lines: list markers, digits, spaces, line separators. */
+function generatedLines(n: number): string[] {
+  const alphabet = [' ', ' ', '\t', '-', '+', '1', '.', ')', 'a', '\u2028', '\u00a0']
+  const out: string[] = []
+  let seed = 7
+  for (let k = 0; k < n * 8; k += 1) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (k % 8 === 0) out.push('')
+    out[out.length - 1] += alphabet[seed % alphabet.length] ?? ''
+  }
+  return out.filter((line) => !/^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line) && !/^\s*$/.test(line))
+}
+
+/** A one-line report's first item text, or null when it is not a list. */
+function itemText(line: string): string | null {
+  const b = parseMarkdown(line).blocks[0]
+  return b?.kind === 'list' ? plain(b.items[0]?.children ?? []) : null
+}
+
+/** A line's item text as the pattern the parser used read it. */
+function oldItem(line: string): string | null {
+  const m = /^(\s*)([-*+]|(\d{1,9})[.)])\s+(.*)$/.exec(line)
+  return m ? (m[4] ?? '') : null
 }
 
 describe('the report Markdown parser', () => {
@@ -260,6 +288,113 @@ describe('the report Markdown parser', () => {
       '<br>',
       'e\t f',
     ])
+  })
+
+  it('finds each emphasis closer once, so openers that never close take linear time (a draft may hold 256 KiB)', () => {
+    // Each `_` after an `_` opens, and every later `__` is skipped as a double: none of them closes.
+    assert.ok(timed('a__'.repeat((64 * 1024) / 3)) < 1000, '64 KiB of a__')
+    assert.ok(timed('a__'.repeat((256 * 1024) / 3)) < 1000, '256 KiB of a__')
+    assert.ok(timed('see foo__bar here '.repeat((256 * 1024) / 18)) < 1000, '256 KiB of foo__bar in prose')
+    assert.ok(timed('*a **b `c` '.repeat((256 * 1024) / 11)) < 1000, '256 KiB of stars and code spans')
+    assert.deepEqual(shape('a__b__c *d* __e__'), ['a__b__c ', { em: ['d'] }, ' ', { strong: ['e'] }])
+    assert.deepEqual(shape('_x foo__bar y_'), [{ em: ['x foo__bar y'] }])
+    assert.deepEqual(shape('*a **b** c*'), [{ em: ['a ', { strong: ['b'] }, ' c'] }])
+    assert.deepEqual(shape('see foo__bar and _this_ here'), ['see foo_', { em: ['bar and '] }, 'this_ here'])
+    assert.deepEqual(shape('`a__b` *c `*` d*'), ['a__b', ' ', { em: ['c ', '*', ' d'] }])
+  })
+
+  it('reads an autolink up to the next <, so a run of them before one > takes linear time', () => {
+    assert.ok(timed(`${'<'.repeat(64 * 1024)}>`) < 1000, '64 KiB of < and one >')
+    assert.ok(timed(`${'<'.repeat(256 * 1024)}>`) < 1000, '256 KiB of < and one >')
+    assert.ok(timed(`${'<http://'.repeat((256 * 1024) / 8)}>`) < 1000, '256 KiB of <http:// and one >')
+    assert.deepEqual(shape('<<https://b.example/>'), [
+      '<',
+      { link: 'https://b.example/', label: ['https://b.example/'] },
+    ])
+    assert.deepEqual(shape('<https://x.example/a<b>'), ['<https://x.example/a<b>'])
+  })
+
+  it('reads a heading and a table’s delimiter row in linear time, however many spaces they hold', () => {
+    assert.ok(timed(`# a${spaces(2)}b`) < 250, 'a heading with 2 KiB of spaces')
+    assert.ok(timed(`# a${spaces(256)}b`) < 1000, 'a heading with 256 KiB of spaces')
+    assert.ok(timed(`a\n## b${spaces(256)}c #`) < 1000, 'a heading under a paragraph')
+    const compared = (k: number) => {
+      const t = performance.now()
+      compareSections(`# a${spaces(k)}b`, `# a${spaces(k)}c`)
+      return performance.now() - t
+    }
+    assert.ok(compared(2) < 250, 'the sections of two versions with such a heading, 2 KiB of spaces')
+    assert.ok(compared(256) < 1000, 'the sections of two versions with such a heading, 256 KiB of spaces')
+    assert.ok(timed(`a|b\n${spaces(64)}|x`) < 1000, 'a row under a pipe, 64 KiB of spaces then text')
+    assert.ok(timed(`a|b\n|-${spaces(256)}x|`) < 1000, 'a row under a pipe, 256 KiB of spaces in it')
+    const headings = parseMarkdown('# Title ##\n## a #b\n#   \n# a\u2028b\n####### x\n## x \u2028').blocks
+    assert.deepEqual(
+      headings.map((b) => (b.kind === 'heading' ? `${b.level}:${plain(b.children)}` : b.kind)),
+      ['1:Title', '2:a #b', 'paragraph', '2:x'],
+    )
+    assert.deepEqual(
+      sectionsOf('# Title ##\n\t# Tabbed #\nbody').map((x) => x.heading),
+      ['Title', 'Tabbed'],
+    )
+    assert.equal(only('a|b\n| :- | -: |\n|c|d|').kind, 'table')
+    assert.equal(only('a|b\n|- x|').kind, 'paragraph')
+  })
+
+  it('reads a list item and a citation’s marker label in linear time, however many spaces they hold', () => {
+    for (const [k, limit] of [
+      [2, 250],
+      [256, 1000],
+    ] as const) {
+      assert.ok(timed(`- ${spaces(k)}a\u2028b`) < limit, `an item with ${k} KiB of spaces and a U+2028`)
+      assert.ok(timed(`1. ${spaces(k)}a\u2029b`) < limit, `an ordered item with ${k} KiB of spaces and a U+2029`)
+      assert.ok(timed(`p\n- ${spaces(k)}a\u2028b`) < limit, `such an item under a paragraph, ${k} KiB`)
+      assert.ok(timed(`[${spaces(k)}x](${A})`) < limit, `a citing link's label of ${k} KiB of spaces`)
+    }
+    assert.deepEqual(parseMarkdown(`[ 1 ](${A}) [ ^2 ](${B}) [  ](${A})`).citations, [A, B])
+    assert.equal(plain((only(`[ 1 ](${A}) [ [2] ](${B})`) as { children: Inline[] }).children), '[1] [2]')
+    // The same lines are items as the pattern the parser used read them, on generated lines.
+    for (const line of generatedLines(4000)) assert.equal(itemText(line), oldItem(line), JSON.stringify(line))
+  })
+
+  it('numbers a link to a ref written with a space after its prefix, as the bracketed form numbers it', () => {
+    const { blocks, citations } = parseMarkdown(
+      `Claim [1](source: ${A}). More [2](input: ${B}#1), [x](<search:\t${A}#2> "t"). Bracketed [source: ${B}].`,
+    )
+    assert.deepEqual(citations, [A, B])
+    assert.ok(blocks[0]?.kind === 'paragraph')
+    assert.equal(plain(blocks[0].children), 'Claim [1]. More [2], x[1]. Bracketed [2].')
+    assert.ok(!JSON.stringify(blocks).includes('"link"'))
+    // A space after the `<` is not a ref, as the service reads it (0036 markdown_citing_text); nor an uncited source.
+    assert.deepEqual(parseMarkdown(`See [1](< ${A}).`).citations, [])
+    assert.deepEqual(parseMarkdown(`See [1](source: ${A}).`, { citable: [] }).citations, [])
+  })
+
+  it('reads link spaces as the service does, ASCII only, so a no-break space or U+FEFF does not cite', () => {
+    for (const md of [
+      `[1](source:\u00a0${A})`,
+      `[1](source:\ufeff${A})`,
+      `[1](<${A}>\u00a0"t")`,
+      `[1](\u00a0${A})`,
+      `[1](${A}\u3000)`,
+    ]) {
+      assert.deepEqual(parseMarkdown(`Claim ${md}.`).citations, [], JSON.stringify(md))
+    }
+    assert.deepEqual(parseMarkdown(`Claim [1](\t${A} ), [2](<source:\t${B}>\t"t").`).citations, [A, B])
+  })
+
+  it('cites nothing in a span that opens like an autolink and holds a <, as the service blanks it', () => {
+    assert.deepEqual(parseMarkdown(`See <https://x.example/a<${A}> here.`).citations, [])
+    assert.deepEqual(parseMarkdown(`Open <HTTPS://app.example/s/<${A}>> or <mailto:a<${B}>.`).citations, [])
+    assert.deepEqual(shape(`See <https://x.example/a<${A}> here.`), ['See ', `<https://x.example/a<${A}>`, ' here.'])
+    assert.deepEqual(shape('<https://a <https://b.example/>'), ['<https://a <https://b.example/>'])
+    assert.deepEqual(shape(`<x <https://b.example/> ${A}`), [
+      '<x ',
+      { link: 'https://b.example/', label: ['https://b.example/'] },
+      ' ',
+      '[1]',
+    ])
+    assert.ok(timed('<http://'.repeat((256 * 1024) / 8)) < 1000, '256 KiB of <http:// and no >')
+    assert.ok(timed(`${'<https://a<'.repeat((256 * 1024) / 11)}>`) < 1000, '256 KiB of <https://a< and one >')
   })
 
   it('ends a link target on its own parenthesis, those inside it balanced, and never past its line', () => {
