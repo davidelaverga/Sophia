@@ -749,3 +749,24 @@ describe('the guide’s v1.2 research operations over /v1/media/tool-calls (S6)'
     assert.deepEqual([hold.status, hold.output.code], ['refused', 'invalid_state'], 'v1.1’s controls reach the work')
   })
 })
+
+// Last: it takes a function of 0036 away for a moment.
+describe('readiness (0036)', () => {
+  it('fails while the submit cannot cite what its draft cites', async () => {
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    const ready = async (): Promise<unknown[]> => {
+      const res = await call('/ready')
+      return [res.status, res.json as unknown]
+    }
+    assert.deepEqual(await ready(), [200, { ready: true }])
+    await owner.query('ALTER FUNCTION sophia.research_draft_citations(sophia.research_scope,jsonb) RENAME TO away')
+    try {
+      assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'a schema without 0036')
+    } finally {
+      await owner.query('ALTER FUNCTION sophia.away(sophia.research_scope,jsonb) RENAME TO research_draft_citations')
+      await owner.end()
+    }
+    assert.deepEqual(await ready(), [200, { ready: true }])
+  })
+})
