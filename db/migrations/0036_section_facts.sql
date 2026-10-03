@@ -40,31 +40,40 @@ REVOKE ALL ON FUNCTION sophia.heading_anchor(text) FROM PUBLIC;
 
 -- A Markdown text as sections, split exactly as markdown_sections (0027) splits it, each with its heading path: '' for
 -- the text before the first heading, else '/' and the anchors of the headings it sits under (by level) and its own.
+-- A heading reads as 0027's '^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$' reads it, in one pass: that pattern tried every split of
+-- a run of spaces (a heading with 256 KiB of them took minutes), so the opening is matched alone and the closing #s and
+-- the spaces around them are cut from the end. A body is joined once: grown a line at a time, it was copied every line.
 CREATE FUNCTION sophia.markdown_outline(p_text text)
 RETURNS TABLE(ord integer, anchor text, heading text, body_hash text, path text)
 LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
-DECLARE line text; fenced boolean:=false; cur_heading text:=NULL; cur_anchor text:=''; cur_path text:=''; cur_body text:='';
- n integer:=0; m text[]; levels integer[]:='{}'; anchors text[]:='{}'; k integer;
+DECLARE line text; fenced boolean:=false; cur_heading text:=NULL; cur_anchor text:=''; cur_path text:=''; body text[]:='{}';
+ cur_body text; n integer:=0; m text[]; title text; levels integer[]:='{}'; anchors text[]:='{}'; k integer;
 BEGIN
  FOREACH line IN ARRAY regexp_split_to_array(coalesce(p_text,''),E'\r?\n') LOOP
   IF line ~ '^\s{0,3}(```|~~~)' THEN fenced:=NOT fenced; END IF;
-  m:=CASE WHEN fenced THEN NULL ELSE regexp_match(line,'^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$') END;
-  IF m IS NOT NULL AND btrim(m[2])<>'' THEN
+  m:=CASE WHEN fenced THEN NULL ELSE regexp_match(line,'^(\s{0,3}(#{1,6})\s+)') END;
+  IF m IS NOT NULL THEN
+   title:=substr(line,length(m[1])+1);
+   title:=left(title,length(title)-length(substring(reverse(title) FROM '^\s*#*\s*')));
+  END IF;
+  IF m IS NOT NULL AND btrim(title)<>'' THEN
+   cur_body:=CASE WHEN cardinality(body)=0 THEN '' ELSE array_to_string(body,E'\n')||E'\n' END;
    IF cur_heading IS NOT NULL OR btrim(cur_body)<>'' THEN
     ord:=n; anchor:=cur_anchor; heading:=cur_heading; path:=cur_path;
     body_hash:=encode(sha256(convert_to(btrim(regexp_replace(cur_body,'\s+',' ','g')),'UTF8')),'hex');
     RETURN NEXT; n:=n+1;
    END IF;
-   cur_heading:=btrim(m[2]); cur_body:='';
+   cur_heading:=btrim(title); body:='{}';
    cur_anchor:=sophia.heading_anchor(cur_heading);
    k:=cardinality(levels);
-   WHILE k>0 AND levels[k]>=length(m[1]) LOOP k:=k-1; END LOOP;
-   levels:=levels[1:k]||length(m[1]); anchors:=anchors[1:k]||cur_anchor;
+   WHILE k>0 AND levels[k]>=length(m[2]) LOOP k:=k-1; END LOOP;
+   levels:=levels[1:k]||length(m[2]); anchors:=anchors[1:k]||cur_anchor;
    cur_path:='/'||array_to_string(anchors,'/');
   ELSE
-   cur_body:=cur_body||line||E'\n';
+   body:=body||line;
   END IF;
  END LOOP;
+ cur_body:=CASE WHEN cardinality(body)=0 THEN '' ELSE array_to_string(body,E'\n')||E'\n' END;
  IF cur_heading IS NOT NULL OR btrim(cur_body)<>'' THEN
   ord:=n; anchor:=cur_anchor; heading:=cur_heading; path:=cur_path;
   body_hash:=encode(sha256(convert_to(btrim(regexp_replace(cur_body,'\s+',' ','g')),'UTF8')),'hex');

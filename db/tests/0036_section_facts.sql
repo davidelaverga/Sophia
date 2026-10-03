@@ -12,6 +12,28 @@ BEGIN
    <>ARRAY['','/hosts','/hosts/costs','/hosts/costs/','/hosts/costs//c-notes','/hosts/pros'] THEN
   RAISE EXCEPTION 'Heading paths wrong: %',(SELECT array_agg(path ORDER BY ord) FROM sophia.markdown_outline(t)); END IF;
 END $$;
+-- markdown_outline reads a heading as 0027's pattern does, on shapes and on 3000 generated texts (closing #s, tabs, line
+-- separators, fences), and in one pass: a heading with 256 KiB of spaces, or 128K short lines, take well under a second.
+DO $$ DECLARE t text; started timestamptz;
+BEGIN
+ FOR t IN SELECT x FROM unnest(ARRAY[E'# Title ##\n## a #b\n#   \n# a'||chr(8232)||E'b\n####### x\n## x \t#  \n#\t#\n# #a#',
+   E'# a'||repeat(' ',300)||E'b\n## c'||repeat(' ',300)||'#'||repeat(' ',300)]) x
+  UNION ALL SELECT (SELECT string_agg((ARRAY[' ','#','a',E'\t',E'\n','#',' ','b',chr(8232),E'\r','`','~',chr(160),'##'])
+    [1+(('x'||substr(md5(i||'-'||j),1,4))::bit(16)::int % 14)],'') FROM generate_series(1,40) j) FROM generate_series(1,3000) i LOOP
+  IF EXISTS((SELECT ord,anchor,heading,body_hash FROM sophia.markdown_sections(t)) EXCEPT ALL
+    (SELECT ord,anchor,heading,body_hash FROM sophia.markdown_outline(t)))
+   OR (SELECT count(*) FROM sophia.markdown_outline(t))<>(SELECT count(*) FROM sophia.markdown_sections(t)) THEN
+   RAISE EXCEPTION 'markdown_outline reads % differently from markdown_sections',quote_literal(t); END IF;
+ END LOOP;
+ started:=clock_timestamp();
+ IF (SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(E'# a'||repeat(' ',262144)||E'b\n## c'||repeat(' ',262144)||'#  '))
+   <>ARRAY['a'||repeat(' ',262144)||'b','c'] THEN RAISE EXCEPTION 'A heading with 256 KiB of spaces read wrong'; END IF;
+ IF clock_timestamp()-started>interval '1 second' THEN
+  RAISE EXCEPTION 'A heading with 256 KiB of spaces took %',clock_timestamp()-started; END IF;
+ started:=clock_timestamp();
+ PERFORM sophia.markdown_outline(repeat(E'x\n',131072));
+ IF clock_timestamp()-started>interval '1 second' THEN RAISE EXCEPTION '128K short lines took %',clock_timestamp()-started; END IF;
+END $$;
 -- A repeated subheading is one section per occurrence: identical texts have no change, one edit is one revision, and a
 -- new option's Pros (inserted between A and B) is added. Each section is counted once on each side.
 DO $$ DECLARE
@@ -243,6 +265,11 @@ BEGIN
   '33333333-3333-4333-8333-333333333333'));
  IF position(a IN t)=0 OR position(b IN t)=0 OR position('33333333' IN t)>0 THEN
   RAISE EXCEPTION 'A spaced ref link reads differently from the parser: %',t; END IF;
+ -- Neither cites an id in an autolink-shaped span that holds a `<`, nor after a space Postgres does not read as one (a
+ -- no-break space, U+FEFF): the parser reads link spaces as ASCII and leaves `<https:…>` uncited, as here.
+ t:=sophia.markdown_citing_text(format('See <https://x.example/a<%s> here. [1](source:%s%s) [2](source:%s%s) [3](<%s>%s"t") [4](%s%s)',
+  a,chr(160),b,chr(65279),b,b,chr(160),chr(160),b));
+ IF t ~ '[0-9a-f]{8}-' THEN RAISE EXCEPTION 'An id the parser leaves uncited was kept: %',t; END IF;
 END $$;
 -- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.

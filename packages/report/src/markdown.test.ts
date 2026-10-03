@@ -64,6 +64,31 @@ const only = (md: string): Block => {
   return b
 }
 
+/** `n` generated eight-character lines: list markers, digits, spaces, line separators. */
+function generatedLines(n: number): string[] {
+  const alphabet = [' ', ' ', '\t', '-', '+', '1', '.', ')', 'a', '\u2028', '\u00a0']
+  const out: string[] = []
+  let seed = 7
+  for (let k = 0; k < n * 8; k += 1) {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    if (k % 8 === 0) out.push('')
+    out[out.length - 1] += alphabet[seed % alphabet.length] ?? ''
+  }
+  return out.filter((line) => !/^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line) && !/^\s*$/.test(line))
+}
+
+/** A one-line report's first item text, or null when it is not a list. */
+function itemText(line: string): string | null {
+  const b = parseMarkdown(line).blocks[0]
+  return b?.kind === 'list' ? plain(b.items[0]?.children ?? []) : null
+}
+
+/** A line's item text as the pattern the parser used read it. */
+function oldItem(line: string): string | null {
+  const m = /^(\s*)([-*+]|(\d{1,9})[.)])\s+(.*)$/.exec(line)
+  return m ? (m[4] ?? '') : null
+}
+
 describe('the report Markdown parser', () => {
   it('reads headings, paragraphs, lists, quotes, rules, code and tables, in order', () => {
     const { blocks } = parseMarkdown(
@@ -315,6 +340,22 @@ describe('the report Markdown parser', () => {
     assert.equal(only('a|b\n|- x|').kind, 'paragraph')
   })
 
+  it('reads a list item and a citation’s marker label in linear time, however many spaces they hold', () => {
+    for (const [k, limit] of [
+      [2, 250],
+      [256, 1000],
+    ] as const) {
+      assert.ok(timed(`- ${spaces(k)}a\u2028b`) < limit, `an item with ${k} KiB of spaces and a U+2028`)
+      assert.ok(timed(`1. ${spaces(k)}a\u2029b`) < limit, `an ordered item with ${k} KiB of spaces and a U+2029`)
+      assert.ok(timed(`p\n- ${spaces(k)}a\u2028b`) < limit, `such an item under a paragraph, ${k} KiB`)
+      assert.ok(timed(`[${spaces(k)}x](${A})`) < limit, `a citing link's label of ${k} KiB of spaces`)
+    }
+    assert.deepEqual(parseMarkdown(`[ 1 ](${A}) [ ^2 ](${B}) [  ](${A})`).citations, [A, B])
+    assert.equal(plain((only(`[ 1 ](${A}) [ [2] ](${B})`) as { children: Inline[] }).children), '[1] [2]')
+    // The same lines are items as the pattern the parser used read them, on generated lines.
+    for (const line of generatedLines(4000)) assert.equal(itemText(line), oldItem(line), JSON.stringify(line))
+  })
+
   it('numbers a link to a ref written with a space after its prefix, as the bracketed form numbers it', () => {
     const { blocks, citations } = parseMarkdown(
       `Claim [1](source: ${A}). More [2](input: ${B}#1), [x](<search:\t${A}#2> "t"). Bracketed [source: ${B}].`,
@@ -326,6 +367,34 @@ describe('the report Markdown parser', () => {
     // A space after the `<` is not a ref, as the service reads it (0036 markdown_citing_text); nor an uncited source.
     assert.deepEqual(parseMarkdown(`See [1](< ${A}).`).citations, [])
     assert.deepEqual(parseMarkdown(`See [1](source: ${A}).`, { citable: [] }).citations, [])
+  })
+
+  it('reads link spaces as the service does, ASCII only, so a no-break space or U+FEFF does not cite', () => {
+    for (const md of [
+      `[1](source:\u00a0${A})`,
+      `[1](source:\ufeff${A})`,
+      `[1](<${A}>\u00a0"t")`,
+      `[1](\u00a0${A})`,
+      `[1](${A}\u3000)`,
+    ]) {
+      assert.deepEqual(parseMarkdown(`Claim ${md}.`).citations, [], JSON.stringify(md))
+    }
+    assert.deepEqual(parseMarkdown(`Claim [1](\t${A} ), [2](<source:\t${B}>\t"t").`).citations, [A, B])
+  })
+
+  it('cites nothing in a span that opens like an autolink and holds a <, as the service blanks it', () => {
+    assert.deepEqual(parseMarkdown(`See <https://x.example/a<${A}> here.`).citations, [])
+    assert.deepEqual(parseMarkdown(`Open <HTTPS://app.example/s/<${A}>> or <mailto:a<${B}>.`).citations, [])
+    assert.deepEqual(shape(`See <https://x.example/a<${A}> here.`), ['See ', `<https://x.example/a<${A}>`, ' here.'])
+    assert.deepEqual(shape('<https://a <https://b.example/>'), ['<https://a <https://b.example/>'])
+    assert.deepEqual(shape(`<x <https://b.example/> ${A}`), [
+      '<x ',
+      { link: 'https://b.example/', label: ['https://b.example/'] },
+      ' ',
+      '[1]',
+    ])
+    assert.ok(timed('<http://'.repeat((256 * 1024) / 8)) < 1000, '256 KiB of <http:// and no >')
+    assert.ok(timed(`${'<https://a<'.repeat((256 * 1024) / 11)}>`) < 1000, '256 KiB of <https://a< and one >')
   })
 
   it('ends a link target on its own parenthesis, those inside it balanced, and never past its line', () => {

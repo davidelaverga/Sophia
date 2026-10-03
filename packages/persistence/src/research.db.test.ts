@@ -1479,6 +1479,8 @@ describe('report facts, each section once (0036)', () => {
       [log, `${log}## Update\nThu.\n`],
       [log, log.replace('# Log', '# Journal')],
       [OPTIONS, OPTIONS_V2.replace('# Options', '# Options, with C').replace('Cheap and simple.', 'Cheap.')],
+      // Headings read in one pass on both sides: closing #s, a # in the text, a long run of spaces.
+      [`# T\n## a${' '.repeat(4096)}b ##\nx\n`, `# T\n## a${' '.repeat(4096)}b ##\ny\n## c #d #  \nz\n`],
     ]
     for (const [was, now] of cases) {
       const row = await one<{ f: unknown }>(`SELECT sophia.section_facts($1,$2) AS f`, [was, now])
