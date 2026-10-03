@@ -1,0 +1,291 @@
+-- 0037: an amendment's notes account for every section it removed, notes written from the facts keep whole headings,
+-- and every research task's statement asks it to keep the request's stated shape. Run by pnpm test:sql after every
+-- migration; it rolls back. (Seeding, the update brief and publication are checked end to end in
+-- packages/persistence/src/research.db.test.ts.)
+BEGIN;
+-- How a cost grows, as 0036_section_facts.sql times it (a test file is its own transaction, so it is defined again
+-- here): p_query (its %s the size) at p_n and at 4 times p_n, in turns, the least of each kept, failing when the larger
+-- took p_limit times as long, or, with p_max_ms, longer than that.
+CREATE FUNCTION pg_temp.assert_linear(p_label text, p_query text, p_n integer, p_limit float8 DEFAULT 8, p_max_ms float8 DEFAULT NULL)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE small float8:='Infinity'; large float8:='Infinity'; started timestamptz; ratio float8; turns integer:=0;
+ report text;
+BEGIN
+ EXECUTE format(p_query,p_n);
+ WHILE turns<7 LOOP
+  turns:=turns+1; started:=clock_timestamp(); EXECUTE format(p_query,p_n);
+  small:=least(small,1000*extract(epoch FROM clock_timestamp()-started));
+  started:=clock_timestamp(); EXECUTE format(p_query,4*p_n);
+  large:=least(large,1000*extract(epoch FROM clock_timestamp()-started));
+  ratio:=large/greatest(small,5);
+  EXIT WHEN turns>=3 AND ratio<p_limit AND large<coalesce(p_max_ms,'Infinity');
+ END LOOP;
+ report:=format('%s: 4 times the input took %s times as long (%s ms, then %s ms), limit %s, %s turns',p_label,
+  round(ratio::numeric,1),round(small::numeric,1),round(large::numeric,1),p_limit,turns);
+ IF current_setting('sophia.growth_log',true)='on' THEN RAISE NOTICE 'growth: %',report; END IF;
+ IF ratio>=p_limit OR large>=coalesce(p_max_ms,'Infinity') THEN RAISE EXCEPTION '% (at most % ms)',report,p_max_ms; END IF;
+END $$;
+
+-- The CX-0026 report and its amendment, as the pilot published them: a title and seven sections (a table, the
+-- recommendations among them), then the title, new recommendations and a list of sources. Every note that keeps quiet
+-- about the six sections it removed (the recommendations were rewritten, a rename), or claims them kept, is refused,
+-- and every removed section is accounted for in the problems. Under 0036 each of these notes was published ({}).
+CREATE TEMP TABLE pilot ON COMMIT DROP AS SELECT x.v1, sophia.section_facts(x.v1,x.v2) AS f FROM (SELECT
+ E'# USB-C fast charging for phones\n\n## Summary\nS.\n\n## Compatibility and standards\nC.\n\n## Charging speed in practice\nX.\n\n'
+ ||E'## Product claims vs. evidence\nP.\n\n## Comparison table\n| Phone | Watts |\n|---|---|\n| A | 25 |\n\n## Recommendations for buyers\nR.\n\n'
+ ||E'## Limitations of this review\nL.\n' AS v1,
+ E'# USB-C fast charging for phones\n\n## Revised recommendations\nR2.\n\n## Sources\n[1](x)\n' AS v2) x;
+DO $$ DECLARE f jsonb:=(SELECT f FROM pilot); bad text;
+ quiet text[]:=ARRAY['Summary','Compatibility and standards','Charging speed in practice','Product claims vs. evidence','Comparison table',
+  'Limitations of this review'];
+BEGIN
+ IF f<>'{"added":["Revised recommendations","Sources"],"revised":[],"removed":["Summary","Compatibility and standards",'
+   '"Charging speed in practice","Product claims vs. evidence","Comparison table","Recommendations for buyers","Limitations of this review"],'
+   '"unchanged":["USB-C fast charging for phones"],"conclusionChanged":true}' THEN
+  RAISE EXCEPTION 'The pilot''s facts changed: %',f; END IF;
+ SELECT string_agg(format('%s | %s => %s',x.change,coalesce(x.kept,'-'),sophia.note_problems(x.change,x.kept,f)),E'\n') INTO bad FROM (VALUES
+  ('Revised only the recommendations section; the remainder of the report is unchanged.',
+   'Compatibility, charging, product claims and limitations are retained unchanged.'),
+  ('Revised only the recommendations section; the remainder of the report is unchanged.',NULL),
+  ('Rewrote the recommendations.','The remaining sections are unchanged.'),
+  ('Rewrote the recommendations.','Other sections unchanged.'),
+  ('Rewrote the recommendations.','Remaining content preserved.'),
+  ('Rewrote the recommendations.','Original text preserved.'),
+  ('Rewrote the recommendations.','The v1 text stays.'),
+  ('Rewrote the text of the recommendations; the rest is unchanged.',NULL),
+  ('Replaced the text of the recommendations section; everything else is unchanged.',NULL),
+  ('Revised the recommendations and replaced the sources with the previous report.',NULL),
+  ('Only the recommendations changed.',NULL),
+  ('Everything is unchanged except the recommendations.',NULL),
+  ('Recommendations revised; the comparison table is unchanged.',NULL),
+  ('Recommendations revised.','Everything else is retained.'),
+  ('Recommendations revised.',NULL),
+  ('Updated the recommendations.','The comparison table and summary.'),
+  ('Expanded recommendations with a budget option; nothing else changed.',NULL),
+  ('Recommendations updated; all other sections kept.',NULL)) x(change,kept)
+  WHERE cardinality(sophia.note_problems(x.change,x.kept,f))=0
+   OR EXISTS(SELECT 1 FROM unnest(quiet) h WHERE NOT EXISTS(SELECT 1 FROM unnest(sophia.note_problems(x.change,x.kept,f)) p
+    WHERE strpos(p,'"'||h||'"')>0))
+   OR EXISTS(SELECT 1 FROM unnest(sophia.note_problems(x.change,x.kept,f)) p WHERE strpos(p,'Recommendations for buyers')>0);
+ IF bad IS NOT NULL THEN RAISE EXCEPTION E'A false note was published, or a removal left unnamed:\n%',bad; END IF;
+ -- How each kind is said: a claim that the rest was kept, silence, a removed section called unchanged or kept. The
+ -- recommendations, renamed, are no removal even where no note names them.
+ SELECT string_agg(format('%s | %s => %s',x.change,coalesce(x.kept,'-'),sophia.note_problems(x.change,x.kept,f)),E'\n') INTO bad FROM (VALUES
+  ('Revised only the recommendations section; the remainder of the report is unchanged.',NULL,ARRAY[
+   'The notes say the rest of the report was kept, but 6 sections were removed: "Summary", "Compatibility and standards", '
+   ||'"Charging speed in practice", "Product claims vs. evidence", "Comparison table", "Limitations of this review".']),
+  ('Recommendations revised.',NULL,ARRAY['The notes do not say that 6 sections were removed: "Summary", "Compatibility and standards", '
+   ||'"Charging speed in practice", "Product claims vs. evidence", "Comparison table", "Limitations of this review".']),
+  ('Rewrote it as asked.',NULL,ARRAY['The notes do not say that 6 sections were removed: "Summary", "Compatibility and standards", '
+   ||'"Charging speed in practice", "Product claims vs. evidence", "Comparison table", "Limitations of this review".']),
+  ('Recommendations revised; the comparison table is unchanged.',NULL,ARRAY[
+   'The change note calls "Comparison table" unchanged, but it was removed.',
+   'The notes do not say that 5 sections were removed: "Summary", "Compatibility and standards", "Charging speed in practice", '
+   ||'"Product claims vs. evidence", "Limitations of this review".']),
+  ('Revised only the recommendations section; the remainder of the report is unchanged.',
+   'Compatibility, charging, product claims and limitations are retained unchanged.',ARRAY[
+   'The kept note names "Compatibility and standards", which was removed.','The kept note names "Product claims vs. evidence", which was removed.',
+   'The kept note names "Limitations of this review", which was removed.',
+   'The notes say the rest of the report was kept, but 3 sections were removed: "Summary", "Charging speed in practice", "Comparison table".'])
+  ) x(change,kept,want)
+  WHERE sophia.note_problems(x.change,x.kept,f)<>x.want;
+ IF bad IS NOT NULL THEN RAISE EXCEPTION E'A refusal is worded otherwise:\n%',bad; END IF;
+ -- An amendment whose base the task can read is also told where to restore them from.
+ IF sophia.amendment_note_problems('Recommendations revised.',NULL,f,
+   '{"renamed":[],"disclose":true,"baseVersion":1,"baseSourceId":"37000000-0000-0000-0000-000000000001"}')<>ARRAY[
+   'The notes do not say that 6 sections were removed: "Summary", "Compatibility and standards", "Charging speed in practice", '
+   ||'"Product claims vs. evidence", "Comparison table", "Limitations of this review".',
+   'research_write_draft replaces the whole report, so what your draft leaves out is deleted. If the request did not ask to remove '
+   ||'these sections, restore them from version 1 (sourceId 37000000-0000-0000-0000-000000000001) and submit again; if it did, name '
+   ||'them in changeNote.'] THEN
+  RAISE EXCEPTION 'No restore problem: %',sophia.amendment_note_problems('Recommendations revised.',NULL,f,
+   '{"renamed":[],"disclose":true,"baseVersion":1,"baseSourceId":"37000000-0000-0000-0000-000000000001"}'); END IF;
+END $$;
+
+-- Honest notes are published: removals disclosed by name, by a key word, wholesale or by a count; revisions under
+-- "the rest is unchanged" (subsections too: the facts have no paths); a dropped table with the rest kept; renames.
+DO $$ DECLARE f jsonb:=(SELECT f FROM pilot); v1 text:=(SELECT v1 FROM pilot); bad text; recs jsonb; sub jsonb; tab jsonb;
+BEGIN
+ recs:=sophia.section_facts(v1,replace(replace(v1,E'\nR.\n',E'\nR, and a budget pick.\n'),E'\nS.\n',E'\nS, shorter.\n'));
+ sub:=sophia.section_facts(replace(v1,E'\nR.\n',E'\n### For iPhone users\nI.\n\n### For Android users\nA.\n'),
+  replace(v1,E'\nR.\n',E'\n### For iPhone users\nI, MagSafe.\n\n### For Android users\nA, PPS.\n'));
+ tab:=sophia.section_facts(v1,replace(replace(v1,E'## Comparison table\n| Phone | Watts |\n|---|---|\n| A | 25 |\n\n',''),E'\nR.\n',E'\nR2.\n'));
+ IF sub->'revised'<>'["For iPhone users","For Android users"]' OR sub->'removed'<>'[]' OR tab->'removed'<>'["Comparison table"]' THEN
+  RAISE EXCEPTION 'Unexpected facts: % %',sub,tab; END IF;
+ SELECT string_agg(format('%s | %s => %s',x.change,coalesce(x.kept,'-'),sophia.note_problems(x.change,x.kept,x.facts)),E'\n') INTO bad FROM (VALUES
+  (f,'Rewrote the report as recommendations only, as asked; removed the other sections.',NULL),
+  (f,'Recommendations revised; 6 sections removed.',NULL),
+  (f,'Recommendations rewritten; removed summary, compatibility, charging, product claims, comparison table and limitations.',NULL),
+  (f,'Updated the recommendations.','Only the title is kept; the other sections were dropped as asked.'),
+  (f,'Updated the recommendations.','Dropped everything else as requested.'),
+  (f,'Recommendations-only version as requested.','The title; nothing else was kept.'),
+  (f,'Replaced the whole report with revised recommendations and sources.',NULL),
+  (f,'Removed the summary, compatibility, charging, product claims, comparison table and limitations sections.',NULL),
+  (recs,'Recommendations expanded; conclusion unchanged.',NULL),
+  (recs,'Recommendations expanded; the rest is unchanged.',NULL),
+  (recs,'Only the recommendations and the summary changed.',NULL),
+  (sub,'Recommendations expanded; the rest is unchanged.',NULL),
+  (sub,'Only the recommendations changed.',NULL),
+  (tab,'Removed the comparison table.','The rest is unchanged.'),
+  (tab,'Removed the old comparison table, everything else is unchanged.',NULL),
+  (tab,'Dropped the table.','All other sections are kept.')) x(facts,change,kept)
+  WHERE cardinality(sophia.note_problems(x.change,x.kept,x.facts))<>0;
+ IF bad IS NOT NULL THEN RAISE EXCEPTION E'An honest note was refused:\n%',bad; END IF;
+ -- Its kept note naming the removed table, or a note keeping quiet about it, is still refused.
+ IF sophia.note_problems('Revised the recommendations.','The rest is unchanged.',tab)
+   <>ARRAY['The notes say the rest of the report was kept, but 1 section was removed: "Comparison table".']
+  OR sophia.note_problems('Revised the recommendations; the comparison table is unchanged.',NULL,tab)
+   <>ARRAY['The change note calls "Comparison table" unchanged, but it was removed.'] THEN
+  RAISE EXCEPTION 'A note about the dropped table was published'; END IF;
+ -- A renamed title is a removal for the bare gate; research_publish passes it in as renamed (the only outermost heading
+ -- on each side), and then nothing is refused. A rebuild that never read its base is not asked to disclose (0036's
+ -- rules and a removed section called kept still hold).
+ IF sophia.note_problems('Added the costs.','The host list.',sophia.section_facts('# V1','# V2'))
+   <>ARRAY['The notes do not say that 1 section was removed: "V1".']
+  OR cardinality(sophia.amendment_note_problems('Added the costs.','The host list.',sophia.section_facts('# V1','# V2'),'{"renamed":["V1"]}'))<>0
+  OR cardinality(sophia.amendment_note_problems('Added the costs.','The host list.',sophia.section_facts(E'# Hosts\nA.\n',E'# Costs\nB.\n'),
+   '{"renamed":["Hosts"],"disclose":false}'))<>0
+  OR sophia.amendment_note_problems('Added the costs.','The host list.',sophia.section_facts(E'# Hosts\nA.\n',E'# Costs\nB.\n'),'{"disclose":false}')
+   <>ARRAY['The kept note names "Hosts", which was removed.']
+  OR cardinality(sophia.amendment_note_problems('Added the costs.',NULL,sophia.section_facts(E'# Hosts\nA.\n',E'# Costs\nB.\n'),
+   '{"disclose":false,"baseVersion":1,"baseSourceId":"x"}'))<>0 THEN
+  RAISE EXCEPTION 'Renames or a rebuild without its base misjudged'; END IF;
+END $$;
+
+-- The submission contract holds whatever the facts: 25 removed headings of 2,000 characters give at most 20 distinct
+-- problems of at most 300 characters, each called kept by a word of its own, left unnamed, called unchanged, or named
+-- in full; so does a list of 2,000 removed headings, which also names where to restore them from.
+DO $$ DECLARE o text; n text; bad text; f jsonb; many jsonb;
+ ctx jsonb:='{"disclose":true,"baseVersion":12345,"baseSourceId":"37000000-0000-0000-0000-000000000001"}';
+BEGIN
+ SELECT string_agg(format(E'## Topic%s %s\nx\n',chr(97+i),repeat('alpha ',333)),E'\n'), string_agg(format('topic%s',chr(97+i)),', ')
+  INTO o, n FROM generate_series(0,24) i;
+ f:=sophia.section_facts(o,E'## Rest\ny\n');
+ many:=sophia.section_facts((SELECT string_agg(format(E'## Topic %s %s\nx\n',i,repeat('alpha ',30)),E'\n') FROM generate_series(1,2000) i),
+  E'## Rest\ny\n');
+ IF jsonb_array_length(f->'removed')<>25 OR length(f->'removed'->>0)<2000 OR jsonb_array_length(many->'removed')<>2000 THEN
+  RAISE EXCEPTION 'Unexpected facts'; END IF;
+ SELECT string_agg(format('%s: %s',x.label,x.p),E'\n') INTO bad FROM (VALUES
+   ('kept by a word',20,sophia.note_problems('Rewrote it.',n||' are kept.',f)),
+   ('kept by a word, with a base',20,sophia.amendment_note_problems('Rewrote it.',n||' are kept.',f,ctx)),
+   ('called unchanged',20,sophia.amendment_note_problems('The '||n||' sections are unchanged.',NULL,f,ctx)),
+   ('left unnamed',2,sophia.amendment_note_problems('Rewrote it.','The rest is kept.',f,ctx)),
+   ('one named in full, its words naming the rest',20,sophia.amendment_note_problems('Rewrote it.','Kept: '||(f->'removed'->>0)||'.',f,ctx)),
+   ('2,000 left unnamed',2,sophia.amendment_note_problems('Rewrote it.','The rest is kept.',many,ctx))) x(label,want,p)
+  WHERE cardinality(x.p)<>x.want OR EXISTS(SELECT 1 FROM unnest(x.p) y WHERE length(y)>300)
+   OR cardinality(x.p)<>(SELECT count(DISTINCT y) FROM unnest(x.p) y);
+ IF bad IS NOT NULL THEN RAISE EXCEPTION E'Problems past the contract:\n%',bad; END IF;
+ IF (sophia.amendment_note_problems('Rewrote it.','The rest is kept.',many,ctx))[1]<>'The notes say the rest of the report was kept, but '
+   ||'2000 sections were removed: "Topic 1 alpha alpha alpha alpha alpha alpha alpha alpha alp…", "Topic 2 alpha alpha alpha alpha '
+   ||'alpha alpha alpha alpha alp…", "Topic 3 alpha alpha alpha alpha alpha alpha alpha alpha alp…", … and 1997 more.' THEN
+  RAISE EXCEPTION 'A long list reads %',(sophia.amendment_note_problems('Rewrote it.','The rest is kept.',many,ctx))[1]; END IF;
+ -- Key words are read from the first 200 characters, so no word is too long to read and a long heading costs no more.
+ IF sophia.note_words(repeat('x',3000)||' summary')<>ARRAY[repeat('x',200)] THEN
+  RAISE EXCEPTION 'Key words read past 200 characters: %',sophia.note_words(repeat('x',3000)||' summary'); END IF;
+END $$;
+
+-- The notes are read once and the removed sections set-wise: 2,000 removed headings (as many remaining) and two notes
+-- of 200 characters cost about 4 times what 500 do, and under a second; the quiet ones are named whatever their
+-- number.
+CREATE TEMP TABLE sized ON COMMIT DROP AS SELECT x.n, sophia.section_facts(
+  (SELECT string_agg(format(E'## Topic %s on hosting costs\nx\n',i),E'\n') FROM generate_series(1,x.n) i),
+  (SELECT string_agg(format(E'## Region %s\ny\n',i),E'\n') FROM generate_series(1,x.n) i)) AS f
+ FROM (VALUES (500),(2000)) x(n);
+CREATE FUNCTION pg_temp.long_notes(p_n integer) RETURNS text[] LANGUAGE sql AS $$
+ SELECT sophia.amendment_note_problems(
+  rpad('Rewrote the recommendations with a budget option and a section on prices; the regions were trimmed as asked',200,' and more'),
+  rpad('The remainder of the report is unchanged: hosts, prices, regions and the comparison table are kept as they were',200,' as is'),
+  f,'{"disclose":true,"baseVersion":1,"baseSourceId":"37000000-0000-0000-0000-000000000001"}') FROM sized WHERE n=p_n $$;
+DO $$ BEGIN
+ IF (SELECT count(*) FROM unnest(pg_temp.long_notes(2000)) p WHERE p ~ '^The kept note names "Topic [0-9]+ on hosting costs", which was removed\.$')<>20
+   OR jsonb_array_length((SELECT f FROM sized WHERE n=2000)->'removed')<>2000 THEN
+  RAISE EXCEPTION 'The long notes read %',pg_temp.long_notes(2000); END IF;
+ IF NOT (pg_temp.long_notes(500)::text ~ 'Topic 1 on') THEN RAISE EXCEPTION 'The smaller facts read %',pg_temp.long_notes(500); END IF;
+ PERFORM pg_temp.assert_linear('The gate over removed headings and long notes',$q$SELECT pg_temp.long_notes(%s)$q$,500,8,1000);
+ IF (SELECT sophia.note_problems('Rewrote the recommendations.','The rest is unchanged.',f) FROM sized WHERE n=2000)
+   <>ARRAY['The notes say the rest of the report was kept, but 2000 sections were removed: "Topic 1 on hosting costs", "Topic 2 on hosting costs", '
+   ||'"Topic 3 on hosting costs", "Topic 4 on hosting costs", "Topic 5 on hosting costs", "Topic 6 on hosting costs", "Topic 7 on '
+   ||'hosting costs", … and 1993 more.'] THEN
+  RAISE EXCEPTION 'The quiet ones read %',(SELECT sophia.note_problems('Rewrote the recommendations.','The rest is unchanged.',f) FROM sized WHERE n=2000);
+ END IF;
+END $$;
+
+-- Notes written from the facts keep whole headings within 200 characters: the removed first, then the added, then the
+-- revised, what does not fit counted; written in 0027's order and form, so short facts read as they did.
+DO $$ DECLARE f jsonb:=(SELECT f FROM pilot); t record; heads text[]; part text; names text[]; kind text;
+BEGIN
+ SELECT * INTO t FROM sophia.template_notes(f);
+ IF t.change_note<>'2 added; 7 removed: Summary, Compatibility and standards, Charging speed in practice, Product claims vs. evidence, '
+   ||'Comparison table, Recommendations for buyers, Limitations of this review.' OR t.retained_note<>'1 unchanged: USB-C fast charging for phones.' THEN
+  RAISE EXCEPTION 'The pilot''s notes from the facts read % / %',t.change_note,t.retained_note; END IF;
+ SELECT * INTO t FROM sophia.template_notes(sophia.section_facts(E'# Hosts\nA.\n\n## Costs\nUnknown.\n\n## Conclusion\nUse A.\n',
+  E'# Hosts\nA.\n\n## Costs\nA is $1 a page.\n\n## Pricing tiers\nThree tiers.\n'));
+ IF (t.change_note,t.retained_note)<>('1 revised: Costs; 1 added: Pricing tiers; 1 removed: Conclusion.'::text,'1 unchanged: Hosts.'::text) THEN
+  RAISE EXCEPTION 'Short facts read % / %',t.change_note,t.retained_note; END IF;
+ IF (SELECT (x.change_note,x.retained_note) FROM sophia.template_notes(sophia.section_facts(E'# A\nx\n',E'# A\nx\n')) x)
+   <>('No section changed.'::text,'1 unchanged: A.'::text) THEN
+  RAISE EXCEPTION 'No change reads otherwise'; END IF;
+ -- 40 sections of each kind, with headings of 20 to 60 characters, and one heading longer than the note: each list
+ -- names whole headings, in order, then what it left out.
+ f:=jsonb_build_object('conclusionChanged',false,
+  'removed',(SELECT jsonb_agg(format('Removed %s %s',i,repeat('r',i)) ORDER BY i) FROM generate_series(10,49) i),
+  'added',(SELECT jsonb_agg(format('Added %s %s',i,repeat('a',i)) ORDER BY i) FROM generate_series(10,49) i),
+  'revised',(SELECT jsonb_agg(format('Revised %s',i)) FROM generate_series(1,40) i)||jsonb_build_array(repeat('long ',60)),
+  'unchanged',(SELECT jsonb_agg(format('Unchanged %s %s',i,repeat('u',i)) ORDER BY i) FROM generate_series(10,49) i));
+ SELECT * INTO t FROM sophia.template_notes(f);
+ IF length(t.change_note)>200 OR length(t.retained_note)>200 OR t.change_note !~ '^41 revised(: [^;]*)?; 40 added(: [^;]*)?; 40 removed: Removed 10 r+, .*\.$'
+   OR t.retained_note !~ '^40 unchanged: Unchanged 10 u+, .*\.$' THEN
+  RAISE EXCEPTION 'Long facts read % / %',t.change_note,t.retained_note; END IF;
+ -- Each part: its count, then whole headings of its kind in order, then how many it left out.
+ FOREACH part IN ARRAY regexp_split_to_array(rtrim(t.change_note,'.'),'; ')||rtrim(t.retained_note,'.') LOOP
+  kind:=substring(part FROM '^[0-9]+ ([a-z]+)');
+  SELECT array_agg(x ORDER BY i) INTO heads FROM jsonb_array_elements_text(f->kind) WITH ORDINALITY e(x,i);
+  names:=CASE WHEN part ~ ': ' THEN regexp_split_to_array(regexp_replace(substring(part FROM ': (.*)$'),', … and [0-9]+ more$',''),', ') ELSE '{}' END;
+  IF names<>heads[1:cardinality(names)] OR substring(part FROM '^([0-9]+) ')::integer<>cardinality(heads)
+    OR coalesce(substring(part FROM ', … and ([0-9]+) more$')::integer,0)<>(CASE WHEN cardinality(names)>0 THEN cardinality(heads)-cardinality(names) ELSE 0 END) THEN
+   RAISE EXCEPTION 'A part names a cut heading, or miscounts: %',part; END IF;
+ END LOOP;
+END $$;
+
+-- Every research task is asked to keep the shape its question states; a task without a base reads research_prompt's
+-- text (0025) first, as it did.
+DO $$ DECLARE m jsonb:='{"schema":"sophia.research-manifest.v1","question":"About 500 words, four sections, at most 2 searches.",'
+   '"outputs":["markdown"],"base":null}';
+ line constant text:='If the question states a length, the sections it wants, or a limit on web searches or page reads, keep to it, and '
+  ||'say in the limitations where you could not.';
+BEGIN
+ IF sophia.research_task_statement('37000000-0000-0000-0000-00000000000f',m,false)<>sophia.research_prompt(m)||E'\n\n'||line
+   OR sophia.research_task_statement('37000000-0000-0000-0000-00000000000f',m-'base',false)<>sophia.research_prompt(m-'base')||E'\n\n'||line THEN
+  RAISE EXCEPTION 'A task without a base reads %',sophia.research_task_statement('37000000-0000-0000-0000-00000000000f',m,false); END IF;
+END $$;
+
+-- Grants mirror 0036: the gate, its helpers, the citation rule and the task statement are callable by no one but their
+-- owner (the submit and the dispatch run as it); the dispatch stays the worker's alone, and both it and the publish run
+-- as the owner on their search path. The others run as their caller, on theirs.
+DO $$ DECLARE fn text; conf text[]; BEGIN
+ FOR fn, conf IN SELECT * FROM (VALUES
+   ('sophia.note_words(text)','{search_path=pg_catalog}'),('sophia.note_pieces(text,boolean)','{search_path=pg_catalog}'),
+   ('sophia.note_removes_all(text,text)','{search_path=pg_catalog}'),('sophia.note_blanket(text,text)','{search_path=pg_catalog}'),
+   ('sophia.note_names(text[],integer,boolean)','{search_path=pg_catalog}'),
+   ('sophia.amendment_note_problems(text,text,jsonb,jsonb)','{search_path=pg_catalog}'),
+   ('sophia.note_problems(text,text,jsonb)','{search_path=pg_catalog}'),('sophia.template_notes(jsonb)','{search_path=pg_catalog}'),
+   ('sophia.research_citable(sophia.research_scope,uuid)','{"search_path=pg_catalog, sophia"}'),
+   ('sophia.research_draft_citations(sophia.research_scope,jsonb,jsonb)','{"search_path=pg_catalog, sophia"}'),
+   ('sophia.research_task_statement(uuid,jsonb,boolean)','{"search_path=pg_catalog, sophia"}')) x(f,c) LOOP
+  IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE')
+    OR EXISTS(SELECT 1 FROM pg_proc p, aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid=fn::regprocedure AND a.grantee=0)
+    OR (SELECT prosecdef OR proconfig IS DISTINCT FROM conf FROM pg_proc WHERE oid=fn::regprocedure) THEN
+   RAISE EXCEPTION '% is callable by PUBLIC, the API or the worker role, or runs otherwise',fn; END IF;
+ END LOOP;
+ fn:='sophia.research_publish(sophia.research_scope,text,jsonb)';
+ IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE')
+   OR EXISTS(SELECT 1 FROM pg_proc p, aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid=fn::regprocedure AND a.grantee=0)
+   OR NOT (SELECT prosecdef AND proconfig=ARRAY['search_path=pg_catalog, sophia'] FROM pg_proc WHERE oid=fn::regprocedure) THEN
+  RAISE EXCEPTION 'The publish''s grants or definer changed'; END IF;
+ fn:='sophia.dispatch_runtime_outbox(uuid,uuid,uuid)';
+ IF NOT has_function_privilege('sophia_worker',fn,'EXECUTE') OR has_function_privilege('sophia_api',fn,'EXECUTE')
+   OR EXISTS(SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a WHERE p.oid=fn::regprocedure AND a.grantee=0)
+   OR NOT (SELECT prosecdef AND proconfig=ARRAY['search_path=pg_catalog, sophia'] FROM pg_proc WHERE oid=fn::regprocedure) THEN
+  RAISE EXCEPTION 'The dispatch''s grants or definer changed'; END IF;
+END $$;
+ROLLBACK;
