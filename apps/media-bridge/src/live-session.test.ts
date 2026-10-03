@@ -175,7 +175,7 @@ describe('the provider setup frame (T19, T21)', () => {
     assert.equal(wire, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
     // v1.2's as Google receives them: the digest provider.setup logs, so a setup receipt names what was sent.
     const wireV12 = createHash('sha256').update(JSON.stringify(newer), 'utf8').digest('hex')
-    assert.equal(wireV12, '7c2e6b5ec2f0157efad740c877a25c92af229b0145d1e9f21aa39a43fddd3368')
+    assert.equal(wireV12, '57cdfdadd238ceb5851045d1da1bd2c12a72547b406144a3f10f6f694598dcf6')
     assert.deepEqual([wire, wireV12], [TOOL_SETS['v1.1'].sha256, TOOL_SETS['v1.2'].sha256])
     assert.deepEqual(newer.slice(0, 5), older.slice(0, 5))
     assert.deepEqual(

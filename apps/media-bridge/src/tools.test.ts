@@ -172,7 +172,8 @@ describe('the Live tool surface', () => {
     assert.deepEqual(research.required, ['question'])
     assert.deepEqual(research.properties.scope, {
       type: 'object',
-      description: 'Fill each part the speaker stated; the research worker reads it with the question.',
+      description:
+        'Fill only the parts the speaker stated; leave out the others and do not ask for them. The research worker reads it with the question.',
       properties: {
         change: {
           type: 'string',
@@ -202,7 +203,7 @@ describe('the Live tool surface', () => {
     assert.equal(TOOL_SETS['v1.1'].sha256, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
     // Deliberately: v1.2's control_work and amendsTaskId texts (CX-0026), then start_research's question and scope
     // (CX-0030).
-    assert.equal(TOOL_SETS['v1.2'].sha256, '7c2e6b5ec2f0157efad740c877a25c92af229b0145d1e9f21aa39a43fddd3368')
+    assert.equal(TOOL_SETS['v1.2'].sha256, '57cdfdadd238ceb5851045d1da1bd2c12a72547b406144a3f10f6f694598dcf6')
   })
 
   it('an unattributed call is answered with a question', () => {

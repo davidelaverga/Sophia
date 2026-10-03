@@ -157,7 +157,8 @@ const START_RESEARCH: FunctionDeclaration = {
       },
       scope: {
         type: 'object',
-        description: 'Fill each part the speaker stated; the research worker reads it with the question.',
+        description:
+          'Fill only the parts the speaker stated; leave out the others and do not ask for them. The research worker reads it with the question.',
         properties: {
           change: {
             type: 'string',
