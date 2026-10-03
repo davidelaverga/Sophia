@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test'
 import { renderReportPage } from '@sophia/report/page'
-import { citedSources, content, versions } from '../fixtures/report-data.ts'
+import { LONG_HEADING, citedSources, content, versions } from '../fixtures/report-data.ts'
+import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // The report viewer over the room (SMC-M03), on the fixture page: the Studio's own ProjectShell with the fixture report
@@ -592,7 +593,7 @@ test('CX-0019 · History names the recommendations, not the conclusion, when onl
 const PILOT_FACTS =
   'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
   'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-  '2 added: Revised recommendations, Sources. Sources: 5 dropped, 1 added.'
+  '2 added: Revised recommendations, Sources. Cited sources: 5 dropped, 1 added.'
 /** Its notes, which say the rest was kept (synthetic words, as the pilot's said it). */
 const PILOT_CHANGE = 'Revised the recommendations; the rest of the report is unchanged.'
 const PILOT_KEPT = 'Kept: Compatibility, charging speed, product claims and limitations are kept as they were.'
@@ -603,14 +604,14 @@ const entry = (page: Page, n: number) =>
     .locator('.report-history > li')
     .filter({ has: page.getByText(`v${String(n)}`, { exact: true }) })
 
-/** Opens the fixture report at `url` on its History tab, and gives its v2 entry. */
-async function historyAt(page: Page, url: string): Promise<Locator> {
+/** Opens the fixture report at `url` on its History tab, and gives its version `n`'s entry. */
+async function historyAt(page: Page, url: string, n = 2): Promise<Locator> {
   await enter(page, url)
   await pane(page)
     .getByRole('tab', { name: /^History/ })
     .click()
   await expect(entry(page, 1)).toBeVisible()
-  return entry(page, 2)
+  return entry(page, n)
 }
 
 /** Whether `upper` ends above where `lower` begins. */
@@ -619,9 +620,83 @@ async function above(upper: Locator, lower: Locator): Promise<boolean> {
   return a !== null && b !== null && a.y + a.height <= b.y
 }
 
-/** Whether nothing runs past the page's width: no sideways scroll at this width. */
-const fitsWidth = (page: Page) =>
-  page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
+/**
+ * Whether every History entry lies across the pane's width, its boxes and its lines of text too (text can run past the
+ * box that holds it): the pane clips what runs past its edge, so the page itself never scrolls sideways. The pane
+ * scrolls down, so the height is not compared.
+ */
+async function entriesFit(page: Page): Promise<boolean> {
+  const side = await pane(page).boundingBox()
+  if (!side) return false
+  return pane(page)
+    .locator('.report-history')
+    .evaluate(
+      (list, { left, right }) => {
+        const rects = [...list.querySelectorAll(':scope > li, :scope > li *')].map((el) => el.getBoundingClientRect())
+        const walk = document.createTreeWalker(list, NodeFilter.SHOW_TEXT)
+        for (let text = walk.nextNode(); text; text = walk.nextNode()) {
+          const range = document.createRange()
+          range.selectNodeContents(text)
+          rects.push(...range.getClientRects())
+        }
+        const drawn = rects.filter((r) => r.width > 0 && r.height > 0)
+        return drawn.length > 0 && drawn.every((r) => r.left >= left && r.right <= right)
+      },
+      { left: side.x - 0.5, right: side.x + side.width + 0.5 },
+    )
+}
+
+interface Colour {
+  r: number
+  g: number
+  b: number
+  a: number
+}
+
+/** A computed CSS colour (`rgb(…)` or `rgba(…)`) as its channels. */
+function colourOf(css: string): Colour {
+  const [r = 0, g = 0, b = 0, a = 1] = (css.match(/[\d.]+/g) ?? []).map(Number)
+  return { r, g, b, a }
+}
+
+/** `top` laid over the opaque `under`. */
+function over(top: Colour, under: Colour): Colour {
+  const mix = (t: number, u: number) => t * top.a + u * (1 - top.a)
+  return { r: mix(top.r, under.r), g: mix(top.g, under.g), b: mix(top.b, under.b), a: 1 }
+}
+
+/** A channel's share of the light, as WCAG counts it. */
+const channel = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4)
+const lightOf = (c: Colour) => 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+
+/**
+ * The contrast of the text of what `locator` names against what lies under it, as WCAG measures it: its colour over
+ * the backgrounds up the tree, to the first opaque one.
+ */
+async function contrast(locator: Locator): Promise<number> {
+  const { ink, backgrounds } = await locator.evaluate((el) => {
+    const seen: string[] = []
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      seen.push(getComputedStyle(node).backgroundColor)
+    }
+    return { ink: getComputedStyle(el).color, backgrounds: seen }
+  })
+  const layers = backgrounds.map(colourOf).filter((c) => c.a > 0)
+  const opaque = layers.findIndex((c) => c.a === 1)
+  const ground = layers
+    .slice(0, opaque === -1 ? layers.length : opaque + 1)
+    .reduceRight((under, top) => over(top, under), { r: 0, g: 0, b: 0, a: 1 })
+  const [hi = 0, lo = 0] = [lightOf(over(colourOf(ink), ground)), lightOf(ground)].toSorted((a, b) => b - a)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/** Version 1's entry says no notes: its change note is the service's "First version" (0027), never Sophia's. */
+async function firstSaysNoNotes(page: Page) {
+  const v1 = entry(page, 1)
+  await expect(v1).toBeVisible()
+  await expect(v1).not.toContainText('Sophia’s notes')
+  await expect(v1).not.toContainText('First version')
+}
 
 // At 1280 px (desktop) and 390 px (@phone, where the pane covers the room): CONTRIBUTING's Studio UI widths.
 for (const phone of [false, true]) {
@@ -641,7 +716,7 @@ for (const phone of [false, true]) {
     await expect(v2.getByText(PILOT_CHANGE)).toBeHidden()
     await expect(v2.getByText(PILOT_KEPT)).toBeHidden()
     expect(await above(facts, by), 'the facts before the notes').toBe(true)
-    expect(await fitsWidth(page), 'the facts line wraps in the pane').toBe(true)
+    expect(await entriesFit(page), 'the facts line wraps in the pane').toBe(true)
 
     // The notes unfold in place, the press keeping its focus; they read as Sophia's, under the facts.
     if (phone) await by.tap()
@@ -650,13 +725,23 @@ for (const phone of [false, true]) {
     await expect(v2.getByText(PILOT_CHANGE)).toBeVisible()
     await expect(v2.getByText(PILOT_KEPT)).toBeVisible()
     expect(await above(facts, v2.getByText(PILOT_CHANGE)), 'the facts still first').toBe(true)
-    expect(await fitsWidth(page), 'and the notes too').toBe(true)
+    expect(await entriesFit(page), 'and the notes too').toBe(true)
     // Show this version still turns into "On screen" in place, keeping the focus: aria-disabled, never disabled.
     await entry(page, 1).getByRole('button', { name: 'Show this version' }).click()
     const onScreen = entry(page, 1).getByRole('button', { name: 'On screen' })
     await expect(onScreen).toBeFocused()
     await expect(onScreen).toHaveAttribute('aria-disabled', 'true')
     await expect(onScreen).not.toHaveAttribute('disabled')
+  })
+
+  test(`CX-0026${at} · the line that unfolds Sophia’s notes reads at its size and reaches past its words; v1 has none`, async ({
+    page,
+  }) => {
+    const v2 = await historyAt(page, `/room.html?report=${REPORT}&versions=2&version=${V2}&history=pilot`)
+    const by = v2.locator('details.report-notes > summary')
+    expect(await contrast(by), 'at least 4.5:1 on the pane').toBeGreaterThanOrEqual(4.5)
+    if (phone) expect(await reaches(by, 6), 'a press 6 px above it opens the notes').toBe(true)
+    await firstSaysNoNotes(page)
   })
 
   test(`CX-0026${at} · an honest History entry says the facts, then Sophia’s notes, both in sight`, async ({
@@ -673,7 +758,18 @@ for (const phone of [false, true]) {
     await expect(v2.getByText('Kept: The conclusion is unchanged.')).toBeVisible()
     expect(await above(facts, by), 'the facts first').toBe(true)
     expect(await above(by, change), 'then whose notes they are').toBe(true)
-    expect(await fitsWidth(page)).toBe(true)
+    expect(await contrast(by), 'whose notes, read at its size').toBeGreaterThanOrEqual(4.5)
+    expect(await entriesFit(page)).toBe(true)
+    await firstSaysNoNotes(page)
+  })
+
+  test(`CX-0026${at} · a heading or a note a line cannot break in wraps inside its History entry`, async ({ page }) => {
+    const v3 = await historyAt(page, `/room.html?report=${REPORT}&versions=3&history=pilot`, 3)
+    const facts = v3.locator('.report-facts')
+    await expect(facts).toHaveText(`Compared with v2: 1 section added: ${LONG_HEADING}.`) // named whole: 59 characters
+    const note = v3.getByText(/^Added the charging times, from measured_/)
+    await expect(note).toBeVisible() // nothing removed, no source dropped: the notes are in sight
+    expect(await entriesFit(page), 'the heading and the file name wrap inside the pane').toBe(true)
   })
 
   test(`CX-0026${at} · a Knowledge card shows no notes of what changed, never “Kept:”; its History says the facts`, async ({
@@ -684,7 +780,6 @@ for (const phone of [false, true]) {
     await expect(card.locator('.report-meta')).toContainText('v2 · 2 versions')
     await expect(card).not.toContainText('Kept:')
     await expect(card).not.toContainText(PILOT_CHANGE)
-    expect(await fitsWidth(page)).toBe(true)
     await card.getByRole('button', { name: 'History and changes' }).click()
     await expect(entry(page, 2).locator('.report-facts')).toHaveText(PILOT_FACTS)
   })

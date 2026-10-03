@@ -344,11 +344,19 @@ type ChangeFacts = NonNullable<ArtifactVersion['changeFacts']>
 const NAMED = 8
 const NAME_LENGTH = 60
 
+/** A heading as the line names it: cut short past NAME_LENGTH characters. */
+function nameOf(heading: string): string {
+  // Code points, as the service counts characters: an emoji or another character outside the BMP is never cut in two.
+  // oxlint-disable-next-line typescript/no-misused-spread -- code points by design; Firefox 114 lacks Intl.Segmenter
+  const chars = [...heading]
+  if (chars.length <= NAME_LENGTH) return heading
+  const kept = chars.slice(0, NAME_LENGTH - 1).join('')
+  return `${kept.trimEnd()}…`
+}
+
 /** "A, B and 3 more": a list's headings, as many as the line names, a long one cut short. */
 function named(headings: readonly string[]): string {
-  const names = headings
-    .slice(0, NAMED)
-    .map((h) => (h.length > NAME_LENGTH ? `${h.slice(0, NAME_LENGTH - 1).trimEnd()}…` : h))
+  const names = headings.slice(0, NAMED).map(nameOf)
   const more = headings.length - names.length
   return more > 0 ? `${names.join(', ')} and ${more} more` : names.join(', ')
 }
@@ -375,9 +383,10 @@ function sourceChanges(f: Pick<ChangeFacts, 'added' | 'dropped'>): string | null
 /**
  * The first line of a version's history entry: what the service found changed against the version it replaced (its
  * parent; `before` is that version's number, null when the list does not hold it), from the facts computed at
- * publication, never from the notes. It names the sections removed and added and counts the sources dropped and
- * added; revised sections stay a count chip, since facts stored under 0027 can count a repeated heading as revised when
- * it was not. A version that only adds the PDF says so. Null for a first version, or a version without facts.
+ * publication, never from the notes. It names the sections removed and added and counts the cited sources dropped and
+ * added ("Cited sources", so a section called Sources cannot read as the start of that count); revised sections stay a
+ * count chip, since facts stored under 0027 can count a repeated heading as revised when it was not. A version that
+ * only adds the PDF says so. Null for a first version, or a version without facts.
  */
 export function factsLine(
   version: Pick<ArtifactVersion, 'changeFacts' | 'parentId'>,
@@ -388,8 +397,8 @@ export function factsLine(
   const was = before === null ? 'the version before' : `v${before}`
   if (f.renditionOnly) return `Same text as ${was}; adds the PDF.`
   const sources = sourceChanges(f)
-  if (!f.sections) return sources === null ? null : `Sources compared with ${was}: ${sources}.`
-  return `Compared with ${was}: ${sectionChanges(f.sections)}.${sources === null ? '' : ` Sources: ${sources}.`}`
+  if (!f.sections) return sources === null ? null : `Cited sources compared with ${was}: ${sources}.`
+  return `Compared with ${was}: ${sectionChanges(f.sections)}.${sources === null ? '' : ` Cited sources: ${sources}.`}`
 }
 
 /**
@@ -410,12 +419,16 @@ export function notesNeedFacts(version: Pick<ArtifactVersion, 'changeFacts'>): b
 
 /**
  * How a version's notes show under its facts, as Sophia's: in sight, folded (notesNeedFacts), or not at all when there
- * are none or the service wrote them from the facts, which the facts line already says.
+ * are none, when the service wrote them from the facts, which the facts line already says, or when the version replaced
+ * none (a first version). Such a version has no facts line, and its note is the service's own "First version" (0027
+ * research_publish), which is not Sophia's, or words the truth gate never read, since it runs only against a version
+ * before.
  */
 export function notesShown(
-  version: Pick<ArtifactVersion, 'changeFacts' | 'changeNote' | 'retainedNote'>,
+  version: Pick<ArtifactVersion, 'changeFacts' | 'changeNote' | 'parentId' | 'retainedNote'>,
 ): 'open' | 'folded' | null {
-  if (version.changeFacts?.notesFromFacts || (!version.changeNote && !version.retainedNote)) return null
+  if (version.parentId === null || version.changeFacts?.notesFromFacts) return null
+  if (!version.changeNote && !version.retainedNote) return null
   return notesNeedFacts(version) ? 'folded' : 'open'
 }
 
