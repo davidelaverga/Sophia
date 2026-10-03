@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { Identity } from './dev-identity.ts'
 import { initialOf } from './profile.ts'
 
-export function Avatar({ identity }: { identity: Identity }) {
+export function Avatar({ identity }: { identity: Pick<Identity, 'name' | 'displayName' | 'avatarUrl'> }) {
   const [broken, setBroken] = useState(false)
   if (identity.avatarUrl && !broken) {
     return (

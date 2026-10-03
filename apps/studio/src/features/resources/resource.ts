@@ -2,6 +2,7 @@
 // capacity and the actions only its owner can answer. Pure, so the words and rules are unit-tested. The resource and
 // action shapes are the Studio's proposal for SCM-01/02; the capacity observation follows the continuation's
 // `sophia.capacity.observation.v1` schema (docs/execution/2026-10-01-unified/contracts/coordination).
+import { pace, type Pace } from './pace.ts'
 
 /** The native coding tools a resource can enroll; each shows as itself (ToolLogo). */
 export type Tool = 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'github-copilot' | 'cursor'
@@ -34,13 +35,19 @@ export interface Session {
   /** The model and effort the native tool reported; null when it didn't. */
   model: string | null
   effort: string | null
+  /**
+   * A mode the tool reports beside its effort, when it has one: Claude Code's "ultracode". Not an effort level: a
+   * session can be at max effort without it. The Studio's proposal for SCM-01.
+   */
+  mode?: string | null
   assignment: { workId: string; title: string; state: 'recorded' | 'queued' | 'running' | 'waiting' } | null
 }
 
 export interface Resource {
   /** The enrollment: `davide-codex`, `davide-claude`, `luis-claude`. */
   id: string
-  owner: { id: string; name: string }
+  /** The owner, with their account's picture when the provider gives one. */
+  owner: { id: string; name: string; avatarUrl?: string | null }
   tool: Tool
   /** The owner's account behind it: sessions on one account share one allowance. */
   entitlementId: string
@@ -53,6 +60,8 @@ export interface Resource {
 
 export interface QuotaWindow {
   window_id: string
+  /** One continuous window: a reset starts a new epoch, even with the same id (and maybe the same or no reset time). */
+  window_epoch?: string
   unit: 'percent_used' | 'credits_remaining' | 'tokens_remaining' | 'spend_percent_used'
   value: number | null
   resets_at: string | null
@@ -119,6 +128,8 @@ const WINDOW_NAME: Record<string, string> = {
 export const windowName = (id: string) => WINDOW_NAME[id] ?? id.replaceAll('_', ' ')
 
 export interface WindowView {
+  /** The window's id, as the observation gave it. */
+  id: string
   name: string
   /** `expired`: the whole reading is past its `valid_until`, whatever this window said. */
   state: QuotaWindow['state'] | 'expired'
@@ -175,10 +186,10 @@ export function windowView(w: QuotaWindow, now: Date, stale = false): WindowView
     w.resets_at === null ? null : due ? `reset was due ${ago(w.resets_at, now)}` : `resets ${until(w.resets_at, now)}`
   const name = windowName(w.window_id)
   const withheld = NOT_A_VALUE[state]
-  if (withheld) return { name, state, value: withheld, reset, percent: null, applies }
+  if (withheld) return { id: w.window_id, name, state, value: withheld, reset, percent: null, applies }
   const v = w.value ?? 0
   const percent = w.unit === 'percent_used' || w.unit === 'spend_percent_used' ? v : null
-  return { name, state, value: `${valueOf(w, v)}${APPLIES[applies]}`, reset, percent, applies }
+  return { id: w.window_id, name, state, value: `${valueOf(w, v)}${APPLIES[applies]}`, reset, percent, applies }
 }
 
 const headline = (v: WindowView) => `${v.name} window: ${v.value}${v.reset ? `, ${v.reset}` : ''}`
@@ -192,23 +203,29 @@ export interface Capacity {
   limiting: WindowView | null
   /** Whether the line reports something observed (a percentage or a balance), not an unknown or pending capacity. */
   known: boolean
+  /** The limiting window's pace (pace.ts), when its length is known. */
+  pace: Pace | null
+  /** The window the line comes from (the limiting one, or a balance): the sheet doesn't list it again. */
+  windowId: string | null
 }
+
+const unresolved = (line: string) => ({ line, limiting: null, known: false, windowId: null })
 
 /**
  * What the windows known to apply say together: the most used percentage; else that a reset is pending, or that the
  * capacity is unknown, while any window is unresolved; else an observed balance, as it was reported (no percentage is
  * made of it). Windows that may not apply never shape it, not even as pending.
  */
-function fromKnown(known: WindowView[]): Capacity | null {
+function fromKnown(known: WindowView[]): Omit<Capacity, 'pace'> | null {
   const limiting = known
     .filter((v) => v.percent !== null)
     .reduce<WindowView | null>((most, v) => (most && (most.percent ?? 0) >= (v.percent ?? 0) ? most : v), null)
-  if (limiting) return { line: headline(limiting), limiting, known: true }
+  if (limiting) return { line: headline(limiting), limiting, known: true, windowId: limiting.id }
   // A balance can't be weighed against a window that isn't resolved: the unresolved one says so first.
-  if (known.some((v) => v.state === 'refresh_pending')) return { line: 'Refresh pending', limiting: null, known: false }
-  if (known.some((v) => v.state === 'unknown')) return { line: 'Capacity unknown', limiting: null, known: false }
+  if (known.some((v) => v.state === 'refresh_pending')) return unresolved('Refresh pending')
+  if (known.some((v) => v.state === 'unknown')) return unresolved('Capacity unknown')
   const balance = known.find((v) => v.state === 'observed')
-  return balance ? { line: balanceLine(balance), limiting: null, known: true } : null
+  return balance ? { line: balanceLine(balance), limiting: null, known: true, windowId: balance.id } : null
 }
 
 /**
@@ -216,24 +233,17 @@ function fromKnown(known: WindowView[]): Capacity | null {
  * past its `valid_until` is "Capacity unknown": never full, never empty, and an expired one says how long ago it
  * stopped holding. "No window observed" is kept for a reading with no windows at all.
  */
+const none = (line: string): Capacity => ({ line, limiting: null, known: false, pace: null, windowId: null })
+
 export function capacity(obs: QuotaObservation | undefined, now: Date): Capacity {
-  if (!obs || obs.coverage === 'unavailable') return { line: 'Capacity unknown', limiting: null, known: false }
-  if (expired(obs, now)) {
-    return {
-      line: `Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`,
-      limiting: null,
-      known: false,
-    }
-  }
-  if (obs.windows.length === 0) return { line: 'No window observed', limiting: null, known: false }
+  if (!obs || obs.coverage === 'unavailable') return none('Capacity unknown')
+  if (expired(obs, now)) return none(`Capacity unknown: the last reading expired ${ago(obs.valid_until, now)}`)
+  if (obs.windows.length === 0) return none('No window observed')
   const views = obs.windows.map((w) => windowView(w, now))
-  return (
-    fromKnown(views.filter((v) => v.applies === 'known')) ?? {
-      line: 'Capacity unknown: no window is known to apply here',
-      limiting: null,
-      known: false,
-    }
-  )
+  const known = fromKnown(views.filter((v) => v.applies === 'known'))
+  if (!known) return none('Capacity unknown: no window is known to apply here')
+  const limiting = obs.windows.find((w) => w.window_id === known.limiting?.id)
+  return { ...known, pace: limiting ? pace(limiting, obs, now) : null }
 }
 
 export const capacityLine = (obs: QuotaObservation | undefined, now: Date) => capacity(obs, now).line

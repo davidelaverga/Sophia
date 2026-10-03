@@ -11,7 +11,8 @@ export function moving(change: () => void): void {
     change()
     return
   }
-  document.startViewTransition(() => flushSync(change))
+  // A glide started while another runs skips the first: its `ready` rejects, which says nothing worth hearing.
+  document.startViewTransition(() => flushSync(change)).ready.catch(() => undefined)
 }
 
 /** A tile's name for the glide: unique per resource, and a valid CSS identifier whatever its id holds. */

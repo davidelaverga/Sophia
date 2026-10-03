@@ -10,7 +10,18 @@ export const expiredAt = () => new Date(NOW.getTime() - 10 * 60_000).toISOString
 export const NOW = new Date('2026-10-02T12:00:00Z')
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 
-export const people = { davide: { id: 'davide', name: 'Davide' }, luis: { id: 'luis', name: 'Luis' } } as const
+/** A drawn picture, as an account provider would give one; Luis has none, so his initial shows. */
+const picture = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="#7fd6c4"/><stop offset="1" stop-color="#6f8cff"/></linearGradient></defs>' +
+    '<rect width="32" height="32" fill="url(#g)"/><circle cx="16" cy="13" r="6" fill="#0b0a0f" opacity=".55"/>' +
+    '<path d="M5 32c1.5-7 6-10 11-10s9.5 3 11 10z" fill="#0b0a0f" opacity=".55"/></svg>',
+)}`
+
+export const people = {
+  davide: { id: 'davide', name: 'Davide', avatarUrl: picture },
+  luis: { id: 'luis', name: 'Luis', avatarUrl: null },
+} as const
 
 export const resources: Resource[] = [
   {
@@ -23,8 +34,8 @@ export const resources: Resource[] = [
       {
         id: 'codex-reviewer',
         role: 'reviewer',
-        model: null,
-        effort: null,
+        model: 'gpt-6.1-sol',
+        effort: 'ultra',
         assignment: { workId: 'work-2', title: 'Review the report pane', state: 'running' },
       },
     ],
@@ -43,9 +54,10 @@ export const resources: Resource[] = [
         role: 'worker',
         model: 'claude-opus-5-5',
         effort: 'high',
+        mode: 'ultracode',
         assignment: { workId: 'work-1', title: 'Implement the PDF retry', state: 'waiting' },
       },
-      { id: 'claude-reviewer', role: 'reviewer', model: 'claude-opus-5-5', effort: null, assignment: null },
+      { id: 'claude-reviewer', role: 'reviewer', model: 'claude-sonnet-5-5', effort: null, assignment: null },
     ],
     controls: { steer: 'supported', hold: 'supported', stop: 'supported', permissions: 'unqualified' },
     reservePercent: null,
@@ -64,6 +76,7 @@ export const resources: Resource[] = [
 
 const percent = (window_id: string, value: number, resetsIn: number): QuotaWindow => ({
   window_id,
+  window_epoch: `${window_id}@${resetsIn}`,
   unit: 'percent_used',
   value,
   resets_at: at(resetsIn),
@@ -76,6 +89,18 @@ const percent = (window_id: string, value: number, resetsIn: number): QuotaWindo
 export const busyCodex = (o: QuotaObservation): QuotaObservation => ({
   ...o,
   windows: [percent('five_hour', 92, 40), percent('seven_day', 78, 3 * 1440)],
+})
+
+/** `busy=1`: Davide's Claude Code at 95 % of its 5-hour window, with 80 % of it passed when read: ahead of pace. */
+export const busyClaude = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: o.windows.map((w) => (w.window_id === 'five_hour' ? percent('five_hour', 95, 59) : w)),
+})
+
+/** `spent=1`: Codex's spend limit passed, at 120 % (a spend percentage has no ceiling). */
+export const spentCodex = (o: QuotaObservation): QuotaObservation => ({
+  ...o,
+  windows: [...o.windows, { ...percent('spend_limit', 120, 10 * 1440), unit: 'spend_percent_used', scope: 'spend' }],
 })
 
 export const observations: QuotaObservation[] = [
@@ -141,6 +166,37 @@ export const actions: RequiredAction[] = [
 ]
 
 /**
+ * Earlier readings of Davide's two accounts, as a store that keeps more than the latest would serve them: every 40
+ * minutes before the latest, each window climbing to where it is now. Same windows, same resets: one window's history.
+ */
+export function earlierReadings(latest: readonly QuotaObservation[]): QuotaObservation[] {
+  const climbing = [0.3, 0.45, 0.6, 0.72, 0.86]
+  return latest
+    .filter((o) => o.entitlement_id === 'ent-davide-anthropic' || o.entitlement_id === 'ent-davide-openai')
+    .flatMap((o) =>
+      climbing.map((share, i) => ({
+        ...o,
+        observation_id: `${o.observation_id}-earlier-${i}`,
+        observed_at: new Date(Date.parse(o.observed_at) - (climbing.length - i) * 40 * 60_000).toISOString(),
+        windows: o.windows.map((w) => (w.value === null ? w : { ...w, value: Math.round(w.value * share) })),
+      })),
+    )
+}
+
+/** A request that comes to wait while the page is open (resourcesFixture.addRequest): Codex asks Davide to edit. */
+export const arriving = (n: number): RequiredAction => ({
+  id: `action-arriving-${n}`,
+  workId: 'work-2',
+  resourceId: 'davide-codex',
+  sessionId: 'codex-reviewer',
+  ownerId: 'davide',
+  operation: 'Edit a file: apps/studio/src/features/report/ReportPane.tsx',
+  deadline: at(30),
+  state: 'open',
+  openTarget: null,
+})
+
+/**
  * `more=1`: two more tools, to see the panel past the three enrollments the continuation names. A Grok session on
  * Davide's xAI account with no reading yet, and a Gemini CLI session on Luis's Google account that reports a balance.
  */
@@ -151,7 +207,7 @@ export const moreResources: Resource[] = [
     tool: 'grok',
     entitlementId: 'ent-davide-xai',
     host: { state: 'offline', observedAt: at(-26 * 60) },
-    sessions: [{ id: 'grok-researcher', role: 'researcher', model: null, effort: null, assignment: null }],
+    sessions: [{ id: 'grok-researcher', role: 'researcher', model: 'grok-4', effort: null, assignment: null }],
     controls: { steer: 'unqualified', hold: 'unqualified', stop: 'unqualified', permissions: 'unsupported' },
     reservePercent: null,
   },
@@ -166,7 +222,7 @@ export const moreResources: Resource[] = [
         id: 'gemini-worker',
         role: 'worker',
         model: 'gemini-2.5-pro',
-        effort: null,
+        effort: 'high',
         assignment: { workId: 'work-3', title: 'Draft the onboarding copy', state: 'queued' },
       },
     ],

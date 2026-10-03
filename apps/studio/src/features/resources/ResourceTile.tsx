@@ -1,14 +1,23 @@
 // One resource as a tile, to scan many at a glance: its tool as itself and its host, whose it is, what it is doing,
 // and how full its account is. Four lines, never more; everything else opens in its sheet (ResourceSheet). Its name
 // is whose tool it is; what its lines say is its description, so assistive technology hears them too.
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Tag } from '@sophia/ui'
+import type { Buddy } from './buddies.ts'
 import { Meter } from './Meter.tsx'
+import { ModelChip } from './ModelChip.tsx'
 import { followPointer } from './motion.ts'
-import { activity, capacity, TOOL, type QuotaObservation, type Resource } from './resource.ts'
+import { OwnerAvatar } from './OwnerAvatar.tsx'
+import { activity, ago, capacity, TOOL, type Capacity, type QuotaObservation, type Resource } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'Online', offline: 'Offline', unknown: 'Unknown' } as const
+
+/** An offline host says how long it has been gone: "Offline · 26 h". */
+function hostLabel({ state, observedAt }: Resource['host'], now: Date): string {
+  if (state !== 'offline' || !observedAt) return HOST[state]
+  return `${HOST[state]} · ${ago(observedAt, now).replace(/ ago$/, '')}`
+}
 
 interface Props {
   resource: Resource
@@ -17,11 +26,21 @@ interface Props {
   mine: boolean
   /** Requests waiting on this resource's owner: said on the tile, in amber. */
   waiting: number
+  /** Which requests wait (their ids): a new one is a change even when the count stays. */
+  waitingKey?: string
   onOpen: () => void
+  /** A Claude Code neighbour in its row, and which way this tile's mark looks at it (buddies.ts). */
+  buddy?: Buddy | undefined
+  /** Dragging it onto another tile moves it there (TileGrid). */
+  drag?: React.HTMLAttributes<HTMLButtonElement> & { draggable: boolean }
+  /** The grid's roving focus: only the current tile is in the Tab order; arrow keys move between them. */
+  current: boolean
+  onFocus: () => void
+  ref?: React.Ref<HTMLButtonElement>
 }
 
 interface OwnerProps {
-  name: string
+  owner: Resource['owner']
   mine: boolean
   waiting: number
   /** The id a part of the tile is said under, for the tile's description. */
@@ -29,13 +48,11 @@ interface OwnerProps {
 }
 
 /** Whose it is, and the tags that apply: "You", and how many requests wait on its owner. */
-function Owner({ name, mine, waiting, said }: OwnerProps) {
+function Owner({ owner, mine, waiting, said }: OwnerProps) {
   return (
     <span className="resource-tile-owner">
-      <span className="resource-initial" aria-hidden>
-        {name.charAt(0)}
-      </span>
-      {name}
+      <OwnerAvatar owner={owner} />
+      {owner.name}
       {mine && (
         <span id={said('you')}>
           <Tag tone="lav">You</Tag>
@@ -50,10 +67,67 @@ function Owner({ name, mine, waiting, said }: OwnerProps) {
   )
 }
 
-export function ResourceTile({ resource, observation, now, mine, waiting, onOpen }: Props) {
+/**
+ * Whether what a tile says changed a moment ago: its host, what waits, its capacity. Not its words, which move with
+ * the clock. True for a little over a second, so the tile can say it once.
+ */
+function useChanged(signature: string): boolean {
+  const last = useRef(signature)
+  const [changed, setChanged] = useState(false)
+  useEffect(() => {
+    if (last.current === signature) return undefined
+    last.current = signature
+    setChanged(true)
+    const timer = setTimeout(() => setChanged(false), 1400)
+    return () => clearTimeout(timer)
+  }, [signature])
+  return changed
+}
+
+/** The tile's foot: its capacity in a line, over a meter for a percentage or an empty track for what isn't known. */
+function TileCapacity({ capacity: { line, limiting, known, pace }, id }: { capacity: Capacity; id: string }) {
+  return (
+    <span className="resource-tile-capacity">
+      {(limiting || !known) && (
+        <Meter
+          label={limiting ? `${limiting.name} window` : 'Capacity'}
+          percent={limiting?.percent ?? null}
+          value={line}
+          passed={pace?.passed}
+        />
+      )}
+      <span id={id} className="resource-tile-capacity-line" title={line}>
+        {line}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * What a tile says, as one value that changes only when it does: its host, which requests wait, and its capacity's
+ * window, value and reset. Never the clock's words, which move every minute.
+ */
+function saysNow({ resource, observation, waiting, waitingKey }: Props, held: Capacity): string {
+  const headline = observation?.windows.find((w) => w.window_id === held.windowId)
+  return [
+    resource.host.state,
+    waitingKey ?? waiting,
+    held.known,
+    held.windowId,
+    headline?.value,
+    headline?.resets_at,
+  ].join('|')
+}
+
+export function ResourceTile(props: Props) {
+  const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
   const { tool, owner, host } = resource
-  const { line, limiting, known } = capacity(observation, now)
+  const held = capacity(observation, now)
+  // The model of the session at work, else the first one reported.
+  const model = (resource.sessions.find((s) => s.assignment && s.model) ?? resource.sessions.find((s) => s.model))
+    ?.model
   const id = useId()
+  const changed = useChanged(saysNow(props, held))
   const said = (part: string) => `${id}-${part}`
   const described = ['host', mine && 'you', waiting > 0 && 'waiting', 'activity', 'capacity']
     .filter((part) => typeof part === 'string')
@@ -64,36 +138,35 @@ export function ResourceTile({ resource, observation, now, mine, waiting, onOpen
       type="button"
       className="resource-tile"
       data-tool={tool}
+      data-resource={resource.id}
+      data-buddy={buddy}
+      data-host={host.state}
+      data-changed={changed || undefined}
+      data-waiting={waiting > 0 || undefined}
       aria-label={`${owner.name} · ${TOOL[tool]}`}
       aria-haspopup="dialog"
       aria-describedby={described}
+      ref={ref}
+      tabIndex={current ? 0 : -1}
+      onFocus={onFocus}
       onClick={onOpen}
       onPointerMove={followPointer}
+      {...drag}
     >
       <span className="resource-tile-head">
         <ToolLogo tool={tool} />
         <span className="resource-tile-name">{TOOL[tool]}</span>
         <span id={said('host')} className={`resource-tile-host ${host.state}`}>
           <span className="resource-dot" aria-hidden />
-          {HOST[host.state]}
+          {hostLabel(host, now)}
         </span>
       </span>
-      <Owner name={owner.name} mine={mine} waiting={waiting} said={said} />
+      <Owner owner={owner} mine={mine} waiting={waiting} said={said} />
       <span id={said('activity')} className="resource-tile-activity" title={activity(resource)}>
-        {activity(resource)}
+        {model && <ModelChip model={model} />}
+        <span className="resource-tile-activity-words">{activity(resource)}</span>
       </span>
-      <span className="resource-tile-capacity">
-        {(limiting || !known) && (
-          <Meter
-            label={limiting ? `${limiting.name} window` : 'Capacity'}
-            percent={limiting?.percent ?? null}
-            value={line}
-          />
-        )}
-        <span id={said('capacity')} className="resource-tile-capacity-line" title={line}>
-          {line}
-        </span>
-      </span>
+      <TileCapacity capacity={held} id={said('capacity')} />
     </button>
   )
 }

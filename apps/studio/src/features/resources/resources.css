@@ -88,6 +88,7 @@
 }
 .resource-tile {
   --tool-accent: var(--halo);
+  --rim: inset 0 1px 0 color-mix(in srgb, var(--tool-accent) 35%, transparent);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -98,7 +99,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--plane-2);
-  box-shadow: var(--lift);
+  box-shadow: var(--rim);
   color: var(--text);
   text-align: left;
   animation: arrive 0.4s var(--ease) both;
@@ -151,12 +152,6 @@
   color: var(--text-2);
   font-size: 12.5px;
 }
-.resource-tile-activity {
-  overflow: hidden;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .resource-tile-capacity {
   display: grid;
   gap: 6px;
@@ -171,6 +166,263 @@
   font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* What needs someone stands out among many: a waiting tile's edge warms; an offline one steps back. */
+.resource-tile[data-waiting] {
+  border-color: color-mix(in srgb, var(--amber) 30%, var(--line));
+}
+.resource-tile[data-waiting]:hover {
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+}
+.resource-tile[data-host='offline'] .tool-logo {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.resource-tile[data-host='offline'] .resource-tile-name {
+  color: var(--text-2);
+}
+.resource-tile[data-host='offline'] .resource-tile-activity,
+.resource-tile[data-host='offline'] .resource-tile-owner {
+  color: var(--text-3);
+}
+
+/* The tiles' order, at the toolbar's end. */
+.field.resource-sort {
+  flex: none;
+  width: auto;
+  margin-left: auto;
+  align-items: center;
+  padding: 0 4px 0 10px;
+}
+.resource-sort-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.resource-sort select {
+  height: 30px;
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* A model as people say it, in its family's colour (models.ts). */
+.model-chip {
+  --model: var(--text-3);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-1);
+  background: color-mix(in srgb, var(--model) 7%, transparent);
+  color: color-mix(in srgb, var(--model) 30%, var(--text-2));
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--model);
+}
+.model-chip[data-family='opus'] {
+  --model: #d97757;
+}
+.model-chip[data-family='sonnet'] {
+  --model: #e6a273;
+}
+.model-chip[data-family='haiku'] {
+  --model: #efc893;
+}
+.model-chip[data-family='gpt'] {
+  --model: #6f8cff;
+}
+.model-chip[data-family='gemini-pro'] {
+  --model: #a68bd6;
+}
+.model-chip[data-family='gemini-flash'] {
+  --model: #4f9cf9;
+}
+.model-chip[data-family='grok'] {
+  --model: #c3c7d4;
+}
+.resource-tile-activity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.resource-tile-activity-words {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-model {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.resource-effort {
+  color: var(--text-3);
+}
+
+/* A window's readings over time: a thin line and a faint area, the latest marked, in the colour its use reached. */
+.capacity-history {
+  --tone: var(--teal);
+  position: relative;
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+}
+.capacity-history.is-warn {
+  --tone: var(--amber);
+}
+.capacity-history.is-full {
+  --tone: var(--rose);
+}
+.capacity-history svg {
+  display: block;
+  width: 100%;
+  height: 24px;
+  overflow: visible;
+}
+.capacity-history-line {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.capacity-history-area {
+  fill: color-mix(in srgb, var(--tone) 8%, transparent);
+}
+.capacity-history-now {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent);
+}
+.capacity-history figcaption {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.capacity-windows dd .capacity-history {
+  flex-basis: 100%;
+}
+
+/* A session's effort in its tool's own look (EffortMeter): Claude's dotted scale, GPT's gradient, a plain bar for the
+   others. At the tool's top level (Claude's max, the ultracode mode; GPT's ultra) it comes alive, quietly. */
+.effort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.effort-track {
+  position: relative;
+  width: 96px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(236, 235, 241, 0.04);
+}
+.effort-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 55%, transparent);
+}
+.effort-label {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.effort[data-alive] .effort-label {
+  color: var(--text-2);
+}
+.effort[data-look='claude'][data-alive] .effort-label {
+  color: #b3a3f5;
+}
+/* Claude: a scale of dots, grey turning lavender; at max a glint runs along them and a few dots twinkle. */
+.effort[data-look='claude'] .effort-track {
+  background:
+    radial-gradient(circle, rgba(236, 235, 241, 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
+    rgba(236, 235, 241, 0.02);
+}
+.effort[data-look='claude'] .effort-fill {
+  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3), #b3a3f5);
+  mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+  -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
+}
+.effort[data-look='claude'][data-alive] .effort-fill {
+  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3) 0%, #b3a3f5 38%, #f4f0ff 50%, #b3a3f5 62%) 0 0 / 250% 100%;
+  animation: effort-glint 2.6s linear infinite;
+}
+.effort[data-look='claude'][data-alive] .effort-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 25%, #e4dcff 0.9px, transparent 1.4px),
+    radial-gradient(circle at 62% 75%, #e4dcff 0.9px, transparent 1.4px),
+    radial-gradient(circle at 86% 25%, #e4dcff 0.9px, transparent 1.4px);
+  animation: effort-twinkle 1.8s ease-in-out infinite alternate;
+}
+/* GPT: a gradient from deep blue to violet; at ultra, sparks drift along it. */
+.effort[data-look='gpt'] .effort-fill {
+  background: linear-gradient(90deg, #2f4fd6, #7b61ff 60%, #b08cff);
+}
+.effort[data-look='gpt'][data-alive] .effort-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 10% 35%, #fff 0.6px, transparent 1.2px),
+    radial-gradient(circle at 32% 70%, #fff 0.5px, transparent 1.1px),
+    radial-gradient(circle at 55% 30%, #fff 0.6px, transparent 1.2px),
+    radial-gradient(circle at 78% 65%, #fff 0.5px, transparent 1.1px);
+  background-size: 50% 100%;
+  animation:
+    effort-sparks 4s linear infinite,
+    effort-twinkle 1.4s ease-in-out infinite alternate;
+}
+@keyframes effort-glint {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+@keyframes effort-twinkle {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes effort-sparks {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
 }
 
 /* Nothing shown: said, with the ways back. */
@@ -227,16 +479,18 @@
   color: var(--text-2);
   font-size: 13px;
 }
-.resource-initial {
-  display: grid;
-  place-items: center;
+/* An owner's picture, or their initial, at the size of the line it sits in. */
+.resource-avatar .avatar {
   width: 16px;
   height: 16px;
-  border-radius: 50%;
-  background: var(--line-2);
-  font-size: 10px;
-  font-weight: 600;
+  border-color: var(--line-2);
   color: var(--text);
+  font-size: 9.5px;
+  object-fit: cover;
+}
+.resource-sheet-actions {
+  display: flex;
+  gap: 2px;
 }
 .resource-host {
   display: flex;
@@ -325,7 +579,6 @@
 .capacity-meter {
   position: relative;
   height: 3px;
-  overflow: hidden;
   border-radius: var(--r-1);
   background: var(--line-2);
 }
@@ -343,6 +596,21 @@
 }
 .capacity-meter.is-full .capacity-meter-fill {
   background: var(--rose);
+}
+/* How much of the window had passed when it was read: a fill past this mark is spending faster than the window. */
+.capacity-meter-pace {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text-2);
+  box-shadow: 0 0 0 1px var(--plane-2);
+}
+.capacity-pace {
+  color: var(--amber);
+  font-size: 12.5px;
 }
 .capacity-toggle {
   display: inline-flex;
@@ -449,8 +717,10 @@
   align-items: center;
   gap: 6px 10px;
 }
+/* Its label keeps the width of its longest words (SwapLabel): it starts where it sits, not centred in that width. */
 .waiting-copy {
   font-size: 12.5px;
+  text-align: left;
 }
 
 /* A tool's mark: on a small tile at a head, bare in a line of text. */
@@ -459,6 +729,16 @@
 }
 [data-tool='gemini-cli'] {
   --tool-accent: #8e75b2;
+}
+/* Codex's mark is blue; the one-colour marks (Grok, Copilot, Cursor) take a cool silver, so none borrows the app's
+   own lavender. */
+[data-tool='codex'] {
+  --tool-accent: #6f8cff;
+}
+[data-tool='grok'],
+[data-tool='github-copilot'],
+[data-tool='cursor'] {
+  --tool-accent: #c3c7d4;
 }
 .tool-logo {
   display: inline-grid;
@@ -470,7 +750,7 @@
   height: 32px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 8%, var(--plane-2));
+  background: color-mix(in srgb, var(--tool-accent, var(--text-3)) 10%, var(--plane-2));
 }
 .tool-logo.sm {
   width: 14px;
@@ -500,6 +780,13 @@
 }
 
 @media (max-width: 560px) {
+  .resource-sheet-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .resource-sheet-actions {
+    margin-left: auto;
+  }
   .resource-search {
     max-width: none;
   }
@@ -647,14 +934,226 @@
   animation-delay: 160ms;
 }
 
+/* A tile whose state just changed says so once: its edge lights in its tool's colour and fades, the room's ignite. */
+/* Added beside the arrival, never instead of it: replacing it would play the arrival again when the flash ends. */
+.resource-tile[data-changed] {
+  animation-name: arrive, tile-changed;
+  animation-duration: 0.4s, 1.4s;
+  animation-fill-mode: both, none;
+  animation-delay: calc(var(--i, 0) * 40ms), 0s;
+}
+@keyframes tile-changed {
+  0% {
+    box-shadow:
+      var(--rim),
+      0 0 0 1px color-mix(in srgb, var(--tool-accent) 80%, transparent),
+      0 0 24px color-mix(in srgb, var(--tool-accent) 35%, transparent);
+  }
+}
+
+/* While the resources are read: tiles' shapes, with a light passing over them. */
+.resource-placeholder {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 150px;
+  padding: 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+}
+.resource-placeholder > span {
+  height: 10px;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--line) 30%, var(--line-2) 50%, var(--line) 70%) 0 0 / 300% 100%;
+  animation: placeholder-light 1.6s linear infinite;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.resource-placeholder > span:first-child {
+  width: 55%;
+  height: 14px;
+}
+.resource-placeholder > span:last-child {
+  width: 70%;
+  margin-top: 28px;
+}
+@keyframes placeholder-light {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* The last pass. The sheet's head takes a faint light in its tool's colour, as the app's pages take hers from above;
+   its mark arrives with a small pop; a meter in the red glows softly; a tile's mark lifts under the pointer. */
+.resource-sheet .sheet-top {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tool-accent) 7%, var(--plane)), var(--plane));
+}
+.resource-sheet-head .tool-logo {
+  animation: logo-in 0.45s var(--ease) both;
+}
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+.capacity-meter.is-full .capacity-meter-fill {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--rose) 45%, transparent);
+}
+.tool-logo.lg {
+  transition: transform var(--fast) var(--ease);
+}
+@media (hover: hover) {
+  .resource-tile:hover .tool-logo.lg {
+    transform: scale(1.05);
+  }
+}
+
+/* Two Claude Codes side by side (buddies.ts): their marks greet with a hop and a wave when they come together, then
+   rest leaning toward each other; hovering one makes the other hop back. With less motion asked, they only lean. */
+.resource-tile[data-buddy='right'] .tool-logo > * {
+  transform: rotate(6deg) translateX(1px);
+  animation: buddy-hello-right 1.6s var(--ease) 0.3s both;
+}
+.resource-tile[data-buddy='left'] .tool-logo > * {
+  transform: rotate(-6deg) translateX(-1px);
+  animation: buddy-hello-left 1.6s var(--ease) 0.3s both;
+}
+.resource-tile[data-buddy='both'] .tool-logo > * {
+  animation: buddy-hop 0.6s var(--ease) 0.3s both;
+}
+@keyframes buddy-hello-right {
+  0% {
+    transform: none;
+  }
+  18% {
+    transform: translateY(-3px) rotate(-6deg);
+  }
+  34% {
+    transform: translateY(0) rotate(10deg);
+  }
+  50% {
+    transform: rotate(-4deg);
+  }
+  66% {
+    transform: rotate(8deg);
+  }
+  to {
+    transform: rotate(6deg) translateX(1px);
+  }
+}
+@keyframes buddy-hello-left {
+  0% {
+    transform: none;
+  }
+  18% {
+    transform: translateY(-3px) rotate(6deg);
+  }
+  34% {
+    transform: translateY(0) rotate(-10deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+  66% {
+    transform: rotate(-8deg);
+  }
+  to {
+    transform: rotate(-6deg) translateX(-1px);
+  }
+}
+@keyframes buddy-hop {
+  40% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes buddy-hop-right {
+  0%,
+  to {
+    transform: rotate(6deg) translateX(1px);
+  }
+  40% {
+    transform: translateY(-3px) rotate(10deg) translateX(1px);
+  }
+}
+@keyframes buddy-hop-left {
+  0%,
+  to {
+    transform: rotate(-6deg) translateX(-1px);
+  }
+  40% {
+    transform: translateY(-3px) rotate(-10deg) translateX(-1px);
+  }
+}
+/* Hover one, and its neighbour answers. */
+@media (hover: hover) {
+  .resource-grid > li:has(.resource-tile[data-buddy='right']:hover) + li .resource-tile[data-buddy] .tool-logo > * {
+    animation: buddy-hop-left 0.6s var(--ease);
+  }
+  .resource-grid > li:has(+ li .resource-tile[data-buddy='left']:hover) .resource-tile[data-buddy] .tool-logo > * {
+    animation: buddy-hop-right 0.6s var(--ease);
+  }
+}
+
+/* Arranging by hand (TileGrid): the tile being dragged fades where it was; the one it would take the place of shows a
+   quiet dashed edge, in the app's light. */
+.resource-grid > li[data-dragging] .resource-tile {
+  opacity: 0.4;
+}
+.resource-grid > li[data-over] .resource-tile {
+  outline: 1px dashed color-mix(in srgb, var(--halo) 70%, transparent);
+  outline-offset: 3px;
+}
+
+/* The secret (ultra.ts): "ultracode" typed on the view sends the ultracode bar's lavender dots across every tile, once. */
+.resource-grid {
+  position: relative;
+}
+.resources[data-ultra] .resource-grid::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+      100deg,
+      transparent 35%,
+      rgba(179, 163, 245, 0.55) 47%,
+      #f4f0ff 50%,
+      rgba(179, 163, 245, 0.55) 53%,
+      transparent 65%
+    )
+    0 0 / 300% 100%;
+  mask: radial-gradient(circle, #000 1.2px, transparent 1.8px) 0 0 / 6px 6px;
+  -webkit-mask: radial-gradient(circle, #000 1.2px, transparent 1.8px) 0 0 / 6px 6px;
+  animation: ultra-sweep 1.6s var(--ease) both;
+}
+@keyframes ultra-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 /* Less motion asked for: the same changes, at once, and nothing that keeps moving. */
 @media (prefers-reduced-motion: reduce) {
   .resource-tile,
+  .resource-tile[data-changed],
   .capacity-meter-fill,
   .attention-dot::after,
   .event.waiting.open .dot::after,
   .attention-label,
-  .resource-sheet > * {
+  .resource-sheet > *,
+  .resource-placeholder > span,
+  .effort[data-look][data-alive] .effort-fill,
+  .effort[data-look][data-alive] .effort-fill::after,
+  .effort[data-look][data-alive] .effort-track::after,
+  .resource-sheet-head .tool-logo {
     animation: none;
   }
   .attention-label {
@@ -667,5 +1166,16 @@
   }
   .capacity-toggle .icon {
     transition: none;
+  }
+  .resources[data-ultra] .resource-grid::after {
+    display: none;
+  }
+  .resource-tile[data-buddy] .tool-logo > *,
+  .resource-grid > li:has(.resource-tile[data-buddy='right']:hover) + li .resource-tile[data-buddy] .tool-logo > *,
+  .resource-grid > li:has(+ li .resource-tile[data-buddy='left']:hover) .resource-tile[data-buddy] .tool-logo > * {
+    animation: none;
+  }
+  .resource-tile:hover .tool-logo.lg {
+    transform: none;
   }
 }

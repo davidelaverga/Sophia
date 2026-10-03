@@ -42,6 +42,28 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
   - Nothing moves when reduced motion is asked for.
   - A meter turns amber from 75 % used and red from 90 %.
   - Codex's review: a tile now tells assistive technology all its lines (P1); the search's `/` is in its tip; the windows' chevron is still with reduced motion.
+- **Attempt 7** ([handoff](../handoffs/LFE-06-attempt-7.md)): what needs someone found at a glance among many, and a meter that reads against time.
+  - Tiles sort by attention by default (never by how used: LFE-06.2 forbids weighing providers' percentages), or by owner or tool. A waiting tile's edge warms; an offline one steps back and says how long it has been gone.
+  - A meter marks how much of its window had passed when it was read, only where the length is certain (Claude Code's windows, not Codex's yet); the sheet says when the account runs out before the reset at that pace.
+  - #50's P2 is closed: a spend limit passed keeps its meter's range true.
+- **Attempt 8** ([handoff](../handoffs/LFE-06-attempt-8.md)): identity and quality of life.
+  - Owners show their picture (the app's `Avatar`), and each tool has its own colour.
+  - The view opens as its viewer left it, a sheet has its own address, and arrow keys move across the tiles.
+  - A glide cut short no longer leaves an unhandled rejection.
+- **Attempt 9** ([handoff](../handoffs/LFE-06-attempt-9.md)): the view feels live.
+  - Ages and countdowns move on while the page is open; a tile whose state changes flashes once.
+  - The tab counts requests waiting on the viewer (through `ProjectShell`, beside who waits at the door); placeholders hold the tiles while reading.
+- **Attempt 10** ([handoff](../handoffs/LFE-06-attempt-10.md)): usage history and model colours.
+  - Each session's model as people say it, in its family's colour; a quiet rim in the tool's colour.
+  - A sheet draws each window's readings over time, from earlier observations the API doesn't keep yet.
+- **Attempt 11** ([handoff](../handoffs/LFE-06-attempt-11.md)): each session's effort in its tool's own look.
+  - Claude Code's dotted bar, full and alive in ultracode (its mode, said alone); GPT's gradient sparkling at Ultra; a plain bar for the others.
+- **Attempt 12** ([handoff](../handoffs/LFE-06-attempt-12.md)): a request said once: three lines for its owner instead of five, the session named once, "Waiting" said by its heading.
+- **Attempt 13** ([handoff](../handoffs/LFE-06-attempt-13.md)): the capacity's facts in one line: "shared by 2 sessions · 6 readings in 3 h · 1 min ago".
+- **Attempt 14** ([handoff](../handoffs/LFE-06-attempt-14.md)): a last pass. J and K step through the resources from the sheet; the head takes its tool's light; two Claude Codes side by side greet and look at each other; a secret (type "ultracode").
+- **Attempt 15** ([handoff](../handoffs/LFE-06-attempt-15.md)): the windows, each said once: the list holds only the windows the headline doesn't ("2 more windows"), and no toggle when nothing is left.
+- **Attempt 16** ([handoff](../handoffs/LFE-06-attempt-16.md)): arranging the tiles by hand: drag one onto another, or Alt and an arrow; a Custom order kept per viewer.
+- **Attempt 17** ([handoff](../handoffs/LFE-06-attempt-17.md)): Codex's twelve P2s across #53 to #60, fixed together (history by `window_epoch`, model names kept whole, GPT alive only at Ultra, the history's own span, flashes for every change, nothing said while reading, the phone sheet's head, the Tab stop after a drag).
 
 ## Acceptance cases
 

@@ -445,6 +445,33 @@ when you change the room:
   keeps a slow pulse. With reduced motion asked for, nothing moves. A meter
   turns amber from 75 % used and red from 90 % (`usageTone`; `busy=1` shows
   both). A tile's name is whose tool it is; its lines are its description.
+  Tiles sort by attention by default (what waits, then online, unknown and
+  offline, each by owner: never by how used across providers; `order.ts`); an offline tile steps back and says
+  how long it has been gone. A meter marks how much of its window had passed
+  when it was read (`pace.ts`), only where the length is certain (Claude
+  Code's `five_hour` and `seven_day`; Codex reports its own durations, which
+  the observation can't carry yet), and the sheet says when the account runs
+  out before the reset at that pace (`busy=1`; `spent=1` passes a spend
+  limit). Owners show as the app's `Avatar`; each tool has its own colour.
+  The filter and order are kept per viewer in this browser (`prefs.ts`); a
+  sheet's address is `#resource-<id>` (`link.ts`); arrow keys move across
+  the tiles, one Tab stop for the grid. The view's clock moves on once a
+  minute (`clock.ts`); a tile whose state changes flashes once; the tab
+  counts requests waiting on the viewer (`ProjectShell`'s `resourcesWaiting`);
+  `loading=1` shows placeholders. The fixture is live: `addRequest()` and
+  `setHost(id, state)` on `window.resourcesFixture`. Each session's model
+  shows as people say it, in its family's colour (`models.ts`); a sheet draws
+  each window's readings over time from earlier observations (`history.ts`,
+  the panel's `history`), one window at a time, never across a reset.
+  Each session's effort is a small bar in its tool's own look (`effort.ts`):
+  Claude's dots, alive and saying "Ultracode" in that mode; GPT's gradient,
+  sparkling at Ultra; a plain, still bar for the others.
+  In a sheet, J and K step through the shown resources. Two Claude Code
+  tiles side by side greet (`buddies.ts`), and typing "ultracode" on the
+  view sends a wave across the tiles (`ultra.ts`); with reduced motion, both
+  are still.
+  Tiles can be arranged by hand (`TileGrid.tsx`): dragged onto another, or
+  moved with Alt and an arrow, into a Custom order kept per viewer.
 - **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
   the room's fixture page, whose API also answers the fixture report
   (`fixtures/report-data.ts`), Knowledge and a research notice. A report
