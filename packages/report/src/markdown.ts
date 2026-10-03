@@ -73,7 +73,7 @@ export function safeHref(raw: string): string | null {
   }
 }
 
-/** Numbers cited sources by first appearance. */
+/** Numbers cited sources as the parse meets them; `renumber` then numbers them in reading order. */
 class Citations {
   readonly order: string[] = []
   private readonly index = new Map<string, number>()
@@ -206,24 +206,73 @@ function citeLink(s: Scan, label: string, target: string): Inline[] | null {
   return [...children, { kind: 'cite', sourceId: id, n: s.cites.n(id) }]
 }
 
+/**
+ * The `]` that closes the label opened at `open`, brackets inside it balanced: a backslash escapes the next character,
+ * a closed code span hides what it holds, and a blank line ends the search. -1 when none.
+ */
+function labelEnd(src: string, open: number): number {
+  let depth = 0
+  for (let i = open + 1; i < src.length; i += 1) {
+    const c = src[i]
+    if (c === '\\') i += 1
+    else if (c === '`') i = Math.max(i, src.indexOf('`', i + 1))
+    else if (c === '\n' && src[i + 1] === '\n') return -1
+    else if (c === '[') depth += 1
+    else if (c === ']') {
+      if (depth === 0) return i
+      depth -= 1
+    }
+  }
+  return -1
+}
+
+/** Whether inline content holds a link, at any depth. */
+const holdsLink = (inline: readonly Inline[]): boolean =>
+  inline.some((i) => i.kind === 'link' || ((i.kind === 'strong' || i.kind === 'em') && holdsLink(i.children)))
+
+/** `inline` without its citations, which are added to `out` in order. */
+function withoutCites(inline: readonly Inline[], out: Inline[]): Inline[] {
+  return inline.flatMap((i): Inline[] => {
+    if (i.kind === 'cite') {
+      out.push(i)
+      return []
+    }
+    if (i.kind === 'strong' || i.kind === 'em') return [{ ...i, children: withoutCites(i.children, out) }]
+    return [i]
+  })
+}
+
+/**
+ * A link the viewer may open, else its label as text. One anchor is never inside another: a label that holds a link is
+ * not a link (the inner one is, as in CommonMark), and a citation in a label follows the link.
+ */
+function linkTo(s: Scan, label: string, href: string | null, next: number): Step {
+  const children = inlines({ ...s, src: label, depth: s.depth + 1 })
+  if (!href) return { inline: children, next }
+  if (holdsLink(children)) return null
+  const cites: Inline[] = []
+  const kept = withoutCites(children, cites)
+  return { inline: [{ kind: 'link', href, children: kept }, ...cites], next }
+}
+
 /** `[text](url)` or `![alt](src)`: a link the viewer may open, else its text; an image only by name. */
 function linkOrImage(s: Scan, i: number): Step {
   const image = s.src[i] === '!'
   const open = image ? i + 1 : i
-  const close = s.src.indexOf('](', open)
-  if (close < 0) return null
+  const close = labelEnd(s.src, open)
+  if (close < 0 || s.src[close + 1] !== '(') return null
   const end = targetEnd(s.src, close + 2)
   if (end < 0) return null
   const label = s.src.slice(open + 1, close)
-  if (label.includes('\n\n')) return null
-  const destination = s.src.slice(close + 2, end).trim()
-  const target = destination.split(/\s+/)[0] ?? ''
+  const target =
+    s.src
+      .slice(close + 2, end)
+      .trim()
+      .split(/\s+/)[0] ?? ''
   if (image) return { inline: [{ kind: 'text', text: `[image: ${label || 'untitled'}]` }], next: end + 1 }
   const cited = citeLink(s, label, target)
   if (cited) return { inline: cited, next: end + 1 }
-  const children = inlines({ ...s, src: label, depth: s.depth + 1 })
-  const href = safeHref(target)
-  return { inline: href ? [{ kind: 'link', href, children }] : children, next: end + 1 }
+  return linkTo(s, label, safeHref(target), end + 1)
 }
 
 /** `<https://…>`: an autolink. Any other `<…>` stays text. */
@@ -483,7 +532,36 @@ export function parseMarkdown(markdown: string, options: ParseOptions = {}): Par
     options.citable === undefined ? undefined : new Set([...options.citable].map((id) => id.toLowerCase()))
   const cites = new Citations(citable)
   const blocks = parseLines({ lines: markdown.replace(/\r\n?/g, '\n').split('\n'), at: 0, cites, depth: 0 })
-  return { blocks, citations: cites.order }
+  return { blocks, citations: renumber(blocks) }
+}
+
+/** The inline runs of blocks, in reading order (a heading, a paragraph, each item, each cell). */
+function* runsOf(blocks: readonly Block[]): Generator<Inline[]> {
+  for (const b of blocks) {
+    if (b.kind === 'heading' || b.kind === 'paragraph') yield b.children
+    else if (b.kind === 'list') for (const it of b.items) yield it.children
+    else if (b.kind === 'quote') yield* runsOf(b.blocks)
+    else if (b.kind === 'table') yield* [b.head, ...b.rows].flat()
+  }
+}
+
+/**
+ * Citations numbered by their first appearance in reading order, whatever order the parse met them in (a link's label
+ * is read before the text in front of it is). Returns the cited ids, citation n being `[n - 1]`.
+ */
+function renumber(blocks: readonly Block[]): string[] {
+  const index = new Map<string, number>()
+  const visit = (run: readonly Inline[]): void => {
+    for (const i of run) {
+      if (i.kind === 'cite') {
+        const n = index.get(i.sourceId) ?? index.size + 1
+        index.set(i.sourceId, n)
+        i.n = n
+      } else if (i.kind === 'strong' || i.kind === 'em' || i.kind === 'link') visit(i.children)
+    }
+  }
+  for (const run of runsOf(blocks)) visit(run)
+  return [...index.keys()]
 }
 
 /** The words of a text, for a viewer's meta line. */
