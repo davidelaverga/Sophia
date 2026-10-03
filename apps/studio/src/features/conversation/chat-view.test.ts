@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { it } from 'node:test'
 import type { SophiaPresence } from '@sophia/contracts'
-import type { ChatNotice } from '@sophia/contracts/room-chat'
+import type { ChatCaption, ChatNotice } from '@sophia/contracts/room-chat'
+import { receiveCaption } from './captions.ts'
 import {
   chatEntry,
   chatLine,
@@ -25,6 +26,7 @@ const turn: ChatTurn = {
   sequence: -1,
   state: 'sending',
   reason: null,
+  at: 1,
 }
 it('a duplicate packet or another exchange cannot duplicate a visible reply', () => {
   const accepted = receiveChat([turn], { id: 'a', exchangeId: 'e', kind: 'accepted', sequence: 0, text: '' })
@@ -138,29 +140,80 @@ const notice = (taskId: string, resultRevision = 1): ChatNotice => ({
   resultRevision,
 })
 
-it('keeps a result notice once per revision, after the turn that was last when it came (SMC-M03 S6)', () => {
-  const once = receiveNotice([], notice('t1'), 'a')
-  assert.deepEqual(receiveNotice(once, { ...notice('t1'), id: '44444444-4444-4444-8444-444444444444' }, 'b'), once)
-  const twice = receiveNotice(once, notice('t1', 2), 'b')
+it('keeps a result notice once, where it came (SMC-M03 S6)', () => {
+  const once = receiveNotice([], notice('t1'), 1)
   assert.deepEqual(
-    twice.map((n) => [n.key, n.afterTurnId]),
-    [
-      ['t1:1', 'a'],
-      ['t1:2', 'b'],
-    ],
+    once.map((n) => [n.key, n.at]),
+    [['t1:1', 1]],
   )
+  const again = receiveNotice(once, { ...notice('t1'), id: '44444444-4444-4444-8444-444444444444' }, 2)
+  assert.equal(again, once, 'delivered again: the same list, so nothing renders again and Chat is not marked')
   const many = Array.from({ length: 25 }, (_, i) => `t${String(i)}`).reduce(
-    (list, id) => receiveNotice(list, notice(id), null),
+    (list, id, i) => receiveNotice(list, notice(id), i),
     [] as ReturnType<typeof receiveNotice>,
   )
   assert.equal(many.length, 20, 'bounded')
 })
 
-it('places notices in the chat: after their turn, or first when their turn is gone', () => {
-  const b: ChatTurn = { ...turn, id: 'b' }
-  const notices = [...receiveNotice([], notice('t1'), 'a'), ...receiveNotice([], notice('t2'), 'gone')]
-  const order = chatTimeline([turn, b], notices).map((e) => (e.type === 'turn' ? e.turn.id : e.notice.taskId))
-  assert.deepEqual(order, ['t2', 'a', 't1', 'b'])
+it('a task keeps one notice, its newest revision, where that came (CX-0022)', () => {
+  const first = receiveNotice(receiveNotice([], notice('t1'), 1), notice('t2'), 2)
+  const revised = receiveNotice(first, notice('t1', 2), 3)
+  assert.deepEqual(
+    revised.map((n) => [n.key, n.at]),
+    [
+      ['t2:1', 2],
+      ['t1:2', 3],
+    ],
+    'the older card goes: it would open the newer files',
+  )
+  assert.equal(receiveNotice(revised, notice('t1', 1), 4), revised, 'an older revision changes nothing')
+  assert.equal(receiveNotice(revised, notice('t1', 2), 4), revised, 'nor does the newest, again')
+  const full = Array.from({ length: 20 }, (_, i) => `t${String(i)}`).reduce(
+    (list, id, i) => receiveNotice(list, notice(id), i),
+    [] as ReturnType<typeof receiveNotice>,
+  )
+  const superseded = receiveNotice(full, notice('t0', 2), 21)
+  assert.equal(superseded.length, 20, 'a revision takes its own place, so no other card drops out')
+  assert.equal(superseded[0]?.taskId, 't1')
+})
+
+const spoken = (id: string, speaker: ChatCaption['speaker']): ChatCaption => ({
+  kind: 'caption',
+  id,
+  exchangeId: 'e',
+  speaker,
+  actorId: speaker === 'member' ? 'me' : null,
+  sequence: 1,
+  state: 'final',
+  text: 'Synthetic spoken words',
+})
+
+const label = (e: ReturnType<typeof chatTimeline>[number]) =>
+  e.type === 'turn' ? e.turn.id : e.type === 'notice' ? e.notice.taskId : e.caption.id
+
+it('one timeline in arrival order: spoken exchanges, typed turns and cards, each where it came (CX-0023)', () => {
+  const captions = [
+    spoken('heard-1', 'member'),
+    spoken('said-1', 'sophia'),
+    spoken('heard-2', 'member'),
+    spoken('said-2', 'sophia'),
+  ].reduce((list, c, i) => receiveCaption(list, c, [1, 2, 5, 6][i] ?? 0), [] as ReturnType<typeof receiveCaption>)
+  const typed: ChatTurn = { ...turn, id: 'typed', at: 3 }
+  const notices = [...receiveNotice([], notice('t1'), 4), ...receiveNotice([], notice('t2'), 7)]
+  assert.deepEqual(chatTimeline([typed], notices, captions).map(label), [
+    'heard-1',
+    'said-1',
+    'typed',
+    't1',
+    'heard-2',
+    'said-2',
+    't2',
+  ])
+  assert.deepEqual(
+    chatTimeline([typed], notices).map(label),
+    ['typed', 't1', 't2'],
+    'a card keeps its place when the turn before it is no longer kept',
+  )
 })
 
 it('words a notice by its kind only', () => {

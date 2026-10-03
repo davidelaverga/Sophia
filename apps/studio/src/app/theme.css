@@ -3267,7 +3267,20 @@ div.empty {
   color: var(--text-3);
   font-size: 12px;
 }
-/* A finished result told as text (SMC-M03 S6): a small card in Sophia's column, with its three actions. */
+/* What was said aloud (CX-0023): a spoken cue beside the name, a dashed box for a member's words, and quieter words
+   while they are still being said. */
+.chat-spoken {
+  margin-left: 8px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.chat-message.spoken.user {
+  border-style: dashed;
+}
+.chat-message.spoken[data-state='partial'] p {
+  color: var(--text-2);
+}
+/* A finished result's card (SMC-M03 S6, CX-0022): a small card in Sophia's column, with its three actions. */
 .chat-notice {
   display: grid;
   gap: 10px;
@@ -3292,6 +3305,11 @@ div.empty {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+/* Open and Download before the task is read: they keep the focus (aria-disabled), drawn as disabled buttons. */
+.chat-notice-actions button[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.45;
 }
 .chat-notice .chat-status[data-error] {
   color: var(--rose);

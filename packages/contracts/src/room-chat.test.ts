@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { encodeChatPacket, parseChatPacket, type ChatInput, type ChatNotice } from './room-chat.ts'
+import {
+  CAPTION_PACKET_BYTES,
+  encodeChatPacket,
+  parseChatPacket,
+  type ChatCaption,
+  type ChatInput,
+  type ChatNotice,
+} from './room-chat.ts'
 const input: ChatInput = {
   kind: 'input',
   id: '11111111-1111-4111-8111-111111111111',
@@ -52,5 +59,55 @@ describe('typed transport boundaries', () => {
     ]) {
       assert.equal(parseChatPacket(encodeChatPacket({ ...notice, ...field } as ChatNotice)), null)
     }
+  })
+  it('reads a caption: who spoke from the bridge, its place in the caption and its state, extra fields dropped', () => {
+    const caption: ChatCaption = {
+      kind: 'caption',
+      id: '55555555-5555-4555-8555-555555555555',
+      exchangeId: input.exchangeId,
+      speaker: 'member',
+      actorId: '66666666-6666-4666-8666-666666666666',
+      sequence: 1,
+      state: 'partial',
+      text: 'Synthetic spoken words',
+    }
+    const sophia: ChatCaption = { ...caption, speaker: 'sophia', actorId: null, sequence: 3, state: 'final', text: '' }
+    const placed = { ...caption, before: '77777777-7777-4777-8777-777777777777' }
+    for (const c of [caption, sophia, placed, { ...sophia, state: 'interrupted' as const }])
+      assert.deepEqual(parseChatPacket(encodeChatPacket(c)), c)
+    const extra = { name: 'Someone else', role: 'admin', inputEpoch: 4 }
+    assert.deepEqual(parseChatPacket(new TextEncoder().encode(JSON.stringify({ ...caption, ...extra }))), caption)
+    for (const field of [
+      { speaker: 'guest' },
+      { actorId: null },
+      { actorId: 'not-a-member' },
+      { speaker: 'sophia' },
+      { sequence: 0 },
+      { sequence: 1.5 },
+      { state: 'done' },
+      { text: '' },
+      { text: 'x'.repeat(2001) },
+      { before: 'not-a-caption' },
+    ]) {
+      assert.equal(parseChatPacket(encodeChatPacket({ ...caption, ...field } as ChatCaption)), null)
+    }
+  })
+  it('a kind it does not know is ignored, as an older Studio ignores captions; the bridge splits by encoded size', () => {
+    const fragment = {
+      kind: 'caption',
+      id: '55555555-5555-4555-8555-555555555555',
+      exchangeId: input.exchangeId,
+      speaker: 'sophia',
+      actorId: null,
+      sequence: 1,
+      state: 'partial',
+      text: 'Synthetic words',
+    } as const
+    assert.equal(parseChatPacket(new TextEncoder().encode(JSON.stringify({ ...fragment, kind: 'caption2' }))), null)
+    // 2000 characters JSON writes as six bytes each go past the 12000 bytes a packet is read with: a fragment is
+    // split by its encoded size (the bridge's captions.ts), never by characters alone.
+    const escaped = { ...fragment, text: '\u0001'.repeat(2000) }
+    assert.equal(parseChatPacket(encodeChatPacket(escaped)), null)
+    assert.ok(CAPTION_PACKET_BYTES < 12000)
   })
 })

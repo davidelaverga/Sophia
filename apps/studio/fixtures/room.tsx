@@ -4,13 +4,15 @@
 // server and says so on screen. The query string picks the scenario: `call=on` (join on opening), `exchange=open`
 // (Sophia's conversation is open and this viewer holds the floor), `refuse=camera` (the browser refuses it),
 // `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room), `hold=sources` (the
-// report's sources come only once the check lets them through; `hold=text`, its text), `title=long` (the report's title
-// runs far past the side pane's width), `versions=3` (that many of the report's versions are published already); the
-// report viewer's own parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
-// move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice,
-// or read what happened.
+// report's sources come only once the check lets them through; `hold=text`, its text; `hold=task`, the research task's
+// record), `title=long` (the report's title runs far past the side pane's width), `versions=3` (that many of the
+// report's versions are published already); the report viewer's own parameters (`report=…`) open the fixture report
+// (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the call, publish the
+// report's next version, deliver a result notice (or its revision) or a live caption, have Sophia leave, or read what
+// happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
+import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -19,9 +21,17 @@ import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
-import { asked, deliverNotice, dropCall } from './fake-livekit.ts'
-import { installFixtureApi, publish, releaseSources, releaseText, served, unexpected } from './fixture-api.ts'
-import { LONG_TITLE, researchNotice, SOPHIAS_DESCRIPTION, TEAMMATE, TITLE } from './report-data.ts'
+import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
+import {
+  installFixtureApi,
+  publish,
+  releaseSources,
+  releaseTask,
+  releaseText,
+  served,
+  unexpected,
+} from './fixture-api.ts'
+import { LONG_TITLE, researchNotice, revisedNotice, SOPHIAS_DESCRIPTION, TEAMMATE, TITLE } from './report-data.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -32,8 +42,19 @@ interface Fixture {
   drop: () => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
-  /** A finished research result is told in the chat, as the bridge tells a reader. */
+  /** A finished research result is told in the chat, as the bridge tells a member. */
   notice: () => void
+  /**
+   * The same task's result is revised: the report's second version is published, the task's record names it, and its
+   * notice (revision 2) reaches the chat (CX-0022).
+   */
+  noticeRevised: () => void
+  /** The research task's record, held since the page opened (`hold=task`), comes now. */
+  releaseTask: () => void
+  /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
+  caption: (packet: ChatCaption) => void
+  /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
+  sophiaLeaves: () => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -71,6 +92,8 @@ const project = {
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
+  taskRevision: 1 as 1 | 2,
+  taskHeld: query.get('hold') === 'task',
 }
 installFixtureApi(project)
 
@@ -85,6 +108,14 @@ window.fixture = {
     project.reportVersions += 1
   },
   notice: () => deliverNotice(researchNotice),
+  noticeRevised: () => {
+    project.reportVersions = 2
+    project.taskRevision = 2
+    deliverNotice(revisedNotice)
+  },
+  releaseTask: () => releaseTask(project),
+  caption: deliverCaption,
+  sophiaLeaves,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },

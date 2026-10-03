@@ -27,6 +27,7 @@ import {
   CHAT_REPLY_TOPIC,
   encodeChatPacket,
   parseChatPacket,
+  type ChatCaption,
   type ChatInput,
   type ChatNotice,
   type ChatReply,
@@ -60,8 +61,11 @@ export interface RoomEvents {
 
 /** What the room session needs from a room; tests supply a labelled fake. */
 export interface RoomLink {
-  /** Sends to one member; false when that identity is no member in the room now, so nothing was sent. */
-  sendChat?: (identity: string, packet: ChatReply | ChatNotice) => Promise<boolean>
+  /**
+   * Sends to one member (a typed reply, a result's card, a caption); false when that identity is no member in the room
+   * now, so nothing was sent.
+   */
+  sendChat?: (identity: string, packet: ChatReply | ChatNotice | ChatCaption) => Promise<boolean>
   people: () => RoomPerson[]
   /** Queue one 20 ms frame of Sophia's speech; resolves when the source accepts it (backpressure). */
   play: (samples: Int16Array) => Promise<void>
@@ -234,7 +238,7 @@ class LiveKitRoom implements RoomLink {
     this.resubscribe()
   }
 
-  async sendChat(identity: string, packet: ChatReply | ChatNotice): Promise<boolean> {
+  async sendChat(identity: string, packet: ChatReply | ChatNotice | ChatCaption): Promise<boolean> {
     const who = [...this.room.remoteParticipants.values()].find((p) => p.identity === identity)
     if (!who || !isMember(standingOf(who.metadata))) return false
     await this.room.localParticipant?.publishData(encodeChatPacket(packet), {

@@ -184,7 +184,30 @@ export const researchTask: NativeTaskDetail = {
   },
 }
 
-/** The bridge's notice for that task, as it reaches a reader in the room's chat. */
+/**
+ * The same task's record once its result is revised (`window.fixture.noticeRevised`, CX-0022): its result is version
+ * `n`'s Markdown, the files a card opens and saves.
+ */
+export function researchTaskAt(n: 1 | 2): NativeTaskDetail {
+  const text = TEXTS[n - 1]
+  if (!text || !researchTask.result) throw new Error(`no fixture version ${String(n)}`)
+  const file = {
+    artifactVersionId: versionId(n),
+    format: 'markdown' as const,
+    sourceId: text.sourceId,
+    sha256: text.sha256,
+    byteLength: new TextEncoder().encode(text.text).byteLength,
+    limitations: [],
+  }
+  const result = { ...researchTask.result, sourceId: text.sourceId, sha256: text.sha256, markdown: text.text }
+  return {
+    ...researchTask,
+    task: { ...researchTask.task, resultSourceId: text.sourceId },
+    result: { ...result, outputs: [file] },
+  }
+}
+
+/** The bridge's notice for that task, as it reaches a member in the room's chat. */
 export const researchNotice = {
   kind: 'notice' as const,
   id: '00000000-0000-4000-8000-0000000000b7',
@@ -193,6 +216,9 @@ export const researchNotice = {
   taskKind: 'research',
   resultRevision: 1,
 }
+
+/** The notice for the task's revised result (CX-0022): the same task, at revision 2. */
+export const revisedNotice = { ...researchNotice, id: '00000000-0000-4000-8000-0000000000bc', resultRevision: 2 }
 
 /** Someone at the door while a report is open (`lobby=waiting`): the lobby card must stay in reach over the pane. */
 export const waitingAtTheDoor: LobbyEntry = {

@@ -142,7 +142,12 @@ describe('media bridge assignment loop', () => {
     roomEvents[0]?.textMode?.(reader, true)
     bridge.session(E1)?.tick()
     await settle()
-    const owed = { owed: [{ result, attempts: 1, told: [], delivered: 0, heard: false }], unrecorded: [], done: [] }
+    const owed = {
+      owed: [{ result, attempts: 1, told: [], delivered: 0, heard: false }],
+      unrecorded: [],
+      done: [],
+      shown: [result],
+    }
     assert.deepEqual(bridge.session(E1)?.handover(), owed)
     roomEvents[0]?.connection('disconnected', 'livekit: 1')
     await settle()

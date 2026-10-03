@@ -66,4 +66,14 @@ describe('Gemini Live message dispatch', () => {
     dispatchServerMessage(msg, h)
     assert.deepEqual(calls, ['setup', 'resume:none:false'])
   })
+
+  it('passes on a transcription’s finished marker that carries no words (CX-0023)', () => {
+    const { calls, h } = recorder()
+    const msg = Object.assign(new LiveServerMessage(), {
+      serverContent: { inputTranscription: { finished: true }, outputTranscription: { finished: true } },
+    })
+    dispatchServerMessage(msg, h)
+    dispatchServerMessage(Object.assign(new LiveServerMessage(), { serverContent: { inputTranscription: {} } }), h)
+    assert.deepEqual(calls, ['in::true', 'out::true'])
+  })
 })
