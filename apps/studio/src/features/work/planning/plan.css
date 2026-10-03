@@ -69,6 +69,10 @@
   color: var(--text-2);
   font-size: 13px;
 }
+/* A picture centred on its words: as a box of its own, not a letter sitting on the line's baseline. */
+.plan-who .resource-avatar {
+  display: inline-flex;
+}
 .plan-who .muted::before,
 .plan-when::before,
 .plan-choices::before {

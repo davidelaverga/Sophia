@@ -39,17 +39,18 @@ The plan's data is `sophia.work.plan.v1` as it is. The Studio proposes four more
 
 ## Evidence
 
-- **Browser checks:** six, in `e2e/work.spec.ts`, one of them for the phone:
+- **Browser checks:** seven, in `e2e/work.spec.ts`, one of them for the phone:
   - the order and the nesting;
   - who does each item and when it starts, in words;
+  - each picture centred on its line's words (measured: a photo sat 2.7 px high and an initial 1.4 px low, on the line's baseline; now within 0.5 px);
   - Assumed, To decide and Decided kept apart;
   - nothing in the plan acts;
   - proposed and superseded plans;
   - a phone with no overflow.
 
-  `test:browser --repeat-each=2`: 160 of 160. No request leaves the page.
+  `test:browser --repeat-each=2`: 162 of 162. No request leaves the page.
 - **Unit checks:** four, in `planning/plan.test.ts`.
-- **Nine mutations** each made their check fail:
+- **Ten mutations** each made their check fail:
   - children not grouped;
   - a superseded plan shown;
   - a candidate wait said as "now";
@@ -58,7 +59,8 @@ The plan's data is `sophia.work.plan.v1` as it is. The Studio proposes four more
   - a person without their avatar;
   - a proposed plan said accepted;
   - something already decided asked again;
-  - the plan above its goal.
+  - the plan above its goal;
+  - the picture back on the baseline.
 - **Gates:**
   - `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm contracts:check` pass;
   - `pnpm test`: 606 pass, plus the 5 known Windows failures.

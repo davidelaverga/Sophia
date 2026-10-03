@@ -61,6 +61,23 @@ test('each item says who does it and when it starts, in words; a running one say
   await expect(measure).toContainText('Ready for someone to take')
 })
 
+test('each picture sits centred on its line’s words, a photo or an initial alike', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(rows(page)).toHaveCount(5)
+  const offsets = await plan(page)
+    .locator('.plan-who:has(.avatar)')
+    .evaluateAll((lines) =>
+      lines.map((line) => {
+        const words = [...line.children].find((c) => c.tagName === 'SPAN' && c.className === '')
+        const picture = line.querySelector('.avatar')?.getBoundingClientRect()
+        const text = words?.getBoundingClientRect()
+        return picture && text ? Math.abs(picture.top + picture.height / 2 - (text.top + text.height / 2)) : 99
+      }),
+    )
+  expect(offsets.length).toBe(5) // the build, the pane's review, the note, and both decisions
+  for (const off of offsets) expect(off).toBeLessThanOrEqual(0.5)
+})
+
 test('what it assumes stands apart from what was decided, and each decision names who decides', async ({ page }) => {
   await page.goto(PAGE)
   const assumed = plan(page).getByRole('region', { name: 'Assumed' })
