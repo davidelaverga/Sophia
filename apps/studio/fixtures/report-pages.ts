@@ -1,9 +1,9 @@
 // Labelled fixture reports for html-report-v2's layout checks (e2e/report-page.spec.ts): each one a page input as
 // Studio passes it (@sophia/report/page), with the provenance Studio already holds for a version and its sources.
-// "kitchen" is a research report with every element the template prints and every kind of source; "stress" is what
-// a page must survive (a 220-character title, a 12-column table of 40 rows, 50 adjacent citations, a 300-character
-// code line, long addresses, CJK and Arabic text). Vendors, figures and addresses are illustrative; nothing here is
-// live, and the hashes are placeholders the page only prints.
+// "kitchen" is a research report with every element the template prints (a section break inside a section and one
+// closing it) and every kind of source; "stress" is what a page must survive (a 220-character title, a 12-column table
+// of 40 rows, 50 adjacent citations, a 300-character code line, long addresses, CJK and Arabic text). Vendors, figures
+// and addresses are illustrative; nothing here is live, and the hashes are placeholders the page only prints.
 import type { PageSource, ReportPageInput } from '@sophia/report/page'
 
 /** A fixture source id. */
@@ -72,6 +72,8 @@ Every host offers point-in-time recovery, but the window and the granularity dif
 #### Restore times the vendors quote
 
 Restore times are vendor-reported for a 200 GB database and were not tested by us. Harbor quotes "under 20 minutes" and Northwind "about 45 minutes" [${id(2)}]; the others publish no figure. A restore drill on a copy should be the first task after the decision.
+
+---
 
 ### Side by side
 

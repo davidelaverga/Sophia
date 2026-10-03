@@ -1,6 +1,6 @@
 // The words html-report-v2 adds to a report's page (report-page.ts), in English, Italian and Spanish; a report in no
 // clear language (`und`) gets English. The report's own headings and the contents and sources headings stay
-// printReport's. Every count says its own plural, verb included ("1 of 6 citations is", "2 of 6 citations are"), and
+// printReport's. Every count says its own plural, verb included ("1 of 6 cited sources is", "2 of 6 … are"), and
 // numbers and dates are written here, never by Intl, so a page's bytes do not depend on the machine that prints it.
 
 /** What was read of a cited source, from its stored provenance. */
@@ -91,10 +91,10 @@ const EN: PageWords = {
   limitsLead: 'As stated when this version was published.',
   method: 'How this report was made',
   gate: (n) =>
-    `${n === 1 ? 'The citation points to a source' : `All ${n} citations point to sources`} this task retrieved or ` +
-    `was given: Sophia checked ${plural(n, 'it', 'each one')} when this version was published.`,
+    `${n === 1 ? 'The cited source is one' : `All ${n} cited sources are ones`} this task retrieved or was given: ` +
+    `Sophia checked ${plural(n, 'it', 'each one')} when this version was published.`,
   snippets: (k, n) =>
-    `${k} of ${n} ${plural(n, 'citation', 'citations')} ${plural(k, 'is a search listing', 'are search listings')} ` +
+    `${k} of ${n} cited ${plural(n, 'source', 'sources')} ${plural(k, 'is a search listing', 'are search listings')} ` +
     `(snippets only), not ${plural(k, 'a page', 'pages')} that ${plural(k, 'was', 'were')} opened.`,
   partial: (k, n) =>
     `${k} of ${n} cited ${plural(n, 'source', 'sources')} ${plural(k, 'was', 'were')} read only in part.`,
@@ -138,21 +138,23 @@ const IT: PageWords = {
   },
   mixHead: (n) => `${n} ${plural(n, 'fonte', 'fonti')}`,
   weakKey: 'Un numero punteggiato nel testo cita una fonte letta solo in parte o solo come anteprima di ricerca.',
-  retrieved: (d) => `consultata il ${d}`,
+  // The article elides before a day said with a vowel: l'8, l'11.
+  retrieved: (d) => `consultata ${/^(8|11) /.test(d) ? "l'" : 'il '}${d}`,
   citedIn: 'citata in',
   intro: 'Introduzione',
   back: (n) => `Torna alla citazione ${n}`,
   cite: (n, weak) => `Fonte ${n}${weak ? `, ${weak}` : ''}`,
   key: 'Fonti citate',
   limitations: 'Limiti',
-  limitsLead: 'Come dichiarati alla pubblicazione di questa versione.',
+  limitsLead: 'Così come dichiarati al momento della pubblicazione di questa versione.',
   method: 'Come è stato fatto questo rapporto',
   gate: (n) =>
-    `${n === 1 ? 'La citazione rimanda a una fonte' : `Tutte le ${n} citazioni rimandano a fonti`} che questo compito ` +
-    'ha recuperato o ricevuto: Sophia lo ha verificato alla pubblicazione di questa versione.',
+    `Questo compito ha recuperato o ricevuto ${n === 1 ? 'la fonte citata' : `tutte le ${n} fonti citate`}: ` +
+    'Sophia lo ha verificato alla pubblicazione di questa versione.',
   snippets: (k, n) =>
-    `${k} ${plural(k, 'citazione', 'citazioni')} su ${n} ${plural(k, 'rimanda', 'rimandano')} a un elenco di ricerca ` +
-    '(solo anteprime), non a una pagina aperta.',
+    `${k} ${plural(k, 'fonte citata', 'fonti citate')} su ${n} ` +
+    `${plural(k, 'è un elenco di ricerca', 'sono elenchi di ricerca')} (solo anteprime), ` +
+    `non ${plural(k, 'una pagina aperta', 'pagine aperte')}.`,
   partial: (k, n) =>
     `${k} ${plural(k, 'fonte citata', 'fonti citate')} su ${n} ${plural(k, 'è stata letta', 'sono state lette')} solo in parte.`,
   unread: (k, n) =>
@@ -207,11 +209,12 @@ const ES: PageWords = {
   limitsLead: 'Tal como se declararon al publicar esta versión.',
   method: 'Cómo se hizo este informe',
   gate: (n) =>
-    `${n === 1 ? 'La cita remite a una fuente' : `Las ${n} citas remiten a fuentes`} que esta tarea obtuvo o recibió: ` +
+    `Esta tarea obtuvo o recibió ${n === 1 ? 'la fuente citada' : `las ${n} fuentes citadas`}: ` +
     'Sophia lo comprobó al publicar esta versión.',
   snippets: (k, n) =>
-    `${k} de ${n} ${plural(n, 'cita', 'citas')} ${plural(k, 'remite', 'remiten')} a una lista de búsqueda ` +
-    '(solo fragmentos), no a una página abierta.',
+    `${k} de ${n} ${plural(n, 'fuente citada', 'fuentes citadas')} ` +
+    `${plural(k, 'es una lista de búsqueda', 'son listas de búsqueda')} (solo fragmentos), ` +
+    `no ${plural(k, 'una página abierta', 'páginas abiertas')}.`,
   partial: (k, n) =>
     `${k} de ${n} ${plural(n, 'fuente citada', 'fuentes citadas')} se ${plural(k, 'leyó', 'leyeron')} solo en parte.`,
   unread: (k, n) =>

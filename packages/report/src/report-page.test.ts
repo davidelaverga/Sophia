@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
+import { assertGrowth } from '../../test-support/src/growth.ts'
 import { renderReport } from './report-html.ts'
 import {
   PAGE_CSS,
@@ -143,12 +144,16 @@ const rich = (extra: Partial<ReportPageInput> = {}) =>
     ...extra,
   })
 
-/** Inputs no report should be able to use to break out of the page (the design's hostile fixture). */
+/**
+ * Inputs no report should be able to use to break out of the page (the design's hostile fixture), with three sections,
+ * so its headings reach the contents too, and image words in a mailto address, which keeps its spaces in the href.
+ */
 const HOSTILE: ReportPageInput = {
   markdown:
     '# A "quoted" </style><script>alert(1)</script> & \\ back\'s title </title>\n\n' +
     `Lead [x](<${A}>) text.\n\n## <b>Head</b> "q" & 's\n\nBody text with a citation [${B}] here.\n\n` +
-    `## Limitations </section><script>\n\nMore [${A}].\n`,
+    `## Limitations </section><script>\n\nMore [${A}]. Write to <mailto:[image: x]> now.\n\n` +
+    '## Mail <mailto:[image: y]>\n\nThe end.\n',
   title: 'x',
   sha256: '0'.repeat(64),
   versionNumber: 1,
@@ -208,13 +213,18 @@ function headIssues(html: string): string[] {
   ]
 }
 
-/** One element: a tag the page prints, attributes it prints, and a link to the page, the web or mail. */
+/**
+ * One element: a tag the page prints, attributes it prints, and a link to the page, the web or mail. Whatever is left
+ * once each name="value" pair is taken out (a value holding a raw < or >, a stray quote) is an attribute broken open.
+ */
 function tagIssues(tag: string, attributes: string): string[] {
   const issues = TAGS.has(tag) ? [] : [`tag <${tag}>`]
   for (const [, name = '', value = ''] of attributes.matchAll(/\s([a-zA-Z-:]+)(?:="([^"]*)")?/g)) {
     if (!ATTRS.has(name.toLowerCase())) issues.push(`attribute ${name} on <${tag}>`)
     if (name === 'href' && !/^(#|https?:|mailto:)/.test(value)) issues.push(`href ${value}`)
   }
+  const rest = attributes.replace(/\s[a-zA-Z-]+(="[^"<>]*")?/g, '').trim()
+  if (rest !== '') issues.push(`<${tag}> broken open at ${rest}`)
   return issues
 }
 
@@ -278,7 +288,7 @@ describe('the report as a web page (html-report-v2)', () => {
 
   it('prints the bytes it has always printed for the same report (pinned: a change must be deliberate)', () => {
     const digest = createHash('sha256').update(page()).digest('hex')
-    assert.equal(digest, '78de28253744cbd7abbf07e9b22ac6ad6fcf0767fa0778ec82669e0d5eec3e7b')
+    assert.equal(digest, '9bd7346fba08829b2625163908ed53a93dd96bb998ff6f31105cb6c497a13196')
     const html = page()
     assert.ok(
       html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark">'),
@@ -295,11 +305,14 @@ describe('the report as a web page (html-report-v2)', () => {
       '<script>alert(1)</script> <img src=x onerror=alert(1)>',
       '',
       '[click](javascript:alert(1)) [ok](https://ok.test/"onmouseover="x) ![chart](https://evil.test/p.png)',
+      '',
+      '![map [2026]](https://evil.test/m.png)',
     ].join('\n')
     const html = page({ markdown: md, title: '</title><script>x</script>' })
     assert.doesNotMatch(html, /<(script|img|iframe|object|embed|form|base|link)\b|<[^>]*\son\w+=|javascript:/i)
     assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
     assert.match(html, /<span class="omitted">Image not included: chart<\/span>/)
+    assert.match(html, /<span class="omitted">Image not included: map \[2026\]<\/span>/, 'brackets in its name')
   })
 
   it('escapes its own title, whether a heading or the fallback gives it: nothing reaches the head', () => {
@@ -421,6 +434,39 @@ describe('html-report-v2: what its bytes guarantee', () => {
     )
     assert.ok(body.includes('/<wbr>x<wbr>?q<wbr>=&lt;script&gt;'), 'shown decoded, escaped')
     assert.ok(body.includes('href="https://a.example/x?q=%3Cscript%3E"'), 'the link keeps its escaped form')
+    assert.ok(
+      body.includes('<li><a href="#bheadb-q-s">&lt;b&gt;Head&lt;/b&gt; &quot;q&quot; &amp; &#39;s</a>'),
+      'contents',
+    )
+    assert.ok(body.includes('Write to <a href="mailto:[image: x]">mailto:<span class="omitted">'), 'a mailto href')
+    assert.ok(body.includes('<h2>Mail <a href="mailto:[image: y]">mailto:<span class="omitted">'), 'in a heading')
+    // An address whose path decodes to a control or format character (an override, a NUL, a zero width) shows escaped.
+    const tricky = 'https://evil.example/%E2%80%AEmoc.knab.www%00%E2%80%8B'
+    const shown = renderReportPage({ ...HOSTILE, sources: HOSTILE.sources.map((s) => ({ ...s, url: tricky })) })
+    assert.ok(shown.includes('<span class="host">evil.example</span>/<wbr>%E2%80%AEmoc.knab.www%00%E2%80%8B</a>'))
+    for (const c of ['\u0000', '\u200b', '\u202e']) assert.ok(!shown.includes(c), 'an invisible character in the page')
+  })
+
+  it('prints a page in linear time, whatever runs of spaces or image words a draft holds (a draft may hold 256 KiB)', async () => {
+    // At the draft's limit a code block of spaces took 270 s and image words 15 s: a run of spaces was scanned from
+    // each of its spaces, and each "[image: " to the end of its paragraph.
+    const linear = (label: string, make: (size: number) => string, n: number) =>
+      assertGrowth(
+        label,
+        (size, measure) => {
+          const input = { ...HOSTILE, markdown: make(size) }
+          return measure(() => renderReportPage(input))
+        },
+        n,
+      )
+    await linear('spaces in a code block', (n) => `# T\n\n## S\n\n\`\`\`\n${' '.repeat(n)}\n\`\`\`\n`, 4096)
+    await linear('spaces in a paragraph', (n) => `# T\n\n## S\n\nword${' '.repeat(n)}x\n`, 4096)
+    await linear(
+      'no-break spaces in a table cell',
+      (n) => `# T\n\n## S\n\n| a |\n|--|\n| b${'\u00a0'.repeat(n)}c |\n`,
+      4096,
+    )
+    await linear('image words that never close', (n) => `# T\n\n## S\n\n${'[image: '.repeat(n / 8)}\n`, 16 * 1024)
   })
 
   it('U2 · gives every id once, and every in-page link a target, whatever the headings are called', () => {
@@ -560,6 +606,11 @@ describe('html-report-v2: what its bytes guarantee', () => {
     const stated = rich({ limitations: ['Restore times are vendor claims.'] })
     assert.doesNotMatch(stated, /id="report-limitations"/)
     assert.equal(stated.match(/<section id="[^"]+" data-report-role="limitations"/g)?.length, 1)
+    // A heading that names the limitations under another role states them too: nothing is printed twice.
+    for (const heading of ['Risks and limits', 'Conclusions and limitations', 'Sources and limitations']) {
+      const named = without.replace('## Conclusion', `## ${heading}`)
+      assert.doesNotMatch(rich({ markdown: named, limitations: ['Stored.'] }), /id="report-limitations"/, heading)
+    }
   })
 
   it('U10 · reads limitations and answers from their headings, and nothing else', () => {
@@ -570,7 +621,14 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.equal(role('Risks and limitations'), 'limitations')
     assert.equal(role('Limiti'), 'limitations')
     assert.equal(role('Caveats'), 'limitations')
+    assert.equal(role('Risks and limits'), 'limitations')
+    assert.equal(role('Known limits'), 'limitations')
+    assert.equal(role('Scope and limits'), 'limitations')
+    assert.equal(role('Rischi e limiti'), 'limitations')
+    assert.equal(role('Riesgos y límites'), 'limitations')
     assert.equal(role('Rate limits and quotas'), 'body')
+    assert.equal(role('Pricing and limits'), 'body')
+    assert.equal(role('Risk limits'), 'body')
     assert.equal(role('Answer'), 'summary')
     assert.equal(role('The bottom line'), 'summary')
     assert.equal(role('Answering engines compared'), 'body')
@@ -599,10 +657,10 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.equal(
       method,
       'How this report was made' +
-        '1 of 5 citations is a search listing (snippets only), not a page that was opened.' +
+        '1 of 5 cited sources is a search listing (snippets only), not a page that was opened.' +
         '1 of 5 cited sources was read only in part.' +
         '1 of 5 cited sources could not be read.' +
-        'All 5 citations point to sources this task retrieved or was given: Sophia checked each one when this version ' +
+        'All 5 cited sources are ones this task retrieved or was given: Sophia checked each one when this version ' +
         'was published.' +
         'Not independently reviewed. Sophia checks that each citation points to a source the task could read, not ' +
         'that each claim matches its source.' +
@@ -614,8 +672,26 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.ok(bare.includes('<li class="note"><strong>Not independently reviewed.</strong> Sophia checks'))
     assert.ok(bare.includes('<li class="note">This version does not record how many searches'))
     assert.doesNotMatch(bare, /class="(ok|warn)"/)
+    for (const heading of [
+      'Risks and limits',
+      'Rischi e limiti',
+      'Conclusions and limitations',
+      'Sources and limitations',
+    ]) {
+      const named = page({ markdown: `# T\n\n## One\n\n${filler(9)}\n\n## ${heading}\n\nx` })
+      assert.doesNotMatch(named, /states no limitations/, heading)
+    }
     const one = textOf(slice(page({ markdown: `# T\n\nSee [${A}].` }), '<section class="method"', '</section>'))
-    assert.ok(one.includes('The citation points to a source this task retrieved or was given: Sophia checked it'))
+    assert.ok(one.includes('The cited source is one this task retrieved or was given: Sophia checked it when'))
+    // Every count is of cited sources, as the byline counts them: four citations of two sources are two.
+    const twice = rich({ markdown: `# T\n\n## S\n\nOne [${C}], two [${D}], again [${C}] and [${D}].` })
+    assert.ok(
+      textOf(slice(twice, '<section class="method"', '</section>')).includes(
+        '1 of 2 cited sources is a search listing (snippets only), not a page that was opened.' +
+          '1 of 2 cited sources could not be read.' +
+          'All 2 cited sources are ones this task retrieved or was given',
+      ),
+    )
   })
 
   it('U12 · writes the stored instants as UTC dates in the report’s words; a bad one prints nothing', () => {
@@ -629,6 +705,13 @@ describe('html-report-v2: what its bytes guarantee', () => {
       'Version2Sources5 cited, 1 read in fullLength49 words · 1 min read',
     )
     assert.equal(byline(rich({ publishedAt: '2026-13-45T00:00:00Z' })).startsWith('Version'), true)
+    // Only ECMAScript's own format with a real date and time, which every engine reads alike; V8 alone would print
+    // 30 February as 2 March and 24:00 as the next day.
+    for (const odd of ['2026-02-30T00:00:00Z', '2026-10-02T24:00:00Z', '0000-01-01T00:00:00Z', '2026-10-02T09:16']) {
+      assert.ok(byline(rich({ publishedAt: odd })).startsWith('Version'), odd)
+    }
+    assert.ok(byline(rich({ publishedAt: '2024-02-29T23:59:59.999Z' })).startsWith('Published29 February 2024'))
+    assert.ok(byline(rich({ publishedAt: '2026-10-02T00:30+02:00' })).startsWith('Published1 October 2026'))
     assert.equal(
       byline(page({ versionNumber: null })),
       'Sources2 citedLength134 words · 1 min read',
@@ -644,13 +727,50 @@ describe('html-report-v2: what its bytes guarantee', () => {
     const itPage = rich({ markdown: italian, publishedAt: '2026-01-31T23:00:00-01:00' })
     assert.ok(byline(itPage).startsWith('Pubblicato1 febbraio 2026Versione2Fonti1 citata, 1 letta per intero'))
     assert.ok(itPage.includes('<span>Rapporto di ricerca Sophia</span> · <span>versione 2</span>'))
+    const itSources = RICH_SOURCES.map((s, i) => ({
+      ...s,
+      retrievedAt: `2026-10-${['08', '11', '01', '02', '03'][i] ?? '01'}T09:00:00.000Z`,
+      ...(s.id === D ? { kind: 'search_results' as const } : {}),
+    }))
+    const itRich = rich({
+      markdown: italian.replace(`[${A}]`, `[${A}] [${B}] [${C}] [${D}]`),
+      sources: itSources,
+      limitations: ['Prezzi di un solo giorno.'],
+    })
+    const itMeta = (n: number) => textOf(slice(itRich, `<li id="cite-${n}">`, '</li>'))
+    assert.ok(itMeta(1).includes("Letta per intero · consultata l'8 ottobre 2026"), itMeta(1))
+    assert.ok(itMeta(2).includes("consultata l'11 ottobre 2026"))
+    assert.ok(itMeta(3).includes('consultata il 1 ottobre 2026'))
+    const itMethod = textOf(slice(itRich, '<section class="method"', '</section>'))
+    assert.ok(itMethod.includes('2 fonti citate su 4 sono elenchi di ricerca (solo anteprime), non pagine aperte.'))
+    assert.ok(itMethod.includes('Questo compito ha recuperato o ricevuto tutte le 4 fonti citate: Sophia lo ha'))
+    assert.ok(
+      itRich.includes('<p class="aside">Così come dichiarati al momento della pubblicazione di questa versione.'),
+    )
+    const itOne = textOf(slice(itPage, '<section class="method"', '</section>'))
+    assert.ok(itOne.includes('Questo compito ha recuperato o ricevuto la fonte citata: Sophia lo ha verificato'))
     const es =
       '# Informe\n\n## Resumen\n\nEl servicio que ofrece los informes para las empresas, como este proyecto, ' +
       `también está por encima de las opciones que son más caras [${B}] [${C}].`
     const esPage = rich({ markdown: es, publishedAt: '2026-07-04T12:00:00Z' })
     assert.ok(byline(esPage).startsWith('Publicado4 de julio de 2026Versión2Fuentes2 citadas, 0 leídas completas'))
     const esMethod = textOf(slice(esPage, '<section class="method"', '</section>'))
-    assert.ok(esMethod.startsWith('Cómo se hizo este informe1 de 2 citas remite a una lista de búsqueda'))
+    assert.ok(
+      esMethod.startsWith(
+        'Cómo se hizo este informe1 de 2 fuentes citadas es una lista de búsqueda (solo fragmentos), no una página ' +
+          'abierta.',
+      ),
+    )
+    assert.ok(esMethod.includes('Esta tarea obtuvo o recibió las 2 fuentes citadas: Sophia lo comprobó'))
+    const esSearch = rich({
+      markdown: es.replace(`[${B}] [${C}]`, `[${C}] [${D}]`),
+      sources: RICH_SOURCES.map((s) => (s.id === D ? { ...s, kind: 'search_results' as const } : s)),
+    })
+    assert.ok(
+      textOf(slice(esSearch, '<section class="method"', '</section>')).includes(
+        '2 de 2 fuentes citadas son listas de búsqueda (solo fragmentos), no páginas abiertas.',
+      ),
+    )
     assert.ok(esMethod.includes('1 de 2 fuentes citadas se leyó solo en parte.'))
     const esOne = rich({ markdown: es.replace(`[${B}] [${C}]`, `[${A}]`) })
     assert.ok(byline(esOne).includes('Fuentes1 citada, 1 leída completaExtensión'), 'one source, singular')

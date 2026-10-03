@@ -86,7 +86,7 @@ export const brokenWords = (page: Page) =>
 /**
  * The weakest contrast of any visible text on the page (WCAG 2.x): every element's own text and every pseudo-element
  * that shows text (a marker, a glyph), against the first opaque ground behind it. Large text needs 3:1, the rest 4.5:1;
- * the masthead's monogram is a logotype and is left out.
+ * the masthead's monogram is a logotype and a section break's dots an ornament, so both are left out.
  */
 export const worstContrast = (page: Page) =>
   page.evaluate(() => {
@@ -106,15 +106,16 @@ export const worstContrast = (page: Page) =>
         if (opaque.has(a)) return getComputedStyle(a).backgroundColor
       return 'rgb(0, 0, 0)'
     }
+    // An element of no height still shows its pseudo-elements' text (a section break is a rule with dots on it).
     const texts = all
-      .filter((e) => e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().height > 0)
+      .filter((e) => e.getBoundingClientRect().width > 0)
       .flatMap((e) => {
         const own = [...e.childNodes].some((c) => c.nodeType === Node.TEXT_NODE && c.textContent?.trim())
         const pseudos = ['::before', '::after', '::marker'].filter((pseudo) => {
           const style = getComputedStyle(e, pseudo)
           if (pseudo === '::marker')
             return getComputedStyle(e).display === 'list-item' && style.listStyleType !== 'none'
-          if (pseudo === '::before' && e.matches('.title-block .eyebrow')) return false
+          if (pseudo === '::before' && e.matches('.title-block .eyebrow, hr')) return false
           return !['none', 'normal', '""'].includes(style.content)
         })
         return [...(own ? [''] : []), ...pseudos].map((pseudo) => ({ e, pseudo }))
@@ -136,6 +137,44 @@ export const worstContrast = (page: Page) =>
       need: 4.5,
       what: '',
     })
+  })
+
+/**
+ * The body's type and the heading scale: a body paragraph's size and its leading (line height over size), and the
+ * sizes of the title, a section heading, a subheading and that paragraph, largest first (one the page lacks left out).
+ */
+export const typeScale = (page: Page) =>
+  page.evaluate(() => {
+    const body =
+      document.querySelector('section[data-report-role="body"] > p') ??
+      document.querySelector('section:not([data-report-role="summary"]) > p')
+    const heads = ['h1', 'section[data-report-role="body"] > h2', 'section h3'].map((s) => document.querySelector(s))
+    const sizes = [...heads, body].map((e) => (e ? parseFloat(getComputedStyle(e).fontSize) : null))
+    const size = sizes.at(-1) ?? null
+    return {
+      body: size,
+      leading: body && size ? parseFloat(getComputedStyle(body).lineHeight) / size : null,
+      scale: sizes.filter((s) => s !== null),
+    }
+  })
+
+/**
+ * The contents on a wide screen: whether it stays in view as the page scrolls, and how far its right edge stands left
+ * of the answer's first block and of a body paragraph (less than zero where it covers them).
+ */
+export const rail = (page: Page) =>
+  page.evaluate(() => {
+    const toc = document.querySelector('nav.toc')
+    if (!toc) return null
+    const right = toc.getBoundingClientRect().right
+    const text = ['section[data-report-role="summary"] > h2 + *', 'section[data-report-role="body"] > p']
+    return {
+      sticky: getComputedStyle(toc).position === 'sticky',
+      gaps: text.flatMap((s) => {
+        const e = document.querySelector(s)
+        return e ? [Math.round(e.getBoundingClientRect().left - right)] : []
+      }),
+    }
   })
 
 /**

@@ -1,7 +1,17 @@
 import { expect, test, type Page } from '@playwright/test'
 import { renderReportPage } from '@sophia/report/page'
 import { REPORT_PAGES } from '../fixtures/report-pages.ts'
-import { answerFirst, brokenWords, medianLine, overflow, pdfText, printed, worstContrast } from './report-probes.ts'
+import {
+  answerFirst,
+  brokenWords,
+  medianLine,
+  overflow,
+  pdfText,
+  printed,
+  rail,
+  typeScale,
+  worstContrast,
+} from './report-probes.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // The downloaded report page's layout criteria (html-report-v2, SMC-M03): the bytes Studio saves
@@ -63,9 +73,25 @@ test('C1 · the reading column holds at least 35 characters a line on a phone @p
 })
 
 for (const { width, where, tag } of SCREENS) {
-  test(`C3 · at most five font sizes, none under 14px, ${where}${tag}`, async ({ page }) => {
+  test(`C2 · body text at 17px or more (18 on a desktop), 1.5 to 1.7 lines apart, ${where}${tag}`, async ({ page }) => {
     for (const name of NAMES) {
       await open(page, name, width)
+      const { body, leading } = await typeScale(page)
+      expect(body ?? 0, `${name}: a body paragraph’s size`).toBeGreaterThanOrEqual(width >= 1280 ? 18 : 17)
+      expect(leading ?? 0, `${name}: its line height over its size`).toBeGreaterThanOrEqual(1.5)
+      expect(leading ?? 0, `${name}: its line height over its size`).toBeLessThanOrEqual(1.7)
+    }
+  })
+
+  test(`C3 · headings 1.2 times a step apart, at most five sizes, none under 14px, ${where}${tag}`, async ({
+    page,
+  }) => {
+    for (const name of NAMES) {
+      await open(page, name, width)
+      const { scale } = await typeScale(page)
+      for (const [i, size] of scale.slice(1).entries()) {
+        expect((scale[i] ?? 0) / size, `${name}: ${scale.join(' / ')}`).toBeGreaterThanOrEqual(1.2)
+      }
       const sizes = await typeSizes(page, 'body')
       expect(sizes.length, `${name}: ${sizes.join(' ')}`).toBeLessThanOrEqual(5)
       expect(Math.min(...sizes.map((s) => parseFloat(s))), `${name}: the smallest`).toBeGreaterThanOrEqual(14)
@@ -107,6 +133,16 @@ test('C7 · the answer comes before the contents and the body, inside the first 
     const answer = await answerFirst(page)
     expect({ contents: answer.contents, body: answer.body }, name).toEqual({ contents: true, body: true })
     if (name === PROSE) expect(answer.top ?? Infinity, `${name}: where the answer starts`).toBeLessThan(844)
+  }
+})
+
+test('C14 · on a desktop the contents stays beside the text as it scrolls, and never covers it', async ({ page }) => {
+  for (const name of NAMES) {
+    await open(page, name, 1280)
+    const contents = await rail(page)
+    expect(contents?.sticky, `${name}: the contents stays in view`).toBe(true)
+    expect(contents?.gaps.length, `${name}: the answer and a body paragraph`).toBe(2)
+    expect(Math.min(...(contents?.gaps ?? [])), `${name}: its edge left of the text`).toBeGreaterThanOrEqual(0)
   }
 })
 

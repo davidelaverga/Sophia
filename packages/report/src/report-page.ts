@@ -7,11 +7,12 @@
 // Intl. pdf-report-v1 (renderReport) is unchanged: its bytes are pinned by a test.
 //
 // The page is a pass over printReport's parts, made on strings: escaped text never holds "<", so every pattern below
-// meets the template's own markup only. It binds each citation to the word before it as a bare numeral (adjacent ones
-// grouped, a weak source dotted and named), gives a section a page role its heading names (an answer, limitations),
-// puts a leading answer before the contents, and adds what Studio already holds of the version: when it was published,
-// what was read of each source and when, the limitations it stored, and what Sophia checked when it was published.
-// A part whose input is absent is not printed; the page never prints a fact the record does not hold.
+// that looks for markup meets the template's own (the one that looks for words, an image's, skips every tag). It
+// binds each citation to the word before it as a bare numeral (adjacent ones grouped, a weak source dotted and named),
+// gives a section a page role its heading names (an answer, limitations), puts a leading answer before the contents,
+// and adds what Studio already holds of the version: when it was published, what was read of each source and when,
+// the limitations it stored, and what Sophia checked when it was published. A part whose input is absent is not
+// printed; the page never prints a fact the record does not hold.
 import { safeHref } from './markdown.ts'
 import { PAGE_CSS } from './page-css.ts'
 import { pageWords, type PageWords, type Status } from './page-words.ts'
@@ -87,20 +88,36 @@ function statusOf(source: PageSource | undefined): Status | null {
   return source.coverage === 'partial' ? 'part' : 'unread'
 }
 
+/**
+ * ECMAScript's date-time format, as the API's toISOString writes it (seconds and milliseconds optional, a zone
+ * required), with a time of day in range. Every engine reads such a string alike; an impossible one each reads its own
+ * way (V8 turns 30 February into 2 March), so the page would print different bytes in different browsers.
+ */
+const INSTANT = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d{3})?)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$/
+
 /** A stored ISO timestamp (with its zone) as a date in the page's words, in UTC; null when it is not one. */
 function dateOf(iso: string | null | undefined, words: PageWords): string | null {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/.test(iso)) return null
-  const t = new Date(Date.parse(iso))
-  return Number.isNaN(t.getTime()) ? null : words.date(t.getUTCDate(), t.getUTCMonth(), t.getUTCFullYear())
+  const m = INSTANT.exec(iso ?? '')
+  if (!m) return null
+  const [year, month, day] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])]
+  // A day the calendar lacks (30 February, a 13th month) or a year before 100 does not come back from Date.UTC.
+  const check = new Date(Date.UTC(year, month, day))
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month || check.getUTCDate() !== day) return null
+  const t = new Date(Date.parse(m[0]))
+  return words.date(t.getUTCDate(), t.getUTCMonth(), t.getUTCFullYear())
 }
 
 /** A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). */
 const LIMITS = /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b/i
+/** "Limits" further in: joined to risks or scope, or known ("Rischi e limiti"), never alone ("Rate limits"). */
+const JOINED = /\b(known|(risks|scope|rischi|ambito|riesgos|alcance)(,|\s+(and|e|y|&)))\s+(limits|limiti|l[ií]mites)\b/i
 const ANSWER = /^(the )?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
+
+const namesLimits = (title: string) => LIMITS.test(title) || JOINED.test(title)
 
 function pageRole(role: string, title: string): string {
   if (role !== 'body') return role
-  if (LIMITS.test(title)) return 'limitations'
+  if (namesLimits(title)) return 'limitations'
   return ANSWER.test(title) ? 'summary' : role
 }
 
@@ -125,18 +142,22 @@ function citeLink(n: number, pass: Pass): string {
 /**
  * Citations as bare numerals bound to the word before them (the space before them dropped), adjacent ones in one
  * group that wraps between numerals only; an image named in the page's words; a table a named region the keyboard
- * can scroll.
+ * can scroll. Each pattern runs in linear time, since a page is printed whatever its length: a run of spaces is
+ * matched from its start only, and an image's name ends at the first bracket that does not close inside it ("chart
+ * [2026]" is one name). An image is named in text only, never inside a tag: a mailto address keeps its spaces, so
+ * `<mailto:[image: x]>` holds the same words in its href.
  */
 function pagePass(html: string, pass: Pass): string {
   return html
-    .replace(/[ \u00a0]+(?=<sup class="cite">)/g, '')
+    .replace(/(?<![ \u00a0])[ \u00a0]+(?=<sup class="cite">)/g, '')
     .replace(/(?:<sup class="cite"><a href="#cite-\d+">\[\d+\]<\/a><\/sup>)+/g, (run) => {
       const links = [...run.matchAll(/#cite-(\d+)/g)].map((m) => citeLink(Number(m[1]), pass))
       return `<sup class="cite">${links.join('<span class="sep">,</span><wbr>')}</sup>`
     })
     .replace(
-      /\[image: ([^\]<]*)\]/g,
-      (_, alt: string) => `<span class="omitted">${esc(pass.words.image)}: ${alt}</span>`,
+      /(<[^>]*>)|\[image: ((?:[^[\]<]|\[[^[\]<]*\])*)\]/g,
+      (match: string, tag: string | undefined, alt: string) =>
+        tag === undefined ? `<span class="omitted">${esc(pass.words.image)}: ${alt}</span>` : match,
     )
     .replace(
       /<figure class="table" data-visual-id="table-(\d+)">/g,
@@ -172,12 +193,19 @@ function pageSections(printed: PrintedReport, pass: Pass): PageSection[] {
 }
 
 /**
+ * Whether the report states its limitations: a section of them, or one whose heading names them under another role
+ * ("Conclusions and limitations", "Sources and limitations").
+ */
+const statesLimits = (sections: readonly PageSection[]) =>
+  sections.some((s) => s.role === 'limitations' || namesLimits(s.title))
+
+/**
  * The limitations the version stored, as a section of their own when the report wrote none: after the last body or
  * summary section, before the conclusion or references that follow it.
  */
 function withStoredLimitations(sections: PageSection[], stored: readonly string[], words: PageWords): PageSection[] {
   const lines = stored.map((l) => l.trim()).filter((l) => l !== '')
-  if (lines.length === 0 || sections.some((s) => s.role === 'limitations')) return sections
+  if (lines.length === 0 || statesLimits(sections)) return sections
   const items = lines.map((l) => `<li>${esc(l)}</li>`).join('')
   const section: PageSection = {
     id: 'report-limitations',
@@ -213,7 +241,8 @@ const whole = <T>(list: readonly (T | null)[]): T[] => list.filter((x) => x !== 
 /**
  * An address as typeset text: the scheme kept, the host marked, and a break opportunity after each "/" of the path
  * and before "?", "&", "#" and "=". The raw address is split first and each piece escaped, so a break never lands
- * inside an entity. The path is shown decoded (the link keeps it escaped); one that does not decode is shown as given.
+ * inside an entity. The path is shown decoded (the link keeps it escaped); one that does not decode, or decodes to an
+ * invisible character, is shown as given.
  */
 function typesetUrl(href: string): string {
   const m = /^(https?:\/\/)([^/?#]*)(.*)$/.exec(href)
@@ -221,7 +250,10 @@ function typesetUrl(href: string): string {
   const [, scheme = '', host = '', raw = ''] = m
   let path = raw
   try {
-    path = decodeURI(raw)
+    const decoded = decodeURI(raw)
+    // A control, format or separator character would act on the text around it (an override reverses it, a zero
+    // width hides in it): such a path stays escaped.
+    if (!/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(decoded)) path = decoded
   } catch {
     // A malformed escape: the path stays as the address has it.
   }
@@ -305,7 +337,7 @@ function methodSection(page: Page): string {
   if (count('unread') > 0) lines.push(['warn', esc(words.unread(count('unread'), n))])
   lines.push(n > 0 ? ['ok', esc(words.gate(n))] : ['note', esc(words.noCites)])
   lines.push(['note', `<strong>${esc(words.review[0])}</strong> ${esc(words.review[1])}`])
-  if (!page.sections.some((s) => s.role === 'limitations')) lines.push(['note', esc(words.noLimits)])
+  if (!statesLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
   lines.push(['note', esc(words.noRecord)])
   const items = lines.map(([kind, text]) => `<li class="${kind}">${text}</li>`).join('')
   return (
