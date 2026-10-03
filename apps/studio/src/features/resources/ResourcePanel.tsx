@@ -64,11 +64,15 @@ function Attention({
       <span className="attention-dot" aria-hidden />
       {waiting.map((r) => {
         const n = openOn(actions, r.id)
+        const which = actions
+          .filter((a) => a.resourceId === r.id && a.state === 'open')
+          .map((a) => a.id)
+          .join(' ')
         const who = r.owner.id === viewerId ? 'you' : r.owner.name
         return (
           <button key={r.id} type="button" className="attention-item" onClick={() => onOpen(r.id)}>
             <ToolLogo tool={r.tool} size="sm" />
-            <span key={n} className="attention-label">
+            <span key={which} className="attention-label">
               {plural(n, 'request')} {n === 1 ? 'waits' : 'wait'} on {who}
             </span>
             <span className="attention-tool">{TOOL[r.tool]}</span>
@@ -335,11 +339,11 @@ export function ResourcePanel(given: Props) {
       <header className="view-head">
         <h2 id="resources-title">Resources</h2>
         <span className="count">{props.loading ? '–' : resources.length}</span>
-        <span className="resources-summary">{summary(resources, actions)}</span>
+        {!props.loading && <span className="resources-summary">{summary(resources, actions)}</span>}
       </header>
-      <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />
+      {!props.loading && <Attention resources={resources} actions={actions} viewerId={viewerId} onOpen={show} />}
       <Body {...props} onOpen={show} view={view} />
-      {selected && (
+      {selected && !props.loading && (
         <ResourceSheet
           resource={selected}
           observation={observationOf(observations, selected)}

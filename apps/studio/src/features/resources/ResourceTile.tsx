@@ -26,6 +26,8 @@ interface Props {
   mine: boolean
   /** Requests waiting on this resource's owner: said on the tile, in amber. */
   waiting: number
+  /** Which requests wait (their ids): a new one is a change even when the count stays. */
+  waitingKey?: string
   onOpen: () => void
   /** A Claude Code neighbour in its row, and which way this tile's mark looks at it (buddies.ts). */
   buddy?: Buddy | undefined
@@ -101,6 +103,22 @@ function TileCapacity({ capacity: { line, limiting, known, pace }, id }: { capac
   )
 }
 
+/**
+ * What a tile says, as one value that changes only when it does: its host, which requests wait, and its capacity's
+ * window, value and reset. Never the clock's words, which move every minute.
+ */
+function saysNow({ resource, observation, waiting, waitingKey }: Props, held: Capacity): string {
+  const headline = observation?.windows.find((w) => w.window_id === held.windowId)
+  return [
+    resource.host.state,
+    waitingKey ?? waiting,
+    held.known,
+    held.windowId,
+    headline?.value,
+    headline?.resets_at,
+  ].join('|')
+}
+
 export function ResourceTile(props: Props) {
   const { resource, observation, now, mine, waiting, onOpen, current, onFocus, ref, buddy, drag } = props
   const { tool, owner, host } = resource
@@ -109,7 +127,7 @@ export function ResourceTile(props: Props) {
   const model = (resource.sessions.find((s) => s.assignment && s.model) ?? resource.sessions.find((s) => s.model))
     ?.model
   const id = useId()
-  const changed = useChanged(`${host.state}|${waiting}|${held.limiting?.percent ?? ''}|${held.known}`)
+  const changed = useChanged(saysNow(props, held))
   const said = (part: string) => `${id}-${part}`
   const described = ['host', mine && 'you', waiting > 0 && 'waiting', 'activity', 'capacity']
     .filter((part) => typeof part === 'string')

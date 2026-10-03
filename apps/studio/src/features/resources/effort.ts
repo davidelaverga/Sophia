@@ -23,13 +23,15 @@ export interface EffortLook {
   rank: number | null
   /** The tool's top level: Claude Code's max, GPT's ultra. */
   top: boolean
+  /** The word as the tool reported it, lowercased: max and ultra share a place on the scale, not a look. */
+  word: string
 }
 
 export function effortLook(effort: string): EffortLook {
   const word = effort.toLowerCase()
   const rank = RANK[word]
   const label = LABEL[word] ?? word.charAt(0).toUpperCase() + word.slice(1)
-  return rank === undefined ? { label: effort, rank: null, top: false } : { label, rank, top: rank === TOP }
+  return rank === undefined ? { label: effort, rank: null, top: false, word } : { label, rank, top: rank === TOP, word }
 }
 
 export const EFFORT_TOP = TOP
@@ -54,5 +56,5 @@ export const effortStyle = (tool: Tool) => STYLE[tool]
  */
 export function alive(style: EffortStyle, look: EffortLook, mode: string | null | undefined): boolean {
   if (style === 'claude') return mode === 'ultracode'
-  return style === 'gpt' && look.top
+  return style === 'gpt' && look.word === 'ultra'
 }

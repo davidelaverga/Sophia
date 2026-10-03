@@ -12,6 +12,8 @@ export interface ModelLook {
 /** "5-5" or "5.5" or "2.5" as a version: "5.5". */
 const version = (v: string) => v.replaceAll('-', '.')
 const title = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+/** "flash-lite" as "Flash Lite". */
+const words = (s: string) => s.split('-').map(title).join(' ')
 
 const FAMILY: Record<string, Family | undefined> = {
   opus: 'opus',
@@ -32,17 +34,21 @@ const RULES: Rule[] = [
     look: ([, family = '', v = '']) => ({ label: `${title(family)} ${version(v)}`, family: FAMILY[family] ?? 'other' }),
   },
   {
-    pattern: /^gemini-(\d+(?:\.\d+)?)-(pro|flash)/,
-    look: ([, v = '', kind = '']) => ({
-      label: `Gemini ${v} ${title(kind)}`,
+    pattern: /^gemini-(\d+(?:\.\d+)?)-((pro|flash)(?:-[a-z0-9]+)*)$/,
+    look: ([, v = '', rest = '', kind = '']) => ({
+      label: `Gemini ${v} ${words(rest)}`,
       family: FAMILY[`gemini-${kind}`] ?? 'other',
     }),
   },
   {
-    pattern: /^gpt-(\d+(?:\.\d+)?)(?:-([a-z]+))?/,
-    look: ([, v = '', name]) => ({ label: `GPT-${v}${name ? ` ${title(name)}` : ''}`, family: 'gpt' }),
+    // "gpt-4o", "gpt-5-mini", "gpt-6.1-sol": the version as written, every word after it kept.
+    pattern: /^gpt-([0-9][0-9a-z.]*)((?:-[a-z0-9]+)*)$/,
+    look: ([, v = '', rest = '']) => ({ label: `GPT-${v}${rest ? ` ${words(rest.slice(1))}` : ''}`, family: 'gpt' }),
   },
-  { pattern: /^grok-(\d+(?:\.\d+)?)/, look: ([, v = '']) => ({ label: `Grok ${v}`, family: 'grok' }) },
+  {
+    pattern: /^grok-([0-9][0-9a-z.]*)((?:-[a-z0-9]+)*)$/,
+    look: ([, v = '', rest = '']) => ({ label: `Grok ${v}${rest ? ` ${words(rest.slice(1))}` : ''}`, family: 'grok' }),
+  },
 ]
 
 export function modelLook(model: string): ModelLook {

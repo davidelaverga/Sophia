@@ -753,6 +753,70 @@ test('arranging within a filter keeps the hidden tiles where they were', async (
     .toEqual(['Davide · Claude Code', 'Davide · Codex', 'Luis · Claude Code', 'Luis · Gemini CLI', 'Davide · Grok'])
 })
 
+test('Codex’s review · a balance that moves flashes its tile; a request swapped for another, too', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1&viewer=davide`)
+  await page.evaluate(() => window.resourcesFixture?.spendCredits?.(700)) // only the count changes
+  await expect(tile(page, 'Luis · Gemini CLI')).toHaveAttribute('data-changed', 'true')
+  await expect(tile(page, 'Luis · Gemini CLI')).toContainText('700 credits left')
+  const claude = tile(page, 'Davide · Claude Code')
+  await expect(claude).not.toHaveAttribute('data-changed')
+  await page.evaluate(() => window.resourcesFixture?.swapRequest?.()) // one answered, another waiting: still 1
+  await expect(claude).toHaveAttribute('data-changed', 'true')
+  await expect(claude.getByText('1 waiting')).toBeVisible()
+})
+
+test('Codex’s review · while reading again, nothing of the last read is said', async ({ page }) => {
+  await page.goto(`${PAGE}?refreshing=1&viewer=davide#resource-davide-claude`)
+  await expect(page.locator('.resource-placeholders')).toBeVisible()
+  await expect(page.locator('.resources-summary')).toHaveCount(0)
+  await expect(page.locator('.resources-attention')).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.evaluate(() => window.resourcesFixture?.load?.())
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible() // read: now it opens
+  await expect(page.locator('.resources-summary')).toBeVisible()
+})
+
+test('Codex’s review · each window’s own drawing says its readings, its dot on its line', async ({ page }) => {
+  await page.goto(PAGE)
+  await open(page, 'Davide · Codex')
+  const codex = capacity(page, 'Davide · Codex')
+  await codex.getByRole('button', { name: '1 more window' }).click()
+  const own = codex.locator('.capacity-windows .capacity-history')
+  await expect(own.locator('figcaption')).toHaveText('6 readings in 3 h')
+  const [dot, svg] = await Promise.all([
+    own.locator('.capacity-history-now').boundingBox(),
+    own.locator('svg').boundingBox(),
+  ])
+  const centre = (dot?.y ?? 0) + (dot?.height ?? 0) / 2
+  expect(centre, 'the dot sits within the drawing').toBeGreaterThanOrEqual(svg?.y ?? 0)
+  expect(centre).toBeLessThanOrEqual((svg?.y ?? 0) + (svg?.height ?? 0))
+})
+
+test('Codex’s review · a dragged tile becomes the Tab stop; Alt at an end changes nothing', async ({ page }) => {
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Davide · Claude Code').focus()
+  await page.keyboard.press('Alt+Home') // already first
+  await page.waitForTimeout(200)
+  await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('attention') // still live, not frozen
+  await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Davide · Codex'))
+  await expect(tile(page, 'Luis · Claude Code')).toHaveAttribute('tabindex', '0')
+  await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
+})
+
+test('@phone · Codex’s review · the sheet’s title keeps its room beside its actions', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 }) // a narrow phone, its touch controls 40 px wide
+  await page.goto(PAGE)
+  await tile(page, 'Davide · Claude Code').click()
+  const title = sheet(page, 'Davide · Claude Code').locator('#resource-sheet-title')
+  await expect(title).toBeVisible()
+  // Whole, on one line: neither cut nor broken over two.
+  expect(await title.evaluate((h) => h.scrollWidth <= h.clientWidth + 1)).toBe(true)
+  expect(
+    await title.evaluate((h) => h.getBoundingClientRect().height <= parseFloat(getComputedStyle(h).lineHeight) * 1.5),
+    'one line',
+  ).toBe(true)
+})
+
 test('the viewer’s own resource says so', async ({ page }) => {
   await page.goto(PAGE)
   await expect(tile(page, 'Luis · Claude Code').getByText('You', { exact: true })).toBeVisible()

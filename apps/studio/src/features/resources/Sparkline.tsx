@@ -1,7 +1,7 @@
 // A window's readings over time, small: a line from its first reading to its latest, with the latest marked, in the
 // colour its use has reached (usageTone). Two readings at least, or nothing is drawn. It says in words what it shows to
 // a screen reader; on screen, how many readings and since when are in the capacity's line of facts.
-import type { Point } from './history.ts'
+import { spanOf, type Point } from './history.ts'
 import { ago, usageTone } from './resource.ts'
 
 interface Props {
@@ -9,11 +9,13 @@ interface Props {
   name: string
   points: Point[]
   now: Date
+  /** Says how many readings over how long under the drawing: for a window the line of facts doesn't speak for. */
+  caption?: boolean
 }
 
 const H = 24
 
-export function Sparkline({ name, points, now }: Props) {
+export function Sparkline({ name, points, now, caption = false }: Props) {
   const first = points[0]
   const last = points.at(-1)
   if (!first || !last || points.length < 2) return null
@@ -30,7 +32,12 @@ export function Sparkline({ name, points, now }: Props) {
         <polygon className="capacity-history-area" points={`0,${H} ${line} 100,${H}`} />
         <polyline className="capacity-history-line" points={line} />
       </svg>
-      <span className="capacity-history-now" style={{ left: `${x(last)}%`, top: `${(y(last) / H) * 100}%` }} />
+      <span className="capacity-history-now" style={{ left: `${x(last)}%`, top: `${y(last)}px` }} />
+      {caption && (
+        <figcaption aria-hidden>
+          {points.length} readings in {spanOf(points)}
+        </figcaption>
+      )}
     </figure>
   )
 }

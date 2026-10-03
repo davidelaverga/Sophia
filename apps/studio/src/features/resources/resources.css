@@ -315,6 +315,11 @@
   background: var(--tone);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 20%, transparent);
 }
+.capacity-history figcaption {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
 .capacity-windows dd .capacity-history {
   flex-basis: 100%;
 }
@@ -775,6 +780,13 @@
 }
 
 @media (max-width: 560px) {
+  .resource-sheet-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .resource-sheet-actions {
+    margin-left: auto;
+  }
   .resource-search {
     max-width: none;
   }

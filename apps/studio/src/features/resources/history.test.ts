@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { windowHistory } from './history.ts'
+import { spanOf, windowHistory } from './history.ts'
 import type { QuotaObservation, QuotaWindow } from './resource.ts'
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 2, 12) + minutes * 60_000).toISOString()
@@ -46,5 +46,29 @@ describe('a window’s history', () => {
       windowHistory(latest, readings).map((p) => p.value),
       [60],
     )
+  })
+
+  it('is one window by its epoch, as the contract says: a reset with the same id and reset time is another', () => {
+    const latest = window({ value: 20, resets_at: null, window_epoch: 'e2' })
+    const readings = [
+      reading(0, [latest]),
+      reading(-30, [window({ value: 10, resets_at: null, window_epoch: 'e2' })]),
+      reading(-60, [window({ value: 95, resets_at: null, window_epoch: 'e1' })]), // before the reset
+    ]
+    assert.deepEqual(
+      windowHistory(latest, readings).map((p) => p.value),
+      [10, 20],
+    )
+  })
+
+  it('spans from its first reading to its last, whenever it is looked at', () => {
+    assert.equal(
+      spanOf([
+        { at: 0, value: 1 },
+        { at: 3 * 3_600_000, value: 2 },
+      ]),
+      '3 h',
+    )
+    assert.equal(spanOf([{ at: 0, value: 1 }]), '')
   })
 })
