@@ -1,9 +1,38 @@
 -- 0036: section facts pair each section at most once, the truth gate reads the conclusion and the recommendations
 -- apart, and a result cites what its draft cites. Run by pnpm test:sql after every migration; it rolls back.
 BEGIN;
--- markdown_outline splits exactly as markdown_sections (0027): same sections, anchors, headings and body hashes.
+-- markdown_outline splits as markdown_sections (0027): same sections, anchors, headings and body hashes. One difference
+-- on purpose, as Studio's sectionsOf reads it: text before the first heading that is only newlines and tabs is no
+-- section (markdown_sections' btrim strips spaces alone, so it kept one).
 DO $$ DECLARE t text:=E'Intro.\r\n# Hosts ##\nA.\n\n##\tCosts\n```\n# not a heading\n```\n  ### ???\nx\n#### C# notes\ny\n## Pros #\n';
+ blank text:=E'\n \t\r\n# Hosts\nA.\n'; started timestamptz;
 BEGIN
+ IF (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord) FROM sophia.markdown_sections(blank))<>ARRAY['(introduction)','Hosts']
+   OR (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord) FROM sophia.markdown_outline(blank))<>ARRAY['Hosts']
+   OR (SELECT body_hash FROM sophia.markdown_outline(blank))<>(SELECT body_hash FROM sophia.markdown_sections(blank) WHERE ord=1) THEN
+  RAISE EXCEPTION 'Blank lines before the first heading: %',(SELECT array_agg(heading ORDER BY ord) FROM sophia.markdown_outline(blank)); END IF;
+ -- Each body is joined once: a 256 KiB section of short lines (the draft cap) takes well under a second, where adding
+ -- line by line copied the body each time (about 2 s here).
+ started:=clock_timestamp();
+ PERFORM count(*) FROM sophia.markdown_outline(E'# Notes\n'||repeat(E'a\n',131068));
+ IF clock_timestamp()-started>interval '1 second' THEN
+  RAISE EXCEPTION 'A long section took %',clock_timestamp()-started; END IF;
+ -- Whitespace as Studio's sectionsOf reads it (JavaScript's): an introduction that is only a no-break space or a byte
+ -- order mark is no section either, and a heading's text drops them at its ends.
+ IF (SELECT array_agg(coalesce(heading,'(introduction)') ORDER BY ord)
+    FROM sophia.markdown_outline(chr(65279)||E'\n'||chr(160)||E'\n# Hosts'||chr(160)||E'\nA.\n'))<>ARRAY['Hosts']
+   OR sophia.section_facts(chr(65279)||E'\n# Hosts\nA.\n',E'# Hosts\nA.\n')
+    <>'{"added":[],"revised":[],"removed":[],"unchanged":["Hosts"],"conclusionChanged":false}'
+   OR sophia.section_facts(E'# Hosts\nA.\n',chr(160)||E'\n# Hosts\nA.\n')->'added'<>'[]' THEN
+  RAISE EXCEPTION 'A blank introduction of JavaScript whitespace made a section'; END IF;
+ -- One heading line of spaces at the draft cap reads in well under a second, here and in the citation pass (cutting its
+ -- closing marks with a lazy match took minutes).
+ started:=clock_timestamp();
+ IF (SELECT heading FROM sophia.markdown_outline('# a'||repeat(' ',262140)||'b ##'))<>'a'||repeat(' ',262140)||'b' THEN
+  RAISE EXCEPTION 'A long heading lost its text'; END IF;
+ PERFORM sophia.markdown_citing_text('# a'||repeat(' ',262140)||'b');
+ IF clock_timestamp()-started>interval '1 second' THEN
+  RAISE EXCEPTION 'A heading line of spaces took %',clock_timestamp()-started; END IF;
  IF EXISTS((SELECT ord,anchor,heading,body_hash FROM sophia.markdown_sections(t)) EXCEPT ALL
    (SELECT ord,anchor,heading,body_hash FROM sophia.markdown_outline(t)))
   OR (SELECT count(*) FROM sophia.markdown_outline(t))<>(SELECT count(*) FROM sophia.markdown_sections(t)) THEN
@@ -166,7 +195,8 @@ DO $$ DECLARE
  inp uuid:='46000000-0000-0000-0000-00000000000a'; base uuid:='46000000-0000-0000-0000-00000000000b';
  gone uuid:='46000000-0000-0000-0000-00000000000c'; stray uuid:='46000000-0000-0000-0000-00000000000d';
  d0 uuid:='56000000-0000-0000-0000-000000000000'; d1 uuid:='56000000-0000-0000-0000-000000000001';
- d2 uuid:='56000000-0000-0000-0000-000000000002'; d3 uuid:='56000000-0000-0000-0000-000000000003'; many uuid[];
+ d2 uuid:='56000000-0000-0000-0000-000000000002'; d3 uuid:='56000000-0000-0000-0000-000000000003';
+ d4 uuid:='56000000-0000-0000-0000-000000000004'; many uuid[];
  s sophia.research_scope; r jsonb; t text;
 BEGIN
  INSERT INTO sophia.projects(id,title,created_by) VALUES(pr,'Citations',who);
@@ -176,7 +206,7 @@ BEGIN
  SELECT array_agg(('66000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid ORDER BY i) INTO many FROM generate_series(1,205) i;
  INSERT INTO sophia.source_objects(project_id,id,owner_id,scope,sha256,mime,storage_key,byte_length,eligible,state)
   SELECT pr,x,who,'project',repeat('a',64),'text/markdown','cite-'||x,1,x<>gone,'ready'
-  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2,d3]||many) x;
+  FROM unnest(ARRAY[man,q,inp,base,gone,stray,d0,d1,d2,d3,d4]||many) x;
  INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES
   (pr,man,jsonb_build_object('schema','sophia.research-manifest.v1','base',jsonb_build_object('sourceId',base))::text),
   (pr,d0,'# Draft'||E'\n\nTo do.\n'),
@@ -233,13 +263,71 @@ BEGIN
  r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('3',64),'citations','[]'::jsonb));
  IF r->'citations'<>jsonb_build_array(many[9],many[10],many[11],many[12],many[13]) THEN
   RAISE EXCEPTION 'A source the report does not number was added: %',r; END IF;
+ -- Block by block, as the parser reads: a code span never spans a heading and the paragraph under it, two list items or
+ -- two cells, and a cell past the table's head is never read; an escaped '[' opens no link, so the id in what would be
+ -- its target is a bare URL's; a link to a ref with a space after its prefix cites (the parser's reading of it), one
+ -- with a space after its '<' does not; a ref is read with its '#n', so an id right after it is not one; and a table
+ -- whose head is a lone '|' has one column.
+ INSERT INTO sophia.source_texts(project_id,source_id,body) VALUES(pr,d4,format(E'## Head `x\nText %s and `y`.\n\n'
+  ||E'- run `a\n- see %s `b`\n\n\\[x](https://e.com/%s)\n\nClaim [1](source: %s).\n\n| a |\n|---|\n| `x` | %s |'
+  ||E'\n\nNot [3](< %s), nor %s#%s.\n\n|\n|---|\n| %s |',
+  many[14],many[15],many[16],many[17],many[18],many[19],many[20],many[21],many[22]));
+ INSERT INTO sophia.research_drafts(project_id,attempt_id,seq,call_key,source_id,sha256) VALUES(pr,att,5,'d4',d4,repeat('4',64));
+ r:=sophia.research_draft_citations(s,jsonb_build_object('draftSha256',repeat('4',64),'citations','[]'::jsonb));
+ IF r->'citations'<>jsonb_build_array(many[14],many[15],many[16],many[17],many[20],many[22]) THEN
+  RAISE EXCEPTION 'The draft''s blocks were read unlike the parser: %',r; END IF;
+END $$;
+-- markdown_citing_text reads a run from left to right as the parser does (packages/report markdown.ts, inlines): at
+-- each place the construct the parser takes there, so an autolink hides a backtick or an escape inside it, a target
+-- ends at its own ')' however escaped, an emphasis ends a label it cuts across, and '<' is an autolink only to an
+-- address the parser opens. Each case names the ids the parser numbers, in order ({A}, {B} and {C} stand for ids).
+DO $$ DECLARE bad text; BEGIN
+ SELECT string_agg(format('%s: %s, not %s',x.md,g.got,x.want),E'\n') INTO bad FROM (VALUES
+  ('See <https://e.com/a`b> and {A} `c`.','A'),
+  ('See <mailto:x\> and <{A}>>.','A'),
+  ('See [x](https://e.com/a\) and {A}).','A'),
+  ('See <https://e.com:port/{A}>.','A'),
+  ('See <https://exa mple.com/{A}>.','A'),
+  ('See < https://e.com/{A}>.',''),
+  ('See <'||chr(160)||'https://e.com/{A}>.',''),
+  ('See *the [report* at](https://e.com/{A}).','A'),
+  ('See _the [report_ at](https://e.com/{A}).','A'),
+  ('See **the [report** at](https://e.com/{A}).','A'),
+  ('*a [b* c](https://e.com/{A}) `{B}`','A'),
+  ('[a [b](https://e.com) c](https://f.com/{A})','A'),
+  ('[a <https://e.com> c](https://f.com/{A})','A'),
+  ('[a [b](https://e.com) c](javascript:{A})',''),
+  ('[see {B}](<{A}>)','B,A'),
+  ('[{B}](<{A}>)','A'),
+  ('Not [3](< {C}). Nor [1](< {A} >).',''),
+  (E'|\n|---|\n| {A} |','A'),
+  (E'||\n|---|\n| {A} |','A'),
+  (E'> > > > > [x](<{A}>) `{B}`','A'),
+  (E'- a\n  `x\n  {A}` b','')) x(md,want),
+  LATERAL (SELECT coalesce(string_agg(CASE u.id WHEN 'aaaaaaaa-0000-4000-8000-00000000000a' THEN 'A'
+     WHEN 'bbbbbbbb-0000-4000-8000-00000000000b' THEN 'B' ELSE 'C' END,',' ORDER BY u.first),'') AS got
+   FROM (SELECT lower(m[1]) AS id, min(o) AS first FROM regexp_matches(sophia.markdown_citing_text(
+     replace(replace(replace(x.md,'{A}','aaaaaaaa-0000-4000-8000-00000000000a'),'{B}','bbbbbbbb-0000-4000-8000-00000000000b'),
+      '{C}','cccccccc-0000-4000-8000-00000000000c')),
+     '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})','gi') WITH ORDINALITY r(m,o) GROUP BY 1) u) g
+ WHERE g.got<>x.want;
+ IF bad IS NOT NULL THEN RAISE EXCEPTION E'Read unlike the parser:\n%',bad; END IF;
+END $$;
+-- The citation pass costs a draft's length: 256 KiB of quotes nested four deep, a line each (where a quote of every
+-- level was read by a call of its own), reads in well under the submit's budget.
+DO $$ DECLARE started timestamptz:=clock_timestamp(); BEGIN
+ PERFORM sophia.markdown_citing_text(repeat(E'>>>>\na\n',43690));
+ IF clock_timestamp()-started>interval '1.5 seconds' THEN
+  RAISE EXCEPTION 'Nested quotes took %',clock_timestamp()-started; END IF;
 END $$;
 -- Grants mirror 0027: nothing here is callable by the API or worker roles, but the submit, by the API alone, which runs
 -- as its owner on the search path it had.
 DO $$ DECLARE fn text; BEGIN
  FOREACH fn IN ARRAY ARRAY['sophia.heading_anchor(text)','sophia.markdown_outline(text)','sophia.note_keeps(text,text,text)',
    'sophia.section_facts(text,text)','sophia.note_problems(text,text,jsonb)',
-   'sophia.markdown_citing_text(text)','sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
+   'sophia.markdown_cells(text)','sophia.markdown_runs(text)','sophia.markdown_href(text)',
+   'sophia.markdown_inline_text(text)','sophia.markdown_citing_text(text)',
+   'sophia.research_draft_citations(sophia.research_scope,jsonb)'] LOOP
   IF has_function_privilege('sophia_api',fn,'EXECUTE') OR has_function_privilege('sophia_worker',fn,'EXECUTE') THEN
    RAISE EXCEPTION '% is callable by the API or worker role',fn; END IF;
  END LOOP;
