@@ -485,6 +485,18 @@ when you change the room:
   page `@sophia/report/page` prints from the version's checked Markdown, and
   text that does not match its record (`tamper=text`) saves nothing.
   Change the viewer and they must still pass.
+- **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
+  CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake
+  delivers result cards and live captions as encoded packets through the
+  real dispatch. A member who hears Sophia gets one card per task (its
+  newest revision), whose Open, Download and HTML page keep the focus but do
+  nothing (`aria-disabled`) until the task is read; a brief's card offers no
+  HTML page; every join says its mode, the hello the bridge answers with the
+  cards again. While people talk the chat shows partials, then the final,
+  once and in order, and marks what was cut off; switching to text and back
+  keeps what was said, and a typed message still goes, never a caption; a
+  dropped call or Sophia leaving cuts off what was still being said, and
+  its words reach screen readers. Change the chat and they must still pass.
 
 ## The personal space
 

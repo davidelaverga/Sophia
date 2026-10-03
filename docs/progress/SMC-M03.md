@@ -817,3 +817,118 @@ Run here (linux-x64) at `fc0a935`:
 - `fixtures/resources.tsx` (`main`'s, new to the fixture API): it now passes this branch's report fields, at rest, to the fixture API it shares with the room page.
 
 Run here at `8f54dca`: `pnpm check` with 804 unit tests (803 passed, 1 skipped) and 95 integration (2 skipped), and `pnpm artifacts` reproducing every identity; `test:browser` 63/63 (7 room, 11 Explore, 22 resource and 23 report checks). #50 changes no SQL, persistence or API, so `test:sql` (35) and `test:db` (376/376) stand from `fc0a935`.
+
+## 39. The pilot's findings (CX-0019..0023), the fact checks (0036) and HTML reports (2026-10-03)
+
+Davide piloted `6ec64f3` in production with Codex, reported in [CX-0019](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962521036) to [CX-0023](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962896818). Voice research worked end to end: the steer, the follow-up, publication, and downloads that match the stored versions. The pilot also found five problems for M03, and Davide asked for one change. Claude answered with the plan and its defaults in [CC-0019](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5963335355).
+
+Davide then decided (2026-10-03):
+- fix both fact-check defects now, with a migration;
+- `read_selected_source` keeps returning the summary;
+- "the research agent should be able to deliver html format. Pdf is postponed but html can work already right now and it should work."
+
+**How it was done.**
+- **Design.** Seven read-only investigations and a critic designed the pilot fixes. For HTML, a map, two competing designs and a judge; for 0036, a design and a critic.
+- **Implementation.** Implementers worked in separate worktrees.
+- **Checks.** Every fix has a check that fails without it, confirmed by reverting the fix. Each branch then had adversarial reviews and a fix pass.
+- **Cross-feature review.** A final review covered the whole delta across features, with skeptics on its serious findings. Its findings were fixed in turn, each change reviewed again.
+- **One design changed during review.** At first SQL mirrored the Markdown parser to decide which ids a report cites. Two parsers in two languages drift, so the API now takes the ids from the parser itself, and SQL verifies them.
+
+### What changed
+
+**CX-0019 #1: the pane clipped Download, Enlarge and Close at 1280.**
+- *Cause:* the pane's grid had no column template, so its column grew to the one-line title's width.
+- *Change:* `grid-template-columns: minmax(0, 1fr)`, and a long title ends in an ellipsis. Checks at 1024, 1280, 1440 and on a phone, with a long title: every control is inside the pane and responds to the mouse.
+
+**CX-0019 #2: citations showed as plain numbers, and every Sources row said "Not cited".**
+- *Cause:* the parser kept only http(s) and mailto link targets, so `[1](<id>)` became "1". The manifest was exactly the model's list, which for v2 was only the base.
+- *Parser:* a link whose target is a source ref (`[1](<id>)`, `[1](source: <id>)`) is a citation. Studio, the HTML page and a rendition number only the version's own sources.
+- *Submit:* the API reads the current draft and offers what `parseMarkdown` numbers. 0036's `research_draft_citations` adds each offered id that:
+  - appears in the draft;
+  - the task may cite: an input, the base, or a capture of its allowance;
+  - is not the task's question, its manifest or a draft.
+
+  The model's own list comes first, then these, up to 200 in all.
+
+**CX-0019 #3: "Conclusion changed" for a recommendations-only update.**
+- *Cause:* 0027 groups the two sections.
+- *Change:* History names what changed ("Recommendations changed", "Conclusion changed", or both), with the grouped label as the fallback.
+
+**CX-0020: research looked available while the grant was closed.**
+- *Cause:* `project_status` decided `start_research` from edit rights alone.
+- *Change:* it reads the grant: "Research reports are not available: research is not switched on for this project." Viewers hear research's own reason.
+
+**CX-0022: no card reached a member in voice mode.**
+- *Cause:* cards went only to members in text mode.
+- *Change:*
+  - Every signed member present gets the card, whatever their mode. Spoken announcements and their retries are unchanged.
+  - When a member's Studio says its mode (on joining, reconnecting or switching), the bridge sends the exchange's cards again, at most once every 3 s.
+  - Studio keeps one card per task, its newest revision.
+  - `text_recipients` counts distinct members who got the card.
+
+**CX-0023: the chat did not update in voice mode (Davide).**
+- *Cause:* the bridge withheld voice transcripts by design (D14, T10).
+- *Change:* live captions in the one Chat timeline.
+  - **What:** the floor holder's words and Sophia's, marked partial, final or cut off.
+  - **Who:** the members present, never guests.
+  - **Kept:** nothing is stored or logged.
+  - **Fences:** a stop, an end, a new floor holder, an input epoch, a reconnect, and the bridge losing its room. On a handover, the ends of open captions are passed on, never their words.
+  - **Off switch:** `SOPHIA_LIVE_CAPTIONS=off`. A value the bridge does not understand counts as off and is logged.
+  - **T10 now reads:** transcript text reaches only the present members' caption packets.
+
+**Fact check 1: a true note was refused** ("Recommendations expanded; conclusion unchanged.").
+- *Cause:* 0027's gate read the grouped fact, and its claims crossed clauses.
+- *Change:* 0036 `note_problems` checks each noun against its own sections, within its own clause. "No changes to the report" is still refused.
+
+**Fact check 2: repeated headings were miscounted.** One edit read as several revisions, and the count grew quadratically in large reports.
+- *Cause:* 0027 paired sections by anchor, many to many.
+- *Change:* 0036 `section_facts` pairs each section with at most one other, in this order: by heading path and occurrence, then by the path below the title, then by name in order. `markdown_outline` splits as Studio's `sectionsOf` does, with JavaScript whitespace, and runs in linear time. Studio's `compareSections` pairs the same way. Persistence tests check that the stored facts equal Studio's comparison, and fuzz the two splitters against each other.
+
+**HTML reports (Davide).**
+- Every published report downloads as one self-contained HTML page, `html-report-v1`: a strict CSP meta, no script, escaped text, citations and sources as links, and it works offline.
+- Studio prints it from the hash-checked Markdown. It can be downloaded from the work card, the pane, Knowledge and the chat card.
+- `start_research` accepts `html`. The task is a Markdown task, HTML never enters the manifest, and the receipt says the page will be on the card.
+- The bridge's tool declarations list `html`.
+- Nothing is stored.
+
+**Also.**
+- **Version byte caps.** The contract capped `changeFacts.bytes` at 100,000 while a draft may be 262,144 bytes, so History failed for long reports. The caps are now 262,144.
+- **Parser.**
+  - It closes a label on its own bracket, never puts a link inside a link, and numbers citations in reading order.
+  - It reads in linear time. Timing tests hold 256 KiB inputs of emphasis, headings, lists, tables, autolinks and link labels under 1 s.
+  - A table fills at most 65,536 cells; rows past that read as text.
+- **Readiness.** `/ready` requires 0036.
+- **`aria-disabled` while loading,** never `disabled`: Download, the notice card's Open and Download, and the new HTML buttons.
+
+### Unchanged
+
+- The guide's prompt, skill and manifest (v1.1 and v1.2), and their hashes.
+- The runtime bundle (`6a01ce0e…`); `pnpm artifacts` reproduces every identity.
+- Migrations 0001–0035.
+- `read_selected_source`, which still returns the summary.
+- Spoken announcements and their retries.
+
+### Deferred
+
+- **The PDF path's own looser rule.** `runtime_research_render_input` (0031) still counts the question, the manifest and earlier drafts as citable. PDF is postponed; align it when PDF returns.
+- **A model's own citations list naming the question, the manifest or a draft.** `research_publish` still checks that list as before.
+- **Heading anchors for non-ASCII letters, numbers and marks.** `heading_anchor` (`[:alnum:]`, as in 0027) and Studio's `anchorOf` (`\p{L}\p{N}`) can differ.
+- **Return recall (CX-0019 #5).** CC-0019 asks for the pilot's private rows and logs, and proposes an acceptance protocol.
+- **Stop with the retained worker.** It is still an acceptance gap.
+- **The pilot's v2 record and published versions.** They are not repaired: their link citations stay unnumbered.
+- **An HTML button on the pane's PDF view.** The pane offers the page on the Markdown view only; PDF is postponed.
+
+### Release order
+
+1. **0036.** `/ready` requires it.
+2. **Studio,** then the **API**, in that order or together. Studio reads the deployed API's routes, and must have the raised byte cap before any API serves a version over 100,000 bytes.
+3. **The bridge, last.** Its declarations offer `html` and promise the page on the card, so the API and Studio must already be live. Its cards and captions want the new Studio. Set `SOPHIA_LIVE_CAPTIONS=off` to hold captions back.
+
+Roll back in reverse order, bridge first. Nothing new is stored except 0036's facts, which keep their shape.
+
+Run here (linux-x64) at `4a33c2b`:
+- `pnpm check`: 929 unit (928 passed, 1 skipped) and 95 integration (93 passed, 2 skipped); `pnpm artifacts` reproduces every identity;
+- `pnpm test:sql`: 36 migrations, 2 test files; `pnpm test:db`: 395/395;
+- `test:browser`: 118/118 (room, Explore, Resources, the report viewer and the new voice chat checks);
+- each fix's check run without it, and failing.
+

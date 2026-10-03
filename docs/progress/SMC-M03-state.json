@@ -5,14 +5,14 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "fc0a935",
+  "candidate_commit": "4a33c2b",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
     "source": "in_progress",
     "merge": "not_requested",
     "release": "authorized_in_progress",
-    "hosted_verification": "partial: 6ec64f3 deployed without PDF (CX-0018: migrations 0021-0035, API, bridge on guide v1.1, Studio); runtime cutover, pilot grant, bridge v1.2 and the bounded test pending",
+    "hosted_verification": "partial: 6ec64f3 piloted in production (CX-0019..0023: research by voice end to end; findings fixed in 4a33c2b); 4a33c2b not deployed",
     "product_acceptance": "not_requested"
   },
   "owners": {
@@ -286,6 +286,16 @@
         "pnpm --filter @sophia/studio test:browser (63 checks: 7 room, 11 Explore, 22 resource, 23 report)"
       ],
       "ref": "docs/progress/SMC-M03.md#38-mains-50-merged-2026-10-02"
+    },
+    {
+      "slice": "CX-0019..0023 (pilot findings, live captions), 0036 (fact checks; citations picked by the parser and checked in SQL), HTML report pages, main through #61, at 4a33c2b",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (118 checks; each new one failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#39-the-pilots-findings-cx-00190023-the-fact-checks-0036-and-html-reports-2026-10-03"
     }
   ],
   "outstanding_operations": [
@@ -293,14 +303,14 @@
       "operation_id": "SMC-M03-OP-0001",
       "kind": "inspect_request",
       "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5960693454",
-      "state": "in_progress (revision 4: Davide chose the 6ec64f3 batch without PDF; CX-0018 applied 0021-0035 and deployed the API, the bridge on guide v1.1 and Studio; the runtime cutover, pilot grant, bridge v1.2 and the bounded test are pending. CX-0017, the 16a7480 amendment, was superseded)",
-      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006"
+      "state": "in_progress (revision 4: 6ec64f3 piloted, CX-0019..0023; the pilot grant stays within its approved window and limits; the next deployment is 4a33c2b once Davide approves that exact commit: 0036, Studio and API, bridge last)",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962896818"
     },
     {
       "operation_id": "SMC-M03-OP-0002",
       "kind": "support_request",
-      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0018.md",
-      "state": "requested (revision 16: the no-PDF readiness, no P1 or P2, covering 6ec64f3 as deployed; re-review of 6ec64f3..fc0a935, the P3 fixes, on exactly fc0a935)",
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0020.md",
+      "state": "requested (revision 17: review of 6ec64f3..4a33c2b on exactly 4a33c2b; supersedes CC-0018)",
       "result": null
     }
   ],
@@ -318,7 +328,7 @@
       "rule": "single writer, in the commit that changes dependencies"
     },
     {
-      "path": "db/migrations/0022_*.sql and later (0022 to 0035 so far)",
+      "path": "db/migrations/0022_*.sql and later (0022 to 0036 so far)",
       "owner": "Claude Code"
     },
     {
@@ -330,7 +340,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CX-0018 deployed 6ec64f3 without PDF (migrations 0021-0035, API, bridge on guide v1.1, Studio); the runtime cutover, pilot grant, bridge v1.2 and the bounded test are Codex's, under Davide's approval. CC-0018: the readiness review found no P1 or P2; its P3s are fixed in fc0a935 (API, persistence and Studio only), to deploy before the bridge moves to v1.2 if Davide approves; Codex re-reviews 6ec64f3..fc0a935. main's #50 is merged at 8f54dca, after fc0a935. Open for Davide: a standalone .html download or not; Forget for published reports; the PDF host (CC-0017's options). Next: S7 (mission loop, compatibility matrix, release batches; a feed event so every card learns of a PDF rendered again) and Codex's findings",
+  "next_action": "CC-0020 asks Codex to review 6ec64f3..4a33c2b (the pilot fixes CX-0019..0023 incl. live captions, 0036's fact checks and citations, HTML report pages, main through #61). Deploying 4a33c2b needs Davide's approval for that exact commit, in the order 0036, Studio and API, bridge last. Davide decided 2026-10-03: fix both fact checks now, read_selected_source stays the summary, HTML now. Open: return recall (pilot rows and logs, CC-0019), Stop with the retained worker, the PDF host. Next: S7 (mission loop, compatibility matrix, release batches) and Codex's findings",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
