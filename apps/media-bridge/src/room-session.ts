@@ -14,7 +14,8 @@ import type { ChatCaption, ChatInput, ChatNotice, ChatReply } from '@sophia/cont
 //  - A tool call acts for the holder whose audio the turn answered (the API binds it to that input epoch); an
 //    unattributed call, or one arriving while paused, is answered with a question and never executed. A call
 //    from an older connection is never answered on a newer one. It carries the holder utterances forwarded in the
-//    provider session, so a decision binds to an answer given after its proposal was put (SMC-M01 binding §4.3).
+//    provider session, so a decision binds to an answer given after its proposal was put (SMC-M01 binding §4.3). A
+//    v1.2 guide is never told a refused control in the database's words, even by an API rolled back (CX-0026).
 //  - Every connection, fresh, resumed or rebuilt, sends the same checked M01 instruction (guide.ts). The guide is
 //    activated only once the API confirms it executes exactly the declared operations; before that, Sophia is
 //    unavailable and says why. A narrower eligibility (a withdrawn note) drops the provider context and starts cold.
@@ -50,7 +51,7 @@ import {
 import { Captions } from './captions.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { GuideContext } from './guide-context.ts'
-import type { MissionGuide } from './guide.ts'
+import type { GuideVersion, MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
@@ -130,6 +131,36 @@ const WRITE_UNCONFIRMED: MediaToolResult = {
     reason: 'The project service did not confirm it; it may or may not have been saved.',
     next: 'Read project_status to see whether it was saved before saving it again.',
   },
+}
+/**
+ * A control an API from before CX-0026 refused in the database's own words (code invalid_state, "Goal not admitted
+ * for work"), which a v1.2 guide took for "admitted, applied later". Every refusal of that code changed nothing and
+ * left nothing waiting, and this says only that. Its code names no case, so the log tells it from the API's own
+ * explanations (not_applied:<case>).
+ */
+const NOT_APPLIED: MediaToolResult = {
+  status: 'refused',
+  output: {
+    code: 'not_applied',
+    applied: false,
+    pending: false,
+    reason: 'Not applied. Nothing was changed and nothing is waiting.',
+    next: 'Read project_status before saying where this work stands.',
+  },
+}
+/**
+ * What a guide is told of a refused control: plain words in place of an older API's raw invalid_state (an API rolled
+ * back behind this bridge). The API's own explanations, an unconfirmed write (unknown) and every other answer pass
+ * through untouched. A v1.1 guide keeps the words M01 was qualified on, as the API keeps them for it.
+ */
+function plainRefusal(version: GuideVersion, name: string, result: MediaToolResult): MediaToolResult {
+  const raw =
+    version === 'v1.2' &&
+    name === 'control_work' &&
+    result.status === 'refused' &&
+    'code' in result.output &&
+    result.output.code === 'invalid_state'
+  return raw ? NOT_APPLIED : result
 }
 const sameNames = (a: readonly string[], b: readonly string[]) => a.toSorted().join(',') === b.toSorted().join(',')
 
@@ -1460,7 +1491,7 @@ export class RoomSession {
     } finally {
       if (write) this.guideContext.writeSettled()
     }
-    return toolResponse(call, this.guideContext.annotate(name, result))
+    return toolResponse(call, this.guideContext.annotate(name, plainRefusal(this.deps.guide.version, name, result)))
   }
 
   /**

@@ -2552,6 +2552,91 @@ describe('room session: guide v1.2, the research operations (SMC-M03 S6)', () =>
     assert.equal(service.calls[0]?.guide, 'v1.1')
     assert.deepEqual(service.surfaceVersions, ['v1.1'])
   })
+
+  // CX-0026: an API from before the fix refused a steer on a published report as 'Goal not admitted for work', and the
+  // guide told the room the steer was admitted and would apply later.
+  const STEER = { taskId: RESEARCH_TASK, action: 'steer', brief: 'Only the recommendations' }
+
+  it('a control an older API refused in the database’s words reaches a v1.2 guide as not applied', async () => {
+    useV12()
+    service.result = { status: 'refused', output: { code: 'invalid_state', reason: 'Goal not admitted for work' } }
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-c1', name: 'control_work', args: STEER }])
+    await until('the refused steer', () => live.responses.length === 1)
+    assert.deepEqual(live.responses[0]?.response?.output, {
+      status: 'refused',
+      code: 'not_applied',
+      applied: false,
+      pending: false,
+      reason: 'Not applied. Nothing was changed and nothing is waiting.',
+      next: 'Read project_status before saying where this work stands.',
+    })
+    assert.doesNotMatch(
+      JSON.stringify(live.responses),
+      /goal|admitted|queued|will be applied|not (yet )?(started|begun)/i,
+    )
+    assert.equal(logs.findLast(([event]) => event === 'tool.answered')?.[1].code, 'not_applied')
+  })
+
+  it('the API’s own explanation, an unconfirmed control and another tool’s refusal reach the guide untouched', async () => {
+    useV12()
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    const answers: Array<[string, Record<string, unknown>, MediaToolResult]> = [
+      [
+        'control_work',
+        STEER,
+        {
+          status: 'refused',
+          output: {
+            code: 'not_applied:finished',
+            applied: false,
+            pending: false,
+            reason:
+              'Not applied. This research already finished and published version 1. Nothing was changed and nothing is waiting.',
+            next: `If they want it changed, offer a follow-up (start_research with amendsTaskId ${RESEARCH_TASK}); start it only if they confirm.`,
+            publishedVersion: 1,
+          },
+        },
+      ],
+      [
+        'control_work',
+        STEER,
+        {
+          status: 'unknown',
+          output: {
+            code: 'unconfirmed:outcome_unknown',
+            reason: 'I could not confirm whether it was applied; read project_status.',
+          },
+        },
+      ],
+      [
+        'record_mission_note',
+        { kind: 'observation', epistemic: 'reported', text: 'A note' },
+        { status: 'refused', output: { code: 'invalid_state', reason: 'Mission is not open for notes' } },
+      ],
+    ]
+    for (const [i, [name, args, result]] of answers.entries()) {
+      service.result = result
+      live.events.toolCalls([{ id: `call-p${String(i)}`, name, args }])
+      await until(name, () => live.responses.length === i + 1)
+      assert.deepEqual(live.responses[i]?.response?.output, { status: result.status, ...result.output }, name)
+    }
+  })
+
+  it('a v1.1 guide is told a refused control in the words M01 was qualified on', async () => {
+    service.result = { status: 'refused', output: { code: 'invalid_state', reason: 'Goal is not active' } }
+    const { room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-h1', name: 'control_work', args: { taskId: TASK, action: 'hold' } }])
+    await until('the refused hold', () => live.responses.length === 1)
+    assert.deepEqual(live.responses[0]?.response?.output, {
+      status: 'refused',
+      code: 'invalid_state',
+      reason: 'Goal is not active',
+    })
+  })
 })
 
 describe('room session: the M01 guide (cases T10, T18, T20, T21)', () => {
