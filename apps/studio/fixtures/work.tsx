@@ -82,6 +82,9 @@ declare global {
       reconnect?: () => void
       replay?: (operationId: string) => void
       misdeliver?: (from: string, to: string) => void
+      /** The service's next observation of a task: its lifecycle, or one action's availability for this viewer. */
+      setLifecycle?: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) => void
+      setAvailability?: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') => void
     }
   }
 }
@@ -252,6 +255,22 @@ function controls(
     reconnect,
     replay,
     misdeliver,
+    setLifecycle: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) =>
+      update(observed(workId, () => ({ lifecycle }))),
+    setAvailability: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') =>
+      update(
+        observed(workId, (v) => ({
+          available_actions: v.available_actions.map((a) =>
+            a.kind === kind
+              ? {
+                  ...a,
+                  availability,
+                  reason: availability === 'allowed' ? a.reason : 'No longer allowed for you here.',
+                }
+              : a,
+          ),
+        })),
+      ),
   }
 }
 

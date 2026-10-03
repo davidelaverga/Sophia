@@ -23,8 +23,10 @@ import {
   unanswered,
 } from './command-store.ts'
 import {
+  againable,
   knownSaid,
   reached,
+  retryableNow,
   scopeOf,
   stepsOf,
   uncertain,
@@ -97,14 +99,14 @@ export function useActs(
   }
 }
 
-/** Whether a command's admission is unknown: its reply lost, or a receipt that couldn't say. Try again is offered. */
-const againable = (k: Known) => k.local === 'lost' || (k.local === null && k.receipt?.admission === 'unknown')
+/** Whether a command may be tried again from here now (receipts.ts `retryableNow`). */
+type Retryable = (k: Known) => boolean
 
 /** Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. */
-function Steps({ known, onRetry }: { known: Known; onRetry: () => void }) {
+function Steps({ known, retryable, onRetry }: { known: Known; retryable: Retryable; onRetry: () => void }) {
   const steps = stepsOf(known.command.kind)
   const at = reached(known)
-  const again = againable(known)
+  const again = retryable(known)
   return (
     <div
       className="act-steps"
@@ -119,7 +121,7 @@ function Steps({ known, onRetry }: { known: Known; onRetry: () => void }) {
         ))}
       </ol>
       <p>
-        {knownSaid(known)}
+        {knownSaid(known, !againable(known) || again)}
         {again && (
           <>
             {' '}
@@ -141,17 +143,24 @@ const KIND_NAME: Readonly<Record<CommandKind, string>> = {
 }
 
 /** Earlier commands still open, one line each under the latest: named, and each with its own Try again. */
-function Earlier({ known, onRetry }: { known: readonly Known[]; onRetry: (operationId: string) => void }) {
+interface EarlierProps {
+  known: readonly Known[]
+  retryable: Retryable
+  onRetry: (k: Known) => void
+}
+
+function Earlier({ known, retryable, onRetry }: EarlierProps) {
   if (known.length === 0) return null
   return (
     <ul className="act-earlier" aria-label="Earlier, still open">
       {known.map((k) => (
         <li key={k.command.operation_id}>
-          <span className="act-earlier-kind">{KIND_NAME[k.command.kind]}</span> {knownSaid(k)}
-          {againable(k) && (
+          <span className="act-earlier-kind">{KIND_NAME[k.command.kind]}</span>{' '}
+          {knownSaid(k, !againable(k) || retryable(k))}
+          {retryable(k) && (
             <>
               {' '}
-              <button type="button" className="text-button" onClick={() => onRetry(k.command.operation_id)}>
+              <button type="button" className="text-button" onClick={() => onRetry(k)}>
                 Try again
               </button>
             </>
@@ -257,6 +266,11 @@ export function SessionActs({ target, offer, acts }: Props) {
   const latest = known.at(-1)
   const kinds = new Set(offer.map((o) => o.kind))
   const send = (kind: CommandKind) => acts.send(kind, target)
+  const retryable = (k: Known) => retryableNow(k, kinds)
+  // The boundary itself, not only the button: nothing is sent again unless it may be now.
+  const retry = (k: Known) => {
+    if (retryable(k)) acts.retry(k.command.operation_id)
+  }
   return (
     <div className="session-acts">
       {kinds.has('guidance') && <GuidanceField acts={acts} scope={scope} target={target} />}
@@ -277,10 +291,8 @@ export function SessionActs({ target, offer, acts }: Props) {
         )}
       </div>
       {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
-      <div role="status">
-        {latest && <Steps known={latest} onRetry={() => acts.retry(latest.command.operation_id)} />}
-      </div>
-      <Earlier known={known.slice(0, -1).filter(unresolved)} onRetry={acts.retry} />
+      <div role="status">{latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}</div>
+      <Earlier known={known.slice(0, -1).filter(unresolved)} retryable={retryable} onRetry={retry} />
     </div>
   )
 }

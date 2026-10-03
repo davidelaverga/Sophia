@@ -7,6 +7,7 @@ import {
   lost,
   reached,
   readReceipt,
+  retryableNow,
   retried,
   scopeOf,
   sending,
@@ -185,12 +186,26 @@ describe('what is known of a command', () => {
     assert.equal(unresolved(refused), false)
     const gone = lost(sending(c))
     assert.equal(knownSaid(gone), 'Not confirmed whether it was recorded. Try again: it reuses the same request.')
+    // Where it may not be sent now (Codex F-002), its uncertainty is still said, and no retry is promised.
+    assert.equal(
+      knownSaid(gone, false),
+      'Not confirmed whether it was recorded. It can’t be sent again from here now; it is kept as it was.',
+    )
     assert.deepEqual([unresolved(gone), uncertain(gone)], [true, true])
     assert.equal(retried(gone).command, c) // the same operation, the same words
     assert.equal(retried(gone).local, 'sending')
     // A receipt that already came isn't erased by a reply lost after it.
     const recorded = after(c, receipt(c, 1))
     assert.equal(lost(recorded), recorded)
+  })
+
+  it('is tried again only while its kind may be sent here now; otherwise kept, with its operation (Codex F-002)', () => {
+    const stop = lost(sending(command('stop')))
+    assert.equal(retryableNow(stop, new Set(['stop', 'hold'])), true)
+    assert.equal(retryableNow(stop, new Set(['hold'])), false) // Stop denied, or the task not observed: nothing to send
+    assert.equal(retryableNow(stop, new Set()), false)
+    const recorded = after(command('stop'), receipt(command('stop'), 1))
+    assert.equal(retryableNow(recorded, new Set(['stop'])), false) // recorded: nothing to try again
   })
 
   it('keeps commands by work and assignment generation: a session’s next assignment starts afresh (UI-11)', () => {

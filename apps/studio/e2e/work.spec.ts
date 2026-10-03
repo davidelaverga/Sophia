@@ -1233,3 +1233,35 @@ test('codex · F-003 · a resource’s sheet keeps the call in reach too', async
   expect(await pressable(call.getByRole('button', { name: 'Leave the room' }))).toBe(true)
   await expect(call.getByRole('button', { name: 'Microphone' })).toHaveAttribute('aria-pressed', 'true')
 })
+
+test('codex · F-002 · a lost command can’t be sent again while its task isn’t observed or its action is denied', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await sheet.getByRole('button', { name: /^Hold/ }).click() // lost: the earlier one
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click() // lost: the latest
+  const retries = sheet.getByRole('button', { name: 'Try again' })
+  await expect(retries).toHaveCount(2)
+  const sent = async () => (await commanded(page)).map((c) => c.operation_id)
+  const before = await sent()
+  // Its state isn't observed now: neither the latest nor the earlier can be sent again, and both stay said.
+  await page.evaluate(() => window.workFixture?.setLifecycle?.('work-2', 'unknown'))
+  await expect(retries).toHaveCount(0)
+  await expect(sheet.locator('.act-steps')).toContainText('It can’t be sent again from here now; it is kept as it was.')
+  await expect(sheet.getByRole('list', { name: 'Earlier, still open' })).toContainText('Hold Not confirmed')
+  expect(await sent()).toEqual(before)
+  // Observed again, Stop denied to this viewer: the Stop can't be sent again; the Hold, still allowed, can.
+  await page.evaluate(() => window.workFixture?.setLifecycle?.('work-2', 'running'))
+  await page.evaluate(() => window.workFixture?.setAvailability?.('work-2', 'stop', 'denied'))
+  await expect(sheet.locator('.act-steps').getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await expect(retries).toHaveCount(1)
+  // Allowed again: the same Stop goes again with its own operation, never a new one.
+  await page.evaluate(() => window.workFixture?.setAvailability?.('work-2', 'stop', 'allowed'))
+  await sheet.locator('.act-steps').getByRole('button', { name: 'Try again' }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Stop requested; waiting for the runtime to confirm.')
+  const after = await sent()
+  expect(after).toHaveLength(3)
+  expect(after[2]).toBe(before[1]) // the Stop's own operation
+})

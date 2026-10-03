@@ -185,6 +185,17 @@ export function unresolved(k: Known): boolean {
   return k.command.kind === 'guidance' ? !DELIVERED.has(r.delivery) : !FINAL.has(r.effect)
 }
 
+/** Whether a command's admission is unknown: its reply lost, or a receipt that couldn't say. */
+export const againable = (k: Known) => k.local === 'lost' || (k.local === null && k.receipt?.admission === 'unknown')
+
+/**
+ * Whether a command may be tried again from here now (Codex F-002): its admission unknown, and its kind among what may
+ * be sent here now (on a task, the view's per-viewer actions while its state is observed; on a resource's row, its
+ * route). Otherwise it is kept, uncertain, with its own operation, until it may. One rule for the button and the send.
+ */
+export const retryableNow = (k: Known, sendable: ReadonlySet<CommandKind>) =>
+  againable(k) && sendable.has(k.command.kind)
+
 /** Whether a command's outcome is in doubt: its reply lost, or a dimension the runtime couldn't confirm. */
 export const uncertain = (k: Known) =>
   k.local === 'lost' ||
@@ -220,12 +231,18 @@ function controlSaid(kind: Exclude<CommandKind, 'guidance'>, r: Observation): st
   return `${name} requested; waiting for the runtime to confirm.`
 }
 
-/** What is known of a command, in the words a person reads under it. */
-export function knownSaid(k: Known): string {
+/**
+ * What is known of a command, in the words a person reads under it. `retryable`: whether it may be sent again from
+ * here now. When it may not (its task isn't observed, or the viewer may no longer send it), its uncertainty is still
+ * said, and its operation kept for when it may.
+ */
+export function knownSaid(k: Known, retryable = true): string {
   const r = k.receipt
   if (k.local === 'sending') return 'Sending…'
   if (!r || r.admission === 'unknown')
-    return 'Not confirmed whether it was recorded. Try again: it reuses the same request.'
+    return retryable
+      ? 'Not confirmed whether it was recorded. Try again: it reuses the same request.'
+      : 'Not confirmed whether it was recorded. It can’t be sent again from here now; it is kept as it was.'
   if (r.admission === 'rejected') return REFUSED[r.rejection ?? 'unavailable']
   return k.command.kind === 'guidance' ? guidanceSaid(r) : controlSaid(k.command.kind, r)
 }
