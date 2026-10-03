@@ -25,7 +25,10 @@ import {
   type CommandKind,
   type CommandTarget,
   type Known,
+  type Offer,
 } from './receipts.ts'
+
+export type { Offer } from './receipts.ts'
 import type { Resource, Session } from './resource.ts'
 
 /** Sends a command; `on.receipt` takes each receipt as it comes (any order), `on.lost` says no reply came in time. */
@@ -168,12 +171,6 @@ export const canAct = (resource: Resource) => supported(resource).length > 0
 export function actsSaid(resource: Resource): string {
   const names = supported(resource).map((c) => ACT_NAME[c])
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}` : (names[0] ?? '')
-}
-
-/** A command offered here, with what it does when it isn't plain (a controlled stop that resumes later). */
-export interface Offer {
-  kind: CommandKind
-  tip?: string
 }
 
 /** Stop asks first, and says what it can and can't promise. */

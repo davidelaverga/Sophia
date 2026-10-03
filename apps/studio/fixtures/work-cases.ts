@@ -74,18 +74,18 @@ const closed: Change = (g) =>
     update(
       update(g, 'work-2', () => ({
         lifecycle: 'stopped',
-        closed_reason: 'Stopped by Davide: the pane’s spec changed.',
+        closed_reason: 'By Davide: the pane’s spec changed.',
         available_actions: [ask],
       })),
       'work-4',
-      () => ({ lifecycle: 'cancelled', closed_reason: 'Cancelled: measuring waits for the new renderer.' }),
+      () => ({ lifecycle: 'cancelled', closed_reason: 'Measuring waits for the new renderer.' }),
     ),
     [
       [
         planned('work-5', 'Render the large-report sample', { assignee_id: 'assignment-claude-reviewer' }),
         projection('work-5', {
           lifecycle: 'failed',
-          closed_reason: 'Failed: the renderer crashed on a 40 MB report.',
+          closed_reason: 'The renderer crashed on a 40 MB report.',
           available_actions: [ask],
         }),
       ],

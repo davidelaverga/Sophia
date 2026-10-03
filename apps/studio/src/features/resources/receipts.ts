@@ -96,6 +96,12 @@ export interface CommandTarget {
   session_id: string | null
 }
 
+/** A command offered where it shows, with what it does when it isn't plain (a controlled stop that resumes later). */
+export interface Offer {
+  kind: CommandKind
+  tip?: string
+}
+
 export interface Command {
   /** The person's one submission: reused, with the same payload, through every retry. */
   operation_id: string

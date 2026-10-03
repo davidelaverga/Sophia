@@ -582,3 +582,460 @@ test('type · the board, a goal without a plan, and a task’s sheet keep to the
     sheet.join(' '),
   ).toEqual([])
 })
+
+// ---- WBC-01: the board read from a `sophia.work.board.v1` view (fixtures/work-data.ts, work-cases.ts), its UI cases
+// on the real board. Fixture evidence only: no service, runtime or conversation is behind any of them. ----
+
+const sheetOf = (page: Page, name: string) => page.getByRole('dialog', { name })
+async function openTask(page: Page, id: string, name: string) {
+  await tile(page, id).click()
+  const sheet = sheetOf(page, name)
+  await expect(sheet).toBeVisible()
+  return sheet
+}
+const commanded = (page: Page) => page.evaluate(() => window.workFixture?.commands ?? [])
+/** Moves the page's clock on from a pause, so delays elapse only as a check says. */
+async function paused(page: Page, url: string) {
+  await page.clock.install()
+  await page.goto(url)
+  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000))
+}
+
+test('wbc · UI-01 · loops of parents or blockers show each task once and say the plan doesn’t hold', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=cycle`)
+  const notice = board(page).locator('.board-notice')
+  await expect(notice).toContainText('Some tasks are grouped in a loop')
+  await expect(notice).toContainText('Some tasks wait on each other in a loop')
+  for (const id of ['loop-a', 'loop-b', 'wait-a', 'wait-b']) await expect(tile(page, id)).toHaveCount(1)
+  await page.goto(`${PAGE}?case=deep`) // three levels: the retry, its review, the review's notes
+  expect(await titles(lane(page, 'Up next'))).toEqual([
+    'Review the retry’s candidate',
+    'Note what the review found',
+    'Write the export’s release note',
+  ])
+  await page.goto(`${PAGE}?case=orphan`) // its parent isn't in the plan: it stands alone, once
+  await expect(tile(page, 'stray')).toHaveCount(1)
+  await expect(board(page).locator('.board-notice')).toHaveCount(0)
+})
+
+test('wbc · UI-02 · the same session’s next attempt: the old report isn’t its state; commands go to the new one', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=attempts`)
+  await expect(tile(page, 'work-1').locator('.task-tile-said')).toHaveCount(0)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await expect(sheet.locator('.task-sheet-activity')).toHaveText('Its last report is from an earlier attempt.')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Only the current attempt')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect
+    .poll(async () => (await commanded(page))[0]?.target)
+    .toMatchObject({
+      work_id: 'work-1',
+      assignment_id: 'assignment-claude-worker',
+      assignment_generation: 4,
+      attempt_id: 'attempt-claude-worker-4',
+    })
+})
+
+test('wbc · UI-03 · a proposed replacement sits beside the accepted plan, compared, running nothing', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=replan`)
+  await expect(page.locator('.plan-next')).toContainText('r2')
+  await expect(page.locator('.plan-next')).toContainText('r3 proposed')
+  await expect(tile(page, 'work-4')).toBeVisible() // the accepted plan stays the board
+  await expect(tile(page, 'work-6')).toHaveCount(0)
+  const band = board(page).getByRole('button', { name: /Plan r3, not accepted yet/ })
+  await expect(band).toContainText('1 added · 1 changed · 1 removed')
+  await band.click()
+  const changes = board(page).getByRole('list', { name: 'What plan r3 changes' })
+  await expect(changes).toContainText('Added Retry renders on a second host')
+  await expect(changes).toContainText('Changed Write the export’s release note · what it waits on')
+  await expect(changes).toContainText('Removed Measure render time on large reports')
+  // A plan proposed with none accepted is read, never operated.
+  await page.goto(`${PAGE}?two=1#task-pane-states`)
+  const sheet = sheetOf(page, 'Draw the export’s states in the pane')
+  await expect(sheet).toContainText('proposed, not accepted yet')
+  await expect(sheet.getByRole('heading', { name: 'Act on it' })).toHaveCount(0)
+  await expect(sheet.getByRole('heading', { name: 'Ask Sophia' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(board(page).locator('.board-notice')).toHaveText('Proposed, not accepted yet: nothing in it runs.')
+})
+
+test('wbc · UI-04 · a review that found defects is complete; the work it reviewed needs changes', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=defects`)
+  expect(await titles(lane(page, 'Complete'))).toContain('Review the retry’s candidate')
+  expect(await titles(lane(page, 'Active'))).toContain('Implement the PDF retry')
+  await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Changes needed')
+  const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
+  await sheet.getByRole('button', { name: 'Open result' }).click()
+  await expect(sheet.locator('.task-result-text')).toContainText('Changes needed before it ships.')
+  await expect(sheet.locator('.task-result-text figcaption')).toContainText('Simulated source')
+})
+
+test('wbc · UI-05 · a check that passed for v1 says nothing of v2: the task stays active, ready for review', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=stale-pass`)
+  await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Ready for review')
+  expect(await titles(lane(page, 'Complete'))).not.toContain('Implement the PDF retry')
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await expect(sheet.locator('.task-result-review')).toHaveText('Review passed for retry-v1, not this version')
+  await expect(sheet.locator('.task-result-version').first()).toContainText('retry-v2')
+  await expect(sheet.getByRole('button', { name: 'Review candidate' })).toBeVisible()
+  await sheet.getByRole('button', { name: 'Open earlier result' }).click()
+  await expect(sheet.locator('.task-result-text')).toContainText('Retry v1')
+})
+
+test('wbc · UI-06 · stopped, cancelled and failed work is closed with why, never done; its repair stays active', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=closed`)
+  const closed = board(page).getByRole('region', { name: 'Closed work' })
+  const toggle = closed.getByRole('button', { name: /^Closed work/ })
+  await expect(toggle).toContainText('3')
+  expect(await titles(lane(page, 'Complete'))).toEqual(['Reproduce the failed render'])
+  expect(await titles(lane(page, 'Active'))).toContain('Repair the large-report render')
+  await toggle.click()
+  await expect(closed.locator('.task-link-where')).toHaveText([
+    'Stopped · By Davide: the pane’s spec changed.',
+    'Cancelled · Measuring waits for the new renderer.',
+    'Failed · The renderer crashed on a 40 MB report.',
+  ])
+  await closed.getByRole('button', { name: /Render the large-report sample/ }).click()
+  await expect(sheetOf(page, 'Render the large-report sample').locator('.task-sheet-closed')).toContainText(
+    'The renderer crashed on a 40 MB report.',
+  )
+})
+
+test('wbc · UI-07 · work on Luis’s resource waits on Davide’s decision and on Luis’s own permission', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=luis-resource`)
+  await expect(tile(page, 'work-config').locator('.task-chip')).toHaveText('Waiting on you')
+  await board(page)
+    .getByRole('radio', { name: /^For you/ })
+    .click()
+  await expect(tile(page, 'work-config')).not.toHaveAttribute('data-dim')
+  await expect(tile(page, 'work-2')).toHaveAttribute('data-dim', 'true') // his account runs it; nothing asks him
+  const sheet = await openTask(page, 'work-config', 'Write the export’s retry config')
+  const waits = sheet.locator('.task-waits li')
+  await expect(waits.nth(0)).toContainText('Choose the retry limit before it writes the config.')
+  await expect(waits.nth(0).locator('.task-wait-who')).toHaveText('You answer it')
+  await expect(waits.nth(1)).toContainText('Allow editing config/export.json')
+  await expect(waits.nth(1).locator('.task-wait-who')).toHaveText('Luis answers it')
+  await page.goto(`${PAGE}?viewer=luis&case=luis-resource`)
+  await expect(tile(page, 'work-config').locator('.task-chip')).toHaveText('Waiting on you') // his own permission
+  await page.goto(`${PAGE}?viewer=mara&case=luis-resource`)
+  await expect(tile(page, 'work-config').locator('.task-chip')).toHaveText('Waiting on Davide')
+})
+
+test('wbc · UI-08 · a builder guides within the owner’s mandate; the native permission stays the owner’s', async ({
+  page,
+}) => {
+  await page.goto(PAGE) // Luis
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await expect(sheet.locator('.task-wait-who')).toHaveText('Davide answers it')
+  await expect(sheet.getByRole('button', { name: /allow|approve|permission|reserve/i })).toHaveCount(0)
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Guidance recorded; delivery pending.')
+  const sent = await commanded(page)
+  expect(sent.map((c) => [c.kind, c.target.work_id, c.target.assignment_generation])).toEqual([
+    ['guidance', 'work-1', 3],
+  ])
+})
+
+test('wbc · UI-09 · a slow admission stays Sending: nothing is said recorded before its receipt', async ({ page }) => {
+  await paused(page, `${PAGE}?viewer=davide&admission=slow`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  const steps = sheet.locator('.act-steps')
+  await page.clock.runFor(6500)
+  await expect(steps).toContainText('Sending…')
+  await expect(steps.locator('li[data-reached]')).toHaveCount(0)
+  await page.clock.runFor(1000)
+  await expect(steps).toContainText('Guidance recorded; delivery pending.')
+})
+
+test('wbc · UI-09 · a lost reply is unknown, tried again with the same operation; a refusal sent nothing', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  let sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const field = sheet.getByRole('textbox', { name: 'Guidance for its session' })
+  await field.fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  const steps = sheet.locator('.act-steps')
+  await expect(steps).toContainText('Not confirmed whether it was recorded. Try again: it reuses the same request.')
+  await expect(field).toHaveValue('Use the staging fixtures') // nothing is known to be recorded
+  await steps.getByRole('button', { name: 'Try again' }).click()
+  await expect(steps).toContainText('Guidance recorded; delivery pending.')
+  const ops = (await commanded(page)).map((c) => c.operation_id)
+  expect(ops).toHaveLength(2)
+  expect(ops[1]).toBe(ops[0])
+  await page.goto(`${PAGE}?viewer=davide&admission=refused`)
+  sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Not allowed here. Nothing was sent.')
+  await expect(sheet.getByRole('textbox', { name: 'Guidance for its session' })).toHaveValue('Use the staging fixtures')
+})
+
+/** Stops `work-2` from its sheet, through Stop's question. */
+async function stopReview(page: Page) {
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  return sheet
+}
+
+test('wbc · UI-10 · a Stop delivered is requested, not stopped; unknown says so; only a settled one is stopped', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  let sheet = await stopReview(page)
+  await expect(sheet.locator('.act-steps li[data-reached]')).toHaveCount(2) // recorded, delivered: no effect seen
+  await expect(sheet.locator('.act-steps')).toContainText('Stop requested; waiting for the runtime to confirm.')
+  await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
+  await page.goto(`${PAGE}?viewer=davide&settle=unknown`)
+  sheet = await stopReview(page)
+  await expect(sheet.locator('.act-steps')).toContainText('Stop requested. The runtime’s state is not confirmed yet.')
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  sheet = await stopReview(page)
+  await expect(sheet.locator('.act-steps')).toContainText('Stopped. Completed work is kept.')
+  await expect(sheet.locator('.task-sheet-closed')).toContainText('From its sheet. Completed work is kept.')
+  await page.keyboard.press('Escape')
+  await expect(tile(page, 'work-2')).toHaveCount(0) // out of the lanes, into Closed work
+  await expect(board(page).getByRole('button', { name: /^Closed work/ })).toContainText('1')
+})
+
+test('wbc · Resume is offered only for a hold the runtime confirmed, and never by itself', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: /^Resume/ })).toHaveCount(0)
+  await sheet.getByRole('button', { name: /^Hold/ }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Held')
+  await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  await sheet.getByRole('button', { name: /^Resume/ }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Resumed.')
+  await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
+})
+
+test('wbc · UI-11 · a draft and a command stay with their work and generation: J and K, closing, a new assignment', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const field = () => page.getByRole('dialog').getByRole('textbox', { name: 'Guidance for its session' })
+  await field().fill('Keep this draft')
+  await page.getByRole('dialog').locator('.task-sheet-plan').click() // the keys leave the field
+  await page.keyboard.press('j')
+  await expect(page.getByRole('dialog', { name: 'Implement the PDF retry' })).toHaveCount(0)
+  await page.keyboard.press('k')
+  await expect(field()).toHaveValue('Keep this draft')
+  await page.keyboard.press('Escape')
+  await tile(page, 'work-1').click()
+  await expect(field()).toHaveValue('Keep this draft')
+  await page.getByRole('dialog').getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Guidance recorded')
+  // The same session is given the task again, at its next generation: nothing of the old one carries over.
+  await page.evaluate(() => window.workFixture?.reassign?.('work-1'))
+  await expect(sheet.locator('.act-steps')).toHaveCount(0)
+  await expect(field()).toHaveValue('')
+})
+
+test('wbc · UI-12 · a receipt repeated, late, or for another task changes nothing', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const review = await openTask(page, 'work-2', 'Review the report pane')
+  await review.getByRole('button', { name: /^Hold/ }).click()
+  await expect(review.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  const hold = (await commanded(page))[0]?.operation_id ?? ''
+  await page.evaluate((op) => window.workFixture?.replay?.(op), hold) // every receipt again, newest first
+  await expect(review.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  await page.keyboard.press('Escape')
+  const retry = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await retry.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await retry.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
+  const guide = (await commanded(page))[1]?.operation_id ?? ''
+  await page.evaluate((op) => window.workFixture?.replay?.(op), guide) // late: queued, then recorded
+  await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
+  await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(3)
+  await page.evaluate(([from, to]) => window.workFixture?.misdeliver?.(from ?? '', to ?? ''), [hold, guide])
+  await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
+  await expect(retry.locator('.act-steps')).not.toContainText('Held')
+})
+
+test('wbc · UI-13 · an answer not confirmed is tried again with its own operation, never as another choice', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&unknown=1`)
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  const choices = ask.getByRole('group', { name: 'Your choice' })
+  await choices.getByRole('button', { name: 'Ship it now' }).click()
+  await expect(ask.getByRole('status')).toHaveText(
+    'Checking whether your choice was recorded. Do not choose again yet.',
+  )
+  await choices.getByRole('button', { name: 'Ship it now' }).click()
+  await expect.poll(async () => (await page.evaluate(() => window.workFixture?.answered ?? [])).length).toBe(2)
+  const [first, again] = await page.evaluate(() => window.workFixture?.answered ?? [])
+  expect(again?.operation_id).toBe(first?.operation_id)
+  await expect(choices.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
+})
+
+test('wbc · UI-14 · a choice recorded before the lead reacts reads as chosen, the plan updating', async ({ page }) => {
+  await page.goto(`${PAGE}?case=reacting`) // Luis
+  await expect(board(page).locator('.board-decided')).toContainText('Davide chose Ship it now. The plan is updating.')
+  await expect(board(page).locator('.decision-pill')).toHaveCount(0)
+  await page.goto(`${PAGE}?viewer=davide&case=reacting`)
+  const decided = board(page).locator('.board-decided')
+  await expect(decided).toContainText('Your choice is recorded. The plan is updating.')
+  await expect(decided.getByRole('button')).toHaveCount(0)
+})
+
+test('wbc · UI-15 · an answer shows as its chunks arrive, never word by word on a timer; once, under its task', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await page.clock.runFor(950) // the first chunk, at 0.9 s
+  const first = await sheet.locator('.ask-a').innerText()
+  expect(first).toContain('Davide’s Claude Code is waiting')
+  expect(first).not.toContain('answers it in Claude Code')
+  await page.clock.runFor(60) // no chunk arrives meanwhile, and nothing is revealed by a timer
+  expect(await sheet.locator('.ask-a').innerText()).toBe(first)
+  await page.clock.runFor(400)
+  await expect(sheet.locator('.ask-a')).toContainText('answers it in Claude Code.')
+  const whole = await sheet.locator('.ask-a').innerText()
+  await page.evaluate(() => window.workFixture?.reconnect?.()) // every event again, as a resumed stream
+  expect(await sheet.locator('.ask-a').innerText()).toBe(whole)
+  // Another task's sheet has none of it; this one keeps it.
+  await page.locator('.task-sheet-plan').click()
+  await page.keyboard.press('j')
+  await expect(page.getByRole('dialog').locator('.ask-thread')).toHaveCount(0)
+  await page.keyboard.press('k')
+  await expect(page.getByRole('dialog').locator('.ask-a')).toHaveText(whole)
+})
+
+test('wbc · UI-15 · an answer that comes whole shows whole at once', async ({ page }) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=whole`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'What happens if I say yes?' }).click()
+  await page.clock.runFor(950)
+  await expect(sheet.locator('.ask-a')).toHaveText(
+    'It runs the report tests. If they pass, the retry becomes a candidate, and its review can start.',
+  )
+})
+
+test('wbc · UI-16 · Sophia’s own source reviewer is itself, with no subscription; asking it here keeps the question', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=native`)
+  const reviewer = tile(page, 'work-sources')
+  await expect(reviewer.locator('.task-tile-name')).toHaveText('Sophia · Source reviewer')
+  await expect(reviewer.locator('.plan-sophia')).toHaveCount(1)
+  await expect(reviewer.locator('.tool-logo')).toHaveCount(0)
+  await expect(reviewer.locator('[data-short]')).toHaveCount(0)
+  const sheet = await openTask(page, 'work-sources', 'Review the export’s sources')
+  await expect(sheet.locator('.task-who-link')).toHaveCount(0) // no resource to open
+  await expect(sheet.locator('.act-boundary')).toHaveText('Within the project’s mandate for Sophia’s reviewer.')
+  await sheet.getByRole('textbox', { name: 'Ask Sophia about this task' }).fill('Are the sources complete?')
+  await sheet.getByRole('button', { name: 'Ask', exact: true }).click()
+  await expect(sheet.locator('.ask-none')).toContainText(
+    'Not answered here: The task’s conversation isn’t connected in this slice.',
+  )
+  await expect(sheet.getByRole('button', { name: 'Open the conversation' })).toBeVisible()
+  await expect(sheet.getByRole('textbox', { name: 'Ask Sophia about this task' })).toHaveValue(
+    'Are the sources complete?',
+  )
+})
+
+test('wbc · UI-17 · an old report during a long tool call ages, and is never called stuck; the connection is apart', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?case=old-report`)
+  const review = tile(page, 'work-2')
+  await expect(review.locator('.task-tile-ago')).toHaveText(/^9 min ago$/)
+  await expect(review.locator('.task-chip')).toHaveText('Working')
+  expect(
+    await review.locator('.task-who').evaluate((w) => Number(getComputedStyle(w).getPropertyValue('--fresh'))),
+  ).toBe(0)
+  await expect(board(page)).not.toContainText(/stuck/i)
+  await expect(tile(page, 'work-1').locator('.task-tile-connection')).toHaveText('connection lost')
+  await expect(review.locator('.task-tile-connection')).toHaveCount(0)
+})
+
+test('wbc · UI-18 · a revision that failed keeps the last usable version openable, marked', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=revision-failed`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const versions = sheet.locator('.task-result-version')
+  await expect(versions).toHaveCount(1)
+  await expect(versions).toContainText('Last usable')
+  await expect(versions).toContainText('retry-v1')
+  await expect(sheet).not.toContainText('retry-v2') // the withdrawn one isn't offered as a result
+  await sheet.getByRole('button', { name: 'Open earlier result' }).click()
+  await expect(sheet.locator('.task-result-text')).toContainText('Retry v1')
+})
+
+test('wbc · UI-19 · by keys alone: a task’s conditions and its result are reached and opened', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=defects`)
+  await tile(page, 'work-1-review').focus()
+  await page.keyboard.press('Enter')
+  const sheet = sheetOf(page, 'Review the retry’s candidate')
+  await expect(sheet.locator('.task-links').first()).toContainText('Implement the PDF retry')
+  const open = sheet.getByRole('button', { name: 'Open result' })
+  for (let i = 0; i < 12 && !(await open.evaluate((b) => b === document.activeElement)); i++)
+    await page.keyboard.press('Tab')
+  await expect(open).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(sheet.locator('.task-result-text')).toContainText('Changes needed before it ships.')
+})
+
+test('@phone · wbc · UI-19 · on a phone, a task’s conditions, result and actions are in reach, nothing past the screen', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=defects`)
+  await tile(page, 'work-1-review').click()
+  const sheet = sheetOf(page, 'Review the retry’s candidate')
+  await expect(sheet.locator('.task-links').first()).toContainText('Implement the PDF retry')
+  const open = sheet.getByRole('button', { name: 'Open result' })
+  await open.scrollIntoViewIfNeeded()
+  expect((await rect(open)).height).toBeGreaterThanOrEqual(36)
+  await open.click()
+  await expect(sheet.locator('.task-result-text')).toContainText('Changes needed before it ships.')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+})
+
+test('wbc · UI-20 · another account looking starts afresh: no command, draft or look of the last one', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&since=1`)
+  await expect(board(page).locator('.board-return')).toBeVisible()
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Only for Davide')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(sheet.locator('.act-steps')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.evaluate(() => window.workFixture?.viewAs?.('luis'))
+  await expect(page.locator('.fixture-label')).toContainText('viewing as Luis')
+  await expect(board(page).locator('.board-return')).toHaveCount(0) // Luis's own first look
+  await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
+  const luis = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await expect(luis.locator('.act-steps')).toHaveCount(0)
+  await expect(luis.getByRole('textbox', { name: 'Guidance for its session' })).toHaveValue('')
+})
+
+test('wbc · UI-21 · no request leaves the page, and the view the page draws is the one its reader accepted', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&goals=6&case=closed`)
+  await expect(board(page)).toBeVisible()
+  expect(await page.evaluate(() => window.workFixture?.refused ?? null)).toBeNull()
+  // afterEach: nothing reached for anything else (fixture-api.ts refuses and records it).
+})

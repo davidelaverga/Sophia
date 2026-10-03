@@ -168,7 +168,7 @@ function settled(command: Command, effect: Receipt['effect'], viewer: Viewer): C
   if (effect === 'stopped') {
     return observed(command.target.work_id, (v) => ({
       lifecycle: 'stopped',
-      closed_reason: 'Stopped from its sheet. Completed work is kept.',
+      closed_reason: 'From its sheet. Completed work is kept.',
       available_actions: v.available_actions.filter((a) => a.kind === 'ask_sophia'),
     }))
   }

@@ -271,6 +271,7 @@ describe('a row’s report, its actions and whom it is for', () => {
     assert.equal(of(report('attempt-one-3', 3)), 'Ran the tests')
     assert.equal(of(report('attempt-one-2', 2)), null)
     assert.equal(of(report('attempt-one-2', 3)), null)
+    assert.equal(of(report('attempt-one-3', 2)), null) // the same attempt id at an older generation
   })
 
   it('offers only what the view allows; a missing action is unavailable, not allowed', () => {
