@@ -28,7 +28,12 @@ A second "Review progress" on the board would ask for the same thing twice, so L
 ## Three slices, one pull request each
 
 1. **The review, said (this note's first PR):** the goal's quiet line shows the review that is running, joined or awaiting, and how the last one ended. A routine end stays in that line (PLAN-01, PLAN-04).
-2. **The result:** a card in four parts (observed, reading, unsure, proposed), each part with its evidence: what kind it is and how long ago it was observed. It also shows a result from an older revision. It shares the slot under the bar with the decisions, one at a time.
+2. **The result (done in attempt 4):**
+   - a card in four parts: observed, reading, unsure and proposed;
+   - each Observed line is led by its evidence (what kind, how long ago it was observed) and ends with what it was;
+   - a result from an older revision says so, and its proposal is only read;
+   - it shares the slot under the bar with the decisions, one at a time;
+   - a proposal waiting on the viewer's own open decision opens it. One waiting on someone else's names them.
 3. **Challenge:** the coordination contract has no command kind for it yet. It is proposed as `context_update`, with `caused_by_command_id` set to the review.
 
 ## The goal's line
@@ -45,7 +50,7 @@ The line sits after the plan's revision, on the goal's second line (`PlanNext`).
 - **Ended:**
   - "Reviewed 12 min ago · no change";
   - "· not enough to tell until *the retry passes*";
-  - "· a change proposed" (its card comes in slice 2);
+  - "· a change proposed" (its card opens from the pill in the board's bar);
   - "The last review didn't finish".
 
   None of these makes a card or a `role=status` announcement (PLAN-04).

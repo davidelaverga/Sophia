@@ -63,7 +63,12 @@ export function Decision({ decision, people, now, viewerId, onDecide }: Props) {
   }
   const label = (choice: string | null) => decision.choices.find((c) => c.key === choice)?.label ?? ''
   return (
-    <section className="plan-ask" aria-label={`${name} decides`} data-mine={mine || undefined}>
+    <section
+      className="plan-ask"
+      aria-label={`${name} decides`}
+      data-decision={decision.decision_id}
+      data-mine={mine || undefined}
+    >
       {decider && <Avatar identity={face(decider)} />}
       <div className="plan-ask-body">
         <p className="plan-ask-head">

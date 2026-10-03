@@ -31,7 +31,7 @@ import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { actions, NOW, observations, people, resources, tightClaude } from './resources-data.ts'
 import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
-import { openedWith, reviewer, reviewMode } from './work-review.ts'
+import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
 import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan, unplannedGoal } from './work-data.ts'
 
 declare global {
@@ -45,6 +45,7 @@ declare global {
       replan?: () => void
       arrive?: () => void
       commands?: { kind: string; key: string }[]
+      reviewAgain?: () => void
     }
   }
 }
@@ -200,6 +201,7 @@ function Tasks() {
       replan: () => setFirst((p) => ({ ...p, plan_id: 'plan-1b', revision: 1 })),
       arrive: () => setArrived(true),
       commands: lead.commands,
+      reviewAgain: () => setFirst(reviewedAgain),
     }
   }, [lead])
   const shared = { resources: live, people, viewerId: viewer, actions }
