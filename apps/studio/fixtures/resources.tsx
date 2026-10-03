@@ -268,6 +268,7 @@ function Live() {
           history={earlierReadings(read)}
           tasks={tasks}
           scope="fixture"
+          projectId={PROJECT}
           onAct={actOn}
           onEffort={(sessionId, ask, refused) => {
             asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })

@@ -582,6 +582,13 @@
 }
 .board-lens button {
   gap: 6px;
+  white-space: nowrap;
+}
+/* Four lenses on one line on a phone too: a label never breaks in two. */
+@media (max-width: 420px) {
+  .board-lens button {
+    padding: 0 9px;
+  }
 }
 
 /* A lens dims what it doesn't show and moves nothing. */
@@ -740,6 +747,9 @@
 }
 .plan-ask-about {
   font-size: var(--type-small);
+}
+.board .plan-ask-about {
+  grid-area: about;
 }
 
 /* A task's sheet: everything it waits for, why a closed task closed, and its result. */
@@ -1042,6 +1052,7 @@
   grid-template-areas:
     'head choices'
     'question choices'
+    'about choices'
     'said said';
   align-items: center;
   column-gap: 16px;
@@ -1067,7 +1078,7 @@
 @media (max-width: 760px) {
   .board .plan-ask-body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'head' 'question' 'choices' 'said';
+    grid-template-areas: 'head' 'question' 'about' 'choices' 'said';
   }
   .board .plan-choices {
     margin-top: 6px;

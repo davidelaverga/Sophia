@@ -135,6 +135,18 @@ describe('what is known of a command', () => {
     assert.deepEqual([later.receipt?.admission, later.receipt?.effect], ['recorded', 'stopped'])
   })
 
+  it('never takes Recorded back for a later refusal: delivery and effect become unknown instead (review P3)', () => {
+    const stop = command('stop')
+    const delivered = after(stop, receipt(stop, 1), receipt(stop, 2, { delivery: 'delivered' }))
+    const refused = { admission: 'rejected' as const, delivery: 'not_sent' as const, effect: 'not_applicable' as const }
+    const later = fold(delivered, receipt(stop, 3, { ...refused, rejection: 'conflict' }))
+    assert.deepEqual(
+      [later.receipt?.admission, later.receipt?.delivery, later.receipt?.effect],
+      ['recorded', 'unknown', 'unknown'],
+    )
+    assert.equal(knownSaid(later), 'Stop requested. The runtime’s state is not confirmed yet.')
+  })
+
   it('takes nothing from a receipt for other work, another generation, another operation, or one malformed (UI-12)', () => {
     const c = command('hold')
     const known = sending(c)

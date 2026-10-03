@@ -38,6 +38,23 @@ describe('an answer from Sophia', () => {
     assert.equal(heard(done, event('q1', 4, 'failed')), done)
   })
 
+  it('never shows partial chunks as a whole answer: a bare completion after a gap is no answer (review P3)', () => {
+    const gap = after(
+      'q1',
+      event('q1', 1, 'chunk', 'One. '),
+      event('q1', 3, 'chunk', 'Three.'),
+      event('q1', 4, 'complete'),
+    )
+    assert.deepEqual([gap.state, gap.answer], ['failed', null])
+    const whole = after(
+      'q2',
+      event('q2', 1, 'chunk', 'One. '),
+      event('q2', 2, 'chunk', 'Two.'),
+      event('q2', 3, 'complete'),
+    )
+    assert.deepEqual([whole.state, whole.answer], ['answered', 'One. Two.'])
+  })
+
   it('keeps a question that can’t be answered here, with why, and makes no answer up', () => {
     const kept = unanswerable(question('q1'), 'The conversation isn’t connected in this slice.')
     assert.deepEqual(

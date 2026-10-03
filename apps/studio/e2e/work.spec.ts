@@ -366,6 +366,17 @@ test('@phone · one lane under another, the goal’s actions under its words, no
   await page.goto(PAGE)
   await expect(board(page).locator('.task-tile')).toHaveCount(7)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+  // Each lens's label on one line (WBC-01 renamed Open to Unassigned, a longer word).
+  const lines = await board(page)
+    .getByRole('radio')
+    .evaluateAll((lenses) =>
+      lenses.map((lens) => {
+        const range = document.createRange()
+        range.selectNodeContents(lens.firstChild ?? lens)
+        return range.getClientRects().length
+      }),
+    )
+  expect(lines).toEqual([1, 1, 1, 1])
   const a = await lane(page, 'Active').boundingBox()
   const b = await lane(page, 'Up next').boundingBox()
   expect(b?.y ?? 0).toBeGreaterThan((a?.y ?? 0) + (a?.height ?? 0) - 1)
@@ -850,25 +861,29 @@ test('wbc · UI-11 · a draft and a command stay with their work and generation:
 })
 
 test('wbc · UI-12 · a receipt repeated, late, or for another task changes nothing', async ({ page }) => {
-  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  await paused(page, `${PAGE}?viewer=davide&settle=confirmed`)
   const review = await openTask(page, 'work-2', 'Review the report pane')
   await review.getByRole('button', { name: /^Hold/ }).click()
+  await page.clock.runFor(3000)
   await expect(review.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
   const hold = (await commanded(page))[0]?.operation_id ?? ''
   await page.evaluate((op) => window.workFixture?.replay?.(op), hold) // every receipt again, newest first
   await expect(review.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
   await page.keyboard.press('Escape')
+  // Another task's guidance, only recorded so far: the settled Hold's receipts sent to it change nothing there.
   const retry = await openTask(page, 'work-1', 'Implement the PDF retry')
   await retry.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
   await retry.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
+  await page.clock.runFor(200)
+  await expect(retry.locator('.act-steps')).toContainText('Guidance recorded; delivery pending.')
   const guide = (await commanded(page))[1]?.operation_id ?? ''
+  await page.evaluate(([from, to]) => window.workFixture?.misdeliver?.(from ?? '', to ?? ''), [hold, guide])
+  await expect(retry.locator('.act-steps')).toContainText('Guidance recorded; delivery pending.')
+  await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(1)
+  await page.clock.runFor(1600) // its own receipts still land
   await page.evaluate((op) => window.workFixture?.replay?.(op), guide) // late: queued, then recorded
   await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
   await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(3)
-  await page.evaluate(([from, to]) => window.workFixture?.misdeliver?.(from ?? '', to ?? ''), [hold, guide])
-  await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
-  await expect(retry.locator('.act-steps')).not.toContainText('Held')
 })
 
 test('wbc · UI-13 · an answer not confirmed is tried again with its own operation, never as another choice', async ({
@@ -1022,7 +1037,11 @@ test('wbc · UI-20 · another account looking starts afresh: no command, draft o
   await sheet.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(sheet.locator('.act-steps')).toBeVisible()
   await page.keyboard.press('Escape')
+  await board(page)
+    .getByRole('radio', { name: /^Waiting/ })
+    .click() // Davide's lens
   await page.evaluate(() => window.workFixture?.viewAs?.('luis'))
+  await expect(board(page).getByRole('radio', { name: /^All/ })).toHaveAttribute('aria-checked', 'true')
   await expect(page.locator('.fixture-label')).toContainText('viewing as Luis')
   await expect(board(page).locator('.board-return')).toHaveCount(0) // Luis's own first look
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
@@ -1038,4 +1057,97 @@ test('wbc · UI-21 · no request leaves the page, and the view the page draws is
   await expect(board(page)).toBeVisible()
   expect(await page.evaluate(() => window.workFixture?.refused ?? null)).toBeNull()
   // afterEach: nothing reached for anything else (fixture-api.ts refuses and records it).
+})
+
+// ---- The independent review's findings on f736ad7, each with its regression. ----
+
+test('review · a Stop asked on one task never stops the next: J turns away from the question', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  await page.evaluate(() => window.workFixture?.begin?.('work-1-review')) // the next task by J takes Stop too
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(page.getByRole('group', { name: 'Stop' })).toBeVisible()
+  await page.keyboard.press('j') // the focus is on Keep it working: J still steps
+  const next = page.getByRole('dialog', { name: 'Review the retry’s candidate' })
+  await expect(next.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Stop' })).toHaveCount(0)
+  expect(await commanded(page)).toEqual([])
+})
+
+test('review · a Stop asked at one generation is never answered at the next', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
+  await page.evaluate(() => window.workFixture?.reassign?.('work-1')) // the same session, its next assignment
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(0)
+  expect(await commanded(page)).toEqual([])
+})
+
+test('review · one press is one request: Send waits while its guidance goes', async ({ page }) => {
+  await paused(page, `${PAGE}?viewer=davide&admission=slow`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.clock.runFor(3000)
+  await expect(sheet.getByRole('button', { name: 'Send', exact: true })).toBeDisabled()
+  await page.clock.runFor(5000)
+  await expect(sheet.locator('.act-steps')).toContainText('Guidance recorded; delivery pending.')
+  expect(await commanded(page)).toHaveLength(1)
+})
+
+test('review · the same words sent again after a lost reply are the same operation', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click() // Send again, not Try again: the same words
+  await expect(sheet.locator('.act-steps')).toContainText('Guidance recorded; delivery pending.')
+  const ops = (await commanded(page)).map((c) => c.operation_id)
+  expect(ops).toHaveLength(2)
+  expect(ops[1]).toBe(ops[0])
+})
+
+test('review · a lost Stop outlives choosing another goal, and is tried again with its own operation', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost&two=1`)
+  await stopReview(page)
+  await expect(page.getByRole('dialog').locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  await page.keyboard.press('Escape')
+  await page.getByRole('tab', { name: /The report pane says/ }).click()
+  await page.getByRole('tab', { name: /Reports export to PDF/ }).click()
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  await sheet.locator('.act-steps').getByRole('button', { name: 'Try again' }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Stop requested; waiting for the runtime to confirm.')
+  const ops = (await commanded(page)).map((c) => c.operation_id)
+  expect(ops).toHaveLength(2)
+  expect(ops[1]).toBe(ops[0])
+})
+
+test('review · an earlier command still open is named, and has its own Try again', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  await expect(sheet.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  const earlier = sheet.getByRole('list', { name: 'Earlier, still open' })
+  await expect(earlier).toContainText('Stop Not confirmed whether it was recorded.')
+  await earlier.getByRole('button', { name: 'Try again' }).click()
+  await expect(earlier).toContainText('Stop Stop requested; waiting for the runtime to confirm.')
+  const stops = (await commanded(page)).filter((c) => c.kind === 'stop').map((c) => c.operation_id)
+  expect(stops).toHaveLength(2)
+  expect(stops[1]).toBe(stops[0])
+})
+
+test('review · work observed outside the plan in force is said, never hidden', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=outside`)
+  await expect(board(page).locator('.board-notice')).toContainText('1 observed task isn’t in the plan in force')
+  const outside = board(page).getByRole('region', { name: 'Observed outside the plan' })
+  await expect(outside.locator('[data-work="work-old"]')).toContainText('Davide’s Claude Code · work-old')
+  await expect(outside.locator('[data-work="work-old"]')).toContainText('running')
 })

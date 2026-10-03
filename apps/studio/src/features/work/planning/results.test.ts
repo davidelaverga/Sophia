@@ -19,7 +19,12 @@ describe('a task’s results', () => {
       candidates: [candidate('v1', 'previous', 1), candidate('v0', 'previous', 0), candidate('v2', 'withdrawn', 2)],
     })
     assert.deepEqual([resultsOf(v).current, resultsOf(v).earlier?.version_id], [null, 'v1'])
-    assert.deepEqual(resultsOf(null), { current: null, earlier: null })
+    assert.deepEqual(resultsOf(null), { current: null, earlier: null, ambiguous: false })
+  })
+
+  it('takes no result when two versions claim to be current (review P3)', () => {
+    const both = view('w', { candidates: [candidate('v1', 'current', 1), candidate('v2', 'current', 2)] })
+    assert.deepEqual([resultsOf(both).current, resultsOf(both).ambiguous], [null, true])
   })
 
   it('says which version a review speaks of: one passed for v1 says nothing of v2 (UI-05)', () => {

@@ -1,12 +1,14 @@
 // Asking Sophia about a task, from its sheet (WBC-01 G5): the questions its state invites, as one-press asks, or one's
 // own. It is an entry into the one shared conversation (ask.ts), with this task's exact references, never another
 // chatbot, a microphone or a message to the worker; an ordinary question amends nothing. Her answer shows as it is
-// received, chunk by chunk, or whole at once, never at a made-up typing speed. The board keeps each task's latest
-// question (useAsks), so turning the sheet, closing it or a reconnect forgets nothing and a late answer to an earlier
-// question is let go. Where she can't be asked from here (the view says so, or no conversation is connected), the
-// question is kept with why, and the way to the conversation is offered; no answer is made up.
-import { useState } from 'react'
-import { asking, heard, shownOf, unanswerable, type Ask, type Asked, type Question } from './ask.ts'
+// received, chunk by chunk, or whole at once, never at a made-up typing speed. Each task's latest question is kept
+// while the page lives (useAsks, ask-store.ts), so turning the sheet, closing it, choosing another goal or a reconnect
+// forgets nothing, and a late answer to an earlier question is let go. Where she can't be asked from here (the view
+// says so, or no conversation is connected), the question is kept with why, and the way to the conversation is
+// offered; no answer is made up.
+import { useState, useSyncExternalStore } from 'react'
+import { asking, shownOf, unanswerable, type Ask, type Asked, type Question } from './ask.ts'
+import { askedOf, asksOf, heardOf, subscribe } from './ask-store.ts'
 import { actionOf, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { resultsOf } from './results.ts'
 
@@ -17,24 +19,19 @@ export interface Asks {
   ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
 }
 
-export function useAsks(onAsk: Ask | undefined, newId: () => string = () => crypto.randomUUID()): Asks {
-  const [asked, setAsked] = useState<Readonly<Record<string, Asked>>>({})
+/** The questions of one space (a project as one viewer sees it), kept while the page lives (ask-store.ts). */
+export function useAsks(onAsk: Ask | undefined, space: string, newId: () => string = () => crypto.randomUUID()): Asks {
+  const asked = useSyncExternalStore(subscribe, () => asksOf(space))
   return {
     of: (workId) => asked[workId] ?? null,
     ask: (q, unavailable) => {
       const question: Question = { ...q, question_id: newId() }
       if (!onAsk || unavailable !== null) {
-        const why = unavailable ?? 'Sophia can’t be asked from here yet.'
-        setAsked((a) => ({ ...a, [q.work_id]: unanswerable(question, why) }))
+        askedOf(space, unanswerable(question, unavailable ?? 'Sophia can’t be asked from here yet.'))
         return
       }
-      setAsked((a) => ({ ...a, [q.work_id]: asking(question) }))
-      onAsk(question, (event) =>
-        setAsked((a) => {
-          const latest = a[q.work_id]
-          return latest ? { ...a, [q.work_id]: heard(latest, event) } : a
-        }),
-      )
+      askedOf(space, asking(question))
+      onAsk(question, (event) => heardOf(space, q.work_id, event))
     },
   }
 }

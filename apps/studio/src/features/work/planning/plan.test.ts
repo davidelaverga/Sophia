@@ -308,6 +308,33 @@ describe('a row’s report, its actions and whom it is for', () => {
   })
 })
 
+describe('work the plan doesn’t hold, and a plan of another project (review P2)', () => {
+  it('says what is observed outside the plan in force, never hiding it', () => {
+    const board = boardOf(goal(plan([item('a')]), [view('a'), view('stray', { lifecycle: 'running' })]), readers())
+    assert.deepEqual(
+      board?.outside.map((v) => v.work_id),
+      ['stray'],
+    )
+    assert.ok(board?.problems.includes('1 observed task isn’t in the plan in force'))
+    // While only a proposal is shown, everything observed is outside a plan in force.
+    const proposedOnly = goal(null, [view('a', { lifecycle: 'running' })], {
+      proposed_plans: [plan([item('a')], { state: 'proposed', decision_ref: null })],
+    })
+    assert.deepEqual(
+      boardOf(proposedOnly, readers())?.outside.map((v) => v.work_id),
+      ['a'],
+    )
+  })
+
+  it('never operates a plan of another project as this one’s', () => {
+    const g = goal(plan([item('a')]), [view('a', { lifecycle: 'running', assignment: assignment('a') })])
+    const board = boardOf(g, { ...readers(), project: 'project-2' })
+    assert.equal(board?.operable, false)
+    assert.ok(board?.problems.includes('It belongs to another project'))
+    assert.equal(boardOf(g, { ...readers(), project: 'project-1' })?.operable, true)
+  })
+})
+
 describe('the plan’s tree, its relations and its problems', () => {
   it('keeps every item once, however deep, each under its parent, and an orphan on its own (UI-01)', () => {
     const items = [

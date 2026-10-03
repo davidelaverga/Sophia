@@ -96,9 +96,9 @@ function allowedOf(row: PlanRow, readResult: ReadResult | undefined) {
 
 export function TaskResult({ row, readResult }: { row: PlanRow; readResult?: ReadResult | undefined }) {
   const { opened, open } = useOpened(readResult)
-  const { current, earlier } = resultsOf(row.view)
+  const { current, earlier, ambiguous } = resultsOf(row.view)
   const review = reviewSaid(row.view)
-  if (!current && !earlier && !review) return null
+  if (!current && !earlier && !review && !ambiguous) return null
   const { canOpen, canReview, refused } = allowedOf(row, readResult)
   const at = (c: Candidate) => (purpose: 'read' | 'review') => open(refOf(row.item.id, c), purpose)
   const versions = [
@@ -113,6 +113,9 @@ export function TaskResult({ row, readResult }: { row: PlanRow; readResult?: Rea
           <Version key={v.candidate.version_id} {...v} canOpen={canOpen} onOpen={at(v.candidate)} />
         ))}
       </ul>
+      {ambiguous && (
+        <p className="task-result-note">Two versions claim to be current; neither is shown as its result.</p>
+      )}
       {review && <p className="task-result-review">{review}</p>}
       {refused && <p className="act-note muted">{refused}</p>}
       {opened && <OpenedText opened={opened} />}

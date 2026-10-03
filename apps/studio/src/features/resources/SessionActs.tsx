@@ -4,20 +4,28 @@
 //
 // What happens is said as it is observed, in three dimensions (receipts.ts): Sending before any receipt, then
 // recorded or refused, then delivered, then, for a control, its effect once the runtime confirms it. A reply that
-// never came is unknown and is tried again with the same operation. Every command and draft is kept by the view
-// (useActs) under its scope, (project, work, assignment, generation): it is still said after the row closes or the
-// sheet turns, a late or foreign receipt changes nothing, and a session's next assignment starts with none of the old
-// one's. The latest command speaks; earlier ones still unresolved stay listed under it.
-import { useEffect, useRef, useState } from 'react'
+// never came is unknown and is tried again with the same operation; so is the same request pressed again. Commands
+// and drafts are kept while the page lives (command-store.ts), per space (a project as one viewer sees it) and scope
+// (work, assignment, generation): still said after the row closes, the sheet turns or the board unmounts; a late or
+// foreign receipt changes nothing, and a session's next assignment starts with none of the old one's. The latest
+// command speaks; earlier ones still open stay listed under it, each named, each with its own Try again.
+import { useSyncExternalStore } from 'react'
 import { ConfirmButton, Tip } from '@sophia/ui'
 import {
-  fold,
+  added,
+  commandOf,
+  drafted,
+  received,
+  repeatOf,
+  resent,
+  spaceOf,
+  subscribe,
+  unanswered,
+} from './command-store.ts'
+import {
   knownSaid,
-  lost,
   reached,
-  retried,
   scopeOf,
-  sending,
   stepsOf,
   uncertain,
   unresolved,
@@ -27,9 +35,9 @@ import {
   type Known,
   type Offer,
 } from './receipts.ts'
+import type { Resource, Session } from './resource.ts'
 
 export type { Offer } from './receipts.ts'
-import type { Resource, Session } from './resource.ts'
 
 /** Sends a command; `on.receipt` takes each receipt as it comes (any order), `on.lost` says no reply came in time. */
 export type SendCommand = (command: Command, on: { receipt: (r: unknown) => void; lost: () => void }) => void
@@ -40,66 +48,63 @@ export interface Acts {
   project: string
   /** The commands sent in a scope, oldest first. */
   of: (scope: string) => readonly Known[]
-  /** Sends a command, or the same request again while one of its kind is unresolved; its operation's id. */
+  /** Sends a command, or the same request again (with its own operation) while it is unresolved; its operation's id. */
   send: (kind: CommandKind, target: CommandTarget, text?: string) => string
-  /** Sends a command again with its own operation: after a lost reply, or a control pressed again while unresolved. */
+  /** Sends a command again with its own operation: after a lost reply, or an unknown admission. */
   retry: (operationId: string) => void
   draft: (scope: string) => string
   setDraft: (scope: string, text: string) => void
 }
 
-/** A control pressed again while one of its kind is unresolved in the same scope is the same request, not another. */
-const pending = (known: readonly Known[], kind: CommandKind) =>
-  kind === 'guidance' ? undefined : known.findLast((k) => k.command.kind === kind && unresolved(k))
-
-/** Each command's state and each scope's draft, kept where the view lives, not in a row that closes. */
+/**
+ * The commands and drafts of one space, kept while the page lives (command-store.ts): `space` names the project and
+ * who is looking. Absent `onCommand`, nothing can be sent.
+ */
 export function useActs(
   onCommand: SendCommand | undefined,
   project: string,
+  space: string,
   newId: () => string = () => crypto.randomUUID(),
 ): Acts | undefined {
-  const [known, setKnown] = useState<readonly Known[]>([])
-  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
-  const current = useRef(known)
-  current.current = known
+  const state = useSyncExternalStore(subscribe, () => spaceOf(space))
   if (!onCommand) return undefined
-  const update = (operationId: string, change: (k: Known) => Known) =>
-    setKnown((all) => all.map((k) => (k.command.operation_id === operationId ? change(k) : k)))
   const dispatch = (command: Command) =>
     onCommand(command, {
-      receipt: (r) => update(command.operation_id, (k) => fold(k, r)),
-      lost: () => update(command.operation_id, lost),
+      receipt: (r) => received(space, command.operation_id, r),
+      lost: () => unanswered(space, command.operation_id),
     })
-  const of = (scope: string) => known.filter((k) => scopeOf(k.command.target) === scope)
   const retry = (operationId: string) => {
-    const k = current.current.find((c) => c.command.operation_id === operationId)
+    const k = commandOf(space, operationId)
     if (!k) return operationId
-    update(operationId, retried)
+    resent(space, operationId)
     dispatch(k.command)
     return operationId
   }
   return {
     project,
-    of,
+    of: (scope) => state.known.filter((k) => scopeOf(k.command.target) === scope),
     send: (kind, target, text) => {
-      const again = pending(of(scopeOf(target)), kind)
+      const again = repeatOf(space, kind, target, text)
       if (again) return retry(again.command.operation_id)
       const command: Command = { operation_id: newId(), kind, target, ...(text ? { text } : {}) }
-      setKnown((all) => [...all, sending(command)])
+      added(space, command)
       dispatch(command)
       return command.operation_id
     },
     retry,
-    draft: (scope) => drafts[scope] ?? '',
-    setDraft: (scope, text) => setDrafts((d) => ({ ...d, [scope]: text })),
+    draft: (scope) => state.drafts[scope] ?? '',
+    setDraft: (scope, text) => drafted(space, scope, text),
   }
 }
+
+/** Whether a command's admission is unknown: its reply lost, or a receipt that couldn't say. Try again is offered. */
+const againable = (k: Known) => k.local === 'lost' || (k.local === null && k.receipt?.admission === 'unknown')
 
 /** Where a command is: three bars filling as each step is observed, what that means, and Try again when unknown. */
 function Steps({ known, onRetry }: { known: Known; onRetry: () => void }) {
   const steps = stepsOf(known.command.kind)
   const at = reached(known)
-  const again = known.local === 'lost' || (known.local === null && known.receipt?.admission === 'unknown')
+  const again = againable(known)
   return (
     <div
       className="act-steps"
@@ -128,13 +133,30 @@ function Steps({ known, onRetry }: { known: Known; onRetry: () => void }) {
   )
 }
 
-/** Earlier commands still unresolved, one line each, under the latest. */
-function Earlier({ known }: { known: readonly Known[] }) {
+const KIND_NAME: Readonly<Record<CommandKind, string>> = {
+  guidance: 'Guidance',
+  hold: 'Hold',
+  resume: 'Resume',
+  stop: 'Stop',
+}
+
+/** Earlier commands still open, one line each under the latest: named, and each with its own Try again. */
+function Earlier({ known, onRetry }: { known: readonly Known[]; onRetry: (operationId: string) => void }) {
   if (known.length === 0) return null
   return (
     <ul className="act-earlier" aria-label="Earlier, still open">
       {known.map((k) => (
-        <li key={k.command.operation_id}>{knownSaid(k)}</li>
+        <li key={k.command.operation_id}>
+          <span className="act-earlier-kind">{KIND_NAME[k.command.kind]}</span> {knownSaid(k)}
+          {againable(k) && (
+            <>
+              {' '}
+              <button type="button" className="text-button" onClick={() => onRetry(k.command.operation_id)}>
+                Try again
+              </button>
+            </>
+          )}
+        </li>
       ))}
     </ul>
   )
@@ -183,51 +205,29 @@ interface Props {
   acts: Acts
 }
 
-/** The guidance being written, kept by scope: it leaves its field once recorded, if it is still all the field holds. */
-function useDraft(acts: Acts, scope: string, latest: Known | undefined) {
-  const submitted = useRef<{ op: string; text: string } | null>(null)
+/**
+ * The guidance being written, kept by scope in the page's store: the words sent leave the field once recorded, if they
+ * are still all it holds (command-store.ts). Send waits while a guidance is on its way, so one press is one request.
+ */
+function GuidanceField({ acts, scope, target }: { acts: Acts; scope: string; target: CommandTarget }) {
   const text = acts.draft(scope)
-  const { setDraft } = acts
-  const recorded = latest?.receipt?.admission === 'recorded' ? latest.command.operation_id : null
-  useEffect(() => {
-    const sent = submitted.current
-    if (!sent || recorded !== sent.op) return
-    submitted.current = null
-    // Typed since it went: what was typed stays. (Not inside an updater: StrictMode runs that twice.)
-    if (text.trim() === sent.text) setDraft(scope, '')
-  }, [recorded, text, scope, setDraft])
-  return { text, setText: (t: string) => setDraft(scope, t), submitted }
-}
-
-function GuidanceField({
-  acts,
-  scope,
-  target,
-  latest,
-}: {
-  acts: Acts
-  scope: string
-  target: CommandTarget
-  latest: Known | undefined
-}) {
-  const { text, setText, submitted } = useDraft(acts, scope, latest)
+  const sending = acts.of(scope).some((k) => k.command.kind === 'guidance' && k.local === 'sending')
   return (
     <form
       className="act-guide"
       onSubmit={(e) => {
         e.preventDefault()
         const words = text.trim()
-        if (!words) return
-        submitted.current = { op: acts.send('guidance', target, words), text: words }
+        if (words && !sending) acts.send('guidance', target, words)
       }}
     >
       <input
         aria-label="Guidance for its session"
         placeholder="Guidance for its session…"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => acts.setDraft(scope, e.target.value)}
       />
-      <button type="submit" className="pill" disabled={!text.trim()}>
+      <button type="submit" className="pill" disabled={!text.trim() || sending}>
         Send
       </button>
     </form>
@@ -259,7 +259,7 @@ export function SessionActs({ target, offer, acts }: Props) {
   const send = (kind: CommandKind) => acts.send(kind, target)
   return (
     <div className="session-acts">
-      {kinds.has('guidance') && <GuidanceField acts={acts} scope={scope} target={target} latest={latest} />}
+      {kinds.has('guidance') && <GuidanceField acts={acts} scope={scope} target={target} />}
       <div className="control-row">
         {offer
           .filter((o) => o.kind === 'hold' || o.kind === 'resume')
@@ -276,11 +276,11 @@ export function SessionActs({ target, offer, acts }: Props) {
           />
         )}
       </div>
-      {/* Mounted before anything is said, so each step is announced as it comes. */}
+      {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
       <div role="status">
         {latest && <Steps known={latest} onRetry={() => acts.retry(latest.command.operation_id)} />}
-        <Earlier known={known.slice(0, -1).filter(unresolved)} />
       </div>
+      <Earlier known={known.slice(0, -1).filter(unresolved)} onRetry={acts.retry} />
     </div>
   )
 }

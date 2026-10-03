@@ -42,6 +42,7 @@ export const CASES = [
   'old-report',
   'revision-failed',
   'luis-resource',
+  'outside',
 ] as const
 export type Case = (typeof CASES)[number]
 

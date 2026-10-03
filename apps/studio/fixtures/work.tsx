@@ -147,7 +147,9 @@ function opening(viewer: Viewer): GoalView {
   if (current && query.get('proposed') === '1') {
     g = { ...g, current_plan: null, items: [], proposed_plans: [{ ...current, state: 'proposed', decision_ref: null }] }
   }
-  if (current && query.get('superseded') === '1') g = { ...g, current_plan: { ...current, state: 'superseded' } }
+  // Superseded, with no replacement and its work no longer observed: the goal shows as it does without a plan.
+  if (current && query.get('superseded') === '1')
+    g = { ...g, current_plan: { ...current, state: 'superseded' }, items: [] }
   return g
 }
 
@@ -275,10 +277,12 @@ interface Shared {
 
 /** One goal's slot in Tasks: its board, NEXT, its tab in the goals' rail, what finds it, and whether it calls the viewer. */
 function slot(g: GoalView, { resources, viewerId, now, board }: Shared, onCommand: ReturnType<typeof serve>) {
-  const rows = boardOf(g, { resources, people, viewerId })?.rows ?? []
+  const shown = boardOf(g, { resources, people, viewerId, project: board.project_id })
+  const rows = shown?.rows ?? []
   return {
     view: (
       <PlanBoard
+        projectId={board.project_id}
         goal={g}
         coverage={board.coverage}
         observedAt={board.observed_at}
@@ -301,7 +305,7 @@ function slot(g: GoalView, { resources, viewerId, now, board }: Shared, onComman
     tab: <PlanTab goal={g} resources={resources} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
-    attention: forYou(rows, g.decisions, viewerId, now),
+    attention: (shown?.operable ?? false) && forYou(rows, g.decisions, viewerId, now),
   }
 }
 
@@ -352,7 +356,7 @@ function Tasks() {
   const shared = { resources: withActivity(owned), viewerId: viewer, now, board: read.value }
   const plans = Object.fromEntries(
     read.value.goals
-      .filter((g) => boardOf(g, { resources: [], people, viewerId: viewer }))
+      .filter((g) => boardOf(g, { resources: [], people, viewerId: viewer }) || g.items.length > 0)
       .map((g) => [g.goal_id, slot(g, shared, onCommand)]),
   )
   return (

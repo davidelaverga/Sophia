@@ -44,7 +44,8 @@ export function TaskActions({ row, acts }: Props) {
   return (
     <section className="sheet-section task-actions">
       <h3>Act on it</h3>
-      {commands && <SessionActs target={commands} offer={offer} acts={acts} />}
+      {/* Keyed by its exact scope: a Stop asked on one task or generation is never answered on another. */}
+      {commands && <SessionActs key={scopeOf(commands)} target={commands} offer={offer} acts={acts} />}
       <Notes notes={boundaries(row)} className="act-boundary" />
       {unaddressed && <p className="act-note muted">Its assignment isn’t known now, so nothing can be sent to it.</p>}
       <Notes notes={reasons} className="act-note" />

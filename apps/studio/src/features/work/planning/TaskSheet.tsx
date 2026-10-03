@@ -247,7 +247,7 @@ export function TaskSheet(props: Props) {
         <TaskResult key={`result-${item.id}`} row={row} readResult={props.readResult} />
         <Links title="Waits on" rows={before} onOpen={onOpen} />
         <Links title="Waited on by" rows={after} onOpen={onOpen} />
-        {props.operable && <TaskActions row={row} acts={props.acts} />}
+        {props.operable && <TaskActions key={`acts-${item.id}`} row={row} acts={props.acts} />}
         {props.operable && (
           <AskSophia
             key={`ask-${item.id}`}

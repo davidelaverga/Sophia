@@ -279,6 +279,18 @@ const luisResource: Change = (g, viewer) => {
   ])
 }
 
+/** Review P2: work observed for the goal that its plan in force doesn't hold, said rather than hidden. */
+const outside: Change = (g) => ({
+  ...g,
+  items: [
+    ...g.items,
+    projection('work-old', {
+      lifecycle: 'running',
+      assignment: { ...claude('claude-reviewer', 'reviewer', 2), assignment_id: 'assignment-work-old' },
+    }),
+  ],
+})
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -293,6 +305,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'old-report': oldReport,
   'revision-failed': revisionFailed,
   'luis-resource': luisResource,
+  outside,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

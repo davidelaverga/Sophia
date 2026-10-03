@@ -24,13 +24,25 @@ export const refOf = (workId: string, c: Candidate): ResultRef => ({
   media_type: c.media_type,
 })
 
-/** The current version, and the newest earlier one still usable; a withdrawn version is neither. */
-export function resultsOf(view: ItemView | null): { current: Candidate | null; earlier: Candidate | null } {
+/**
+ * The current version, and the newest earlier one still usable; a withdrawn version is neither. Two versions that both
+ * claim to be current are ambiguous: neither is the result.
+ */
+export function resultsOf(view: ItemView | null): {
+  current: Candidate | null
+  earlier: Candidate | null
+  ambiguous: boolean
+} {
   const candidates = view?.candidates ?? []
+  const current = candidates.filter((c) => c.state === 'current')
   const earlier = candidates
     .filter((c) => c.state === 'previous')
     .toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-  return { current: candidates.find((c) => c.state === 'current') ?? null, earlier: earlier[0] ?? null }
+  return {
+    current: current.length === 1 ? (current[0] ?? null) : null,
+    earlier: earlier[0] ?? null,
+    ambiguous: current.length > 1,
+  }
 }
 
 /** Whether its review speaks of a version other than the current one: it then certifies nothing about this one. */

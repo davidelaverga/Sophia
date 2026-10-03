@@ -141,6 +141,22 @@ function speaksOf(known: Known, r: Receipt): boolean {
   )
 }
 
+/**
+ * What a newer receipt adds to what was observed: Recorded is never taken back. A later receipt that says unknown keeps
+ * it; one that says refused contradicts it, so delivery and effect become unknown rather than "nothing was sent".
+ */
+function observed(before: Observation | null, r: Receipt): Observation {
+  const keep = before?.admission === 'recorded' && r.admission !== 'recorded'
+  const contradicted = keep && r.admission === 'rejected'
+  return {
+    revision: r.revision,
+    admission: keep ? 'recorded' : r.admission,
+    delivery: contradicted ? 'unknown' : r.delivery,
+    effect: before && FINAL.has(before.effect) ? before.effect : contradicted ? 'unknown' : r.effect,
+    rejection: keep ? null : r.rejection,
+  }
+}
+
 /** A receipt folded into what is known: a stale, repeated or foreign one changes nothing, and nothing regresses. */
 export function fold(known: Known, value: unknown): Known {
   const read = readReceipt(value)
@@ -148,24 +164,15 @@ export function fold(known: Known, value: unknown): Known {
   const r = read.value
   const before = known.receipt
   if (before && r.revision <= before.revision) return known
-  return {
-    command: known.command,
-    local: null,
-    receipt: {
-      revision: r.revision,
-      admission: before?.admission === 'recorded' && r.admission === 'unknown' ? 'recorded' : r.admission,
-      delivery: r.delivery,
-      effect: before && FINAL.has(before.effect) ? before.effect : r.effect,
-      rejection: r.rejection,
-    },
-  }
+  return { command: known.command, local: null, receipt: observed(before, r) }
 }
 
 /** No reply in time: unknown, unless a receipt already said more. */
 export const lost = (known: Known): Known => (known.receipt ? known : { ...known, local: 'lost' })
 
-/** A retry of a lost command: on its way again, the same operation. */
-export const retried = (known: Known): Known => (known.local === 'lost' ? { ...known, local: 'sending' } : known)
+/** A retry of a command whose admission is unknown: on its way again, the same operation, said as sending. */
+export const retried = (known: Known): Known =>
+  known.local === 'lost' || known.receipt?.admission === 'unknown' ? { ...known, local: 'sending' } : known
 
 const DELIVERED: ReadonlySet<Receipt['delivery']> = new Set(['delivered', 'native_consumed'])
 

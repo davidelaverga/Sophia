@@ -407,10 +407,17 @@ function planRules(p: WorkPlan, at: string): string[] {
   return problems
 }
 
-function goalRules(goal: GoalView, at: string): string[] {
-  const plans = [goal.current_plan, ...goal.proposed_plans].flatMap((p, i) =>
-    p ? planRules(p, i === 0 ? `${at}.current_plan` : `${at}.proposed_plans[${String(i - 1)}]`) : [],
-  )
+/** A plan names the project and goal it is in: one naming another is someone else's, never shown as this one. */
+const placed = (p: WorkPlan, project: string, goal: string, at: string): string[] => [
+  ...(p.project_id === project ? [] : [`${at}.project_id: the view's project, ${project}`]),
+  ...(p.goal_id === goal ? [] : [`${at}.goal_id: its goal, ${goal}`]),
+]
+
+function goalRules(goal: GoalView, at: string, project: string): string[] {
+  const plans = [goal.current_plan, ...goal.proposed_plans].flatMap((p, i) => {
+    const where = i === 0 ? `${at}.current_plan` : `${at}.proposed_plans[${String(i - 1)}]`
+    return p ? [...planRules(p, where), ...placed(p, project, goal.goal_id, where)] : []
+  })
   const items = goal.items.flatMap((item, i) =>
     item.lifecycle === 'complete' &&
     (item.completion.status !== 'satisfied' || item.completion.evidence_refs.length === 0)
@@ -428,6 +435,6 @@ const isBoard = (value: unknown, problems: readonly string[]): value is BoardVie
 export function readBoardView(value: unknown): Read<BoardView> {
   const problems = problemsOf(board, value)
   if (!isBoard(value, problems)) return { ok: false, problems }
-  const rules = value.goals.flatMap((g, i) => goalRules(g, `$.goals[${String(i)}]`))
+  const rules = value.goals.flatMap((g, i) => goalRules(g, `$.goals[${String(i)}]`, value.project_id))
   return rules.length > 0 ? { ok: false, problems: rules } : { ok: true, value }
 }

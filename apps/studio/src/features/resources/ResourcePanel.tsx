@@ -60,12 +60,15 @@ interface Props {
   tasks?: TaskLinks
   /** Where an owner's guidance, Hold or Stop on a session goes (LFE-06.6); absent, none is offered. */
   onAct?: SendCommand
+  /** The project the panel's commands are for; absent, none is offered (a command names its project exactly). */
+  projectId?: string
   /** Where the viewer's last look is kept (LFE-06.7): the project's id, so two projects' never mix. */
   scope?: string
 }
 
 /** The panel's commands, for the project its scope names. */
-const usePanelActs = ({ onAct, scope = 'resources' }: Props) => useActs(onAct, scope)
+const usePanelActs = ({ onAct, projectId, viewerId }: Props) =>
+  useActs(projectId ? onAct : undefined, projectId ?? '', `resources|${projectId ?? ''}|${viewerId}`)
 
 /**
  * What changed since the viewer last looked (away.ts): a glance kept in this browser, the line it makes, and the tiles

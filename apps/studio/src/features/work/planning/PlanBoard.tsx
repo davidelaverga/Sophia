@@ -26,7 +26,7 @@ import { accountOf } from './account.ts'
 import { useAsks } from './AskSophia.tsx'
 import type { Ask } from './ask.ts'
 import { moveOnBoard } from './board-keys.ts'
-import type { BoardView } from './board-view.ts'
+import type { BoardView, ItemView } from './board-view.ts'
 import { Decision, type Decide } from './Decision.tsx'
 import { Lens } from './Lens.tsx'
 import { shows, type LensName } from './lenses.ts'
@@ -57,6 +57,8 @@ import './board.css'
 type Person = Resource['owner']
 
 interface Props {
+  /** The project being looked at: commands name it, and a plan of another project is never operated here. */
+  projectId: string
   /** The goal's view (board-view.ts), as read and accepted; null, nothing is shown. */
   goal: GoalView | null
   /** How much of the project's board could be read, and when: a partial or unavailable read says so. */
@@ -192,6 +194,7 @@ function useDecisions(decisions: readonly BoardDecision[], viewerId: string | nu
 }
 
 interface PillProps {
+  viewerId: string | null
   count: number
   mine: number
   shown: boolean
@@ -200,9 +203,10 @@ interface PillProps {
   deciders: string[]
 }
 
-function DecisionPill({ count, mine, shown, onToggle, people, deciders }: PillProps) {
+function DecisionPill({ viewerId, count, mine, shown, onToggle, people, deciders }: PillProps) {
   if (count === 0) return null
-  const who = mine > 0 ? 'you' : [...new Set(deciders.map((id) => people[id]?.name ?? 'someone'))].join(' and ')
+  const named = (id: string) => (id === viewerId ? 'you' : (people[id]?.name ?? 'someone'))
+  const who = mine > 0 ? 'you' : [...new Set(deciders.map(named))].join(' and ')
   return (
     <button
       type="button"
@@ -334,12 +338,51 @@ function Notices({ board, coverage, operable }: { board: Board; coverage: Props[
   ))
 }
 
+/** What an observed item is doing, in a few words: "running", "ready for review". */
+const lifeSaid = (v: ItemView) => v.lifecycle.replaceAll('_', ' ')
+
+/**
+ * Work observed for the goal that the plan in force doesn't hold, said rather than hidden: who has it and where it
+ * stands, by its work id (the view says no more of it). The goal's own Hold and Stop still reach all of its work.
+ */
+function OutsideWork({ outside }: { outside: readonly ItemView[] }) {
+  if (outside.length === 0) return null
+  return (
+    <section className="board-outside" aria-label="Observed outside the plan">
+      <h4 className="field-label">Observed outside the plan</h4>
+      <ul className="task-links">
+        {outside.map((v) => (
+          <li key={v.work_id} className="task-link" data-work={v.work_id}>
+            <span className="task-link-name">
+              {v.assignment?.executor.display_name ?? 'No one assigned'} · {v.work_id}
+            </span>
+            <span className="task-link-where">{lifeSaid(v)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="act-note muted">The goal’s own Hold and Stop still reach all of its work.</p>
+    </section>
+  )
+}
+
 export function PlanBoard(props: Props) {
-  const { goal, resources, people, viewerId = null } = props
-  const board = boardOf(goal, { resources, people, viewerId })
-  if (!goal || !board) return null
+  const { goal, resources, people, viewerId = null, projectId } = props
+  const board = boardOf(goal, { resources, people, viewerId, project: projectId })
+  if (!goal) return null
+  if (!board) {
+    // No plan in force or proposed, and yet work is observed: said, never a goal that looks empty.
+    if (goal.items.length === 0) return null
+    return (
+      <section className="board" aria-label="No plan in force">
+        <p className="board-notice" role="note">
+          This goal has no plan in force, but {String(goal.items.length)} of its tasks are observed.
+        </p>
+        <OutsideWork outside={goal.items} />
+      </section>
+    )
+  }
   // Another viewer, or another project, starts afresh: nothing typed, sent or asked here carries over.
-  return <BoardBody key={`${board.plan.project_id}|${viewerId ?? ''}`} {...props} goal={goal} board={board} />
+  return <BoardBody key={`${projectId}|${viewerId ?? ''}`} {...props} goal={goal} board={board} />
 }
 
 interface BodyProps extends Props {
@@ -363,6 +406,7 @@ function Bar({ view, rows, viewerId, asks, people, away, onSeen }: BarProps) {
     <div className="board-bar">
       <Lens lens={view.lens} rows={rows} viewerId={viewerId} onChange={view.setLens} />
       <DecisionPill
+        viewerId={viewerId}
         count={asks.open.length}
         mine={asks.mine.length}
         shown={asks.shown}
@@ -382,12 +426,14 @@ const decidedOf = (decisions: readonly BoardDecision[]) =>
 function BoardBody(props: BodyProps) {
   const { goal, board, people, now, viewerId = null, onDecide } = props
   const { plan, rows, operable } = board
-  const at = { project: plan.project_id, goal: goal.goal_id, plan: plan.plan_id, viewer: viewerId }
+  const at = { project: props.projectId, goal: goal.goal_id, plan: plan.plan_id, viewer: viewerId }
+  // Commands, drafts and questions outlive this board (another goal chosen, a search): kept per project and viewer.
+  const space = `${props.projectId}|${viewerId ?? ''}`
   const { seen, markSeen } = useSeen(at, rows, goal.decisions)
   const view = useBoard(rows, viewerId, changedSince(rows, seen))
   const asks = useDecisions(goal.decisions, viewerId, now)
-  const acts = useActs(operable ? props.onCommand : undefined, plan.project_id)
-  const questions = useAsks(props.onAsk)
+  const acts = useActs(operable ? props.onCommand : undefined, props.projectId, space)
+  const questions = useAsks(props.onAsk, space)
   const opened = rows.find((r) => r.item.id === view.open)
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
   const tile = { plan, viewerId, now, onLight: view.setLit, onOpen: view.setOpen, flags: view.flags, shortOf }
@@ -402,6 +448,7 @@ function BoardBody(props: BodyProps) {
       {asks.shown && <Decisions decisions={asks.open} {...decisionProps} />}
       <Lanes rows={rows} board={view} tile={tile} />
       <ClosedWork rows={inLane(rows, 'closed')} onOpen={view.setOpen} />
+      <OutsideWork outside={board.outside} />
       <Folded plan={plan} decisions={goal.decisions} people={people} />
       {opened && (
         <TaskSheet

@@ -386,12 +386,16 @@ export interface Board {
   rows: PlanRow[]
   /** What doesn't hold together in it, in words; each item is still shown once. */
   problems: string[]
+  /** Work observed now that the plan in force doesn't hold: said, never hidden. */
+  outside: ItemView[]
 }
 
 interface Readers {
   resources: readonly Resource[]
   people: Record<string, Person>
   viewerId: string | null
+  /** The project being looked at: a plan of another is never operated as this one's. */
+  project?: string
 }
 
 /** A proposed plan's item: nothing about it is observed, and it runs nowhere yet. */
@@ -439,13 +443,31 @@ function rowOf(
 export function boardOf(goal: GoalView | null | undefined, readers: Readers): Board | null {
   const shown = goal ? shownPlan(goal) : null
   if (!goal || !shown) return null
-  const { plan, operable } = shown
+  const { plan } = shown
+  const elsewhere = readers.project !== undefined && plan.project_id !== readers.project
+  const operable = shown.operable && !elsewhere
   const views = viewsOf(goal)
   const rows = groups(unique(plan.items))
     .map((g) => g.map((entry) => rowOf(entry, plan, views.get(entry.item.id) ?? null, operable, readers)))
     .toSorted((a, b) => (a[0]?.status.rank ?? 0) - (b[0]?.status.rank ?? 0))
     .flat()
-  return { plan, operable, rows, problems: planProblems(plan, goal) }
+  const outside = outsideOf(goal, operable ? plan : null)
+  const problems = [
+    ...planProblems(plan, goal),
+    ...(elsewhere ? ['It belongs to another project'] : []),
+    ...(outside.length > 0
+      ? [
+          `${String(outside.length)} observed ${outside.length === 1 ? 'task isn’t' : 'tasks aren’t'} in the plan in force`,
+        ]
+      : []),
+  ]
+  return { plan, operable, rows, problems, outside }
+}
+
+/** Work observed for a goal that `plan` (the plan in force) doesn't hold: all of it while none is in force. */
+export const outsideOf = (goal: GoalView, plan: WorkPlan | null): ItemView[] => {
+  const ids = new Set(plan?.items.map((i) => i.id) ?? [])
+  return goal.items.filter((v) => !ids.has(v.work_id))
 }
 
 /** Whether following `next` from each item comes back to it: a loop of parents or of blockers. */

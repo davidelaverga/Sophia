@@ -58,7 +58,11 @@ export const unanswerable = (question: Question, reason: string): Asked => ({
 export function heard(asked: Asked, e: AskEvent): Asked {
   if (e.question_id !== asked.question.question_id || asked.state === 'answered' || e.seq <= asked.seq) return asked
   if (e.kind === 'complete') {
-    return { ...asked, answer: e.text ?? asked.chunks.join(''), state: 'answered', seq: e.seq }
+    // Without its own text, the chunks are the answer only when none is missing.
+    const whole = e.text ?? (e.seq === asked.seq + 1 ? asked.chunks.join('') : null)
+    return whole === null
+      ? { ...asked, state: 'failed', reason: null, seq: e.seq }
+      : { ...asked, answer: whole, state: 'answered', seq: e.seq }
   }
   if (e.kind === 'chunk') {
     if (e.seq !== asked.seq + 1) return asked

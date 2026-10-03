@@ -57,12 +57,16 @@ describe('readBoardView', () => {
     const wrong = readBoardView(edited(board, [...item, 'lifecycle'], 'done'))
     const hash = readBoardView(edited(board, [...item, 'candidates', 0, 'sha256'], 'AAAA'))
     const v1 = readBoardView(edited(board, ['goals', 0, 'current_plan', 'schema_version'], 'sophia.work.plan.v1'))
+    const project = readBoardView(edited(board, ['goals', 0, 'current_plan', 'project_id'], 'another-project'))
+    const placed = readBoardView(edited(board, ['goals', 0, 'current_plan', 'goal_id'], 'another-goal'))
     for (const [read, says] of [
       [missing, /items\[0\]\.assignment: missing/],
       [extra, /owner_ok: not in the shape/],
       [wrong, /lifecycle: one of/],
       [hash, /sha256: a lowercase sha256/],
       [v1, /schema_version: one of sophia\.work\.plan\.v2/],
+      [project, /project_id: the view's project, fixture-project/],
+      [placed, /goal_id: its goal, fixture-goal/],
     ] as const) {
       assert.equal(read.ok, false)
       if (!read.ok) assert.match(read.problems.join('\n'), says)
