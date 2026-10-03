@@ -1,9 +1,10 @@
 // start_research (SMC-M03 S4, plan §2.4): the guide's one research operation. The model supplies the question, the
-// formats and what the person said about sources and depth; everything else is the server's: who asked (the bound
-// speaker), the specialist and its route (the registry), the allowance (the project's grant) and eligibility. A receipt
-// says admitted, never started; a refusal is typed `not_started:<code>`, and a call whose outcome is unknown is
-// `unconfirmed:<code>`. Neither is retried here. render_research (S6) is "Try PDF again" by voice: the published
-// version of a report that has no PDF, printed again as a binding-less rendition (0032), for the bound speaker.
+// formats, what the person said about sources and depth, and the scope they stated, kept as lines of the question
+// (research-scope.ts, CX-0030); everything else is the server's: who asked (the bound speaker), the specialist and its
+// route (the registry), the allowance (the project's grant) and eligibility. A receipt says admitted, never started; a
+// refusal is typed `not_started:<code>`, and a call whose outcome is unknown is `unconfirmed:<code>`. Neither is
+// retried here. render_research (S6) is "Try PDF again" by voice: the published version of a report that has no PDF,
+// printed again as a binding-less rendition (0032), for the bound speaker.
 import { createHash } from 'node:crypto'
 import type { MediaToolResult } from '@sophia/contracts'
 import { SPECIALISTS } from '@sophia/contracts'
@@ -16,6 +17,7 @@ import {
   type ResearchAdmissionRequest,
 } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
+import { admittedQuestion, isRecord, QUESTION_MAX } from './research-scope.ts'
 
 /** No PDF renderer is running (0031): nothing was started, and no other format is promised in its place. */
 const PDF_UNAVAILABLE = 'PDF reports are not available, so nothing was started.'
@@ -72,8 +74,6 @@ function refusal(err: unknown): MediaToolResult {
   }
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-
 /** Up to eight items that each pass `ok`; absent is none, anything else is null (ask again). */
 const listOf = (v: unknown, ok: (x: unknown) => boolean): string[] | null =>
   v === undefined ? [] : Array.isArray(v) && v.length <= 8 && v.every(ok) ? v.map(String) : null
@@ -104,7 +104,9 @@ function preferencesOf(value: unknown): NonNullable<ResearchAdmissionRequest['pr
 
 /** The model's arguments as an admission request, or the one question that would make them one. */
 function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | MediaToolResult {
-  if (!isText(args.question, 2000)) return clarify('What should I research?')
+  if (!isText(args.question, QUESTION_MAX)) return clarify('What should I research?')
+  const asked = admittedQuestion(args.question.trim(), args.scope)
+  if ('ask' in asked) return clarify(asked.ask)
   const outputs = formatsOf(args.outputs)
   if (!outputs) return clarify('Which format should the report be in?')
   const inputSourceIds = listOf(args.inputSourceIds, isUuid)
@@ -115,7 +117,7 @@ function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | Me
   if (!assumptions) return clarify('What should I assume where the request is open?')
   if (args.amendsTaskId !== undefined && !isUuid(args.amendsTaskId)) return clarify('Which research should I amend?')
   return {
-    question: args.question.trim(),
+    question: asked.question,
     outputs,
     inputSourceIds,
     urls,

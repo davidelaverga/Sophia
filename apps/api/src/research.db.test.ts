@@ -1563,6 +1563,137 @@ describe('control_work says what a refused or accepted control did (CX-0026)', (
   })
 })
 
+// CX-0030: the owner asked for a length, four sections and limits on searches and reads, and later for a revision of
+// one section that kept the rest; the stored questions carried none of it, so the worker could not keep to it.
+describe('start_research stores what the speaker asked beyond the topic as lines of the question (CX-0030)', () => {
+  const asOwner = async <T>(read: (owner: pg.Client) => Promise<T>): Promise<T> => {
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      return await read(owner)
+    } finally {
+      await owner.end()
+    }
+  }
+
+  /** The admitted task's question source, which its manifest (the worker's input) must name as it is. */
+  const storedQuestion = (taskId: string) =>
+    asOwner(async (owner) => {
+      const { rows } = await owner.query<{ stored: string; manifest: string }>(
+        `SELECT q.body AS stored, (m.body::jsonb)->>'question' AS manifest FROM sophia.research_tasks t
+           JOIN sophia.source_texts q ON q.project_id=t.project_id AND q.source_id=t.question_source_id
+           JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id
+           JOIN sophia.source_texts m ON m.project_id=j.project_id AND m.source_id=j.input_source_id
+          WHERE t.job_id=$1`,
+        [taskId],
+      )
+      const row = rows[0]
+      assert.ok(row, 'the task was admitted')
+      assert.equal(row.manifest, row.stored, 'the worker reads the question as it is stored')
+      return row.stored
+    })
+
+  const tasksIn = (w: { projectId: string }) =>
+    asOwner(async (owner) => {
+      const { rows } = await owner.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM sophia.research_tasks WHERE project_id=$1`,
+        [w.projectId],
+      )
+      return rows[0]?.n
+    })
+
+  const QUESTION = 'Which phone chargers are worth buying?'
+
+  it('keeps every stated part on its own line after the question, and stores a question without one as before', async () => {
+    const w = await world()
+    const scope = {
+      maxReads: 3,
+      maxSearches: 2,
+      sections: ['Summary', 'Charging\nspeed', 'Comparison table', 'Recommendations'],
+      length: 'about 500 words',
+      keep: 'A neutral tone',
+      change: 'Nothing yet: a first report',
+    }
+    const full = await tool(w, { question: `  ${QUESTION}\n`, scope })
+    assert.equal(full.status, 'admitted', JSON.stringify(full))
+    assert.equal(
+      await storedQuestion(full.output.taskId),
+      `${QUESTION}\n\nAsked by the speaker:\n` +
+        '- Change: Nothing yet: a first report\n' +
+        '- Keep as it is: A neutral tone\n' +
+        '- Length: about 500 words\n' +
+        '- Sections: Summary; Charging speed; Comparison table; Recommendations\n' +
+        '- At most 2 web searches and 3 page reads.',
+    )
+    // Without a scope, or with one that states nothing, the question is stored byte for byte as before.
+    const plain = await tool(w, { question: `  ${QUESTION}\n`, newRequest: true })
+    assert.equal(plain.status, 'admitted', JSON.stringify(plain))
+    assert.equal(await storedQuestion(plain.output.taskId), QUESTION)
+    const blank = await tool(w, { question: QUESTION, scope: { keep: ' \n', sections: [] }, newRequest: true })
+    assert.equal(blank.status, 'admitted', JSON.stringify(blank))
+    assert.equal(await storedQuestion(blank.output.taskId), QUESTION)
+  })
+
+  it('a follow-up keeps what to change and what to keep as it is', async () => {
+    const w = await world()
+    const v1 = await researched(w, {})
+    const question = 'Rewrite the recommendations for people who travel.'
+    const follow = await tool(w, {
+      question,
+      amendsTaskId: v1,
+      scope: { change: 'The recommendations, for people who travel', keep: 'Every other section and table' },
+    })
+    assert.equal(follow.status, 'admitted', JSON.stringify(follow))
+    assert.equal(
+      await storedQuestion(follow.output.taskId),
+      `${question}\n\nAsked by the speaker:\n` +
+        '- Change: The recommendations, for people who travel\n' +
+        '- Keep as it is: Every other section and table',
+    )
+  })
+
+  it('asks again about a part it cannot keep, or a request too long with it, and admits nothing', async () => {
+    const w = await world()
+    const asks: Array<[unknown, RegExp]> = [
+      ['about 500 words', /beyond its topic/],
+      [{ change: 42 }, /^What should the research change\?/],
+      [{ keep: 'x'.repeat(501) }, /^What should the research keep as it is\?/],
+      [{ sections: 'Summary; Sources' }, /^Which sections/],
+      [{ maxSearches: 6 }, /^How many web searches/],
+      [{ maxReads: '3' }, /^How many pages/],
+    ]
+    for (const [scope, ask] of asks) {
+      const r = await tool(w, { question: QUESTION, scope })
+      assert.equal(r.status, 'clarify', JSON.stringify([scope, r]))
+      assert.match(r.output.ask, ask)
+    }
+    const block = '\n\nAsked by the speaker:\n- Length: about 500 words'
+    const fits = 'q'.repeat(2000 - block.length)
+    const over = await tool(w, { question: `${fits}q`, scope: { length: 'about 500 words' } })
+    assert.equal(over.status, 'clarify', JSON.stringify(over))
+    assert.match(over.output.ask, /too long to keep whole/)
+    assert.equal(await tasksIn(w), 0, 'nothing was admitted')
+    // At the question's limit (0025's 2000 characters) the request is kept whole.
+    const whole = await tool(w, { question: fits, scope: { length: 'about 500 words' } })
+    assert.equal(whole.status, 'admitted', JSON.stringify(whole))
+    assert.equal(await storedQuestion(whole.output.taskId), `${fits}${block}`)
+  })
+
+  it('a retried call is the same request: its task again under its key, never another scope', async () => {
+    const w = await world()
+    const scope = { length: 'about 500 words', maxSearches: 2, maxReads: 3 }
+    const first = await tool(w, { question: QUESTION, scope }, E, { callId: 'scoped-1' })
+    assert.equal(first.status, 'admitted', JSON.stringify(first))
+    // The same parts in another order are the same lines, so the same request.
+    const reordered = { maxReads: 3, maxSearches: 2, length: 'about 500 words' }
+    const again = await tool(w, { question: QUESTION, scope: reordered }, E, { callId: 'scoped-1' })
+    assert.deepEqual([again.status, again.output.taskId], ['admitted', first.output.taskId])
+    const other = await tool(w, { question: QUESTION, scope: { ...scope, maxSearches: 1 } }, E, { callId: 'scoped-1' })
+    assert.deepEqual([other.status, other.output.code], ['refused', 'not_started:idempotency_conflict'])
+    assert.equal(await tasksIn(w), 1)
+  })
+})
+
 // Last: it takes a function of 0036 away for a moment.
 describe('readiness (0036)', () => {
   it('fails while the submit cannot cite what its draft cites', async () => {
