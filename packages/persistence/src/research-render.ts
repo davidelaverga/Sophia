@@ -103,7 +103,8 @@ type RenditionInput =
 /**
  * "Try PDF again" (0032): print a published version that has no PDF with the same template and queue it as a
  * binding-less rendition, in one transaction (see 0032's header for the rules). An editor's call, inside
- * withActor(..., 'write'); the same idempotency key returns the same rendition.
+ * withActor(..., 'write'); the same idempotency key returns the same rendition. The version is read as Studio reads
+ * it: a link cites only one of its own sources, and a link to any other id prints as its label (CX-0019).
  */
 export async function requestResearchRendition(
   c: pg.PoolClient,
@@ -123,6 +124,7 @@ export async function requestResearchRendition(
     title: titleOf(input.question),
     sources: input.sources,
     layout: 'standard',
+    citable: input.sources.map((s) => s.id),
   })
   if (!doc.accepted) return rejected(doc, { repair: 'none', layout: 'standard' })
   const printed = { ...doc.manifest, sourceIds: input.sources.map((s) => s.id) }

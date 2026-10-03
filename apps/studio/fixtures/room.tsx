@@ -4,9 +4,11 @@
 // server and says so on screen. The query string picks the scenario: `call=on` (join on opening), `exchange=open`
 // (Sophia's conversation is open and this viewer holds the floor), `refuse=camera` (the browser refuses it),
 // `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room), `hold=sources` (the
-// report's sources come only once the check lets them through); the report viewer's own parameters (`report=…`) open
-// the fixture report (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the
-// call, publish the report's next version, deliver a result notice, or read what happened.
+// report's sources come only once the check lets them through; `hold=text`, its text), `title=long` (the report's title
+// runs far past the side pane's width), `versions=3` (that many of the report's versions are published already); the
+// report viewer's own parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
+// move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice,
+// or read what happened.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -18,8 +20,8 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { asked, deliverNotice, dropCall } from './fake-livekit.ts'
-import { installFixtureApi, publish, releaseSources, served, unexpected } from './fixture-api.ts'
-import { researchNotice, SOPHIAS_DESCRIPTION, TEAMMATE } from './report-data.ts'
+import { installFixtureApi, publish, releaseSources, releaseText, served, unexpected } from './fixture-api.ts'
+import { LONG_TITLE, researchNotice, SOPHIAS_DESCRIPTION, TEAMMATE, TITLE } from './report-data.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -38,6 +40,8 @@ interface Fixture {
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
+  /** The report's text, held since the page opened (`hold=text`), comes now. */
+  releaseText: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
   away: () => void
   /** Back to the project, as the places' call control brings it back: its address names no report. */
@@ -60,11 +64,13 @@ const project = {
   revision: 1,
   exchange: query.get('exchange') === 'open',
   messages: [] as string[],
-  reportVersions: 1,
+  reportVersions: Math.max(1, Number(query.get('versions')) || 1),
+  reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   waiting: query.get('lobby') === 'waiting',
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
+  textHeld: query.get('hold') === 'text',
 }
 installFixtureApi(project)
 
@@ -86,6 +92,7 @@ window.fixture = {
     project.versionsFail = how
   },
   releaseSources: () => releaseSources(project),
+  releaseText: () => releaseText(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry
     sight.set?.(false)

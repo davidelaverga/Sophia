@@ -17,6 +17,7 @@ import {
   readMissionSource,
   readNativeTask,
   recordMissionEntry,
+  researchGateOpen,
   withActor,
   type MissionTurn,
   type NoteWrite,
@@ -118,6 +119,8 @@ export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> 
       target: await readConfirmationTarget(c, ctx.call.exchangeId),
       // Only a v1.2 guide hears of render_research, so only it needs to know whether a PDF renderer runs.
       pdf: ctx.call.guide === 'v1.2' ? await pdfRendererReady(c) : undefined,
+      // Likewise start_research, which admission refuses while the project's research gate is closed (0025).
+      researchGate: ctx.call.guide === 'v1.2' ? await researchGateOpen(c, ctx.projectId) : undefined,
     }))
     if (!read.context) return { status: 'refused', output: { readState: 'unavailable', reason: 'Not permitted' } }
     const output = voiceStatus({

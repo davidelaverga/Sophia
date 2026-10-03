@@ -134,6 +134,42 @@ describe('the report Markdown parser', () => {
     assert.equal(plain(p.children), 'Hosts sandbox renders [1]. Costs vary [2][1]. See [2] and [1].')
   })
 
+  it('numbers a link to a source id as a citation, in the forms models write it, a named label kept before it', () => {
+    const { blocks, citations } = parseMarkdown(
+      `Claim [1](${A}). Again [2](<${B}>) and [[1]](${A} "t"). A named one [OECD 2024](search:${B}#2). [](${A})`,
+    )
+    assert.deepEqual(citations, [A, B])
+    const [p] = blocks
+    assert.ok(p?.kind === 'paragraph')
+    assert.equal(plain(p.children), 'Claim [1]. Again [2] and [1]. A named one OECD 2024[2]. [1]')
+    assert.ok(!JSON.stringify(blocks).includes('"link"'))
+  })
+
+  it('cites a link only to a source the caller names; any other id stays its label, never a link', () => {
+    const { blocks, citations } = parseMarkdown(`See [1](${A}) and [2](${B}), and [${B}].`, {
+      citable: [A.toUpperCase()],
+    })
+    // The bracketed form keeps its behaviour: the option gates the link form only.
+    assert.deepEqual(citations, [A, B])
+    const [p] = blocks
+    assert.ok(p?.kind === 'paragraph')
+    assert.equal(plain(p.children), 'See [1] and 2, and [2].')
+    assert.ok(!JSON.stringify(blocks).includes('"link"'))
+    assert.deepEqual(parseMarkdown(`[2](${B})`, { citable: [] }).citations, [])
+  })
+
+  it('never takes a real link or an unsafe one for a citation', () => {
+    const { blocks, citations } = parseMarkdown(`[y](https://e.org/${A}) [x](javascript:${A}) [z](#${A})`)
+    assert.deepEqual(citations, [])
+    const [p] = blocks
+    assert.ok(p?.kind === 'paragraph')
+    const links = p.children.filter((i) => i.kind === 'link')
+    assert.deepEqual(
+      links.map((l) => l.kind === 'link' && l.href),
+      [`https://e.org/${A}`],
+    )
+  })
+
   it('leaves snake_case alone and survives unclosed markers', () => {
     const p = only('a snake_case_name and *unclosed and ** too')
     assert.equal(p.kind === 'paragraph' && plain(p.children), 'a snake_case_name and *unclosed and ** too')

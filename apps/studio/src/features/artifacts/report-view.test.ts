@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { openedLink, readReportLink, reportSearch, withReportLink, type ReportLink } from './report-link.ts'
 import { clampWidth, defaultWidth } from './usePaneWidth.ts'
+import { compareSections } from './markdown.ts'
 import {
+  conclusionTopic,
   currentOffer,
   elapsedText,
   escapeStepsDown,
@@ -153,7 +155,7 @@ describe('a version’s chips come from its facts, never its notes', () => {
         dropped: ['c'],
         sections: {
           added: ['Pricing'],
-          revised: ['Costs'],
+          revised: ['Conclusion'],
           removed: [],
           unchanged: ['Hosts'],
           conclusionChanged: true,
@@ -175,6 +177,49 @@ describe('a version’s chips come from its facts, never its notes', () => {
       factChips({ versionNumber: 3, changeFacts: pdfOnly }).map((c) => c.label),
       ['PDF added'],
       'a rendition-only version adds the PDF and nothing else',
+    )
+  })
+
+  it('names what changed when the conclusion fact covers recommendations only (CX-0019)', () => {
+    // The pilot's facts, as 0027 section_facts gives them for a version that revised its recommendations only.
+    const sections = { added: [], revised: ['Recommendations'], removed: [], unchanged: ['R', 'Conclusion'] }
+    const chips = factChips({
+      versionNumber: 2,
+      changeFacts: { cited: 3, added: [], dropped: [], sections: { ...sections, conclusionChanged: true } },
+    })
+    assert.deepEqual(
+      chips.map((c) => c.label),
+      ['1 revised', 'Recommendations changed'],
+    )
+  })
+})
+
+/** The topic of a changed conclusion fact whose changed headings are `changed`. */
+const topic = (changed: Partial<Record<'added' | 'revised' | 'removed', string[]>>, conclusionChanged = true) =>
+  conclusionTopic({ added: [], revised: [], removed: [], ...changed, conclusionChanged })
+
+/** A report whose recommendations read `recommendation`, beside the same conclusion. */
+const withRecommendation = (recommendation: string) =>
+  `# Report\n\nBody.\n\n## Conclusion\n\nUse A.\n\n## Recommendations\n\n${recommendation}\n`
+
+describe('what a changed conclusion fact covers (CX-0019)', () => {
+  it('names the part whose heading changed', () => {
+    assert.equal(topic({ revised: ['Conclusion'] }), 'Conclusion')
+    assert.equal(topic({ added: ['Option A', 'Option B'], revised: ['Key recommendations'] }), 'Recommendations')
+    assert.equal(topic({ removed: ['Recommendation'], revised: ['Conclusions'] }), 'Conclusion and recommendations')
+    assert.equal(topic({ revised: ['Conclusions and recommendations'] }), 'Conclusion and recommendations')
+    assert.equal(topic({ revised: ['**Conclusioni**'] }), 'Conclusion', 'markup is stripped as the service strips it')
+  })
+
+  it('names either when no changed heading tells them apart, and nothing when the fact is false', () => {
+    assert.equal(topic({ revised: ['Résumé'] }), 'Conclusion or recommendations')
+    assert.equal(topic({ revised: ['Conclusion'] }, false), null, 'the fact decides, not the headings')
+  })
+
+  it('gives the comparison of two texts the same words', () => {
+    assert.equal(
+      conclusionTopic(compareSections(withRecommendation('Do X.'), withRecommendation('Do X and Y.'))),
+      'Recommendations',
     )
   })
 })

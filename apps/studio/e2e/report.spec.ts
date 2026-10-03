@@ -7,10 +7,17 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const V1 = '00000000-0000-4000-8000-0000000000d1'
 const V2 = '00000000-0000-4000-8000-0000000000d2'
+const V3 = '00000000-0000-4000-8000-0000000000d3'
 const CITED = '00000000-0000-4000-8000-0000000000c9'
 const IN_CALL = '/room.html?call=on&exchange=open'
 const FIRST = 'The first version of a labelled fixture report.'
 const SECOND = 'The second version of a labelled fixture report, published while the first was read.'
+const THIRD = 'The third version of a labelled fixture report, its citation written as a link.'
+/** The fixture report's title with `title=long`. */
+const LONG =
+  'A labelled fixture report whose title runs on far past the width of the side pane, so that its head has to cut it short'
+/** The pane's head controls, left to right (in the room). */
+const HEAD = ['Download', 'Enlarge', 'Chat', 'Close'] as const
 
 const fixture = (page: Page) =>
   page.evaluate(() => {
@@ -29,6 +36,27 @@ const onTop = (locator: Locator) =>
     return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
   })
 const door = (page: Page) => page.getByRole('complementary', { name: 'Waiting to come in' })
+
+/** Whether what `locator` names lies wholly inside what `outer` names, to half a pixel. */
+async function within(locator: Locator, outer: Locator): Promise<boolean> {
+  const [a, b] = await Promise.all([locator.boundingBox(), outer.boundingBox()])
+  if (!a || !b) return false
+  const e = 0.5
+  return a.x >= b.x - e && a.y >= b.y - e && a.x + a.width <= b.x + b.width + e && a.y + a.height <= b.y + b.height + e
+}
+
+/** Whether the pane's title is cut: its text runs past the room the head gives it. */
+const cut = (page: Page) => page.locator('#report-pane-title').evaluate((el) => el.scrollWidth > el.clientWidth)
+
+/** Each of the head's controls lies in the pane and on screen, with nothing over it. */
+async function headInReach(side: Locator) {
+  for (const name of HEAD) {
+    const control = side.getByRole('button', { name, exact: true })
+    expect(await within(control, side), `${name} in the pane`).toBe(true)
+    await expect(control, `${name} on screen`).toBeInViewport({ ratio: 1 })
+    expect(await onTop(control), `${name} uncovered`).toBe(true)
+  }
+}
 
 /** A link to a version of the fixture report followed in the page: the address moves, as Back and Forward move it. */
 const follow = (page: Page, versionId: string) =>
@@ -457,4 +485,118 @@ test('LFE-02.1 · Esc held down steps down once, and pinning names the version i
   await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'side') // still open: one press, one step
   // The pin replaced the opening entry (a blank page, then this one): no entry of the report without its version.
   expect(await page.evaluate(() => window.history.length)).toBe(2)
+})
+
+for (const width of [1024, 1280, 1440]) {
+  test(`CX-0019 · at ${String(width)} px a long title is cut, and the head’s controls stay in the side pane and take a click`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await enter(page, `/room.html?report=${REPORT}&title=long`)
+    const side = page.getByRole('complementary', { name: LONG })
+    await expect(side.getByText(FIRST)).toBeVisible() // the text is checked: Download has its bytes
+    expect(await cut(page), 'the title is cut, not the pane widened').toBe(true)
+    await headInReach(side)
+
+    // A mouse reaches each of them.
+    await side.getByRole('button', { name: 'Download', exact: true }).click()
+    await expect(side.getByText(/^Downloading fixture-report\.md/)).toBeVisible()
+    await side.getByRole('button', { name: 'Enlarge', exact: true }).click()
+    await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+    await side.getByRole('button', { name: 'Back to side panel', exact: true }).click()
+    await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'side')
+    await side.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(side).toHaveCount(0)
+  })
+}
+
+test('CX-0019 · with a long title, the current version’s offer and Close stay in the side pane', async ({ page }) => {
+  await enter(page, `/room.html?report=${REPORT}&title=long`)
+  const side = page.getByRole('complementary', { name: LONG })
+  await expect(side.getByText(FIRST)).toBeVisible()
+  await page.evaluate(() => window.fixture?.publishReport())
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(side.getByText('v2 is the current version.')).toBeVisible()
+  for (const control of [
+    side.getByRole('button', { name: 'Show it' }),
+    side.getByRole('button', { name: 'Close', exact: true }),
+  ]) {
+    expect(await within(control, side)).toBe(true)
+    await expect(control).toBeInViewport({ ratio: 1 })
+  }
+  await side.getByRole('button', { name: 'Show it' }).click()
+  await expect(side.getByText(SECOND)).toBeVisible()
+  await expect(page.locator('#report-pane-title')).toBeFocused()
+})
+
+test('CX-0019 @phone · a long title leaves Download, Enlarge, Chat and Close on screen, each a tap away', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}&title=long`)
+  const side = page.getByRole('complementary', { name: LONG })
+  await expect(side.getByText(FIRST)).toBeVisible()
+  expect(await cut(page)).toBe(true)
+  await headInReach(side)
+  await side.getByRole('button', { name: 'Close', exact: true }).tap()
+  await expect(side).toHaveCount(0)
+})
+
+test('CX-0019 · Download waits for the checked bytes without dropping the focus: aria-disabled, never disabled', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}&hold=text`)
+  const download = pane(page).getByRole('button', { name: 'Download', exact: true })
+  await expect(pane(page).getByText('Loading the report…')).toBeVisible()
+  await expect(download).toHaveAttribute('aria-disabled', 'true')
+  await expect(download).not.toHaveAttribute('disabled')
+  await download.focus()
+  await expect(download).toBeFocused() // it can be reached, and a press does nothing yet: no file is saved
+  const early = page.waitForEvent('download', { timeout: 1000 }).then(
+    () => true,
+    () => false,
+  )
+  await page.keyboard.press('Enter')
+  expect(await early).toBe(false)
+  await expect(pane(page).getByRole('status')).toHaveText('')
+
+  await page.evaluate(() => window.fixture?.releaseText())
+  await expect(pane(page).getByText(FIRST)).toBeVisible()
+  await expect(download).not.toHaveAttribute('aria-disabled')
+  await expect(download).toBeFocused() // kept through the load
+  const saved = page.waitForEvent('download')
+  await page.keyboard.press('Enter')
+  expect((await saved).suggestedFilename()).toBe('fixture-report.md')
+  await expect(pane(page).getByRole('status')).toHaveText(/^Downloading fixture-report\.md/)
+})
+
+test('CX-0019 · History names the recommendations, not the conclusion, when only they changed', async ({ page }) => {
+  await enter(page, `/room.html?report=${REPORT}&versions=2&version=${V2}`)
+  await expect(pane(page).getByText(SECOND)).toBeVisible()
+  await pane(page)
+    .getByRole('tab', { name: /^History/ })
+    .click()
+  const v2 = pane(page).locator('.report-history > li').filter({ hasText: 'v2' })
+  await expect(v2.locator('.report-chips')).toContainText('Recommendations changed')
+  await expect(v2.locator('.report-chips')).not.toContainText('Conclusion changed')
+  await v2.getByRole('button', { name: 'Compare with the version before' }).click()
+  const region = pane(page).getByRole('region', { name: 'v1 to v2' })
+  await expect(region.locator('dt')).toHaveText(['Revised', 'Unchanged', 'Recommendations'])
+  await expect(region.locator('dd')).toHaveText(['Fixture report, Recommendations', 'Conclusion', 'Changed'])
+})
+
+test('CX-0019 · a citation written as a link to one of the version’s sources is numbered; a link to another id stays text', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?report=${REPORT}&versions=3&version=${V3}`)
+  await expect(pane(page).getByText(THIRD)).toBeVisible()
+  const one = pane(page).getByRole('button', { name: 'Source 1' })
+  await expect(one).toBeVisible() // once the sources came: the link names one of them
+  await expect(pane(page).getByRole('button', { name: 'Source 2' })).toHaveCount(0)
+  await expect(pane(page).locator('.md a')).toHaveCount(0)
+  await expect(pane(page).getByText('none of its sources 2.')).toBeVisible() // the stray link reads as its label
+  await one.click()
+  const row = pane(page).locator(`#source-${CITED}`)
+  await expect(row).toBeFocused()
+  await expect(row.getByText('Citation 1')).toBeAttached()
+  await expect(pane(page).getByText('Not cited in the text')).toHaveCount(0)
 })

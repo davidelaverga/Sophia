@@ -1,8 +1,9 @@
 // A report's Markdown as data (SMC-M03 S4, plan §2.8.3): Studio's viewer renders it, and the PDF template (S5b,
 // report-html.ts) prints it. The parser is ours and small on purpose (SMC-M03-contract-binding.md §8): nothing it
 // returns is HTML. Raw HTML stays literal text, an image is named and never loaded, a link is kept only for http, https
-// and mailto, and a source id the report cites becomes a numbered citation. React renders every string as text, and
-// the template escapes every one, so a report cannot run script or load an asset.
+// and mailto, and a source id the report cites becomes a numbered citation: bare, bracketed, or as a link's destination
+// (`[1](<id>)`, the form models write), never a link to the id. React renders every string as text, and the template
+// escapes every one, so a report cannot run script or load an asset.
 
 export type Inline =
   | { kind: 'text'; text: string }
@@ -37,6 +38,10 @@ const REF = `(?:(?:search|link|input|source):\\s*)?(${UUID})(?:#\\d{1,4})?`
 /** A bracketed group of refs and nothing else: `[id]`, `(id, id)`, `[source: id; id]`. */
 const CITE_GROUP = new RegExp(`[\\[(]\\s*${REF}(?:\\s*[,;]\\s*${REF})*\\s*[\\])]`, 'gi')
 const CITE_ONE = new RegExp(REF, 'gi')
+/** A link whose destination is a source or a ref to one, and nothing else: `[1](<id>)`, `[2](search:<id>#3)`. */
+const CITE_TARGET = new RegExp(`^<?\\s*${REF}\\s*>?$`, 'i')
+/** A link label that only numbers its citation (`1`, `[2]`, `^3`, or none): the citation's own number replaces it. */
+const MARKER = /^\s*\[?\^?\d{0,4}\]?\s*$/
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w+-]*)/
 const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/
@@ -72,6 +77,16 @@ export function safeHref(raw: string): string | null {
 class Citations {
   readonly order: string[] = []
   private readonly index = new Map<string, number>()
+  private readonly citable: ReadonlySet<string> | undefined
+
+  constructor(citable?: ReadonlySet<string>) {
+    this.citable = citable
+  }
+
+  /** Whether a link to this id is a citation: any source id, unless the caller named the ones the report may cite. */
+  links(sourceId: string): boolean {
+    return this.citable?.has(sourceId.toLowerCase()) ?? true
+  }
 
   n(sourceId: string): number {
     const id = sourceId.toLowerCase()
@@ -181,6 +196,16 @@ function targetEnd(src: string, from: number): number {
   return -1
 }
 
+/** `[1](<id>)`: a link to a source the report may cite is a citation, its label kept if it says more than a number. */
+function citeLink(s: Scan, label: string, target: string): Inline[] | null {
+  const id = CITE_TARGET.exec(target)?.[1]?.toLowerCase()
+  if (id === undefined || !s.cites.links(id)) return null
+  if (MARKER.test(label) || CITE_TARGET.test(label.trim())) return [{ kind: 'cite', sourceId: id, n: s.cites.n(id) }]
+  // The label first, so a citation inside it keeps its place in the numbering.
+  const children = inlines({ ...s, src: label, depth: s.depth + 1 })
+  return [...children, { kind: 'cite', sourceId: id, n: s.cites.n(id) }]
+}
+
 /** `[text](url)` or `![alt](src)`: a link the viewer may open, else its text; an image only by name. */
 function linkOrImage(s: Scan, i: number): Step {
   const image = s.src[i] === '!'
@@ -191,8 +216,11 @@ function linkOrImage(s: Scan, i: number): Step {
   if (end < 0) return null
   const label = s.src.slice(open + 1, close)
   if (label.includes('\n\n')) return null
-  const target = s.src.slice(close + 2, end).split(/\s+/)[0] ?? ''
+  const destination = s.src.slice(close + 2, end).trim()
+  const target = destination.split(/\s+/)[0] ?? ''
   if (image) return { inline: [{ kind: 'text', text: `[image: ${label || 'untitled'}]` }], next: end + 1 }
+  const cited = citeLink(s, label, target)
+  if (cited) return { inline: cited, next: end + 1 }
   const children = inlines({ ...s, src: label, depth: s.depth + 1 })
   const href = safeHref(target)
   return { inline: href ? [{ kind: 'link', href, children }] : children, next: end + 1 }
@@ -443,9 +471,17 @@ function parseLines(l: Lines): Block[] {
   return blocks
 }
 
+export interface ParseOptions {
+  /** The sources a link may cite (Studio: the version's own). Left out, a link to any source id is a citation, as a
+   * bracketed or bare one is; a link to any other id reads as its label. */
+  citable?: Iterable<string>
+}
+
 /** A report's Markdown as blocks, with the sources it cites numbered in order. */
-export function parseMarkdown(markdown: string): ParsedReport {
-  const cites = new Citations()
+export function parseMarkdown(markdown: string, options: ParseOptions = {}): ParsedReport {
+  const citable =
+    options.citable === undefined ? undefined : new Set([...options.citable].map((id) => id.toLowerCase()))
+  const cites = new Citations(citable)
   const blocks = parseLines({ lines: markdown.replace(/\r\n?/g, '\n').split('\n'), at: 0, cites, depth: 0 })
   return { blocks, citations: cites.order }
 }
