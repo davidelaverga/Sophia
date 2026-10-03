@@ -2,6 +2,7 @@
 // the operations its manifest names, in order: M01's six for v1.1, and v1.2 adds the two research operations and
 // steer. Together they are the contract's MediaToolCall names; nothing retired or future is declared.
 import { Behavior, FunctionResponseScheduling } from '@google/genai'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -136,6 +137,24 @@ describe('the Live tool surface', () => {
     }
     assert.deepEqual(older.properties.action?.enum, ['hold', 'resume', 'stop'])
     assert.equal('brief' in older.properties, false)
+  })
+
+  it('v1.2 says where a steer reaches and how a finished report changes; v1.1’s six stay byte for byte (CX-0026)', () => {
+    const control = String(TOOL_SETS['v1.2'].declarations.find((d) => d.name === 'control_work')?.description)
+    assert.ok(
+      control.endsWith(
+        ' Steer reaches only research that project_status shows waiting or running; a finished report is changed with start_research and amendsTaskId. Do not say a control took effect before its result arrives; a refused control changed nothing.',
+      ),
+      control,
+    )
+    const amends = schema('start_research').properties.amendsTaskId as { description?: string }
+    assert.equal(
+      amends.description,
+      'A finished research task this request revises. The report is edited in place: say in question exactly what to change and anything the speaker wants kept as it is.',
+    )
+    // M01's declarations as qualified, before CX-0026: a v1.1 guide is offered exactly these bytes.
+    const v11 = createHash('sha256').update(JSON.stringify(TOOL_DECLARATIONS), 'utf8').digest('hex')
+    assert.equal(v11, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
   })
 
   it('an unattributed call is answered with a question', () => {

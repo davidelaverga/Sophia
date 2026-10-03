@@ -124,7 +124,7 @@ const CONTROL_V12: FunctionDeclaration = {
   name: 'control_work',
   behavior: Behavior.NON_BLOCKING,
   description:
-    'Hold, resume, stop or steer one piece of existing work (taskId from project_status). Only when the speaker explicitly asks. Steer passes a short brief of what they want the running work to change. It does not stop speech, looking or the exchange, and it creates no work.',
+    'Hold, resume, stop or steer one piece of existing work (taskId from project_status). Only when the speaker explicitly asks. Steer passes a short brief of what they want the running work to change. It does not stop speech, looking or the exchange, and it creates no work. Steer reaches only research that project_status shows waiting or running; a finished report is changed with start_research and amendsTaskId. Do not say a control took effect before its result arrives; a refused control changed nothing.',
   parametersJsonSchema: {
     type: 'object',
     properties: {
@@ -184,7 +184,11 @@ const START_RESEARCH: FunctionDeclaration = {
         },
         additionalProperties: false,
       },
-      amendsTaskId: { ...UUID_SCHEMA, description: 'A finished research task this request revises.' },
+      amendsTaskId: {
+        ...UUID_SCHEMA,
+        description:
+          'A finished research task this request revises. The report is edited in place: say in question exactly what to change and anything the speaker wants kept as it is.',
+      },
       newRequest: { type: 'boolean', description: 'Only after the speaker confirms a separate report.' },
     },
     required: ['question'],

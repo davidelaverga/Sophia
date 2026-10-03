@@ -155,8 +155,13 @@ describe('the provider setup frame (T19, T21)', () => {
   }
 
   it('v1.1 declares M01’s six exactly as before, and v1.2 adds research without changing the other five', async () => {
+    type Declared = {
+      name: string
+      description?: string
+      parametersJsonSchema?: { properties?: Record<string, { description?: string }> }
+    }
     const declared = async (version: GuideVersion) =>
-      ((await setupOf(version, null)).tools as Array<{ functionDeclarations?: Array<{ name: string }> }>).flatMap(
+      ((await setupOf(version, null)).tools as Array<{ functionDeclarations?: Declared[] }>).flatMap(
         (t) => t.functionDeclarations ?? [],
       )
     const older = await declared('v1.1')
@@ -165,10 +170,24 @@ describe('the provider setup frame (T19, T21)', () => {
       older.map((d) => d.name),
       DECLARED_NAMES,
     )
+    // M01's six as Google receives them, byte for byte as before CX-0026.
+    const wire = createHash('sha256').update(JSON.stringify(older), 'utf8').digest('hex')
+    assert.equal(wire, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
     assert.deepEqual(newer.slice(0, 5), older.slice(0, 5))
     assert.deepEqual(
       newer.slice(5).map((d) => d.name),
       ['control_work', 'start_research', 'render_research'],
+    )
+    // CX-0026, deliberately: v1.2's Steer says where it reaches and that a refused control changed nothing, and a
+    // follow-up says the report is edited in place.
+    const [control, research] = newer.slice(5)
+    assert.match(
+      String(control?.description),
+      / Steer reaches only research that project_status shows waiting or running; a finished report is changed with start_research and amendsTaskId\. Do not say a control took effect before its result arrives; a refused control changed nothing\.$/,
+    )
+    assert.match(
+      String(research?.parametersJsonSchema?.properties?.amendsTaskId?.description),
+      /^A finished research task this request revises\. The report is edited in place: /,
     )
   })
 
