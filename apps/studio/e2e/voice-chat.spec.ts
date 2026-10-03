@@ -135,6 +135,17 @@ test('HTML · a research card saves its HTML page once the task is read; until t
   expect(downloads).toEqual(['fixture-report-v1.html']) // the press before the read saved nothing
 })
 
+test('HTML · a brief’s card offers no HTML page: the page is a research report’s', async ({ page }) => {
+  await enterByVoice(page)
+  await page.evaluate(() => window.fixture?.noticeBrief())
+  await marked(page).click()
+  const brief = page.getByRole('group', { name: 'Brief ready' })
+  // The task is read, so an HTML page, were it offered, would be there by now.
+  await expect(brief.getByRole('button', { name: 'Download', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(brief.getByRole('button', { name: 'Download HTML page', exact: true })).toHaveCount(0)
+  await expect(cards(page)).toHaveCount(0)
+})
+
 test('CX-0022 · every join says its mode to Sophia, the hello after which the bridge sends the cards again', async ({
   page,
 }) => {

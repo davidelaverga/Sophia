@@ -224,6 +224,12 @@ export const researchNotice = {
 /** The notice for the task's revised result (CX-0022): the same task, at revision 2. */
 export const revisedNotice = { ...researchNotice, id: '00000000-0000-4000-8000-0000000000bc', resultRevision: 2 }
 
+/**
+ * A brief's notice, synthetic: the fixture's task told as a draft_brief, so its record still names a Markdown file and
+ * only the card's kind differs (the HTML page is a research report's, html-report-v1).
+ */
+export const briefNotice = { ...researchNotice, id: '00000000-0000-4000-8000-0000000000bd', taskKind: 'draft_brief' }
+
 /** Someone at the door while a report is open (`lobby=waiting`): the lobby card must stay in reach over the pane. */
 export const waitingAtTheDoor: LobbyEntry = {
   id: '00000000-0000-4000-8000-0000000000b8',
