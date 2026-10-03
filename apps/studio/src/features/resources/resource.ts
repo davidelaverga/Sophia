@@ -62,6 +62,8 @@ export interface Session {
     workId: string
     title: string
     state: 'recorded' | 'queued' | 'running' | 'waiting'
+    /** The assignment's id, as the plan names it (`assignee_id`): two sessions on one work are told apart by it. */
+    id?: string
     /**
      * Which of its assignments this is: an act names it, so one meant for the work shown never reaches work that
      * replaced it. The Studio's proposal for SCM-01/02 (LFE-06: "current assignment IDs and epochs").

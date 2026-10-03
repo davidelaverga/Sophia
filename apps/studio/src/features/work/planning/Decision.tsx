@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { expiry, type Resource } from '../../resources/resource.ts'
-import type { PlanDecision } from './plan.ts'
+import { actionable, type PlanDecision } from './plan.ts'
 
 type Person = Resource['owner']
 
@@ -22,8 +22,15 @@ const SAID: Record<Disposition | 'sending', (choice: string, decider: string) =>
   unknown: () => 'Not confirmed. Nothing is assumed: check before choosing again.',
 }
 
-/** Answered or on its way: the choices wait. Refused or unconfirmed: they can be pressed again. */
-const settled = (state: Disposition | 'sending' | null) => state === 'sending' || state === 'recorded'
+/**
+ * Whether a choice can be pressed: not while one is on its way or recorded; after a refusal, any; after an unconfirmed
+ * one, only the same again (unknown stays unknown until resolved: choosing otherwise could decide twice). A revised
+ * decision is a new one: its component starts afresh (keyed by its revision).
+ */
+function pressable(state: Disposition | 'sending' | null, chosen: string | null, key: string): boolean {
+  if (state === 'sending' || state === 'recorded') return false
+  return state !== 'unknown' || chosen === key
+}
 
 interface Props {
   decision: PlanDecision
@@ -42,9 +49,10 @@ export function Decision({ decision, people, now, viewerId, onDecide }: Props) {
   const [chosen, setChosen] = useState<string | null>(null)
   const decider = people[decision.decider_id]
   const name = decider?.name ?? 'Someone'
-  const mine = !!onDecide && viewerId === decision.decider_id
+  // Its decider answers it while it can be answered: past its expiry, the choices are words for everyone.
+  const mine = !!onDecide && viewerId === decision.decider_id && actionable(decision, now)
   const choose = (key: string) => {
-    if (!onDecide || settled(state)) return
+    if (!onDecide || !pressable(state, chosen, key)) return
     setChosen(key)
     setState('sending')
     onDecide(decision, key).then(setState, () => setState('unknown'))
@@ -67,7 +75,7 @@ export function Decision({ decision, people, now, viewerId, onDecide }: Props) {
                 type="button"
                 className="pill plan-choice"
                 data-chosen={chosen === c.key || undefined}
-                disabled={settled(state)}
+                disabled={!pressable(state, chosen, c.key)}
                 onClick={() => choose(c.key)}
               >
                 {c.label}

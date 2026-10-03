@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { TaskCard } from '../conversation/TaskCard.tsx'
@@ -39,6 +39,33 @@ interface Props {
 const goalOf = (plans: Props['plans'], task: string | null) =>
   task ? Object.entries(plans ?? {}).find(([, p]) => p.tasks?.includes(task))?.[0] : undefined
 
+type Goal = Snapshot['goals'][number]
+
+/**
+ * The goals listed under the rail: the one chosen, with its plan, then every goal without a plan (they keep their row,
+ * their review, Hold and Stop), each as the search allows. Without plans, every goal stays.
+ */
+function listedGoals(
+  goals: readonly Goal[],
+  shown: Goal | null,
+  tabbed: readonly Goal[],
+  plans: Props['plans'],
+  query: string,
+) {
+  const anyPlan = Object.keys(plans ?? {}).length > 0
+  const unplanned = (g: Goal) => plans?.[g.id] === undefined
+  const kept = (g: Goal) => (shown ? g.id === shown.id : !anyPlan || tabbed.includes(g))
+  return goals
+    .filter((g) => kept(g) || (unplanned(g) && answers(query, g.title, g.outcome)))
+    .toSorted((a, b) => Number(unplanned(a)) - Number(unplanned(b)))
+}
+
+/** A followed address, and whether the search hides its task's goal (it then gives way, so the task opens). */
+function followedOf(named: { id: string | null; seq: number }, plans: Props['plans'], tabbed: readonly Goal[]) {
+  const addressed = goalOf(plans, named.id)
+  return { seq: named.seq, hidden: Boolean(addressed && !tabbed.some((g) => g.id === addressed)) }
+}
+
 /**
  * Several goals with plans: one at a time, chosen from the rail, so a project with many goals stays calm. A search
  * narrows the rail to the goals whose title, outcome or tasks answer it.
@@ -55,10 +82,16 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
   const goal = (chosen?.seq === named.seq ? chosen.id : null) ?? goalOf(plans, named.id)
   const shown = tabbed.length > 1 ? (tabbed.find((g) => g.id === goal) ?? tabbed[0]) : null
   const anyPlan = Object.keys(plans ?? {}).length > 0
-  // With plans, a goal answers a search or steps out of the list; without, every goal stays.
-  const listed = (snapshot?.goals ?? []).filter((g) => (shown ? g.id === shown.id : !anyPlan || tabbed.includes(g)))
-  // The board glides from one goal's plan to the other's (View Transitions, as Resources' filters).
-  return { tabbed, shown, listed, anyPlan, choose: (id: string) => moving(() => setChosen({ id, seq: named.seq })) }
+  const listed = listedGoals(snapshot?.goals ?? [], shown ?? null, tabbed, plans, query)
+  return {
+    tabbed,
+    shown,
+    listed,
+    anyPlan,
+    followed: followedOf(named, plans, tabbed),
+    // The board glides from one goal's plan to the other's (View Transitions, as Resources' filters).
+    choose: (id: string) => moving(() => setChosen({ id, seq: named.seq })),
+  }
 }
 
 /** The view's head: its name, then its goals' count, or, with plans, the search. */
@@ -85,11 +118,18 @@ function Head(props: {
 export function GoalList({ snapshot, projectId, identity, controls, canAct, onOpenStudio, onInvite, plans }: Props) {
   const planned = (id: string) => plans?.[id]?.view
   const [query, setQuery] = useState('')
-  const { tabbed, shown, listed, anyPlan, choose } = useChosenGoal(snapshot, plans, query)
+  const { tabbed, shown, listed, anyPlan, choose, followed } = useChosenGoal(snapshot, plans, query)
+  // Each time an address is followed, a search hiding its task's goal is cleared; a search typed after it is kept.
+  const handled = useRef(followed.seq)
+  useEffect(() => {
+    if (handled.current === followed.seq) return
+    handled.current = followed.seq
+    if (followed.hidden) setQuery('')
+  }, [followed.seq, followed.hidden])
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />
-      {anyPlan && query && tabbed.length === 0 && (
+      {anyPlan && query && tabbed.length === 0 && listed.length === 0 && (
         <p className="view-note">No goal or task answers “{query}”. Escape clears the search.</p>
       )}
       {!snapshot && <div className="goal skeleton" aria-busy="true" />}
