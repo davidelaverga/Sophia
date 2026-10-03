@@ -30,7 +30,7 @@ import {
 import { dispatchOnce } from '@sophia/worker'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import type { reportOf } from './report-facts.ts'
+import { TOO_LONG_TO_REVISE, type reportOf } from './report-facts.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -1665,6 +1665,61 @@ describe('control_work says what a refused or accepted control did (CX-0026)', (
 
 // CX-0030: the owner asked for a length, four sections and limits on searches and reads, and later for a revision of
 // one section that kept the rest; the stored questions carried none of it, so the worker could not keep to it.
+/** As the owner: how many research tasks the project has. */
+async function researchTasks(w: World): Promise<number> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ n: number }>(
+      `SELECT count(*)::integer AS n FROM sophia.research_tasks WHERE project_id=$1`,
+      [w.projectId],
+    )
+    return rows[0]?.n ?? 0
+  } finally {
+    await owner.end()
+  }
+}
+
+describe('a report too long for a follow-up to revise (0037’s limit, 20,000 characters)', () => {
+  it('is never offered a follow-up, nor starts one, and project_status says so; the limit counts characters', async () => {
+    const w = await world()
+    const appendix = (word: string, times: number) => `${PILOT_V1}\n## Appendix\n${`${word} `.repeat(times)}\n`
+    const long = await researched(w, { text: appendix('Résumé', 3000) }) // about 21,600 characters
+    const wide = await researched(w, { text: appendix('éééééé', 2400) }) // about 17,400 characters, 31,800 bytes
+    const tasks = await researchTasks(w)
+
+    const start = await tool(w, { question: 'Shorten the summary.', amendsTaskId: long })
+    assert.deepEqual(start, {
+      status: 'refused',
+      output: { code: 'not_started:too_long_to_revise', reason: `${TOO_LONG_TO_REVISE} Nothing was started.` },
+    })
+    assert.equal(await researchTasks(w), tasks, 'nothing admitted')
+    const steer = (await control(w, { taskId: long, action: 'steer', brief: 'Shorten the summary.' })).output
+    assert.deepEqual([steer.code, steer.next], ['not_applied:finished', `${TOO_LONG_TO_REVISE} Do not offer one.`])
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { followUp?: string }
+    }>
+    const followUp = (taskId: string) => rows.find((r) => r.taskId === taskId)?.report?.followUp
+    assert.deepEqual([followUp(long), followUp(wide)], [TOO_LONG_TO_REVISE, undefined])
+
+    // Its bytes are past the limit, its characters are not: a follow-up is offered, and starts.
+    assert.match((await control(w, { taskId: wide, action: 'steer', brief: 'x' })).output.next, /amendsTaskId/)
+    assert.equal((await tool(w, { question: 'Shorten the summary.', amendsTaskId: wide })).status, 'admitted')
+  })
+
+  it('answers in admission’s order: the role first, then a closed gate, then the length', async () => {
+    const text = `${PILOT_V1}\n## Appendix\n${'Résumé '.repeat(3000)}\n`
+    for (const speaker of [V, E]) {
+      const w = await world(ROLES, speaker)
+      const long = await researched(w, { text })
+      if (speaker === E) await setGate(w, 'disabled')
+      const out = (await tool(w, { question: 'Shorten the summary.', amendsTaskId: long }, speaker)).output
+      assert.equal(out.code, speaker === V ? 'not_started:forbidden' : 'not_started:research_gate_closed')
+    }
+  })
+})
+
 describe('start_research stores what the speaker asked beyond the topic as lines of the question (CX-0030)', () => {
   const asOwner = async <T>(read: (owner: pg.Client) => Promise<T>): Promise<T> => {
     const owner = new pg.Client({ connectionString: db.ownerUrl })

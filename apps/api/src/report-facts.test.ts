@@ -19,6 +19,7 @@ const version = (n: number, text: string, taskId = TASK): ReportVersionText => (
   cited: 2,
   added: 1,
   dropped: 0,
+  chars: Array.from(text).length,
   text,
 })
 

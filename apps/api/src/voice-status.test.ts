@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MissionContext } from '@sophia/contracts'
 import type { ReportVersionText, ResearchVersions, TaskStanding } from '@sophia/persistence'
+import { REVISABLE_CHARS, TOO_LONG_TO_REVISE } from './report-facts.ts'
 import { voiceStatus, type VoiceStatusInput } from './voice-status.ts'
 
 const PROJECT = '00000000-0000-4000-8000-0000000000aa'
@@ -165,6 +166,7 @@ const version = (n: number, taskId: string, extra: Partial<ReportVersionText> = 
   cited: 5,
   added: 5,
   dropped: 0,
+  chars: V1_TEXT.length,
   text: V1_TEXT,
   ...extra,
 })
@@ -250,6 +252,13 @@ function statusOf(
   })
 }
 
+/** What each row's report says of a follow-up; null for a row with no report or nothing to say. */
+const followUps = (work: readonly object[]) =>
+  work.map((w) => {
+    const report: unknown = 'report' in w ? w.report : null
+    return typeof report === 'object' && report !== null && 'followUp' in report ? report.followUp : null
+  })
+
 describe('project_status’s work: each task’s own state, Steer and its report, for v1.2 (CX-0026, CX-0027)', () => {
   it('reads a finished root as finished and its queued follow-up as waiting to start, whatever their shared goal says', () => {
     const { work } = statusOf('v1.2', lineage('ready', { state: 'pending', phase: 'queued' }))
@@ -332,6 +341,14 @@ describe('project_status’s work: each task’s own state, Steer and its report
       currentVersion: 2,
       changes: `Version 1 is the first version. It cites 5 sources. Replaced: the report is now at version 2 (task ${FOLLOW}).`,
     })
+  })
+
+  it('says on each row of a report too long for a follow-up that one cannot revise it yet (0037)', () => {
+    const v2 = version(2, FOLLOW, { parentId: V1.id, chars: REVISABLE_CHARS + 1 })
+    const long = statusOf('v1.2', lineage('completed', { state: 'succeeded', phase: 'result_ready' }, v2)).work
+    assert.deepEqual(followUps(long), [TOO_LONG_TO_REVISE, TOO_LONG_TO_REVISE, null])
+    const short = statusOf('v1.2', lineage('completed', { state: 'succeeded', phase: 'result_ready' })).work
+    assert.deepEqual(followUps(short), [null, null, null], 'nothing said of a shorter one')
   })
 
   it('gives a v1.1 guide the work exactly as before, tasks read or not', () => {

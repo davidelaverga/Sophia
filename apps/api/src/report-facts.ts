@@ -12,6 +12,21 @@ import { compareSections, parseMarkdown, sectionsOf, type Block, type SectionCha
 export const HEADINGS = 12
 export const HEADING = 80
 
+/**
+ * The longest report a follow-up can revise, in characters: 0037's rewrite_limit (research_task_statement), past which
+ * a follow-up is told to end with research_report_blocker and change nothing. Change the two together.
+ */
+export const REVISABLE_CHARS = 20_000
+
+/** Said wherever a follow-up would be offered or started on a report longer than REVISABLE_CHARS. */
+export const TOO_LONG_TO_REVISE =
+  `A report this long (over ${new Intl.NumberFormat('en-US').format(REVISABLE_CHARS)} characters) cannot be ` +
+  'revised by a follow-up yet: one would end without a new version.'
+
+/** Whether the report's current version is longer than a follow-up can revise; unknown (null) is not. */
+export const tooLongToRevise = (current: Pick<ReportVersion, 'chars'> | null): boolean =>
+  (current?.chars ?? 0) > REVISABLE_CHARS
+
 /** What `text` is, said before it: the guide reads this first. */
 export const WORKER_SUMMARY_ABOUT =
   'text is the research worker’s own summary as it submitted it: its claim, not the report, not checked against it. ' +
@@ -189,7 +204,9 @@ export function reportOf(v: ResearchVersions) {
 
 /**
  * project_status's facts for a research task's row: read_selected_source's own sentence of counts (comparedVersions),
- * from the same texts. `tables` counts each text once across the rows of one status.
+ * from the same texts, and, when the report is too long for a follow-up to revise, that it is (TOO_LONG_TO_REVISE):
+ * the guide is told elsewhere to revise a finished report with a follow-up. `tables` counts each text once across the
+ * rows of one status.
  */
 export function statusReportOf(v: ResearchVersions, tables = tableCounter()) {
   const { own, current } = v
@@ -198,5 +215,6 @@ export function statusReportOf(v: ResearchVersions, tables = tableCounter()) {
     latest: isLatest(own, current),
     currentVersion: current?.versionNumber ?? null,
     changes: comparedVersions(v, tables).changes,
+    ...(tooLongToRevise(current) ? { followUp: TOO_LONG_TO_REVISE } : {}),
   }
 }

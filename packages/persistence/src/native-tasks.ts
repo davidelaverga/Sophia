@@ -336,6 +336,11 @@ export interface ReportVersion {
   cited: number | null
   added: number | null
   dropped: number | null
+  /**
+   * Its text's length in characters, as 0037 measures a follow-up's base (char_length of the stable version's text,
+   * which a rendition-only version shares); null when the text can no longer be read.
+   */
+  chars: number | null
 }
 
 /** Where one task stands, read under the member's RLS (CX-0026 STEER, CX-0027 RET). */
@@ -419,6 +424,7 @@ interface VersionRow {
   cited: number | null
   added: number | null
   dropped: number | null
+  chars: number | null
 }
 
 /**
@@ -440,7 +446,9 @@ async function readReportVersions(c: pg.PoolClient, projectId: string, artifactI
             EXISTS(SELECT 1 FROM sophia.artifact_renditions r
                     WHERE r.project_id = v.project_id AND r.artifact_version_id = v.id AND r.format = 'pdf') AS pdf,
             CASE WHEN jsonb_typeof(v.change_facts->'cited') = 'number' THEN (v.change_facts->>'cited')::integer END AS cited,
-            ${movedSources(`v.change_facts->'added'`)} AS added, ${movedSources(`v.change_facts->'dropped'`)} AS dropped
+            ${movedSources(`v.change_facts->'added'`)} AS added, ${movedSources(`v.change_facts->'dropped'`)} AS dropped,
+            (SELECT char_length(t.body) FROM sophia.source_texts t
+              WHERE t.project_id = v.project_id AND t.source_id = v.source_id) AS chars
        FROM sophia.artifact_versions v LEFT JOIN sophia.jobs j ON j.project_id = v.project_id AND j.id = v.job_id
       WHERE v.project_id = $1 AND v.artifact_id = ANY($2::uuid[]) AND v.state IN ('stable', 'superseded')
         AND v.version_number IS NOT NULL
@@ -461,6 +469,7 @@ const toReportVersion = (r: VersionRow, all: readonly VersionRow[]): ReportVersi
   cited: r.cited,
   added: r.added,
   dropped: r.dropped,
+  chars: r.chars,
 })
 
 /** The versions a task's readers name: its own, the one it replaced, the report's current content version and v1. */
