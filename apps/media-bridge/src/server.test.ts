@@ -7,6 +7,22 @@ import { describe, it } from 'node:test'
 
 const SERVER = fileURLToPath(new URL('./server.ts', import.meta.url))
 
+/**
+ * Reads whole JSON lines off `buffer` into `lines`, and stops at `bridge.start`: a later line in the same chunk (the first
+ * failed poll) is not read, so the last line read is always `bridge.start`. Returns what is left, and whether it started.
+ */
+export function readLines(buffer: string, lines: Record<string, unknown>[]): { rest: string; started: boolean } {
+  let rest = buffer
+  for (let at = rest.indexOf('\n'); at >= 0; at = rest.indexOf('\n')) {
+    const line: unknown = JSON.parse(rest.slice(0, at))
+    rest = rest.slice(at + 1)
+    if (typeof line !== 'object' || line === null) continue
+    lines.push(line as Record<string, unknown>)
+    if ((line as Record<string, unknown>).event === 'bridge.start') return { rest, started: true }
+  }
+  return { rest, started: false }
+}
+
 /** The JSON lines the process writes until `bridge.start`; then it is stopped. */
 async function startLines(captions: string | undefined): Promise<Record<string, unknown>[]> {
   const env: NodeJS.ProcessEnv = {
@@ -23,19 +39,15 @@ async function startLines(captions: string | undefined): Promise<Record<string, 
   try {
     await new Promise<void>((resolve, reject) => {
       let buffer = ''
+      let started = false
       const timer = setTimeout(() => reject(new Error('no bridge.start within 20 s')), 20_000)
       child.on('exit', (code) => reject(new Error(`exited ${String(code)} before bridge.start`)))
       child.stdout.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString('utf8')
-        for (let at = buffer.indexOf('\n'); at >= 0; at = buffer.indexOf('\n')) {
-          const line: unknown = JSON.parse(buffer.slice(0, at))
-          buffer = buffer.slice(at + 1)
-          if (typeof line === 'object' && line !== null) lines.push(line as Record<string, unknown>)
-          if (lines.at(-1)?.event === 'bridge.start') {
-            clearTimeout(timer)
-            resolve()
-          }
-        }
+        if (started) return
+        ;({ rest: buffer, started } = readLines(buffer + chunk.toString('utf8'), lines))
+        if (!started) return
+        clearTimeout(timer)
+        resolve()
       })
     })
   } finally {
@@ -43,6 +55,18 @@ async function startLines(captions: string | undefined): Promise<Record<string, 
   }
   return lines
 }
+
+describe('bridge process: reading its start (the check itself)', () => {
+  it('stops at bridge.start, though a later line arrives in the same chunk', () => {
+    const lines: Record<string, unknown>[] = []
+    const chunk = '{"event":"bridge.banner"}\n{"event":"bridge.start","liveCaptions":true}\n{"event":"poll.failed"}\n'
+    assert.deepEqual(readLines(chunk, lines), { rest: '{"event":"poll.failed"}\n', started: true })
+    assert.deepEqual(
+      lines.map((l) => l.event),
+      ['bridge.banner', 'bridge.start'],
+    )
+  })
+})
 
 describe('bridge process: live captions switch (CX-0023)', () => {
   it('bridge.start says whether captions are on; off in any case is off', async () => {
