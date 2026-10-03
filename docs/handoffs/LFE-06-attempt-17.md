@@ -4,7 +4,7 @@
 - **Owner / executor:** Luis. Claude Code in the Claude desktop app on Luis's Windows machine.
 - **Native session:** a local Claude Code session; no exported identity.
 - **Start:** branch `lfe-06/codex-p2s`, stacked on `lfe-06/arrange` (#60) at its tip, 2026-10-02.
-- **End:** pending: the commit after the content commit fills it in.
+- **End:** content commit `ccf95da`; its checks ran on it.
 - **Writable scope:**
   - `apps/studio/src/features/resources/`;
   - the fixture (`refreshing=1`, `spendCredits()`, `swapRequest()`, window epochs);
