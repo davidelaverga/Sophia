@@ -2,7 +2,7 @@
 // §2.8, CX-0022): the words are Studio's, by the task's kind, never a report's title or anything a page said. Open
 // shows the primary file in the viewer (the PDF when there is one, named explicitly: the viewer's own default is the
 // Markdown), Download saves that same file after its hash is checked, and Markdown opens the Markdown beside a PDF
-// (noticeActions, RF-0020). A research report's card also saves its HTML page (html-report-v1), printed from the
+// (noticeActions, RF-0020). A research report's card also saves its HTML page (html-report-v2), printed from the
 // Markdown's version, PDF or not.
 // The files come from the task's own record, read with this person's rights; until it is read, Open, Download and
 // HTML page keep their place and the focus but do nothing (aria-disabled, never disabled).

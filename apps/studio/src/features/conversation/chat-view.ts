@@ -88,7 +88,7 @@ interface DeliveredFile {
 
 /**
  * What a result notice's buttons open and save (M03-RF-0020): Open and Download both take the primary file, the PDF
- * when there is one; Markdown is offered beside a PDF only. The HTML page (html-report-v1) is printed from the
+ * when there is one; Markdown is offered beside a PDF only. The HTML page (html-report-v2) is printed from the
  * Markdown, so it is offered whenever there is one, beside a PDF too. Each names its version, so all show the same one.
  */
 export function noticeActions<T extends DeliveredFile>(

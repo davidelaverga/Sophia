@@ -1,4 +1,4 @@
-// "Download HTML page" (html-report-v1): a report version saved as one self-contained web page, printed here from its
+// "Download HTML page" (html-report-v2): a report version saved as one self-contained web page, printed here from its
 // checked Markdown (report-page.ts). The pane's Document tab and each Knowledge card offer it; the work card has its
 // own row (WorkCard). The status line says what was saved, or why nothing was.
 import { downloadReportPage } from './report-page.ts'
