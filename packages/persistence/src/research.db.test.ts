@@ -1027,8 +1027,9 @@ describe('research submission (0026)', () => {
     )
     const amended = await started(w, { question: 'Add the costs.', amendsTaskId: first.receipt.taskId })
     const more = await citable(w, amended.at, 'search_2')
+    // The amendment's draft starts as v1 (0037): the write replaces that draft, so it names v1's hash.
     const d2 = await service((c) =>
-      runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text: '# V2' }),
+      runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: d1.sha256, text: '# V2' }),
     )
     assert.equal(
       await codeOf(
@@ -1139,7 +1140,7 @@ describe('research submission (0026)', () => {
       `Asked as [5](${q2.question}) under [6](${q2.manifest}), earlier [7](${q1.question}); never [8](${stray}).\n`,
     ].join('\n\n')
     const d2 = await service((c) =>
-      runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text }),
+      runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: d1.sha256, text }),
     )
     const submit = () =>
       service((c) =>
@@ -1555,8 +1556,9 @@ async function amending(w: World, texts: { v1: string; v2: string } = { v1: V1, 
     }),
   )
   const amended = await started(w, { question: 'Add the costs.', amendsTaskId: first.receipt.taskId })
+  // The amendment's draft starts as V1 (0037): the write replaces that draft, so it names V1's hash.
   const d2 = await service((c) =>
-    runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: null, text: texts.v2 }),
+    runtimeResearchDraft(c, w.who, { ...amended.at, callId: 'd2', expectedSha256: d1.sha256, text: texts.v2 }),
   )
   const submit = (callId: string, notes: { changeNote: string; retainedNote?: string }) =>
     service((c) =>
@@ -3687,5 +3689,635 @@ describe('Try PDF again (0032)', () => {
       claims: 0,
       result_source_id: null,
     })
+  })
+})
+
+// --- 0037: an amendment edits its report (CX-0026) ----------------------------------------------------------------
+
+/** The CX-0026 report: a title and seven sections, a table and the recommendations among them, citing five searches. */
+function pilotText(caps: readonly string[]) {
+  const [a, b, c, d, e] = caps
+  return `${[
+    '# USB-C fast charging for phones',
+    `## Summary\nMost phones charge at 20 to 45 W over USB-C [1](${a}).`,
+    `## Compatibility and standards\nUSB Power Delivery and PPS cover most phones [2](${b}).`,
+    `## Charging speed in practice\nReal sessions peak briefly, then taper [3](${c}).`,
+    `## Product claims vs. evidence\nAdvertised peaks rarely last past ten minutes [4](${d}).`,
+    `## Comparison table\n| Phone | Peak | Source |\n|---|---|---|\n| A | 25 W | [1](${a}) |\n| B | 45 W | [5](${e}) |`,
+    `## Recommendations for buyers\nBuy a 30 W PD charger with PPS [2](${b}).`,
+    `## Limitations of this review\nNo lab measurements were made [3](${c}).`,
+  ].join('\n\n')}\n`
+}
+
+/** What every research task is asked to keep (0037, P3b): the last line of every create's text. */
+const SHAPE_LINE =
+  'If the question states a length, the sections it wants, or a limit on web searches or page reads, keep to it, and ' +
+  'say in the limitations where you could not.'
+
+/** The model's notes on the pilot's rewrite: the rest of the report called kept. */
+const PILOT_NOTES = {
+  changeNote: 'Revised only the recommendations section; the remainder of the report is unchanged.',
+  retainedNote: 'The remainder of the report is retained unchanged.',
+}
+
+/**
+ * A published CX-0026 report (v1), its five searches spent, and an admitted, dispatched amendment of it: its task view,
+ * its draft (a copy of v1, 0037) and a writer of the next draft.
+ */
+async function pilot(w: World, request: Partial<ResearchAdmissionRequest> = {}, text = pilotText) {
+  const first = await started(w)
+  const caps: string[] = []
+  for (const n of [1, 2, 3, 4, 5]) caps.push((await citable(w, first.at, `search_${n}`)).sourceId)
+  const v1Text = text(caps)
+  const d1 = await service((c) =>
+    runtimeResearchDraft(c, w.who, { ...first.at, callId: 'd1', expectedSha256: null, text: v1Text }),
+  )
+  const v1 = await service((c) =>
+    runtimeResearchSubmit(c, w.who, { ...first.at, callId: 's1', result: resultOf(d1.sha256, caps) }),
+  )
+  assert.equal(v1.outcome, 'published')
+  const amended = await started(w, {
+    question: 'Revise only the recommendations; keep every other section, the comparison table and the citations.',
+    amendsTaskId: first.receipt.taskId,
+    ...request,
+  })
+  const context = await service((c) => runtimeResearchContext(c, w.who, amended.at))
+  assert.ok('draft' in context)
+  const write = (callId: string, draft: string, expectedSha256: string | null) =>
+    service((c) => runtimeResearchDraft(c, w.who, { ...amended.at, callId, expectedSha256, text: draft }))
+  const submit = (callId: string, draftSha256: string, citations: string[], notes: Record<string, string>) =>
+    service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...amended.at, callId, result: resultOf(draftSha256, citations, notes) }),
+    )
+  return { first, caps, v1Text, d1, v1, amended, context, write, submit }
+}
+
+/** The pilot's rewrite: the title, new recommendations and a list of sources citing only the report it amends. */
+const pilotRewrite = (base: string) =>
+  `# USB-C fast charging for phones\n\n## Revised recommendations\nBuy a 45 W PD charger with PPS.\n\n## Sources\n- [1](${base})\n`
+
+/** The refusal of a rewrite whose notes keep quiet about the six sections it removed, or deny removing them. */
+const pilotRefusal = (base: string) => [
+  'The notes say the rest of the report was kept, but 6 sections were removed: "Summary", "Compatibility and standards", "Charging speed in practice", "Product claims vs. evidence", "Comparison table", "Limitations of this review".',
+  `research_write_draft replaces the whole report, so what your draft leaves out is deleted. If the request did not ask to remove these sections, restore them from version 1 (sourceId ${base}) and submit again; if it did, name them in changeNote.`,
+]
+
+/** The pilot's report without its comparison table and its limitations, its recommendations tightened. */
+const pilotRestructure = (v1Text: string) =>
+  v1Text
+    .replace(/## Comparison table\n[^#]*/, '')
+    .replace(/## Limitations of this review\n.*\n/, '')
+    .replace('Buy a 30 W', 'In short, buy a 30 W')
+
+const versionRow = (versionId: string) =>
+  one<{ change_note: string; retained_note: string | null; facts: Record<string, unknown> & { sections: unknown } }>(
+    `SELECT change_note, retained_note, change_facts AS facts FROM sophia.artifact_versions WHERE id=$1`,
+    [versionId],
+  )
+
+const sourcesOfVersion = async (artifactId: string, versionId: string) =>
+  (await withActor(pool, A, 'read', (c) => listReportSources(c, artifactId, versionId))).sources
+    .map((s) => s.sourceId)
+    .toSorted()
+
+describe('an amendment edits its report (0037, CX-0026)', () => {
+  it('starts an amendment’s draft as a copy of the version it amends: its task view shows it, a write names its hash', async () => {
+    const w = await world()
+    const fresh = await started(w)
+    const view = await service((c) => runtimeResearchContext(c, w.who, fresh.at))
+    assert.ok('draft' in view)
+    assert.equal(view.draft, null, 'a new report starts with no draft')
+    await owner((c) =>
+      c.query(`UPDATE sophia.jobs SET state='failed' WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        fresh.receipt.taskId,
+      ]),
+    )
+
+    const p = await pilot(w)
+    assert.ok(p.context.draft)
+    assert.deepEqual(
+      [p.context.draft.seq, p.context.draft.sha256, p.context.draft.sourceId === p.v1.sourceId],
+      [1, p.v1.sha256, false],
+      'the draft is v1’s text in a copy of its own',
+    )
+    const page = await service((c) =>
+      runtimeResearchContext(c, w.who, { ...p.amended.at, sourceId: p.context.draft!.sourceId }),
+    )
+    assert.ok('text' in page)
+    assert.equal(page.text, p.v1Text.slice(0, 6000))
+    assert.equal(
+      await codeOf(p.write('d2', pilotRewrite(p.v1.sourceId!), null)),
+      'stale_revision',
+      'a first write as if there were no draft is refused: the task reads its draft first',
+    )
+    const d2 = await p.write('d3', p.v1Text.replace('Buy a 30 W', 'Buy a 30 to 45 W'), p.context.draft.sha256)
+    assert.equal(d2.seq, 2)
+    const base = await one<{ withdrawn: boolean; deps: string[] | null; reaches: boolean }>(
+      `SELECT sophia.source_withdrawn($1,$2) AS withdrawn,
+         (SELECT array_agg(d.source_id) FROM sophia.source_dependencies d WHERE d.project_id=$1 AND d.derived_source_id=$3) AS deps,
+         $2 IN (SELECT sophia.source_closure($1,ARRAY[$3::uuid])) AS reaches`,
+      [w.projectId, p.v1.sourceId, p.context.draft.sourceId],
+    )
+    assert.deepEqual(
+      base,
+      { withdrawn: false, deps: null, reaches: true },
+      'the copy draws on v1 through its task’s manifest, with no dependency of its own; v1 on nothing new',
+    )
+  })
+
+  it('seeds the attempt a create starts: one sent on its retry, a rebuild keeping its base; never one whose base was withdrawn', async () => {
+    // The amendment's create loses its dispatch lease before it is sent, then is sent on its retry: seeded then, once.
+    const w = await world()
+    const first = await started(w)
+    const cap = await citable(w, first.at)
+    const d1 = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...first.at,
+        callId: 'd1',
+        expectedSha256: null,
+        text: `# Hosts\n\nA [1](${cap.sourceId}).\n`,
+      }),
+    )
+    await service((c) =>
+      runtimeResearchSubmit(c, w.who, { ...first.at, callId: 's1', result: resultOf(d1.sha256, [cap.sourceId]) }),
+    )
+    const amended = await ask(w, { question: 'Add the costs.', amendsTaskId: first.receipt.taskId }, { exchange: null })
+    assert.ok('admitted' in amended)
+    // The claim takes every project's pending rows: the others are sent as dispatchAll sends them.
+    const claimed = await claimRuntimeOutbox(worker, 'test-worker', 50, 30)
+    for (const other of claimed.filter((r) => r.project_id !== w.projectId))
+      await dispatchRuntimeOutbox(worker, other.project_id, other.id, other.lease_token!)
+    const row = claimed.find((r) => r.project_id === w.projectId)
+    assert.ok(row?.lease_token)
+    await owner((c) => c.query(`UPDATE sophia.outbox SET lease_until=now()-interval '1 second' WHERE id=$1`, [row.id]))
+    const lapsed = await dispatchRuntimeOutbox(worker, w.projectId, row.id, row.lease_token)
+    assert.equal(lapsed.result, 'outcome_unknown')
+    await owner((c) => c.query(`SELECT sophia.reconcile_runtime_outbox()`))
+    await owner((c) => c.query(`UPDATE sophia.outbox SET available_at=now() WHERE id=$1`, [row.id]))
+    assert.deepEqual(
+      (await dispatchAll(w.projectId)).map((o) => o.result),
+      ['enqueued'],
+    )
+    const drafts = await one<{ n: number; sha: string }>(
+      `SELECT count(*)::int AS n, min(sha256) AS sha FROM sophia.research_drafts WHERE attempt_id=$1`,
+      [amended.admitted.attemptId],
+    )
+    assert.deepEqual(drafts, { n: 1, sha: d1.sha256 }, 'one draft, the copy of v1')
+
+    // An input given only to an amendment is withdrawn: the amendment is rebuilt without it, still on its base, and
+    // starts again from a copy of the base; the base itself never drew on that input.
+    const v = await world()
+    const p = await pilot(v, { inputSourceIds: [v.inputSourceId] })
+    const seen = new Set([p.first.create.commandId, p.amended.create.commandId])
+    await withdraw(v, v.inputSourceId)
+    const rebuilt = (await deliverAll(v, seen, (cmd) => (cmd.kind === 'stop' ? 'checked' : 'delivered'))).find(
+      (cmd) => cmd.kind === 'create',
+    )
+    assert.ok(rebuilt, 'the rebuilt amendment starts')
+    const next = { attemptId: rebuilt.binding.attemptId, nativeSessionId: `sophia-${rebuilt.binding.attemptId}` }
+    const again = await service((c) => runtimeResearchContext(c, v.who, next))
+    assert.ok('draft' in again)
+    assert.deepEqual(
+      [again.draft?.seq, again.draft?.sha256],
+      [1, p.v1.sha256],
+      'a rebuild keeping its base starts from it',
+    )
+    assert.match(rebuilt.payload.text ?? '', /This task updates version 1 of an existing report/)
+    const v1 = await one<{ withdrawn: boolean }>(`SELECT sophia.source_withdrawn($1,$2) AS withdrawn`, [
+      v.projectId,
+      p.v1.sourceId,
+    ])
+    assert.equal(v1.withdrawn, false, 'the report it amends drew on nothing the amendment was given')
+
+    // A base that is withdrawn: the rebuild drops it and starts with no draft.
+    const x = await world()
+    const q = await publishedWithInput(x)
+    const t2 = await started(x, { question: 'Add the costs.', amendsTaskId: q.t1.receipt.taskId })
+    await withdraw(x, q.v1.sourceId!)
+    const bare = (
+      await deliverAll(x, new Set([q.t1.create.commandId, t2.create.commandId]), (cmd) =>
+        cmd.kind === 'stop' ? 'checked' : 'delivered',
+      )
+    ).find((cmd) => cmd.kind === 'create')
+    assert.ok(bare)
+    const none = await service((c) =>
+      runtimeResearchContext(c, x.who, {
+        attemptId: bare.binding.attemptId,
+        nativeSessionId: `sophia-${bare.binding.attemptId}`,
+      }),
+    )
+    assert.ok('draft' in none)
+    assert.deepEqual([none.base, none.draft], [null, null])
+    assert.doesNotMatch(bare.payload.text ?? '', /This task updates/)
+  })
+
+  it('tells an amendment what an update is, before its question, and every task to keep the shape it asks for', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const fresh = p.first.create.payload.text ?? ''
+    assert.match(fresh, /^Research task\./)
+    assert.ok(fresh.endsWith(`\n\n${SHAPE_LINE}`), 'a new report is asked to keep its shape too')
+    assert.doesNotMatch(fresh, /This task updates/)
+    const text = p.amended.create.payload.text ?? ''
+    assert.match(text, /^Research task\./)
+    const brief = [
+      'This task updates version 1 of an existing report, "Sandboxes for PDF rendering". It does not write a new report.',
+      "- Your draft already holds version 1's full text: research_read_context shows it as your current draft. Read it whole, then edit it. When you write, pass its sha256 as expectedSha256, not null.",
+      '- research_write_draft replaces the whole report, and the published version is exactly your draft: a section, table, link or citation your draft leaves out is deleted, not kept.',
+      '- Change only what the question asks. Keep every other section, table and citation link as it stands.',
+      '- Remove or restructure a section only when the question asks; then name each removed section in changeNote. retainedNote names only what you kept unchanged.',
+      '- Version 1 is the document you are editing, not a source: keep the citations already in the text, and cite any new source you read.',
+      '- If the question limits web searches or reads, keep to it.',
+    ].join('\n')
+    assert.ok(text.includes(`when you cannot.\n\n${brief}\n\nQuestion: Revise only the recommendations`), text)
+    assert.ok(text.endsWith(`\n\n${SHAPE_LINE}`))
+    assert.doesNotMatch(text, /research_report_blocker naming/, 'a short report is rewritten in one call')
+
+    // A report past 20,000 characters is reported as a blocker, never shortened; with every field of the request at
+    // its limit, the create's text stays within the runtime's 200,000.
+    const v = await world()
+    const long = await pilot(
+      v,
+      {
+        question: `Revise only the recommendations. ${'Keep the rest. '.repeat(131)}`.slice(0, 2000),
+        urls: Array.from({ length: 8 }, (_, i) => `https://hosts.example.org/${String(i)}/${'a'.repeat(2020)}`),
+        assumptions: Array.from({ length: 8 }, () => 'b'.repeat(200)),
+        preferences: { depth: 'deep', sourceConstraints: 'c'.repeat(500) },
+      },
+      (caps) => `${pilotText(caps)}\n## Appendix\n${'Measured again. '.repeat(1300)}\n`,
+    )
+    assert.ok(long.v1Text.length > 21_000)
+    const statement = long.amended.create.payload.text ?? ''
+    assert.ok(
+      statement.includes(
+        '\n- This report is longer than one draft call can carry here. Do not rewrite it: call research_report_blocker naming the requested change. Never submit a shortened report.\n\nQuestion: ',
+      ),
+    )
+    assert.ok(statement.length > 20_000 && statement.length <= 200_000, String(statement.length))
+  })
+
+  it('CX-0026 · refuses a rewrite that keeps quiet about six removed sections, says where to restore them, then publishes the report with only its recommendations changed', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const rewrite = await p.write('d2', pilotRewrite(p.v1.sourceId!), p.context.draft!.sha256)
+    const refused = await p.submit('s2', rewrite.sha256, [p.v1.sourceId!], PILOT_NOTES)
+    assert.deepEqual(refused.problems, pilotRefusal(p.v1.sourceId!))
+    assert.equal(refused.outcome, 'notes_rejected')
+    const problems = refused.problems ?? []
+    assert.ok(problems.length <= 20 && problems.every((x) => x.length <= 300), 'the submission contract')
+    const stable = await one<{ id: string }>(`SELECT stable_version_id AS id FROM sophia.artifacts WHERE id=$1`, [
+      p.v1.artifactId,
+    ])
+    assert.equal(stable.id, p.v1.versionId, 'nothing was published')
+
+    // The worker restores the report and changes only its recommendations: published as written, every citation kept.
+    const fixed = await p.write(
+      'd3',
+      p.v1Text.replace(
+        'Buy a 30 W PD charger with PPS',
+        'Buy a 30 W PD charger with PPS; a 45 W one only for phones that take it',
+      ),
+      rewrite.sha256,
+    )
+    const done = await p.submit('s3', fixed.sha256, [p.v1.sourceId!], {
+      changeNote: 'Revised the recommendations for buyers: a 45 W charger only for phones that take it.',
+      retainedNote: 'All other sections, the comparison table and the citations are unchanged.',
+    })
+    assert.deepEqual([done.outcome, done.versionNumber, done.notesFromFacts], ['published', 2, false])
+    const row = await versionRow(done.versionId!)
+    assert.deepEqual(row.facts.sections, {
+      added: [],
+      revised: ['Recommendations for buyers'],
+      removed: [],
+      unchanged: [
+        'USB-C fast charging for phones',
+        'Summary',
+        'Compatibility and standards',
+        'Charging speed in practice',
+        'Product claims vs. evidence',
+        'Comparison table',
+        'Limitations of this review',
+      ],
+      conclusionChanged: true,
+    })
+    assert.deepEqual([row.facts.dropped, row.facts.added], [[], [p.v1.sourceId]])
+    assert.deepEqual(
+      await sourcesOfVersion(p.v1.artifactId!, done.versionId!),
+      [...p.caps, p.v1.sourceId!].toSorted(),
+      'the five searches stay cited, the base beside them',
+    )
+  })
+
+  it('CX-0026 · publishes the same rewrite on its second submit with notes from the facts, every heading whole', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const rewrite = await p.write('d2', pilotRewrite(p.v1.sourceId!), p.context.draft!.sha256)
+    assert.equal((await p.submit('s2', rewrite.sha256, [p.v1.sourceId!], PILOT_NOTES)).outcome, 'notes_rejected')
+    const done = await p.submit('s3', rewrite.sha256, [p.v1.sourceId!], PILOT_NOTES)
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', true])
+    const row = await versionRow(done.versionId!)
+    assert.deepEqual(
+      [row.change_note, row.retained_note],
+      [
+        '2 added; 7 removed: Summary, Compatibility and standards, Charging speed in practice, Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review.',
+        '1 unchanged: USB-C fast charging for phones.',
+      ],
+    )
+    assert.deepEqual(row.facts.dropped, p.caps.toSorted(), 'the dropped citations stay facts')
+  })
+
+  it('CX-0026 · refuses a rewrite whose notes call the old recommendations its one removal and deny the others', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const rewrite = await p.write('d2', pilotRewrite(p.v1.sourceId!), p.context.draft!.sha256)
+    const refused = await p.submit('s2', rewrite.sha256, [p.v1.sourceId!], {
+      changeNote: 'Removed the old recommendations and wrote revised ones; no other sections were removed.',
+      retainedNote: 'The remainder of the report is retained unchanged.',
+    })
+    assert.deepEqual([refused.outcome, refused.problems], ['notes_rejected', pilotRefusal(p.v1.sourceId!)])
+  })
+
+  it('publishes a restructure whose notes count what it removed on the first submit', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const d2 = await p.write('d2', pilotRestructure(p.v1Text), p.context.draft!.sha256)
+    const v2 = await p.submit('s2', d2.sha256, [p.caps[0]!], {
+      changeNote: 'Removed two sections as asked and tightened the recommendations.',
+      retainedNote: 'The rest is unchanged.',
+    })
+    assert.deepEqual([v2.outcome, v2.notesFromFacts], ['published', false])
+    assert.deepEqual((await versionRow(v2.versionId!)).facts.sections, {
+      added: [],
+      revised: ['Recommendations for buyers'],
+      removed: ['Comparison table', 'Limitations of this review'],
+      unchanged: [
+        'USB-C fast charging for phones',
+        'Summary',
+        'Compatibility and standards',
+        'Charging speed in practice',
+        'Product claims vs. evidence',
+      ],
+      conclusionChanged: true,
+    })
+  })
+
+  it('publishes a restructure whose notes name what it removed, and a replaced source, on the first submit', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const restructured = pilotRestructure(p.v1Text)
+    const d2 = await p.write('d2', restructured, p.context.draft!.sha256)
+    const v2 = await p.submit('s2', d2.sha256, [p.caps[0]!], {
+      changeNote: 'Removed the comparison table and the limitations, as asked; tightened the recommendations.',
+      retainedNote: 'Summary, compatibility, charging speed and product claims as they were.',
+    })
+    assert.deepEqual([v2.outcome, v2.notesFromFacts], ['published', false])
+    assert.deepEqual((await versionRow(v2.versionId!)).facts.sections, {
+      added: [],
+      revised: ['Recommendations for buyers'],
+      removed: ['Comparison table', 'Limitations of this review'],
+      unchanged: [
+        'USB-C fast charging for phones',
+        'Summary',
+        'Compatibility and standards',
+        'Charging speed in practice',
+        'Product claims vs. evidence',
+      ],
+      conclusionChanged: true,
+    })
+
+    // An amendment of v2 replaces a source with a newer one where it is cited: no refusal, the swap recorded.
+    const [newer] = await moreSearches(w, p.caps[0]!, 1)
+    const amended = await started(w, {
+      question: 'Use the newer source for the summary.',
+      amendsTaskId: p.amended.receipt.taskId,
+    })
+    const context = await service((c) => runtimeResearchContext(c, w.who, amended.at))
+    assert.ok('draft' in context && context.draft)
+    const swapped = restructured.replace(`[1](${p.caps[0]!}).`, `[1](${newer!}).`)
+    const d3 = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...amended.at,
+        callId: 'd3',
+        expectedSha256: context.draft!.sha256,
+        text: swapped,
+      }),
+    )
+    const v3 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, {
+        ...amended.at,
+        callId: 's3',
+        result: resultOf(d3.sha256, [newer!], { changeNote: 'The summary cites a newer measurement.' }),
+      }),
+    )
+    assert.deepEqual([v3.outcome, v3.notesFromFacts], ['published', false])
+    const facts = (await versionRow(v3.versionId!)).facts
+    assert.deepEqual([facts.added, facts.dropped], [[newer], [p.caps[0]]])
+  })
+
+  it('refuses a draft that is still the version it amends once, then publishes it as unchanged, as the refusal says', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const notes = { changeNote: 'Checked the recommendations; they need no change.' }
+    const refused = await p.submit('s2', p.context.draft!.sha256, [p.caps[0]!], notes)
+    assert.deepEqual(
+      [refused.outcome, refused.problems],
+      [
+        'notes_rejected',
+        [
+          'The draft is version 1 unchanged. Make the change the request asks for with research_write_draft; if the report needs no change, submit it again as it is: it is published as unchanged, with notes written from the facts.',
+        ],
+      ],
+    )
+    const done = await p.submit('s3', p.context.draft!.sha256, [p.caps[0]!], notes)
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', true])
+    const row = await versionRow(done.versionId!)
+    assert.equal(row.change_note, 'No section changed.')
+    assert.match(row.retained_note ?? '', /^8 unchanged: USB-C fast charging for phones, Summary, /)
+    assert.deepEqual(
+      await sourcesOfVersion(p.v1.artifactId!, done.versionId!),
+      p.caps.toSorted(),
+      'its sources are what it cites: the version it copies is no source it cited',
+    )
+  })
+
+  it('takes an earlier draft of the task, the copy of its base among them, out of the version’s sources', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const seed = p.context.draft!
+    // A draft that cites nothing, listing only the copy it started from: no source is left to cite.
+    const d2 = await p.write('d2', '# USB-C fast charging for phones\n\nTo do.\n', seed.sha256)
+    assert.equal(
+      await codeOf(p.submit('s2', d2.sha256, [seed.sourceId], { changeNote: 'Started over.' })),
+      'not_found',
+      'a list of earlier drafts alone names no source',
+    )
+    const d3 = await p.write('d3', p.v1Text.replace('Buy a 30 W', 'Buy a 30 to 45 W'), d2.sha256)
+    const notes = { changeNote: 'Widened the recommendation.' }
+    const done = await p.submit('s3', d3.sha256, [seed.sourceId, d2.sourceId, p.caps[0]!], notes)
+    assert.equal(done.outcome, 'published')
+    const sources = await sourcesOfVersion(p.v1.artifactId!, done.versionId!)
+    assert.deepEqual(sources, p.caps.toSorted(), 'the drafts are no sources; what the draft cites is')
+  })
+
+  it('carries forward a citation of an input the amendment was not given again, until that input is withdrawn', async () => {
+    const w = await world()
+    const t1 = await started(w, { inputSourceIds: [w.inputSourceId] })
+    const cap = await citable(w, t1.at)
+    const text = `# Hosts\n\nOur pilot hosts sandbox PDFs [1](input:${w.inputSourceId}), and so does A [2](${cap.sourceId}).\n`
+    const d1 = await service((c) =>
+      runtimeResearchDraft(c, w.who, { ...t1.at, callId: 'd1', expectedSha256: null, text }),
+    )
+    const v1 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, {
+        ...t1.at,
+        callId: 's1',
+        result: resultOf(d1.sha256, [cap.sourceId, w.inputSourceId]),
+      }),
+    )
+    // Each amendment is given no inputs, adds a section (after its edit), runs `first`, then lists what it lists; its
+    // draft starts as the version before.
+    const amend = async (
+      taskId: string,
+      n: number,
+      listed: string[],
+      first?: () => Promise<unknown>,
+      edit = (draft: string) => draft,
+    ) => {
+      const t = await started(w, { question: `Add part ${String(n)}.`, amendsTaskId: taskId })
+      const view = await service((c) => runtimeResearchContext(c, w.who, t.at))
+      assert.ok('draft' in view && view.draft)
+      assert.deepEqual(view.inputs, [], 'not given the input again')
+      const page = await service((c) => runtimeResearchContext(c, w.who, { ...t.at, sourceId: view.draft!.sourceId }))
+      assert.ok('text' in page)
+      const d = await service((c) =>
+        runtimeResearchDraft(c, w.who, {
+          ...t.at,
+          callId: `d${String(n)}`,
+          expectedSha256: view.draft!.sha256,
+          text: `${edit(page.text)}\n## Part ${String(n)}\nMore.\n`,
+        }),
+      )
+      await first?.()
+      const submit = (callId: string, citations: string[]) =>
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, {
+            ...t.at,
+            callId,
+            result: resultOf(d.sha256, citations, { changeNote: `Added part ${String(n)}.` }),
+          }),
+        )
+      return {
+        t,
+        submit: () => submit(`s${String(n)}`, listed),
+        retry: (citations: string[]) => submit('again', citations),
+      }
+    }
+    // The model lists the search alone: the input its draft still cites is added (the parser's ids, 0036).
+    const a = await amend(t1.receipt.taskId, 2, [cap.sourceId])
+    const v2 = await a.submit()
+    assert.deepEqual(await sourcesOfVersion(v1.artifactId!, v2.versionId!), [cap.sourceId, w.inputSourceId].toSorted())
+    // The model lists the input itself.
+    const b = await amend(a.t.receipt.taskId, 3, [w.inputSourceId])
+    const v3 = await b.submit()
+    assert.equal(v3.outcome, 'published')
+    assert.deepEqual(await sourcesOfVersion(v1.artifactId!, v3.versionId!), [cap.sourceId, w.inputSourceId].toSorted())
+    // Once the input is no longer released, it is cited neither way. Its base, which cited it, is withdrawn too: the
+    // task can no longer read it, so a section it leaves out is a fact, never a refusal pointing at that base.
+    const c = await amend(
+      b.t.receipt.taskId,
+      4,
+      [w.inputSourceId],
+      () =>
+        owner((cl) =>
+          cl.query(`UPDATE sophia.source_objects SET eligible=false WHERE project_id=$1 AND id=$2`, [
+            w.projectId,
+            w.inputSourceId,
+          ]),
+        ),
+      (draft) => draft.replace('\n## Part 2\nMore.\n', ''),
+    )
+    assert.equal(await codeOf(c.submit()), 'not_found')
+    const v4 = await c.retry([cap.sourceId])
+    assert.deepEqual([v4.outcome, v4.notesFromFacts], ['published', false])
+    assert.deepEqual(await sourcesOfVersion(v1.artifactId!, v4.versionId!), [cap.sourceId])
+    const facts = (await versionRow(v4.versionId!)).facts
+    assert.deepEqual(
+      [facts.dropped, (facts.sections as { removed: string[] }).removed],
+      [[w.inputSourceId], ['Part 2']],
+    )
+  })
+
+  it('carries forward an earlier version its base cited, never a question or a task manifest its base cited', async () => {
+    const w = await world()
+    const t1 = await started(w)
+    const cap = await citable(w, t1.at)
+    const ids = await one<{ question: string; manifest: string }>(
+      `SELECT t.question_source_id AS question, j.input_source_id AS manifest FROM sophia.research_tasks t
+       JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id WHERE t.project_id=$1 AND t.job_id=$2`,
+      [w.projectId, t1.receipt.taskId],
+    )
+    // v1 cites a search, and lists its own question and manifest, as its task may (§39).
+    const d1 = await service((c) =>
+      runtimeResearchDraft(c, w.who, {
+        ...t1.at,
+        callId: 'd1',
+        expectedSha256: null,
+        text: `# Hosts\n\nA [1](${cap.sourceId}), as asked in [2](${ids.question}) under [3](${ids.manifest}).\n`,
+      }),
+    )
+    const v1 = await service((c) =>
+      runtimeResearchSubmit(c, w.who, {
+        ...t1.at,
+        callId: 's1',
+        result: resultOf(d1.sha256, [cap.sourceId, ids.question, ids.manifest]),
+      }),
+    )
+    assert.deepEqual(
+      await sourcesOfVersion(v1.artifactId!, v1.versionId!),
+      [cap.sourceId, ids.question, ids.manifest].toSorted(),
+    )
+    // Each amendment adds a section to its draft (which starts as the version it amends) and links what `cites` names.
+    const amend = async (taskId: string, n: number, cites = '') => {
+      const t = await started(w, { question: `Add part ${String(n)}.`, amendsTaskId: taskId })
+      const view = await service((c) => runtimeResearchContext(c, w.who, t.at))
+      assert.ok('draft' in view && view.draft)
+      const page = await service((c) => runtimeResearchContext(c, w.who, { ...t.at, sourceId: view.draft!.sourceId }))
+      assert.ok('text' in page)
+      const d = await service((c) =>
+        runtimeResearchDraft(c, w.who, {
+          ...t.at,
+          callId: `d${String(n)}`,
+          expectedSha256: view.draft!.sha256,
+          text: `${page.text}\n## Part ${String(n)}\nMore${cites}.\n`,
+        }),
+      )
+      const submit = (callId: string, citations: string[]) =>
+        service((c) =>
+          runtimeResearchSubmit(c, w.who, {
+            ...t.at,
+            callId,
+            result: resultOf(d.sha256, citations, { changeNote: `Added part ${String(n)}.` }),
+          }),
+        )
+      return { t, submit }
+    }
+    // v2 starts with those links: neither the question nor the manifest is accepted in its list or added from its
+    // text. It cites v1, the version it amends.
+    const a = await amend(t1.receipt.taskId, 2, ` [4](${v1.sourceId!})`)
+    assert.equal(await codeOf(a.submit('s2q', [ids.question])), 'not_found', 'an earlier question')
+    assert.equal(await codeOf(a.submit('s2m', [ids.manifest])), 'not_found', 'an earlier task’s manifest')
+    const v2 = await a.submit('s2', [cap.sourceId, v1.sourceId!])
+    assert.equal(v2.outcome, 'published')
+    assert.deepEqual(await sourcesOfVersion(v1.artifactId!, v2.versionId!), [cap.sourceId, v1.sourceId!].toSorted())
+    // v3 starts with v2's link to v1: v1 stays citable, listed or not.
+    const b = await amend(a.t.receipt.taskId, 3)
+    const v3 = await b.submit('s3', [v1.sourceId!])
+    assert.equal(v3.outcome, 'published')
+    assert.deepEqual(
+      await sourcesOfVersion(v1.artifactId!, v3.versionId!),
+      [cap.sourceId, v1.sourceId!].toSorted(),
+      'the version its base cited stays a source; the base, uncited, is none',
+    )
   })
 })
