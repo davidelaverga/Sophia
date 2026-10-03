@@ -513,6 +513,9 @@ when you change the room:
   this browser; a first visit says nothing); only a tile it speaks of is
   marked, until Mark seen; a request is said once, on top. A session's earlier reports fold under its
   last one (`Session.recent`, newest first). `since=1` shows the line.
+  The work views keep to one type scale (theme.css `--type-title` 14,
+  `--type-body` 13, `--type-small` 12, `--type-label` 10.5, under a view's 20
+  and a sheet's 15): at most five sizes on a screen, checked (`type ·`).
 - **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
   the room's fixture page, whose API also answers the fixture report
   (`fixtures/report-data.ts`), Knowledge and a research notice. A report

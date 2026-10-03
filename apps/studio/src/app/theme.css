@@ -2,6 +2,12 @@
    for data), small radii, one-pixel lines, fast transitions. Sophia's light is the only soft thing on the
    screen: people are warm, she is violet, everything else is quiet. The Studio is dark-only. */
 :root {
+  /* The type scale of the work views (Resources, the plan's board): four steps under a view's title (20 px).
+     Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. */
+  --type-title: 14px;
+  --type-body: 13px;
+  --type-small: 12px;
+  --type-label: 10.5px;
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
