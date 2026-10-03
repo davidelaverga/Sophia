@@ -2,7 +2,7 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
-import type { Snapshot } from '@sophia/contracts'
+import type { GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
 import { projectEvent, membership, mission, PROJECT, roomToken, snapshot } from './data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -18,6 +18,8 @@ interface Project {
   exchange: boolean
   messages: string[]
   goals?: Snapshot['goals']
+  /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
+  onCommand?: (command: GoalCommand, key: string) => void
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -65,7 +67,29 @@ export function publish(project: Project): void {
   for (const controller of streams) controller.enqueue(frameOf(project.revision))
 }
 
-function answer(project: Project, method: string, url: URL, signal: AbortSignal | null | undefined) {
+const isCommand = (value: unknown): value is GoalCommand =>
+  typeof value === 'object' && value !== null && 'kind' in value && 'goalId' in value
+
+/** A goal's command, admitted as the API admits it: its receipt says sent, never done. */
+function admitted(project: Project, init: RequestInit | undefined): Response | null {
+  if (!project.onCommand || typeof init?.body !== 'string') return null
+  const command: unknown = JSON.parse(init.body)
+  if (!isCommand(command)) return null
+  project.onCommand(command, new Headers(init.headers).get('idempotency-key') ?? '')
+  const receipt: Receipt = {
+    commandId: crypto.randomUUID(),
+    projectId: PROJECT,
+    cursor: String(project.revision),
+    stage: 'admitted',
+    goalId: command.goalId,
+    goalRevision: command.expectedGoalRevision,
+    authorityEpoch: command.expectedAuthorityEpoch,
+  }
+  return json(receipt)
+}
+
+function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
   if (method === 'GET' && path === `${base}/snapshot`) {
@@ -80,7 +104,14 @@ function answer(project: Project, method: string, url: URL, signal: AbortSignal 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  if (method === 'POST' && path === `${base}/room-token`) return json(roomToken)
+  return method === 'POST' ? posted(project, path, init) : null
+}
+
+/** What the page posts: a room token, or a goal's command. */
+function posted(project: Project, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}`
+  if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/commands`) return admitted(project, init)
   return null
 }
 
@@ -88,7 +119,7 @@ export function installFixtureApi(project: Project): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
-    const response = answer(project, method, url, init?.signal)
+    const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)
     console.error(`[fixture] unexpected request: ${method} ${url.pathname}`)
