@@ -14,7 +14,11 @@ import type { ChatCaption, ChatInput, ChatNotice, ChatReply } from '@sophia/cont
 //  - A tool call acts for the holder whose audio the turn answered (the API binds it to that input epoch); an
 //    unattributed call, or one arriving while paused, is answered with a question and never executed. A call
 //    from an older connection is never answered on a newer one. It carries the holder utterances forwarded in the
-//    provider session, so a decision binds to an answer given after its proposal was put (SMC-M01 binding §4.3).
+//    provider session, so a decision binds to an answer given after its proposal was put (SMC-M01 binding §4.3). A
+//    write whose reply was lost is settled only by the receipt its repeat brings back; any other answer leaves it
+//    unknown. A v1.2 guide is told that a refused control changed nothing, so from an API rolled back behind the
+//    bridge, a control's raw invalid_state reaches it as not applied, and a refusal that may hide a control already
+//    applied (a repeated call, a lost commit) as unknown (CX-0026).
 //  - Every connection, fresh, resumed or rebuilt, sends the same checked M01 instruction (guide.ts). The guide is
 //    activated only once the API confirms it executes exactly the declared operations; before that, Sophia is
 //    unavailable and says why. A narrower eligibility (a withdrawn note) drops the provider context and starts cold.
@@ -50,7 +54,7 @@ import {
 import { Captions } from './captions.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { GuideContext } from './guide-context.ts'
-import type { MissionGuide } from './guide.ts'
+import type { GuideVersion, MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
@@ -131,6 +135,69 @@ const WRITE_UNCONFIRMED: MediaToolResult = {
     next: 'Read project_status to see whether it was saved before saving it again.',
   },
 }
+/**
+ * A control an API from before CX-0026 refused in the database's own words (code invalid_state, "Goal not admitted
+ * for work"), which a v1.2 guide took for "admitted, applied later". Every refusal of that code changed nothing and
+ * left nothing waiting, and this says only that. Its code names no case, so the log tells it from the API's own
+ * explanations (not_applied:<case>).
+ */
+const NOT_APPLIED: MediaToolResult = {
+  status: 'refused',
+  output: {
+    code: 'not_applied',
+    applied: false,
+    pending: false,
+    reason: 'Not applied. Nothing was changed and nothing is waiting.',
+    next: 'Read project_status before saying where this work stands.',
+  },
+}
+/**
+ * A control an API from before CX-0026 refused although it may have been applied, in the words the API now uses for
+ * it. Like NOT_APPLIED's, its code names no case, so the log tells it from the API's own (unconfirmed:<code>).
+ */
+const CONTROL_UNCONFIRMED: MediaToolResult = {
+  status: 'unknown',
+  output: { code: 'unconfirmed', reason: 'I could not confirm whether it was applied; read project_status.' },
+}
+/**
+ * An older API's refusals that may hide a control already applied: a Hold, Resume or Stop repeated under the same
+ * call (the repeat read the goal's new epoch, so its request differed from the stored one), a commit whose outcome
+ * was lost, and a database that did not answer (a repeat it could not check).
+ */
+const MAYBE_APPLIED: ReadonlySet<unknown> = new Set(['idempotency_conflict', 'outcome_unknown', 'unavailable'])
+/**
+ * What a v1.2 guide is told of a refused control by an API rolled back behind this bridge: its raw invalid_state as
+ * not applied, and a refusal that may hide an applied control as unknown. The API's own explanations
+ * (not_applied:<case>), its unknown answers and every other refusal pass through untouched. A v1.1 guide keeps the
+ * words M01 was qualified on, as the API keeps them for it.
+ */
+function plainRefusal(version: GuideVersion, name: string, result: MediaToolResult): MediaToolResult {
+  if (version !== 'v1.2' || name !== 'control_work' || result.status !== 'refused' || !('code' in result.output))
+    return result
+  if (result.output.code === 'invalid_state') return NOT_APPLIED
+  return MAYBE_APPLIED.has(result.output.code) ? CONTROL_UNCONFIRMED : result
+}
+/**
+ * The answers that settle a write sent again after a lost reply: its receipt, which the API replays for a repeat it
+ * already applied, or the API's own unknown. A refusal, an error or a question speaks for the repeat alone: the
+ * attempt whose reply was lost may still have been applied.
+ */
+const SETTLES_A_REPEAT: ReadonlySet<MediaToolResult['status']> = new Set([
+  'ok',
+  'admitted',
+  'committed',
+  'proposed',
+  'unknown',
+])
+/** The service's answer to a call: a write sent again after a lost reply is settled only by SETTLES_A_REPEAT. */
+const answerTo = (repeat: boolean, result: MediaToolResult): MediaToolResult =>
+  repeat && !SETTLES_A_REPEAT.has(result.status) ? WRITE_UNCONFIRMED : result
+/**
+ * A call the service did not answer: a write that may have been applied is unknown, never "nothing changed". Only a
+ * first attempt the API refused (4xx) is known to have changed nothing.
+ */
+const unanswered = (write: boolean, attempt: number, refused: boolean): MediaToolResult =>
+  write && (attempt > 0 || !refused) ? WRITE_UNCONFIRMED : TOOL_FAILED
 const sameNames = (a: readonly string[], b: readonly string[]) => a.toSorted().join(',') === b.toSorted().join(',')
 
 const READ_IF_ASKED =
@@ -1101,6 +1168,7 @@ export class RoomSession {
       instructionBytes: guide.combined.bytes,
       guide: guide.version,
       tools: this.tools.names.length,
+      declarations: this.tools.sha256,
     })
     try {
       const link = await this.deps.connectLive(
@@ -1460,23 +1528,25 @@ export class RoomSession {
     } finally {
       if (write) this.guideContext.writeSettled()
     }
-    return toolResponse(call, this.guideContext.annotate(name, result))
+    return toolResponse(call, this.guideContext.annotate(name, plainRefusal(this.deps.guide.version, name, result)))
   }
 
   /**
-   * Send one call; a lost reply is sent again with the same identity (the API answers a repeat with the same result).
-   * A write still unconfirmed after the retries is `unknown`, never "nothing changed"; a refusal (4xx) is not retried.
+   * Send one call; a lost reply is sent again with the same identity, which the API answers with the receipt of a
+   * write it already applied (an API from before CX-0026 refused a repeated Hold, Resume or Stop instead). A write is
+   * `unknown`, never "nothing changed", while still unconfirmed after the retries, and once its reply was lost,
+   * whatever else its repeat is answered (answerTo, unanswered). A refusal (4xx) is not retried.
    */
   private async callService(request: MediaToolCall, write: boolean): Promise<MediaToolResult> {
     const waits = this.deps.toolRetryMs ?? TOOL_RETRY_MS
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await this.deps.service.toolCall(request)
+        return answerTo(write && attempt > 0, await this.deps.service.toolCall(request))
       } catch (err: unknown) {
         this.deps.log('tool.failed', { name: request.name, attempt, error: message(err) })
         const refused = err instanceof ServiceError && err.status < 500
         const wait = waits[attempt]
-        if (refused || wait === undefined || this.closed) return write && !refused ? WRITE_UNCONFIRMED : TOOL_FAILED
+        if (refused || wait === undefined || this.closed) return unanswered(write, attempt, refused)
         await new Promise((resolve) => setTimeout(resolve, wait))
       }
     }
