@@ -90,6 +90,43 @@ function useSettled(done: boolean, settle: ((sessionId: string) => void) | undef
   }, [done, settle, sessionId])
 }
 
+/** A session's change line, and its request let go once done or refused, after a moment. */
+function useChangeNote(session: Session, control: EffortControl | undefined) {
+  const line = changeLine(session, control?.asked[session.id])
+  useSettled(line?.tone === 'done' || line?.tone === 'refused', control?.settle, session.id)
+  return line && <ChangeNote line={line} onUndo={() => control?.undo(session.id)} />
+}
+
+interface BarProps {
+  level: string | null
+  open: boolean
+  /** A change is underway: the bar stays, read only. */
+  busy: boolean
+  onToggle: () => void
+  children: React.ReactNode
+  ref: React.Ref<HTMLButtonElement>
+}
+
+/** The owner's way into a session's effort: its bar, which opens the picker; read only while a change is underway. */
+function EffortBar({ level, open, busy, onToggle, children, ref }: BarProps) {
+  const name = level ? levelName(level) : 'not reported'
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="effort-button has-tip"
+      aria-expanded={open && !busy}
+      aria-disabled={busy || undefined}
+      aria-label={`Effort: ${name}. ${busy ? 'A change is underway' : 'Change it'}`}
+      onClick={() => !busy && onToggle()}
+    >
+      {children ?? <span className="effort-set">Set effort</span>}
+      <Icon name="chevron" />
+      <Tip label={busy ? 'A change is underway' : 'Choose its effort'} side="top" />
+    </button>
+  )
+}
+
 function Effort({
   session,
   tool,
@@ -107,10 +144,14 @@ function Effort({
     setOpen(false)
   }
   const levels = session.efforts ?? []
-  const line = changeLine(session, control?.asked[session.id])
-  useSettled(line?.tone === 'done', control?.settle, session.id)
+  const note = useChangeNote(session, control)
+  // While a change is underway (stopping, starting, unconfirmed), no other is asked: the bar stays, read only, so the
+  // focus stays on it; the scale closes, and doesn't come back by itself once the change is done.
+  const busy = Boolean(session.change)
+  useEffect(() => {
+    if (busy) setOpen(false)
+  }, [busy])
   const shown = session.effort ? <EffortMeter effort={session.effort} tool={tool} mode={session.mode} /> : null
-  const note = line && <ChangeNote line={line} onUndo={() => control?.undo(session.id)} />
   if (!control || levels.length === 0) {
     return (
       <>
@@ -119,23 +160,13 @@ function Effort({
       </>
     )
   }
-  const now = currentLevel(session)
   return (
     <>
-      <button
-        ref={button}
-        type="button"
-        className="effort-button has-tip"
-        aria-expanded={open}
-        aria-label={`Effort: ${now ? levelName(now) : 'not reported'}. Change it`}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {shown ?? <span className="effort-set">Set effort</span>}
-        <Icon name="chevron" />
-        <Tip label="Choose its effort" side="top" />
-      </button>
+      <EffortBar ref={button} level={currentLevel(session)} open={open} busy={busy} onToggle={() => setOpen((o) => !o)}>
+        {shown}
+      </EffortBar>
       {note}
-      {open && (
+      {open && !busy && (
         <EffortPicker
           session={session}
           tool={tool}
@@ -290,7 +321,7 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
       <SessionEarlier session={session} now={now} />
       {work && acts && acting && (
         <div id={actsId} className="resource-session-acts">
-          <SessionActs resource={resource} sessionId={session.id} acts={acts} />
+          <SessionActs resource={resource} session={session} acts={acts} />
         </div>
       )}
     </li>

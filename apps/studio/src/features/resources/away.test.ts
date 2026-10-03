@@ -64,6 +64,8 @@ const readingAt = (entitlement: string, value: number, validUntil: string | null
 interface Moment {
   was?: RequiredAction[]
   is?: RequiredAction[]
+  /** What became of a request that left the waiting (default: answered). */
+  gone?: RequiredAction['state']
   /** The readings then, and now. */
   earlier?: QuotaObservation[]
   read?: QuotaObservation[]
@@ -74,7 +76,15 @@ function away(before: Resource[], after: Resource[], o: Moment = {}) {
   const readings = o.read ?? [readingAt('ent-claude', 40)]
   const seen: Seen = glance(before, o.was ?? [], o.earlier ?? readings, now)
   const current = glance(after, o.is ?? [], readings, now)
-  return whileAway({ resources: after, observations: readings, now: current, seen, at: now, viewerId: 'luis' })
+  const open = o.is ?? []
+  const left = (o.was ?? [])
+    .filter((a) => !open.some((b) => b.id === a.id))
+    .map((a) => ({
+      ...a,
+      state: o.gone ?? ('resolved' as const),
+    }))
+  const actions = [...open, ...left]
+  return whileAway({ resources: after, actions, observations: readings, now: current, seen, at: now, viewerId: 'luis' })
 }
 const marked = (line: ReturnType<typeof away>) => [...line.ids].toSorted()
 
@@ -82,7 +92,15 @@ describe('while the viewer was away', () => {
   it('says nothing on a first visit, or when nothing moved', () => {
     const r = [resource('claude', 'davide', { sessions: working('running') })]
     const first = glance(r, [], [], now)
-    const line = whileAway({ resources: r, observations: [], now: first, seen: null, at: now, viewerId: 'luis' })
+    const line = whileAway({
+      resources: r,
+      actions: [],
+      observations: [],
+      now: first,
+      seen: null,
+      at: now,
+      viewerId: 'luis',
+    })
     assert.deepEqual([line.phrases, line.more, line.ids.size], [[], 0, 0])
     assert.deepEqual(away(r, r).phrases, [])
   })
@@ -124,6 +142,8 @@ describe('while the viewer was away', () => {
       'Davide’s Codex queued Review the pane',
     ])
     assert.equal(line.more, 1) // and Luis's own back online
+    // The one counted, not said, isn't marked: no mark without its words.
+    assert.deepEqual(marked(line), ['claude', 'codex', 'grok'])
   })
 
   it('says the viewer’s own as theirs, new work started, work let go, and new resources', () => {
@@ -176,12 +196,38 @@ describe('while the viewer was away', () => {
   })
 })
 
+describe('a request answered, and a host back', () => {
+  it('says a request answered by its id, even when another came to wait in its place', () => {
+    const r = [resource('claude', 'davide')]
+    const second = { ...request('claude'), id: 'a-second' }
+    assert.deepEqual(away(r, r, { was: [request('claude')], is: [second] }).phrases, [
+      'A request on Davide’s Claude Code was answered',
+    ])
+  })
+
+  it('says nothing of a request that left the waiting unanswered: superseded, expired, not settled', () => {
+    const r = [resource('claude', 'davide')]
+    for (const gone of ['superseded', 'expired', 'unknown'] as const) {
+      const line = away(r, r, { was: [request('claude')], gone })
+      assert.deepEqual([line.phrases, line.ids.size], [[], 0], gone)
+    }
+  })
+
+  it('says back online only from offline: from unknown, nothing was known to be away', () => {
+    const unknown = [resource('claude', 'davide', { host: { state: 'unknown', observedAt: null } })]
+    const online = [resource('claude', 'davide')]
+    const line = away(unknown, online)
+    assert.deepEqual([line.phrases, line.ids.size], [[], 0])
+  })
+})
+
 describe('a stored glance', () => {
   it('reads back whole, or not at all', () => {
     const seen = glance([resource('c', 'davide', { sessions: working('running') })], [], [], now)
     assert.deepEqual(asSeen(JSON.parse(JSON.stringify(seen))), seen)
-    assert.equal(asSeen({ c: { host: 'online', waiting: 0, short: false } }), null) // no work
-    assert.equal(asSeen({ c: { host: 'away', waiting: 0, short: false, work: {} } }), null)
+    assert.equal(asSeen({ c: { host: 'online', requests: [], short: false } }), null) // no work
+    assert.equal(asSeen({ c: { host: 'online', waiting: 0, short: false, work: {} } }), null) // a v1 glance
+    assert.equal(asSeen({ c: { host: 'away', requests: [], short: false, work: {} } }), null)
     assert.equal(asSeen('broken'), null)
     assert.equal(asSeen(null), null)
   })

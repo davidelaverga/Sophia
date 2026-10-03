@@ -9,6 +9,8 @@ export type When = 'next' | 'now'
 export interface EffortAsk {
   level: string
   when: When
+  /** Its runtime refused it: said once, then let go. Nothing changed. */
+  refused?: boolean
 }
 
 /** A level as people say it: "Extra high", "Max", "Ultracode". */
@@ -19,11 +21,12 @@ export const currentLevel = (s: Session) => s.mode ?? s.effort?.toLowerCase() ??
 
 /**
  * The line beside the bar. `asked`: its owner's request, still theirs to undo. `moving`: the runtime is on it, past
- * undoing. `done`: what it runs is what was asked. `warn`: the stop wasn't confirmed.
+ * undoing. `done`: what it runs is what was asked. `warn`: the stop wasn't confirmed. `refused`: its runtime didn't
+ * take the request, and nothing changed.
  */
 export interface ChangeLine {
   text: string
-  tone: 'asked' | 'moving' | 'done' | 'warn'
+  tone: 'asked' | 'moving' | 'done' | 'warn' | 'refused'
 }
 
 export function changeLine(session: Session, ask: EffortAsk | undefined): ChangeLine | null {
@@ -32,6 +35,7 @@ export function changeLine(session: Session, ask: EffortAsk | undefined): Change
   if (change?.phase === 'starting') return { text: `Starting again with ${levelName(change.level)}`, tone: 'moving' }
   if (change?.phase === 'unconfirmed') return { text: 'Stop not confirmed · nothing restarted', tone: 'warn' }
   if (!ask) return null
+  if (ask.refused) return { text: 'Not accepted · nothing changed', tone: 'refused' }
   if (currentLevel(session) === ask.level) return { text: `Now on ${levelName(ask.level)}`, tone: 'done' }
   return { text: `${ask.when === 'now' ? 'Restart asked ·' : 'Next run ·'} ${levelName(ask.level)}`, tone: 'asked' }
 }

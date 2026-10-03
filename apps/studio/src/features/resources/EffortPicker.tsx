@@ -89,13 +89,16 @@ export function EffortPicker({ session, tool, levels, onSet, onCancel }: Props) 
     } else if (e.key === 'Enter' && !same) {
       e.preventDefault()
       onSet({ level, when: 'next' })
-    } else if (e.key === 'Escape') {
-      e.stopPropagation() // the picker closes, not the sheet
-      onCancel()
     }
   }
+  // Escape from anywhere in the picker (its scale, Set, Cancel, the restart's question) closes the picker, not the sheet.
+  const onEscape = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Escape') return
+    e.stopPropagation()
+    onCancel()
+  }
   return (
-    <div className="effort-picker" role="group" aria-labelledby={id}>
+    <div className="effort-picker" role="group" aria-labelledby={id} onKeyDown={onEscape}>
       <p id={id} className="effort-picker-level" aria-live="polite">
         {levelName(level)}
         {same && <span className="effort-picker-now">now</span>}

@@ -6,13 +6,18 @@
 // earlier act never speaks over a later one.
 import { useEffect, useRef, useState } from 'react'
 import { ConfirmButton } from '@sophia/ui'
-import type { Resource } from './resource.ts'
+import type { Resource, Session } from './resource.ts'
 
 export type ActKind = 'guidance' | 'hold' | 'stop'
-export type ActStep = 'recorded' | 'queued' | 'delivered' | 'refused'
+/** `sending`: sent, nothing heard back yet; then each step as its runtime reports it. */
+export type ActStep = 'sending' | 'recorded' | 'queued' | 'delivered' | 'refused'
 export interface ActAsked {
   kind: ActKind
   text?: string
+  /** The work the act is meant for, as shown when it was sent: its runtime refuses it for any other. */
+  workId: string
+  /** Which assignment of that work, when the runtime says (`Session.assignment.epoch`). */
+  epoch?: number
 }
 /** Sends an act to one session; `report` is called with each step as it is observed. */
 export type SessionAct = (sessionId: string, act: ActAsked, report: (step: ActStep) => void) => void
@@ -45,7 +50,8 @@ export function useActs(onAct: SessionAct | undefined): Acts | undefined {
       const said = (at: ActStep) => {
         if (latest.current[sessionId] === n) setSent((s) => ({ ...s, [sessionId]: { kind: act.kind, at } }))
       }
-      said('recorded')
+      // Nothing is said recorded before its runtime says so: until then it is only sending.
+      said('sending')
       onAct(sessionId, act, said)
     },
   }
@@ -53,15 +59,17 @@ export function useActs(onAct: SessionAct | undefined): Acts | undefined {
 
 const STEPS: readonly ActStep[] = ['recorded', 'queued', 'delivered']
 const STEP_WORD: Record<ActStep, string> = {
+  sending: 'Sending',
   recorded: 'Recorded',
   queued: 'Queued',
   delivered: 'Delivered',
   refused: 'Not accepted',
 }
+/** Delivered says what was asked, never that it happened: none is seen acting on it yet. */
 const DONE: Record<ActKind, string> = {
   guidance: 'Delivered to its session. Not seen acting on it yet.',
-  hold: 'It holds at its next safe point.',
-  stop: 'Its session was asked to stop.',
+  hold: 'Delivered: asked to hold at its next safe point. Not seen holding yet.',
+  stop: 'Delivered: asked to stop. Not seen stopping yet.',
 }
 
 /** Where an act is: three bars filling as each step is observed, and what that step means. */
@@ -101,20 +109,46 @@ export function actsSaid(resource: Resource): string {
 
 interface Props {
   resource: Resource
-  sessionId: string
+  /** The session, with the work it shows: an act names that work. */
+  session: Session
   acts: Acts
 }
 
-/** The acts its route supports, for its owner: the caller shows them only to the owner. */
-export function SessionActs({ resource, sessionId, acts }: Props) {
+/**
+ * The guidance being written: it stays in its field until it is queued, so one not accepted can be sent again as it
+ * was; what was typed since it went is kept.
+ */
+function useDraft(mine: ActSent | undefined) {
   const [text, setText] = useState('')
-  const mine = acts.sent[sessionId]
-  // Guidance stays in its field until it is queued: one not accepted can be sent again as it was.
+  const submitted = useRef('')
   useEffect(() => {
-    if (mine?.kind === 'guidance' && mine.at !== 'recorded' && mine.at !== 'refused') setText('')
+    if (mine?.kind !== 'guidance' || (mine.at !== 'queued' && mine.at !== 'delivered')) return
+    // Its sent words leave the field if they are still all it holds; then they are forgotten, so a later step of the
+    // same act can't clear what is typed next. (Not inside the updater: StrictMode runs that twice.)
+    const sent = submitted.current
+    submitted.current = ''
+    setText((t) => (t.trim() === sent ? '' : t))
   }, [mine])
+  return { text, setText, submitted }
+}
+
+/** The acts its route supports, for its owner: the caller shows them only to the owner. */
+export function SessionActs({ resource, session, acts }: Props) {
+  const sessionId = session.id
+  const mine = acts.sent[sessionId]
+  const { text, setText, submitted } = useDraft(mine)
   const can = new Set(supported(resource))
-  const send = (kind: ActKind, words?: string) => acts.send(sessionId, { kind, ...(words ? { text: words } : {}) })
+  const work = session.assignment
+  const send = (kind: ActKind, words?: string) => {
+    if (!work) return
+    if (words) submitted.current = words
+    acts.send(sessionId, {
+      kind,
+      workId: work.workId,
+      ...(work.epoch === undefined ? {} : { epoch: work.epoch }),
+      ...(words ? { text: words } : {}),
+    })
+  }
   return (
     <div className="session-acts">
       {can.has('steer') && (

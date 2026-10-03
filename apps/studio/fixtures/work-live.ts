@@ -69,11 +69,12 @@ export const nextActivity = (list: Resource[], at: Date, n: number): Resource[] 
   }))
 
 /** Each act an owner sent, in order: for the checks to read. */
-export const acted: { sessionId: string; kind: string; text?: string }[] = []
+export const acted: { sessionId: string; kind: string; text?: string; workId: string; epoch?: number }[] = []
 
 /** An act on a session, taken as a runtime would: recorded, then queued, then delivered to it. */
 export const actOn: SessionAct = (sessionId, asked, report) => {
   acted.push({ sessionId, ...asked })
+  setTimeout(() => report('recorded'), 150)
   setTimeout(() => report('queued'), 700)
   setTimeout(() => report('delivered'), 1700)
 }

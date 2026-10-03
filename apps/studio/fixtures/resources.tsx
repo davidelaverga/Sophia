@@ -56,7 +56,7 @@ declare global {
       /** What owners asked of their sessions' effort, in order: for the checks to read. */
       asked?: { sessionId: string; level: string | null; when: string | null }[]
       /** Each act an owner sent on a session, in order. */
-      acted?: readonly { sessionId: string; kind: string; text?: string }[]
+      acted?: readonly { sessionId: string; kind: string; text?: string; workId: string; epoch?: number }[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
@@ -64,6 +64,8 @@ declare global {
       advance?: (sessionId: string) => void
       failStop?: (sessionId: string) => void
       nextRun?: (sessionId: string) => void
+      /** The runtime refuses a session's last effort request: nothing changes. */
+      refuseEffort?: (sessionId: string) => void
       spendCredits?: (left: number) => void
       swapRequest?: () => void
     }
@@ -73,6 +75,8 @@ declare global {
 installFixtureApi({ revision: 1, exchange: false, messages: [] })
 window.resourcesFixture = { unexpected }
 const nothing = () => undefined
+/** Each session's way to say its last effort request was refused, as its runtime would. */
+const refusals = new Map<string, () => void>()
 /** Each effort an owner asks for: kept here, where a launch configuration would take it. */
 const asked: NonNullable<NonNullable<Window['resourcesFixture']>['asked']> = []
 
@@ -205,6 +209,10 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
       setLive((l) =>
         withSession(l, id, (s) => ({ ...s, change: { level: s.change?.level ?? '', phase: 'unconfirmed' } })),
       ),
+    refuseEffort: (id) => {
+      setLive((l) => ({ ...l, asks: { ...l.asks, [id]: undefined } }))
+      refusals.get(id)?.()
+    },
     nextRun: (id) =>
       setLive((l) => {
         const ask = l.asks[id]
@@ -261,8 +269,9 @@ function Live() {
           tasks={tasks}
           scope="fixture"
           onAct={actOn}
-          onEffort={(sessionId, ask) => {
+          onEffort={(sessionId, ask, refused) => {
             asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })
+            refusals.set(sessionId, refused)
             setLive((l) => ({ ...l, asks: { ...l.asks, [sessionId]: ask ?? undefined } }))
           }}
         />
