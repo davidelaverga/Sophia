@@ -61,6 +61,7 @@ Package: [frontend/LFE-06](../execution/2026-10-01-unified/frontend/LFE-06.md). 
 - **Attempt 12** ([handoff](../handoffs/LFE-06-attempt-12.md)): a request said once: three lines for its owner instead of five, the session named once, "Waiting" said by its heading.
 - **Attempt 13** ([handoff](../handoffs/LFE-06-attempt-13.md)): the capacity's facts in one line: "shared by 2 sessions · 6 readings in 3 h · 1 min ago".
 - **Attempt 14** ([handoff](../handoffs/LFE-06-attempt-14.md)): a last pass. J and K step through the resources from the sheet; the head takes its tool's light; two Claude Codes side by side greet and look at each other; a secret (type "ultracode").
+- **Attempt 15** ([handoff](../handoffs/LFE-06-attempt-15.md)): the windows, each said once: the list holds only the windows the headline doesn't ("2 more windows"), and no toggle when nothing is left.
 
 ## Acceptance cases
 

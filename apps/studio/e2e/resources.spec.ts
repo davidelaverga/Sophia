@@ -113,7 +113,8 @@ test('RES-02 · unknown capacity stays unknown, a reset already due is pending, 
   await open(page, 'Davide · Claude Code')
   const claude = capacity(page, 'Davide · Claude Code')
   await expect(claude.getByText('5-hour window: 63% used, resets in 55 min')).toBeVisible()
-  await claude.getByRole('button', { name: 'All 3 windows' }).click()
+  await claude.getByRole('button', { name: '2 more windows' }).click()
+  await expect(claude.locator('.capacity-windows dt')).toHaveText(['7-day', '7-day, one model']) // not the headline's again
   await expect(claude.getByText('Refresh pending')).toBeVisible()
   await expect(claude.getByText('reset was due 1 h ago')).toBeVisible()
   await expect(claude.getByText('71%')).toHaveCount(0) // a due window's old value is not shown as capacity
@@ -256,8 +257,8 @@ test('a meter is drawn only for a percentage known to apply', async ({ page }) =
   await open(page, 'Davide · Claude Code')
   const claude = capacity(page, 'Davide · Claude Code')
   await expect(claude.getByRole('meter', { name: '5-hour window' })).toHaveAttribute('aria-valuenow', '63')
-  await claude.getByRole('button', { name: 'All 3 windows' }).click()
-  await expect(claude.getByRole('meter')).toHaveCount(2) // the 88 % that may not apply has none
+  await claude.getByRole('button', { name: '2 more windows' }).click()
+  await expect(claude.getByRole('meter')).toHaveCount(1) // the headline's only: the due one and the 88 % that may not apply have none
 })
 
 /** A theme colour (#rrggbb) as the browser computes it. */
@@ -268,11 +269,11 @@ test('a meter turns amber from 75 % used and red from 90 %', async ({ page }) =>
   await expect(tile(page, 'Davide · Codex').getByRole('meter')).toHaveClass(/is-full/) // the 92 % heads it
   await open(page, 'Davide · Codex')
   const codex = capacity(page, 'Davide · Codex')
-  await codex.getByRole('button', { name: 'All 2 windows' }).click()
+  await codex.getByRole('button', { name: '1 more window' }).click()
   const fill = (name: string) =>
     codex
       .getByRole('meter', { name })
-      .last() // the window's own, under the headline's
+      .last()
       .locator('.capacity-meter-fill')
       .evaluate((el) => getComputedStyle(el).backgroundColor)
   const [rose, amber] = await page.evaluate(() =>
@@ -562,8 +563,8 @@ test('a window’s readings over time, in its sheet: one window, since its reset
     Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)),
   )
   expect(lines, 'one line, in the sheet’s width').toBe(1)
-  await claude.getByRole('button', { name: 'All 3 windows' }).click()
-  await expect(history).toHaveCount(2) // and with its window
+  await claude.getByRole('button', { name: '2 more windows' }).click()
+  await expect(history).toHaveCount(1) // drawn once: the list doesn't repeat the headline's window
   await expect(claude.getByRole('img', { name: /^7-day/ })).toHaveCount(0) // its reset is due: no history drawn
   await page.keyboard.press('Escape')
   await open(page, 'Luis · Claude Code') // only the latest reading, and an unknown one: nothing to draw
@@ -732,7 +733,7 @@ test('a balance heads its capacity as a count, with no meter and no unknown trac
   await expect(gemini.getByText('Daily requests: 820 credits left, resets in 9 h')).toBeVisible()
   await expect(gemini.getByRole('meter')).toHaveCount(0)
   await expect(gemini.locator('.capacity-meter')).toHaveCount(0)
-  await expect(gemini.getByRole('button', { name: 'Show window' })).toBeVisible()
+  await expect(gemini.getByRole('button', { name: /window/ })).toHaveCount(0) // its one window is the headline: nothing more
   await page.keyboard.press('Escape')
   await expect(tile(page, 'Davide · Grok')).toContainText('Capacity unknown')
   await expect(tile(page, 'Davide · Grok').locator('.capacity-meter.is-unknown')).toHaveCount(1)
@@ -762,7 +763,7 @@ test('the sheet works by keyboard: Enter opens it, its windows toggle, Escape re
   await tile(page, 'Davide · Codex').focus()
   await page.keyboard.press('Enter')
   await expect(sheet(page, 'Davide · Codex')).toBeFocused()
-  const toggle = capacity(page, 'Davide · Codex').getByRole('button', { name: 'All 2 windows' })
+  const toggle = capacity(page, 'Davide · Codex').getByRole('button', { name: '1 more window' })
   await toggle.focus()
   await page.keyboard.press('Enter')
   await expect(capacity(page, 'Davide · Codex').getByRole('button', { name: 'Hide windows' })).toHaveAttribute(
@@ -862,7 +863,8 @@ test('motion · with less motion asked for, the same changes come at once and no
   await filter(page, 'Mine 2').click()
   await expect(grid(page).getByRole('button')).toHaveCount(2)
   expect(await glides(page)).toBe(0)
-  await open(page, 'Luis · Gemini CLI')
-  const chevron = capacity(page, 'Luis · Gemini CLI').locator('.capacity-toggle .icon')
+  await filter(page, 'All 5').click()
+  await open(page, 'Davide · Codex')
+  const chevron = capacity(page, 'Davide · Codex').locator('.capacity-toggle .icon')
   await expect(chevron).toHaveCSS('transition-duration', '0s') // the windows' chevron turns at once
 })
