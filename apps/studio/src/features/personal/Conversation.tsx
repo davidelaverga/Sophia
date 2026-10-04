@@ -6,11 +6,15 @@ import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
 import { usePopover } from '../../app/usePopover.ts'
 import { UMBRAL } from '../light/threshold.ts'
-import { daysOf, notePrefill, STARTERS, suggestionFor, type Row } from './conversation-view.ts'
+import type { Way } from './arrive.ts'
+import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
+import type { Week } from './extras.ts'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
+import { WeekLook } from './WeekLook.tsx'
 
 export interface ConversationActions {
-  start: (text: string) => void
+  /** Sends a way to start's words; whether they went (not while another message is on its way). */
+  start: (text: string) => boolean
   decide: (suggestion: PersonalSuggestion, decision: 'keep' | 'dismiss') => void
   openNotes: () => void
   /** Resolves to whether it was kept. */
@@ -31,7 +35,7 @@ const HALF = {
 } as const
 
 /** Who speaks: their half of the mark, beside the first of their turns. The conversation is the mark, in two voices. */
-function Who({ who }: { who: keyof typeof HALF }) {
+export function Who({ who }: { who: keyof typeof HALF }) {
   const half = HALF[who]
   return (
     <svg className="c3-who" data-who={who} viewBox={half.box} aria-hidden>
@@ -196,12 +200,14 @@ function Typing({ first }: { first: boolean }) {
   )
 }
 
-function Starters({ onStart }: { onStart: (text: string) => void }) {
+/** Ways in, as rows: each a sentence, a quiet note beside it when it has one, and an arrow; a press sends its words. */
+function Ways({ ways, label, onStart }: { ways: readonly Way[]; label: string; onStart: (words: string) => void }) {
   return (
-    <div className="c3-starters" role="group" aria-label="Ways to start">
-      {STARTERS.map((t) => (
-        <button key={t} type="button" onClick={() => onStart(t)}>
-          <span className="c3-way">{t}</span>
+    <div className="c3-starters" role="group" aria-label={label}>
+      {ways.map((w) => (
+        <button key={w.label} type="button" onClick={() => onStart(w.words)}>
+          <span className="c3-way">{w.label}</span>
+          {w.note && <span className="c3-way-note">{w.note}</span>}
           <span className="c3-go" aria-hidden>
             →
           </span>
@@ -254,13 +260,14 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
     )
   }
   if (row.kind === 'intro') return <Intro text={row.text} />
-  if (row.kind === 'starters') {
-    // The starters go once one is sent: the focus goes to the conversation first.
+  if (row.kind === 'starters' || row.kind === 'arrive') {
+    // The ways go once one is sent: the focus goes to the conversation first.
     const start = (text: string) => {
       actions.start(text)
       focusConversation()
     }
-    return <Starters onStart={start} />
+    const label = row.kind === 'starters' ? 'Ways to start' : 'How you arrive today'
+    return <Ways ways={row.ways} label={label} onStart={start} />
   }
   if (row.kind === 'typing') return <Typing first={row.first} />
   if (row.kind === 'failed') {
@@ -423,10 +430,12 @@ interface ConversationProps {
   covered: boolean
   composer: React.ReactNode
   actions: ConversationActions
+  /** Her look back at your week, the newest thing in the conversation while it waits (extras.ts). */
+  week?: Week | undefined
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week } = props
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
@@ -447,6 +456,7 @@ export function Conversation(props: ConversationProps) {
             actions={actions}
           />
         ))}
+        {week && <WeekLook week={week} onTalk={actions.start} />}
       </div>
       {composer}
     </div>

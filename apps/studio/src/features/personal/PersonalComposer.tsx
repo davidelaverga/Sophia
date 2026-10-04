@@ -330,7 +330,7 @@ interface Props {
   /** The field holds words kept after an erasure this page hasn't read: the space is read again before they go. */
   onBehind: () => void
   /** A way to start pressed in the conversation goes through this composer's send (set here). */
-  starter: RefObject<((words: string) => void) | null>
+  starter: RefObject<((words: string) => boolean) | null>
   /** Words said to Sophia from Home, handed here to go as this composer's own (Welcome.tsx); taken once. */
   handed: Handed | null
   onHanded: () => void
@@ -429,6 +429,20 @@ function useVoice(draft: ReturnType<typeof useDraft>, field: RefObject<HTMLTextA
   return { ...dictation, start }
 }
 
+/**
+ * A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is. It says
+ * whether it went: while another message is on its way (or Sophia can't take it yet), it doesn't.
+ */
+function useStarter(starter: Props['starter'], free: boolean, send: (given?: Draft) => Promise<void>) {
+  useEffect(() => {
+    starter.current = (words: string) => {
+      if (!free) return false
+      void send(draftOf(words))
+      return true
+    }
+  })
+}
+
 export function PersonalComposer(props: Props) {
   const { account, epoch, hidden, state, busy, onSend, onListening, onBehind, starter } = props
   const draft = useDraft(account, epoch)
@@ -440,10 +454,7 @@ export function PersonalComposer(props: Props) {
   const ready = state === 'ready' && !behind
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  // A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is.
-  useEffect(() => {
-    starter.current = (words: string) => void send(draftOf(words))
-  })
+  useStarter(starter, ready && !busy, send)
   return (
     <form
       className="ps-composer"

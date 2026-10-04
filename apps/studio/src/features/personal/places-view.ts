@@ -4,6 +4,7 @@
 import type { PersonalTurn, ProjectSummary } from '@sophia/contracts'
 import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
+import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
 
 const MINUTE = 60_000
@@ -221,6 +222,25 @@ export function sessionWhen(project: ProjectSummary, now: Date): string | null {
   const start = new Date(project.nextSession.startsAt)
   const clock = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
   return `${dayAhead(start, now)} at ${clock}`
+}
+
+const DAY_AHEAD_MS = 86_400_000
+
+/** The soonest session in your projects that starts within 24 hours: a way to get ready for it with her. */
+export function readyFor(projects: readonly ProjectSummary[], now: Date): Way | null {
+  const next = projects
+    .map((project) => ({ project, at: project.nextSession ? Date.parse(project.nextSession.startsAt) : NaN }))
+    .filter(({ at }) => at > now.getTime() && at - now.getTime() <= DAY_AHEAD_MS)
+    .toSorted((a, b) => a.at - b.at)[0]
+  const session = next?.project.nextSession
+  const when = next ? sessionWhen(next.project, now) : null
+  if (!next || !session || !when) return null
+  const said = when.startsWith('starts') ? `It ${when}.` : `It’s ${when}.`
+  return {
+    label: `Get ready for ${session.title} · ${next.project.title}`,
+    note: when,
+    words: `Help me get ready for ${session.title} in ${next.project.title}. ${said}`,
+  }
 }
 
 /** "Davide, Luis and Sophia": the people in a room by their short names, Sophia last. */
