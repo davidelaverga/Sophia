@@ -73,7 +73,7 @@ The guide v1.2 declaration digest is a recorded identity (CX-0033: `57cdfdad…`
 - **Exact bytes**: `download.ts` (`checkedBlob:24`, `loadReportBytes:91`, `loadReportText:113`, `HashMismatch:8`) shows and saves nothing that does not match its record. Open/Download parity (B-23) should reuse it: the frame shows checked bytes, Download saves the same bytes, and repeating a download calls no model.
 - **Version pinning, focus and media**: a report being read is never swapped for a newer version; Esc steps down; focus returns to the opener; side and full sizes; Sources (with weak-source marks) and History (facts first). `e2e/report.spec.ts` and `report-reading.spec.ts` guard these.
 - **Reader CSS** is rooted at `.md` and `.md-table`, used only by `MarkdownView`; designed HTML must not borrow them.
-- **Citations in the reader** (`cite-view.ts`): bound to the word before them (a short link or code span whole), grouped with commas, weak sources dotted and named in EN/IT/ES (the reader's words are tested against the page's in `cite-view.test.ts`). On a touch screen each citation's target is its own (M75-RF-0001): `flushSides` marks the groups whose targets stop at their numerals beside a link or no word (`data-flush-start`, `data-flush-end`), and they reach into words elsewhere.
+- **Citations in the reader** (`cite-view.ts`): bound to the word before them (a link or code span whole), grouped with commas, weak sources dotted and named in EN/IT/ES (the reader's words are tested against the page's in `cite-view.test.ts`). Inside a bound piece all but the word's last character wraps (`BoundWord`, `.cite-wrap`; M75-RF-0005): a word joiner did not hold a citation to its word in Chromium. On a touch screen each citation's target is its own (M75-RF-0001, RF-0004): `flushSides` marks the sides that stop at their numerals beside a link, with no word, or fewer than three characters from another group (`data-flush-start`, `data-flush-end`), and they reach into words elsewhere.
 - **What cards say**: Open and Download mean the primary file (the PDF when there is one); Markdown is offered beside a PDF. No Studio or page word says HTML was designed or reviewed; the page itself says "Not independently reviewed." Keep that honesty when the designed path arrives: "designing", "reviewing", "failed" and "ready" are distinct states.
 
 ## 5. Reusable checks, probes and fixtures
@@ -115,10 +115,13 @@ C16 is deliberately stricter than axe's `scrollable-region-focusable` (which als
 | M03-RF-0025 | P2 | Closed (CX-0034; reconfirmed in M75-CX-0003) | `pdf-report-v1` ids and bytes unchanged for headings named like the page's parts |
 | M03-RF-0026 | P3 | Closed for the exported page (M75-CX-0003 at `86f70aa`) | C15 with CX-0034's countercases |
 | Codex bot P2, image label escaped twice | — | Does not reproduce (M75-CX-0003) | |
-| M75-RF-0001 | P3 | Fixed in `d5d047e`; awaiting Codex recheck | Reader touch targets exclusive; new `report-reading.spec.ts` check with four mutants |
-| M75-RF-0002 | P2 | Addressed in this candidate (legacy marking `a6fc744`, this handoff, CONTRIBUTING, PR wording); awaiting Codex recheck | §1–§7 |
-| M75-RF-0003 | P3 | Fixed in `cbf5a43`; awaiting Codex recheck | U13, C17 |
-| M75 self-found (contents rail) | P3 | Fixed in `f666a2f`; awaiting Codex recheck | The Italian rail clipped 22 px of its last entry at 1280; C16 on `italiano`/`stress` |
+| M75-RF-0001 | P3 | Fixed in `d5d047e`, `8850ebd`; original case verified by Codex (M75-CX-0006); its class continues as RF-0004 | Reader touch targets exclusive; new `report-reading.spec.ts` check with four mutants |
+| M75-RF-0002 | P2 | Closed (verified by Codex, M75-CX-0006) | §1–§7 |
+| M75-RF-0003 | P3 | Closed (verified by Codex, M75-CX-0006) | U13, C17 |
+| M75 self-found (contents rail) | P3 | Fixed in `f666a2f`; verified by Codex (M75-CX-0006) | The Italian rail clipped 22 px of its last entry at 1280; C16 on `italiano`/`stress` |
+| M75-RF-0004 | P3 | Fixed after `8850ebd`; awaiting Codex recheck | `Pair i[A]i[B].`: two groups a letter apart overlapped 3.3 px at 390; `flushSides` counts characters between targets |
+| M75-RF-0005 | P2 | Fixed after `8850ebd`; awaiting Codex recheck | A 24-character link label of wide letters ran 35 px past a phone's column once bound whole; the bound piece now wraps all but its last character |
+| Cloud review (PR #75, `8850ebd`) | three P2s | Fixed after `8850ebd` | Emoji/wide runs bound unwrapped (same fix as RF-0005); the page kept a tab or wide space before a citation where the reader trims it; the dotted-number key left out unread sources (EN/IT/ES) |
 | M75 observation: gate wording beside unread sources | P3 question | Open, not changed | "All N cited sources are ones this task retrieved or was given" sits under "K of N … could not be read"; accurate for a captured record, possibly confusing. Owner/SDD-01 wording decision; changing it moves page bytes |
 | M75 observation: forward HTML path | Policy gap | Open, SDD-01's | §3: an HTML request is admitted as Markdown and fulfilled by conversion |
 | `main`'s opening timing check (`opening.spec.ts:86`) | Flake | Not #75's | Reported on #32 with root cause |
