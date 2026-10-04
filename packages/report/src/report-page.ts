@@ -14,12 +14,13 @@
 // and adds what Studio already holds of the version: when it was published, what was read of each source and when,
 // the limitations it stored, and what Sophia checked when it was published. A part whose input is absent is not
 // printed; the page never prints a fact the record does not hold.
+import { reportLanguage } from './language.ts'
 import { safeHref } from './markdown.ts'
 import { PAGE_CSS } from './page-css.ts'
 import { pageWords, type PageWords, type Status } from './page-words.ts'
 import { escapeHtml, printReport, type PrintedReport, type ReportSource } from './report-html.ts'
 
-export { PAGE_CSS }
+export { PAGE_CSS, reportLanguage }
 
 export const PAGE_PROFILE = 'html-report-v2'
 
@@ -51,25 +52,6 @@ export interface ReportPageInput {
   publishedAt?: string | null
   /** The limitations the version stored when it was published. */
   limitations?: readonly string[]
-}
-
-const STOPWORDS: readonly [string, ReadonlySet<string>][] = [
-  ['en', new Set(['the', 'and', 'of', 'to', 'is', 'that', 'with', 'are', 'this', 'for', 'from', 'which'])],
-  ['it', new Set(['il', 'della', 'che', 'gli', 'delle', 'nel', 'sono', 'anche', 'questo', 'degli', 'alla', 'per'])],
-  ['es', new Set(['el', 'los', 'las', 'que', 'para', 'por', 'como', 'más', 'está', 'también', 'este', 'son'])],
-]
-
-/**
- * The report's language, from its own words: English, Italian or Spanish when one clearly leads (at least 8 of its
- * common words, twice the next), else `und` (the template's words are then English).
- */
-export function reportLanguage(markdown: string): string {
-  const counts = new Map(STOPWORDS.map(([lang]) => [lang, 0]))
-  for (const word of markdown.toLowerCase().match(/\p{L}+/gu) ?? []) {
-    for (const [lang, words] of STOPWORDS) if (words.has(word)) counts.set(lang, (counts.get(lang) ?? 0) + 1)
-  }
-  const [first, second] = [...counts].toSorted((a, b) => b[1] - a[1])
-  return first && first[1] >= 8 && first[1] >= 2 * (second?.[1] ?? 0) ? first[0] : 'und'
 }
 
 const esc = escapeHtml

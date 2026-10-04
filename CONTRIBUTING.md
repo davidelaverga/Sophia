@@ -560,6 +560,35 @@ when you change the room:
   escaped, a draft of any length printed in linear time) is checked by
   `packages/report/src/report-page.test.ts`. Change the page and they must
   still pass.
+- **The Document tab reads as the HTML page does** (`e2e/report-reading.spec.ts`,
+  html-report-v2 §4b): on the same page, a long labelled report with every
+  kind of source (`fixtures/reading-data.ts`). One measure in both pane sizes
+  (`--measure`, 34rem: 60 to 80 characters a line, measured), for the
+  Document tab only: on the full page Sources and History keep 780 px. A
+  serif reading voice at 17/1.6, the Studio's sans for tables, code, numbers
+  and markers, with sizes of its own, outside the work views' scale. A table
+  never breaks a word (break-word, never anywhere). Five columns fit any
+  column but a phone's, where they scroll by a good part of the table with
+  the row label pinned (a container query, so no pane width makes them scroll
+  by a sliver); a frame with more to see is shaded at that edge. Each rule is
+  the top border of the cells under it (the last, their bottom border):
+  enlarged, the pinned label covered rules owned by the table or the cells
+  above, so the check reads them in a screenshot at every eighth of a pixel.
+  A bullet nested in a numbered list takes no number. The version's
+  limitations sit under an amber rule. A citation stays on the line of the
+  word before it, and adjacent ones are one group with commas, also across
+  the end of bold (`bindCites` in `cite-view.ts`, with tests): a citation is
+  a button, and a line may break before a button even with no space, so the
+  word and the group's first three numbers are set without a break, taking
+  at most 24 characters of the word so a long address still wraps, and one
+  letter of Chinese or Japanese, where a line may break between any two.
+  Past three numbers a group may wrap after a comma, never before one. A
+  number is 0.8 of the text, with a finger-sized target on a touch screen
+  (an empty `::after`, none in a table, whose frame it would make scroll). A
+  citation of a source read in part, as a snippet or not at all is dotted
+  (`data-weak`) and named so in the report's language (`reportLanguage`,
+  from `@sophia/report/language`, which loads without the page's template).
+  Change the viewer and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake
   delivers result cards and live captions as encoded packets through the
