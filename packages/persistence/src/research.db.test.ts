@@ -4275,6 +4275,64 @@ describe('an amendment edits its report (0037, CX-0026)', () => {
     assert.deepEqual([facts.added, facts.dropped], [[newer], [p.caps[0]]])
   })
 
+  it('CX-0026 integration review · refuses a kept note calling the removed table and limitations "without changes", then publishes plainer notes as written', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const d2 = await p.write('d2', pilotRestructure(p.v1Text), p.context.draft!.sha256)
+    const refused = await p.submit('s2', d2.sha256, [p.caps[0]!], {
+      changeNote: 'Tightened the recommendations.',
+      retainedNote: 'Comparison table and limitations, without changes.',
+    })
+    assert.deepEqual(
+      [refused.outcome, refused.problems],
+      [
+        'notes_rejected',
+        [
+          'The kept note names "Comparison table", which was removed.',
+          'The kept note names "Limitations of this review", which was removed.',
+          pilotRefusal(p.v1.sourceId!)[1],
+        ],
+      ],
+    )
+    // A removal said as "got rid of" discloses it: published as written, after the one refusal.
+    const changeNote =
+      'Got rid of the comparison table and the limitations section, as asked; tightened the recommendations.'
+    const done = await p.submit('s3', d2.sha256, [p.caps[0]!], { changeNote })
+    assert.deepEqual([done.outcome, done.notesFromFacts], ['published', false])
+    assert.equal((await versionRow(done.versionId!)).change_note, changeNote)
+  })
+
+  it('CX-0026 integration review · reads the title’s words as the report’s topic when its introduction was revised', async () => {
+    const w = await world()
+    const p = await pilot(w)
+    const v2Text = p.v1Text
+      .replace(
+        '# USB-C fast charging for phones\n',
+        '# USB-C fast charging for phones\n\nWhat a buyer needs to know.\n',
+      )
+      .replace('Buy a 30 W', 'In short, buy a 30 W')
+    const d2 = await p.write('d2', v2Text, p.context.draft!.sha256)
+    const v2 = await p.submit('s2', d2.sha256, p.caps, {
+      changeNote:
+        'Added a short introduction and tightened the recommendations; the phone comparison table is unchanged.',
+    })
+    assert.deepEqual([v2.outcome, v2.notesFromFacts], ['published', false])
+    assert.deepEqual((await versionRow(v2.versionId!)).facts.sections, {
+      added: [],
+      revised: ['USB-C fast charging for phones', 'Recommendations for buyers'],
+      removed: [],
+      unchanged: [
+        'Summary',
+        'Compatibility and standards',
+        'Charging speed in practice',
+        'Product claims vs. evidence',
+        'Comparison table',
+        'Limitations of this review',
+      ],
+      conclusionChanged: true,
+    })
+  })
+
   it('refuses a rebuild that cannot read its base and calls the rest kept, by number: no heading of the base, no facts', async () => {
     // v1 quotes an input; the input is withdrawn while an amendment of v1 runs, so it is rebuilt without its base.
     const w = await world()
