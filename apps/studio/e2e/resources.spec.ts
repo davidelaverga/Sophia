@@ -1598,6 +1598,33 @@ test('pr76 · P2 · a session whose assignment isn’t identified offers no act,
   expect([target?.assignment_id, target?.assignment_generation]).toEqual(['assignment-claude-worker', 3])
 })
 
+test('codex · F-008 · a Stop asked of one assignment is never answered on the next; asked again, it goes to it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-codex`)
+  const rows = sheet(page, 'Davide · Codex').locator('.resource-session')
+  const reviewer = rows.filter({ hasText: 'Review the report pane' })
+  await reviewer.getByRole('button', { name: 'Act' }).click()
+  await reviewer.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(reviewer.getByRole('group', { name: 'Stop' })).toBeVisible()
+  // While the question is open, the same native session is given its next assignment, at the next generation.
+  await page.evaluate(() => window.resourcesFixture?.reassign?.('codex-reviewer'))
+  const next = rows.filter({ hasText: 'The next assignment' })
+  await expect(next.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+  await expect(next.getByRole('group', { name: 'Stop' })).toHaveCount(0) // the old question is gone, unanswered
+  expect(await page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(0)
+  // Asked of this assignment, and confirmed, the Stop goes to it.
+  await next.getByRole('button', { name: 'Stop', exact: true }).click()
+  await next.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  await expect.poll(() => page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(1)
+  const target = await page.evaluate(() => window.resourcesFixture?.commands?.[0]?.target)
+  expect([target?.work_id, target?.assignment_id, target?.assignment_generation]).toEqual([
+    'next-work',
+    'assignment-next',
+    2,
+  ])
+})
+
 test('away · what changed since the last look is one line, its tiles marked, until Mark seen', async ({ page }) => {
   await page.goto(`${PAGE}?since=1&more=1`)
   const line = page.locator('.resources-away')

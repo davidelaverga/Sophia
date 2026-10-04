@@ -287,8 +287,11 @@ export function SessionActs({ target, offer, acts }: Props) {
           .map((o) => (
             <ControlButton key={o.kind} offer={o} onPress={() => send(o.kind)} />
           ))}
+        {/* Keyed by its exact execution: a Stop asked of one assignment, generation, attempt or session is never
+            answered on the next, wherever this is shown (Codex F-008). */}
         {kinds.has('stop') && (
           <ConfirmButton
+            key={executionOf(target)}
             label="Stop"
             warning={STOP_WARNING}
             confirm="Stop"

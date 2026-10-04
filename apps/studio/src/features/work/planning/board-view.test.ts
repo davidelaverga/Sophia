@@ -74,4 +74,13 @@ describe('readBoardView', () => {
     assert.equal(readBoardView(null).ok, false)
     assert.equal(readBoardView([]).ok, false)
   })
+
+  it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
+    const board = example('board-review-ready.json')
+    for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {
+      const read = readBoardView(edited(board, ['observed_at'], at))
+      assert.equal(read.ok, false, at)
+      if (!read.ok) assert.match(read.problems.join('\n'), /observed_at: an RFC 3339 date-time with its offset/, at)
+    }
+  })
 })

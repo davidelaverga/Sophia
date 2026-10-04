@@ -9,9 +9,9 @@
 // answer comes back); `later=1` (the second goal's plan held back until `workFixture.arrive()`); `coverage=partial|
 // unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
-// into the plan's next revision; `begin(workId)`, `reassign(workId)`, `replan()`, `arrive()`, `viewAs(viewer)`,
-// `reconnect()`, `replay(operationId)`, `misdeliver(from, to)` and `conversation(connected)`. Whoever does a task opens
-// on the resources' fixture.
+// into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
+// `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `misdeliver(from, to)` and
+// `conversation(connected)`. Whoever does a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
 // `lag=1`: the review is read a moment behind the board, with the plan in force the board no longer shows as such.
@@ -96,6 +96,8 @@ declare global {
       refused?: readonly string[]
       settle?: (decisionId: string) => void
       react?: (decisionId: string) => void
+      /** A new decision, asked of `deciderId`, arrives with the next observation. */
+      decisionArrives?: (deciderId: string) => void
       begin?: (workId: string) => void
       reassign?: (workId: string) => void
       replan?: () => void
@@ -283,6 +285,35 @@ const settleChoice =
     }),
   })
 
+/** A decision arriving with the next observation, asked of `deciderId` by the lead (GitHub review on PR #76). */
+const decisionFor =
+  (deciderId: string): Change =>
+  (g) => ({
+    ...g,
+    decisions: [
+      ...g.decisions,
+      {
+        decision_id: `d-${deciderId}-arrived`,
+        revision: 1,
+        work_id: 'work-1',
+        plan_id: g.current_plan?.plan_id ?? 'plan-1',
+        plan_revision: g.current_plan?.revision ?? 1,
+        candidate_version_ref: null,
+        question: 'Keep the retry’s backoff at 2 s?',
+        decider_id: deciderId,
+        choices: [
+          { key: 'keep', label: 'Keep it' },
+          { key: 'longer', label: 'Make it longer' },
+        ],
+        expires_at: new Date(NOW.getTime() + 2 * 3_600_000).toISOString(),
+        state: 'proposed',
+        selected_choice: null,
+        choice_receipt_id: null,
+        plan_reaction: 'not_needed',
+      },
+    ],
+  })
+
 /** The lead's next revision, with the choice taken in. */
 const reactTo =
   (id: string): Change =>
@@ -337,6 +368,7 @@ function controls(
     receipts,
     settle: (id: string) => update(settleChoice(id)),
     react: (id: string) => update(reactTo(id)),
+    decisionArrives: (deciderId: string) => update(decisionFor(deciderId)),
     begin: (workId: string) => update(beginWith(workId, viewer)),
     reassign: (workId: string) => update(nextGeneration(workId)),
     replan: () => update(replanned),

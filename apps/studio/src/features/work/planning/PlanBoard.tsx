@@ -190,16 +190,23 @@ function useSeen(at: SeenAt, rows: readonly PlanRow[], decisions: readonly Board
   return { seen, markSeen: () => setKept({ id, seen: writeSeen(at, glance(rows, decisions)) }) }
 }
 
+/** A decision at its revision: a revised one is new to its decider. */
+const askedKey = (d: BoardDecision) => `${d.decision_id}:${String(d.revision)}`
+
 /**
  * What waits on someone's decision: a pill in the board's bar, amber and pinging when it is the viewer's, that opens
- * the decisions over the lanes. Its decider's own opens by itself the first time, so nothing of theirs hides.
+ * the decisions over the lanes. Its decider's own opens by itself the first time it is seen, at the board's opening or
+ * when it arrives later, so nothing of theirs hides; one the viewer closed stays closed (GitHub review on PR #76).
  */
 function useDecisions(decisions: readonly BoardDecision[], viewerId: string | null, now: Date) {
   const open = decisions.filter((d) => d.state === 'proposed')
   // Past its expiry, it is read, not answered: it isn't the viewer's to act on, so it calls no one.
   const mine = open.filter((d) => d.decider_id === viewerId && actionable(d, now))
-  const [shown, setShown] = useState(mine.length > 0)
-  return { open, mine, shown, toggle: () => setShown((v) => !v) }
+  const [state, setState] = useState(() => ({ shown: mine.length > 0, seen: new Set(mine.map(askedKey)) }))
+  const arrived = mine.filter((d) => !state.seen.has(askedKey(d)))
+  // One of the viewer's not seen before opens them, once, as the page renders it; nothing else reopens them.
+  if (arrived.length > 0) setState({ shown: true, seen: new Set([...state.seen, ...arrived.map(askedKey)]) })
+  return { open, mine, shown: state.shown, toggle: () => setState((s) => ({ ...s, shown: !s.shown })) }
 }
 
 interface PillProps {
@@ -291,7 +298,9 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
   // Its revision is the one the review is read with (null: no plan in force), so the card and the goal's line say the
   // same of it.
   const revision = reviewed?.revision ?? null
-  const reviewShown = review !== null && openId === review.review_id
+  // The decisions shown take the slot: a decision of the viewer's arriving while the card is open takes its place.
+  const decisionsShown = asks.shown && asks.open.length > 0
+  const reviewShown = review !== null && openId === review.review_id && !decisionsShown
   // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
   const wasShown = useRef(reviewShown)
   useEffect(() => {
@@ -307,7 +316,7 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
     reviewShown,
     focus,
     // Opening one closes the other, so the slot holds one at a time.
-    decisionsShown: asks.shown && asks.open.length > 0,
+    decisionsShown,
     toggleDecisions: () => {
       setOpenId(null)
       setFocus(null)

@@ -20,11 +20,28 @@ export const text =
     else if (test && !test.ok(value)) problems.push(`${at}: ${test.says}`)
   }
 
-/** An ISO date-time that parses. */
-export const instant = text(40, {
-  ok: (s) => /^\d{4}-\d\d-\d\dT/.test(s) && !Number.isNaN(Date.parse(s)),
-  says: 'a date-time',
-})
+/** RFC 3339's date-time (JSON Schema `date-time`): a full date, a time to the second, its fraction, and an offset. */
+const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/
+const DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+const leap = (year: number) => (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+
+/**
+ * Whether `s` is an RFC 3339 date-time naming a real moment: a date the calendar has, a time and an offset in range.
+ * Never one without its offset, which each browser would read in its own timezone, or one `Date.parse` would roll over
+ * (30 February). A leap second (:60) is refused too: the browser can't read it.
+ */
+export function isDateTime(s: string): boolean {
+  const m = DATE_TIME.exec(s)
+  if (!m) return false
+  const n = (i: number) => Number(m[i] ?? '0')
+  const month = n(2)
+  const days = month === 2 && leap(n(1)) ? 29 : (DAYS[month - 1] ?? 0)
+  const inRange = n(3) >= 1 && n(3) <= days && n(4) <= 23 && n(5) <= 59 && n(6) <= 59 && n(8) <= 23 && n(9) <= 59
+  return inRange && !Number.isNaN(Date.parse(s))
+}
+
+/** A date-time as the wire declares it (RFC 3339, isDateTime). */
+export const instant = text(40, { ok: isDateTime, says: 'an RFC 3339 date-time with its offset' })
 
 /** An integer of at least `min`. */
 export const whole =

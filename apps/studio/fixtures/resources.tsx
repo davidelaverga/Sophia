@@ -14,7 +14,7 @@
 // what they do, as on the plan's fixture (work-live.ts: Codex's reviewer moves on every 9 s), and a session's task
 // opens on that fixture's board (work.html#task-<id>), as Tasks would, when it is on it (Gemini's onboarding copy
 // isn't). An owner's act on a session is taken as a runtime would (`acted` records it, `commands` each with its exact
-// target), as on the plan's page. `unfenced=1`: the runtimes report each session's work, but not which assignment it
+// target), as on the plan's page; `reassign(sessionId)` gives a session its next assignment. `unfenced=1`: the runtimes report each session's work, but not which assignment it
 // is or its generation, so nothing can be sent to them (PR #76 review).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -70,6 +70,8 @@ declare global {
       advance?: (sessionId: string) => void
       failStop?: (sessionId: string) => void
       nextRun?: (sessionId: string) => void
+      /** The same native session is given its next assignment, at the next generation (Codex F-008). */
+      reassign?: (sessionId: string) => void
       /** The runtime refuses a session's last effort request: nothing changes. */
       refuseEffort?: (sessionId: string) => void
       spendCredits?: (left: number) => void
@@ -171,6 +173,21 @@ const withSession = (l: LiveState, id: string, change: (s: Session) => Session):
   resources: l.resources.map((r) => ({ ...r, sessions: r.sessions.map((s) => (s.id === id ? change(s) : s)) })),
 })
 
+/** The same native session, given its next assignment at the next generation, as its runtime would report it. */
+const nextAssignment = (s: Session): Session =>
+  s.assignment
+    ? {
+        ...s,
+        assignment: {
+          workId: 'next-work',
+          title: 'The next assignment',
+          state: 'running',
+          id: 'assignment-next',
+          epoch: (s.assignment.epoch ?? 0) + 1,
+        },
+      }
+    : s
+
 /** A session started with a level: ultracode is Claude Code's mode, over the effort it had. */
 const startedWith = (s: Session, level: string): Session => ({
   ...s,
@@ -251,6 +268,7 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
         if (ask?.when !== 'next') return l
         return { ...withSession(l, id, (s) => startedWith(s, ask.level)), asks: { ...l.asks, [id]: undefined } }
       }),
+    reassign: (id) => setLive((l) => withSession(l, id, nextAssignment)),
     setHost: (id, state) =>
       setLive((l) => ({
         ...l,

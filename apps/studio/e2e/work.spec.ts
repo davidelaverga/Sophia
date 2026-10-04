@@ -1611,6 +1611,43 @@ test('codex · F-005 · with no conversation connected, a failed question isn’
   expect(second).toEqual(first)
 })
 
+// ---- The GitHub review of PR #76 at be46d05: a decision arriving later opens for its decider. ----
+
+const decides = (page: Page, name: string) => board(page).getByRole('region', { name: `${name} decides` })
+const pill = (page: Page) => board(page).locator('.decision-pill:not(.review-pill)')
+
+test('pr76 · P2 · a decision arriving later for its decider opens by itself; one the viewer closed stays closed', async ({
+  page,
+}) => {
+  // Luis has none at first: the decisions stay folded under the pill.
+  await page.goto(`${PAGE}?viewer=luis`)
+  await expect(pill(page)).toHaveAttribute('aria-expanded', 'false', { timeout: 15_000 })
+  await page.evaluate(() => window.workFixture?.decisionArrives?.('luis'))
+  await expect(decides(page, 'Luis')).toBeVisible()
+  await expect(pill(page)).toHaveAttribute('aria-expanded', 'true')
+  // Davide's opens with the board; closed by him, a later observation without a new one leaves it closed.
+  await page.goto(`${PAGE}?viewer=davide`)
+  await expect(decides(page, 'Davide')).toBeVisible({ timeout: 15_000 })
+  await pill(page).click()
+  await expect(decides(page, 'Davide')).toHaveCount(0)
+  await page.evaluate(() => window.workFixture?.setLifecycle?.('work-3', 'running'))
+  await expect(pill(page)).toHaveAttribute('aria-expanded', 'false')
+  await expect(decides(page, 'Davide')).toHaveCount(0)
+  // A new one of his opens them again, the closed one with it.
+  await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
+  await expect(decides(page, 'Davide')).toHaveCount(2)
+})
+
+test('pr76 · P2 · a decision arriving while the review’s card is open takes the slot', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
+  await expect(board(page).getByRole('region', { name: 'Davide decides' }).first()).toBeVisible()
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(reviewPill(page)).toHaveAttribute('aria-expanded', 'false')
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })
