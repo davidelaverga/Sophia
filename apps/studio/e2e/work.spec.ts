@@ -1738,6 +1738,42 @@ test('codex · F-012 · a result lost since the last look is said lost, not as t
   expect(said).toBe(1)
 })
 
+// ---- CX-0014 (Codex on #74; GitHub 4179066167): a plan's Decided history is its own. ----
+
+const fold = (page: Page) => board(page).locator('.plan-fold-button')
+const own = (page: Page) => board(page).getByRole('list', { name: 'Decided', exact: true })
+const elsewhere = (page: Page) => board(page).getByRole('list', { name: 'Decided for another plan' })
+
+test('codex · F-013 · a plan lists only its own choices; another plan’s are apart, named by their revision', async ({
+  page,
+}) => {
+  // In force at r2, beside two replacements each with a choice made: r3 of the same plan, and plan-1-alt r4.
+  // Proposed only: the same, the r2 shown not accepted yet.
+  for (const query of ['', '&proposed=1']) {
+    await page.goto(`${PAGE}?viewer=davide&case=replan-decided${query}`)
+    await expect(fold(page)).toHaveText(/1 decided · 2 for another plan/, { timeout: 15_000 })
+    await fold(page).click()
+    await expect(own(page)).toContainText('Luis chose Three times') // r1's choice, carried forward
+    await expect(own(page)).not.toContainText('Use the second host')
+    await expect(own(page)).not.toContainText('Use the alternative route')
+    await expect(elsewhere(page).locator('li')).toHaveText([
+      /Davide chose Use the second host · for plan r3$/,
+      /Luis chose Use the alternative route · for plan r4$/,
+    ])
+  }
+})
+
+test('codex · F-013 · superseded, the replacement shown keeps its own choice and the history it carries', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=replan-decided&superseded=1`) // r3 shown, proposed
+  await expect(fold(page)).toHaveText(/2 decided · 1 for another plan/, { timeout: 15_000 })
+  await fold(page).click()
+  await expect(own(page)).toContainText('Luis chose Three times')
+  await expect(own(page)).toContainText('Davide chose Use the second host')
+  await expect(elsewhere(page).locator('li')).toHaveText([/Luis chose Use the alternative route · for plan r4$/])
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })

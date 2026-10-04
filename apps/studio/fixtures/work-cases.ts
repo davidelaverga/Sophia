@@ -1,6 +1,6 @@
 // The plan page's scenarios (`case=`, fixtures/work.tsx): each the first goal's view changed one way, to show one of
 // WBC-01's acceptance cases on the real board. Simulated, like the rest of the page: every fact is written here.
-import type { GoalView, ItemView, PlanItem } from '../src/features/work/planning/board-view.ts'
+import type { BoardDecision, GoalView, ItemView, PlanItem } from '../src/features/work/planning/board-view.ts'
 import { fixtureParts, type Case, type Viewer } from './work-data.ts'
 
 const { planned, projection, version, observation, claude, sophia, commands, action, ask, openResult } = fixtureParts
@@ -173,6 +173,46 @@ const replan: Change = (g) => {
   }
 }
 
+/** A choice already made, for one plan at one revision, about one of its tasks. */
+const madeFor = (
+  [planId, revision]: [string, number],
+  [id, workId, question, chosen, decider]: [string, string, string, string, string],
+): BoardDecision => ({
+  decision_id: id,
+  revision: 1,
+  work_id: workId,
+  plan_id: planId,
+  plan_revision: revision,
+  candidate_version_ref: null,
+  question,
+  decider_id: decider,
+  choices: [
+    { key: 'yes', label: chosen },
+    { key: 'no', label: 'Not yet' },
+  ],
+  expires_at: '2026-10-03T20:00:00Z',
+  state: 'accepted',
+  selected_choice: 'yes',
+  choice_receipt_id: `fixture-choice-${id}`,
+  plan_reaction: 'recorded',
+})
+
+/**
+ * Codex F-013: as `replan`, with a choice already made for each replacement, neither in force: one for the same plan's
+ * r3, one for plan-1-alt r4. The plan in force (r2) keeps only its own history.
+ */
+const replanDecided: Change = (g, viewer) => {
+  const r = replan(g, viewer)
+  const made = [
+    madeFor(['plan-1', 3], ['d-r3', 'work-6', 'Retry renders on a second host?', 'Use the second host', 'davide']),
+    madeFor(
+      ['plan-1-alt', 4],
+      ['d-alt', 'work-7', 'Retry from the report pane only?', 'Use the alternative route', 'luis'],
+    ),
+  ]
+  return { ...r, decisions: [...r.decisions, ...made] }
+}
+
 /** UI-14: Davide's choice is recorded; the lead hasn't taken it into the plan yet. */
 const reacting: Change = (g) => ({
   ...g,
@@ -341,6 +381,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   outside,
   unobserved,
   'two-current': twoCurrent,
+  'replan-decided': replanDecided,
 }
 
 /** The first goal's view in a scenario; as it is without one. */
