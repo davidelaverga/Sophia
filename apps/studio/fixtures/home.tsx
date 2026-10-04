@@ -1,24 +1,26 @@
-// Home's fixture page (e2e/home.spec.ts): the Studio's own HomeDoors, inside Places' frame, over labelled simulated
+// Home's fixture page (e2e/home.spec.ts): the Studio's own Welcome, inside Places' frame, over labelled simulated
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
-// Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`;
-// `failed` (their read failed); `explain=1` (the first-visit note), `locked=1` (the personal space locked),
-// `call=<id>` (in that project's call), `modal=1` (a sheet open over Home, as Your data would be).
-// `window.homeFixture.pressed` lists each action taken, as "open <id>", "join <id>", "personal", "work"...
+// Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`,
+// `failed` (their read failed); `locked=1` (the personal space locked), `call=<id>` (in that project's call);
+// `you=new` (no conversation yet), else one from
+// yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed".
+// `window.homeFixture.pressed` lists each action taken,
+// as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>".
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary } from '@sophia/contracts'
 import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { HomeDoors } from '../src/features/personal/HomeDoors.tsx'
+import type { PersonalTurn } from '@sophia/contracts'
 import {
   dateLine,
   greeting,
-  homeAttention,
-  homeSummary,
   READ_FAILED,
+  sophiaSays,
   workCount,
   youDoor,
 } from '../src/features/personal/places-view.ts'
+import { Welcome } from '../src/features/personal/Welcome.tsx'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
@@ -45,13 +47,7 @@ const project = (n: number, title: string, over: Partial<ProjectSummary> = {}): 
   releases: [],
   ...over,
 })
-const standup = {
-  id: 'session-1',
-  title: 'Standup',
-  startsAt: at(10),
-  endsAt: at(40),
-  timeZone: 'UTC',
-}
+const standup = { id: 'session-1', title: 'Standup', startsAt: at(10), endsAt: at(40), timeZone: 'UTC' }
 const SETS: Record<string, ProjectSummary[] | undefined> = {
   four: [
     project(1, 'Launch plan'),
@@ -67,47 +63,93 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
   loading: undefined,
   failed: undefined,
 }
-const projects = SETS[query.get('projects') ?? 'four']
-const locked = query.get('locked') === '1'
+const set = query.get('projects') ?? 'four'
+const projects = SETS[set]
 const inCall = query.get('call')
-const failed = query.get('projects') === 'failed'
+const call = inCall ? { title: projects?.find((p) => p.projectId === inCall)?.title ?? '' } : null
 
+const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
+const turn = (text: string): PersonalTurn => ({
+  id: 't1',
+  seq: 1,
+  author: 'person',
+  text,
+  createdAt: yesterday,
+  replyTo: null,
+  reply: 'answered',
+  suggestion: null,
+})
+const fresh = query.get('you') === 'new'
+const locked = query.get('locked') === '1'
+const you = youDoor({
+  locked: locked ? 'you' : null,
+  turns: fresh ? [] : [turn('The launch pressure is getting to me')],
+  notes: fresh ? 0 : 3,
+  now: NOW,
+})
+
+/** A voice this page can hear: it says one sentence, 700 ms after it starts listening. */
+class HeardRecognition extends EventTarget {
+  lang = ''
+  interimResults = false
+  continuous = false
+  processLocally = true
+  static available = () => Promise.resolve(query.get('voice') === 'none' ? 'unavailable' : 'available')
+  static install = () => Promise.resolve(true)
+  private timer = 0
+  start() {
+    this.timer = window.setTimeout(() => {
+      this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: 'the launch felt rushed' }]] }))
+      this.dispatchEvent(new Event('end'))
+    }, 700)
+  }
+  stop() {
+    clearTimeout(this.timer)
+    this.dispatchEvent(new Event('end'))
+  }
+  abort() {
+    clearTimeout(this.timer)
+  }
+}
+Reflect.set(globalThis, 'SpeechRecognition', HeardRecognition)
+
+/** Words handed to Sophia's conversation, as Places hands them (it opens Personal and its composer sends them). */
+const say = (text: string) => pressed.push(`say ${text}`)
+
+/** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
-  const [explain, setExplain] = useState(query.get('explain') === '1')
-  const press = (what: string) => () => pressed.push(what)
+  const [away, setAway] = useState(false)
   return (
     <div className="places" data-place="home">
-      <div className="c-home" data-place-view="home">
-        <HomeDoors
-          hello={greeting(NOW.getHours(), 'Luis', false)}
+      <button className="fixture-away" type="button" onClick={() => setAway((was) => !was)}>
+        {away ? 'Back to Home' : 'Leave Home'}
+      </button>
+      <div className="c-home" data-place-view="home" hidden={away}>
+        <Welcome
+          hello={greeting(NOW.getHours(), null, false)}
+          name="Luis"
           date={dateLine(NOW)}
-          summary={homeSummary(projects, NOW)}
-          attention={homeAttention(projects, NOW, inCall)}
-          explain={explain}
-          reads={failed ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }] : []}
-          loadingProjects={!projects && !failed}
-          you={youDoor({ locked: locked ? 'you' : null, turns: [], notes: 0, now: NOW })}
-          count={workCount(projects)}
+          says={sophiaSays(projects, NOW, call)}
+          you={you}
+          reads={set === 'failed' ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }] : []}
           projects={projects}
+          loadingProjects={set === 'loading'}
           now={NOW}
           inCallProject={inCall}
-          lockedBy={locked ? 'you' : null}
+          count={workCount(projects)}
+          locked={locked}
+          hidden={away}
           actions={{
-            personal: press('personal'),
-            notes: press('notes'),
-            work: press('work'),
-            newProject: press('new project'),
-            lock: press('lock'),
-            explained: () => setExplain(false),
+            personal: () => pressed.push('personal'),
+            notes: () => pressed.push('notes'),
+            work: () => pressed.push('work'),
+            newProject: () => pressed.push('new project'),
+            unlock: () => pressed.push('unlock'),
             room: (projectId, action) => pressed.push(`${action} ${projectId}`),
+            say,
           }}
         />
       </div>
-      {query.get('modal') === '1' && (
-        <div className="fixture-sheet" role="dialog" aria-modal="true" aria-label="Your data">
-          A sheet over Home
-        </div>
-      )}
     </div>
   )
 }

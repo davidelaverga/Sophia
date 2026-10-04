@@ -159,395 +159,373 @@
 }
 
 /* ---------- Home: the Welcome (docs/plans/home-welcome.md) ---------- */
-/* One column of the Studio's views' width, top-aligned, as Tasks and Resources are. */
+/* An editorial page: one column on the left, Sophia's light alone on the right. Type does the work; hairlines, no
+   cards; one accent, only when something is urgent. */
 .places .c-home {
   position: absolute;
   inset: var(--topbar) 0 0;
   overflow: auto;
-  padding: 40px var(--gutter) 48px;
 }
-/* A column (flex, not grid): a folding note's negative margin then takes its gap with it, the one gap both share. */
-.places .c2-page {
-  --home-gap: 18px;
+.places .hw {
+  position: relative;
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  gap: 40px;
+  padding: clamp(48px, 11vh, 120px) clamp(24px, 10vw, 200px) 64px;
+}
+.places .hw-col {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--home-gap);
-  width: min(960px, 100%);
-  margin: 0 auto;
 }
-/* The views' head: the greeting on the left, a summary on the right, a hairline under both. */
-.places .c2-hello {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 4px 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-  animation: ps-arrive 320ms var(--ease) both;
-}
-.places .c2-hello h2 {
-  font-size: clamp(20px, 1.9vw, 22px);
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-}
-.places .c2-date {
-  margin-top: 4px;
-  color: var(--text-sec);
-  font-size: 13px;
-}
-.places .c2-summary {
+.places .hw-date {
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-3);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+  animation: hw-in 520ms var(--ease) both;
 }
-/* What wants you now, said once, with the views' dot: amber for a session about to start, teal for a live room. */
-.places .c2-attention {
+.places .hw-hello {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 6px 6px 14px;
-  border-radius: var(--r-3);
-  box-shadow: inset 0 0 0 1px var(--line);
-  background: var(--plane);
+  margin-top: 18px;
+  font-size: clamp(38px, 3.6vw, 52px);
+  font-weight: 440;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+.places .hw-hello > span {
+  animation: hw-in 620ms var(--ease) both;
+}
+.places .hw-hello > span + span {
+  animation-delay: 70ms;
+}
+.places .hw-name {
+  color: var(--text-3);
+}
+.places .hw-says {
+  max-width: 460px;
+  margin-top: 22px;
   color: var(--text-2);
-  font-size: 13px;
-  animation: ps-arrive 320ms var(--ease) 60ms both;
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  animation: hw-in 620ms var(--ease) 140ms both;
 }
-.places .c2-attention-dot,
-.places .c2-row-dot {
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--teal);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 18%, transparent);
+.places .hw-says strong {
+  color: var(--text);
+  font-weight: 500;
 }
-.places .c2-attention[data-tone='soon'] .c2-attention-dot,
-.places .c2-row[data-soon] .c2-row-dot {
-  background: var(--amber);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 18%, transparent);
-  animation: c2-soon 2.4s ease-in-out infinite;
+.places .hw .wait-note,
+.places .hw .place-notices {
+  margin-top: 18px;
 }
-@keyframes c2-soon {
-  50% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 6%, transparent);
+@keyframes hw-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }
-.places .c2-doors {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) 48px minmax(0, 7fr);
-  align-items: stretch;
-  animation: ps-arrive 360ms var(--ease) 90ms both;
+
+/* Two sections, each a label over an index: you and Sophia (private), then your projects. */
+.places .hw-section {
+  --d: 220ms;
+  margin-top: 48px;
 }
-.places .c2-door {
-  position: relative;
-  overflow: hidden;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  gap: 4px;
-  min-height: 0;
-  padding: 20px 22px 18px;
-  border-radius: var(--r-4);
-  border: 1px solid var(--line-2);
-  background: var(--plane);
-  cursor: pointer;
-  transition:
-    border-color var(--base) var(--ease),
-    background var(--base) var(--ease);
+.places .hw-section + .hw-section {
+  --d: 360ms;
+  margin-top: 44px;
 }
-.places .c2-door:hover {
-  border-color: var(--line-3);
+.places .hw-label {
+  margin-bottom: 12px;
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  animation: hw-in 520ms var(--ease) var(--d) both;
 }
-.places .c2-door.you:hover {
-  background: var(--plane-2);
+.places .hw-you .hw-label {
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
 }
-.places .c2-door:has(.c2-main:focus-visible) {
-  outline: 2px solid rgba(185, 168, 255, 0.7);
-  outline-offset: 3px;
-}
-.places .c2-door h3 {
-  font-size: 18px;
-  letter-spacing: -0.02em;
-}
-.places .c2-door .field-label {
-  color: var(--text-sec);
-}
-.places .c2-door.you .field-label {
-  color: var(--warm);
-}
-/* Sophia's own light, at rest in her door; it turns to you while you point at it (HomeDoors.tsx). */
-.places .c2-visual {
-  position: relative;
-  min-height: 188px;
-  margin: 2px -22px 0;
-}
-/* Her glow fades out before the box does, so no edge of it shows in the door. Masked, the light is a group of its
-   own: the group itself is screened onto the door, as its canvas is on a screen without one. */
-.places .c2-visual .light {
-  mask-image: radial-gradient(closest-side, #000 45%, transparent);
-  mix-blend-mode: screen;
-}
-.places .c2-foot {
-  display: grid;
-  gap: 10px;
-}
-.places .c2-main {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  align-items: end;
-  column-gap: 12px;
-  width: 100%;
-  padding: 14px 0 0;
-  border: 0;
-  border-top: 1px solid var(--line-2);
-  border-radius: 0;
-  background: none;
-  color: var(--text);
-  text-align: left;
-}
-.places .c2-main:focus-visible {
-  outline: none;
-}
-/* The door's main action covers the door, so a click anywhere opens that side; the rows sit above it. */
-.places .c2-main::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: var(--r-4);
-}
-.places .c2-verb {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.places .c2-meta {
-  grid-row: 2;
-  min-height: 1.5em;
-  color: var(--text-sec);
-  font-size: 12.5px;
-}
-.places .c2-arrow {
-  grid-row: 1 / span 2;
-  grid-column: 2;
-  align-self: center;
-  color: var(--text-sec);
-  transition:
-    transform var(--base) var(--ease),
-    color var(--base);
-}
-.places .c2-door.you:hover .c2-arrow,
-.places .c2-door:has(.c2-main:hover) .c2-arrow,
-.places .c2-door:has(.c2-main:focus-visible) .c2-arrow {
-  transform: translateX(4px);
-  color: var(--text);
-}
-.places .c2-acts {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  gap: 2px;
-  margin-left: -8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-/* The projects Work shows first, one press each: the board's tiles as rows (board.css, resources.css). */
-/* Above the door's own action, which covers the door: a row is pressed, not the door under it. */
-.places .c2-rows {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  margin: 12px 0 14px;
+
+/* The index: rows on hairlines that draw from the left as they arrive. */
+.places .hw-index {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
-.places .c2-rows > li {
-  animation: ps-arrive 320ms var(--ease) both;
-  animation-delay: calc(140ms + var(--i, 0) * 50ms);
-}
-.places .c2-row {
+.places .hw-index > li {
   position: relative;
-  z-index: 2;
+  animation: hw-in 520ms var(--ease) both;
+  animation-delay: calc(var(--d, 220ms) + var(--i, 0) * 60ms);
+}
+.places .hw-index > li::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: var(--line);
+  transform-origin: left;
+  animation: hw-draw 700ms var(--ease) both;
+  animation-delay: calc(var(--d, 220ms) + var(--i, 0) * 60ms);
+}
+.places .hw-index > li:last-child::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: var(--line);
+}
+@keyframes hw-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+.places .hw-row {
+  position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto 20px;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   width: 100%;
-  min-height: 52px;
-  padding: 9px 12px;
+  height: 54px;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-3);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent), var(--plane-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--text);
+  background: none;
+  color: var(--text-2);
   text-align: left;
   cursor: pointer;
-  transition:
-    transform var(--base) var(--ease),
-    box-shadow var(--base) var(--ease);
 }
-.places .c2-row[data-soon] {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 32%, var(--line));
+.places .hw-n {
+  font: 500 11px/1 var(--mono);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--base) var(--ease);
 }
-.places .c2-row:focus-visible {
-  outline: 2px solid var(--halo);
-  outline-offset: 2px;
-}
-.places .c2-row:active {
-  transform: scale(0.99);
-}
-.places .c2-mono {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r-2);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-  background: var(--plane);
-  color: var(--text-2);
-  font: 600 13px/1 var(--sans);
-  transition: color var(--base);
-}
-.places .c2-row-body {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.places .c2-row-title,
-.places .c2-row-meta {
+.places .hw-t {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 480;
+  letter-spacing: -0.012em;
+  transition: color var(--base) var(--ease);
 }
-.places .c2-row-title {
-  font-size: 14px;
-  font-weight: 560;
-  letter-spacing: -0.01em;
-}
-.places .c2-row-meta {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+.places .hw-m {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 13px;
+  white-space: nowrap;
 }
-.places .c2-row-dot {
-  width: 6px;
-  height: 6px;
+.places .hw-row[data-tone='soon'] .hw-m {
+  color: #e8c48d;
 }
-/* Who is in the room: warm initials, Sophia as her light. */
-.places .c2-faces {
+.places .hw-row[data-tone='live'] .hw-m {
+  color: color-mix(in srgb, var(--teal) 80%, var(--text));
+}
+/* Its action, once pointed at: the arrow slides in; its words are for screen readers and touch. */
+.places .hw-go {
   display: flex;
-  align-items: center;
-}
-.places .c2-faces .p {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.45);
-  background: var(--plane);
-  color: var(--warm);
-  font: 600 10px/1 var(--sans);
-  transition: transform var(--base) var(--ease);
-}
-.places .c2-faces .p + .p {
-  margin-left: -6px;
-}
-.places .c2-faces .s {
-  width: 8px;
-  height: 8px;
-  margin-left: 8px;
-  border-radius: 50%;
-  background: var(--core);
-  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.55);
-}
-/* Its action, once the row is pointed at or focused: Open, Join, Leave. */
-.places .c2-row-go {
-  color: var(--halo-text);
-  font-size: 12.5px;
-  font-weight: 560;
+  justify-content: flex-end;
+  color: var(--text-2);
   opacity: 0;
   transform: translateX(-4px);
   transition:
     opacity var(--base) var(--ease),
     transform var(--base) var(--ease);
 }
-.places .c2-row:focus-visible .c2-row-go {
+.places .hw-go-words {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.places .hw-row:hover .hw-t,
+.places .hw-row:focus-visible .hw-t {
+  color: var(--text);
+}
+.places .hw-row:hover .hw-n,
+.places .hw-row:focus-visible .hw-n {
+  color: var(--halo-text);
+}
+.places .hw-row:hover .hw-go,
+.places .hw-row:focus-visible .hw-go {
   opacity: 1;
   transform: none;
 }
-/* Without a pointer that hovers, the action is there before the tap that takes it. */
-@media (hover: none) {
-  .places .c2-row .c2-row-go {
-    opacity: 1;
-    transform: none;
-  }
+.places .hw-row:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+  border-radius: var(--r-2);
 }
+/* The pointer's light, very faint, along the row. */
 @media (hover: hover) {
-  .places .c2-row::before {
+  .places .hw-row::before {
     content: '';
     position: absolute;
-    inset: 0;
+    inset: 0 -12px;
     z-index: -1;
-    border-radius: inherit;
-    background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 0), rgba(156, 130, 245, 0.1), transparent 70%);
+    border-radius: var(--r-3);
+    background: radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 50%),
+      rgba(156, 130, 245, 0.07),
+      transparent 70%
+    );
     opacity: 0;
     transition: opacity var(--base) var(--ease);
     pointer-events: none;
   }
-  .places .c2-row:hover {
-    transform: translateY(-1px);
-    box-shadow:
-      inset 0 0 0 1px var(--line-2),
-      0 8px 22px rgba(0, 0, 0, 0.32);
-  }
-  .places .c2-row:hover::before {
+  .places .hw-row:hover::before {
     opacity: 1;
   }
-  .places .c2-row:hover .c2-row-go {
+}
+/* Without a pointer that hovers, a row that joins or takes you back says so before it is tapped, in its own width. */
+@media (hover: none) {
+  .places .hw-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  }
+  .places .hw-row:not([data-act='open']) .hw-go {
     opacity: 1;
     transform: none;
   }
-  .places .c2-row:hover .c2-mono {
-    color: var(--text);
-  }
-  .places .c2-row:hover .c2-faces .p {
-    transform: scale(1.06);
-  }
-  .places .c2-row:active {
-    transform: translateY(0) scale(0.99);
+  .places .hw-row:not([data-act='open']) .hw-go-words {
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    margin-right: 6px;
+    font-size: 12.5px;
+    color: var(--halo-text);
   }
 }
-/* No projects yet: one quiet, dashed row starts the first. */
-.places .c2-row.empty {
-  grid-template-columns: 32px minmax(0, 1fr);
+/* Your row: Sophia's own small light where a project has its number; the padlock when your space is locked. */
+.places .hw-her {
+  width: 7px;
+  height: 7px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--core);
+  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.55);
+}
+.places .hw-her.locked {
+  width: auto;
+  height: auto;
+  margin: 0;
   background: none;
   box-shadow: none;
-  outline: 1px dashed var(--line-2);
-  outline-offset: -1px;
+  color: var(--warm);
 }
-.places .c2-row.empty .c2-mono {
-  background: none;
-  color: var(--text-sec);
+.places .hw-row[data-tone='you'] .hw-t {
+  color: var(--text);
 }
-/* While they load: rows of light, as Resources' placeholders, claiming nothing. */
-.places .c2-row.placeholder {
+.places .hw-more .hw-t {
+  color: var(--text-3);
+  font-size: 13.5px;
+}
+.places .hw-row.placeholder {
+  height: 54px;
   pointer-events: none;
-  cursor: default;
-  background: linear-gradient(90deg, var(--plane-2) 30%, #17161e 50%, var(--plane-2) 70%) 0 0 / 300% 100%;
-  animation: c2-placeholder 1.6s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.035), transparent) 0 0 / 200% 100%;
+  animation: hw-placeholder 1.6s linear infinite;
 }
-@keyframes c2-placeholder {
+@keyframes hw-placeholder {
   to {
-    background-position: -100% 0;
+    background-position: -200% 0;
   }
+}
+
+/* One line to talk to Sophia, no box. */
+.places .hw-say {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  height: 46px;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: none;
+  color: var(--text-3);
+  text-align: left;
+  transition: border-color var(--base) var(--ease);
+  animation: hw-in 520ms var(--ease) calc(var(--d, 220ms) + 160ms) both;
+}
+/* Speaking: the line listens, its hairline lit and moving; the microphone is the one way out. */
+.places .hw-mic {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+.places .hw-mic:hover {
+  color: var(--text);
+}
+.places .hw-mic[aria-pressed='true'] {
+  color: var(--halo-text);
+  background: rgba(156, 130, 245, 0.12);
+  animation: hw-listen 1.6s ease-in-out infinite;
+}
+@keyframes hw-listen {
+  50% {
+    box-shadow: 0 0 0 6px rgba(156, 130, 245, 0.08);
+  }
+}
+.places .hw-say[data-listening] {
+  border-bottom-color: rgba(185, 168, 255, 0.7);
+}
+.places .hw-say:focus-within {
+  border-bottom-color: rgba(185, 168, 255, 0.55);
+}
+/* The Studio's fields are boxes; this one is a line: none of their edge, ring or fill, focused or not. */
+.places .hw-say input,
+.places .hw-say input:hover,
+.places .hw-say input:focus,
+.places .hw-say input:focus-visible {
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: none;
+  color: var(--text);
+  font: 15px/1 var(--sans);
+  letter-spacing: -0.005em;
+}
+.places .hw-say input::placeholder {
+  color: var(--text-3);
+}
+.places .hw-say kbd {
+  font: 500 11px var(--mono);
+  color: var(--text-3);
+}
+
+/* Sophia's light, alone on the right, about level with the greeting; her glow fades out before her box does. */
+.places .hw-light {
+  position: relative;
+  align-self: start;
+  justify-self: center;
+  width: min(100%, 480px);
+  aspect-ratio: 1;
+  margin-top: -20px;
+}
+.places .hw-light .light {
+  mask-image: radial-gradient(closest-side, #000 50%, transparent);
+  mix-blend-mode: screen;
 }
 .places .sdot {
   width: 8px;
@@ -575,128 +553,6 @@
 }
 .places .pdot:last-of-type {
   margin-right: 4px;
-}
-.places .c2-line {
-  position: relative;
-  display: grid;
-  place-items: center;
-}
-.places .c2-line::before {
-  content: '';
-  position: absolute;
-  top: 12%;
-  bottom: 12%;
-  left: 50%;
-  width: 1px;
-  background: linear-gradient(transparent, var(--line-3) 25%, var(--line-3) 75%, transparent);
-}
-/* The padlock on the line, a control like any other: a square with a small radius. */
-.places .c2-lock {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: var(--r-3);
-  border: 1px solid var(--line-2);
-  background: var(--void);
-  color: var(--text-sec);
-  transition:
-    color var(--fast),
-    border-color var(--fast);
-}
-.places .c2-lock:hover {
-  color: var(--warm);
-  border-color: rgba(241, 220, 199, 0.45);
-}
-/* The padlock shows its state: open while your personal space is open, shut and warm once it is locked. */
-.places .c2-lock .shut {
-  display: none;
-}
-.places .c2-lock[data-locked='true'] .open {
-  display: none;
-}
-.places .c2-lock[data-locked='true'] .shut {
-  display: block;
-}
-.places .c2-lock[data-locked='true'] {
-  color: var(--warm);
-  border-color: rgba(241, 220, 199, 0.55);
-  background: #15110f;
-}
-/* A locked Personal door: the light goes dark and a padlock sits where it was. */
-.places .c2-locked {
-  position: absolute;
-  inset: 0;
-  display: none;
-  place-items: center;
-  color: var(--warm);
-}
-.places .c2-door.you.locked .c2-locked {
-  display: grid;
-}
-.places .c2-door.you.locked .light {
-  filter: grayscale(1) brightness(0.4);
-}
-.places .c2-door.you.locked .field-label {
-  color: var(--text-sec);
-}
-/* The line explained in one sentence, above the doors; "Got it" folds it away (its row and its gap close together). */
-.places .c2-fold {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition:
-    grid-template-rows 260ms var(--ease),
-    margin-top 260ms var(--ease),
-    opacity 180ms var(--ease);
-}
-.places .c2-fold[data-folding] {
-  grid-template-rows: 0fr;
-  margin-top: calc(-1 * var(--home-gap));
-  opacity: 0;
-}
-/* Its padding and edge live inside the row that closes, so nothing of it is left to jump when it goes. */
-.places .c2-fold > div {
-  min-height: 0;
-  overflow: hidden;
-}
-.places .c2-intro {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px 10px;
-  padding: 10px 14px;
-  border-radius: var(--r-3);
-  border: 1px solid rgba(241, 220, 199, 0.22);
-  background: rgba(241, 220, 199, 0.04);
-  color: var(--text-2);
-  font-size: 13px;
-  animation: ps-arrive 220ms var(--ease);
-}
-.places .c2-intro strong {
-  color: var(--warm);
-  font-weight: 560;
-}
-.places .c2-intro-lock {
-  display: grid;
-  color: var(--warm);
-}
-.places .c2-intro .text-button {
-  justify-self: end;
-}
-@media (max-width: 560px) {
-  .places .c2-intro {
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
-  }
-  .places .c2-intro-lock {
-    margin-top: 3px;
-  }
-  .places .c2-intro .text-button {
-    grid-column: 2;
-    justify-self: start;
-  }
 }
 /* A read that is failing says so where its content would be, with the way to ask again. */
 .places .place-notices {
@@ -1547,25 +1403,9 @@
   }
 }
 
-/* Narrow screens: the doors stack with a horizontal boundary, the side lanes give way to the bar's switch, notes
-   become a sheet, and being in a room becomes a strip under the bar, like a call in progress. */
+/* Narrow screens: the side lanes give way to the bar's switch, notes become a sheet, and being in a room becomes a
+   strip under the bar, like a call in progress. */
 @media (max-width: 860px) {
-  .places .c2-doors {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-  }
-  .places .c2-line {
-    min-height: 34px;
-  }
-  .places .c2-line::before {
-    top: 50%;
-    bottom: auto;
-    left: 12%;
-    right: 12%;
-    width: auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--line-3) 25%, var(--line-3) 75%, transparent);
-  }
   .places .c3-space {
     padding-inline: var(--gutter);
   }
@@ -1612,32 +1452,46 @@
     grid-column: 1;
     justify-self: start;
   }
-  /* Phone doors: one column, Sophia's light shorter, every project still one press. */
-  .places .c2-door {
-    padding: 16px 16px 14px;
-  }
-  .places .c2-visual {
-    min-height: 120px;
-    margin-inline: -16px;
-  }
-  .places .c2-hello {
+  /* Phone: one column; her light sits behind the greeting, top right, smaller. */
+  .places .hw {
     grid-template-columns: minmax(0, 1fr);
+    padding: 32px var(--gutter) 40px;
   }
-  .places .c2-summary {
-    text-align: left;
+  .places .hw-light {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 220px;
+    height: 220px;
+    min-height: 0;
+    margin: 0;
+    opacity: 0.85;
   }
-  .places .c2-row {
-    grid-template-columns: 32px minmax(0, 1fr) auto;
+  /* A row in two lines: its note under its title, its action on the right. */
+  .places .hw-row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'n t go'
+      'n m go';
+    row-gap: 2px;
+    height: auto;
+    min-height: 58px;
+    padding: 10px 0;
   }
-  /* On a phone, a row that joins a room (or goes back to yours) says so before it is tapped; Open goes without saying. */
-  .places .c2-row[data-act='open'] .c2-row-go {
-    display: none;
+  .places .hw-n {
+    grid-area: n;
   }
-  .places .c-home {
-    padding-top: 20px;
+  .places .hw-t {
+    grid-area: t;
   }
-  .places .c2-page {
-    --home-gap: 14px;
+  .places .hw-m {
+    grid-area: m;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12.5px;
+  }
+  .places .hw-go {
+    grid-area: go;
   }
   .places .places-bar {
     grid-template-columns: auto 1fr auto;
@@ -1691,8 +1545,9 @@
    pill grows with its switches. */
 @media (pointer: coarse) {
   .places .chip-private,
+  .places .hw-mic,
   .places .c3-daypill,
-  .places .c2-lock {
+  .places .c3-edge .c2-lock {
     min-width: 40px;
     min-height: 40px;
   }
@@ -1717,20 +1572,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .places .c2-hello,
-  .places .c2-attention,
-  .places .c2-doors,
-  .places .c2-rows > li,
-  .places .c2-attention-dot,
-  .places .c2-row-dot,
-  .places .c2-row.placeholder {
+  .places .hw-date,
+  .places .hw-hello > span,
+  .places .hw-says,
+  .places .hw-index > li,
+  .places .hw-index > li::before,
+  .places .hw-say,
+  .places .hw-label,
+  .places .hw-mic,
+  .places .hw-row.placeholder {
     animation: none;
   }
-  .places .c2-row,
-  .places .c2-row:hover,
-  .places .c2-row:active,
-  .places .c2-fold {
-    transform: none;
+  .places .hw-go,
+  .places .hw-row::before {
     transition: none;
   }
 }

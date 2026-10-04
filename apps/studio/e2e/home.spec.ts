@@ -1,193 +1,201 @@
-// Home, the Welcome (docs/plans/home-welcome.md): a place that knows where you'll go. Its fixture page renders the
-// Studio's own HomeDoors over labelled projects (fixtures/home.tsx).
+// Home, the Welcome (docs/plans/home-welcome.md): an editorial page that knows you. Its fixture page renders the
+// Studio's own Welcome over labelled projects (fixtures/home.tsx).
 import { expect, test, type Page } from '@playwright/test'
 
 const PAGE = '/home.html'
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
 const pressed = (page: Page) => page.evaluate(() => window.homeFixture?.pressed ?? [])
-const rows = (page: Page) => page.getByRole('list', { name: 'Your projects' }).getByRole('listitem')
-const row = (page: Page, title: string) => page.getByRole('button', { name: new RegExp(`^${title}`) })
+const index = (page: Page) => page.getByRole('list', { name: 'Your projects' })
+const row = (page: Page, title: string) => index(page).getByRole('button', { name: new RegExp(title) })
+const light = (page: Page) => page.locator('[data-door="personal"] .light')
+const line = (page: Page) => page.getByRole('textbox', { name: 'Say something to Sophia' })
 
 declare global {
   interface Window {
-    homeTops?: number[]
     homeFramesAsked?: number
   }
 }
 
-test('home · your likeliest projects, one press each, in Work’s order', async ({ page }) => {
+test('home · the greeting, and Sophia’s one sentence: the session about to start', async ({ page }) => {
   await page.goto(PAGE)
-  await expect(rows(page)).toHaveCount(3)
-  await expect(rows(page).nth(0)).toContainText('Product launch')
-  await expect(rows(page).nth(0)).toContainText('session starts in 10 min')
-  await expect(rows(page).nth(1)).toContainText('Launch plan')
-  await expect(rows(page).nth(2)).toContainText('Research notes')
-  await expect(page.getByText('Design review')).toHaveCount(0) // the fourth waits in Work
+  await expect(page.locator('.hw-hello')).toHaveText(/,\s*Luis\.$/)
+  await expect(page.locator('.hw-says')).toHaveText('Standup in Product launch starts in 10 min.')
+  await expect(page.locator('.hw-says strong')).toHaveText('Product launch')
+})
+
+test('home · the index: Work’s first three, numbered, each saying quietly what matters, then all of them', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const rows = index(page).getByRole('listitem')
+  await expect(rows).toHaveCount(4) // three projects, then "All 4 projects"
+  await expect(rows.nth(0)).toContainText('01Product launchStandup starts in 10 min')
+  await expect(rows.nth(1)).toContainText('02Launch planYou and 2 others')
+  await expect(rows.nth(2)).toContainText('03Research notesYou and 1 other')
+  await expect(page.getByText('Design review')).toHaveCount(0)
+  await expect(rows.nth(0).locator('.hw-row')).toHaveAttribute('data-tone', 'soon')
   await row(page, 'Launch plan').click()
-  expect(await pressed(page)).toEqual([`open ${id(1)}`])
-  await page.getByRole('button', { name: /^All projects/ }).click()
+  await index(page)
+    .getByRole('button', { name: /All 4 projects/ })
+    .click()
   expect(await pressed(page)).toEqual([`open ${id(1)}`, 'work'])
 })
 
-test('home · a room with people in it says who, and its row joins', async ({ page }) => {
+test('home · a live room is said in Sophia’s sentence and on its row, and the row joins', async ({ page }) => {
   await page.goto(`${PAGE}?projects=live`)
-  const live = row(page, 'Pitch deck')
-  await expect(live).toContainText('Davide and Sophia are in the room')
-  await live.click()
+  await expect(page.locator('.hw-says')).toHaveText('Davide and Sophia are in Pitch deck.')
+  await expect(row(page, 'Pitch deck')).toContainText('Davide and Sophia are here')
+  await row(page, 'Pitch deck').click()
   expect(await pressed(page)).toEqual([`join ${id(5)}`])
 })
 
-test('home · ↑ and ↓ move between the projects, Enter opens', async ({ page }) => {
+test('home · the call you are in: Sophia says so, and its row takes you back, never hangs up', async ({ page }) => {
+  await page.goto(`${PAGE}?call=${id(1)}`)
+  await expect(page.locator('.hw-says')).toHaveText('You’re in Launch plan’s room.')
+  await expect(row(page, 'Launch plan')).toContainText('You’re in the room')
+  await row(page, 'Launch plan').click()
+  expect(await pressed(page)).toEqual([`back ${id(1)}`])
+})
+
+test('home · ↑ and ↓ move in the index, Enter opens', async ({ page }) => {
   await page.goto(PAGE)
   await row(page, 'Product launch').focus()
   await page.keyboard.press('ArrowDown')
   await expect(row(page, 'Launch plan')).toBeFocused()
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('ArrowDown') // stays on the last
-  await expect(row(page, 'Research notes')).toBeFocused()
   await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('ArrowUp') // holds at the first
+  await expect(row(page, 'Product launch')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
   expect(await pressed(page)).toEqual([`open ${id(1)}`])
 })
 
-test('home · the head sums up; a session about to start is said once, and its Join joins', async ({ page }) => {
-  await page.goto(PAGE)
-  await expect(page.locator('.c2-hello')).toContainText('4 projects · Standup starts in 10 min')
-  const attention = page.locator('.c2-attention')
-  await expect(attention).toContainText('Standup in Product launch starts in 10 min')
-  await attention.getByRole('button', { name: 'Join' }).click()
-  expect(await pressed(page)).toEqual([`join ${id(4)}`])
-  // Already in a call: the bar's room pill says so; Home doesn't again.
-  await page.goto(`${PAGE}?call=${id(1)}`)
-  await expect(rows(page)).toHaveCount(3)
-  await expect(page.locator('.c2-attention')).toHaveCount(0)
-})
-
-test('home · no projects: one quiet row starts the first; while they load, nothing says there are none', async ({
+test('home · no projects: Sophia invites, one row starts the first; loading claims nothing; a failure says so', async ({
   page,
 }) => {
   await page.goto(`${PAGE}?projects=none`)
-  await page.getByRole('button', { name: /^Start a project/ }).click()
+  await expect(page.locator('.hw-says')).toHaveText('Start a project when you’re ready, or just talk to me.')
+  await index(page)
+    .getByRole('button', { name: /Start a project/ })
+    .click()
   expect(await pressed(page)).toEqual(['new project'])
   await page.goto(`${PAGE}?projects=loading`)
-  await expect(page.getByRole('button', { name: /^Start a project/ })).toHaveCount(0)
-  await expect(page.getByText('No projects yet')).toHaveCount(0)
+  await expect(page.locator('.hw-row.placeholder')).toHaveCount(3)
+  expect(
+    await page
+      .locator('.hw-row.placeholder')
+      .first()
+      .evaluate((el) => getComputedStyle(el).pointerEvents),
+  ).toBe('none')
+  await expect(page.locator('.hw-says')).toHaveCount(0)
+  await page.goto(`${PAGE}?projects=failed`)
+  await expect(page.getByText('Couldn’t load your projects.')).toBeVisible()
+  await expect(page.locator('.hw-row.placeholder')).toHaveCount(0)
 })
 
-/** The Work door's top, each frame from the press until the note has gone and a few frames after. */
-async function foldTops(page: Page, fold: () => Promise<void>): Promise<number[]> {
-  // Measured once the page has settled: its own face of the font in, its arrival done.
-  await page.evaluate(async () => {
-    await document.fonts.ready
-  })
-  await page.waitForTimeout(700)
-  await page.evaluate(() => {
-    const tops: number[] = []
-    window.homeTops = tops
-    const door = document.querySelector('[data-door="work"]')
-    let after = 0
-    const look = () => {
-      if (door) tops.push(door.getBoundingClientRect().top)
-      if (!document.querySelector('.c2-intro')) after++
-      if (after < 6) requestAnimationFrame(look)
-    }
-    requestAnimationFrame(look)
-  })
-  await fold()
-  await expect(page.getByRole('note').filter({ hasText: 'Private on the left' })).toHaveCount(0)
-  await page.waitForTimeout(200)
-  return page.evaluate(() => window.homeTops ?? [])
-}
-
-/**
- * It glides: no frame moves it half the way (a jump would be all of it at once, even on a slow runner), the last frames don't
- * move it at all (no step as the note goes), and it ends higher.
- */
-function expectGlide(tops: number[]) {
-  const steps = tops.slice(1).map((y, i) => Math.abs(y - (tops[i] ?? y)))
-  const travel = Math.abs((tops[0] ?? 0) - (tops.at(-1) ?? 0))
-  expect(travel).toBeGreaterThan(20)
-  expect(Math.max(...steps)).toBeLessThan(travel / 2)
-  expect(Math.max(...steps.slice(-5))).toBeLessThan(1)
-  expect(tops.at(-1) ?? 0).toBeLessThan(tops[0] ?? 0)
-}
-
-test('home · “Got it” folds the note away smoothly: the doors glide up, they never jump', async ({ page }) => {
-  await page.goto(`${PAGE}?explain=1`)
-  await expect(page.getByRole('note').filter({ hasText: 'Private on the left' })).toBeVisible()
-  expectGlide(await foldTops(page, () => page.getByRole('button', { name: 'Got it' }).click()))
-})
-
-test('home · Esc folds the note the same way', async ({ page }) => {
-  await page.goto(`${PAGE}?explain=1`)
-  await expect(page.getByRole('note').filter({ hasText: 'Private on the left' })).toBeVisible()
-  expectGlide(await foldTops(page, () => page.keyboard.press('Escape')))
-})
-
-test('@phone · home · on a phone too, the note folds away without a step', async ({ page }) => {
-  await page.goto(`${PAGE}?explain=1`)
-  await expect(page.getByRole('note').filter({ hasText: 'Private on the left' })).toBeVisible()
-  expectGlide(await foldTops(page, () => page.getByRole('button', { name: 'Got it' }).click()))
-})
-
-test('home · the call you are in: its row takes you back to the room, it never hangs up', async ({ page }) => {
-  await page.goto(`${PAGE}?call=${id(1)}`)
-  const yours = row(page, 'Launch plan')
-  await expect(yours).toContainText('Back to the room')
-  await yours.click()
-  expect(await pressed(page)).toEqual([`back ${id(1)}`])
-})
-
-test('home · while the projects load, their placeholders can’t be pressed', async ({ page }) => {
-  await page.goto(`${PAGE}?projects=loading`)
-  const placeholder = page.locator('.c2-row.placeholder').first()
-  await expect(placeholder).toBeVisible()
-  expect(await placeholder.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none')
-})
-
-test('@phone · home · on touch, a row that joins a room says so before it is tapped', async ({ page }) => {
-  await page.goto(`${PAGE}?projects=live`)
-  await expect(row(page, 'Pitch deck').getByText('Join the room')).toBeVisible()
-})
-
-test('home · Sophia’s light turns to you while you point at her door, and rests when you leave', async ({ page }) => {
+test('home · “/” reaches the line; your words go to her conversation, which sends them as its own', async ({
+  page,
+}) => {
   await page.goto(PAGE)
-  const light = page.locator('[data-door="personal"] .light')
-  await expect(light).toHaveAttribute('data-mode', 'rest')
-  const box = await page.locator('[data-door="personal"]').boundingBox()
-  await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 120)
-  await expect(light).toHaveAttribute('data-mode', 'listen')
-  await expect(light).toHaveAttribute('data-attention', /\d+ \d+/)
-  await page.mouse.move(5, 5)
-  await expect(light).toHaveAttribute('data-mode', 'rest')
-  await page.locator('[data-door="personal"]').click()
+  await page.keyboard.press('/')
+  await expect(line(page)).toBeFocused()
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  await page.keyboard.type('How did the launch go?')
+  await page.keyboard.press('Enter')
+  expect(await pressed(page)).toEqual(['say How did the launch go?'])
+  await expect(line(page)).toHaveValue('') // handed, not kept: Personal's composer has them now
+})
+
+test('home · with a sheet open over Home, “/” leaves the focus where it is', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.evaluate(() => {
+    const sheet = Object.assign(document.createElement('div'), { role: 'dialog', tabIndex: -1 })
+    sheet.setAttribute('aria-modal', 'true')
+    sheet.textContent = 'A sheet'
+    document.body.append(sheet)
+    sheet.focus()
+  })
+  await page.keyboard.press('/')
+  await expect(line(page)).not.toBeFocused()
+})
+
+test('home · you and Sophia: where you left off opens your conversation; your notes open them', async ({ page }) => {
+  await page.goto(PAGE)
+  const you = page.getByRole('list', { name: 'You and Sophia' })
+  await expect(you.getByRole('button').first()).toContainText(/Continue.*the launch pressure/)
+  await you.getByRole('button', { name: /Continue/ }).click()
+  await you.getByRole('button', { name: /3 notes/ }).click()
+  expect(await pressed(page)).toEqual(['personal', 'notes'])
+  await page.goto(`${PAGE}?you=new`)
+  await expect(you.getByRole('button')).toHaveCount(1)
+  await expect(you.getByRole('button')).toContainText('Start talking')
+})
+
+test('home · locked, your row unlocks your space, and no line talks to her', async ({ page }) => {
+  await page.goto(`${PAGE}?locked=1`)
+  const unlock = page.getByRole('list', { name: 'You and Sophia' }).getByRole('button', { name: /Unlock/ })
+  await expect(unlock).toContainText('Locked on this device')
+  await expect(line(page)).toHaveCount(0)
+  await unlock.click()
   expect(await pressed(page)).toEqual(['personal'])
 })
 
-test('home · locked, Sophia rests behind the padlock and her door unlocks', async ({ page }) => {
-  await page.goto(`${PAGE}?locked=1`)
-  const door = page.locator('[data-door="personal"]')
-  await expect(door).toContainText('Unlock')
-  await expect(door.locator('.c2-locked')).toBeVisible()
-  const box = await door.boundingBox()
-  await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 120)
-  await expect(door.locator('.light')).toHaveAttribute('data-mode', 'rest')
+test('home · speak instead: the line listens with her, what she heard lands in it, Enter sends it', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const mic = page.getByRole('button', { name: 'Speak instead' })
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await expect(line(page)).toHaveAttribute('placeholder', 'Listening…')
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  await expect(line(page)).toHaveValue('the launch felt rushed')
+  await expect(line(page)).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => pressed(page)).toEqual(['say the launch felt rushed'])
 })
 
-test('home · with less motion asked for, the rows don’t lift', async ({ page }) => {
+test('home · stepping away from Home stops the microphone: nothing heard lands out of sight', async ({ page }) => {
+  await page.goto(PAGE)
+  const mic = page.getByRole('button', { name: 'Speak instead' })
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Leave Home' }).click()
+  await page.waitForTimeout(1000) // past when the voice would have been heard
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'false')
+  await expect(line(page)).toHaveValue('')
+})
+
+test('home · without speech on this device, there is no microphone', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=none`)
+  await expect(line(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Speak instead' })).toHaveCount(0)
+})
+
+test('home · Sophia’s light turns to you as you move, and rests when you leave', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(light(page)).toHaveAttribute('data-mode', 'rest')
+  await page.mouse.move(300, 300)
+  await page.mouse.move(340, 320)
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  await expect(light(page)).toHaveAttribute('data-attention', /-?\d+ -?\d+/)
+  await page.mouse.move(-10, -10)
+  await page.evaluate(() => document.documentElement.dispatchEvent(new PointerEvent('pointerleave')))
+  await expect(light(page)).toHaveAttribute('data-mode', 'rest')
+})
+
+test('home · with less motion asked for, her light stays at rest, nothing arrives or slides', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(PAGE)
-  await row(page, 'Launch plan').hover()
+  await page.mouse.move(300, 300)
+  await page.mouse.move(340, 320)
   await page.waitForTimeout(300)
-  expect(await row(page, 'Launch plan').evaluate((el) => getComputedStyle(el).transform)).toBe('none')
-})
-
-test('@phone · home · one column, every project one press, nothing past the screen', async ({ page }) => {
-  await page.goto(PAGE)
-  await expect(rows(page)).toHaveCount(3)
-  for (const title of ['Product launch', 'Launch plan', 'Research notes'])
-    await expect(row(page, title)).toBeInViewport()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await expect(light(page)).toHaveAttribute('data-mode', 'rest')
+  const moving = await page
+    .locator('.hw-col')
+    .evaluate((c) => c.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length)
+  expect(moving).toBe(0)
 })
 
 test('home · hidden, Sophia’s light asks for no frames; shown again, she is back', async ({ page }) => {
@@ -200,7 +208,7 @@ test('home · hidden, Sophia’s light asks for no frames; shown again, she is b
     }
   })
   await page.goto(PAGE)
-  await expect(page.locator('[data-door="personal"] .light')).toBeAttached()
+  await expect(light(page)).toBeAttached()
   const count = () => page.evaluate(() => window.homeFramesAsked ?? 0)
   await page.evaluate(() => document.querySelector('.c-home')?.setAttribute('hidden', ''))
   await page.waitForTimeout(300)
@@ -212,27 +220,11 @@ test('home · hidden, Sophia’s light asks for no frames; shown again, she is b
   expect((await count()) - hidden).toBeGreaterThan(10)
 })
 
-test('home · a read that failed says so; no rows keep loading beside it', async ({ page }) => {
-  await page.goto(`${PAGE}?projects=failed`)
-  await expect(page.getByText('Couldn’t load your projects.')).toBeVisible()
-  await expect(page.locator('.c2-row.placeholder')).toHaveCount(0)
-})
-
-test('home · with a sheet open, Esc is the sheet’s: the note stays', async ({ page }) => {
-  await page.goto(`${PAGE}?explain=1&modal=1`)
-  const note = page.getByRole('note').filter({ hasText: 'Private on the left' })
-  await expect(note).toBeVisible()
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
-  await expect(note).toBeVisible()
-})
-
-test('home · with less motion asked for, Sophia’s light stays at rest under the pointer', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.goto(PAGE)
-  const box = await page.locator('[data-door="personal"]').boundingBox()
-  await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 120)
-  await page.mouse.move((box?.x ?? 0) + 90, (box?.y ?? 0) + 140)
-  await page.waitForTimeout(300)
-  await expect(page.locator('[data-door="personal"] .light')).toHaveAttribute('data-mode', 'rest')
+test('@phone · home · one column, every project one press, a join said before the tap, nothing past the screen', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?projects=live`)
+  await expect(row(page, 'Pitch deck')).toBeInViewport()
+  await expect(row(page, 'Pitch deck').getByText('Join the room')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

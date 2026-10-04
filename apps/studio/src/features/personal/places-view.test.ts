@@ -11,11 +11,11 @@ import {
   firstName,
   greeting,
   HOME_ACTION,
-  homeAttention,
   homeRows,
-  homeSummary,
   otherWaysNote,
   otherWaysShown,
+  rowNote,
+  sophiaSays,
   projectCard,
   readState,
   roomCaption,
@@ -151,6 +151,7 @@ describe('project cards', () => {
 })
 
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
+const plain = (said: ReturnType<typeof sophiaSays>) => said.map((s) => s.text).join('')
 
 describe('home, as a place that knows where you’ll go', () => {
   const four = [
@@ -182,31 +183,40 @@ describe('home, as a place that knows where you’ll go', () => {
     assert.equal(homeRows([project()], NOW, null)[0]?.action, 'open')
   })
 
-  it('sums the projects up and names the soonest session; says nothing while they load', () => {
-    assert.equal(homeSummary(four, NOW), '4 projects · Pitch run starts in 10 min')
-    assert.equal(homeSummary([project()], NOW), '1 project')
-    assert.equal(homeSummary([], NOW), 'No projects yet')
-    assert.equal(homeSummary(undefined, NOW), '')
-  })
-
-  it('wants you now for a session about to start, else for people in a room, else not at all', () => {
-    assert.deepEqual(homeAttention(four, NOW, null), {
-      projectId: id(4),
-      words: 'Pitch run in Weekly standup starts in 10 min',
-      tone: 'soon',
-    })
+  it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {
+    assert.equal(plain(sophiaSays(undefined, NOW, null)), '')
+    assert.equal(plain(sophiaSays([], NOW, null)), 'Start a project when you’re ready, or just talk to me.')
+    assert.equal(plain(sophiaSays([project()], NOW, null)), 'Your projects are as you left them.')
+    assert.equal(plain(sophiaSays(four, NOW, null)), 'Pitch run in Weekly standup starts in 10 min.')
     const live = project({
       projectId: id(5),
       title: 'Pitch deck',
       room: { people: ['davide@sophia.test'], sophia: true },
     })
-    assert.deepEqual(homeAttention([project(), live], NOW, null), {
-      projectId: id(5),
-      words: 'Davide and Sophia are in Pitch deck',
-      tone: 'live',
+    assert.equal(plain(sophiaSays([project(), live], NOW, null)), 'Davide and Sophia are in Pitch deck.')
+    assert.equal(plain(sophiaSays(four, NOW, { title: 'Launch plan' })), 'You’re in Launch plan’s room.')
+    // The project's name is the sentence's strong part.
+    assert.deepEqual(
+      sophiaSays([project(), live], NOW, null)
+        .filter((s) => s.strong)
+        .map((s) => s.text),
+      ['Pitch deck'],
+    )
+  })
+
+  it('each row says quietly what matters there: a session soon, people in the room, else its people', () => {
+    const rows = homeRows(four, NOW, null)
+    assert.deepEqual(rowNote(rows[0] ?? homeRows([project()], NOW, null)[0]!), {
+      text: 'Pitch run starts in 10 min',
+      tone: 'soon',
     })
-    assert.equal(homeAttention([project()], NOW, null), null)
-    assert.equal(homeAttention(four, NOW, id(1)), null) // in a call already: the bar's room pill says so
+    assert.deepEqual(rowNote(homeRows([project({ members: 2 })], NOW, null)[0]!), {
+      text: 'You and 1 other',
+      tone: 'quiet',
+    })
+    const live = project({ projectId: id(5), room: { people: ['davide@sophia.test'], sophia: true } })
+    assert.deepEqual(rowNote(homeRows([live], NOW, null)[0]!), { text: 'Davide and Sophia are here', tone: 'live' })
+    assert.deepEqual(rowNote(homeRows([live], NOW, id(5))[0]!), { text: 'You’re in the room', tone: 'live' })
   })
 })
 

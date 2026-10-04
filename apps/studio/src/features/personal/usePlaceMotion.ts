@@ -26,9 +26,9 @@ function clipOf(root: HTMLElement, door: Element): string {
 const view = (root: HTMLElement, place: Place) => root.querySelector(`[data-place-view="${place}"]`)
 const door = (root: HTMLElement, place: Place) => root.querySelector(`[data-door="${place}"]`)
 
-/** Where Sophia's light rests in her door (engine.ts defaultTarget: centred, 42 % down): a square there, as her glow. */
+/** Where Sophia's light rests on Home (engine.ts defaultTarget: centred, 42 % down): a square there, as her glow. */
 function lightIn(root: HTMLElement): DOMRect | null {
-  const box = root.querySelector('[data-door="personal"] .c2-visual')?.getBoundingClientRect()
+  const box = root.querySelector('[data-door="personal"]')?.getBoundingClientRect()
   if (!box) return null
   const side = Math.min(box.width, box.height) * 0.6
   return new DOMRect(box.left + (box.width - side) / 2, box.top + box.height * 0.42 - side / 2, side, side)

@@ -314,6 +314,8 @@ export interface HomeRow {
   action: HomeAction
   /** Its session starts within SOON_MIN. */
   soon: boolean
+  /** When its next session starts, in words (sessionWhen), or null. */
+  when: string | null
   /** People are in its room now. */
   live: boolean
 }
@@ -334,48 +336,63 @@ export function homeRows(
         card,
         action: card.action === 'leave' ? 'back' : card.action,
         soon: soon(project, now),
+        when: sessionWhen(project, now),
         live: peopleIn(project) > 0,
       }
     })
 }
 
-/** Home's summary, on the right of its head: how many projects, and the soonest session. Nothing while they load. */
-export function homeSummary(projects: readonly ProjectSummary[] | undefined, now: Date): string {
-  if (!projects) return ''
-  if (projects.length === 0) return 'No projects yet'
-  const count = `${String(projects.length)} project${projects.length === 1 ? '' : 's'}`
-  const next = workOrder(projects, now).find((p) => p.nextSession && soon(p, now))
-  const when = next ? sessionWhen(next, now) : null
-  return next?.nextSession && when ? `${count} · ${next.nextSession.title} ${when}` : count
-}
-
-export interface HomeAttention {
-  projectId: string
-  words: string
-  /** A session about to start (amber), or people in a room now (teal). */
-  tone: 'soon' | 'live'
+/** A piece of what Sophia says on Home: the project it is about is its strong part. */
+export interface Said {
+  text: string
+  strong?: boolean
 }
 
 /**
- * What wants the person now, said once above the doors: a session about to start, else people in a room. Nothing
- * while they are in a call already: the bar's room pill says so.
+ * The one thing that matters now, in Sophia's words, under the greeting: the call you are in, else a session about to
+ * start, else people in a room, else that all is as you left it. Nothing while the projects load.
  */
-export function homeAttention(
+export function sophiaSays(
   projects: readonly ProjectSummary[] | undefined,
   now: Date,
-  inCallProject: string | null,
-): HomeAttention | null {
-  if (!projects || inCallProject) return null
+  call: { title: string } | null,
+): Said[] {
+  if (!projects) return []
+  if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
+  if (projects.length === 0) return [{ text: 'Start a project when you’re ready, or just talk to me.' }]
+  return sessionSoon(projects, now) ?? roomLive(projects) ?? [{ text: 'Your projects are as you left them.' }]
+}
+
+/** "Standup in Product launch starts in 10 min.": the session about to start first, if one is. */
+function sessionSoon(projects: readonly ProjectSummary[], now: Date): Said[] | null {
   const starting = workOrder(projects, now).find((p) => p.nextSession && soon(p, now))
   const when = starting ? sessionWhen(starting, now) : null
-  if (starting?.nextSession && when) {
-    return {
-      projectId: starting.projectId,
-      words: `${starting.nextSession.title} in ${starting.title} ${when}`,
-      tone: 'soon',
-    }
-  }
+  if (!starting?.nextSession || !when) return null
+  return [{ text: `${starting.nextSession.title} in ` }, { text: starting.title, strong: true }, { text: ` ${when}.` }]
+}
+
+/** "Davide and Sophia are in Pitch deck.": the busiest room, if anyone is in one. */
+function roomLive(projects: readonly ProjectSummary[]): Said[] | null {
   const busiest = projects.toSorted((a, b) => peopleIn(b) - peopleIn(a))[0]
-  if (!busiest || peopleIn(busiest) === 0) return null
-  return { projectId: busiest.projectId, words: roomCaption(busiest), tone: 'live' }
+  if (!busiest?.room || peopleIn(busiest) === 0) return null
+  const one = busiest.room.people.length === 1 && !busiest.room.sophia
+  return [
+    { text: `${roomNames(busiest.room)} ${one ? 'is' : 'are'} in ` },
+    { text: busiest.title, strong: true },
+    { text: '.' },
+  ]
+}
+
+/** What a row of the index says quietly on its right: a session soon (amber), people in the room (teal), its people. */
+export function rowNote(row: HomeRow): { text: string; tone: 'soon' | 'live' | 'quiet' } {
+  const { project } = row
+  if (row.action === 'back') return { text: 'You’re in the room', tone: 'live' }
+  if (row.soon && project.nextSession && row.when) {
+    return { text: `${project.nextSession.title} ${row.when}`, tone: 'soon' }
+  }
+  if (row.live && project.room) {
+    const one = project.room.people.length === 1 && !project.room.sophia
+    return { text: `${roomNames(project.room)} ${one ? 'is' : 'are'} here`, tone: 'live' }
+  }
+  return { text: membersLabel(project.members), tone: 'quiet' }
 }
