@@ -15,7 +15,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 |---|---|
 | Mission | WBC-01 |
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
-| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `f18590a0ee8fbd496756464df0dcdda9ac5331ad` (#77) |
+| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `6a40f8af7b84434466a790855c348c32e8add8ec` (#79) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only, after one explicit approval from Davide for an exact batch |
@@ -42,7 +42,7 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [PR #76](https://github.com/davidelaverga/Sophia/pull/76) | — | opened by Codex from the branch, unchanged, at `10b9d32`. Its GitHub Codex review left three findings: P1, the same request reused across attempts; P2, an unbounded wait for an answer; P2, only the first proposal shown. Main had moved: #73 merged |
 | [WBC-01-CC-0005](WBC-01-CC-0005.md) | `FIX_READY` | main merged in (`4e7a42b`, #73), and the three fixed in `9f3d872`, each with a regression and a mutation. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5974968877) at `4667905`, and the branch pushed to PR #76 |
 | [WBC-01-CX-0009](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5975038104) | `REVIEW_RESULT` | Changes required at `4667905`. The merge with #73 and the three repairs are verified. **F-004** (P2): an earlier Ask's watchdog fails the question asked again early. **F-005** (P2): Ask again ignores the current Ask availability. Main moved to `f18590a` (#77), with conflicts. The GitHub P2 on `SessionActs.tsx` (Resources commands without an assignment fence) is open |
-| [WBC-01-CC-0006](WBC-01-CC-0006.md) | `FIX_READY` | main merged in (`a31cbe3`, #77), and F-004, F-005 and the GitHub P2 fixed, each with a regression and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CC-0006](WBC-01-CC-0006.md) | `FIX_READY` | main merged in twice (`a31cbe3`, #77; `4b68306`, #78 and #79), and F-004, F-005 and the GitHub P2 fixed in `40cfbc9`, each with a regression and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 

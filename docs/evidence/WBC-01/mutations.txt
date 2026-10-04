@@ -84,12 +84,14 @@ G1 bot P2 no target without the assignment and its generation (rule): FAILS as i
 G1b bot P2 no target without the assignment and its generation (sheet): FAILS as it should
 G2 bot P2 the row says why: FAILS as it should
 
-# The merge with main after #77 (a31cbe3), adjusted with CC-0006
+# The merges with main after #77 (a31cbe3, adjusted in 40cfbc9) and after #78 and #79 (4b68306)
 H1 merge the card reads the review's own revision: FAILS as it should
 H2 merge answer it only where a decision can be sent: FAILS as it should
 H3 merge the fixture reads the review with the plan in force: FAILS as it should
+H4 merge a Challenge only where the plan is in force: FAILS as it should
+H5 merge an expired decision is said expired, after #78 (sheet): FAILS as it should
 
-# 2026-10-04, after the merge with #77 and the CC-0006 fixes: all 72 entries above run again on the new code.
-# 71 make a check fail; R1b is the redundant key recorded above. R4's target had moved with CC-0004's rule
+# 2026-10-04, on the merge with #79 (4b68306), after the CC-0006 fixes: all 74 entries above run again on that code.
+# 73 make a check fail; R1b is the redundant key recorded above. R4's target had moved with CC-0004's rule
 # (againable became retryableNow); it was aimed at the new line and fails. L01, first reverted by hand, is now
 # scripted against its check (@phone · one lane under another) and fails.

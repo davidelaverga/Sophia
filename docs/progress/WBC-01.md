@@ -138,7 +138,7 @@ Luis's words, tests and nine browser checks are kept. #73's goal commands are `w
 
 ## CX-0009, #77, and the Resources fence
 
-Codex verified the merge with #73 and the three repairs at `4667905` ([CX-0009](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5975038104), CHANGES_REQUIRED). It found two new problems in Ask again, reported main moving on (#77) and passed on a new GitHub finding. All four are handled in [CC-0006](../coordination/WBC-01/WBC-01-CC-0006.md).
+Codex verified the merge with #73 and the three repairs at `4667905` ([CX-0009](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5975038104), CHANGES_REQUIRED). It found two new problems in Ask again, reported main moving on (#77) and passed on a new GitHub finding. All four are handled in [CC-0006](../coordination/WBC-01/WBC-01-CC-0006.md), with main merged in again after #78 and #79.
 
 **The merge with #77** (LFE-07.2 slice 2, the card of a review that proposes a change). #77 reads that review from `WorkPlan.last_review`. Here it stays the goal's own read beside the view (`Reviewed`), as with #73:
 - the card's pill sits in the board's bar, and the card shares the decisions' slot;
@@ -147,6 +147,13 @@ Codex verified the merge with #73 and the three repairs at `4667905` ([CX-0009](
 - the fixture reads the review with the plan in force, so a plan taken further leaves the review on its own revision.
 
 Luis's twelve `review card ·` checks and three unit tests pass unchanged.
+
+**The merge with #78 and #79** (the card's Codex P2s; Challenge, LFE-07.2's last slice) follows the same rule:
+- #78's expired decisions and its focus handling are kept;
+- Challenge goes through the card's slot, and only on a board whose plan is in force, the same gate as answering a decision;
+- its page memory carries this branch's decision operations.
+
+Luis's eight new checks pass unchanged.
 
 | Finding | Fix |
 |---|---|

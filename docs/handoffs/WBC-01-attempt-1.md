@@ -41,19 +41,19 @@ All on fixtures. See [progress](../progress/WBC-01.md) for the before/after tabl
 Each line names the command and its result, on darwin-arm64 with Node 24.21.0 and pnpm 11.7.0:
 
 - `pnpm toolchain:check`, `pnpm format:check`, `pnpm lint`, `pnpm build`, `pnpm typecheck`, `pnpm contracts:check`: exit 0.
-- `pnpm test`: 729 pass, 0 fail, after merging main (#73, #77). On the baseline, the Studio's own unit tests were 423; they are now 492.
+- `pnpm test`: 732 pass, 0 fail, after merging main (#73, #77, #78, #79). On the baseline, the Studio's own unit tests were 423; they are now 495.
 - `pnpm artifacts`: every identity reproduced for darwin-arm64.
 - `pnpm test:integration`: 69 tests, 67 pass, 2 skipped, 0 fail.
 - `pnpm --filter @sophia/studio run build`: passes, with Vite's existing large-chunk warning. Strings found only on the board (`Closed work`, `sophia.work.board.v1`, the new Stop copy) are absent from `dist/`. Its one "Simulated" is LiveKit's own code.
-- `pnpm --filter @sophia/studio exec playwright test`: 210 of 210 pass, desktop and phone. That includes:
+- `pnpm --filter @sophia/studio exec playwright test`: 218 of 218 pass, desktop and phone. That includes:
   - 25 `wbc ·` checks for the UI cases;
   - 7 `pre-push ·` checks for the pre-push review's findings;
   - 7 `codex · F-` checks for Codex's, F-004 and F-005 included;
   - 4 `pr76 ·` checks for the PR #76 reviews' (one in `resources.spec.ts`);
-  - Luis's 9 `review ·` checks from #73 and 12 `review card ·` checks from #77, and 2 `review card ·` checks for the merge.
+  - Luis's 29 checks from #73, #77, #78 and #79 (`review ·`, `review card ·`, `challenge ·`), and 2 `review card ·` checks for the merges.
 
   `e2e/work.spec.ts --repeat-each=2` passed before the reviews' fixes.
-- **Mutations:** 72 in all. Each reverted one repair; all but one made a check fail. Codex's findings are C1–C7, D1–D3 and F1–F2f, the PR #76 reviews' E1–E3 and G1–G2, and the merge with #77's H1–H3, all failing. The command retry handler's own guard sits behind a button that isn't rendered, so the UI can't check it. Ask again's guard is the pure `againOf`, unit-checked (F2).
+- **Mutations:** 74 in all. Each reverted one repair; all but one made a check fail. Codex's findings are C1–C7, D1–D3 and F1–F2f, the PR #76 reviews' E1–E3 and G1–G2, and the merges' H1–H5, all failing. The command retry handler's own guard sits behind a button that isn't rendered, so the UI can't check it. Ask again's guard is the pure `againOf`, unit-checked (F2).
   - The one that doesn't is the per-task key of the Stop question. It is redundant by design: the scope key inside it already includes the work. Removing both keys fails the J check.
   - Four first passed and showed a gap in a test. Each now fails with the gap closed:
     - the same attempt at an older generation;
@@ -77,7 +77,7 @@ None operational: no effect, job or deployment was started.
 
 Pending:
 - Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
-- Codex's verification of the merge with #77 and the fixes for F-004, F-005 and the GitHub P2 (WBC-01-CC-0006), and its `REVIEW_RESULT`.
+- Codex's verification of the merges with #77–#79 and the fixes for F-004, F-005 and the GitHub P2 (WBC-01-CC-0006), and its `REVIEW_RESULT`.
 - This session still can't push: Codex updates PR #76 from Claude's clone.
 - Luis's optional feedback.
 
@@ -89,7 +89,7 @@ This session has no GitHub CLI or credential. CC-0001 and CC-0002 are posted on 
    - pushes it unchanged to PR #76, and updates the PR's body from `docs/coordination/WBC-01/PR_DESCRIPTION.md`;
    - posts CC-0006 on #74 for Claude, giving the head's full SHA.
 2. Davide answers CC-0001.
-3. Codex verifies the merge with #77 and the delta from `4667905`, and sends `FINDING` records or a `REVIEW_RESULT`.
+3. Codex verifies the merges with #77–#79 and the delta from `4667905`, and sends `FINDING` records or a `REVIEW_RESULT`.
 4. Claude repairs on this branch and answers with `FIX_READY`.
 5. The release, if any, is Codex's `RELEASE_REQUEST` and Davide's approval.
 
