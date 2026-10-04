@@ -37,7 +37,7 @@ import {
   type Known,
   type Offer,
 } from './receipts.ts'
-import type { Resource, Session } from './resource.ts'
+import type { Resource } from './resource.ts'
 
 export type { Offer } from './receipts.ts'
 
@@ -181,19 +181,6 @@ export const supported = (resource: Resource): Control[] =>
 
 /** The same, as commands to offer: a resource's owner is offered what its route supports. */
 export const routeOffers = (resource: Resource): Offer[] => supported(resource).map((c) => ({ kind: AS_COMMAND[c] }))
-
-/** A session's work, as a command's target: its assignment and generation when its runtime says them. */
-export const sessionTarget = (project: string, session: Session): CommandTarget | null =>
-  session.assignment
-    ? {
-        project_id: project,
-        work_id: session.assignment.workId,
-        assignment_id: session.assignment.id ?? null,
-        assignment_generation: session.assignment.epoch ?? null,
-        attempt_id: null,
-        session_id: session.id,
-      }
-    : null
 
 /** Whether its owner can act on a session at all here: some control its route supports. */
 export const canAct = (resource: Resource) => supported(resource).length > 0

@@ -8,6 +8,7 @@
 // Commands are kept by their scope, (project, work, assignment, generation): a session given another assignment
 // starts with none of the old one's commands or drafts. Pure: the words and rules are unit-tested.
 import { exactly, instant, list, oneOf, orNull, problemsOf, record, text, whole, type Check } from '../../api/shape.ts'
+import type { Session } from './resource.ts'
 
 export type ReceiptKind = 'guidance' | 'hold' | 'resume' | 'stop' | 'decision' | 'ask_sophia'
 export type Effect = 'not_applicable' | 'pending' | 'held' | 'stopped' | 'resumed' | 'choice_recorded' | 'unknown'
@@ -265,3 +266,25 @@ export function reached(k: Known): number {
   if (FINAL.has(r.effect)) return 2
   return DELIVERED.has(r.delivery) ? 1 : 0
 }
+
+/**
+ * A session's work, as a command's target: only once its runtime says which assignment it is and its generation. A
+ * command without them couldn't be refused as stale, and could reach work that replaced it (PR #76 review), so until
+ * then there is no target, and nothing is sent.
+ */
+export function sessionTarget(project: string, session: Session): CommandTarget | null {
+  const work = session.assignment
+  if (!work?.id || work.epoch === undefined) return null
+  return {
+    project_id: project,
+    work_id: work.workId,
+    assignment_id: work.id,
+    assignment_generation: work.epoch,
+    attempt_id: null,
+    session_id: session.id,
+  }
+}
+
+/** Why a session at work can't be acted on yet: its assignment isn't fenced (sessionTarget). */
+export const UNFENCED =
+  'Nothing can be sent to it yet: its runtime hasn’t said which assignment this is, or its generation, so a command could reach work that replaced it.'

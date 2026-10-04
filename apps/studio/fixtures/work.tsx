@@ -24,7 +24,13 @@ import type { Command, Receipt } from '../src/features/resources/receipts.ts'
 import { linkHash } from '../src/features/resources/link.ts'
 import { moving } from '../src/features/resources/motion.ts'
 import type { Resource } from '../src/features/resources/resource.ts'
-import { readBoardView, type BoardView, type GoalView } from '../src/features/work/planning/board-view.ts'
+import {
+  readBoardView,
+  type ActionKind,
+  type BoardView,
+  type GoalView,
+  type ItemAction,
+} from '../src/features/work/planning/board-view.ts'
 import type { DecisionAnswer } from '../src/features/work/planning/Decision.tsx'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
@@ -57,6 +63,7 @@ import {
   decide,
   misdeliver,
   nextReport,
+  questions,
   readResult,
   receipts,
   reconnect,
@@ -65,6 +72,7 @@ import {
   withActivity,
 } from './work-live.ts'
 import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
+import type { Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
 
 declare global {
@@ -73,6 +81,8 @@ declare global {
       unexpected: readonly string[]
       /** Each answer a decider gave, in order, and each command and receipt: for the checks to read. */
       answered?: readonly DecisionAnswer[]
+      /** Each question sent to the conversation, each send of it included. */
+      questions?: readonly Question[]
       commands?: readonly Command[]
       receipts?: readonly Receipt[]
       /** Why the page's view was refused, when it was. */
@@ -93,7 +103,8 @@ declare global {
       setLifecycle?: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) => void
       /** The same assignment and generation, its next attempt in another native session. */
       nextAttempt?: (workId: string) => void
-      setAvailability?: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') => void
+      /** `missing`: the view offers the action no more; any other, it offers it so (added back when missing). */
+      setAvailability?: (workId: string, kind: ActionKind, availability: Availability) => void
       /** A later review in the last one's place (LFE-07.2): it arrives with its card closed. */
       reviewAgain?: () => void
     }
@@ -119,7 +130,7 @@ installFixtureApi({
     ...(query.get('unplanned') === '1' ? [unplannedGoal] : []),
   ],
 })
-window.workFixture = { unexpected, answered: answers, commands, receipts }
+window.workFixture = { unexpected, answered: answers, commands, receipts, questions }
 const nothing = () => undefined
 
 /** `review=…`: how the lead answers Request review (work-review.ts). */
@@ -266,6 +277,7 @@ function controls(
     goalCommands: lead.commands,
     reviewAgain: lead.again,
     answered: answers,
+    questions,
     commands,
     receipts,
     settle: (id: string) => update(settleChoice(id)),
@@ -294,21 +306,21 @@ function controls(
             : {},
         ),
       ),
-    setAvailability: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') =>
-      update(
-        observed(workId, (v) => ({
-          available_actions: v.available_actions.map((a) =>
-            a.kind === kind
-              ? {
-                  ...a,
-                  availability,
-                  reason: availability === 'allowed' ? a.reason : 'No longer allowed for you here.',
-                }
-              : a,
-          ),
-        })),
-      ),
+    setAvailability: (workId: string, kind: ActionKind, availability: Availability) =>
+      update(observed(workId, (v) => ({ available_actions: availableAs(v.available_actions, kind, availability) }))),
   }
+}
+
+type Availability = ItemAction['availability'] | 'missing'
+
+/** One action of a task, as the service would observe it next: offered so, or no more. */
+function availableAs(actions: readonly ItemAction[], kind: ActionKind, availability: Availability): ItemAction[] {
+  if (availability === 'missing') return actions.filter((a) => a.kind !== kind)
+  const was = actions.find((a) => a.kind === kind)
+  const reason = availability === 'allowed' ? (was?.reason ?? 'Allowed again.') : 'No longer allowed for you here.'
+  const now = { kind, availability, reason, boundary: was?.boundary ?? null }
+  // In its place when it was there; added back after the rest when it wasn't.
+  return was ? actions.map((a) => (a === was ? now : a)) : [...actions, now]
 }
 
 /** The page's view of the project, as a service would serve it, read through the Studio's own reader. */

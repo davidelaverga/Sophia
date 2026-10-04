@@ -13,7 +13,9 @@
 // its stop unconfirmed, and `nextRun(sessionId)` starts its next run with what was asked. The sessions at work report
 // what they do, as on the plan's fixture (work-live.ts: Codex's reviewer moves on every 9 s), and a session's task
 // opens on that fixture's board (work.html#task-<id>), as Tasks would, when it is on it (Gemini's onboarding copy
-// isn't). An owner's act on a session is taken as a runtime would (`acted` records it), as on the plan's page.
+// isn't). An owner's act on a session is taken as a runtime would (`acted` records it, `commands` each with its exact
+// target), as on the plan's page. `unfenced=1`: the runtimes report each session's work, but not which assignment it
+// is or its generation, so nothing can be sent to them (PR #76 review).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -29,9 +31,10 @@ import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
+import type { Command } from '../src/features/resources/receipts.ts'
 import type { Resource, Session } from '../src/features/resources/resource.ts'
 import { plan, secondView } from './work-data.ts'
-import { acted, actOn, carried, nextActivity, withActivity } from './work-live.ts'
+import { acted, actOn, carried, commands, nextActivity, withActivity } from './work-live.ts'
 import {
   actions,
   arriving,
@@ -57,6 +60,8 @@ declare global {
       asked?: { sessionId: string; level: string | null; when: string | null }[]
       /** Each act an owner sent on a session, in order. */
       acted?: readonly { sessionId: string; kind: string; text?: string; workId: string }[]
+      /** The same, as the commands sent, each with its exact target. */
+      commands?: readonly Command[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
@@ -83,7 +88,18 @@ const asked: NonNullable<NonNullable<Window['resourcesFixture']>['asked']> = []
 const query = new URLSearchParams(window.location.search)
 const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
 const more = query.get('more') === '1'
-const shown = more ? [...resources, ...moreResources] : resources
+/** Each session's assignment without its id and generation, as `unfenced=1` says. */
+const unfenced = (list: Resource[]): Resource[] =>
+  list.map((r) => ({
+    ...r,
+    sessions: r.sessions.map((s) =>
+      s.assignment
+        ? { ...s, assignment: { workId: s.assignment.workId, title: s.assignment.title, state: s.assignment.state } }
+        : s,
+    ),
+  }))
+const listed = more ? [...resources, ...moreResources] : resources
+const shown = query.get('unfenced') === '1' ? unfenced(listed) : listed
 const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
 const spent = query.get('spent') === '1'
@@ -183,6 +199,7 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
     unexpected,
     asked,
     acted,
+    commands,
     load: () => setLive((l) => ({ ...l, loading: false })),
     answerRequest: () =>
       setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),

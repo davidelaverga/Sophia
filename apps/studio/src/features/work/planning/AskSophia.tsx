@@ -5,9 +5,20 @@
 // while the page lives (useAsks, ask-store.ts), so turning the sheet, closing it, choosing another goal or a reconnect
 // forgets nothing, and a late answer to an earlier question is let go. Where she can't be asked from here (the view
 // says so, or no conversation is connected), the question is kept with why, and the way to the conversation is
-// offered; no answer is made up.
+// offered; no answer is made up. A question that failed is asked again only while the view allows asking about its
+// task (askBlocked), the same rule as a first question; until then it is kept, with why.
 import { useState, useSyncExternalStore } from 'react'
-import { ASK_LIMIT_MS, asking, shownOf, unanswerable, type Ask, type Asked, type Question } from './ask.ts'
+import {
+  ASK_LIMIT_MS,
+  againOf,
+  askBlocked,
+  asking,
+  shownOf,
+  unanswerable,
+  type Ask,
+  type Asked,
+  type Question,
+} from './ask.ts'
 import { askedOf, asksOf, heardOf, stalledOf, subscribe } from './ask-store.ts'
 import { actionOf, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { resultsOf } from './results.ts'
@@ -17,23 +28,32 @@ export interface Asks {
   of: (workId: string) => Asked | null
   /** Asks; `unavailable` keeps the question with why instead of sending it. */
   ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
-  /** Asks a task's latest question again, the same question, after it failed. */
-  again: (workId: string) => void
+  /**
+   * Asks a task's latest question again, the same question, after it failed; `blocked` (askBlocked, as the view says
+   * now) keeps it as it is instead.
+   */
+  again: (workId: string, blocked: string | null) => void
 }
 
 /** The questions of one space (a project as one viewer sees it), kept while the page lives (ask-store.ts). */
 export function useAsks(onAsk: Ask | undefined, space: string, newId: () => string = () => crypto.randomUUID()): Asks {
   const asked = useSyncExternalStore(subscribe, () => asksOf(space))
-  /** Sends a question and watches its wait: each event starts it again; none within the limit fails it. */
-  const send = (question: Question, port: Ask) => {
-    const watch = (seq: number) =>
-      setTimeout(() => stalledOf(space, question.work_id, question.question_id, seq), ASK_LIMIT_MS)
-    askedOf(space, asking(question))
+  /**
+   * Sends a question and watches its wait: each event starts it again; none within the limit fails it. The wait and
+   * the events are this send's own, so an earlier send of the same question can't fail or answer this one.
+   */
+  const send = (fresh: Asked, port: Ask) => {
+    const { question } = fresh
+    const sent = { question_id: question.question_id, send: fresh.send }
+    const watch = (seq: number) => setTimeout(() => stalledOf(space, question.work_id, { ...sent, seq }), ASK_LIMIT_MS)
+    askedOf(space, fresh)
     watch(0)
     port(question, (event) => {
-      heardOf(space, question.work_id, event)
+      heardOf(space, question.work_id, sent, event)
       const now = asksOf(space)[question.work_id]
-      if (now?.question.question_id === question.question_id && now.state === 'answering') watch(now.seq)
+      if (now?.send === sent.send && now.question.question_id === sent.question_id && now.state === 'answering') {
+        watch(now.seq)
+      }
     })
   }
   return {
@@ -44,11 +64,11 @@ export function useAsks(onAsk: Ask | undefined, space: string, newId: () => stri
         askedOf(space, unanswerable(question, unavailable ?? 'Sophia can’t be asked from here yet.'))
         return
       }
-      send(question, onAsk)
+      send(asking(question), onAsk)
     },
-    again: (workId) => {
-      const failed = asksOf(space)[workId]
-      if (onAsk && failed?.state === 'failed') send(failed.question, onAsk)
+    again: (workId, blocked) => {
+      const next = againOf(asksOf(space)[workId], blocked)
+      if (onAsk && next) send(next, onAsk)
     },
   }
 }
@@ -81,6 +101,8 @@ interface ThreadProps {
   onOpenConversation?: (() => void) | undefined
   /** Asks the same question again, after it failed. */
   onAgain?: (() => void) | undefined
+  /** Why it can't be asked again from here now (askBlocked); null when it can. */
+  blocked: string | null
 }
 
 /** No answer here, and why: a question that failed can be asked again; either can be taken to the conversation. */
@@ -88,15 +110,20 @@ function NotAnswered({
   why,
   failed,
   onAgain,
+  blocked,
   onOpenConversation,
 }: { why: string; failed: boolean } & Omit<ThreadProps, 'asked'>) {
+  const againable = failed && onAgain && blocked === null
   return (
     <p className="ask-a ask-none">
       {why}{' '}
-      {failed && onAgain && (
+      {againable && (
         <button type="button" className="text-button" onClick={onAgain}>
           Ask again
         </button>
+      )}
+      {failed && blocked !== null && (
+        <span className="ask-blocked">It can’t be asked again from here now: {blocked} It is kept as it was.</span>
       )}{' '}
       {onOpenConversation && (
         <button type="button" className="text-button" onClick={onOpenConversation}>
@@ -108,7 +135,7 @@ function NotAnswered({
 }
 
 /** The question and what came back of it. */
-function Thread({ asked, onOpenConversation, onAgain }: ThreadProps) {
+function Thread({ asked, onOpenConversation, onAgain, blocked }: ThreadProps) {
   const said = shownOf(asked)
   const failed = asked.state === 'failed'
   const quiet = failed || asked.state === 'unavailable'
@@ -117,7 +144,13 @@ function Thread({ asked, onOpenConversation, onAgain }: ThreadProps) {
     <div className="ask-thread" data-state={asked.state}>
       <p className="ask-q">{asked.question.text}</p>
       {quiet ? (
-        <NotAnswered why={why} failed={failed} onAgain={onAgain} onOpenConversation={onOpenConversation} />
+        <NotAnswered
+          why={why}
+          failed={failed}
+          onAgain={onAgain}
+          blocked={blocked}
+          onOpenConversation={onOpenConversation}
+        />
       ) : (
         // Seen as it arrives; heard once, whole.
         <p className="ask-a" data-thinking={said === '' || undefined} aria-hidden>
@@ -141,28 +174,14 @@ interface Props {
   onOpenConversation?: (() => void) | undefined
 }
 
-export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Props) {
+/** The questions the task invites, and one's own, to ask. */
+function Asking({ row, viewerId, onAsk }: { row: PlanRow; viewerId: string | null; onAsk: (text: string) => boolean }) {
   const [question, setQuestion] = useState('')
-  const action = actionOf(row, 'ask_sophia')
-  if (!asks || !action) return null
-  const asked = asks.of(row.item.id)
-  const ask = (text: string) => {
-    const unavailable = action.availability === 'allowed' ? null : action.reason
-    const about = resultsOf(row.view).current?.version_id ?? null
-    const ref = { work_id: row.item.id, plan_id: plan.plan_id, plan_revision: plan.revision }
-    asks.ask({ ...ref, candidate_version_ref: about, text }, unavailable)
-    // A question that can't go keeps its words in the field, to take to the conversation.
-    if (unavailable === null) setQuestion('')
-  }
   return (
-    <section className="sheet-section ask-sophia">
-      <h3>
-        <span className="ask-light" aria-hidden />
-        Ask Sophia
-      </h3>
+    <>
       <div className="ask-chips">
         {invited(row, viewerId).map((q) => (
-          <button key={q} type="button" className="ask-chip" onClick={() => ask(q)}>
+          <button key={q} type="button" className="ask-chip" onClick={() => onAsk(q)}>
             {q}
           </button>
         ))}
@@ -171,7 +190,8 @@ export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Pro
         className="act-guide"
         onSubmit={(e) => {
           e.preventDefault()
-          if (question.trim()) ask(question.trim())
+          // A question that can't go keeps its words in the field, to take to the conversation.
+          if (question.trim() && onAsk(question.trim())) setQuestion('')
         }}
       >
         <input
@@ -184,8 +204,37 @@ export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Pro
           Ask
         </button>
       </form>
+    </>
+  )
+}
+
+export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Props) {
+  const action = actionOf(row, 'ask_sophia')
+  const asked = asks?.of(row.item.id) ?? null
+  // Not offered now: nothing to ask, but a question already asked stays, with why it can't be asked again.
+  if (!asks || (!action && !asked)) return null
+  const blocked = askBlocked(action)
+  /** Asks, or keeps the question with why it can't go; true when it went. */
+  const ask = (text: string) => {
+    const about = resultsOf(row.view).current?.version_id ?? null
+    const ref = { work_id: row.item.id, plan_id: plan.plan_id, plan_revision: plan.revision }
+    asks.ask({ ...ref, candidate_version_ref: about, text }, blocked)
+    return blocked === null
+  }
+  return (
+    <section className="sheet-section ask-sophia">
+      <h3>
+        <span className="ask-light" aria-hidden />
+        Ask Sophia
+      </h3>
+      {action && <Asking row={row} viewerId={viewerId} onAsk={ask} />}
       {asked && (
-        <Thread asked={asked} onOpenConversation={onOpenConversation} onAgain={() => asks.again(row.item.id)} />
+        <Thread
+          asked={asked}
+          onOpenConversation={onOpenConversation}
+          blocked={blocked}
+          onAgain={() => asks.again(row.item.id, blocked)}
+        />
       )}
     </section>
   )

@@ -11,12 +11,14 @@ import {
   retried,
   scopeOf,
   sending,
+  sessionTarget,
   uncertain,
   unresolved,
   type Command,
   type Known,
   type Receipt,
 } from './receipts.ts'
+import type { Session } from './resource.ts'
 
 // The packet's own synthetic receipts, installed byte for byte (docs/missions/2026-10-03-workboard-connection).
 const examples = new URL('../../../../../docs/missions/2026-10-03-workboard-connection/examples/', import.meta.url)
@@ -212,5 +214,36 @@ describe('what is known of a command', () => {
     assert.notEqual(scopeOf(target), scopeOf({ ...target, assignment_generation: 4 }))
     assert.notEqual(scopeOf(target), scopeOf({ ...target, work_id: 'other' }))
     assert.equal(scopeOf(target), scopeOf({ ...target, attempt_id: 'at-4', session_id: 'other' }))
+  })
+})
+
+const session = (assignment: Session['assignment']): Session => ({
+  id: 'claude-worker',
+  role: 'worker',
+  model: null,
+  effort: null,
+  assignment,
+})
+
+describe('a resource session’s target (PR #76 review, P2)', () => {
+  const work = { workId: 'work-1', title: 'Implement the PDF retry', state: 'running' as const }
+
+  it('names the assignment and its generation, exactly, once its runtime says both', () => {
+    assert.deepEqual(sessionTarget('p1', session({ ...work, id: 'assignment-claude-worker', epoch: 3 })), {
+      project_id: 'p1',
+      work_id: 'work-1',
+      assignment_id: 'assignment-claude-worker',
+      assignment_generation: 3,
+      attempt_id: null,
+      session_id: 'claude-worker',
+    })
+  })
+
+  it('is none without either, so nothing can be sent that its runtime couldn’t refuse as stale', () => {
+    assert.equal(sessionTarget('p1', session(work)), null)
+    assert.equal(sessionTarget('p1', session({ ...work, id: 'assignment-claude-worker' })), null)
+    assert.equal(sessionTarget('p1', session({ ...work, epoch: 3 })), null)
+    assert.equal(sessionTarget('p1', session({ ...work, id: '', epoch: 3 })), null)
+    assert.equal(sessionTarget('p1', session(null)), null)
   })
 })

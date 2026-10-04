@@ -453,8 +453,10 @@ when you change the room:
   versions through a port), the commands the view allows this viewer
   (`actions.ts`; a command goes again with its operation only to the exact
   target it was sent to), and Ask (a port of real received chunks, no typing
-  animation; at most 30 s per event, then failed, with Ask again); the board
-  by keys. Its fixture's clock runs from NOW; its receipts, answers and
+  animation; at most 30 s per event, then failed, with Ask again: the same
+  question on its own send, so nothing of an earlier send can fail or answer
+  it, and only while the view allows asking about the task; until then the
+  question is kept, with why); the board by keys. Its fixture's clock runs from NOW; its receipts, answers and
   results are simulated. The `wbc ·` checks are the mission's UI cases; the
   `pre-push ·`, `codex · F-` and `pr76 ·` checks are the findings of its
   pre-push review, Codex's review on #74 and the PR #76 review (`review ·`
@@ -529,7 +531,10 @@ when you change the room:
   shows it.
   A session's owner acts on it from its row (LFE-06.6): Act opens guidance,
   Hold and Stop as its route supports them (`SessionActs.tsx`, shared with a
-  task's sheet; the panel's `onAct`). What is known of each command is said
+  task's sheet; the panel's `onAct`), once its runtime names the session's
+  assignment and its generation (`sessionTarget`, `receipts.ts`); until then
+  Act says why and nothing can be sent (`unfenced=1`), since a command without
+  them couldn't be refused as stale. What is known of each command is said
   in three dimensions as its receipts come (`receipts.ts`, WBC-01): Sending
   before any receipt, then recorded or refused, delivered, and a control's
   effect only once its runtime confirms it; a lost reply is unknown and tried

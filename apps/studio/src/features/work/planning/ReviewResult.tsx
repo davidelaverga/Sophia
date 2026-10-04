@@ -12,7 +12,8 @@ import { EVIDENCE, staleSaid, type Intervention, type LastReview, type Observati
 
 interface Props {
   review: LastReview
-  plan: WorkPlan
+  /** The revision the review is read with: the plan in force (Reviewed), as the goal's line says it. */
+  plan: Pick<WorkPlan, 'revision'>
   rows: readonly PlanRow[]
   now: Date
   onOpenTask: (id: string) => void

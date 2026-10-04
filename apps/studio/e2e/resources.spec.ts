@@ -1557,6 +1557,30 @@ test('@phone · its owner opens Act and the row keeps to one column', async ({ p
   expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
 })
 
+test('pr76 · P2 · a session whose assignment isn’t identified offers no act, and says why', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&unfenced=1#resource-davide-claude`)
+  const worker = sheet(page, 'Davide · Claude Code')
+    .locator('.resource-session')
+    .filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  await expect(worker.locator('.resource-session-acts')).toHaveText(
+    'Nothing can be sent to it yet: its runtime hasn’t said which assignment this is, or its generation, so a command could reach work that replaced it.',
+  )
+  await expect(worker.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  for (const name of ['Send', 'Hold', 'Stop']) {
+    await expect(worker.getByRole('button', { name, exact: true })).toHaveCount(0)
+  }
+  expect(await page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(0)
+  // Identified, the same session offers its acts, and a command names that assignment at that generation.
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  await page.reload()
+  await worker.getByRole('button', { name: 'Act' }).click()
+  await worker.getByRole('button', { name: 'Hold', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(1)
+  const target = await page.evaluate(() => window.resourcesFixture?.commands?.[0]?.target)
+  expect([target?.assignment_id, target?.assignment_generation]).toEqual(['assignment-claude-worker', 3])
+})
+
 test('away · what changed since the last look is one line, its tiles marked, until Mark seen', async ({ page }) => {
   await page.goto(`${PAGE}?since=1&more=1`)
   const line = page.locator('.resources-away')

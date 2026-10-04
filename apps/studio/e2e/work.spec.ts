@@ -1407,6 +1407,90 @@ test('pr76 · P2 · every proposed plan is shown, beside the accepted one or bes
   await expect(board(page).locator('.board-notice')).toContainText('Proposed, not accepted yet: nothing in it runs.')
 })
 
+// ---- CX-0009 (Codex on #74): a question asked again is its own send, and goes only while asking is allowed. ----
+
+const questioned = (page: Page) => page.evaluate(() => window.workFixture?.questions ?? [])
+
+test('codex · F-004 · an earlier send can’t time out or answer a question asked again; each send waits its own time', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=flaky`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const answer = sheet.locator('.ask-a')
+  const again = sheet.getByRole('button', { name: 'Ask again' })
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  // The first send fails at 5 s, long before its own wait would end (30 s).
+  await page.clock.runFor(5_000)
+  await expect(answer).toContainText('I couldn’t reach the conversation just now.')
+  await page.clock.runFor(5_000)
+  await again.click() // 10 s: the second send
+  // 30 s: the first send's wait would have ended. The second has waited 20 s of its own 30: still waiting.
+  await page.clock.runFor(20_000)
+  await expect(answer).toHaveText('Thinking…')
+  // 35 s: a part of its answer, then nothing. That part began its wait again: it fails at 65 s, not before.
+  await page.clock.runFor(5_000)
+  await expect(answer).toHaveText(/^It waits\s*$/)
+  await page.clock.runFor(29_000)
+  await expect(answer).toHaveText(/^It waits\s*$/)
+  await page.clock.runFor(1_000)
+  await expect(sheet.locator('.ask-none')).toContainText('No answer came in time. Nothing was changed.')
+  // 66 s: the third send. The second's whole answer arrives late, at 80 s, and is let go; the third's comes at 86 s.
+  await page.clock.runFor(1_000)
+  await again.click()
+  await page.clock.runFor(14_000)
+  await expect(answer).toHaveText('Thinking…')
+  await page.clock.runFor(6_000)
+  await expect(answer).toHaveText('It waits for Davide’s answer, said on the third send.')
+  const sent = await questioned(page)
+  expect(sent).toHaveLength(3)
+  expect(new Set(sent.map((q) => JSON.stringify(q))).size).toBe(1) // one question, sent three times
+})
+
+test('codex · F-005 · a failed question is asked again only while asking is allowed, and is kept meanwhile', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=silent`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await page.clock.runFor(31_000)
+  const again = sheet.getByRole('button', { name: 'Ask again' })
+  await expect(again).toBeVisible()
+  const available = (to: 'allowed' | 'denied' | 'unavailable' | 'missing') =>
+    page.evaluate((a) => window.workFixture?.setAvailability?.('work-1', 'ask_sophia', a), to)
+  /** Not offered again, and why; the question, its failure and the way to the conversation kept. */
+  const kept = async (why: string) => {
+    await expect(sheet.locator('.ask-blocked')).toHaveText(
+      `It can’t be asked again from here now: ${why} It is kept as it was.`,
+    )
+    await expect(again).toHaveCount(0)
+    await expect(sheet.locator('.ask-q')).toHaveText('Why is it waiting?')
+    await expect(sheet.locator('.ask-none')).toContainText('No answer came in time. Nothing was changed.')
+    await expect(sheet.getByRole('button', { name: 'Open the conversation' })).toBeVisible()
+  }
+  await available('denied')
+  await kept('No longer allowed for you here.')
+  // Why it can't go again is a line of its own, under why there is no answer, not a column beside it.
+  const [line, blocked] = await Promise.all([
+    sheet.locator('.ask-none').boundingBox(),
+    sheet.locator('.ask-blocked').boundingBox(),
+  ])
+  expect(Math.round(blocked?.x ?? -1)).toBe(Math.round(line?.x ?? 0))
+  expect(blocked?.y ?? 0).toBeGreaterThan(line?.y ?? 0)
+  await available('unavailable')
+  await kept('No longer allowed for you here.')
+  await available('missing')
+  await kept('Asking about this task isn’t offered here now.')
+  await expect(sheet.getByRole('button', { name: 'Why is it waiting?' })).toHaveCount(0) // nothing new to ask either
+  expect(await questioned(page)).toHaveLength(1) // nothing went meanwhile
+  // Allowed again: Ask again sends the same question.
+  await available('allowed')
+  await again.click()
+  await expect(sheet.locator('.ask-a')).toHaveText('Thinking…')
+  const [first, second, ...more] = await questioned(page)
+  expect(more).toHaveLength(0)
+  expect(second).toEqual(first)
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })
@@ -1540,6 +1624,27 @@ test('review card · keeps to the type scale', async ({ page }) => {
     sizes.filter((s) => !['10.5px', '12px', '13px', '14px'].includes(s)),
     sizes.join(' '),
   ).toEqual([])
+})
+
+test('review card · read with the plan in force: once the plan moves on, the card says it reviewed the one before', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page).getByRole('button', { name: 'Waits on your decision: answer it' })).toBeVisible()
+  await expect(reviewCard(page).locator('.review-result-stale')).toHaveCount(0)
+  // The lead takes a decision into the plan's next revision; the review stays the one of r2.
+  await page.evaluate(() => window.workFixture?.react?.('d1'))
+  await expect(page.locator('.plan-next-review')).toHaveText(/· a change proposed · of r2$/)
+  await expect(reviewCard(page).locator('.review-result-stale')).toHaveText('Reviewed r2 · the plan is now r3')
+  await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
+})
+
+test('review card · on a plan only proposed, its decision is named, not offered to answer', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&case=replan&proposed=1`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toContainText('Waits on Davide’s decision.')
+  await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
 })
 
 test('@phone · review card: its parts stack, nothing past the screen', async ({ page }) => {

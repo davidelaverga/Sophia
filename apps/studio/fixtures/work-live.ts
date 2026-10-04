@@ -2,7 +2,7 @@
 // last report, a clock that runs from NOW, the receipts a service would give each command, the events an answer from
 // the shared conversation would arrive as, a labelled source text for a result, and a decision's receipt. Nothing
 // here reaches a network. The query string chooses how the service behaves: `admission=slow|lost|refused`,
-// `settle=confirmed|unknown`, `ask=down|whole|silent`, `result=down`.
+// `settle=confirmed|unknown`, `ask=down|whole|silent|flaky`, `result=down`.
 import type { Resource } from '../src/features/resources/resource.ts'
 import type { Receipt } from '../src/features/resources/receipts.ts'
 import type { SendCommand } from '../src/features/resources/SessionActs.tsx'
@@ -241,10 +241,34 @@ function eventsFor(question: Question): AskEvent[] {
   ]
 }
 
+/** Each question sent to the conversation, each send of it included: for the checks to read. */
+export const questions: Question[] = []
+
+/**
+ * `ask=flaky` (Codex F-004): each send of the same question goes its own way. The first fails at 5 s. The second
+ * sends a part at 25 s, then nothing in time, and its whole answer only at 70 s, too late. The third is answered
+ * whole at 20 s.
+ */
+function flaky(question: Question, on: (e: AskEvent) => void) {
+  const id = question.question_id
+  const n = questions.filter((q) => q.question_id === id).length
+  const at = (ms: number, e: Omit<AskEvent, 'question_id'>) => setTimeout(() => on({ question_id: id, ...e }), ms)
+  if (n === 1) at(5_000, { seq: 1, kind: 'failed' })
+  else if (n === 2) {
+    at(25_000, { seq: 1, kind: 'chunk', text: 'It waits ' })
+    at(70_000, { seq: 2, kind: 'complete', text: 'Too late: the second send’s answer.' })
+  } else at(20_000, { seq: 1, kind: 'complete', text: 'It waits for Davide’s answer, said on the third send.' })
+}
+
 /** The shared conversation, simulated: `staggered=1` answers the first question slower than the next. */
 export const ask: Ask = (question, on) => {
+  questions.push(question)
   // `ask=silent`: the conversation takes the question and never answers (PR #76 review, P2).
   if (query().get('ask') === 'silent') return
+  if (query().get('ask') === 'flaky') {
+    flaky(question, on)
+    return
+  }
   const late = query().get('staggered') === '1' && question.text === 'Why is it waiting?'
   const start = late ? 1800 : 900
   const record = { on, events: [] as AskEvent[] }

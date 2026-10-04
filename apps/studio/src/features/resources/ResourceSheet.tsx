@@ -31,7 +31,8 @@ import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import type { Room } from './room.ts'
-import { actsSaid, canAct, routeOffers, SessionActs, sessionTarget, type Acts } from './SessionActs.tsx'
+import { sessionTarget, UNFENCED } from './receipts.ts'
+import { actsSaid, canAct, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
@@ -320,13 +321,22 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
         <span className="resource-work idle">No assignment</span>
       )}
       {work && acts && (
-        <ActToggle open={acting} controls={actsId} said={actsSaid(resource)} onToggle={() => setActing((o) => !o)} />
+        <ActToggle
+          open={acting}
+          controls={actsId}
+          said={target ? actsSaid(resource) : 'Nothing can be sent yet'}
+          onToggle={() => setActing((o) => !o)}
+        />
       )}
       <SessionLive session={session} live={live} now={now} />
       <SessionEarlier session={session} now={now} />
-      {target && acts && acting && (
+      {work && acts && acting && (
         <div id={actsId} className="resource-session-acts">
-          <SessionActs target={target} offer={routeOffers(resource)} acts={acts} />
+          {target ? (
+            <SessionActs target={target} offer={routeOffers(resource)} acts={acts} />
+          ) : (
+            <p className="act-note muted">{UNFENCED}</p>
+          )}
         </div>
       )}
     </li>

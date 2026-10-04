@@ -280,10 +280,13 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
   const [focus, setFocus] = useState<string | null>(null)
   const pill = useRef<HTMLButtonElement>(null)
   const review = material(reviewed?.last_review) ? reviewed.last_review : null
+  // Its revision is the one the review is read with, so the card and the goal's line say the same of it.
+  const revision = reviewed?.revision ?? null
   const reviewShown = review !== null && openId === review.review_id
   return {
     asks,
     review,
+    revision,
     pill,
     reviewShown,
     focus,
@@ -435,11 +438,11 @@ interface SlotProps {
 /** Under the bar, one at a time: the decisions, or the lead's review that proposes a change. */
 function Slot({ slot, rows, onOpenTask, decisions }: SlotProps) {
   if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
-  if (!slot.reviewShown || !slot.review) return null
+  if (!slot.reviewShown || !slot.review || slot.revision === null) return null
   return (
     <ReviewResult
       review={slot.review}
-      plan={decisions.plan}
+      plan={{ revision: slot.revision }}
       rows={rows}
       now={decisions.now}
       onOpenTask={onOpenTask}
