@@ -136,8 +136,17 @@ export const sameTarget = (a: CommandTarget, b: CommandTarget) => TARGET_FIELDS.
  */
 export function executionSaid(k: Known, shown: CommandTarget): string | null {
   const t = k.command.target
-  if (t.attempt_id !== shown.attempt_id) return 'for an earlier attempt'
+  if (t.attempt_id !== shown.attempt_id) return attemptSaid(t.attempt_id, shown.attempt_id)
   return t.session_id === shown.session_id ? null : 'for another session'
+}
+
+/**
+ * Of two attempts that differ: an earlier one when both are named; when one isn't (Resources names no attempt), only
+ * that, never "earlier" (Codex F-016).
+ */
+function attemptSaid(sent: string | null, shown: string | null): string {
+  if (sent === null) return 'sent without naming its attempt'
+  return shown === null ? 'sent naming its attempt' : 'for an earlier attempt'
 }
 
 type Observation = Pick<Receipt, 'revision' | 'admission' | 'delivery' | 'effect' | 'rejection'>

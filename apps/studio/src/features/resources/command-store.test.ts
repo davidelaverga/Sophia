@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { added, commandOf, drafted, received, repeatOf, resent, spaceOf, unanswered } from './command-store.ts'
+import {
+  added,
+  commandOf,
+  commandSpace,
+  drafted,
+  received,
+  repeatOf,
+  resent,
+  spaceOf,
+  unanswered,
+} from './command-store.ts'
 import { executionOf, type Command, type Receipt } from './receipts.ts'
 
 const target = {
@@ -59,6 +69,12 @@ describe('the command store', () => {
     // The same generation's next attempt, or another session: another execution, so another request (PR #76, P1).
     assert.equal(repeatOf(space, 'stop', { ...target, attempt_id: 'at-next' }), null)
     assert.equal(repeatOf(space, 'stop', { ...target, session_id: 's-next' }), null)
+  })
+
+  it('is one space per project and viewer, whichever surface sends (Codex F-016)', () => {
+    assert.equal(commandSpace('p', 'davide'), commandSpace('p', 'davide'))
+    assert.notEqual(commandSpace('p', 'davide'), commandSpace('p', 'luis'))
+    assert.notEqual(commandSpace('p', 'davide'), commandSpace('q', 'davide'))
   })
 
   it('keys a draft by its execution, so another attempt or session starts with none (Codex F-007)', () => {

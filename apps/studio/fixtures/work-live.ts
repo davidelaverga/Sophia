@@ -2,7 +2,7 @@
 // last report, a clock that runs from NOW, the receipts a service would give each command, the events an answer from
 // the shared conversation would arrive as, a labelled source text for a result, and a decision's receipt. Nothing
 // here reaches a network. The query string chooses how the service behaves: `admission=slow|lost|refused`,
-// `settle=confirmed|unknown`, `ask=down|whole|silent|flaky`, `result=down`.
+// `settle=confirmed|unknown`, `ask=down|whole|silent|flaky`, `result=down|silent|late`.
 import type { Resource } from '../src/features/resources/resource.ts'
 import type { Receipt } from '../src/features/resources/receipts.ts'
 import type { SendCommand } from '../src/features/resources/SessionActs.tsx'
@@ -328,13 +328,26 @@ const TEXT: Record<string, string> = {
     'Source review\n\nThe supplied sources cover the export path and the renderer. They don’t cover the report pane: its spec is missing from the manifest.',
 }
 
-export const readResult: ReadResult = (ref) =>
-  new Promise((done) =>
+/** How many times each version was read: `result=late` answers a version's first read only after 40 s. */
+const reads = new Map<string, number>()
+
+/**
+ * The result port: each version's labelled text after 300 ms; `result=down` reads none; `result=silent` never answers
+ * (Codex F-017); `result=late` answers a version's first read at 40 s, after the Studio's limit, and the next at once.
+ */
+export const readResult: ReadResult = (ref) => {
+  const mode = query().get('result')
+  const n = (reads.get(ref.version_id) ?? 0) + 1
+  reads.set(ref.version_id, n)
+  if (mode === 'silent') return new Promise(() => undefined)
+  const wait = mode === 'late' && n === 1 ? 40_000 : 300
+  return new Promise((done) =>
     setTimeout(() => {
-      const text = query().get('result') === 'down' ? undefined : TEXT[ref.version_id]
+      const text = mode === 'down' ? undefined : TEXT[ref.version_id]
       done(text ? { text, label: 'Simulated source — fixture text, not a real result' } : null)
-    }, 300),
+    }, wait),
   )
+}
 
 /** Each answer a decider gave, in order: for the checks to read. */
 export const answers: DecisionAnswer[] = []

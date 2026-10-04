@@ -22,6 +22,7 @@ import { useAddressed } from '../../resources/useAddressed.ts'
 import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
 import '../../resources/resources.css'
+import { commandSpace } from '../../resources/command-store.ts'
 import { useActs, type SendCommand } from '../../resources/SessionActs.tsx'
 import { AwayLine } from '../../resources/AwayLine.tsx'
 import { accountOf } from './account.ts'
@@ -201,18 +202,22 @@ const askedKey = (d: BoardDecision) => `${d.decision_id}:${String(d.revision)}`
  */
 function useDecisions(decisions: readonly BoardDecision[], viewerId: string | null, now: Date) {
   const open = decisions.filter((d) => d.state === 'proposed')
-  // Past its expiry, it is read, not answered: it isn't the viewer's to act on, so it calls no one.
-  const mine = open.filter((d) => d.decider_id === viewerId && actionable(d, now))
+  // Past its expiry, it is read, not answered: it isn't anyone's to act on now, so it calls no one (Codex F-019).
+  const active = open.filter((d) => actionable(d, now))
+  const mine = active.filter((d) => d.decider_id === viewerId)
   const [state, setState] = useState(() => ({ shown: mine.length > 0, seen: new Set(mine.map(askedKey)) }))
   const arrived = mine.filter((d) => !state.seen.has(askedKey(d)))
   // One of the viewer's not seen before opens them, once, as the page renders it; nothing else reopens them.
   if (arrived.length > 0) setState({ shown: true, seen: new Set([...state.seen, ...arrived.map(askedKey)]) })
-  return { open, mine, shown: state.shown, toggle: () => setState((s) => ({ ...s, shown: !s.shown })) }
+  return { open, active, mine, shown: state.shown, toggle: () => setState((s) => ({ ...s, shown: !s.shown })) }
 }
 
 interface PillProps {
   viewerId: string | null
+  /** The decisions still answerable. */
   count: number
+  /** The proposals past their expiry, read and not answered. */
+  expired: number
   mine: number
   shown: boolean
   onToggle: () => void
@@ -220,10 +225,18 @@ interface PillProps {
   deciders: string[]
 }
 
-function DecisionPill({ viewerId, count, mine, shown, onToggle, people, deciders }: PillProps) {
-  if (count === 0) return null
+/** How many, in words: "1 decision", "2 decisions". */
+const decisionsSaid = (n: number) => `${String(n)} ${n === 1 ? 'decision' : 'decisions'}`
+
+/**
+ * The pill: the decisions still answerable, and whose they are; past their expiry, they call no one, so with none
+ * answerable it only says how many expired, still opening them to be read (Codex F-019).
+ */
+function DecisionPill({ viewerId, count, expired, mine, shown, onToggle, people, deciders }: PillProps) {
+  if (count === 0 && expired === 0) return null
   const named = (id: string) => (id === viewerId ? 'you' : (people[id]?.name ?? 'someone'))
   const who = mine > 0 ? 'you' : [...new Set(deciders.map(named))].join(' and ')
+  const said = count > 0 ? `${decisionsSaid(count)} for ${who}` : `${decisionsSaid(expired)} expired`
   return (
     <button
       type="button"
@@ -233,7 +246,7 @@ function DecisionPill({ viewerId, count, mine, shown, onToggle, people, deciders
       onClick={onToggle}
     >
       <span className="decision-pill-dot" aria-hidden />
-      {count} {count === 1 ? 'decision' : 'decisions'} for {who}
+      {said}
       <Icon name="chevron" size={12} />
     </button>
   )
@@ -528,8 +541,11 @@ export function PlanBoard(props: Props) {
       </section>
     )
   }
-  // Another viewer, or another project, starts afresh: nothing typed, sent or asked here carries over.
-  return <BoardBody key={`${projectId}|${viewerId ?? ''}`} {...props} goal={goal} board={board} />
+  // Another viewer, or another project, starts afresh: nothing typed, sent or asked here carries over. Another goal, or
+  // another plan shown for it (a distinct plan id), starts its view afresh too: lens, folds and slot (Codex F-018). A
+  // new revision of the same plan is a live update, and keeps them. Commands and questions live outside, kept.
+  const at = `${projectId}|${viewerId ?? ''}|${goal.goal_id}|${board.plan.plan_id}`
+  return <BoardBody key={at} {...props} goal={goal} board={board} />
 }
 
 interface BodyProps extends Props {
@@ -558,12 +574,13 @@ function Bar({ view, rows, viewerId, slot, people, away, onSeen }: BarProps) {
       <Lens lens={view.lens} rows={rows} viewerId={viewerId} onChange={view.setLens} />
       <DecisionPill
         viewerId={viewerId}
-        count={asks.open.length}
+        count={asks.active.length}
+        expired={asks.open.length - asks.active.length}
         mine={asks.mine.length}
         shown={slot.decisionsShown}
         onToggle={slot.toggleDecisions}
         people={people}
-        deciders={asks.open.map((d) => d.decider_id)}
+        deciders={asks.active.map((d) => d.decider_id)}
       />
       <ReviewPill slot={slot} />
       <AwayLine away={away} onSeen={onSeen} className="board-return" />
@@ -591,8 +608,9 @@ function BoardBody(props: BodyProps) {
   const { goal, board, people, now, viewerId = null, onDecide } = props
   const { plan, rows, operable } = board
   const at = { project: props.projectId, goal: goal.goal_id, plan: plan.plan_id, viewer: viewerId }
-  // Commands, drafts and questions outlive this board (another goal chosen, a search): kept per project and viewer.
-  const space = `${props.projectId}|${viewerId ?? ''}`
+  // Commands, drafts and questions outlive this board (another goal chosen, a search, Resources and back): kept per
+  // project and viewer, in the space Resources shares (command-store.ts).
+  const space = commandSpace(props.projectId, viewerId)
   const { seen, markSeen } = useSeen(at, rows, goal.decisions)
   const view = useBoard(rows, viewerId, changedSince(rows, seen))
   const slot = useSlot({

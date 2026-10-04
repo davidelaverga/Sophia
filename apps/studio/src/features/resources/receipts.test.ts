@@ -263,6 +263,13 @@ describe('what is known of a command', () => {
     assert.equal(executionSaid(stop, nextAttempt), 'for an earlier attempt')
     assert.equal(executionSaid(stop, nextSession), 'for another session')
     assert.equal(executionSaid(stop, target), null)
+    // One side naming no attempt (Resources names none): said as such, never as an earlier attempt (Codex F-016).
+    assert.equal(
+      executionSaid(lost(sending(command('stop', { target: { ...target, attempt_id: null } }))), target),
+      'sent without naming its attempt',
+    )
+    assert.equal(executionSaid(stop, { ...target, attempt_id: null }), 'sent naming its attempt')
+    assert.equal(retryableNow(stop, sendable, { ...target, attempt_id: null }), false) // strict, still
     // A draft belongs to its execution: another attempt or session starts with none, while history stays by scope.
     assert.notEqual(executionOf(target), executionOf(nextAttempt))
     assert.notEqual(executionOf(target), executionOf(nextSession))

@@ -4,10 +4,11 @@
 // shown as refused, never drawn. The query string picks who is looking, `viewer=davide|luis|mara` (default: Luis;
 // Mara is a viewer who reads); `case=…` a scenario (work-cases.ts); `proposed=1` (no plan accepted yet: the first
 // goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`;
-// `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state` (the decision waiting on Davide past its
-// expiry, or marked expired); `odd-id=1` (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's
-// answer comes back); `later=1` (the second goal's plan held back until `workFixture.arrive()`); `coverage=partial|
-// unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
+// `attempt=none` (no assignment names its attempt); `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state|soon`
+// (the decision waiting on Davide past its expiry, marked expired, or expiring 30 s after the page opens); `odd-id=1`
+// (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
+// second goal's plan held back until `workFixture.arrive()`); `coverage=partial|unavailable`; and how the simulated
+// services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
@@ -26,6 +27,9 @@ import { createRoot } from 'react-dom/client'
 import type { GoalCommand } from '@sophia/contracts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
+import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
+import type { SendCommand } from '../src/features/resources/SessionActs.tsx'
+import type { View } from '../src/app/route.ts'
 import type { Command, Receipt } from '../src/features/resources/receipts.ts'
 import { linkHash } from '../src/features/resources/link.ts'
 import { moving } from '../src/features/resources/motion.ts'
@@ -47,7 +51,7 @@ import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
-import { NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
+import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
 import { inCase } from './work-cases.ts'
 import {
   CASES,
@@ -201,8 +205,20 @@ if (since === '1' || since === '2') {
 }
 
 /** The first goal as the page opens it: proposed, superseded, expired, crowded or in a scenario, as asked. */
+/** `attempt=none`: the runtime names no attempt for any assignment, as the contract allows (null). */
+const attemptless: Change = (g) =>
+  query.get('attempt') === 'none'
+    ? {
+        ...g,
+        items: g.items.map((v) => ({
+          ...v,
+          ...(v.assignment && { assignment: { ...v.assignment, attempt_id: null } }),
+        })),
+      }
+    : g
+
 function opening(viewer: Viewer): GoalView {
-  let g = inCase(scenario, firstGoal(viewer), viewer)
+  let g = attemptless(inCase(scenario, firstGoal(viewer), viewer))
   if (query.get('many') === '1') g = manyTasks(g)
   g = decisionsAsked(g)
   const current = g.current_plan
@@ -226,12 +242,19 @@ const odd = query.get('odd-id') === '1'
 const renamed = (id: string) => (odd && id === 'd1' ? ODD : id)
 
 /** The first goal's decisions, as `expired=` and `odd-id=` ask: past expiry or marked so, and the odd id. */
+/** When `expired=` has the decision expire: an hour ago (`1`, `state`), or 30 s after the page opens (`soon`). */
+const EXPIRES: Readonly<Record<string, number>> = { '1': -3_600_000, state: -3_600_000, soon: 30_000 }
+
 const decisionsAsked: Change = (g) => {
-  const how = query.get('expired')
-  const past = new Date(NOW.getTime() - 3_600_000).toISOString()
+  const how = query.get('expired') ?? ''
+  const at = EXPIRES[how]
   const expiring = (d: GoalView['decisions'][number]) =>
-    d.state === 'proposed' && (how === '1' || how === 'state')
-      ? { ...d, expires_at: past, ...(how === 'state' && { state: 'expired' as const }) }
+    d.state === 'proposed' && at !== undefined
+      ? {
+          ...d,
+          expires_at: new Date(NOW.getTime() + at).toISOString(),
+          ...(how === 'state' && { state: 'expired' as const }),
+        }
       : d
   return { ...g, decisions: g.decisions.map((d) => ({ ...expiring(d), decision_id: renamed(d.decision_id) })) }
 }
@@ -584,18 +607,48 @@ function Tasks() {
         Simulated — no lead, tool, host or conversation read · viewing as {people[viewer].name}
         {scenario ? ` · ${scenario}` : ''}
       </p>
-      <ProjectShell
-        projectId={PROJECT}
-        view="work"
-        identity={identity}
-        account={null}
-        onShow={nothing}
-        onLeave={nothing}
-        onWork={nothing}
-        onSignOut={nothing}
-        plans={plans}
-      />
+      <Shell plans={plans} viewer={viewer} now={now} onCommand={onCommand} />
     </>
+  )
+}
+
+interface ShellProps {
+  plans: Readonly<Record<string, ReturnType<typeof slot>>>
+  viewer: Viewer
+  now: Date
+  onCommand: SendCommand
+}
+
+/**
+ * The project's shell over the page: Tasks, each goal's board in its slot, and Resources, its panel over the same
+ * resources and the same command port, as the Studio has both in one project (Codex F-016). Its views switch in place.
+ */
+function Shell({ plans, viewer, now, onCommand }: ShellProps) {
+  const [view, setView] = useState<View>('work')
+  return (
+    <ProjectShell
+      projectId={PROJECT}
+      view={view}
+      identity={identity}
+      account={null}
+      onShow={setView}
+      onLeave={nothing}
+      onWork={nothing}
+      onSignOut={nothing}
+      plans={plans}
+      resources={
+        <ResourcePanel
+          resources={withActivity(owned)}
+          observations={readings}
+          actions={requests}
+          viewerId={viewer}
+          now={now}
+          scope="fixture-work"
+          projectId={PROJECT}
+          onAct={onCommand}
+        />
+      }
+    />
   )
 }
 

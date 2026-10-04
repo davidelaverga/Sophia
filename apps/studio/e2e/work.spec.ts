@@ -1820,6 +1820,156 @@ test('codex · F-015 · the plan’s updating band holds its own choices only; a
   await expect(updating).not.toContainText('Use the alternative route')
 })
 
+// ---- CX-0016 (Codex on #74; GitHub 4179419841, …844, …848, …853). ----
+
+const views = (page: Page) => page.getByRole('navigation', { name: 'Project views' })
+
+/** Davide's Claude Code worker, its acts open, in Resources: reached from Tasks in the same page. */
+async function workerInResources(page: Page) {
+  await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
+  await page
+    .getByRole('list', { name: 'Resources' })
+    .getByRole('button', { name: 'Davide · Claude Code', exact: true })
+    .click()
+  const worker = page
+    .getByRole('dialog', { name: 'Davide · Claude Code' })
+    .locator('.resource-session')
+    .filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  return worker
+}
+
+/** Back to Tasks, the retry's sheet open. */
+async function retryInTasks(page: Page) {
+  await page.keyboard.press('Escape')
+  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  return openTask(page, 'work-1', 'Implement the PDF retry')
+}
+
+test('codex · F-016 · a Stop sent from Resources is Tasks’ too: the same request there is its own operation', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost&attempt=none`) // the same execution on both surfaces
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  const worker = await workerInResources(page)
+  await stopIn(worker)
+  await expect(worker.getByRole('button', { name: 'Try again' })).toBeVisible() // its reply lost
+  const task = await retryInTasks(page)
+  await expect(task.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+  await expect(task.locator('.act-steps').getByRole('button', { name: 'Try again' })).toBeVisible()
+  // Stop pressed here is the same request: its own operation goes again, and its receipts land here.
+  await stopIn(task)
+  await expect.poll(async () => (await commanded(page)).length).toBe(2)
+  const [first, second] = await commanded(page)
+  expect(second).toEqual(first)
+  await expect(task.locator('.act-steps')).toContainText('Stop requested; waiting for the runtime to confirm.')
+})
+
+test('codex · F-016 · guidance from Resources is the same request in Tasks; another execution’s is named, not sent', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost&attempt=none`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  const worker = await workerInResources(page)
+  await worker.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging fixtures')
+  await worker.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(worker.getByRole('button', { name: 'Try again' })).toBeVisible()
+  const task = await retryInTasks(page)
+  const field = task.getByRole('textbox', { name: 'Guidance for its session' })
+  await expect(field).toHaveValue('Use the staging fixtures') // the same execution's words, not yet recorded
+  await task.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect.poll(async () => (await commanded(page)).length).toBe(2)
+  const [first, second] = await commanded(page)
+  expect(second).toEqual(first)
+  // Where the board names the attempt and Resources doesn't, they are different executions: said, never sent again.
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  await stopIn(await workerInResources(page))
+  const named = await retryInTasks(page)
+  await expect(named.getByRole('list', { name: 'Earlier, still open' })).toContainText(
+    'Stop sent without naming its attempt',
+  )
+  await expect(named.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await stopIn(named)
+  await expect.poll(async () => (await commanded(page)).length).toBe(2)
+  const [fromResources, fromTasks] = await commanded(page)
+  expect(fromTasks?.operation_id).not.toBe(fromResources?.operation_id)
+  expect(fromTasks?.target.attempt_id).not.toBeNull()
+})
+
+test('codex · F-017 · a result that never comes is said so in time; a reply after that changes nothing', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&case=defects&result=late`)
+  const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
+  const note = sheet.locator('.task-result-note')
+  await sheet.getByRole('button', { name: 'Open result' }).click()
+  await expect(note).toHaveText('Reading findings-v1…')
+  await page.clock.runFor(29_000)
+  await expect(note).toHaveText('Reading findings-v1…')
+  await page.clock.runFor(2_000) // past the Studio's 30 s read limit
+  const late = 'findings-v1 didn’t come in time. Nothing else is shown in its place; open it again to try again.'
+  await expect(note).toHaveText(late)
+  await page.clock.runFor(10_000) // its reply comes at 40 s, after the limit: nothing changes
+  await expect(note).toHaveText(late)
+  await expect(sheet.locator('.task-result-text')).toHaveCount(0)
+  // Opened again, it reads.
+  await sheet.getByRole('button', { name: 'Open result' }).click()
+  await page.clock.runFor(500)
+  await expect(sheet.locator('.task-result-text')).toContainText('Changes needed before it ships.')
+})
+
+test('codex · F-017 · a port that never answers leaves no read waiting', async ({ page }) => {
+  await paused(page, `${PAGE}?viewer=davide&case=defects&result=silent`)
+  const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
+  await sheet.getByRole('button', { name: 'Open result' }).click()
+  await page.clock.runFor(31_000)
+  await expect(sheet.locator('.task-result-note')).toContainText('didn’t come in time')
+})
+
+test('codex · F-018 · another plan starts its own view; the same plan’s next revision keeps it, and commands stay', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  const review = await openTask(page, 'work-2', 'Review the report pane')
+  await review.getByRole('button', { name: /^Hold/ }).click() // its reply lost: still open
+  await expect(review.getByRole('button', { name: 'Try again' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await board(page)
+    .getByRole('radio', { name: /^Waiting/ })
+    .click()
+  await fold(page).click()
+  // The same plan's next revision: a live update, the view kept.
+  await page.evaluate(() => window.workFixture?.react?.('d1'))
+  await expect(board(page)).toHaveAttribute('aria-label', 'Plan r3')
+  await expect(board(page)).toHaveAttribute('data-lens', 'waiting')
+  await expect(fold(page)).toHaveAttribute('aria-expanded', 'true')
+  // Another plan in its place: its own view, from the start; the Hold sent is still known.
+  await page.evaluate(() => window.workFixture?.replan?.())
+  await expect(board(page)).toHaveAttribute('aria-label', 'Plan r1')
+  await expect(board(page)).toHaveAttribute('data-lens', 'all')
+  await expect(fold(page)).toHaveAttribute('aria-expanded', 'false')
+  const again = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(again.locator('.act-steps')).toContainText('Not confirmed whether it was recorded.')
+})
+
+test('codex · F-019 · past its expiry, a decision calls no one: the pill says it expired, never “for you”', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&expired=1`)
+  await expect(pill(page)).toHaveText(/^1 decision expired/, { timeout: 15_000 })
+  await expect(pill(page)).not.toHaveAttribute('data-mine')
+  // Expiring while the page is open: his to answer, then, past its expiry, only read.
+  await paused(page, `${PAGE}?viewer=davide&expired=soon`)
+  await expect(pill(page)).toHaveText(/^1 decision for you/, { timeout: 15_000 })
+  await expect(pill(page)).toHaveAttribute('data-mine', 'true')
+  await page.clock.runFor(31_000)
+  await expect(pill(page)).toHaveText(/^1 decision expired/)
+  await expect(pill(page)).not.toHaveAttribute('data-mine')
+  await expect(board(page).getByRole('region', { name: 'Davide decides' })).toContainText('expired')
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })

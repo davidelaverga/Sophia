@@ -3,7 +3,8 @@
 // offered when the board's view allows them, and reach a version through the page's result port by its exact
 // identity (results.ts). This is not a renderer: what comes back is shown as plain text under the label its port
 // gives (a fixture says it is one). No candidate means nothing to open, and a version the port can't read says so.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { READ_TIMEOUT_MS } from '../../../api/client.ts'
 import { actionOf, type PlanRow } from './plan.ts'
 import { refOf, resultsOf, reviewSaid, versionSaid, type ReadResult, type ResultRef } from './results.ts'
 import type { Candidate } from './board-view.ts'
@@ -11,19 +12,33 @@ import type { Candidate } from './board-view.ts'
 type Opened =
   | { ref: ResultRef; purpose: 'read' | 'review'; state: 'reading' }
   | { ref: ResultRef; purpose: 'read' | 'review'; state: 'shown'; text: string; label: string }
-  | { ref: ResultRef; purpose: 'read' | 'review'; state: 'unavailable' }
+  | { ref: ResultRef; purpose: 'read' | 'review'; state: 'unavailable'; late?: boolean }
 
-/** The version opened last, read through the port; a slower earlier read never replaces a later one. */
+/**
+ * The version opened last, read through the port; a slower earlier read never replaces a later one. No read waits
+ * forever (Codex F-017): past the Studio's read limit (`READ_TIMEOUT_MS`, 30 s) it is unavailable, and can be opened
+ * again; a reply after that changes nothing. Its deadline ends with it, or with the sheet.
+ */
 function useOpened(readResult: ReadResult | undefined) {
   const [opened, setOpened] = useState<Opened | null>(null)
   const latest = useRef(0)
+  const deadline = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(deadline.current), [])
   const open = (ref: ResultRef, purpose: 'read' | 'review') => {
     if (!readResult) return
     const n = ++latest.current
     setOpened({ ref, purpose, state: 'reading' })
+    let settled = false
     const settle = (next: Opened) => {
-      if (n === latest.current) setOpened(next)
+      if (settled) return
+      settled = true
+      if (n === latest.current) {
+        clearTimeout(deadline.current)
+        setOpened(next)
+      }
     }
+    clearTimeout(deadline.current)
+    deadline.current = setTimeout(() => settle({ ref, purpose, state: 'unavailable', late: true }), READ_TIMEOUT_MS)
     readResult(ref, purpose).then(
       (got) => settle(got ? { ref, purpose, state: 'shown', ...got } : { ref, purpose, state: 'unavailable' }),
       () => settle({ ref, purpose, state: 'unavailable' }),
@@ -70,7 +85,9 @@ function OpenedText({ opened }: { opened: Opened }) {
   if (opened.state === 'unavailable') {
     return (
       <p className="task-result-note">
-        {opened.ref.version_id} can’t be read right now. Nothing else is shown in its place.
+        {opened.late
+          ? `${opened.ref.version_id} didn’t come in time. Nothing else is shown in its place; open it again to try again.`
+          : `${opened.ref.version_id} can’t be read right now. Nothing else is shown in its place.`}
       </p>
     )
   }

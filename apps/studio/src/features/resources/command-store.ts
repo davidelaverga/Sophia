@@ -30,6 +30,13 @@ const listeners = new Set<() => void>()
 /** The guidance operations whose sent words have already left their field once. */
 const cleared = new Set<string>()
 
+/**
+ * The one space for a project as one viewer sees it: Resources and Tasks share it, so a command sent from either is
+ * known to both, and the same request from the other is the same operation (Codex F-016). Another project or viewer is
+ * another space.
+ */
+export const commandSpace = (project: string, viewer: string | null) => [project, viewer ?? ''].join('|')
+
 export const spaceOf = (space: string): Space => spaces.get(space) ?? EMPTY
 
 function change(space: string, next: (s: Space) => Space): void {

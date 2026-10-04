@@ -17,6 +17,7 @@ import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceShe
 import { glance, readSeen, whileAway, writeSeen, type Seen } from './away.ts'
 import { AwayLine } from './AwayLine.tsx'
 import { roomElsewhere } from './room.ts'
+import { commandSpace } from './command-store.ts'
 import { useActs, type SendCommand } from './SessionActs.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
@@ -66,9 +67,9 @@ interface Props {
   scope?: string
 }
 
-/** The panel's commands, for the project its scope names. */
+/** The panel's commands, for the project its scope names, in the space Tasks shares (command-store.ts). */
 const usePanelActs = ({ onAct, projectId, viewerId }: Props) =>
-  useActs(projectId ? onAct : undefined, projectId ?? '', `resources|${projectId ?? ''}|${viewerId}`)
+  useActs(projectId ? onAct : undefined, projectId ?? '', commandSpace(projectId ?? '', viewerId))
 
 /**
  * What changed since the viewer last looked (away.ts): a glance kept in this browser, the line it makes, and the tiles
