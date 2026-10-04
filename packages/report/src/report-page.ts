@@ -97,18 +97,24 @@ function dateOf(iso: string | null | undefined, words: PageWords): string | null
 }
 
 /**
- * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). Italian and
- * Spanish headings name them with their article (M75): "I limiti", "Los límites", "The limits" read as limitations only
- * when the article and the word are the whole heading, since "I limiti di velocità" is rate limits, as "Limiti di
- * velocità" was always read as limitations and the page then drops the version's stored ones; "La risposta", "La
- * respuesta" and "The answer" read as the answer as "Answer" did.
+ * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). "Limits" read
+ * as limitations only when the word, with its article or none, is the whole heading ("Limits", "Limiti", "I limiti",
+ * "Los límites", "The limits"), or joined to risks or scope below: a heading that only starts with it ("Limits of
+ * liability", "Limiti di velocità", "Límites de tasa") is a subject, and read as limitations it made the page drop the
+ * version's stored ones (M75, the cloud review on 85c1ae1). "La risposta", "La respuesta", "The answer" read as the
+ * answer as "Answer" does.
  */
 const LIMITS =
-  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b|^(the|i|los)\s+(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
+  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^((the|i|los)\s+)?(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
 /** "Limits" further in: joined to risks or scope, or known ("Rischi e limiti", "I rischi e i limiti"), never alone. */
 const JOINED =
   /\b(known|(risks|scope|rischi|ambit[oi]|riesgos|alcance)(,|\s+(and|e|y|&)))\s+((the|i|los)\s+)?(limits|limiti|l[ií]mites)\b/i
 const ANSWER = /^((the|la)\s+)?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
+/**
+ * A heading that only starts with "Limits" ("Limits of this study") may still be the report's own: never reason to
+ * drop the stored limitations, but reason enough not to say the report states none.
+ */
+const OPENS_WITH_LIMITS = /^((the|i|los)\s+)?(limits|limiti|l[ií]mites)\b/i
 
 const namesLimits = (title: string) => LIMITS.test(title) || JOINED.test(title)
 
@@ -308,10 +314,14 @@ function pageSections(printed: PrintedReport, pass: Pass): PageSection[] {
 
 /**
  * Whether the report states its limitations: a section of them, or one whose heading names them under another role
- * ("Conclusions and limitations", "Sources and limitations").
+ * ("Conclusions and limitations", "Sources and limitations"). Only then are the stored ones left out.
  */
 const statesLimits = (sections: readonly PageSection[]) =>
   sections.some((s) => s.role === 'limitations' || namesLimits(s.title))
+
+/** Whether the report may state them: statesLimits, or a heading that opens with "Limits" (OPENS_WITH_LIMITS). */
+const mayStateLimits = (sections: readonly PageSection[]) =>
+  statesLimits(sections) || sections.some((s) => OPENS_WITH_LIMITS.test(s.title))
 
 /**
  * The limitations the version stored, as a section of their own when the report wrote none: after the last body or
@@ -451,7 +461,7 @@ function methodSection(page: Page): string {
   if (count('unread') > 0) lines.push(['warn', esc(words.unread(count('unread'), n))])
   lines.push(n > 0 ? ['ok', esc(words.gate(n))] : ['note', esc(words.noCites)])
   lines.push(['note', `<strong>${esc(words.review[0])}</strong> ${esc(words.review[1])}`])
-  if (!statesLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
+  if (!mayStateLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
   lines.push(['note', esc(words.noRecord)])
   const items = lines.map(([kind, text]) => `<li class="${kind}">${text}</li>`).join('')
   return (

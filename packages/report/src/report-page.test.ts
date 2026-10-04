@@ -758,11 +758,16 @@ describe('html-report-v2: what its bytes guarantee', () => {
       'I answer three questions',
     ]
     for (const heading of [...body, 'Le risposte dei fornitori']) assert.equal(role(heading), 'body', heading)
-    const stored = page({ markdown: `# T\n\n## I limiti di velocità\n\n${filler(5)}`, limitations: ['Stored.'] })
-    assert.ok(
-      stored.includes('<section id="report-limitations"'),
-      'a rate-limit section leaves the stored ones printed',
-    )
+    // A heading that only starts with "Limits" is a subject (the cloud review on 85c1ae1): the stored limitations still
+    // print, and the method does not say the report states none, since such a heading may be the report's own.
+    for (const heading of ['Limits of liability', 'Limiti di velocità', 'Límites de tasa', 'I limiti di velocità']) {
+      assert.equal(role(heading), 'body', heading)
+      const stored = page({ markdown: `# T\n\n## ${heading}\n\n${filler(5)}`, limitations: ['Stored.'] })
+      assert.ok(stored.includes('<section id="report-limitations"'), `${heading}: the stored ones still print`)
+      const none = page({ markdown: `# T\n\n## ${heading}\n\n${filler(5)}` })
+      assert.doesNotMatch(none, /states no limitations/, `${heading}: never said to state none`)
+    }
+    for (const heading of ['Limits', 'Limiti.', 'Límites:']) assert.equal(role(heading), 'limitations', heading)
     const pdf = renderReport({
       markdown: `# T\n\n## Answer\n\n${filler(5)}`,
       language: 'en',
