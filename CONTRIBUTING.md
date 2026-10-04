@@ -549,9 +549,9 @@ when you change the room:
   comparison control for SDD-01's native design and as legacy compatibility
   for the "HTML page" offers Studio already has; a newly requested HTML
   deliverable is SDD-01's to design. Nothing calls it designed or reviewed,
-  and no new offer of it appears: `report-page.test.ts` (Studio) pins its
-  callers, so a new one fails until `docs/coordination/M75/HANDOFF_TO_SDD01.md`
-  maps it for SDD-01 to replace. Authored HTML never goes through its passes,
+  and no new offer of it appears: `report-page.test.ts` (Studio) pins every
+  module that imports, re-exports or loads it, so a new one fails until
+  `docs/coordination/M75/HANDOFF_TO_SDD01.md` maps it for SDD-01 to replace. Authored HTML never goes through its passes,
   which assume the printer's own markup.
 - **The downloaded page has its own checks** (`e2e/report-page.spec.ts`,
   SMC-M03): the bytes `renderReportPage` prints for labelled fixture reports
@@ -623,9 +623,10 @@ when you change the room:
   number is 0.8 of the text, with a finger-sized target on a touch screen
   (an empty `::after`, none in a table, whose frame it would make scroll),
   and each target is its own (M75-RF-0001, `report-reading.spec.ts`): it
-  reaches 4 px to a side only where no other target is, never across a
-  group's comma or into a link, and stays shorter than the step between its
-  lines, so no press belongs to two citations or takes a link's. A
+  reaches 4 px into the words beside it, never across a group's comma or
+  into a link (`flushSides` marks a group beside a link or with no word),
+  and stays shorter than the step between its lines, so no press belongs to
+  two citations or takes a link's. A
   citation of a source read in part, as a snippet or not at all is dotted
   (`data-weak`) and named so in the report's language (`reportLanguage`,
   from `@sophia/report/language`, which loads without the page's template).

@@ -9,6 +9,7 @@ import type { ReportSource } from '@sophia/contracts'
 import {
   bindCites,
   citeLabel,
+  flushSides,
   KEPT_WITH_WORD,
   weaknessOf,
   type Bound,
@@ -133,10 +134,17 @@ function TableView({ block, citing }: { block: Extract<Block, { kind: 'table' }>
 }
 
 function Inlines({ inline, citing }: { inline: readonly Inline[]; citing: Citing }) {
-  return bindCites(inline).map((piece, i) => <PieceView key={i} piece={piece} citing={citing} />)
+  const pieces = bindCites(inline)
+  return pieces.map((piece, i) =>
+    piece.kind === 'bound' ? (
+      <BoundCites key={i} bound={piece} citing={citing} flush={flushSides(pieces, i)} />
+    ) : (
+      <PieceView key={i} piece={piece} citing={citing} />
+    ),
+  )
 }
 
-function PieceView({ piece, citing }: { piece: Piece; citing: Citing }) {
+function PieceView({ piece, citing }: { piece: Exclude<Piece, Bound>; citing: Citing }) {
   switch (piece.kind) {
     case 'text':
       return <Fragment>{piece.text}</Fragment>
@@ -160,8 +168,6 @@ function PieceView({ piece, citing }: { piece: Piece; citing: Citing }) {
           <Inlines inline={piece.children} citing={citing} />
         </a>
       )
-    case 'bound':
-      return <BoundCites bound={piece} citing={citing} />
     case 'break':
       return <br />
     default:
@@ -174,10 +180,23 @@ function PieceView({ piece, citing }: { piece: Piece; citing: Citing }) {
  * longer group goes on after a comma, each further number with the comma after it, so it may wrap but never starts a
  * line with a comma.
  */
-function BoundCites({ bound, citing }: { bound: Bound; citing: Citing }) {
+function BoundCites({
+  bound,
+  citing,
+  flush,
+}: {
+  bound: Bound
+  citing: Citing
+  flush: { start: boolean; end: boolean }
+}) {
   const more = bound.cites.slice(KEPT_WITH_WORD)
   return (
-    <span className="cite-bound">
+    // Where the group's touch targets stop at their numerals (flushSides, artifacts.css): beside a link, or no word.
+    <span
+      className="cite-bound"
+      data-flush-start={flush.start ? '' : undefined}
+      data-flush-end={flush.end ? '' : undefined}
+    >
       <Inlines inline={bound.word} citing={citing} />
       <sup className="cite">
         {bound.cites.slice(0, KEPT_WITH_WORD).map((cite, k) => (

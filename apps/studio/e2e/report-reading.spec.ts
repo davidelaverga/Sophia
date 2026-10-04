@@ -513,6 +513,43 @@ const touchTargets = (page: Page) =>
     { near: 0.5, onLink: 2 },
   )
 
+/**
+ * Where each group's targets reach and stop, read from the page itself: the first number reaches 4 px into a word
+ * before it (plain, bold or code) and stops at its numeral after a link or nothing; the last number stops when a link
+ * follows with at most a space between, and reaches otherwise. Lists the numbers that do the other.
+ */
+const targetSides = (page: Page) =>
+  page.evaluate(
+    ({ link, wraps }) => {
+      const isLink = (n: ChildNode | null): boolean =>
+        n instanceof Element && (n.matches(link) || (n.matches(wraps) && isLink(n.firstChild)))
+      /** Whether the first number stops at its numeral exactly when a link or nothing comes before it. */
+      const startHolds = (bound: Element, first: Element) => {
+        const word = bound.firstChild instanceof Element && bound.firstChild.matches('sup') ? null : bound.firstChild
+        return (word === null || isLink(word)) === (parseFloat(getComputedStyle(first, '::after').left || '0') === 0)
+      }
+      /** Whether the last number stops at its numeral exactly when a link follows with at most a space between. */
+      const endHolds = (bound: Element, last: Element) => {
+        const next = bound.nextSibling
+        const after = next?.nodeType === Node.TEXT_NODE && !next.textContent?.trim() ? next.nextSibling : next
+        return isLink(after) === (parseFloat(getComputedStyle(last, '::after').right || '0') === 0)
+      }
+      return [...document.querySelectorAll('.md .cite-bound')]
+        .filter((bound) => !bound.closest('.md-table'))
+        .flatMap((bound) => {
+          const buttons = [...bound.querySelectorAll('sup.cite button')]
+          const [first, last] = [buttons[0], buttons.at(-1)]
+          if (!first || !last) return []
+          const at = bound.textContent.trim()
+          return [
+            ...(startHolds(bound, first) ? [] : [`${at}: ${first.textContent} before`]),
+            ...(endHolds(bound, last) ? [] : [`${at}: ${last.textContent} after`]),
+          ]
+        })
+    },
+    { link: 'a', wraps: 'strong, em, .cite-bound' },
+  )
+
 test('reading @phone · each citation’s target is its own: none meets another, or takes a press on a link', async ({
   page,
 }) => {
@@ -523,6 +560,8 @@ test('reading @phone · each citation’s target is its own: none meets another,
   expect(targets.missed, 'presses inside a citation’s target that reach something else').toEqual([])
   expect(targets.linkTaken, 'presses on a link beside a citation that something else takes').toEqual([])
   expect(targets.tall, 'targets as tall as the step between their lines').toEqual([])
+  // A target that stops where it could reach is a smaller target for nothing; one that reaches beside a link takes it.
+  expect(await targetSides(page), 'numbers whose target reaches or stops on the wrong side').toEqual([])
 })
 
 /** How a citation's number is drawn: its weight and its underline. */

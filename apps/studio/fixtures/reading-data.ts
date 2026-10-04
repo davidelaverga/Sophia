@@ -123,7 +123,7 @@ A long reference copied from a pricing page, cited with every source at once, sh
 
 Harbor Cloud passes all three tests with room in the budget; Northwind passes two and would need written support-access terms to pass the first. The decision is reversible within a quarter: both hosts export standard dumps and logical replication streams. See the [migration checklist](https://wiki.example.org/db/migration-checklist) for the steps after the decision, and ![a residency map](https://evil.example/map.png) for where the regions sit.
 
-Two sources agree on the window, Harbor[${S1}] and Calder[${S5}], and its [pricing page](https://pricing.harbor.example/)[${S1}] says the same; one claim[${S3}] [has a link](https://wiki.example.org/db) right after it.
+Two sources agree on the window, Harbor[${S1}] and Calder[${S5}], and its [pricing page](https://pricing.harbor.example/)[${S1}] says the same; one claim[${S3}] [has a link](https://wiki.example.org/db) right after it, and Calder[${S5}] [its notes](https://calder.example/notes)[${S2}] agree.
 `
 
 /**
@@ -155,7 +155,7 @@ const TEXTS: readonly Text[] = [
   },
   {
     sourceId: '00000000-0000-4000-8000-0000000000fa',
-    sha256: '05e8fa07310881fe38b9eef8fe9307bd105cbc788c20001ead3c5861d0cb704f',
+    sha256: '158fa59c3dd959ee3ac24c724c9416f7134f5a103273296bb95fd4692d0c9141',
     text: ENGLISH,
   },
 ]

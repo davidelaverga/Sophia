@@ -153,17 +153,24 @@ const modules = () =>
     .map((f) => f.split('\\').join('/'))
     .toSorted()
 
-/** What a module takes of the legacy conversion: the printer itself, its download, or the controls that offer it. */
-function conversionUses(source: string): string[] {
-  const uses = /(?:from\s+|import\(\s*)'@sophia\/report\/page'/.test(source) ? ['@sophia/report/page'] : []
-  for (const [, names = '', path = ''] of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'([^']+)'/g)) {
-    const named = names.split(',').map((n) => n.replace(/^\s*type\s+/, '').trim())
-    if (path.endsWith('/report-page.ts')) uses.push(...named.filter((n) => n === 'downloadReportPage'))
-    if (path.endsWith('/PageDownload.tsx'))
-      uses.push(...named.filter((n) => /^(PageDownload|usePageDownload)$/.test(n)))
-  }
-  return uses
+/** Every module a source names, however it does: import or re-export of any form, a dynamic or a bare import. */
+const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\1/g
+
+/**
+ * Which of the legacy conversion's modules a specifier names: the printer (`@sophia/report/page`, or the package root,
+ * which re-exports it), its download (`report-page`) or the controls that offer it (`PageDownload`); null for any other.
+ */
+function conversionModule(specifier: string): string | null {
+  const path = specifier.replace(/\.tsx?$/, '')
+  if (path === '@sophia/report/page' || path === '@sophia/report') return path
+  return /\/(report-page|PageDownload)$/.exec(path)?.[1] ?? null
 }
+
+/** The conversion's modules a source reaches, sorted. */
+const conversionUses = (source: string): string[] =>
+  [...new Set([...source.matchAll(SPECIFIER)].map((m) => conversionModule(m[2] ?? '')))]
+    .filter((use) => use !== null)
+    .toSorted()
 
 describe('the legacy conversion’s callers (M75): each one mapped for SDD-01 to replace', () => {
   it('is reached only from the places HANDOFF_TO_SDD01.md lists, so no new offer of it goes unmapped', () => {
@@ -176,20 +183,29 @@ describe('the legacy conversion’s callers (M75): each one mapped for SDD-01 to
     assert.deepEqual(callers, {
       'features/artifacts/DocumentPane.tsx': ['PageDownload'],
       'features/artifacts/KnowledgeReports.tsx': ['PageDownload'],
-      'features/artifacts/PageDownload.tsx': ['downloadReportPage'],
-      'features/artifacts/WorkCard.tsx': ['usePageDownload'],
+      'features/artifacts/PageDownload.tsx': ['report-page'],
+      'features/artifacts/WorkCard.tsx': ['PageDownload'],
       'features/artifacts/report-page.ts': ['@sophia/report/page'],
-      'features/conversation/NoticeCard.tsx': ['downloadReportPage'],
+      'features/conversation/NoticeCard.tsx': ['report-page'],
     })
   })
 
-  it('finds a caller however it imports the conversion', () => {
-    assert.deepEqual(conversionUses("import { a, downloadReportPage } from '../artifacts/report-page.ts'"), [
-      'downloadReportPage',
-    ])
-    assert.deepEqual(conversionUses("import { usePageDownload } from './PageDownload.tsx'"), ['usePageDownload'])
-    assert.deepEqual(conversionUses("const m = await import('@sophia/report/page')"), ['@sophia/report/page'])
-    assert.deepEqual(conversionUses("import type { PageSource } from '@sophia/report/page'"), ['@sophia/report/page'])
-    assert.deepEqual(conversionUses("import { formatBytes } from './report-view.ts'"), [])
+  it('finds a caller however it reaches the conversion', () => {
+    const found = {
+      "import { downloadReportPage as save } from './report-page.ts'": ['report-page'],
+      'import * as legacy from "../artifacts/report-page"': ['report-page'],
+      "export { downloadReportPage } from './report-page.ts'": ['report-page'],
+      "const m = await import('./report-page.ts')": ['report-page'],
+      "import Legacy, { PageDownload } from './PageDownload'": ['PageDownload'],
+      "import {\n  type Thing,\n  usePageDownload,\n} from './PageDownload.tsx'": ['PageDownload'],
+      "import { renderReportPage } from '@sophia/report'": ['@sophia/report'],
+      "import type { PageSource } from '@sophia/report/page'": ['@sophia/report/page'],
+      "const page = import('@sophia/report/page')": ['@sophia/report/page'],
+      "import './report-page.ts'": ['report-page'],
+      "import { formatBytes } from './report-view.ts'": [],
+      "import { reportLanguage } from '@sophia/report/language'": [],
+      "import { x } from './report-page.test.ts'": [],
+    }
+    for (const [source, uses] of Object.entries(found)) assert.deepEqual(conversionUses(source), uses, source)
   })
 })

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { reportLanguage } from '@sophia/report/language'
 import { renderReportPage, type PageSource } from '@sophia/report/page'
-import { bindCites, citeLabel, weaknessOf, type Piece } from './cite-view.ts'
+import { bindCites, citeLabel, flushSides, weaknessOf, type Piece } from './cite-view.ts'
 import { parseMarkdown, type Inline } from './markdown.ts'
 
 const A = 'a0000000-0000-4000-8000-000000000001'
@@ -114,6 +114,38 @@ describe('a citation keeps to the word before it', () => {
     const before = structuredClone(run)
     bindCites(run)
     assert.deepEqual(run, before)
+  })
+})
+
+describe('a group’s touch targets stop at their numerals only beside a link or no word (M75-RF-0001)', () => {
+  /** Each group's flush sides, in order: "s" when its first target stops, "e" when its last does, "-" for neither. */
+  const sides = (markdown: string) => {
+    const pieces = bindCites(runOf(markdown))
+    return pieces.flatMap((p, i) => {
+      if (p.kind !== 'bound') return []
+      const { start, end } = flushSides(pieces, i)
+      return [`${start ? 's' : ''}${end ? 'e' : ''}` || '-']
+    })
+  }
+
+  it('reaches into a word, plain or bold, on both sides', () => {
+    assert.deepEqual(sides(`Harbor [${A}] and **Calder** [${B}] [${C}] too.`), ['-', '-'])
+    assert.deepEqual(sides(`run \`pgaudit\` [${A}] now`), ['-'])
+  })
+
+  it('stops before its first number when its word is a link, or when no word is bound', () => {
+    assert.deepEqual(sides(`its [pricing page](https://p.example/) [${A}] says`), ['s'])
+    assert.deepEqual(sides(`**[Harbor](https://h.example/)** [${A}]`), ['s'])
+    assert.deepEqual(sides(`[${'x'.repeat(25)}](https://example.org/) [${A}]`), ['s'])
+    assert.deepEqual(sides(`[${A}] opens it`), ['s'])
+  })
+
+  it('stops after its last number when a link follows with at most a space between, and not past words', () => {
+    assert.deepEqual(sides(`claim [${A}] [has a link](https://example.org/b) after`), ['e'])
+    assert.deepEqual(sides(`claim [${A}][a link](https://example.org/b)`), ['e'])
+    assert.deepEqual(sides(`Calder [${A}] [its notes](https://c.example/) [${B}]`), ['e', 's'])
+    assert.deepEqual(sides(`claim [${A}] **[bold link](https://example.org/b)** after`), ['e'])
+    assert.deepEqual(sides(`claim [${A}] and the [docs](https://example.org/d)`), ['-'])
   })
 })
 

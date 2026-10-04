@@ -56,8 +56,9 @@ export type Piece = Plain | Bound
 /**
  * At most this many characters go with a citation onto its line, so a long address before one still wraps. With a
  * group's first numbers (KEPT_WITH_WORD) they measure 241 px in the reading fixture's address (17 px type), inside a
- * 320 px phone's 272 px column. Binding adds no break before the piece; it only takes away the one before the
- * citation.
+ * 320 px phone's 272 px column. Binding a word adds no break before the piece; it only takes away the one before the
+ * citation. A link or code span bound whole (M75) also loses the breaks inside it, within the same 24 characters; in a
+ * table cell, which never breaks a word, it can widen its column as a 24-character word already does.
  */
 const MOST_BOUND = 24
 
@@ -192,4 +193,31 @@ function boundPart(tail: string): string {
     0,
   )
   return chars.slice(from).join('')
+}
+
+/** Whether a run ends in a link, inside bold or emphasis too. */
+function endsInLink(nodes: readonly Inline[]): boolean {
+  const last = nodes.at(-1)
+  if (last?.kind === 'link') return true
+  return (last?.kind === 'strong' || last?.kind === 'em') && endsInLink(last.children)
+}
+
+/** Whether a piece starts with a link: a link, a link bound as a word, or one that opens bold or emphasis. */
+function startsWithLink(piece: Piece | Inline | undefined): boolean {
+  if (piece?.kind === 'link') return true
+  if (piece?.kind === 'bound') return startsWithLink(piece.word[0])
+  return (piece?.kind === 'strong' || piece?.kind === 'em') && startsWithLink(piece.children[0])
+}
+
+/**
+ * Where the touch targets of group `i` must stop at their numerals (M75-RF-0001): before its first number when no
+ * word is bound to it or its word is a link, and after its last when a link follows with at most a space between.
+ * Elsewhere a target reaches into the words beside it, which take no press.
+ */
+export function flushSides(pieces: readonly Piece[], i: number): { start: boolean; end: boolean } {
+  const piece = pieces[i]
+  if (piece?.kind !== 'bound') return { start: false, end: false }
+  const next = pieces[i + 1]
+  const after = next?.kind === 'text' && next.text.trim() === '' ? pieces[i + 2] : next
+  return { start: piece.word.length === 0 || endsInLink(piece.word), end: startsWithLink(after) }
 }

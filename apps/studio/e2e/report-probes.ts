@@ -182,7 +182,7 @@ export const citationTargets = (page: Page, marks: Marks = SEED_MARKS) =>
         const { x, y } = square(link)
         const taken = probes
           .map(([dx, dy]) => ({ dx, dy, hit: document.elementFromPoint(x + dx, y + dy) }))
-          .find(({ hit }) => hit?.closest('a') !== link)
+          .find(({ hit }) => hit?.closest(citation) !== link)
         if (!taken) return []
         return [
           `${link.textContent} at ${taken.dx},${taken.dy}: ${taken.hit?.tagName.toLowerCase()}.${taken.hit?.className}`,
@@ -240,18 +240,29 @@ export const linkPresses = (page: Page, marks: Marks = SEED_MARKS) =>
 
 /**
  * The frames that scroll sideways (their content is wider than they are) that the keyboard cannot reach or a screen
- * reader cannot name: each must take the focus (a tab index of 0 or more) and carry a name (aria-label or
- * aria-labelledby). A frame with nothing more to show is not a stop and is not listed.
+ * reader cannot announce: each must take the focus (a tab index of 0 or more), have a role (its own, or a tag that
+ * carries one: figure, table, section, aside, nav, main) and a name (aria-label, or aria-labelledby naming elements
+ * that exist and say something). A frame with nothing more to show is not a stop and is not listed.
  */
 export const keyboardFrames = (page: Page) =>
-  page.evaluate(() =>
-    [...document.body.querySelectorAll<HTMLElement>('*')]
-      .filter((e) => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth + 1)
-      .flatMap((e) => {
-        const what = `${e.tagName.toLowerCase()}${e.className ? `.${e.className}` : ''} (${String(e.scrollWidth - e.clientWidth)}px to scroll)`
-        const named = (e.getAttribute('aria-label') ?? '').trim() !== '' || e.hasAttribute('aria-labelledby')
-        return [...(e.tabIndex >= 0 ? [] : [`${what}: not focusable`]), ...(named ? [] : [`${what}: no name`])]
-      }),
+  page.evaluate(
+    (roled) =>
+      [...document.body.querySelectorAll<HTMLElement>('*')]
+        .filter((e) => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth + 1)
+        .flatMap((e) => {
+          const what = `${e.tagName.toLowerCase()}${e.className ? `.${e.className}` : ''} (${String(e.scrollWidth - e.clientWidth)}px to scroll)`
+          const by = (e.getAttribute('aria-labelledby') ?? '').split(/\s+/).filter(Boolean)
+          const named =
+            (e.getAttribute('aria-label') ?? '').trim() !== '' ||
+            (by.length > 0 && by.every((id) => document.getElementById(id)?.textContent.trim()))
+          const role = e.hasAttribute('role') || roled.includes(e.tagName.toLowerCase())
+          return [
+            ...(e.tabIndex >= 0 ? [] : [`${what}: not focusable`]),
+            ...(role ? [] : [`${what}: no role`]),
+            ...(named ? [] : [`${what}: no name`]),
+          ]
+        }),
+    ['figure', 'table', 'section', 'aside', 'nav', 'main'],
   )
 
 /**

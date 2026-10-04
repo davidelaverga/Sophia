@@ -44,7 +44,7 @@ These are what make today's product answer a request for HTML with a browser con
 
 ### 3a. Studio callers (pinned by a test)
 
-`apps/studio/src/features/artifacts/report-page.test.ts` ("the legacy conversion's callers (M75)") scans Studio's source and asserts exactly this map. A new caller fails the test until this section is updated in the same commit.
+`apps/studio/src/features/artifacts/report-page.test.ts` ("the legacy conversion's callers (M75)") scans Studio's source for every module that names the conversion's modules (`@sophia/report/page`, the package root `@sophia/report`, which re-exports it, `report-page`, `PageDownload`) in any import, re-export, dynamic or bare import, with or without an extension, and asserts exactly this map. A new caller fails the test until this section is updated in the same commit.
 
 | # | Caller | Surface and user action | Today | SDD-01 replacement |
 |---|---|---|---|---|
@@ -73,7 +73,7 @@ The guide v1.2 declaration digest is a recorded identity (CX-0033: `57cdfdad…`
 - **Exact bytes**: `download.ts` (`checkedBlob:24`, `loadReportBytes:91`, `loadReportText:113`, `HashMismatch:8`) shows and saves nothing that does not match its record. Open/Download parity (B-23) should reuse it: the frame shows checked bytes, Download saves the same bytes, and repeating a download calls no model.
 - **Version pinning, focus and media**: a report being read is never swapped for a newer version; Esc steps down; focus returns to the opener; side and full sizes; Sources (with weak-source marks) and History (facts first). `e2e/report.spec.ts` and `report-reading.spec.ts` guard these.
 - **Reader CSS** is rooted at `.md` and `.md-table`, used only by `MarkdownView`; designed HTML must not borrow them.
-- **Citations in the reader** (`cite-view.ts`): bound to the word before them, grouped with commas, weak sources dotted and named in EN/IT/ES (the reader's words are tested against the page's in `cite-view.test.ts`). On a touch screen each citation's target is its own (M75-RF-0001).
+- **Citations in the reader** (`cite-view.ts`): bound to the word before them (a short link or code span whole), grouped with commas, weak sources dotted and named in EN/IT/ES (the reader's words are tested against the page's in `cite-view.test.ts`). On a touch screen each citation's target is its own (M75-RF-0001): `flushSides` marks the groups whose targets stop at their numerals beside a link or no word (`data-flush-start`, `data-flush-end`), and they reach into words elsewhere.
 - **What cards say**: Open and Download mean the primary file (the PDF when there is one); Markdown is offered beside a PDF. No Studio or page word says HTML was designed or reviewed; the page itself says "Not independently reviewed." Keep that honesty when the designed path arrives: "designing", "reviewing", "failed" and "ready" are distinct states.
 
 ## 5. Reusable checks, probes and fixtures
@@ -85,9 +85,9 @@ The guide v1.2 declaration digest is a recorded identity (CX-0033: `57cdfdad…`
 | **Any report page** | C4 nothing past the screen or column, no table frame scrolling past its table; C5 no word of ≤ 14 characters broken in a table cell; C6 text at 4.5:1 (3:1 large); C15 every citation a 24 px target of its own, no link's press taken, citation lines > 24 px apart; C16 every sideways-scrolling frame focusable and named; C9 every table whole in print, every cell in the PDF | Apply to designed HTML, measured on its saved bytes, with its own `Marks` |
 | **html-report-v2 seed profile** | C1 measure (60–80 characters; ≥ 35 on a phone); C2 body 17/18 px, leading 1.5–1.7; C3 heading ratio ≥ 1.2, ≤ 5 sizes, ≥ 14 px; C7 answer before contents and body, inside the first phone screen; C14 sticky contents rail; C9 body at 10.5 pt in print, print always light; C17 running head in the report's language | The control's own choices. **Do not require them of a designed page** |
 
-Probes (`apps/studio/e2e/report-probes.ts`): the general probes (`overflow`, `brokenWords`, `worstContrast`, `citationTargets`, `linkPresses`, `keyboardFrames`, `printedTables`, `pdfText`) take a `Marks` object (`citation`, `citationGroup`, `tableFrame`, `ornaments`; `SEED_MARKS` is html-report-v2's). A designed page passes its own marks, which SDD-01's content map should make stable (for example a data attribute on citations). The seed probes (`medianLine`, `typeScale`, `rail`, `answerFirst`, `printInk`) use the template's selectors.
+Probes (`apps/studio/e2e/report-probes.ts`): the general probes are `overflow`, `brokenWords`, `worstContrast`, `citationTargets`, `linkPresses`, `keyboardFrames`, `printedTables` and `pdfText`. Those that need a page's parts (`overflow`, `worstContrast`, `citationTargets`, `linkPresses`, `printedTables`) take a `Marks` object (`citation`, `citationGroup`, `tableFrame`, `ornaments`; `SEED_MARKS` is html-report-v2's); the others need none. A citation may be any element (a press counts when it reaches the citation's own element); a link is an `a[href]`. A designed page passes its own marks, which SDD-01's content map should make stable (for example a data attribute on citations). The seed probes (`medianLine`, `typeScale`, `rail`, `answerFirst`, `printInk`) use the template's selectors.
 
-C16 is deliberately stricter than axe's `scrollable-region-focusable` (which also accepts a region containing focusable content): a frame that scrolls sideways must itself take the focus and have a name.
+C16 is deliberately stricter than axe's `scrollable-region-focusable` (which also accepts a region containing focusable content): a frame that scrolls sideways must itself take the focus, have a role (its own or its tag's) and a name (`aria-label`, or `aria-labelledby` naming elements that exist and say something).
 
 ### Byte audit (`packages/report/src/report-page.test.ts`)
 
