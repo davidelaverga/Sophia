@@ -1,6 +1,7 @@
 // A task's results (WBC-01): the exact candidate versions its view lists, which is current, which earlier one is
 // still usable while a newer attempt runs or failed, and which version its review speaks of. A review of one version
-// says nothing of another: a check that passed for v1 never certifies v2. A result is reached through a port with its
+// says nothing of another: a check that passed for v1 never certifies v2, nor a version two others claim to be current
+// after it. A result is reached through a port with its
 // exact identity (source, version, hash); nothing here builds a link, and no candidate means no result to open.
 import type { Candidate, ItemView } from './board-view.ts'
 
@@ -45,13 +46,19 @@ export function resultsOf(view: ItemView | null): {
   }
 }
 
-/** Whether its review speaks of a version other than the current one: it then certifies nothing about this one. */
-export function reviewIsOfAnother(view: ItemView): boolean {
+/**
+ * Which version a task's review speaks of, beside its result now: the current one; another; one that can't be matched
+ * to a single current version, because two claim to be current or none is (Codex F-009); or none, when no review was
+ * asked or it is bound to no version. Only `current`, or `none` beside a policy satisfied with evidence, certifies.
+ */
+export type ReviewOf = 'current' | 'another' | 'unmatched' | 'none'
+
+export function reviewOf(view: ItemView): ReviewOf {
   const reviewed = view.review.candidate_version_ref
+  if (view.review.state === 'not_requested' || reviewed === null) return 'none'
   const { current } = resultsOf(view)
-  return (
-    view.review.state !== 'not_requested' && reviewed !== null && current !== null && reviewed !== current.version_id
-  )
+  if (!current) return 'unmatched'
+  return reviewed === current.version_id ? 'current' : 'another'
 }
 
 const REVIEW: Readonly<Record<ItemView['review']['state'], string | null>> = {
@@ -62,11 +69,18 @@ const REVIEW: Readonly<Record<ItemView['review']['state'], string | null>> = {
   inconclusive: 'Review inconclusive',
 }
 
+/** What a review of another version, or of one no current version matches, adds to what it says. */
+const OF: Readonly<Partial<Record<ReviewOf, string>>> = {
+  another: 'not this version',
+  unmatched: 'no single current version to match it to',
+}
+
 /** What its review says, and of which version: "Review passed for fixture-v1, not this version". */
 export function reviewSaid(view: ItemView | null): string | null {
   const said = view ? REVIEW[view.review.state] : null
   if (!view || !said) return null
-  return reviewIsOfAnother(view) ? `${said} for ${view.review.candidate_version_ref ?? ''}, not this version` : said
+  const of = OF[reviewOf(view)]
+  return of ? `${said} for ${view.review.candidate_version_ref ?? ''}, ${of}` : said
 }
 
 /** A version in a few words: its id, its type and the start of its hash. */

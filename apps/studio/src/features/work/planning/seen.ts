@@ -5,7 +5,7 @@
 // moves no task, and no task text is kept, only ids and states. Kept per project, goal, plan and viewer, so another
 // viewer's look never leaks into this one; a browser that refuses storage just forgets.
 import type { BoardDecision } from './board-view.ts'
-import type { Mark, PlanRow } from './plan.ts'
+import { actionable, type Mark, type PlanRow } from './plan.ts'
 import { resultsOf } from './results.ts'
 
 /** Whose look, at which plan. */
@@ -100,29 +100,40 @@ const PRESSING: ReadonlySet<Mark> = new Set(['waiting', 'changes', 'unknown', 'c
 
 type Person = { id: string; name: string }
 
-function decisionsSaid(
-  decisions: readonly BoardDecision[],
-  seen: Seen,
-  viewerId: string | null,
-  people: Record<string, Person>,
-) {
-  return decisions
-    .filter((d) => seen.decisions[d.decision_id] !== decisionState(d))
-    .flatMap((d) => {
-      const who = people[d.decider_id]?.name ?? 'Someone'
-      if (d.state === 'proposed') {
-        return [
-          d.decider_id === viewerId
-            ? `A decision waits on you: ${d.question}`
-            : `${who} has a decision to make: ${d.question}`,
-        ]
-      }
-      const choice = d.choices.find((c) => c.key === d.selected_choice)?.label
-      return d.state === 'accepted' && choice
-        ? [`${d.decider_id === viewerId ? 'You' : who} chose ${choice}: ${d.question}`]
-        : []
-    })
+/** Who is looking, whom the page can name, and when: what the summary says depends on all three. */
+export interface Looking {
+  viewerId: string | null
+  people?: Record<string, Person>
+  now: Date
 }
+
+/**
+ * One decision, said as it stands now: waiting on its decider only while it can still be answered (the board's own
+ * rule, `actionable`); past its expiry, or marked expired, said so and never as urgent (Codex F-010); a choice made,
+ * by whom.
+ */
+function decisionSaid(d: BoardDecision, { viewerId, people = {}, now }: Looking): string | null {
+  const yours = d.decider_id === viewerId
+  const who = people[d.decider_id]?.name ?? 'Someone'
+  if (actionable(d, now)) {
+    return yours ? `A decision waits on you: ${d.question}` : `${who} has a decision to make: ${d.question}`
+  }
+  if (d.state === 'proposed' || d.state === 'expired') {
+    return `${yours ? 'Your' : `${who}’s`} decision expired unanswered: ${d.question}`
+  }
+  return choiceSaid(d, yours ? 'You' : who)
+}
+
+/** A choice made, and by whom; nothing for a decision declined or superseded. */
+function choiceSaid(d: BoardDecision, by: string): string | null {
+  const choice = d.choices.find((c) => c.key === d.selected_choice)?.label
+  return d.state === 'accepted' && choice ? `${by} chose ${choice}: ${d.question}` : null
+}
+
+const decisionsSaid = (decisions: readonly BoardDecision[], seen: Seen, looking: Looking) =>
+  decisions
+    .filter((d) => seen.decisions[d.decision_id] !== decisionState(d))
+    .flatMap((d) => decisionSaid(d, looking) ?? [])
 
 /**
  * What changed while the viewer was away, most pressing first: decisions, then new results, then what blocks or needs
@@ -132,10 +143,10 @@ export function whileAway(
   rows: readonly PlanRow[],
   decisions: readonly BoardDecision[],
   seen: Seen | null,
-  viewerId: string | null,
-  people: Record<string, Person> = {},
+  looking: Looking,
 ): { phrases: string[]; more: number; rest: string[] } {
   if (!seen) return { phrases: [], more: 0, rest: [] }
+  const { viewerId } = looking
   const changed = changedSince(rows, seen)
   const moved = rows.filter((r) => changed.has(r.item.id))
   const resulted = moved.filter(
@@ -150,7 +161,7 @@ export function whileAway(
       r.status.mark === 'waiting' ? r.status.on?.id === viewerId : r.doer.person?.id === viewerId,
     )
   const all = [
-    ...decisionsSaid(decisions, seen, viewerId, people),
+    ...decisionsSaid(decisions, seen, looking),
     ...resulted.map((r) => `${r.item.purpose} has a new result: ${resultsOf(r.view).current?.version_id ?? ''}`),
     ...moved.filter((r) => !resulted.includes(r) && PRESSING.has(r.status.mark)).map(markSaid),
     ...moved.filter((r) => !resulted.includes(r) && !PRESSING.has(r.status.mark)).map(markSaid),

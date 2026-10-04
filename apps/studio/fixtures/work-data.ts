@@ -44,6 +44,7 @@ export const CASES = [
   'luis-resource',
   'outside',
   'unobserved',
+  'two-current',
 ] as const
 export type Case = (typeof CASES)[number]
 

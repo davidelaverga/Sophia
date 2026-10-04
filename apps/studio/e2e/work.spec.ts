@@ -1648,6 +1648,33 @@ test('pr76 · P2 · a decision arriving while the review’s card is open takes 
   await expect(reviewPill(page)).toHaveAttribute('aria-expanded', 'false')
 })
 
+// ---- CX-0012 (Codex on #74; GitHub 4178085242, 4178085246): no certifying an unmatched check; no expired alert. ----
+
+test('codex · F-009 · complete with evidence, but two versions claim to be current: not Complete, and said why', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=two-current`)
+  await expect(tile(page, 'work-1')).toBeVisible({ timeout: 15_000 })
+  expect(await titles(lane(page, 'Complete'))).not.toContain('Implement the PDF retry')
+  expect(await titles(lane(page, 'Active'))).toContain('Implement the PDF retry')
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await expect(sheet).toContainText('Not shown as complete: its check can’t be matched to a single current version')
+  await expect(sheet.locator('.task-result-review')).toHaveText(
+    'Review passed for retry-v2, no single current version to match it to',
+  )
+})
+
+test('codex · F-010 · back after a decision expired, it is said expired, never as waiting on you', async ({ page }) => {
+  // The last look predates the decision; it arrived since, still proposed, but past its expiry now.
+  await page.goto(`${PAGE}?viewer=davide&since=2&expired=1`)
+  const away = board(page).locator('.board-return')
+  await expect(away).toContainText('Your decision expired unanswered: Ship the retry before', { timeout: 15_000 })
+  await expect(away).not.toContainText('A decision waits on you')
+  // Still answerable, the same return says it waits on him.
+  await page.goto(`${PAGE}?viewer=davide&since=2`)
+  await expect(away).toContainText('A decision waits on you: Ship the retry before')
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })

@@ -229,20 +229,44 @@ describe('where an item stands', () => {
       'Not shown as complete: no evidence',
     ])
     // A check that passed for v1 doesn't make v2 complete (UI-05).
-    const versions = [
-      {
-        source_id: 's',
-        version_id: 'v2',
-        sha256: 'b'.repeat(64),
-        media_type: 'text/markdown',
-        created_at: '2026-10-02T12:00:00Z',
-        state: 'current' as const,
-      },
-    ]
+    const v2 = {
+      source_id: 's',
+      version_id: 'v2',
+      sha256: 'b'.repeat(64),
+      media_type: 'text/markdown',
+      created_at: '2026-10-02T12:00:00Z',
+      state: 'current' as const,
+    }
+    const versions = [v2]
     const oldCheck = { state: 'passed' as const, candidate_version_ref: 'v1', evidence_refs: ['check-v1'] }
     assert.deepEqual(
       standing({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: oldCheck }),
       ['unknown', 'Not shown as complete: its check was of another version'],
+    )
+    // Codex F-009: a check of v2 beside two versions both claiming to be current, or beside none current, can't be
+    // matched to the version held now: not complete, said why. Bound to no version, the policy's word stands.
+    const v2Check = { ...oldCheck, candidate_version_ref: 'v2' }
+    const v3 = { ...v2, version_id: 'v3', sha256: 'c'.repeat(64) }
+    const unmatched = 'Not shown as complete: its check can’t be matched to a single current version'
+    for (const candidates of [
+      [...versions, v3],
+      [{ ...v2, state: 'previous' as const }],
+      [{ ...v2, state: 'withdrawn' as const }],
+      [],
+    ]) {
+      assert.deepEqual(standing({ lifecycle: 'complete', completion: satisfied, candidates, review: v2Check }), [
+        'unknown',
+        unmatched,
+      ])
+    }
+    assert.deepEqual(
+      standing({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: v2Check }),
+      ['complete', 'Complete'],
+    )
+    const unbound = { ...v2Check, candidate_version_ref: null }
+    assert.deepEqual(
+      standing({ lifecycle: 'complete', completion: satisfied, candidates: [...versions, v3], review: unbound }),
+      ['complete', 'Complete'],
     )
     for (const lifecycle of ['stopped', 'cancelled', 'failed', 'superseded'] as const) {
       const [mark] = standing({ lifecycle, closed_reason: 'Stopped by Davide' })

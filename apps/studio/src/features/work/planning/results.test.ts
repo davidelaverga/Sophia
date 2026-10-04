@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { view } from './board-samples.ts'
 import type { Candidate } from './board-view.ts'
-import { refOf, resultsOf, reviewIsOfAnother, reviewSaid, versionSaid } from './results.ts'
+import { refOf, resultsOf, reviewOf, reviewSaid, versionSaid } from './results.ts'
 
 const candidate = (version: string, state: Candidate['state'], minute = 0): Candidate => ({
   source_id: 'source-retry',
@@ -32,11 +32,30 @@ describe('a task’s results', () => {
       candidates: [candidate('v2', 'current', 2), candidate('v1', 'previous', 1)],
       review: { state: 'passed', candidate_version_ref: 'v1', evidence_refs: ['check-v1'] },
     })
-    assert.equal(reviewIsOfAnother(passedOld), true)
+    assert.equal(reviewOf(passedOld), 'another')
     assert.equal(reviewSaid(passedOld), 'Review passed for v1, not this version')
     const passedNew = { ...passedOld, review: { ...passedOld.review, candidate_version_ref: 'v2' } }
+    assert.equal(reviewOf(passedNew), 'current')
     assert.equal(reviewSaid(passedNew), 'Review passed')
     assert.equal(reviewSaid(view('w')), null)
+    assert.equal(reviewOf(view('w')), 'none')
+  })
+
+  it('a review bound to a version no single current one matches certifies nothing, and says so (Codex F-009)', () => {
+    const review = { state: 'passed' as const, candidate_version_ref: 'v1', evidence_refs: ['check-v1'] }
+    const twoCurrent = view('w', { candidates: [candidate('v1', 'current', 1), candidate('v2', 'current', 2)], review })
+    const noneCurrent = view('w', { candidates: [candidate('v1', 'previous', 1)], review })
+    const withdrawn = view('w', { candidates: [candidate('v1', 'withdrawn', 1)], review })
+    const noCandidate = view('w', { review })
+    for (const v of [twoCurrent, noneCurrent, withdrawn, noCandidate]) {
+      assert.equal(reviewOf(v), 'unmatched')
+      assert.equal(reviewSaid(v), 'Review passed for v1, no single current version to match it to')
+    }
+    // Withdrawn, with another current: of another version, as before.
+    const replaced = view('w', { candidates: [candidate('v1', 'withdrawn', 1), candidate('v2', 'current', 2)], review })
+    assert.equal(reviewOf(replaced), 'another')
+    // Bound to no version, it speaks of none: neither certifies nor denies one.
+    assert.equal(reviewOf({ ...twoCurrent, review: { ...review, candidate_version_ref: null } }), 'none')
   })
 
   it('reaches a version by its exact identity, never a link', () => {

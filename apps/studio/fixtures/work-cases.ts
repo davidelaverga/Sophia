@@ -25,6 +25,20 @@ const added = (g: GoalView, entries: [PlanItem, ItemView][]): GoalView =>
 
 const reviewer = claude('claude-reviewer', 'reviewer', 1)
 
+/**
+ * Codex F-009: complete by its policy, with evidence, and a review passed for retry-v2; but retry-v2 and retry-v3 both
+ * claim to be current, so the review can't be matched to the version it holds now.
+ */
+const twoCurrent: Change = (g, viewer) =>
+  update(g, 'work-1', () => ({
+    lifecycle: 'complete',
+    waiting_on: [],
+    completion: { policy_ref: 'fixture-policy-work-1', status: 'satisfied', evidence_refs: ['fixture-check-v2'] },
+    candidates: [version('retry', 'retry-v3', 'current', 60, 'd'), version('retry', 'retry-v2', 'current', 120, 'c')],
+    review: { state: 'passed', candidate_version_ref: 'retry-v2', evidence_refs: ['fixture-check-v2'] },
+    available_actions: [...commands(viewer, true), ask],
+  }))
+
 /** UI-04: the review found defects. The review itself is complete; the retry needs changes. */
 const defects: Change = (g, viewer) =>
   update(
@@ -326,6 +340,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'luis-resource': luisResource,
   outside,
   unobserved,
+  'two-current': twoCurrent,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

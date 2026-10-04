@@ -596,7 +596,7 @@ function BoardBody(props: BodyProps) {
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
   const tile = { plan, viewerId, now, onLight: view.setLit, onOpen: view.setOpen, flags: view.flags, shortOf }
   const decisionProps = { plan, people, now, viewerId, onDecide: operable ? onDecide : undefined }
-  const away = whileAway(rows, goal.decisions, seen, viewerId, people)
+  const away = whileAway(rows, goal.decisions, seen, { viewerId, people, now })
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
       <Bar view={view} rows={rows} viewerId={viewerId} slot={slot} people={people} away={away} onSeen={markSeen} />

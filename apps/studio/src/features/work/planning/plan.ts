@@ -23,7 +23,7 @@ import type {
   WaitKind,
   WorkPlan,
 } from './board-view.ts'
-import { reviewIsOfAnother } from './results.ts'
+import { reviewOf, type ReviewOf } from './results.ts'
 
 export type { BoardDecision, GoalView, PlanItem, WorkPlan } from './board-view.ts'
 
@@ -258,12 +258,20 @@ const MOVING: Readonly<Partial<Record<Lifecycle, [Mark, string]>>> = {
 export const completeByPolicy = (view: ItemView) =>
   view.lifecycle === 'complete' && view.completion.status === 'satisfied' && view.completion.evidence_refs.length > 0
 
-/** A complete item, shown as complete only with its evidence, and with its check of the version it holds now. */
+/** Why a check bound to a version doesn't certify the item now: of another version, or of none matched (F-009). */
+const UNCERTIFIED: Readonly<Partial<Record<ReviewOf, string>>> = {
+  another: 'Not shown as complete: its check was of another version',
+  unmatched: 'Not shown as complete: its check can’t be matched to a single current version',
+}
+
+/**
+ * A complete item, shown as complete only with its evidence, and with its check of the version it holds now. A check
+ * bound to no version leaves its policy's word as it is.
+ */
 function completed(view: ItemView): Status {
   if (!completeByPolicy(view)) return at('unknown', 'Not shown as complete: no evidence')
-  return reviewIsOfAnother(view)
-    ? at('unknown', 'Not shown as complete: its check was of another version')
-    : at('complete', 'Complete')
+  const uncertified = UNCERTIFIED[reviewOf(view)]
+  return uncertified ? at('unknown', uncertified) : at('complete', 'Complete')
 }
 
 /**

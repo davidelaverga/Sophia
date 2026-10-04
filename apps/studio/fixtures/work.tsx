@@ -4,7 +4,7 @@
 // shown as refused, never drawn. The query string picks who is looking, `viewer=davide|luis|mara` (default: Luis;
 // Mara is a viewer who reads); `case=…` a scenario (work-cases.ts); `proposed=1` (no plan accepted yet: the first
 // goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`;
-// `many=1`; `unplanned=1`; `since=1` (an earlier look); `expired=1|state` (the decision waiting on Davide past its
+// `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state` (the decision waiting on Davide past its
 // expiry, or marked expired); `odd-id=1` (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's
 // answer comes back); `later=1` (the second goal's plan held back until `workFixture.arrive()`); `coverage=partial|
 // unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
@@ -164,8 +164,12 @@ const readings = observations.map((o) =>
   query.get('tight') === '1' && o.entitlement_id === 'ent-davide-anthropic' ? tightClaude(o) : o,
 )
 
-/** `since=1`: the viewer last looked a while ago, when three tasks stood elsewhere and one wasn't there. */
-if (query.get('since') === '1') {
+/**
+ * `since=1`: the viewer last looked a while ago, when three tasks stood elsewhere and one wasn't there. `since=2`: the
+ * same look, taken before the decision waiting on Davide was asked.
+ */
+const since = query.get('since')
+if (since === '1' || since === '2') {
   const stood = {
     'work-0a': 'review',
     'work-1': 'working',
@@ -176,7 +180,8 @@ if (query.get('since') === '1') {
   }
   const seen = {
     items: Object.fromEntries(Object.entries(stood).map(([id, mark]) => [id, { mark, result: null }])),
-    decisions: { d1: '4:proposed:not_needed', d2: '1:accepted:recorded' },
+    decisions:
+      since === '2' ? { d2: '1:accepted:recorded' } : { d1: '4:proposed:not_needed', d2: '1:accepted:recorded' },
   }
   try {
     localStorage.setItem(

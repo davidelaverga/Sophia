@@ -33,6 +33,10 @@ const candidate = (version: string) => ({
   state: 'current' as const,
 })
 
+/** Before the decisions' expiry (13:00), and after it. */
+const NOW = new Date('2026-10-02T12:30:00Z')
+const LATER = new Date('2026-10-02T13:30:00Z')
+
 const decision = (state: BoardDecision['state']): BoardDecision => ({
   decision_id: 'd1',
   revision: 4,
@@ -90,7 +94,7 @@ describe('what changed since the last look', () => {
       ['d', { lifecycle: 'failed', closed_reason: 'It crashed' }],
       ['e', {}],
     ])
-    const away = whileAway(after, [decision('accepted')], seen, 'davide', people)
+    const away = whileAway(after, [decision('accepted')], seen, { viewerId: 'davide', people, now: NOW })
     assert.deepEqual(away.phrases, [
       'You chose Ship it now: Ship it?',
       'Task c has a new result: c-v1',
@@ -99,10 +103,38 @@ describe('what changed since the last look', () => {
     assert.deepEqual(away.rest, ['Task d failed', 'Task a started'])
     assert.equal(away.more, 2)
     assert.equal(
-      whileAway(after, [decision('accepted')], seen, 'luis', people).phrases[0],
+      whileAway(after, [decision('accepted')], seen, { viewerId: 'luis', people, now: NOW }).phrases[0],
       'Davide chose Ship it now: Ship it?',
     )
-    assert.deepEqual(whileAway(after, [], null, 'davide', people), { phrases: [], more: 0, rest: [] })
+    assert.deepEqual(whileAway(after, [], null, { viewerId: 'davide', people, now: NOW }), {
+      phrases: [],
+      more: 0,
+      rest: [],
+    })
+  })
+})
+
+describe('a decision, said while away (Codex F-010)', () => {
+  const rows = rowsOf([['a', {}]])
+  const seen = glance(rows, [])
+  const said = (d: BoardDecision, viewerId: string, now: Date) =>
+    whileAway(rows, [d], seen, { viewerId, people, now }).phrases[0]
+
+  it('waits on its decider only while it can still be answered', () => {
+    assert.equal(said(decision('proposed'), 'davide', NOW), 'A decision waits on you: Ship it?')
+    assert.equal(said(decision('proposed'), 'luis', NOW), 'Davide has a decision to make: Ship it?')
+  })
+
+  it('past its expiry, still proposed, or marked expired: said expired, never as waiting', () => {
+    for (const d of [decision('proposed'), decision('expired')]) {
+      assert.equal(said(d, 'davide', LATER), 'Your decision expired unanswered: Ship it?')
+      assert.equal(said(d, 'luis', LATER), 'Davide’s decision expired unanswered: Ship it?')
+    }
+  })
+
+  it('expiring while the page is open, the same line changes with the time', () => {
+    const d = decision('proposed')
+    assert.notEqual(said(d, 'davide', NOW), said(d, 'davide', LATER))
   })
 })
 
