@@ -206,6 +206,20 @@ async function printBody(page: Page) {
   }
 }
 
+async function runningHead(page: Page) {
+  for (const [name, kicker] of [
+    ['italiano', 'Sophia · Rapporto di ricerca'],
+    ['espanol', 'Sophia · Informe de investigación'],
+  ] as const) {
+    await printView(page, name, 'light')
+    const pdf = await pdfText(await page.pdf({ preferCSSPageSize: true }), null)
+    expect(pdf.pages, `${name}: pages`).toBeGreaterThan(1)
+    // The running head on every page but the first (whose masthead sets the same words in capitals).
+    expect(pdf.text.split(kicker).length - 1, `${name}: "${kicker}" in the PDF`).toBe(pdf.pages - 1)
+    expect(pdf.text, `${name}: English words in print`).not.toMatch(/research report/i)
+  }
+}
+
 test.describe('html-report-v2 seed profile', () => {
   test('C1 · the reading column holds 60 to 80 characters a line on a desktop and in print', ({ page }) =>
     measure(page))
@@ -225,4 +239,5 @@ test.describe('html-report-v2 seed profile', () => {
     contentsRail(page))
   test('C9 · print sets the body at 10.5pt, unscaled, and stays light for a reader who prefers dark', ({ page }) =>
     printBody(page))
+  test('C17 · print’s running head names the report in its own language (M75-RF-0003)', ({ page }) => runningHead(page))
 })

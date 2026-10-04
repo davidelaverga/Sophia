@@ -502,8 +502,20 @@ function colophon(words: PageWords, input: ReportPageInput): string {
   return `<footer class="provenance"><p>${record.map((r) => `<span>${r}</span>`).join(' · ')}</p></footer>`
 }
 
+/** A CSS string of fixed words: a backslash, a quote or a "<" escaped, so it can neither end the string nor the sheet. */
+const cssString = (text: string) => `"${text.replace(/[\\"<]/g, (c) => `\\${c.charCodeAt(0).toString(16)} `)}"`
+
+/**
+ * Print's running head in the report's own words (M75-RF-0003): PAGE_CSS sets it in English on every page but the
+ * first, so a page in another language adds one rule after it that names the report as its masthead does. An English
+ * or undetermined page adds nothing and keeps its bytes.
+ */
+function runningHead(words: PageWords): string {
+  return words.kicker === pageWords('en').kicker ? '' : `\n@page { @top-left { content: ${cssString(words.kicker)}; } }`
+}
+
 /** The page's head: its policy before anything the report wrote, then its record, title and stylesheet. */
-function pageHead(title: string, sha256: string): string {
+function pageHead(title: string, sha256: string, words: PageWords): string {
   return [
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -513,7 +525,7 @@ function pageHead(title: string, sha256: string): string {
     `<meta name="generator" content="Sophia ${PAGE_PROFILE}">`,
     `<meta name="sophia-markdown-sha256" content="${esc(sha256)}">`,
     `<title>${esc(title)}</title>`,
-    `<style>${PAGE_CSS}</style>`,
+    `<style>${PAGE_CSS}${runningHead(words)}</style>`,
   ].join('')
 }
 
@@ -549,7 +561,7 @@ export function renderReportPage(input: ReportPageInput): string {
     '</main>',
   ])
   return (
-    `<!doctype html>\n<html lang="${esc(language)}"><head>${pageHead(printed.title, input.sha256)}</head>\n` +
+    `<!doctype html>\n<html lang="${esc(language)}"><head>${pageHead(printed.title, input.sha256, words)}</head>\n` +
     `<body class="standard">\n${[titleBlock(page), ...main, colophon(words, input)].join('\n')}\n</body></html>\n`
   )
 }

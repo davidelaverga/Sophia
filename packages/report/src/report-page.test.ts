@@ -872,4 +872,24 @@ describe('html-report-v2: what its bytes guarantee', () => {
     const esOne = rich({ markdown: es.replace(`[${B}] [${C}]`, `[${A}]`) })
     assert.ok(byline(esOne).includes('Fuentes1 citada, 1 leída completaExtensión'), 'one source, singular')
   })
+
+  it('U13 · names the report in its own language at the head of each printed page; an English sheet is PAGE_CSS', () => {
+    const said = {
+      it: 'Il servizio della rete che offre anche il rendering, per questo sono gli strumenti delle opzioni nel progetto.',
+      es: 'El servicio que ofrece los informes para las empresas, como este proyecto, también está por encima de las opciones.',
+    }
+    for (const [language, kicker] of [
+      ['it', 'Sophia · Rapporto di ricerca'],
+      ['es', 'Sophia · Informe de investigación'],
+    ] as const) {
+      const html = page({ markdown: `# R\n\n## S\n\n${said[language]}\n` })
+      assert.match(html, new RegExp(`<html lang="${language}">`))
+      const head = `\n@page { @top-left { content: "${kicker}"; } }`
+      assert.ok(html.includes(`<style>${PAGE_CSS}${head}</style>`), `${language}: its running head follows PAGE_CSS`)
+      assert.deepEqual(audit(html), [], language)
+    }
+    // English, and a report whose language is not clear, print PAGE_CSS's own head and keep their bytes.
+    for (const markdown of [REPORT, RICH]) assert.ok(page({ markdown }).includes(`<style>${PAGE_CSS}</style>`))
+    assert.ok(PAGE_CSS.includes('@top-left { content: "Sophia · Research report";'))
+  })
 })
