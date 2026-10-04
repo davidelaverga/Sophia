@@ -720,11 +720,24 @@ describe('html-report-v2: what its bytes guarantee', () => {
     const stated = rich({ limitations: ['Restore times are vendor claims.'] })
     assert.doesNotMatch(stated, /id="report-limitations"/)
     assert.equal(stated.match(/<section id="[^"]+" data-report-role="limitations"/g)?.length, 1)
-    // A heading that names the limitations under another role states them too: nothing is printed twice.
-    for (const heading of ['Risks and limits', 'Conclusions and limitations', 'Sources and limitations']) {
-      const named = without.replace('## Conclusion', `## ${heading}`)
-      assert.doesNotMatch(rich({ markdown: named, limitations: ['Stored.'] }), /id="report-limitations"/, heading)
+    // A heading is no proof that a limitation was kept (M75, the cloud review on 85c1ae1): what the report says is not
+    // printed twice, whatever its heading; what it does not say is printed, whatever its heading.
+    const said = 'Prices change often.'
+    for (const heading of [
+      'Risks and limits',
+      'Conclusions and limitations',
+      'Limits of liability',
+      'Limiti dello studio',
+    ]) {
+      const named = without.replace('## Conclusion\n', `## ${heading}\n\n- prices CHANGE often\n\n`)
+      const out = rich({ markdown: named, limitations: [said, 'Not said anywhere.'] })
+      const printed = slice(out, '<section id="report-limitations"', '</section>')
+      assert.ok(printed.includes('<li>Not said anywhere.</li>'), `${heading}: what the report does not say is printed`)
+      assert.ok(!printed.includes(said), `${heading}: what it says is not printed twice`)
+      assert.equal(out.match(/id="report-limitations"/g)?.length, 1, heading)
     }
+    const allSaid = without.replace('## Conclusion\n', '## Limits\n\n- Prices change often\n\n')
+    assert.doesNotMatch(rich({ markdown: allSaid, limitations: [said] }), /id="report-limitations"/, 'all said: none')
   })
 
   it('U10 · reads limitations and answers from their headings, and nothing else', () => {
@@ -758,14 +771,11 @@ describe('html-report-v2: what its bytes guarantee', () => {
       'I answer three questions',
     ]
     for (const heading of [...body, 'Le risposte dei fornitori']) assert.equal(role(heading), 'body', heading)
-    // A heading that only starts with "Limits" is a subject (the cloud review on 85c1ae1): the stored limitations still
-    // print, and the method does not say the report states none, since such a heading may be the report's own.
+    // A heading that opens with "Limits" may be a subject ("Limits of liability", rate limits): however it is set, the
+    // stored limitations it does not say still print (the cloud review on 85c1ae1, `unsaid`).
     for (const heading of ['Limits of liability', 'Limiti di velocità', 'Límites de tasa', 'I limiti di velocità']) {
-      assert.equal(role(heading), 'body', heading)
       const stored = page({ markdown: `# T\n\n## ${heading}\n\n${filler(5)}`, limitations: ['Stored.'] })
       assert.ok(stored.includes('<section id="report-limitations"'), `${heading}: the stored ones still print`)
-      const none = page({ markdown: `# T\n\n## ${heading}\n\n${filler(5)}` })
-      assert.doesNotMatch(none, /states no limitations/, `${heading}: never said to state none`)
     }
     for (const heading of ['Limits', 'Limiti.', 'Límites:']) assert.equal(role(heading), 'limitations', heading)
     const pdf = renderReport({

@@ -589,8 +589,11 @@ when you change the room:
   general rules (nothing runs or loads, safe links, text escaped and no entity
   split, ids used once and links that land) and the seed's own (one policy,
   seven metas and one stylesheet, only the tags and attributes it prints).
-  Besides: a heading named like one of the page's own parts is renamed in the
-  page only, so pdf-report-v1 keeps its ids and bytes; the same bytes in any
+  Besides: the version's stored limitations print where the report's own text
+  does not already say them, whatever its headings (a heading only sets the
+  amber rule and the method's note, M75); a heading named like one of the
+  page's own parts is renamed in the page only, so pdf-report-v1 keeps its
+  ids and bytes; the same bytes in any
   time zone; hostile text escaped; a draft of any length printed in linear
   time. Its patterns hold only on the printer's own markup; authored HTML
   needs a parser. Change the page and they must still pass.

@@ -97,24 +97,19 @@ function dateOf(iso: string | null | undefined, words: PageWords): string | null
 }
 
 /**
- * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). "Limits" read
- * as limitations only when the word, with its article or none, is the whole heading ("Limits", "Limiti", "I limiti",
- * "Los límites", "The limits"), or joined to risks or scope below: a heading that only starts with it ("Limits of
- * liability", "Limiti di velocità", "Límites de tasa") is a subject, and read as limitations it made the page drop the
- * version's stored ones (M75, the cloud review on 85c1ae1). "La risposta", "La respuesta", "The answer" read as the
- * answer as "Answer" does.
+ * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). Italian and
+ * Spanish headings name them with their article (M75): "I limiti", "Los límites", "The limits" read as limitations
+ * when the article and the word are the whole heading; "La risposta", "La respuesta" and "The answer" read as the
+ * answer as "Answer" does. These read a heading's words, not what the section says, so they decide only how a section
+ * is set (its amber rule, the answer first) and the method's "states no limitations": never which of the version's
+ * stored limitations are printed (`unsaid`, M75: "Limits of liability" read as limitations and dropped them).
  */
 const LIMITS =
-  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^((the|i|los)\s+)?(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
+  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b|^(the|i|los)\s+(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
 /** "Limits" further in: joined to risks or scope, or known ("Rischi e limiti", "I rischi e i limiti"), never alone. */
 const JOINED =
   /\b(known|(risks|scope|rischi|ambit[oi]|riesgos|alcance)(,|\s+(and|e|y|&)))\s+((the|i|los)\s+)?(limits|limiti|l[ií]mites)\b/i
 const ANSWER = /^((the|la)\s+)?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
-/**
- * A heading that only starts with "Limits" ("Limits of this study") may still be the report's own: never reason to
- * drop the stored limitations, but reason enough not to say the report states none.
- */
-const OPENS_WITH_LIMITS = /^((the|i|los)\s+)?(limits|limiti|l[ií]mites)\b/i
 
 const namesLimits = (title: string) => LIMITS.test(title) || JOINED.test(title)
 
@@ -314,22 +309,47 @@ function pageSections(printed: PrintedReport, pass: Pass): PageSection[] {
 
 /**
  * Whether the report states its limitations: a section of them, or one whose heading names them under another role
- * ("Conclusions and limitations", "Sources and limitations"). Only then are the stored ones left out.
+ * ("Conclusions and limitations", "Sources and limitations"). It decides the method's note, never what is printed.
  */
 const statesLimits = (sections: readonly PageSection[]) =>
   sections.some((s) => s.role === 'limitations' || namesLimits(s.title))
 
-/** Whether the report may state them: statesLimits, or a heading that opens with "Limits" (OPENS_WITH_LIMITS). */
-const mayStateLimits = (sections: readonly PageSection[]) =>
-  statesLimits(sections) || sections.some((s) => OPENS_WITH_LIMITS.test(s.title))
+/** Text as a reader compares it: tags dropped, the page's entities read back, one case, one space. */
+const plain = (html: string) =>
+  html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[e] ?? "'")
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
 
 /**
- * The limitations the version stored, as a section of their own when the report wrote none: after the last body or
- * summary section, before the conclusion or references that follow it.
+ * The stored limitations the report's own words do not already say (M75, the cloud review on 85c1ae1): each is
+ * looked for, as a reader compares text, in the lead and the sections, without its closing punctuation. A heading is
+ * no proof that a limitation was kept ("Limits of liability" is a subject), and a limitation is never dropped for one;
+ * one the report repeats is not printed twice.
  */
-function withStoredLimitations(sections: PageSection[], stored: readonly string[], words: PageWords): PageSection[] {
-  const lines = stored.map((l) => l.trim()).filter((l) => l !== '')
-  if (lines.length === 0 || statesLimits(sections)) return sections
+function unsaid(stored: readonly string[], lead: string | null, sections: readonly PageSection[]): string[] {
+  const said = plain([lead ?? '', ...sections.map((s) => s.html)].join(' '))
+  return stored
+    .map((l) => l.trim())
+    .filter(
+      (l) =>
+        l !== '' &&
+        !said.includes(
+          plain(esc(l))
+            .trim()
+            .replace(/[\s.;:!?…]+$/u, ''),
+        ),
+    )
+}
+
+/**
+ * The limitations the version stored that the report does not already say (`unsaid`), as a section of their own: after
+ * the last body or summary section, before the conclusion or references that follow it.
+ */
+function withStoredLimitations(sections: PageSection[], lines: readonly string[], words: PageWords): PageSection[] {
+  if (lines.length === 0) return sections
   const items = lines.map((l) => `<li>${esc(l)}</li>`).join('')
   const section: PageSection = {
     id: 'report-limitations',
@@ -461,7 +481,7 @@ function methodSection(page: Page): string {
   if (count('unread') > 0) lines.push(['warn', esc(words.unread(count('unread'), n))])
   lines.push(n > 0 ? ['ok', esc(words.gate(n))] : ['note', esc(words.noCites)])
   lines.push(['note', `<strong>${esc(words.review[0])}</strong> ${esc(words.review[1])}`])
-  if (!mayStateLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
+  if (!statesLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
   lines.push(['note', esc(words.noRecord)])
   const items = lines.map(([kind, text]) => `<li class="${kind}">${text}</li>`).join('')
   return (
@@ -556,7 +576,8 @@ function passParts(input: ReportPageInput, words: PageWords, printed: PrintedRep
   const part = (prefix: string) => printed.body.find((p) => p.startsWith(prefix)) ?? null
   const leadPart = part('<div class="lead">')
   const lead = leadPart === null ? null : pagePass(leadPart, pass)
-  const sections = withStoredLimitations(pageSections(printed, pass), input.limitations ?? [], words)
+  const own = pageSections(printed, pass)
+  const sections = withStoredLimitations(own, unsaid(input.limitations ?? [], lead, own), words)
   const page: Page = { words, printed, input, known, status, lead: numsOf(lead ?? ''), seen: pass.seen, sections }
   return { page, lead, nav: part('<nav class="toc"'), sources: part('<section class="sources"') }
 }
