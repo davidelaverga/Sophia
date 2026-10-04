@@ -1027,7 +1027,8 @@ Davide's rule for the fixes: no frozen asset changes.
 - The runtime bundle `6a01ce0e…` and `config/runtime-unit.json`.
 - Migrations 0001–0036: 0036 is still `5e010674…`.
 - The contracts.
-- The runtime (`6ec64f3`) and the worker are not redeployed.
+- The runtime (`6ec64f3`) and the worker (`0391bc6`, as CX-0027 recorded them) are not redeployed. CC-0021, CC-0022 and
+  CC-0024 said the worker was at `6ec64f3`; CX-0033 corrected it to `0391bc6`. Neither is a redeploy target.
 
 ### Deferred, and known limits
 
