@@ -314,8 +314,9 @@ export async function readNativeTask(c: pg.PoolClient, projectId: string, taskId
 
 /**
  * One published version of a research report, as the guide's readers compare them (CX-0026, CX-0027). Citation counts
- * are what publication stored, less the report's own versions; nothing here is the worker's notes. Sections are
- * compared from the texts (ReportVersionText), never read from the stored counts, which 0027 paired otherwise.
+ * are what publication stored, the sources added and dropped less the report's own versions; nothing here is the
+ * worker's notes. Sections are compared from the texts (ReportVersionText), never read from the stored counts, which
+ * 0027 paired otherwise.
  */
 export interface ReportVersion {
   id: string
@@ -329,11 +330,14 @@ export interface ReportVersion {
   /** Whether a PDF of this text exists: on the version itself, or on a rendition-only version made of it. */
   pdf: boolean
   /**
-   * Sources cited, and added and dropped against the version before; null where publication stored none. Added and
-   * dropped leave out the report's own versions: a follow-up that lists its base (the pilot's v2 did, CX-0026, and 0037
-   * keeps the base citable) changed no source, and the next version, which does not list it again, dropped none.
+   * Sources cited, as stored (what the Sources tab lists), and added and dropped against the version before; null where
+   * publication stored none. Added and dropped leave out the report's own versions: a follow-up that lists its base
+   * (the pilot's v2 did, CX-0026, and 0037 keeps the base citable) changed no source, and the next version, which does
+   * not list it again, dropped none.
    */
   cited: number | null
+  /** How many of the sources cited are earlier versions of the same report; null with `cited`. */
+  citedVersions: number | null
   added: number | null
   dropped: number | null
   /**
@@ -422,6 +426,7 @@ interface VersionRow {
   rendition_only: boolean
   pdf: boolean
   cited: number | null
+  cited_versions: number | null
   added: number | null
   dropped: number | null
   chars: number | null
@@ -446,6 +451,10 @@ async function readReportVersions(c: pg.PoolClient, projectId: string, artifactI
             EXISTS(SELECT 1 FROM sophia.artifact_renditions r
                     WHERE r.project_id = v.project_id AND r.artifact_version_id = v.id AND r.format = 'pdf') AS pdf,
             CASE WHEN jsonb_typeof(v.change_facts->'cited') = 'number' THEN (v.change_facts->>'cited')::integer END AS cited,
+            CASE WHEN jsonb_typeof(v.change_facts->'cited') = 'number' THEN (SELECT count(DISTINCT o.source_id)::integer
+               FROM sophia.artifact_versions o JOIN sophia.source_dependencies d ON d.project_id = o.project_id
+                AND d.source_id = o.source_id AND d.derived_source_id = v.source_id
+              WHERE o.project_id = v.project_id AND o.artifact_id = v.artifact_id) END AS cited_versions,
             ${movedSources(`v.change_facts->'added'`)} AS added, ${movedSources(`v.change_facts->'dropped'`)} AS dropped,
             (SELECT char_length(t.body) FROM sophia.source_texts t
               WHERE t.project_id = v.project_id AND t.source_id = v.source_id) AS chars
@@ -467,6 +476,7 @@ const toReportVersion = (r: VersionRow, all: readonly VersionRow[]): ReportVersi
   renditionOnly: r.rendition_only,
   pdf: r.pdf || all.some((x) => x.rendition_only && x.parent_id === r.id && x.pdf),
   cited: r.cited,
+  citedVersions: r.cited_versions,
   added: r.added,
   dropped: r.dropped,
   chars: r.chars,

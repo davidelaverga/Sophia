@@ -952,6 +952,8 @@ interface Research {
   summary?: string
   /** Ends the task with research_report_blocker instead. */
   blocker?: string
+  /** More sources its result lists as cited, after the one its search captured: a base, as the pilot's v2 listed. */
+  citeAlso?: string[]
 }
 
 /**
@@ -1020,7 +1022,7 @@ async function researched(w: World, r: Research): Promise<string> {
     summary: 'Which phone chargers are worth buying.',
     resultSummary: r.summary ?? 'Three chargers compared.',
     limitations: [],
-    citations: [cited],
+    citations: [cited, ...(r.citeAlso ?? [])],
     ...r.notes,
   }
   let done = await submit('s1', { result })
@@ -1285,6 +1287,27 @@ describe('read_selected_source on research: the worker’s summary, and the serv
     }>
     const told = rows.find((r) => r.taskId === v3)?.report?.changes ?? ''
     assert.match(told, /; 1 source cited \(1 added, 1 dropped\)\. This is the latest version\.$/)
+  })
+
+  it('says how many of the sources cited are earlier versions of the report, as a follow-up citing its base does', async () => {
+    const w = await world()
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const v2 = await researched(w, {
+      amends: v1,
+      text: PILOT_V2,
+      notes: { changeNote: 'Rewrote the recommendations.' },
+      citeAlso: [await versionSource(w, v1)],
+    })
+    const read = (await readTask(w, v2)).report
+    // Its own capture in place of v1's, and v1 itself: cited twice, yet one source added and one dropped.
+    assert.deepEqual(read.citations, { cited: 2, earlierVersions: 1, added: 1, dropped: 1 })
+    const said = /; 2 sources cited, 1 of them an earlier version of this report \(1 added, 1 dropped\)\. This is the/
+    assert.match(read.changes, said)
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { changes: string }
+    }>
+    assert.equal(rows.find((r) => r.taskId === v2)?.report?.changes, read.changes)
   })
 })
 

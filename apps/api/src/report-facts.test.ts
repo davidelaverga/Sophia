@@ -17,6 +17,7 @@ const version = (n: number, text: string, taskId = TASK): ReportVersionText => (
   renditionOnly: false,
   pdf: false,
   cited: 2,
+  citedVersions: 0,
   added: 1,
   dropped: 0,
   chars: Array.from(text).length,
@@ -92,5 +93,24 @@ describe('the service’s facts of a report’s versions', () => {
       [null, null, 1, true],
     )
     assert.equal(report.changes, 'Version 1 is the first version. It cites 2 sources. This is the latest version.')
+  })
+
+  it('says how many sources cited are earlier versions of the report, which added and dropped leave out', () => {
+    const v = replaced('# Title\n\nOld [a].\n', '# Title\n\nNew [b].\n')
+    const citing = (cited: number, citedVersions: number): ResearchVersions => {
+      const own = { ...version(2, '# Title\n\nNew [b].\n', NEXT), cited, citedVersions, dropped: 1 }
+      return { ...v, own, current: own }
+    }
+    const report = reportOf(citing(2, 1))
+    assert.match(
+      report.changes,
+      /; 2 sources cited, 1 of them an earlier version of this report \(1 added, 1 dropped\)\./,
+    )
+    assert.deepEqual(report.citations, { cited: 2, earlierVersions: 1, added: 1, dropped: 1 })
+    assert.equal(statusReportOf(citing(2, 1)).changes, report.changes)
+    assert.match(reportOf(citing(3, 2)).changes, /; 3 sources cited, 2 of them earlier versions of this report \(/)
+    // None of them is: the clause and the field stay out.
+    assert.deepEqual(reportOf(v).citations, { cited: 2, added: 1, dropped: 0 })
+    assert.match(reportOf(v).changes, /; 2 sources cited \(1 added, 0 dropped\)\./)
   })
 })

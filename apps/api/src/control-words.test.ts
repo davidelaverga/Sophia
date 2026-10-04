@@ -25,6 +25,7 @@ const v = (n: number): ReportVersion => ({
   renditionOnly: false,
   pdf: false,
   cited: 1,
+  citedVersions: 0,
   added: 1,
   dropped: 0,
   chars: 3000,

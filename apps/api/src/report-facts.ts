@@ -75,6 +75,18 @@ interface Counts {
   tables: { before: number; after: number } | null
 }
 
+/**
+ * How many of the sources cited are earlier versions of this report, which added and dropped leave out: without it,
+ * "2 sources cited (1 added, 1 dropped)" after a version that cited 1 would not add up. '' when none is.
+ */
+function earlierVersions(own: ReportVersion): string {
+  const n = own.citedVersions ?? 0
+  if (n === 0) return ''
+  return n === 1
+    ? ', 1 of them an earlier version of this report'
+    : `, ${String(n)} of them earlier versions of this report`
+}
+
 /** The comparison clause, counts only, or '' when nothing was compared. */
 function comparison(previous: number, own: ReportVersion, counts: Counts): string {
   const parts: string[] = []
@@ -88,7 +100,7 @@ function comparison(previous: number, own: ReportVersion, counts: Counts): strin
   if (own.cited !== null) {
     const moved =
       own.added === null || own.dropped === null ? '' : ` (${String(own.added)} added, ${String(own.dropped)} dropped)`
-    parts.push(`${plural(own.cited, 'source', 'sources')} cited${moved}`)
+    parts.push(`${plural(own.cited, 'source', 'sources')} cited${earlierVersions(own)}${moved}`)
   }
   return parts.length === 0 ? '' : ` Compared with version ${String(previous)}: ${parts.join('; ')}.`
 }
@@ -197,7 +209,12 @@ export function reportOf(v: ResearchVersions) {
     currentSections: currentText === null ? null : listOf(headingsOf(currentText)),
     sinceFirstVersion: since && sectionLists(since),
     tables: { thisVersion: after, previousVersion: before, currentVersion: tables(current) },
-    citations: own && { cited: own.cited, added: own.added, dropped: own.dropped },
+    citations: own && {
+      cited: own.cited,
+      ...((own.citedVersions ?? 0) > 0 ? { earlierVersions: own.citedVersions } : {}),
+      added: own.added,
+      dropped: own.dropped,
+    },
     rendition: { pdf: own?.pdf ?? false },
   }
 }

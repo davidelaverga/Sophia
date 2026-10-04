@@ -164,6 +164,7 @@ const version = (n: number, taskId: string, extra: Partial<ReportVersionText> = 
   renditionOnly: false,
   pdf: false,
   cited: 5,
+  citedVersions: 0,
   added: 5,
   dropped: 0,
   chars: V1_TEXT.length,
