@@ -1,7 +1,7 @@
 // Labelled fixture data for the reading checks (e2e/report-reading.spec.ts, html-report-v2 SPEC §4b): a long report to
 // read in the viewer, with every case its reading grammar covers (a summary, nested and numbered lists, a quote, code,
 // a six-column and a four-column table, grouped citations, a group of six after a long address, a quotation in Chinese,
-// which has no spaces) and every kind of source (read in full, read in part, a search listing, the project's own file),
+// which has no spaces, citations a word apart and beside links, M75-RF-0001) and every kind of source (read in full, read in part, a search listing, the project's own file),
 // and a short Italian version. Illustrative vendors and figures; nothing here is live. The room's fixture page serves
 // it (`report=` READING).
 import type { ArtifactVersion, ReportSourceList, SourceContent } from '@sophia/contracts'
@@ -122,6 +122,8 @@ A long reference copied from a pricing page, cited with every source at once, sh
 ## Conclusion
 
 Harbor Cloud passes all three tests with room in the budget; Northwind passes two and would need written support-access terms to pass the first. The decision is reversible within a quarter: both hosts export standard dumps and logical replication streams. See the [migration checklist](https://wiki.example.org/db/migration-checklist) for the steps after the decision, and ![a residency map](https://evil.example/map.png) for where the regions sit.
+
+Two sources agree on the window, Harbor[${S1}] and Calder[${S5}], and its [pricing page](https://pricing.harbor.example/)[${S1}] says the same; one claim[${S3}] [has a link](https://wiki.example.org/db) right after it.
 `
 
 /**
@@ -153,7 +155,7 @@ const TEXTS: readonly Text[] = [
   },
   {
     sourceId: '00000000-0000-4000-8000-0000000000fa',
-    sha256: '3e5346960d051b8dd3e6b7441fbde3f3d77a334148fe5ae0f829fb5a7d9bb417',
+    sha256: '05e8fa07310881fe38b9eef8fe9307bd105cbc788c20001ead3c5861d0cb704f',
     text: ENGLISH,
   },
 ]

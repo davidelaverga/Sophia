@@ -443,6 +443,88 @@ test('reading @phone · a citation’s number has a finger-sized target, which m
   expect(await inTable.evaluate((el) => getComputedStyle(el, '::after').content)).toBe('none')
 })
 
+/**
+ * Each citation's touch target outside tables as it is laid out (its number's box grown by its ::after's insets): the
+ * pairs that meet, the presses inside a target that reach something else (centre, corners and edge midpoints, half a
+ * pixel in), the presses on a link in a block that holds a citation that something else takes (2 px in), and the
+ * targets as tall as the step between their block's lines.
+ */
+const touchTargets = (page: Page) =>
+  page.evaluate(
+    ({ near, onLink }) => {
+      const buttons = [...document.querySelectorAll<HTMLElement>('.md .cite button')].filter(
+        (b) => !b.closest('.md-table'),
+      )
+      // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+      const target = (b: HTMLElement) => {
+        const r = b.getBoundingClientRect()
+        const s = getComputedStyle(b, '::after')
+        const grow =
+          s.content === 'none'
+            ? [0, 0, 0, 0]
+            : [s.left, s.right, s.top, s.bottom].map((v) => (v === 'auto' ? 0 : parseFloat(v)))
+        return {
+          l: r.left + (grow[0] ?? 0),
+          r: r.right - (grow[1] ?? 0),
+          t: r.top + (grow[2] ?? 0),
+          b: r.bottom - (grow[3] ?? 0),
+        }
+      }
+      const laid = buttons.map(target)
+      const meet = laid.flatMap((a, i) =>
+        laid.slice(i + 1).flatMap((b, k) => {
+          const w = Math.min(a.r, b.r) - Math.max(a.l, b.l)
+          const h = Math.min(a.b, b.b) - Math.max(a.t, b.t)
+          return w > 0.01 && h > 0.01 ? [`${buttons[i]?.textContent} and ${buttons[i + 1 + k]?.textContent}`] : []
+        }),
+      )
+      /** Nine presses in a box: half a pixel in for a citation's target, `onLink` in for a link's line box. */
+      const nine = (r: { l: number; r: number; t: number; b: number }, link: boolean) => {
+        const inset = link ? onLink : near
+        return [r.l + inset, (r.l + r.r) / 2, r.r - inset].flatMap((x) =>
+          [r.t + inset, (r.t + r.b) / 2, r.b - inset].map((y) => ({ x, y })),
+        )
+      }
+      const missed = buttons.flatMap((b) => {
+        b.scrollIntoView({ block: 'center' })
+        const taken = nine(target(b), false).find(
+          ({ x, y }) => document.elementFromPoint(x, y)?.closest('button') !== b,
+        )
+        return taken ? [`${b.getAttribute('aria-label')} at ${taken.x.toFixed(1)},${taken.y.toFixed(1)}`] : []
+      })
+      const blocks = new Set(buttons.map((b) => b.closest('p, li, blockquote, h2, h3, h4, h5, h6')))
+      const links = [...blocks].flatMap((block) => [...(block?.querySelectorAll('a[href]') ?? [])])
+      const linkTaken = links.flatMap((a) => {
+        a.scrollIntoView({ block: 'center' })
+        return [...a.getClientRects()].flatMap((r) =>
+          nine({ l: r.left, r: r.right, t: r.top, b: r.bottom }, true)
+            .filter(({ x, y }) => document.elementFromPoint(x, y)?.closest('a') !== a)
+            .map(({ x, y }) => `${a.textContent} at ${(x - r.left).toFixed(0)},${(y - r.top).toFixed(0)}`),
+        )
+      })
+      // Taller than the step between lines, a target could meet one on the line above or below however the text wraps.
+      const tall = buttons.flatMap((b) => {
+        const box = target(b)
+        const step = parseFloat(getComputedStyle(b.closest('p, li, blockquote, h2, h3, h4, h5, h6') ?? b).lineHeight)
+        return box.b - box.t < step ? [] : [`${b.getAttribute('aria-label')}: ${(box.b - box.t).toFixed(1)} of ${step}`]
+      })
+      return { count: buttons.length, meet, missed, linkTaken, tall: [...new Set(tall)] }
+    },
+    { near: 0.5, onLink: 2 },
+  )
+
+test('reading @phone · each citation’s target is its own: none meets another, or takes a press on a link', async ({
+  page,
+}) => {
+  await openReading(page)
+  const targets = await touchTargets(page)
+  expect(targets.count, 'citations outside tables').toBeGreaterThan(10)
+  expect(targets.meet, 'targets that meet: a press there belongs to two citations').toEqual([])
+  expect(targets.missed, 'presses inside a citation’s target that reach something else').toEqual([])
+  expect(targets.linkTaken, 'presses on a link beside a citation that something else takes').toEqual([])
+  expect(targets.tall, 'targets as tall as the step between their lines').toEqual([])
+})
+
 /** How a citation's number is drawn: its weight and its underline. */
 const look = (button: Locator) =>
   button.evaluate((el) => {

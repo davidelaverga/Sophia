@@ -3,8 +3,10 @@
 // this returns. A citation is a button, and a button lays out as one solid box: a line may break before it even with no
 // space between, so dropping the space is not enough. The word before a citation and the citation go together in one
 // piece the viewer sets without a break (`cite-bound`); citations with only spaces between them are one group, shown
-// with commas, also across the end of bold or emphasis. Not bound: a citation right after a link or inline code
-// (splitting either would split a link or a code span), or after bold or emphasis that ends in a space.
+// with commas, also across the end of bold or emphasis. A link or inline code is never split: one of at most 24
+// characters, none of them a letter a line may break between, goes whole with the citation after it, as a word does
+// (M75: otherwise the citation could start a line); a longer one is not bound. Nor is a citation after bold or
+// emphasis that ends in a space.
 import type { ReportSource } from '@sophia/contracts'
 import type { Inline } from './markdown.ts'
 
@@ -137,16 +139,40 @@ function takeWord(out: Piece[]): Inline[] {
   return [split.word]
 }
 
+/** A node's visible characters: its text, or its children's (a link's words, bold inside it); a citation has none. */
+function charsOf(node: Inline): string[] {
+  if (node.kind === 'text' || node.kind === 'code') return Array.from(node.text)
+  return node.kind === 'link' || node.kind === 'strong' || node.kind === 'em' ? node.children.flatMap(charsOf) : []
+}
+
+/** A link or code span that can go whole with a citation: short enough for a phone's line, and no letter of CJK. */
+const wholeWord = (node: Plain) => {
+  const chars = charsOf(node)
+  return chars.length > 0 && chars.length <= MOST_BOUND && !chars.some((c) => BREAKS_BETWEEN.test(c))
+}
+
+/** A node cut before its last word: what stays where it was, and the word that goes with the citation. */
+interface Split {
+  rest: Plain | null
+  word: Plain
+}
+
 /** A node cut before its last word (inside bold or emphasis, the word keeps its mark); null when it ends in none. */
-function splitWord(node: Plain): { rest: Plain | null; word: Plain } | null {
-  if (node.kind === 'text') {
-    const tail = /\S+$/u.exec(node.text)?.[0]
-    if (!tail) return null
-    const word = boundPart(tail)
-    const rest = node.text.slice(0, node.text.length - word.length)
-    return { rest: rest ? { kind: 'text', text: rest } : null, word: { kind: 'text', text: word } }
-  }
-  if (node.kind !== 'strong' && node.kind !== 'em') return null
+function splitWord(node: Plain): Split | null {
+  if (node.kind === 'link' || node.kind === 'code') return wholeWord(node) ? { rest: null, word: node } : null
+  if (node.kind === 'text') return splitText(node.text)
+  return node.kind === 'strong' || node.kind === 'em' ? splitMarked(node) : null
+}
+
+function splitText(text: string): Split | null {
+  const tail = /\S+$/u.exec(text)?.[0]
+  if (!tail) return null
+  const word = boundPart(tail)
+  const rest = text.slice(0, text.length - word.length)
+  return { rest: rest ? { kind: 'text', text: rest } : null, word: { kind: 'text', text: word } }
+}
+
+function splitMarked(node: Mark): Split | null {
   const inner = node.children.at(-1)
   const split = inner && inner.kind !== 'cite' ? splitWord(inner) : null
   if (!split) return null

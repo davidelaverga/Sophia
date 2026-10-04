@@ -84,9 +84,23 @@ describe('a citation keeps to the word before it', () => {
     assert.equal(shown(pieces), `see ${address.slice(0, -24)}{${address.slice(-24)}|1}`)
   })
 
-  it('binds nothing it would have to split: a link, code, or a run that starts with the citation', () => {
-    assert.equal(shown(bindCites(runOf(`[the agreement](https://example.org/dpa) [${A}]`))), '[the agreement]{|1}')
-    assert.equal(shown(bindCites(runOf(`run \`pgaudit\` [${A}]`))), 'run pgaudit{|1}')
+  it('binds a short link or code whole, as a word, so the citation never starts a line after it (M75)', () => {
+    assert.equal(shown(bindCites(runOf(`[the agreement](https://example.org/dpa) [${A}]`))), '{[the agreement]|1}')
+    assert.equal(
+      shown(bindCites(runOf(`its [pricing page](https://p.example/)[${A}] says`))),
+      'its {[pricing page]|1} says',
+    )
+    assert.equal(shown(bindCites(runOf(`run \`pgaudit\` [${A}]`))), 'run {pgaudit|1}')
+    assert.equal(shown(bindCites(runOf(`**[Harbor](https://h.example/)** [${A}] [${B}]`))), '{**[Harbor]**|1,2}')
+    const exactly = 'x'.repeat(24)
+    assert.equal(shown(bindCites(runOf(`[${exactly}](https://example.org/) [${A}]`))), `{[${exactly}]|1}`)
+  })
+
+  it('binds nothing it would have to split: a longer link or code, one in CJK, or a run that starts with the citation', () => {
+    const long = 'x'.repeat(25)
+    assert.equal(shown(bindCites(runOf(`[${long}](https://example.org/) [${A}]`))), `[${long}]{|1}`)
+    assert.equal(shown(bindCites(runOf(`run \`${long}\` [${A}]`))), `run ${long}{|1}`)
+    assert.equal(shown(bindCites(runOf(`[数据驻留](https://example.org/) [${A}]`))), '[数据驻留]{|1}')
     assert.equal(shown(bindCites(runOf(`[${A}] opens it`))), '{|1} opens it')
   })
 

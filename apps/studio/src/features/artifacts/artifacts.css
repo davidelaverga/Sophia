@@ -868,14 +868,27 @@
     min-height: 44px;
   }
   /* A citation's number gets its target from an empty box around it, as an inline text button does, so no line moves.
-     Not in a table: past the edge of its frame, the box would make the frame scroll. */
+     Not in a table: past the edge of its frame, the box would make the frame scroll. Each target is its own
+     (M75-RF-0001): 6 px above and below keeps it 25.6 px tall, under the 27.2 px between lines, and it reaches 4 px
+     to a side only where no other target is. Beside a group's comma it stops at its numeral, so two numbers never
+     share a press; so does a group's first number after a link bound to it or after nothing bound (a long link, or
+     code), and its last number before a link. */
   .md .cite button {
     position: relative;
   }
   .md .cite button::after {
     content: '';
     position: absolute;
-    inset: -7px -4px;
+    inset: -6px -4px;
+  }
+  .md .cite :is(.sep + button, .cite-more button)::after,
+  .md .cite-bound > sup.cite:first-child > button:first-child::after,
+  .md .cite-bound:has(a) > sup.cite > button:first-child::after {
+    left: 0;
+  }
+  .md .cite button:is(:has(+ .sep), :has(+ .cite-more))::after,
+  .md .cite-bound:has(+ a) .cite button:not(:has(+ .sep), :has(+ .cite-more))::after {
+    right: 0;
   }
   .md-table .cite button::after {
     content: none;
