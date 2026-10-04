@@ -26,6 +26,7 @@ import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } fro
 import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
+import { notesLabel } from './places-view.ts'
 import type { Handed } from './handed.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
 import { usePresses } from './presses.ts'
@@ -72,9 +73,12 @@ interface Props {
   onStartProject: () => void
 }
 
-/** On a wide screen the conversation slides left just enough to clear the notes; on a narrow one they overlay. */
-function useShift(body: React.RefObject<HTMLDivElement | null>, open: boolean): number {
-  const [shift, setShift] = useState(0)
+/**
+ * On a wide screen the conversation slides left just enough to clear the notes; on a narrow one they overlay. `beside`:
+ * the notes clear it entirely, so they can be a see-through column (personal.css); else they cover what they overlap.
+ */
+function useShift(body: React.RefObject<HTMLDivElement | null>, open: boolean): { shift: number; beside: boolean } {
+  const [shift, setShift] = useState({ shift: 0, beside: false })
   useLayoutEffect(() => {
     const el = body.current
     if (!el) return undefined
@@ -82,7 +86,9 @@ function useShift(body: React.RefObject<HTMLDivElement | null>, open: boolean): 
       const convo = el.querySelector<HTMLElement>('.c3-convo')
       const free = (el.clientWidth - (convo?.offsetWidth ?? el.clientWidth)) / 2
       const need = Math.min(340, el.clientWidth) + 20 - free
-      setShift(open && el.clientWidth >= 900 ? Math.max(0, Math.min(need, free)) : 0)
+      const wide = open && el.clientWidth >= 900
+      const next = { shift: wide ? Math.max(0, Math.min(need, free)) : 0, beside: wide && need <= free }
+      setShift((was) => (was.shift === next.shift && was.beside === next.beside ? was : next))
     }
     measure()
     const watch = new ResizeObserver(measure)
@@ -239,15 +245,18 @@ function Head({ count, notes }: { count: number | undefined; notes: Props['notes
         You and Sophia
       </h2>
       <div className="c3-head-acts">
-        {((count ?? 0) > 0 || notes.open) && (
+        {(count !== undefined || notes.open) && (
           <button
-            className="pill has-tip"
+            className="c3-notes-toggle has-tip"
             type="button"
             aria-pressed={notes.open}
             aria-controls="c-notes"
             onClick={() => notes.set(!notes.open)}
           >
-            Notes {count !== undefined && <span className="c3-count">{count}</span>}
+            {count === undefined ? 'Notes' : count ? notesLabel(count) : 'No notes'}
+            <span className="c3-go" aria-hidden>
+              →
+            </span>
             <Tip
               label="Your private notes. Carry one to a project only if you want to."
               keys="T"
@@ -360,7 +369,7 @@ export function PersonalSpace(props: Props) {
   const body = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [listening, setListening] = useState(false)
-  const shift = useShift(body, notes.open)
+  const { shift, beside } = useShift(body, notes.open)
   const covered = useNotesCover(notes.open)
   const onFailed = useCallback((err: unknown) => toast(personalFailure(err)), [toast])
   const actions = useActions(props, onFailed)
@@ -390,7 +399,7 @@ export function PersonalSpace(props: Props) {
         {said}
       </p>
       <Head count={space?.notes.length} notes={notes} />
-      <div className="c3-body" ref={body}>
+      <div className="c3-body" ref={body} data-beside={beside || undefined}>
         <Conversation
           {...{ rows, turns, list, actions, composer, covered, more: props.readBack.more }}
           notice={<ReadNotes reads={[props.read]} />}

@@ -1,10 +1,11 @@
-// The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side with
-// Sophia's dot, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
+// The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side, each
+// side's first turn marked by its half of Umbral, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
 // words, Sophia's suggested note (keep it or let it go), and the wait for her reply.
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
 import { usePopover } from '../../app/usePopover.ts'
+import { UMBRAL } from '../light/threshold.ts'
 import { daysOf, notePrefill, STARTERS, suggestionFor, type Row } from './conversation-view.ts'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
 
@@ -22,6 +23,22 @@ export interface ConversationActions {
 }
 
 const dayId = (key: string) => `c-${key}`
+
+/** Each half of Umbral (threshold.ts), boxed tight: hers small and light, yours larger and warm, at one scale. */
+const HALF = {
+  sophia: { path: UMBRAL.her.path, box: '33 6.31 10.96 17.14' },
+  you: { path: UMBRAL.you.path, box: '4.95 11.19 25.05 30.38' },
+} as const
+
+/** Who speaks: their half of the mark, beside the first of their turns. The conversation is the mark, in two voices. */
+function Who({ who }: { who: keyof typeof HALF }) {
+  const half = HALF[who]
+  return (
+    <svg className="c3-who" data-who={who} viewBox={half.box} aria-hidden>
+      <path d={half.path} />
+    </svg>
+  )
+}
 
 function NoteForm(props: {
   turn: PersonalTurn
@@ -154,7 +171,7 @@ function Turn({ row, noting, onNote }: TurnProps) {
         if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button'))) setShowAt(!showAt)
       }}
     >
-      {!me && row.first && <span className="s-dot" aria-hidden />}
+      {row.first && <Who who={me ? 'you' : 'sophia'} />}
       <span className="sr-only">{me ? 'You' : 'Sophia'}: </span>
       <div className="body">{row.text}</div>
       <span className="at">{row.at}</span>
@@ -170,9 +187,11 @@ function Turn({ row, noting, onNote }: TurnProps) {
 function Typing({ first }: { first: boolean }) {
   return (
     <div className={`msg sophia typing ${first ? 'first' : 'cont'}`}>
-      {first && <span className="s-dot" aria-hidden />}
+      {first && <Who who="sophia" />}
       <span className="sr-only">Sophia is writing</span>
-      <div className="body" />
+      <div className="body" aria-hidden>
+        Sophia is writing…
+      </div>
     </div>
   )
 }
@@ -181,8 +200,11 @@ function Starters({ onStart }: { onStart: (text: string) => void }) {
   return (
     <div className="c3-starters" role="group" aria-label="Ways to start">
       {STARTERS.map((t) => (
-        <button key={t} className="pill" type="button" onClick={() => onStart(t)}>
-          {t}
+        <button key={t} type="button" onClick={() => onStart(t)}>
+          <span className="c3-way">{t}</span>
+          <span className="c3-go" aria-hidden>
+            →
+          </span>
         </button>
       ))}
     </div>
@@ -201,7 +223,7 @@ interface RowProps {
 function Intro({ text }: { text: string }) {
   return (
     <div className="msg sophia first">
-      <span className="s-dot" aria-hidden />
+      <Who who="sophia" />
       <span className="sr-only">Sophia: </span>
       <div className="body">{text}</div>
     </div>
