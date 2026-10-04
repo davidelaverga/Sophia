@@ -185,6 +185,13 @@ const HOSTILE: ReportPageInput = {
   limitations: ['<b>stored</b> & "quoted"'],
 }
 
+// The page's audit comes in two parts (M75). The general rules are what any report page must hold, a designed one
+// included: nothing that runs or loads, safe links, text escaped (no attribute broken open, no entity split), every id
+// once and every in-page link landing. The seed rules are what html-report-v2's printer prints and nothing else: its
+// one sheet, seven metas and exact policy, only its tags and attributes. Both are checked here with patterns that hold
+// only on this printer's own markup (one tag per "<", attributes in double quotes): they state the general rules, they
+// are not a validator for HTML the printer did not write. SDD-01 checks authored HTML with a parser.
+
 /** The elements and attributes html-report-v1 printed, and what v2 adds to them: nothing that runs or loads. */
 const V1_TAGS =
   'html head meta title style body header footer nav section div p h1 h2 h3 h4 h5 h6 ol ul li a sup span strong em ' +
@@ -192,38 +199,46 @@ const V1_TAGS =
 const TAGS = new Set(`${V1_TAGS} main dl dt dd wbr`.split(' '))
 const V1_ATTRS = 'class id href lang charset name content http-equiv start data-report-role data-visual-id'
 const ATTRS = new Set(`${V1_ATTRS} tabindex role aria-label`.split(' '))
+/** Elements that run, load, embed or submit something: no report page holds one. */
+const ACTIVE =
+  /<(script|iframe|frame|object|embed|applet|form|input|button|base|link|img|picture|source|video|audio|svg|math|template)\b/i
 
-/** The style must be one inline sheet that loads nothing. */
-function styleIssues(html: string): string[] {
-  const styles = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)]
-  const style = styles[0]?.[1] ?? ''
-  const css = style.replace(/\/\*[\s\S]*?\*\//g, '')
+/** Each element's tag and attributes, as this printer writes them. */
+const elementsOf = (body: string) =>
+  [...body.matchAll(/<([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g)].map(([, tag = '', attributes = '']) => ({
+    tag: tag.toLowerCase(),
+    attributes,
+  }))
+
+/** General: no sheet loads anything (no url(), @import, @font-face, image-set(), expression()), or closes early. */
+function loadIssues(html: string): string[] {
+  const styles = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1] ?? '')
+  const css = styles.join('\n').replace(/\/\*[\s\S]*?\*\//g, '')
   const loads = [/url\(/i, /@import/i, /@font-face/i, /image-set\(/i, /expression\(/i].filter((re) => re.test(css))
   return [
-    ...(styles.length === 1 ? [] : [`${styles.length} style elements`]),
-    ...(style.includes('</') ? ['the style holds "</"'] : []),
+    ...(styles.some((style) => style.includes('</')) ? ['the style holds "</"'] : []),
     ...loads.map((re) => `the style has ${String(re)}`),
   ]
 }
 
-/** The head's seven metas, its policy unchanged and alone. */
-function headIssues(html: string): string[] {
-  const csp = /http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1]
+/** General: a policy that loads and runs nothing by default, and no other http-equiv (a refresh) in the head. */
+function policyIssues(html: string): string[] {
+  const csp = /http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1] ?? ''
   return [
-    ...(html.match(/<meta\b/g)?.length === 7 ? [] : ['not 7 metas']),
-    ...(csp === PAGE_CSP ? [] : ['CSP changed']),
-    ...(html.match(/http-equiv=/g)?.length === 1 ? [] : ['a second http-equiv']),
+    ...(/(^|;)\s*default-src 'none'(;|$)/.test(csp) ? [] : ["no policy with default-src 'none'"]),
+    ...(/script-src/.test(csp) ? ['the policy names script-src'] : []),
+    ...(/http-equiv="refresh"/i.test(html) ? ['a refresh'] : []),
   ]
 }
 
 /**
- * One element: a tag the page prints, attributes it prints, and a link to the page, the web or mail. Whatever is left
- * once each name="value" pair is taken out (a value holding a raw < or >, a stray quote) is an attribute broken open.
+ * General: one element's links reach the page, the web or mail, and nothing is left once each name="value" pair is
+ * taken out (a value holding a raw < or >, a stray quote: an attribute broken open). No handler runs.
  */
-function tagIssues(tag: string, attributes: string): string[] {
-  const issues = TAGS.has(tag) ? [] : [`tag <${tag}>`]
+function attributeIssues(tag: string, attributes: string): string[] {
+  const issues: string[] = []
   for (const [, name = '', value = ''] of attributes.matchAll(/\s([a-zA-Z-:]+)(?:="([^"]*)")?/g)) {
-    if (!ATTRS.has(name.toLowerCase())) issues.push(`attribute ${name} on <${tag}>`)
+    if (/^on/i.test(name)) issues.push(`handler ${name} on <${tag}>`)
     if (name === 'href' && !/^(#|https?:|mailto:)/.test(value)) issues.push(`href ${value}`)
   }
   const rest = attributes.replace(/\s[a-zA-Z-]+(="[^"<>]*")?/g, '').trim()
@@ -231,17 +246,17 @@ function tagIssues(tag: string, attributes: string): string[] {
   return issues
 }
 
-/** Every element and attribute is one the page prints; nothing scripts, and no break splits an entity. */
+/** General: nothing runs or loads, every link is safe, and no break splits an entity. */
 function markupIssues(body: string): string[] {
-  const tags = [...body.matchAll(/<([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g)]
   return [
-    ...tags.flatMap(([, tag = '', attributes = '']) => tagIssues(tag.toLowerCase(), attributes)),
+    ...elementsOf(body).flatMap(({ tag, attributes }) => attributeIssues(tag, attributes)),
+    ...(ACTIVE.test(body) ? [`an active element: ${ACTIVE.exec(body)?.[0] ?? ''}`] : []),
     ...(/javascript:/i.test(body) ? ['javascript:'] : []),
     ...(/&(?:<wbr>)+#?[a-z0-9]+;|&[a-z0-9#]*<wbr>[a-z0-9#]*;/i.test(body) ? ['an entity split by <wbr>'] : []),
   ]
 }
 
-/** Every id once, and every in-page link lands on one. */
+/** General: every id once, and every in-page link lands on one. */
 function linkIssues(body: string): string[] {
   const ids = [...body.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1] ?? '')
   const twice = ids.filter((id, i) => ids.indexOf(id) !== i)
@@ -253,10 +268,35 @@ function linkIssues(body: string): string[] {
   ]
 }
 
-/** What a page must never hold, whatever it was given (the page's hard constraints, on its bytes). */
+/** Seed: the printer's one sheet, its seven metas, its policy unchanged and alone, and only its tags and attributes. */
+function seedIssues(html: string, body: string): string[] {
+  const csp = /http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1]
+  const styles = html.match(/<style>/g)?.length ?? 0
+  return [
+    ...(styles === 1 ? [] : [`${styles} style elements`]),
+    ...(html.match(/<meta\b/g)?.length === 7 ? [] : ['not 7 metas']),
+    ...(csp === PAGE_CSP ? [] : ['CSP changed']),
+    ...(html.match(/http-equiv=/g)?.length === 1 ? [] : ['a second http-equiv']),
+    ...elementsOf(body).flatMap(({ tag, attributes }) => [
+      ...(TAGS.has(tag) ? [] : [`tag <${tag}>`]),
+      ...[...attributes.matchAll(/\s([a-zA-Z-:]+)(?:="[^"]*")?/g)]
+        .map((m) => (m[1] ?? '').toLowerCase())
+        .filter((name) => !ATTRS.has(name))
+        .map((name) => `attribute ${name} on <${tag}>`),
+    ]),
+  ]
+}
+
+/** What a page must never hold, whatever it was given: the general rules, then the seed profile's own. */
 function audit(html: string): string[] {
   const body = html.replace(/<style>[\s\S]*?<\/style>/, '')
-  return [...styleIssues(html), ...headIssues(html), ...markupIssues(body), ...linkIssues(body)]
+  return [
+    ...loadIssues(html),
+    ...policyIssues(html),
+    ...markupIssues(body),
+    ...linkIssues(body),
+    ...seedIssues(html, body),
+  ]
 }
 
 /** The order of the contents and the sections in the page. */
