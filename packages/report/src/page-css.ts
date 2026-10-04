@@ -287,6 +287,15 @@ sup.cite a.weak { font-weight: 400; text-decoration: underline dotted; text-deco
    covers its neighbour's. The space is a margin, not a box: a box would let a line break before the comma. */
 sup.cite .sep { color: var(--muted); font-weight: 400; margin-right: calc(1.5rem - 1ch); }
 sup.cite a:target { background: var(--mark); box-shadow: 0 0 0 0.2em var(--mark); border-radius: 2px; }
+/* Where the words between a citation and the next target in its line may be narrower than its square needs, the
+   printer marks that side (report-page.ts) and a margin keeps the room: past a link, 12px less half a digit; before
+   another citation, 24px less a digit; each with a pixel to spare for rounding. So no square covers a neighbour's or
+   a link's own press. */
+@media screen {
+  sup.cite.after-link { margin-left: calc(0.75rem - 0.5ch + 1px); }
+  sup.cite.before-link { margin-right: calc(0.75rem - 0.5ch + 1px); }
+  sup.cite.before-cite { margin-right: calc(1.5rem - 1ch + 1px); }
+}
 /* Lines that hold a citation stand more than 24px apart on screen, so squares on consecutive lines never meet: a table
    that holds one sets all its lines so (its rows stay aligned), and so does a small heading. */
 @media screen {

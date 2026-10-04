@@ -43,6 +43,9 @@ ${filler(30)}
 
 const SHA = createHash('sha256').update(REPORT).digest('hex')
 
+/** The start of citation group `n` that keeps room on `side`. */
+const roomy = (n: number, side: string) => `<sup class="cite ${side}"><a href="#cite-${String(n)}"`
+
 const page = (extra: Partial<ReportPageInput> = {}) =>
   renderReportPage({
     markdown: REPORT,
@@ -288,7 +291,7 @@ describe('the report as a web page (html-report-v2)', () => {
 
   it('prints the bytes it has always printed for the same report (pinned: a change must be deliberate)', () => {
     const digest = createHash('sha256').update(page()).digest('hex')
-    assert.equal(digest, 'fdcb5ee89c9418cda768f563c3229e310932c051bf636476a209513619550b5d')
+    assert.equal(digest, '9725b221051447e54cec348ee29e26f598842f63d7f949fdea5217bb39e24adc')
     const html = page()
     assert.ok(
       html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark">'),
@@ -467,6 +470,7 @@ describe('html-report-v2: what its bytes guarantee', () => {
       4096,
     )
     await linear('image words that never close', (n) => `# T\n\n## S\n\n${'[image: '.repeat(n / 8)}\n`, 16 * 1024)
+    await linear('citations a letter apart', (n) => `# T\n\n## S\n\n${`x [${A}] `.repeat(n / 8)}\n`, 16 * 1024)
   })
 
   it('U2 · gives every id once, and every in-page link a target, whatever the headings are called', () => {
@@ -524,6 +528,28 @@ describe('html-report-v2: what its bytes guarantee', () => {
       html,
     )
     assert.ok(html.includes('Again<sup class="cite"><a href="#cite-1" aria-label="Source 1">1</a></sup>.'))
+  })
+
+  it('U3 · keeps room beside a citation whose square could reach a link or another citation; none where words do', () => {
+    const html = page({
+      markdown:
+        `# T\n\n## S\n\nx [${A}] y [${B}]. followed by [Link](https://example.org/)[${A}].\n\n` +
+        `A claim [${B}] [link](https://example.org/b), and [one](https://example.org/c) a [${A}].\n\n` +
+        `Far [${A}] from the next one by a few words [${B}], and from [a link](https://example.org/d) by more [${A}].\n\n` +
+        `| a | b |\n|--|--|\n| x [${A}] | y [${B}] |\n\n` +
+        `m [${A}] e${'\u0301'.repeat(8)} [${B}].\n\nh [${A}] ${'\u200a'.repeat(8)}y [${B}].\n`,
+    })
+    assert.ok(html.includes(`x${roomy(1, 'before-cite')}`), 'one letter before the next citation')
+    assert.ok(html.includes(`</a>${roomy(1, 'after-link')}`), 'right after a link')
+    assert.ok(html.includes(`claim${roomy(2, 'before-link')}`), 'a space before a link')
+    assert.ok(html.includes(`a${roomy(1, 'after-link')}`), 'a letter after a link')
+    assert.ok(html.includes('Far<sup class="cite"><a'), 'a few words apart: none')
+    assert.ok(html.includes('words<sup class="cite"><a'), 'none on the later one either')
+    assert.ok(html.includes('more<sup class="cite"><a'), 'words after a link: none')
+    assert.ok(html.includes('x<sup class="cite"><a href="#cite-1"'), 'table cells are blocks of their own: none')
+    assert.ok(html.includes(`m${roomy(1, 'before-cite')}`), 'combining marks count as nothing')
+    assert.ok(html.includes(`h${roomy(1, 'before-cite')}`), 'narrow spaces count as nothing')
+    assert.ok(PAGE_CSS.includes('sup.cite.before-cite { margin-right: calc(1.5rem - 1ch + 1px); }'))
   })
 
   it('U4 · wraps the lead to the method in <main>; a table is a named region the keyboard can scroll', () => {

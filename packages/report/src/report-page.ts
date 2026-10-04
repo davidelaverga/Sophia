@@ -125,28 +125,125 @@ function citeLink(n: number, pass: Pass): string {
 /**
  * Citations as bare numerals bound to the word before them (the space before them dropped), adjacent ones in one
  * group that wraps between numerals only; an image named in the page's words; a table a named region the keyboard
- * can scroll. Each pattern runs in linear time, since a page is printed whatever its length: a run of spaces is
+ * can scroll; room kept beside a citation whose square could reach the next target (`roomed`). Each pattern runs in
+ * linear time, since a page is printed whatever its length: a run of spaces is
  * matched from its start only, and an image's name ends at the first bracket that does not close inside it ("chart
  * [2026]" is one name). An image is named in text only, never inside a tag: a mailto address keeps its spaces, so
  * `<mailto:[image: x]>` holds the same words in its href.
  */
 function pagePass(html: string, pass: Pass): string {
-  return html
-    .replace(/(?<![ \u00a0])[ \u00a0]+(?=<sup class="cite">)/g, '')
-    .replace(/(?:<sup class="cite"><a href="#cite-\d+">\[\d+\]<\/a><\/sup>)+/g, (run) => {
-      const links = [...run.matchAll(/#cite-(\d+)/g)].map((m) => citeLink(Number(m[1]), pass))
-      return `<sup class="cite">${links.join('<span class="sep">,</span><wbr>')}</sup>`
-    })
-    .replace(
-      /(<[^>]*>)|\[image: ((?:[^[\]<]|\[[^[\]<]*\])*)\]/g,
-      (match: string, tag: string | undefined, alt: string) =>
-        tag === undefined ? `<span class="omitted">${esc(pass.words.image)}: ${alt}</span>` : match,
-    )
-    .replace(
-      /<figure class="table" data-visual-id="table-(\d+)">/g,
-      (open: string, k: string) =>
-        `${open.slice(0, -1)} tabindex="0" role="region" aria-label="${esc(pass.words.table)} ${k}">`,
-    )
+  return roomed(
+    html
+      .replace(/(?<![ \u00a0])[ \u00a0]+(?=<sup class="cite">)/g, '')
+      .replace(/(?:<sup class="cite"><a href="#cite-\d+">\[\d+\]<\/a><\/sup>)+/g, (run) => {
+        const links = [...run.matchAll(/#cite-(\d+)/g)].map((m) => citeLink(Number(m[1]), pass))
+        return `<sup class="cite">${links.join('<span class="sep">,</span><wbr>')}</sup>`
+      })
+      .replace(
+        /(<[^>]*>)|\[image: ((?:[^[\]<]|\[[^[\]<]*\])*)\]/g,
+        (match: string, tag: string | undefined, alt: string) =>
+          tag === undefined ? `<span class="omitted">${esc(pass.words.image)}: ${alt}</span>` : match,
+      )
+      .replace(
+        /<figure class="table" data-visual-id="table-(\d+)">/g,
+        (open: string, k: string) =>
+          `${open.slice(0, -1)} tabindex="0" role="region" aria-label="${esc(pass.words.table)} ${k}">`,
+      ),
+  )
+}
+
+/**
+ * Fewer visible characters than these between a citation and the next target in its block may be narrower than the
+ * room its 24px square needs (page-css.ts): the square reaches 24px less one digit past a neighbour's, and 12px less
+ * half a digit past a link. They are counted at the narrowest glyph the page's fonts have, an apostrophe at about
+ * 0.19em of a table's 14px; from these on, the words between keep the squares apart.
+ */
+const ROOM_FROM_CITE = 8
+const ROOM_FROM_LINK = 4
+const GROUP = '<sup class="cite">'
+/** In order: a citation group, a link's start or end, any other tag (its name captured), text, or a stray "<". */
+const TOKEN = /<sup class="cite">(?:[^<]|<(?!\/sup>))*<\/sup>|<a\b[^>]*>|<\/a>|<\/?([a-z][a-z0-9]*)\b[^>]*>|[^<]+|</g
+/** Tags that end a line box: a target before one is never beside a target after it. */
+const BLOCKS = new Set(
+  'address article aside blockquote br caption dd details div dl dt figcaption figure footer h1 h2 h3 h4 h5 h6 header hr li main nav ol p pre section summary table tbody td tfoot th thead tr ul'.split(
+    ' ',
+  ),
+)
+
+const ENTITY = /&(?:#\d+|#x[0-9a-f]+|[a-z]+);/gi
+const WHITE = new Set([' ', '\n', '\t', '\r'])
+/** Characters that count: a letter, digit, mark of punctuation or symbol, or a no-break space. A combining mark, a
+ * control or format character and a narrow space (thin, hair) count as nothing, so the count never overstates. */
+const COUNTED = /[\p{L}\p{N}\p{P}\p{S}\u00a0]/u
+
+/** The pass so far: the last target in this block, the visible characters since it, and the sides to keep. */
+interface Room {
+  /** A citation group (its token's index) or a link. */
+  last: { link: true } | { link: false; at: number } | null
+  gap: number
+  /** Whether the last character counted was white space, which a following one joins. */
+  blank: boolean
+  inLink: boolean
+  sides: Map<number, string[]>
+}
+
+const keep = (room: Room, at: number, side: string) => room.sides.set(at, [...(room.sides.get(at) ?? []), side])
+
+/** A target ends at this token: a citation group (`at`) or a link. */
+function targetEnds(room: Room, last: Room['last']): void {
+  room.last = last
+  room.gap = 0
+  room.blank = false
+}
+
+/** A citation group: room after the group before it, or before this one past a link. */
+function groupMet(room: Room, at: number): void {
+  const { last, gap } = room
+  if (room.inLink) return
+  if (last && !last.link && gap < ROOM_FROM_CITE) keep(room, last.at, 'before-cite')
+  if (last?.link && gap < ROOM_FROM_LINK) keep(room, at, 'after-link')
+  targetEnds(room, { link: false, at })
+}
+
+/** A link starts: room after the group before it. */
+function linkMet(room: Room): void {
+  const { last, gap } = room
+  if (last && !last.link && gap < ROOM_FROM_LINK) keep(room, last.at, 'before-link')
+  room.inLink = true
+}
+
+/** Text: its visible characters, as the line box sets them (an entity one, a run of white space one space). */
+function textMet(room: Room, text: string): void {
+  if (room.inLink || room.last === null) return
+  for (const ch of text.replace(ENTITY, 'x')) {
+    const space = WHITE.has(ch)
+    if (space ? !room.blank : COUNTED.test(ch)) room.gap += 1
+    room.blank = space
+  }
+}
+
+/**
+ * Marks each citation group whose square could reach the next target in its block (another group or a link) with
+ * the side to keep room on, which page-css.ts makes a margin: no square then covers a neighbour's or a link's own
+ * press. Linear in the markup: one pass over its tokens, the marks set at the end.
+ */
+function roomed(html: string): string {
+  const tokens: string[] = []
+  const room: Room = { last: null, gap: 0, blank: true, inLink: false, sides: new Map() }
+  for (const [token, tag] of html.matchAll(TOKEN)) {
+    tokens.push(token)
+    if (token.startsWith(GROUP)) groupMet(room, tokens.length - 1)
+    else if (token === '</a>') {
+      room.inLink = false
+      targetEnds(room, { link: true })
+    } else if (tag !== undefined) {
+      if (BLOCKS.has(tag)) room.last = null
+    } else if (token.startsWith('<a')) linkMet(room)
+    else textMet(room, token)
+  }
+  for (const [at, side] of room.sides)
+    tokens[at] = `<sup class="cite ${side.join(' ')}">${tokens[at]?.slice(GROUP.length) ?? ''}`
+  return tokens.join('')
 }
 
 /** The citation numbers a part's markup holds. */

@@ -5,6 +5,7 @@ import {
   answerFirst,
   brokenWords,
   citationTargets,
+  linkPresses,
   medianLine,
   overflow,
   pdfText,
@@ -131,13 +132,18 @@ for (const { width, where, tag } of SCREENS) {
     }
   })
 
-  test(`C15 · every citation takes a press on a 24px square of its own, ${where}${tag}`, async ({ page }) => {
+  test(`C15 · every citation takes a press on a 24px square of its own, and no link’s, ${where}${tag}`, async ({
+    page,
+  }) => {
     for (const name of NAMES) {
       await open(page, name, width)
       const targets = await citationTargets(page)
       expect(targets.count, `${name}: citations`).toBeGreaterThan(0)
       expect(targets.missed, `${name}: presses on a citation’s square that miss it`).toEqual([])
       expect(targets.overlaps, `${name}: citations whose squares overlap`).toEqual([])
+      expect(await linkPresses(page), `${name}: presses on a link beside a citation that something else takes`).toEqual(
+        [],
+      )
       expect(targets.lines, `${name}: blocks whose lines holding a citation stand 24px apart or less`).toEqual([])
     }
   })

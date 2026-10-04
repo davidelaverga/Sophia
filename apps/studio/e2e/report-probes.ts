@@ -245,6 +245,37 @@ export const citationTargets = (page: Page) =>
   }, TARGET)
 
 /**
+ * The presses on a link in a block that holds a citation that something else takes: across each of its line boxes,
+ * 2px in from the edges (the browser gives the last pixel or so of a box to the text after it).
+ */
+export const linkPresses = (page: Page) =>
+  page.evaluate((inset) => {
+    const blocks = new Set(
+      [...document.querySelectorAll('sup.cite')].map((sup) => {
+        let block = sup.parentElement
+        while (block?.parentElement && getComputedStyle(block).display === 'inline') block = block.parentElement
+        return block
+      }),
+    )
+    const links = [...blocks].flatMap((block) =>
+      [...(block?.querySelectorAll('a[href]') ?? [])].filter((a) => !a.closest('sup.cite')),
+    )
+    const points = (r: DOMRect) =>
+      [r.left + inset, r.left + r.width / 2, r.right - inset].flatMap((x) =>
+        [r.top + inset, r.top + r.height / 2, r.bottom - inset].map((y) => ({ x, y, r })),
+      )
+    return links.flatMap((link) => {
+      link.scrollIntoView({ block: 'center', inline: 'nearest' })
+      return [...link.getClientRects()].flatMap(points).flatMap(({ x, y, r }) => {
+        const hit = document.elementFromPoint(x, y)
+        if (hit?.closest('a') === link) return []
+        const by = hit?.closest('a')?.textContent ?? hit?.tagName.toLowerCase()
+        return [`${link.textContent} at ${String(Math.round(x - r.left))},${String(Math.round(y - r.top))}: ${by}`]
+      })
+    })
+  }, 2)
+
+/**
  * Where the answer stands: whether the summary section comes before the contents and before the first body section
  * (true when there is nothing to come before), and where its first block starts on the page.
  */

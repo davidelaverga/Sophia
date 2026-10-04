@@ -260,6 +260,7 @@ Every source cited once: ${Array.from({ length: 50 }, (_, i) => cite(i + 11)).jo
 |:--|:--|:--|
 | ${cite(6)} | Support may come from outside the EU: its terms ${cite(8)} and its sub-processor list ${cite(10)} say when | ${[1, 2, 4, 5].map(cite).join(' ')} |
 | ${[8, 10].map(cite).join(' ')} | Backups stay in the region | ${cite(12)} |
+| x${cite(1)} y${cite(2)} | Where the terms say so, see [Link](https://example.org/)${cite(1)} and a${cite(3)} [link](https://example.org/b) | i${cite(4)} il${cite(5)} |
 
 ## A wide and long table
 
@@ -288,6 +289,8 @@ function f() { return 1 }
 ## Conclusion
 
 Short conclusion with a [link](https://wiki.example.org/db/migration-checklist) and an apostrophe link [Hilbert](https://en.wikipedia.org/wiki/Hilbert's_problems).
+
+Close citations (CX-0034): x${cite(1)} y${cite(2)}. followed by [Link](https://example.org/)${cite(1)}. A claim${cite(3)} [link](https://example.org/b) after it, and [one](https://example.org/c) a${cite(4)} before it. Narrow words between them: w${cite(5)} i${cite(6)} il${cite(7)} i'l${cite(8)} i'l.${cite(9)} i'l.'${cite(10)} i'l.'i${cite(11)} i'l.'i'${cite(12)} i'l.'i'l${cite(13)}.
 `
 
 const STRESS_SOURCES: PageSource[] = Array.from({ length: 60 }, (_, i) => ({
