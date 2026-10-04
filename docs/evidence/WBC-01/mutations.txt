@@ -189,3 +189,15 @@ S4 F-019 past its expiry a decision calls no one: FAILS as it should
 # 2026-10-05, on 8143be6: all 123 entries above run again. 119 failed; R1b is the redundant key recorded above. M17,
 # M17b and R3 named the board's old key and command space, which F-016 and F-018 rewrote; re-aimed at the new lines,
 # all three fail. 122 of 123 fail.
+
+# CX-0017 at b603e1d (#74; GitHub 4179628491, 4179628493), F-020 and F-021, fixed in 93a7268
+T1 F-020 a check not passed certifies nothing (rule): FAILS as it should
+T1b F-020 a check not passed certifies nothing (board): FAILS as it should
+T2 F-021 history stays shown without a port: FAILS as it should
+T2b F-021 nothing offered to send without a port: FAILS as it should
+T3 F-021 nothing tried again without a port: FAILS as it should
+# Not checkable through the UI: useActs' own send and retry guards without a port, behind controls not then rendered.
+
+# 2026-10-05, on 93a7268: all 128 entries above run again. 125 failed; R1b is the redundant key recorded above. M12
+# and D2 named SessionActs lines F-021 rewrote (the dispatch through `followed`, the retry rule with canSend); re-aimed,
+# both fail. 127 of 128 fail.

@@ -446,8 +446,8 @@ when you change the room:
   (decisions and results first, opened in full on press; a decision waits
   only while it can be answered); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
-  by its own policy with evidence, and a check of the version it holds, never
-  one no single current version matches), and Closed work with its reasons; a
+  by its own policy with evidence, and a passed check of the version it
+  holds, never one no single current version matches), and Closed work with its reasons; a
   plan's Decided history its own (another plan's choices listed apart); every plan
   proposed (up to three) beside the one shown, compared, never operated;
   threads to what a
@@ -546,7 +546,8 @@ when you change the room:
   board, by work and assignment generation, drafts by execution
   (its attempt and session too); only a command for the execution shown
   speaks as the latest or is tried again, and an open one for an earlier
-  attempt or session is listed as such, kept as it was. Stop asks
+  attempt or session is listed as such, kept as it was; with no command port,
+  what was sent stays said and followed, and nothing is sent. Stop asks
   first and promises nothing it can't see ("Running actions may need time to
   stop"). A task whose session is at it says on its
   tile when its doer's account runs short, and its sheet names where there is
