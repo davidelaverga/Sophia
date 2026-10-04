@@ -897,6 +897,11 @@ test('wbc · UI-12 · a receipt repeated, late, or for another task changes noth
   await page.evaluate((op) => window.workFixture?.replay?.(op), guide) // late: queued, then recorded
   await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
   await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(3)
+  // A refusal older than what was since observed, arriving late, contradicts nothing.
+  await page.evaluate((op) => window.workFixture?.stale?.(op), guide)
+  await page.waitForTimeout(200)
+  await expect(retry.locator('.act-steps')).toContainText('Delivered to the session; not yet verified in the result.')
+  await expect(retry.locator('.act-steps li[data-reached]')).toHaveCount(3)
 })
 
 test('wbc · UI-13 · an answer not confirmed is tried again with its own operation, never as another choice', async ({

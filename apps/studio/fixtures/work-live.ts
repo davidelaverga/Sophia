@@ -166,6 +166,22 @@ export function weaken(operationId: string, delivery: Receipt['delivery'] = 'que
   listeners.get(operationId)?.(r)
 }
 
+/**
+ * A refusal for one operation at its first revision, arriving late: older than what was since observed, it changes
+ * nothing, however much it would contradict.
+ */
+export function stale(operationId: string): void {
+  const first = receipts.find((x) => x.operation_id === operationId)
+  if (!first) return
+  const refused = {
+    admission: 'rejected',
+    delivery: 'not_sent',
+    effect: 'not_applicable',
+    rejection: 'conflict',
+  } as const
+  listeners.get(operationId)?.({ ...first, ...refused, receipt_id: `${first.receipt_id}-stale` })
+}
+
 /** One operation's receipts, sent to another operation's command: a receipt for other work, which changes nothing. */
 export function misdeliver(from: string, to: string): void {
   const listener = listeners.get(to)
