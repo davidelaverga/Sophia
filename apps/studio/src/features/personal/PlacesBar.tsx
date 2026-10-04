@@ -11,6 +11,7 @@ import { usePopover } from '../../app/usePopover.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { LOCK_TIP, WHO_SEES } from './places-view.ts'
+import { Mark } from '../../app/Mark.tsx'
 
 export interface InCall {
   title: string
@@ -211,7 +212,7 @@ export function PlacesBar(props: Props) {
   return (
     <header className="topbar places-bar">
       <button type="button" className="mark has-tip" aria-label="Home" onClick={() => actions.go('home')}>
-        <span className="mark-dot" aria-hidden />
+        <Mark />
         <span className="mark-word">Sophia</span>
         <Tip label="Home" keys="H" side="bottom" />
       </button>

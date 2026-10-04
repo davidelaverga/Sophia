@@ -541,17 +541,22 @@ select {
 button.mark:hover {
   background: rgba(236, 235, 241, 0.05);
 }
-.mark-dot {
-  width: 7px;
-  height: 7px;
+/* Umbral (Mark.tsx): you in warm, Sophia in core with a soft halo, brighter while the feed is live. */
+.umbral {
+  display: block;
   flex: none;
-  border-radius: 50%;
-  background: var(--core);
-  box-shadow: 0 0 6px 1px rgba(156, 130, 245, 0.45);
-  transition: box-shadow 1s var(--ease);
+  overflow: visible;
 }
-.mark-dot[data-live] {
-  box-shadow: 0 0 12px 2px rgba(156, 130, 245, 0.75);
+.umbral-you {
+  fill: var(--warm);
+}
+.umbral-sophia {
+  fill: var(--core);
+  filter: drop-shadow(0 0 2px rgba(156, 130, 245, 0.45));
+  transition: filter 1s var(--ease);
+}
+.umbral[data-live] .umbral-sophia {
+  filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.85));
 }
 .mark-word {
   font-weight: 600;
@@ -1759,6 +1764,9 @@ img.avatar {
 @media (prefers-reduced-motion: reduce) {
   .sophia-looking-dot {
     animation: none;
+  }
+  .umbral-sophia {
+    transition: none;
   }
 }
 .mini-dock .sophia-looking {

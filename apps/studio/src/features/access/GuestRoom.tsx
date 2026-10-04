@@ -10,6 +10,7 @@ import { VOICE_NOTE } from '../voice/room-view.ts'
 import { readJoinToken } from './access-view.ts'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { useRoomConnection } from '../voice/useProjectRoom.ts'
+import { Mark } from '../../app/Mark.tsx'
 
 interface Props {
   accessToken: string
@@ -127,7 +128,7 @@ export function GuestRoom({ accessToken, entry, projectTitle, anonymous }: Props
     <div className="shell" data-view="studio" data-guest>
       <header className="topbar">
         <span className="mark">
-          <span className="mark-dot" data-live={live || undefined} aria-hidden />
+          <Mark live={live} />
           <span className="mark-word">Sophia</span>
         </span>
         <span className="crumb-sep" aria-hidden>
