@@ -66,10 +66,38 @@ describe('dayLabel', () => {
 })
 
 describe('conversationRows', () => {
+  it('under her first line of a new day, how you arrive; gone once you say something', () => {
+    const greeted = [
+      turn('person', 'Yesterday’s words', at(1, 20)),
+      turn('sophia', 'An answer', at(1, 20, 1), { replyTo: 'x' }),
+      turn('sophia', 'Morning. How are you arriving today?', at(0, 9)),
+    ]
+    const rows = conversationRows(input(greeted))
+    assert.deepEqual(shape(rows).slice(-2), ['sophia', 'arrive'])
+    const arrive = rows.at(-1)
+    assert.deepEqual(arrive?.kind === 'arrive' ? arrive.ways.map((w) => w.label) : [], [
+      'Light today',
+      'Steady',
+      'Heavy today',
+    ])
+    const said = [...greeted, turn('person', 'Steady today.', at(0, 9, 2))]
+    assert.equal(shape(conversationRows(input(said))).includes('arrive'), false)
+    assert.equal(shape(conversationRows(input(greeted, { answers: false }))).includes('arrive'), false)
+  })
+
   it('opens a first conversation with Sophia’s introduction and three ways in', () => {
     const rows = conversationRows(input([], { fromTheStart: true }))
     assert.deepEqual(shape(rows), ['day:Today', 'intro', 'starters'])
     assert.equal(introText('Ana').startsWith('Hi Ana, I’m Sophia.'), true)
+    const ready = { label: 'Get ready for Standup · Launch', note: 'starts in 10 min', words: 'Help me get ready.' }
+    const led = conversationRows(input([], { fromTheStart: true, ready }))
+    const ways = led.find((r) => r.kind === 'starters')
+    assert.deepEqual(ways?.kind === 'starters' ? ways.ways.map((w) => w.label) : [], [
+      'Get ready for Standup · Launch',
+      'Something’s on my mind',
+      'Help me get ready for something',
+      'Just talk',
+    ])
     assert.equal(introText(null).startsWith('Hi, I’m Sophia.'), true)
   })
 

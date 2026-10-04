@@ -23,14 +23,16 @@ import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, type ConversationActions } from './Conversation.tsx'
 import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
-import { focusNotesToggle } from './focus.ts'
+import { focusNotesToggle, focusSoon } from './focus.ts'
+import type { PersonalExtras } from './extras.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
-import { notesLabel } from './places-view.ts'
+import { notesLabel, readyFor } from './places-view.ts'
 import type { Handed } from './handed.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
 import { usePresses } from './presses.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
+import { Talk } from './Talk.tsx'
 import type { PersonalWrites, ReadBack } from './usePersonal.ts'
 import { personalFailure, unsent } from './write-words.ts'
 
@@ -71,6 +73,8 @@ interface Props {
   onCarried: (releaseId: string | null) => void
   onCross: () => void
   onStartProject: () => void
+  /** What the API doesn't give yet: memory, the week's look back, a live talk (extras.ts). Places passes none. */
+  extras?: PersonalExtras
 }
 
 /**
@@ -211,12 +215,13 @@ const NO_TURNS: readonly PersonalTurn[] = []
  * failed, so it can be asked again (usePersonalSpace).
  */
 function useRows(props: Props) {
-  const { space, writes, name, readBack, now } = props
+  const { space, writes, name, readBack, now, projects } = props
   const listed = space?.turns ?? NO_TURNS
   const turns = useMemo(() => withReadBack(readBack.older, listed), [readBack.older, listed])
   const earlier = readBack.more
   const loaded = !!space
   const answers = space?.companion !== 'unavailable'
+  const ready = useMemo(() => readyFor(projects ?? [], now), [projects, now])
   // A message on its way from before an erasure isn't shown over the space after it (it will be refused).
   const sending = writes.sending && writes.sending.epoch === space?.epoch ? writes.sending : null
   const rows = useMemo(
@@ -230,21 +235,38 @@ function useRows(props: Props) {
             name,
             fromTheStart: opensWithIntro(turns, earlier, now),
             answers,
+            ready,
           })
         : [],
-    [loaded, turns, sending, writes.welcoming, name, earlier, now, answers],
+    [loaded, turns, sending, writes.welcoming, name, earlier, now, answers, ready],
   )
   return { turns, rows }
 }
 
 /** `count` is undefined until the space has loaded: the toggle shows no number before. */
-function Head({ count, notes }: { count: number | undefined; notes: Props['notes'] }) {
+function Head({
+  count,
+  notes,
+  onTalk,
+  under,
+}: {
+  count: number | undefined
+  notes: Props['notes']
+  onTalk: (() => void) | null
+  /** A talk runs over everything: the head is out of reach until it ends. */
+  under: boolean
+}) {
   return (
-    <header className="c3-head">
+    <header className="c3-head" inert={under}>
       <h2 id="c-p-h" tabIndex={-1}>
         You and Sophia
       </h2>
       <div className="c3-head-acts">
+        {onTalk && (
+          <button className="c3-talk-toggle" type="button" onClick={onTalk}>
+            Talk with her
+          </button>
+        )}
         {(count !== undefined || notes.open) && (
           <button
             className="c3-notes-toggle has-tip"
@@ -364,11 +386,56 @@ function Composer(p: {
   )
 }
 
+/**
+ * A live talk with her, where the API gives a voice (extras.ts) and she can answer: how to start it, whether one runs,
+ * and the talk itself. It ends at once when the space goes out of sight or locks: no voice goes on behind the padlock.
+ * Ended, the focus goes back to what started it.
+ */
+function useTalking(props: Props) {
+  const [talking, setTalking] = useState(false)
+  const voice = props.extras?.voice
+  const away = props.hidden || props.locked
+  useEffect(() => {
+    if (away) setTalking(false)
+  }, [away])
+  const can = !!voice && !away && !!props.space && props.space.companion !== 'unavailable'
+  const end = () => {
+    setTalking(false)
+    focusSoon('.c3-talk-toggle')
+  }
+  return {
+    start: can ? () => setTalking(true) : null,
+    talking: talking && can,
+    view: talking && can ? <Talk voice={voice} onEnd={end} /> : null,
+  }
+}
+
+/** The notes beside the conversation, what she remembers at their top (extras.ts); out of reach under a talk. */
+function Notes({ props, actions, under }: { props: Props; actions: ReturnType<typeof useActions>; under: boolean }) {
+  const { notes, space, projects } = props
+  if (!notes.open) return null
+  return (
+    <NotesPanel
+      {...{ projects, projectsRead: props.projectsRead, onStartProject: props.onStartProject }}
+      notes={space?.notes}
+      onClose={() => {
+        notes.set(false)
+        focusNotesToggle()
+      }}
+      onCarry={actions.carry}
+      carrying={actions.waits}
+      memory={props.extras?.memory}
+      under={under}
+    />
+  )
+}
+
 export function PersonalSpace(props: Props) {
-  const { space, projects, writes, notes, earlier, toast } = props
+  const { space, writes, notes, earlier, toast } = props
   const body = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [listening, setListening] = useState(false)
+  const talk = useTalking(props)
   const { shift, beside } = useShift(body, notes.open)
   const covered = useNotesCover(notes.open)
   const onFailed = useCallback((err: unknown) => toast(personalFailure(err)), [toast])
@@ -398,26 +465,18 @@ export function PersonalSpace(props: Props) {
       <p className="sr-only" role="status">
         {said}
       </p>
-      <Head count={space?.notes.length} notes={notes} />
+      <Head count={space?.notes.length} notes={notes} onTalk={talk.start} under={talk.talking} />
       <div className="c3-body" ref={body} data-beside={beside || undefined}>
         <Conversation
-          {...{ rows, turns, list, actions, composer, covered, more: props.readBack.more }}
+          {...{ rows, turns, list, actions, composer, more: props.readBack.more }}
+          covered={covered || talk.talking}
           notice={<ReadNotes reads={[props.read]} />}
           earlier={earlier.open}
           setEarlier={earlier.set}
+          week={props.extras?.week}
         />
-        {notes.open && (
-          <NotesPanel
-            {...{ projects, projectsRead: props.projectsRead, onStartProject: props.onStartProject }}
-            notes={space?.notes}
-            onClose={() => {
-              notes.set(false)
-              focusNotesToggle()
-            }}
-            onCarry={actions.carry}
-            carrying={actions.waits}
-          />
-        )}
+        {talk.view}
+        <Notes props={props} actions={actions} under={talk.talking} />
       </div>
       <Edge edge={props.edge} onCross={props.onCross} />
     </section>

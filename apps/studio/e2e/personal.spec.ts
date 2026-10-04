@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test'
 const PAGE = '/personal.html'
 
 const sent = (page: Page) => page.evaluate(() => window.personalFixture?.sent ?? [])
+const pressed = (page: Page) => page.evaluate(() => window.personalFixture?.pressed ?? [])
 const field = (page: Page) => page.locator('#c-input')
 const css = (page: Page, selector: string, property: string) =>
   page
@@ -185,4 +186,132 @@ test('@phone · personal · every half sits inside the gutter, and nothing goes 
     const toggle = await page.getByRole('button', { name: /note/ }).boundingBox()
     expect(toggle?.height ?? 0).toBeGreaterThanOrEqual(40)
   }
+})
+
+// What would make it worth $20 (docs/plans/personal-twenty.md).
+
+test('$20 · on a new day, how you arrive: three answers under her line; one press sends it, and they go', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?arrive=1`)
+  const ways = page.getByRole('group', { name: 'How you arrive today' }).getByRole('button')
+  await expect(ways).toHaveText(['Light today→', 'Steady→', 'Heavy today→'])
+  await ways.nth(2).click()
+  await expect.poll(() => sent(page)).toEqual(['Heavy today.'])
+  await expect(page.getByRole('group', { name: 'How you arrive today' })).toHaveCount(0)
+})
+
+test('$20 · a session about to start leads the ways in: get ready for it with her', async ({ page }) => {
+  await page.goto(`${PAGE}?talk=new&ready=1`)
+  const first = page.getByRole('group', { name: 'Ways to start' }).getByRole('button').first()
+  await expect(first).toContainText('Get ready for Standup · Product launch')
+  await expect(first.locator('.c3-way-note')).toHaveText('starts in 10 min')
+  await first.click()
+  await expect.poll(() => sent(page)).toEqual(['Help me get ready for Standup in Product launch. It starts in 10 min.'])
+  await page.goto(`${PAGE}?arrive=1&ready=1`)
+  await expect(page.getByRole('group', { name: 'How you arrive today' }).getByRole('button').first()).toContainText(
+    'Get ready for Standup',
+  )
+})
+
+test('$20 · without the API’s parts, nothing of them shows: no memory, no week, no talk', async ({ page }) => {
+  await page.goto(`${PAGE}?notes=open`)
+  await expect(page.locator('#c-notes')).toBeVisible()
+  await expect(page.locator('.c3-memory')).toHaveCount(0)
+  await expect(page.locator('.c3-week')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Talk with her' })).toHaveCount(0)
+})
+
+test('$20 · what she remembers: each yours to correct or have her forget', async ({ page }) => {
+  await page.goto(`${PAGE}?memory=1&notes=open`)
+  const memory = page.getByRole('region', { name: 'She remembers' })
+  await expect(memory.getByRole('listitem')).toHaveCount(3)
+  await expect(memory).toContainText('Nothing here leaves this space.')
+  const first = memory.getByRole('listitem').first()
+  await first.hover()
+  await first.getByRole('button', { name: 'Forget' }).click()
+  await expect(memory.getByRole('listitem')).toHaveCount(2)
+  // The focus goes on to the next one, never to the page; each button says which memory it acts on.
+  const next = memory.getByRole('listitem').first()
+  await expect(next.getByRole('button', { name: 'Correct' })).toBeFocused()
+  await expect(next.getByRole('button', { name: 'Forget' })).toHaveAccessibleDescription(/hard date early/)
+  await next.getByRole('button', { name: 'Correct' }).click()
+  await page.keyboard.type('You say a hard date early.')
+  await page.keyboard.press('Enter')
+  await expect(next).toContainText('You say a hard date early.')
+  await expect(next.getByRole('button', { name: 'Correct' })).toBeFocused()
+  expect(await pressed(page)).toEqual(['forget m1', 'correct m2 You say a hard date early.'])
+})
+
+test('$20 · her look back at your week: talk about it, keep it, or not now', async ({ page }) => {
+  await page.goto(`${PAGE}?week=1`)
+  const week = page.getByRole('region', { name: 'Your week with Sophia' })
+  await expect(week).toContainText('Thursday was the heaviest day.')
+  await expect(week).toContainText('promises you can keep')
+  await week.getByRole('button', { name: 'Talk about it' }).click()
+  await expect.poll(() => sent(page)).toEqual(['Let’s talk about my week: the launch, promises you can keep, Davide.'])
+  // Talked about, it is put away: her reply is the newest thing, under it, not above it.
+  await expect(week).toHaveCount(0)
+  await page.goto(`${PAGE}?week=1`)
+  await page.getByRole('button', { name: 'Keep as a note' }).click()
+  await expect(page.getByRole('region', { name: 'Your week with Sophia' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /2 notes/ })).toBeVisible()
+  expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true)
+  await page.goto(`${PAGE}?week=1`)
+  await page.getByRole('button', { name: 'Not now' }).click()
+  await expect(page.getByRole('region', { name: 'Your week with Sophia' })).toHaveCount(0)
+  expect(await pressed(page)).toEqual(['dismiss week'])
+})
+
+test('$20 · talking with her: her light, the lines as they’re said, mute; End writes them into the conversation', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?voice=1&step=150`)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  const talk = page.getByRole('dialog', { name: 'Talking with Sophia' })
+  await expect(talk.getByRole('button', { name: 'End' })).toBeFocused()
+  await expect(talk.locator('.light')).toHaveAttribute('data-mark', /\d+ \d+ \d+/)
+  await expect(talk.getByRole('list', { name: 'What was said' })).toContainText('He thanked me for saying it early.')
+  await talk.getByRole('button', { name: 'Mute' }).click()
+  await expect(talk.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'true')
+  // A modal: Tab stays in it, and nothing behind it can be reached.
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.c3-talk'))).toBe(true)
+  await talk.getByRole('button', { name: 'End', exact: true }).click()
+  await expect(talk).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Talk with her' })).toBeFocused()
+  await expect(page.locator('.msg .body').last()).toHaveText('He thanked me for saying it early.')
+  expect(await pressed(page)).toEqual(['mute on', 'talk ended'])
+})
+
+test('$20 · Esc ends a talk too', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=1&step=150`)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toBeVisible()
+  await page.mouse.click(640, 300) // on the talk's ground: the focus leaves its buttons, Esc still ends it
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toHaveCount(0)
+})
+
+test('$20 · locking the space ends a talk at once: no voice goes on behind the padlock', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=1&step=150`)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  await expect(page.getByRole('list', { name: 'What was said' })).toContainText('Better than I feared')
+  await page.getByRole('button', { name: 'Lock (fixture)' }).click()
+  await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toHaveCount(0)
+  expect(await pressed(page)).toContain('talk ended')
+  // Unlocked again, it doesn't come back on its own.
+  await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
+  await page.waitForTimeout(300)
+  await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toHaveCount(0)
+})
+
+test('@phone · $20 · the day’s answers, the week and a talk fit the phone', async ({ page }) => {
+  await page.goto(`${PAGE}?arrive=1&all=1&step=150`)
+  expect(await page.locator('.msgs').evaluate((m) => m.scrollWidth <= m.clientWidth)).toBe(true)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  const talk = page.getByRole('dialog', { name: 'Talking with Sophia' })
+  await expect(talk.getByRole('button', { name: 'End' })).toBeInViewport()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

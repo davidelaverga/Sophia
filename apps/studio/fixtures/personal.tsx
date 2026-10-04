@@ -3,29 +3,35 @@
 // introduction and the ways to start), else one from yesterday and today; `writing=1` (Sophia is writing her reply);
 // `failed=1` (her last reply failed: Ask again); `suggestion=1` (she suggests a note); `notes=open` (the notes beside
 // it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
-// `window.personalFixture.sent` lists what was sent.
+// `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
+// `memory=1`, `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
+// `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
-import { StrictMode, useRef, useState } from 'react'
+import { StrictMode, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
+import type { TalkLine } from '../src/features/personal/extras.ts'
 import { PersonalSpace } from '../src/features/personal/PersonalSpace.tsx'
 import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
+import { projectsFor, useExtras } from './personal-extras.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    personalFixture?: { sent: string[] }
+    personalFixture?: { sent: string[]; pressed: string[] }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 const sent: string[] = []
-window.personalFixture = { sent }
+const pressed: string[] = []
+window.personalFixture = { sent, pressed }
 const NOW = new Date()
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString()
+const ahead = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const DAY = 24 * 60
 
 let seq = 0
@@ -68,6 +74,9 @@ function talk(): PersonalTurn[] {
       ago(6),
     ),
   ]
+  if (query.has('arrive')) {
+    return [...turns.slice(0, 4), turn('sophia', 'Morning, Luis. How are you arriving today?', ago(2))]
+  }
   const last = turns.at(-1)
   if (!last) return turns
   if (query.has('writing')) return turns.map((t) => (t === last ? { ...t, reply: 'pending' } : t))
@@ -138,6 +147,39 @@ const firstSpace = (): Space => ({
   days: 2,
 })
 
+/** What a live talk said, written as turns; a note kept from her look back. */
+function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
+  return {
+    talk: (lines: readonly TalkLine[]) =>
+      setSpace((s) => ({
+        ...s,
+        // Her lines in a talk answer what was said before them: never read as a greeting.
+        turns: [
+          ...s.turns,
+          ...lines.map((l, i) =>
+            turn(l.who === 'you' ? 'person' : 'sophia', l.text, new Date().toISOString(), {
+              replyTo: l.who === 'sophia' && i > 0 ? `talk-${String(i - 1)}` : null,
+            }),
+          ),
+        ],
+      })),
+    keep: (text: string) =>
+      setSpace((s) => ({
+        ...s,
+        notes: [
+          ...s.notes,
+          {
+            id: `note-${String(s.notes.length + 1)}`,
+            text,
+            keptBy: 'sophia',
+            fromTurnId: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      })),
+  }
+}
+
 /** The space and its writes, as the API would keep them: a message is listed at once and answered 900 ms later. */
 function useSimulated() {
   const [space, setSpace] = useState<Space>(firstSpace)
@@ -178,22 +220,28 @@ function useSimulated() {
     takeBack: () => Promise.resolve(receipt('take_back')),
     erase: () => Promise.resolve(receipt('erase')),
   }
-  return { space, writes }
+  return { space, writes, wrote: writtenBy(setSpace) }
 }
 
 const idle = { state: 'ready' as const, failed: '', retry: () => undefined }
 
 function Personal() {
-  const { space, writes } = useSimulated()
+  const { space, writes, wrote } = useSimulated()
+  const extras = useExtras(query, pressed, ago, wrote)
+  const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
+  const [locked, setLocked] = useState(false)
   return (
     <div className="places" data-place="personal">
+      <button className="fixture-lock" type="button" onClick={() => setLocked((was) => !was)}>
+        {locked ? 'Unlock (fixture)' : 'Lock (fixture)'}
+      </button>
       <PersonalSpace
-        hidden={false}
+        hidden={locked}
         handed={null}
         onHanded={() => undefined}
-        locked={false}
+        locked={locked}
         now={NOW}
         account="fixture"
         name="Luis"
@@ -201,7 +249,7 @@ function Personal() {
         epoch={space.epoch}
         readBack={{ older: [], more: false, readMore: () => Promise.resolve() }}
         read={idle}
-        projects={[]}
+        projects={projects}
         projectsRead={idle}
         writes={writes}
         notes={{ open: notes, set: setNotes }}
@@ -211,6 +259,7 @@ function Personal() {
         onCarried={() => undefined}
         onCross={() => undefined}
         onStartProject={() => undefined}
+        extras={extras}
       />
     </div>
   )
