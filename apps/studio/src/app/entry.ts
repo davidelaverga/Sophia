@@ -43,6 +43,8 @@ let began = 0
 let doneAt = 0
 let saidAt = 0
 let pacing = 0
+/** A step's words are fading in: no other step starts until they have landed (pace). */
+let wordsLanding = false
 let drained: (() => void) | null = null
 /** Where the bar stands, and whether it is filling now that all is ready. */
 let shown = 0
@@ -114,13 +116,16 @@ function run(p: Parts): void {
   if (!frame) frame = requestAnimationFrame(tick)
 }
 
-/** The work now under way, said under the bar: the old words fade, the new ones come in. */
-function say(p: Parts, words: string): void {
-  if (p.step.textContent === words) return
+/**
+ * The work now under way, said under the bar: the old words fade, the new ones come in. `landed` runs once they are
+ * there: a loaded page can stretch the fade, so their time to be read counts from then, not from the asking.
+ */
+function say(p: Parts, words: string, landed: () => void): void {
   const out = p.step.animate([{ opacity: 0 }], { duration: reduced() ? 0 : 140, easing: EASE, fill: 'forwards' })
   out.onfinish = () => {
     p.step.textContent = words
     p.step.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduced() ? 0 : 260, easing: EASE, fill: 'forwards' })
+    landed()
   }
 }
 
@@ -129,7 +134,7 @@ function say(p: Parts, words: string): void {
  * so work done faster than that still reads, one line after another, and the bar moves with them.
  */
 function pace(p: Parts): void {
-  if (pacing) return
+  if (pacing || wordsLanding) return
   const next = queued[0]
   if (!next) {
     drained?.()
@@ -142,11 +147,17 @@ function pace(p: Parts): void {
     queued.shift()
     stage = next
     doneAt = performance.now()
-    if (words !== p.step.textContent) {
-      say(p, words)
-      saidAt = doneAt
+    if (words === p.step.textContent) {
+      pace(p)
+      return
     }
-    pace(p)
+    // The next step waits for these words to land, then gives them their full time.
+    wordsLanding = true
+    say(p, words, () => {
+      wordsLanding = false
+      saidAt = performance.now()
+      pace(p)
+    })
   }, hold)
 }
 
@@ -200,7 +211,8 @@ const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms))
 
 /** Every step done has been shown, the last one for its time. */
 function allSaid(p: Parts): Promise<void> {
-  if (queued.length === 0 && !pacing) return wait(Math.max(0, saidAt + SAY_AT_LEAST_MS - performance.now()))
+  if (queued.length === 0 && !pacing && !wordsLanding)
+    return wait(Math.max(0, saidAt + SAY_AT_LEAST_MS - performance.now()))
   const said = new Promise<void>((done) => (drained = done))
   pace(p)
   return said.then(() => wait(Math.max(0, saidAt + SAY_AT_LEAST_MS - performance.now())))
@@ -289,6 +301,7 @@ function putAway(p: Parts): void {
   clearTimeout(pacing)
   frame = 0
   pacing = 0
+  wordsLanding = false
   stage = 'page'
   queued = []
   drained = null

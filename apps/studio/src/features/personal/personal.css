@@ -617,16 +617,61 @@
   gap: 4px;
   align-items: center;
 }
-.places .c3-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+/* Personal's head is Home's: a warm mono label on a hairline, the notes a count in words with an arrow. */
+.places .c3-space.you .c3-head {
+  align-items: center;
+  padding: 24px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.places .c3-space.you .c3-head h2 {
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+}
+/* A section's quiet label, as Home's: warm mono capitals. */
+.places .c3-label {
+  margin: 0 0 10px;
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+}
+.places .c3-talk-toggle,
+.places .c3-notes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 2px;
+  border: 0;
   border-radius: var(--r-1);
-  background: var(--warm-soft);
-  color: var(--warm);
-  font: 600 11px/1 var(--sans);
+  background: none;
+  color: var(--text-2);
+  font: 13px/1 var(--sans);
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.places .c3-talk-toggle .c3-who {
+  position: static;
+}
+.places .c3-talk-toggle:hover,
+.places .c3-notes-toggle:hover,
+.places .c3-notes-toggle[aria-pressed='true'] {
+  color: var(--text);
+}
+.places .c3-go {
+  color: var(--text-3);
+  transition:
+    color var(--fast) var(--ease),
+    transform var(--base) var(--ease);
+}
+.places .c3-notes-toggle:hover .c3-go,
+.places .c3-notes-toggle:focus-visible .c3-go,
+.places .c3-starters button:hover .c3-go,
+.places .c3-starters button:focus-visible .c3-go {
+  color: var(--text);
+  transform: translateX(3px);
 }
 .places .c3-body {
   position: relative;
@@ -680,7 +725,8 @@
 
 /* The conversation moves aside when the notes open on a wide screen, so nothing hides behind them. */
 .places .c3-convo {
-  --gut: 22px;
+  /* The lane left of the words where the speakers' halves stand: your half (12.5 px) and a gap. */
+  --gut: 24px;
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-height: 0;
@@ -698,8 +744,8 @@
   overflow: auto;
   display: grid;
   align-content: start;
-  gap: 16px;
-  /* The list reaches a gutter to its left so Sophia's dot has room and isn't clipped by the scroll box. */
+  gap: 24px;
+  /* The list reaches a lane to its left so the speakers' halves have room and aren't clipped by the scroll box. */
   padding: 18px 0 18px var(--gut);
   margin-left: calc(-1 * var(--gut));
   scroll-behavior: smooth;
@@ -711,60 +757,75 @@
   max-width: 64ch;
   animation: ps-arrive 280ms var(--ease);
 }
+/* No bubbles: both voices start on one column, like a transcript. Hers at full contrast; yours in your warm colour,
+   a step quieter. */
 .places .msg.me {
-  justify-self: end;
+  justify-self: start;
 }
 .places .msg.me .body {
-  padding: 9px 12px;
-  border-radius: var(--r-3);
-  border: 1px solid rgba(241, 220, 199, 0.18);
-  background: var(--warm-soft);
+  color: color-mix(in srgb, var(--warm) 72%, var(--text-2));
+}
+.places .msg.sophia {
+  justify-self: start;
 }
 .places .msg.sophia .body {
-  padding: 2px 0;
-  font-size: 14px;
-  line-height: 1.55;
+  color: var(--text);
+}
+.places .msg.typing .body {
+  min-height: 24px;
+  color: var(--text-sec);
+  font-size: 13px;
 }
 .places .msg .body {
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: -0.003em;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* Messages from the same side group together; the time shows on hover. Sophia's turn starts with her dot. */
+/* Turns from the same side group together; the time shows on hover. Each side's first turn starts with its half of
+   Umbral, centred on the first line, its right edge 9 px before the words. */
 .places .msg.cont {
-  margin-top: -10px;
+  margin-top: -16px;
 }
-.places .s-dot {
+.places .c3-who {
   position: absolute;
-  left: calc(2px - var(--gut));
-  top: 9px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--core);
-  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.55);
+  right: calc(100% + 9px);
+  overflow: visible;
 }
-.places .msg.typing .s-dot {
-  animation: ps-dot-pulse 1s ease-in-out infinite;
+/* Both at the mark's one scale (half a pixel to its 48 grid), as Umbral draws them. */
+.places .c3-who[data-who='sophia'] {
+  top: 8px;
+  width: 5.5px;
+  height: 8.6px;
+  fill: var(--core);
+  filter: drop-shadow(0 0 5px rgba(156, 130, 245, 0.7));
 }
-.places .msg.typing .body {
-  min-height: 22px;
+.places .c3-who[data-who='you'] {
+  top: 4.5px;
+  width: 12.5px;
+  height: 15.2px;
+  fill: var(--warm);
+  opacity: 0.85;
 }
-@keyframes ps-dot-pulse {
+/* While she writes, her half breathes where her words will be. */
+.places .msg.typing .c3-who {
+  animation: ps-who-breathe 1.6s ease-in-out infinite;
+}
+@keyframes ps-who-breathe {
   0%,
   100% {
-    opacity: 0.35;
-    transform: scale(0.8);
+    opacity: 0.4;
   }
   50% {
     opacity: 1;
-    transform: scale(1.15);
   }
 }
 .places .msg .at {
   position: absolute;
   bottom: 6px;
-  color: var(--text-4);
-  font: 10.5px var(--mono);
+  color: var(--text-sec);
+  font: 11px var(--mono);
   opacity: 0;
   transition: opacity var(--fast);
   white-space: nowrap;
@@ -774,22 +835,24 @@
   margin-left: 12px;
 }
 .places .msg.me .at {
-  right: 100%;
-  margin-right: 10px;
+  left: 100%;
+  margin-left: 12px;
 }
+/* On your turn, Note this sits after its time, on the first line. */
 .places .msg .note-this {
   position: absolute;
-  right: 100%;
-  top: 2px;
-  margin-right: 6px;
+  left: 100%;
+  top: 0;
+  margin-left: 56px;
   height: 24px;
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   opacity: 0;
   transition: opacity var(--fast);
 }
 .places .msg.me:has(.note-this) .at {
-  bottom: -2px;
+  top: 6px;
+  bottom: auto;
 }
 .places .msg:hover .at,
 .places .msg:focus-within .at,
@@ -801,16 +864,28 @@
   justify-self: start;
   margin-top: -6px;
   color: var(--text-sec);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 /* Touch and narrow screens: no hover, so a tap on a message shows its time under it. */
-@media (hover: none), (max-width: 860px) {
+/* Narrow screens: the halves stand inside the gutter, the words start after them, and the days still span the column. */
+@media (max-width: 860px) {
   .places .c3-convo {
-    --gut: 16px;
+    --gut: 22px;
   }
+  .places .msgs {
+    margin-left: 0;
+  }
+  .places .msgs > .c3-day {
+    width: calc(100% + var(--gut));
+    margin-left: calc(-1 * var(--gut));
+  }
+  .places .c3-space.you .c3-head {
+    padding-top: 14px;
+  }
+}
+@media (hover: none), (max-width: 860px) {
   .places .msg .note-this {
     position: static;
-    justify-self: end;
     margin: 0;
     display: none;
     opacity: 1;
@@ -827,8 +902,9 @@
   .places .msg.show-at .at {
     display: block;
   }
-  .places .msg.me .at {
-    justify-self: end;
+  .places .msg.me .at,
+  .places .msg .note-this {
+    justify-self: start;
   }
 }
 /* The day you are reading stays at the top while you scroll back; tapping it lists the days. */
@@ -874,14 +950,20 @@
   left: 50%;
   transform: translateX(-50%);
 }
+/* The days' menu and the note form keep to the scale (theme.css sizes popover rows and fields 12.5 and 13.5). */
+.places .c3-daybar .popover button,
+.places .c3-noteform input {
+  font-size: 13px;
+}
 .places .c3-daybar .popover .muted {
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c3-day {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
+  min-height: 24px;
   padding: 4px 0;
   border: 0;
   border-radius: 0;
@@ -908,7 +990,7 @@
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  justify-self: end;
+  justify-self: start;
   width: min(460px, 100%);
   margin-top: -8px;
   animation: ps-arrive 200ms var(--ease);
@@ -920,7 +1002,7 @@
 .places .c3-noteform .use {
   flex-basis: 100%;
   color: var(--text-sec);
-  font-size: 12px;
+  font-size: 13px;
 }
 /* Sophia never keeps a note silently: she suggests it, you keep it or let it go. */
 .places .c3-suggest {
@@ -929,16 +1011,18 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: -6px;
-  padding: 8px 10px 8px 12px;
-  border-radius: var(--r-3);
-  border: 1px dashed rgba(241, 220, 199, 0.35);
-  background: rgba(241, 220, 199, 0.04);
-  font-size: 13px;
+  margin-top: -12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 15px;
   animation: ps-arrive 260ms var(--ease);
 }
 .places .c3-suggest .field-label {
-  color: var(--warm);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
 }
 .places .c3-suggest q {
   color: var(--text);
@@ -951,30 +1035,98 @@
 .places .c3-kept {
   margin-top: -8px;
   color: var(--text-sec);
-  font-size: 12px;
+  font-size: 13px;
 }
 .places .c3-kept q {
   color: var(--text-2);
   quotes: '“' '”';
 }
 .places .c3-kept .text-button {
-  font-size: 12px;
+  font-size: 13px;
 }
 /* A first conversation starts from a blank page; three quiet ways in, gone after the first message. */
 .places .c3-starters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: -4px;
+  display: grid;
+  width: min(480px, 100%);
+  margin-top: -6px;
   animation: ps-arrive 260ms var(--ease);
+}
+.places .c3-starters button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--text-2);
+  font: 15px/1.35 var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+/* The session about to start, said as Home says it: amber, quiet, mono. */
+.places .c3-way-note {
+  color: color-mix(in srgb, #e8c48d 85%, transparent);
+  font: 11px/1 var(--mono);
+}
+.places .c3-starters button:focus-visible {
+  outline-offset: -2px;
+}
+.places .c3-starters button:first-child {
+  border-top: 1px solid var(--line);
+}
+.places .c3-starters button:hover,
+.places .c3-starters button:focus-visible {
+  color: var(--text);
 }
 /* Writing to Sophia: the Studio's message bar on the Studio's floor, with its one line above for the draft and the
    voice (.chat-line). */
 .places .ps-composer {
   display: grid;
   gap: 6px;
-  padding: 10px 0 var(--floor);
-  border-top: 1px solid var(--line);
+  padding: 6px 0 var(--floor);
+}
+/* The Studio's message bar is a box; this one is Home's line: a hairline above that turns violet while you write,
+   her padlock, then the voice and the send. */
+.places .ps-composer .message-bar,
+.places .ps-composer .message-bar:focus-within {
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.places .ps-composer .message-bar:focus-within {
+  border-top-color: rgba(185, 168, 255, 0.55);
+  box-shadow: 0 -1px 0 rgba(185, 168, 255, 0.55);
+}
+.places .ps-composer .message-bar.listening {
+  border-top-color: rgba(185, 168, 255, 0.7);
+}
+.places .ps-composer .c3-private {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  color: var(--text-3);
+}
+.places .ps-composer textarea {
+  font-size: 15px;
+}
+.places .ps-composer .send:not(:disabled) {
+  background: rgba(156, 130, 245, 0.16);
+  color: var(--core);
+}
+.places .ps-composer .send:hover:not(:disabled) {
+  background: rgba(156, 130, 245, 0.26);
 }
 .places .ps-composer .message-bar .round {
   border-color: transparent;
@@ -1055,6 +1207,33 @@
 .places .c3-notes:focus {
   outline: none;
 }
+/* Beside the conversation on a wide screen the notes are a column of their own on a hairline, as Home lists: no
+   card, no fill. Their title is Home's quiet label. */
+@media (min-width: 861px) {
+  .places .c3-notes {
+    padding: 2px 4px 16px 20px;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
+  }
+  .places .c3-body[data-beside] .c3-notes {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+.places .c3-notes .c2-t {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.places .c3-notes .c2-t:hover {
+  background: none;
+}
+.places #c-notes-h {
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+}
 @keyframes ps-from-edge {
   from {
     opacity: 0;
@@ -1091,7 +1270,7 @@
   gap: 6px;
   margin-top: 3px;
   color: var(--halo-text);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c2-t .by::before {
   content: '';
@@ -1109,7 +1288,7 @@
 }
 .places .c2-to small {
   color: var(--text-sec);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c2-to-head {
   display: flex;
@@ -1144,7 +1323,7 @@
 .places .ps-empty {
   padding: 4px 8px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 /* The edge crosses; it shows a padlock only when the side behind it is locked. */
@@ -1560,6 +1739,8 @@
    pill grows with its switches. */
 @media (pointer: coarse) {
   .places .chip-private,
+  .places .c3-notes-toggle,
+  .places .c3-talk-toggle,
   .places .hw-mic,
   .places .c3-daypill,
   .places .c3-edge .c2-lock {
@@ -1595,11 +1776,199 @@
   .places .hw-say,
   .places .hw-label,
   .places .hw-mic,
-  .places .hw-row.placeholder {
+  .places .hw-row.placeholder,
+  .places .c3-ambient,
+  .places .c3-wave i,
+  .places .msg.typing .c3-who {
     animation: none;
   }
   .places .hw-go,
   .places .hw-row::before {
     transition: none;
+  }
+}
+
+/* What she remembers (Memory.tsx), at the top of the notes: short lines on hairlines, each yours to correct or forget. */
+.places .c3-memory {
+  margin: 4px 0 20px;
+}
+.places .c3-memory ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.places .c3-mem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.places .c3-mem p {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+/* Its day on the right; on hover (or focus) Correct and Forget take that place, so nothing waits as empty room. */
+.places .c3-mem-at,
+.places .c3-mem-acts {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+  transition: opacity var(--fast) var(--ease);
+}
+.places .c3-mem-at {
+  color: var(--text-sec);
+  font: 11px/1 var(--mono);
+}
+.places .c3-mem-acts {
+  display: flex;
+  gap: 2px;
+  margin-right: -8px;
+  opacity: 0;
+}
+.places .c3-mem:hover .c3-mem-acts,
+.places .c3-mem:focus-within .c3-mem-acts {
+  opacity: 1;
+}
+.places .c3-mem:hover .c3-mem-at,
+.places .c3-mem:focus-within .c3-mem-at {
+  opacity: 0;
+}
+.places .c3-mem-edit {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.places .c3-mem-edit input {
+  flex: 1;
+  min-width: 0;
+}
+.places .c3-mem-note {
+  margin-top: 10px;
+  color: var(--text-sec);
+  font-size: 13px;
+}
+@media (hover: none) {
+  .places .c3-mem-acts {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin: 0 0 0 -8px;
+    opacity: 1;
+  }
+}
+
+/* Her look back at your week (WeekLook.tsx): the newest thing in the conversation, on a hairline, no card. */
+.places .c3-week {
+  max-width: 64ch;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  animation: ps-arrive 280ms var(--ease);
+}
+.places .c3-starters + .c3-week {
+  padding-top: 4px;
+  border-top: 0;
+}
+.places .c3-week-text {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.places .c3-week-themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+  font: 11px/1.4 var(--mono);
+}
+.places .c3-week-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+/* Talking with her (Talk.tsx): over the conversation, her light as Umbral in the middle, the last lines under it. */
+.places .c3-talk {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  justify-items: center;
+  padding: max(24px, env(safe-area-inset-top)) var(--gutter, 16px) var(--floor);
+  background: var(--void);
+  animation: ps-arrive 280ms var(--ease);
+}
+.places .c3-talk-light {
+  position: relative;
+  align-self: center;
+  width: min(480px, 100%);
+  max-height: 100%;
+  aspect-ratio: 1;
+}
+.places .c3-talk-light .light {
+  mask-image: radial-gradient(closest-side, #000 50%, transparent);
+  mix-blend-mode: screen;
+}
+.places .c3-talk-who {
+  min-height: 12px;
+  color: var(--text-3);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.places .c3-talk-lines {
+  display: grid;
+  align-content: end;
+  gap: 8px;
+  width: min(560px, 100%);
+  min-height: 104px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.places .c3-talk-lines li {
+  position: relative;
+  padding-left: 24px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.places .c3-talk-lines li[data-who='you'] {
+  color: color-mix(in srgb, var(--warm) 72%, var(--text-2));
+}
+.places .c3-talk-lines li:not(:last-child) {
+  opacity: 0.5;
+}
+.places .c3-talk-lines .c3-who {
+  right: auto;
+  left: 0;
+}
+.places .c3-talk-acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .places .c3-week,
+  .places .c3-talk {
+    animation: none;
+  }
+}
+
+/* Finishing: text you select in Personal takes her light. */
+.places .c3-space.you ::selection {
+  background: rgba(156, 130, 245, 0.32);
+  color: var(--text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .places .msgs {
+    scroll-behavior: auto;
   }
 }
