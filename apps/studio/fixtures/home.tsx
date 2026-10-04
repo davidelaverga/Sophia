@@ -3,8 +3,9 @@
 // Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`,
 // `failed` (their read failed); `locked=1` (the personal space locked), `call=<id>` (in that project's call);
 // `you=new` (no conversation yet), else one from
-// yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed".
-// `window.homeFixture.pressed` lists each action taken,
+// yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
+// the check says so (`window.homeFixture.hear()`), if it is still listening. `window.homeFixture.pressed` lists each
+// action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>".
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -26,13 +27,13 @@ import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    homeFixture?: { pressed: string[] }
+    homeFixture?: { pressed: string[]; hear: () => void }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 const pressed: string[] = []
-window.homeFixture = { pressed }
+window.homeFixture = { pressed, hear: () => HeardRecognition.listening?.hear() }
 const NOW = new Date()
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
@@ -88,7 +89,7 @@ const you = youDoor({
   now: NOW,
 })
 
-/** A voice this page can hear: it says one sentence, 700 ms after it starts listening. */
+/** A voice this page can hear: it says one sentence when the check says so, never on a timer that load can race. */
 class HeardRecognition extends EventTarget {
   lang = ''
   interimResults = false
@@ -96,19 +97,22 @@ class HeardRecognition extends EventTarget {
   processLocally = true
   static available = () => Promise.resolve(query.get('voice') === 'none' ? 'unavailable' : 'available')
   static install = () => Promise.resolve(true)
-  private timer = 0
+  /** The recognizer listening now, if one is. */
+  static listening: HeardRecognition | null = null
   start() {
-    this.timer = window.setTimeout(() => {
-      this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: 'the launch felt rushed' }]] }))
-      this.dispatchEvent(new Event('end'))
-    }, 700)
+    HeardRecognition.listening = this
+  }
+  hear() {
+    HeardRecognition.listening = null
+    this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: 'the launch felt rushed' }]] }))
+    this.dispatchEvent(new Event('end'))
   }
   stop() {
-    clearTimeout(this.timer)
+    if (HeardRecognition.listening === this) HeardRecognition.listening = null
     this.dispatchEvent(new Event('end'))
   }
   abort() {
-    clearTimeout(this.timer)
+    if (HeardRecognition.listening === this) HeardRecognition.listening = null
   }
 }
 Reflect.set(globalThis, 'SpeechRecognition', HeardRecognition)

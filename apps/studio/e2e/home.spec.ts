@@ -5,6 +5,8 @@ import { expect, test, type Page } from '@playwright/test'
 const PAGE = '/home.html'
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
 const pressed = (page: Page) => page.evaluate(() => window.homeFixture?.pressed ?? [])
+/** The fixture's voice says its sentence now, if the microphone is still listening. */
+const hear = (page: Page) => page.evaluate(() => window.homeFixture?.hear())
 const index = (page: Page) => page.getByRole('list', { name: 'Your projects' })
 const row = (page: Page, title: string) => index(page).getByRole('button', { name: new RegExp(title) })
 const light = (page: Page) => page.locator('[data-door="personal"] .light')
@@ -149,6 +151,7 @@ test('home · speak instead: the line listens with her, what she heard lands in 
   await expect(mic).toHaveAttribute('aria-pressed', 'true')
   await expect(line(page)).toHaveAttribute('placeholder', 'Listening…')
   await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  await hear(page)
   await expect(line(page)).toHaveValue('the launch felt rushed')
   await expect(line(page)).toBeFocused()
   await page.keyboard.press('Enter')
@@ -161,9 +164,22 @@ test('home · stepping away from Home stops the microphone: nothing heard lands 
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Leave Home' }).click()
-  await page.waitForTimeout(1000) // past when the voice would have been heard
+  await expect(page.locator('.c-home')).toBeHidden()
+  await hear(page) // what the voice says now, out of sight, must not land
   await page.getByRole('button', { name: 'Back to Home' }).click()
   await expect(mic).toHaveAttribute('aria-pressed', 'false')
+  await expect(line(page)).toHaveValue('')
+})
+
+test('home · pressed again, the microphone stops, and nothing it would have heard lands', async ({ page }) => {
+  await page.goto(PAGE)
+  const mic = page.getByRole('button', { name: 'Speak instead' })
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'false')
+  await expect(line(page)).toHaveAttribute('placeholder', 'Say something to Sophia')
+  await hear(page)
   await expect(line(page)).toHaveValue('')
 })
 
@@ -225,6 +241,8 @@ test('@phone · home · one column, every project one press, a join said before 
 }) => {
   await page.goto(`${PAGE}?projects=live`)
   await expect(row(page, 'Pitch deck')).toBeInViewport()
-  await expect(row(page, 'Pitch deck').getByText('Join the room')).toBeVisible()
+  // Said in words of their own width, not only to a screen reader.
+  const join = await row(page, 'Pitch deck').getByText('Join the room').boundingBox()
+  expect(join?.width).toBeGreaterThan(40)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
