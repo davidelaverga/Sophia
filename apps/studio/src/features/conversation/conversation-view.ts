@@ -23,6 +23,34 @@ export const TASK_PHASE: Record<NativeTask['phase'], { label: string; tone: Tone
   },
 }
 
+type PhaseWords = (typeof TASK_PHASE)[NativeTask['phase']]
+
+/** What each kind of task is called (A11). */
+export const TASK_KIND: Record<NativeTask['kind'], string> = {
+  draft_brief: 'Implementation brief',
+  research: 'Research report',
+}
+
+/** Where research reads differently from a brief; every other phase says the same for both. */
+const RESEARCH_PHASE: Partial<Record<NativeTask['phase'], Pick<PhaseWords, 'label' | 'note'>>> = {
+  running: { label: 'Researching', note: 'The runtime is researching. You can keep talking.' },
+  result_ready: { label: 'Report ready', note: 'A report for the team to read.' },
+}
+
+/** A task's phase in the words of its kind. */
+export function taskPhase(task: Pick<NativeTask, 'kind' | 'phase'>): PhaseWords {
+  const base = TASK_PHASE[task.phase]
+  return task.kind === 'research' ? { ...base, ...RESEARCH_PHASE[task.phase] } : base
+}
+
+/** The heading over the runtime's tasks: briefs, research, or both. */
+export function workHeading(work: readonly Pick<NativeTask, 'kind'>[]): string {
+  const kinds = new Set(work.map((t) => t.kind))
+  if (kinds.size === 1 && kinds.has('draft_brief')) return 'Briefs from Sophia’s runtime'
+  if (kinds.size === 1 && kinds.has('research')) return 'Research from Sophia’s runtime'
+  return 'Work from Sophia’s runtime'
+}
+
 /** Who said it: "You", a name the room knows, or a neutral word (the snapshot carries actor ids only). */
 export function authorLabel(actorId: string, me: string, names: ReadonlyMap<string, string>): string {
   if (actorId === me) return 'You'

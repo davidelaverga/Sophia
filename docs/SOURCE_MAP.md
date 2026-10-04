@@ -150,6 +150,27 @@ No file in this repository relies on these yet. When a goal starts relying on on
 | GB-CUA | [Optional Cua Driver integration](https://cua.ai/docs/use-cua-with/grok-bot) | Local or hosted installs and their permissions, an act-and-verify loop | [assistants/04](execution/2026-10-01-unified/assistants/04_COMPUTER_USE_AND_RESOURCES.md) |
 | WA-TRIGGER | [Workspace Agent triggers](https://developers.openai.com/workspace-agents/trigger-runs) | Asynchronous triggers with idempotency, beta status polling; retained for the deferred ledger only | the register only |
 
+## 2e. Upstream sources at SMC-M03
+
+Read in the installed packages of dsh `0.2.0-rc.2` (`639ed01`) and pi-ai `0.87.1`; nothing is copied.
+
+| Source id | Upstream file (installed package at `639ed015`) | Used for | Sophia files |
+|---|---|---|---|
+| DSH-26 | `@deepseek-ai/dsh-workflow-ptc` (`agent()` options) and `@deepseek-ai/dsh-subagent` (`resolveChildAgentOptions`) | A `workflow` program may give a child agent its own `provider` and `model`; the child otherwise inherits the parent's latest route, and a route change without an effort clears the parent's effort. A failed child resolves to `null` | the `llm/stream` route guard and `sophia/route-refused` (`packages/dsh-bundle/src/control-bridge.ts`); `tests/integration/route-guard.test.mjs` |
+| DSH-27 | `@deepseek-ai/dsh-compaction-basic` (`summarizeWithLlm`, `compactIfNeeded`, `commitCompactionBody`) | Compaction summarizes on a configured summarization model, else the session's latest route, naming no effort, with `purpose: 'compaction'`. It runs on `agent/pre-step`, priced from the latest request; the default headroom is 65536 tokens. `compaction/summary` carries the call's provider, model and usage | the gate's compaction checks (`scripts/lib/gate.mjs`), the usage projection, `tests/integration/compaction-usage.test.mjs` |
+| DSH-28 | `@deepseek-ai/dsh-llm` (`TokenUsage`) and pi-ai 0.87.1 `dist/api/openai-responses-shared.js` | Counts are disjoint: input is uncached input; `cached_tokens` and `cache_write_tokens` become `cacheReadTokens` and `cacheWriteTokens`, and a zero counter is left out | the usage projection and `db/migrations/0023_usage_cache.sql` |
+| DSH-29 | `@deepseek-ai/dsh-llm-pi-ai` (credential resolution) | A provider route whose `apiKeyEnv` is unset fails its request with `MISSING_CREDENTIAL`; no other route is tried | `scripts/runtime-host.mjs` (research keys by name) |
+| DSH-30 | `@deepseek-ai/dsh-app-boot` (bundle manifest) | `dsh.bundle.patch` may be one file or a list of files | the preset patch files, moved to S4 (`docs/progress/SMC-M03-contract-binding.md` §8) |
+
+Vendor sources for S3's adapters, read on 2026-09-30 (the vendors' documentation sites are blocked from Claude's container, so primary source code was read instead; live behavior is Codex's to check under an allowance):
+
+| What | Version / identity | Used for | Sophia files |
+|---|---|---|---|
+| `@tavily/core` (npm) | 0.7.13, `dist/index.mjs` 110–350 | Endpoint `POST https://api.tavily.com/search`, `Authorization: Bearer`; request fields; response `results[{url,title,content,score,published_date}]`, `usage.credits` only with `include_usage`, `request_id`; the SDK switches to keyless mode without a key | `packages/dsh-bundle/src/source-tavily.ts` |
+| `tavily-ai/tavily-python` | `1aeb9db`, `tavily.py` 116–145 | Errors by status: 400, 401, 403/432/433, 429; 432 plan limit and 433 pay-as-you-go limit | `packages/dsh-bundle/src/source-errors.ts` |
+| `jina-ai/reader` | `1574bfd`: `crawler-options.ts`, `snapshot-formatter.ts`, `crawler.ts` | Headers (`X-Respond-With`, `X-No-Cache`, `DNT`, `X-Timeout` ≤ 180, `X-Max-Tokens` trims silently, `X-Set-Cookie`, `X-Proxy-Url`); `data.url` is the requested URL; the origin status only as a warning string for an error; `numPages` for PDFs | `packages/dsh-bundle/src/source-jina.ts` |
+| jina-ai/reader#1103 | GitHub issue | An origin 404 answered as JSON `code: 200` with a warning | `tests/unit/sources.test.mjs` |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

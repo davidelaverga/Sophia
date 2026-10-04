@@ -43,6 +43,7 @@ import { boardOf, forYou } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
+import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
 import { inCase } from './work-cases.ts'
 import {
@@ -133,6 +134,16 @@ installFixtureApi({
     ...(six ? moreGoals : []),
     ...(query.get('unplanned') === '1' ? [unplannedGoal] : []),
   ],
+  // The room page's report (SMC-M03), at rest: this page reads none of it.
+  reportVersions: 1,
+  reportTitle: TITLE,
+  waiting: false,
+  description: SOPHIAS_DESCRIPTION,
+  versionsFail: false,
+  sourcesHeld: false,
+  textHeld: false,
+  textTampered: false,
+  work: false,
 })
 window.workFixture = { unexpected, answered: answers, commands, receipts, questions }
 const nothing = () => undefined

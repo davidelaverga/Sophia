@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
@@ -16,13 +17,6 @@ async function open(page: Page, name: string) {
   await expect(sheet(page, name)).toBeVisible()
   return sheet(page, name)
 }
-/** Whether a press `by` px above an element still reaches it (its touch target, past what it draws). */
-const reaches = (l: Locator, by: number) =>
-  l.evaluate((e, dy) => {
-    const r = e.getBoundingClientRect()
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top - dy)
-    return Boolean(hit && (hit === e || e.contains(hit)))
-  }, by)
 const leftOf = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().left)
 const capacity = (page: Page, name: string) => sheet(page, name).getByRole('group', { name: 'Capacity' })
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })
@@ -790,6 +784,29 @@ test('Alt and an arrow move the focused tile, and the focus follows it', async (
   await page.keyboard.press('ArrowRight') // without Alt, the focus moves and the tiles stay
   await expect(tile(page, 'Davide · Claude Code')).toBeFocused()
   await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
+})
+
+test('a move that lands after the view renders again still leaves the moved tile the Tab stop', async ({ page }) => {
+  // The glide holds the move back a beat (motion.ts); the view renders in between, as its clock or a live read would.
+  await page.addInitScript(() => {
+    Object.defineProperty(document, 'startViewTransition', {
+      value: (update: () => void) => {
+        window.resourcesFixture?.load?.()
+        setTimeout(update, 100)
+        const done = Promise.resolve()
+        return { ready: done, finished: done, updateCallbackDone: done, skipTransition: () => undefined }
+      },
+    })
+  })
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Davide · Grok').focus()
+  await page.keyboard.press('Alt+ArrowLeft')
+  await expect.poll(() => order(page)).toHaveProperty('3', 'Davide · Grok')
+  await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0')
+  await page.keyboard.press('Alt+Home') // the tile moved, not the one now where it was
+  await expect.poll(() => order(page)).toHaveProperty('0', 'Davide · Grok')
+  await expect(tile(page, 'Davide · Grok')).toHaveAttribute('tabindex', '0')
+  await expect(tile(page, 'Davide · Grok')).toBeFocused()
 })
 
 test('arranging within a filter keeps the hidden tiles where they were', async ({ page }) => {

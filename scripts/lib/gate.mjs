@@ -12,6 +12,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'nod
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { DSH_ENTRY, REPO_ROOT, readJson, runChecked, runDsh, sanitizedEnv } from './common.mjs'
 import { insertedIds, lintComposition, parseCordisYaml, parsePatch } from './patch-lint.mjs'
 import { fileIntegrity, treeDigest } from './tree-digest.mjs'
@@ -236,6 +237,115 @@ export function checkPresetRoster(rows, presets) {
   return findings
 }
 
+/**
+ * A route as the bridge row must allow it: provider, model, effort, the output ceiling the bridge enforces
+ * (M03-RF-0003) and the prices it meters calls at (S4).
+ */
+const allowed = (route) => ({
+  provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort ?? null, maxTokens: route.maxTokens ?? null, prices: route.prices ?? null,
+})
+
+/**
+ * The research providers' keys (SMC-M03 S4): the bridge row names exactly the unit's credential references and
+ * overrides no endpoint (an override exists only for loopback test stubs).
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ research_sources?: { tavily: { credential_ref: string }, jina: { credential_ref: string } } }} unit - the recorded unit.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkResearchSources(rows, unit) {
+  const sources = rows.find((row) => row.id === BRIDGE_ROW)?.config?.sources ?? null
+  const expected = unit.research_sources
+    ? { tavilyKeyEnv: unit.research_sources.tavily.credential_ref, jinaKeyEnv: unit.research_sources.jina.credential_ref }
+    : null
+  if (isDeepStrictEqual(sources, expected)) return []
+  return [{ code: 'research_sources_invalid', message: `${BRIDGE_ROW} sources are ${JSON.stringify(sources)}, the unit records ${JSON.stringify(expected)}` }]
+}
+
+/**
+ * Every route the unit allows beyond the default (SMC-M03), and which role runs on which. The bridge row must allow
+ * exactly the recorded routes and map exactly the recorded roles to them. Each route's provider is declared by the
+ * Sophia bundle on `llm-pi-ai` with a credential reference, its endpoint, no long cache retention, and the model
+ * listed at the recorded effort, output cap, window and compat; a hand-declared model must refuse long retention,
+ * which would send a field these models reject. Roles map to recorded routes only, are in the preset roster, and the
+ * research specializations share one route.
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ model_routes?: Record<string, any>, role_routes?: Record<string, string>, presets?: { ids: string[] } }} unit - the recorded unit.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkModelRoutes(rows, unit) {
+  const findings = []
+  const fail = (message) => findings.push({ code: 'model_routes_invalid', message })
+  const routes = unit.model_routes ?? {}
+  const roleRoutes = unit.role_routes ?? {}
+  const bridge = rows.find((row) => row.id === BRIDGE_ROW)?.config ?? {}
+  const expectedRoutes = Object.fromEntries(Object.entries(routes).map(([id, route]) => [id, allowed(route)]))
+  const composedRoutes = Object.fromEntries(Object.entries(bridge.routes ?? {}).map(([id, route]) => [id, allowed(route)]))
+  if (!isDeepStrictEqual(composedRoutes, expectedRoutes)) {
+    fail(`${BRIDGE_ROW} allows routes ${JSON.stringify(composedRoutes)}, the unit records ${JSON.stringify(expectedRoutes)}`)
+  }
+  if (!isDeepStrictEqual(bridge.roleRoutes ?? {}, roleRoutes)) {
+    fail(`${BRIDGE_ROW} maps roles ${JSON.stringify(bridge.roleRoutes ?? {})}, the unit records ${JSON.stringify(roleRoutes)}`)
+  }
+  const adapter = rows.find((row) => row.id === 'llm-pi-ai')
+  for (const [id, route] of Object.entries(routes)) {
+    const profile = adapter?.config?.providers?.[route.provider]
+    if (!adapter || !adapter.patchedBy.includes(BUNDLE) || !profile) {
+      fail(`route ${id}: llm-pi-ai must declare the "${route.provider}" provider in ${BUNDLE}`)
+      continue
+    }
+    if (profile.apiKeyEnv !== route.credential_ref) fail(`route ${id} must reference ${route.credential_ref} through apiKeyEnv, found ${JSON.stringify(profile.apiKeyEnv)}`)
+    if ((profile.baseURL ?? null) !== (route.baseURL ?? null)) fail(`route ${id} must send to ${route.baseURL}, found ${JSON.stringify(profile.baseURL)}`)
+    if ((profile.cacheRetention ?? null) !== (route.cacheRetention ?? null)) fail(`route ${id} sets cacheRetention ${JSON.stringify(profile.cacheRetention)}, the unit records ${JSON.stringify(route.cacheRetention)}`)
+    if (profile.cacheRetention === 'long') fail(`route ${id} must not set cacheRetention "long": these models refuse prompt_cache_retention`)
+    const entry = (profile.models ?? []).find((m) => m.id === route.model)
+    if (!entry) {
+      fail(`route ${id}: provider "${route.provider}" does not list model "${route.model}"`)
+      continue
+    }
+    if (!entry.reasoningEfforts || !(route.reasoningEffort in entry.reasoningEfforts)) fail(`route ${id}: model "${route.model}" does not offer reasoning effort "${route.reasoningEffort}"`)
+    if (!Number.isInteger(route.maxTokens) || entry.maxTokens !== route.maxTokens) fail(`route ${id}: model "${route.model}" must cap output at the recorded maxTokens ${route.maxTokens}, found ${JSON.stringify(entry.maxTokens)}`)
+    if (entry.contextWindow !== route.contextWindow) fail(`route ${id}: model "${route.model}" contextWindow is ${JSON.stringify(entry.contextWindow)}, the unit records ${route.contextWindow}`)
+    if (entry.compat?.supportsLongCacheRetention !== false) fail(`route ${id}: model "${route.model}" must set compat.supportsLongCacheRetention false`)
+    for (const [field, value] of Object.entries(route.compat ?? {})) {
+      if (entry.compat?.[field] !== value) fail(`route ${id}: model "${route.model}" must set compat.${field} ${JSON.stringify(value)} as the unit records, found ${JSON.stringify(entry.compat?.[field])}`)
+    }
+  }
+  const roster = new Set(unit.presets?.ids ?? [])
+  for (const [role, route] of Object.entries(roleRoutes)) {
+    if (!roster.has(role)) fail(`role ${role} has a route but is not in the preset roster`)
+    if (route !== 'default' && !Object.hasOwn(routes, route)) fail(`role ${role} runs on ${route}, which the unit does not record`)
+  }
+  const research = new Set(Object.entries(roleRoutes).filter(([role]) => role.startsWith('sophia-research-')).map(([, route]) => route))
+  if (research.size > 1) fail(`the research specializations must share one route, found ${[...research].join(', ')}`)
+  return findings
+}
+
+/**
+ * Compaction policy (SMC-M03): exactly the recorded per-route policies, set by the Sophia bundle on dsh-base's
+ * `compaction-basic` row, each for a recorded route.
+ * @param {ReturnType<typeof parseDump>} rows - composed dump rows.
+ * @param {{ compaction?: { modelPolicies: any[] }, model_routes?: Record<string, any> }} unit - the recorded unit.
+ * @returns {{ code: string, message: string }[]} findings.
+ */
+export function checkCompaction(rows, unit) {
+  const findings = []
+  const fail = (message) => findings.push({ code: 'compaction_invalid', message })
+  const row = rows.find((r) => r.id === 'compaction-basic')
+  if (!row || !row.patchedBy.includes(BUNDLE)) {
+    fail(`compaction-basic must be configured by ${BUNDLE}`)
+    return findings
+  }
+  if (!isDeepStrictEqual(row.config ?? {}, unit.compaction)) fail(`compaction-basic config is ${JSON.stringify(row.config)}, the unit records ${JSON.stringify(unit.compaction)}`)
+  // Compaction summarizes on the route of the session it compacts; a separate summarization model is refused by the
+  // bridge's route guard at run time, so the gate refuses it at install.
+  if (row.config?.summarizationProvider || row.config?.summarizationModel) fail('compaction-basic names a summarization model; compaction must run on the route of the session it compacts')
+  const routes = Object.values(unit.model_routes ?? {})
+  for (const policy of unit.compaction.modelPolicies ?? []) {
+    if (!routes.some((r) => r.provider === policy.provider && r.model === policy.model)) fail(`compaction policy for ${policy.provider}/${policy.model} is for no recorded route`)
+  }
+  return findings
+}
+
 /** Directories from `start` to the filesystem root. */
 function ancestors(start) {
   const out = []
@@ -374,6 +484,9 @@ export function verifyProfile({ unit, runtimeDir, dshHome, home, cwd }) {
     }
     if (unit.model_route) findings.push(...checkModelRoute(rows, unit.model_route))
     if (unit.presets) findings.push(...checkPresetRoster(rows, unit.presets))
+    if (unit.model_routes || unit.role_routes) findings.push(...checkModelRoutes(rows, unit))
+    findings.push(...checkResearchSources(rows, unit))
+    if (unit.compaction) findings.push(...checkCompaction(rows, unit))
     const loops = byId.get('agent-loop') ?? []
     if (loops.length !== 1 || loops[0].origin !== BASE) {
       findings.push({ code: 'agent_loop_not_single', message: `expected exactly one agent-loop row from ${BASE}, found ${loops.length}` })

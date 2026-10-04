@@ -50,15 +50,13 @@ export function writeJson(file, value) {
   writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`)
 }
 
-/** @returns {any} the committed runtime unit. */
+/**
+ * The committed runtime unit. Its bundle archive identity holds on every platform: the archive is normalized when
+ * packed (scripts/lib/artifacts.mjs `normalizeGzipOs`), so no per-platform archive record exists.
+ * @returns {any} the committed runtime unit.
+ */
 export function loadRuntimeUnit() {
-  return selectRuntimeUnit(readJson(RUNTIME_UNIT_PATH), platformKey())
-}
-
-/** Select the recorded archive for this build platform, preserving the primary production identity. */
-export function selectRuntimeUnit(unit, platform) {
-  const archive = unit.sophia_bundle.archives_by_platform?.[platform]
-  return archive ? { ...unit, sophia_bundle: { ...unit.sophia_bundle, ...archive } } : unit
+  return readJson(RUNTIME_UNIT_PATH)
 }
 
 /** @returns {string} absolute path of the packed bundle archive for `unit`. */

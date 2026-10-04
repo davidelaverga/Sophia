@@ -26,6 +26,7 @@ import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } fro
 import { focusNotesToggle } from './focus.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
+import type { Handed } from './handed.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
 import { usePresses } from './presses.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
@@ -35,6 +36,9 @@ import { personalFailure, unsent } from './write-words.ts'
 interface Props {
   /** Not on screen (another place is): kept mounted, so a draft and the scroll survive. */
   hidden: boolean
+  /** Words said to Sophia from Home, for the composer to send as its own (PersonalComposer, useHanded). */
+  handed: Handed | null
+  onHanded: () => void
   /** The padlock is shut: the field is not on the page (the device keeps the draft). */
   locked: boolean
   /** The clock the conversation's days are told by: it moves, so "Today" becomes "Yesterday" at midnight. */
@@ -342,6 +346,8 @@ function Composer(p: {
     <PersonalComposer
       key={writes.erasures}
       {...{ account, epoch, hidden, busy: writes.busy, onBehind: writes.readAgain, starter: p.starter }}
+      handed={p.props.handed}
+      onHanded={p.props.onHanded}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={p.onListening}
       onSend={sender(writes, p.onFailed)}

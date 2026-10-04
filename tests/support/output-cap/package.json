@@ -1,0 +1,8 @@
+{
+  "name": "@sophia-test/output-cap",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TEST ONLY (SMC-M03 M03-RF-0003): a native caller that raises a model call's output cap, for a disposable runtime composition. Never installed into a profile outside tests.",
+  "main": "./index.js"
+}

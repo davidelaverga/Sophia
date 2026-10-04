@@ -149,6 +149,15 @@ const observation = (command: RuntimeCommand, rt: RegisteredRuntime, seq: number
   data,
 })
 
+/** One research-route model call's usage, as the bridge reports it (SMC-M03). */
+const call = (inputTokens: number, extra: Record<string, unknown>) => ({
+  provider: 'openai-research',
+  model: 'gpt-6.1-sol',
+  inputTokens,
+  outputTokens: 40,
+  ...extra,
+})
+
 /** A project with a registered runtime, two contributions and a live lease; returns what the tests need. */
 async function world() {
   const project: SeededProject = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
@@ -430,6 +439,65 @@ describe('the runtime service', () => {
       [w.project.projectId],
     )
     assert.equal(events.n, 1, 'announced once')
+  })
+
+  it('records the cache counters a call reported, and compaction calls apart from the turn that produced the result (SMC-M03)', async () => {
+    const w = await world()
+    const { admitted, create } = await admittedAndQueued(w)
+    await withService(pool, (c) => recordRuntimeReceipts(c, w.who, [receipt(create, 'delivered')]))
+    const observations = [
+      observation(create, w.rt, 4, 'turn/start', { turn: 1 }),
+      observation(create, w.rt, 5, 'compaction/summary', {
+        compactionId: 'c1',
+        ...call(9000, { cacheReadTokens: 100 }),
+      }),
+      observation(create, w.rt, 7, 'assistant/message', {
+        text: '## Intended outcome\nCached',
+        truncated: false,
+        interrupted: false,
+        ...call(300, { cacheReadTokens: 900, cacheWriteTokens: 120 }),
+      }),
+      observation(create, w.rt, 8, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ]
+    // A later batch: its compaction is the attempt's newest call, recorded after the result.
+    const later = [
+      observation(create, w.rt, 9, 'compaction/summary', { compactionId: 'c2', ...call(8000, {}) }),
+      observation(create, w.rt, 10, 'compaction/summary', null),
+    ]
+    assert.equal(await withService(pool, (c) => recordRuntimeObservations(c, w.who, observations)), 4)
+    assert.equal(await withService(pool, (c) => recordRuntimeObservations(c, w.who, later)), 2)
+    const rows = await owner(
+      async (c) =>
+        (
+          await c.query<{ call: string; purpose: string; input: string; read: string | null; write: string | null }>(
+            `SELECT split_part(provider_call_id, '#', 2) AS call, purpose, input_tokens AS input, cache_read_tokens AS read,
+                    cache_write_tokens AS write
+               FROM sophia.usage_records WHERE project_id = $1 ORDER BY (split_part(provider_call_id, '#', 2))::int`,
+            [w.project.projectId],
+          )
+        ).rows,
+    )
+    assert.deepEqual(
+      rows.map((r) => [
+        r.call,
+        r.purpose,
+        Number(r.input),
+        r.read === null ? null : Number(r.read),
+        r.write === null ? null : Number(r.write),
+      ]),
+      [
+        ['5', 'compaction', 9000, 100, null],
+        ['7', 'turn', 300, 900, 120],
+        ['9', 'compaction', 8000, null, null],
+      ],
+      'one row per call; a counter not reported stays null; a summary without usage records nothing',
+    )
+    const detail = await withActor(pool, V, 'read', (c) => readNativeTask(c, w.project.projectId, admitted.taskId))
+    assert.deepEqual(
+      [detail.result?.inputTokens, detail.result?.cacheReadTokens, detail.result?.cacheWriteTokens],
+      [300, 900, 120],
+      'the result reports the turn that produced it, not a later compaction',
+    )
   })
 
   it('captures a brief once: a later turn on the same session, such as a steer after the result, never replaces it', async () => {

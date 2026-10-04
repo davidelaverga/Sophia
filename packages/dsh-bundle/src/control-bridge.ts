@@ -31,21 +31,38 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { createUserMessage, expandAssistantStream } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, ReasoningEffortId, UserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, ReasoningEffortId, StreamChunk, TokenUsage, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
-import type { ToolGuard } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolGuard } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
+import { PDF_PROMPT, RESEARCH_PROMPT } from './research-prompt.js'
+import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSources } from './research-tools.js'
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
-import { ServiceTransport } from './transport.js'
+import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
 import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
+
+/** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
+export type RouteSpec = ExecutionIdentity['route']
+/** USD per million tokens of each kind dsh reports (its counts are disjoint), for the route's spend accounting. */
+export interface RoutePrices {
+  readonly input: number
+  readonly cacheRead: number
+  readonly cacheWrite: number
+  readonly output: number
+}
+/**
+ * A named route as the bridge row allows it: the route, its output ceiling (M03-RF-0003) and, when its spend is
+ * accounted, its prices: every model call on a priced route is reserved before it leaves and settled from its usage.
+ */
+export type RouteConfig = RouteSpec & { readonly maxTokens: number; readonly prices?: RoutePrices }
 
 /** Row config plus the resolved environment the bridge runs with. */
 export interface BridgeSettings {
@@ -62,6 +79,12 @@ export interface BridgeSettings {
   readonly pollWaitMs: number
   /** Upper bound for cancellation to settle before a Hold/Stop receipt reports `outcome_unknown`. */
   readonly settleTimeoutMs: number
+  /** The unit's route allowlist beyond `default`, by route id (SMC-M03). */
+  readonly routes: Readonly<Record<string, RouteConfig>>
+  /** Role id → route id; a role not named runs on `default`. */
+  readonly roleRoutes: Readonly<Record<string, string>>
+  /** The research providers (SMC-M03 S4); absent, research roles are offered no research tools. */
+  readonly research: ResearchSources | null
   readonly log: (line: string) => void
 }
 
@@ -89,7 +112,18 @@ interface AttemptState {
   unrecovered: string | null
   /** The service binds this attempt to a different native session: nothing may resume it here. */
   identityMismatch: boolean
+  /**
+   * In the research finalize step (M03-RF-0011): entered once the service refused an ordinary model call for a spent
+   * allowance. Its model calls are then partial-result calls and its tools the finalize set. In memory only: after a
+   * restart the service refuses the first ordinary call again ("finalizing"), which enters the step again.
+   */
+  finalizing: boolean
 }
+
+/** What a tool outside the finalize set is told while its attempt finalizes. */
+const FINALIZE_REFUSAL =
+  `This research has spent its allowance: only ${[...FINALIZE_TOOL_NAMES].join(', ')} may run now. ` +
+  'Write up the partial result.'
 
 const ATTEMPT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 /** The contract's id shape (A04): a command id the service could not have sent is not answered. */
@@ -117,6 +151,8 @@ export class ControlBridge {
   private readonly receiptQueue: RetainedQueue<RuntimeReceipt>
   private readonly observationQueue: RetainedQueue<Observation>
   private cursor = 0
+  /** The research tools, built once; registered in each research agent's own scope. */
+  private readonly researchToolset: ToolDefinition[] | null
   readiness: BridgeReadiness = { state: 'not_ready', reason: 'starting' }
 
   constructor(private readonly ctx: Context, private readonly settings: BridgeSettings) {
@@ -135,6 +171,17 @@ export class ControlBridge {
       delayMs: 50,
       onAck: (batch) => this.acknowledged(batch),
     })
+    this.researchToolset = this.transport && settings.research
+      ? researchTools({
+          client: this.transport,
+          sources: settings.research,
+          sessionOf: (exec) => {
+            const attempt = this.attemptFor(exec.agent ?? this.ctx.agents.currentInitiator())
+            return attempt ? { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId } : null
+          },
+          log: settings.log,
+        })
+      : null
   }
 
   /** Install fences and observers, then connect. Returns the disposer. */
@@ -159,16 +206,36 @@ export class ControlBridge {
       if (!attempt) return undefined
       if (attempt.fence !== 'active') return `Sophia work is ${attempt.fence}; no tool may run until an explicit Resume.`
       if (!attempt.role) return 'This Sophia attempt has no role; no native tool may run.'
+      if (attempt.finalizing && !FINALIZE_TOOL_NAMES.has(execution.name)) return FINALIZE_REFUSAL
       if (!attempt.role.nativeTools.has(execution.name)) return `Tool "${execution.name}" is not permitted for role ${attempt.role.id}.`
       return undefined
     }
     const offGuard = ctx.tools.guard(attemptGuard)
+    // Every model call made for a bound attempt runs on the route the attempt recorded (SMC-M03): its turns, its
+    // workflow children and its compaction. A program or tool that names another provider, model or effort, or asks
+    // for more output than the route's ceiling (M03-RF-0003), is refused before any request leaves, so a role cannot
+    // reach a dearer route than the unit gave it. Every adapter call passes this waterfall with options dsh has
+    // frozen, so what is checked here is what the adapter sends; a listener can only raise the cap by making a new
+    // call, which passes here again.
+    //
+    // On a priced route (research) every call that passes is also metered: reserved from the attempt's allowance
+    // before it leaves, settled from the usage it reports (SMC-M03 S4).
+    const offStream = ctx.on('llm/stream', (options: GenerateOptions, next: () => AsyncIterable<StreamChunk>) => {
+      const attempt = this.attemptForSession(options.sessionId)
+      const route = attempt?.identity?.route
+      const problem = route ? offRoute(options, route, this.ceilingFor(route)) : null
+      if (attempt === undefined || route === undefined) return next()
+      if (problem !== null) return this.refuseCall(attempt, options, problem)
+      const named = this.namedRoute(route)
+      return named?.prices && this.transport ? this.metered(attempt, options, named, named.prices, next) : next()
+    }, { global: true, prepend: true })
     const offEvent = ctx.on('session/event', (session: Session, event: SessionEvent) => this.observe(session, event))
     void this.connect()
     return async () => {
       this.stopping.abort()
       offPreStep()
       offGuard()
+      offStream()
       offEvent()
       await Promise.all([this.receiptQueue.flush(), this.observationQueue.flush()])
     }
@@ -181,7 +248,8 @@ export class ControlBridge {
     }
     let hello: HelloReply
     try {
-      hello = await this.transport.hello({ bundle: this.settings.bundle, protocolVersion: this.settings.protocolVersion, dshVersion: this.settings.dshVersion })
+      const roles = await this.advertisedRoles()
+      hello = await this.transport.hello({ bundle: this.settings.bundle, protocolVersion: this.settings.protocolVersion, dshVersion: this.settings.dshVersion, ...(roles.length > 0 ? { roles } : {}) })
     } catch (error) {
       this.setReadiness({ state: 'not_ready', reason: `Sophia service hello failed: ${(error as Error).message}` })
       return
@@ -247,6 +315,137 @@ export class ControlBridge {
     return undefined
   }
 
+  /** Journal a refused model call on its attempt and answer it with the refusal. */
+  private refuseCall(attempt: AttemptState, options: GenerateOptions, reason: string): AsyncIterable<StreamChunk> {
+    this.journal.append(attempt.sessionId, 'sophia/route-refused', {
+      attemptId: attempt.attemptId,
+      sessionId: String(options.sessionId),
+      requested: { provider: String(options.provider), model: String(options.model), reasoningEffort: options.reasoningEffort === undefined ? null : String(options.reasoningEffort) },
+      reason,
+    })
+    return refuse(reason)
+  }
+
+  /** The named route an identity's route is, or undefined for the default route. */
+  private namedRoute(route: RouteSpec): RouteConfig | undefined {
+    return Object.values(this.settings.routes).find((r) => r.provider === route.provider && r.model === route.model && r.reasoningEffort === route.reasoningEffort)
+  }
+
+  /** A named route's output ceiling, or null for the default route (its cap is the default model's). */
+  private ceilingFor(route: RouteSpec): number | null {
+    return this.namedRoute(route)?.maxTokens ?? null
+  }
+
+  /**
+   * The roles this runtime advertises in its hello (SMC-M03 S4): each role the unit maps to a named route, with that
+   * route and its preset digest. The service admits research only onto a runtime advertising the specialist and its
+   * route. The preset registry loads its definitions while the bridge connects, so each preset gets a bounded wait to
+   * become resolvable; a role whose preset still cannot be activated is not advertised.
+   */
+  private async advertisedRoles(): Promise<Array<{ id: string; route: string; presetDigest: string }>> {
+    const roles: Array<{ id: string; route: string; presetDigest: string }> = []
+    for (const [roleId, routeId] of Object.entries(this.settings.roleRoutes).sort(([a], [b]) => a.localeCompare(b))) {
+      const role = roleOf(roleId)
+      if (!role) continue
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          roles.push({ id: role.id, route: routeId, presetDigest: (await this.presetIdentity(role)).digest })
+          break
+        } catch (error) {
+          if (attempt >= PRESET_WAIT_ATTEMPTS || this.stopping.signal.aborted) {
+            this.settings.log(`role ${roleId} is not advertised: ${(error as Error).message}`)
+            break
+          }
+          await new Promise((resolve) => setTimeout(resolve, PRESET_WAIT_MS))
+        }
+      }
+    }
+    return roles
+  }
+
+  /**
+   * The trusted transition into the research finalize step (M03-RF-0011), taken once: the service refused an ordinary
+   * model call because the allowance is spent. From then on the attempt's model calls are partial-result calls (the
+   * service enters the step at the first, checks that the allowance really is spent, and allows four in all), its
+   * tools are the finalize set, and the model is told, at its next step, to write up now.
+   */
+  private enterFinalize(attempt: AttemptState, sessionId: GenerateOptions['sessionId']): void {
+    if (attempt.finalizing) return
+    attempt.finalizing = true
+    this.journal.append(attempt.sessionId, 'sophia/finalize', { attemptId: attempt.attemptId, sessionId: String(sessionId) })
+    const agent = sessionId === undefined ? undefined : this.ctx.agents.get(sessionId)
+    agent?.steer(createUserMessage({ content: [{ type: 'text', text: FINALIZE_NOTICE }], source: { kind: 'user' } }))
+  }
+
+  /**
+   * One model call metered against its attempt's allowance: reserved before it leaves (refused, and journaled, when
+   * the allowance cannot cover it), then settled from the usage it reported, or uncertain when it reported none. A
+   * call that cost more than it reserved is settled at its cost and journaled as an overrun (M03-RF-0010).
+   */
+  private metered(attempt: AttemptState, options: GenerateOptions, route: RouteConfig, prices: RoutePrices, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
+    const transport = this.transport!
+    const ids = { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId }
+    const log = this.settings.log
+    const who = { attemptId: attempt.attemptId, sessionId: String(options.sessionId) }
+    const refused = (reason: string) => {
+      this.journal.append(attempt.sessionId, 'sophia/spend-refused', { ...who, reason })
+      return refuse(reason)
+    }
+    const overrun = (reservationId: string, reservedUsd: number, costUsd: number) =>
+      this.journal.append(attempt.sessionId, 'sophia/spend-overrun', { ...who, reservationId, reservedUsd, costUsd })
+    const finalize = () => this.enterFinalize(attempt, options.sessionId)
+    return (async function* () {
+      let reservationId: string
+      const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
+      // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
+      const reserve = (purpose: 'call' | 'partial_result') =>
+        transport.researchReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
+      try {
+        if (attempt.finalizing) reservationId = (await reserve('partial_result')).reservationId
+        else {
+          try {
+            reservationId = (await reserve('call')).reservationId
+          } catch (error) {
+            // Only the service's refusal of an ordinary call enters the finalize step; it checks the step again.
+            if (!(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
+            finalize()
+            reservationId = (await reserve('partial_result')).reservationId
+          }
+        }
+      } catch (error) {
+        const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
+        yield* refused(`this research's allowance could not reserve the model call (${why})`)
+        return
+      }
+      let usage: TokenUsage | null = null
+      try {
+        for await (const chunk of next()) {
+          if (chunk.type === 'usage') usage = chunk.usage
+          yield chunk
+        }
+      } finally {
+        const costUsd = usage ? costOfUsage(usage, prices) : null
+        if (costUsd !== null && costUsd > amountUsd) overrun(reservationId, amountUsd, costUsd)
+        try {
+          await transport.researchSettle({
+            ...ids,
+            reservationId,
+            outcome: usage ? 'settled' : 'uncertain',
+            ...(usage && costUsd !== null ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
+          })
+        } catch (error) {
+          log(`settling model call ${reservationId} failed: ${(error as Error).message}; the service reconciles it`)
+        }
+      }
+    })()
+  }
+
+  /** The bound attempt a model call's session belongs to, directly or through the Agent that owns it. */
+  private attemptForSession(sessionId: GenerateOptions['sessionId']): AttemptState | undefined {
+    if (sessionId === undefined) return undefined
+    return this.bySession.get(sessionId) ?? this.attemptFor(this.ctx.agents.get(sessionId))
+  }
+
   /**
    * Create-time scoped setup: hide every visible native tool the role does
    * not allow. The guard enforces the same set at execution; visibility only
@@ -260,6 +459,18 @@ export class ControlBridge {
       const visible = this.ctx.tools.schemas().map((schema) => schema.name)
       const deny = visible.filter((name) => !role.nativeTools.has(name))
       if (deny.length > 0) agentCtx.tools.restrict({ deny })
+      // The research tools exist only in a research agent's own scope (SMC-M03 S4), and only those its role names,
+      // with the research section of its system prompt.
+      const tools = (this.researchToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
+      for (const tool of tools) agentCtx.tools.register(tool)
+      if (tools.length > 0) {
+        const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
+        if (!prompts) throw new ProtocolError('this runtime unit has no system prompt service for the research section')
+        prompts.section({ name: 'sophia-research', order: RESEARCH_PROMPT.order, text: RESEARCH_PROMPT.text, interpolate: false })
+        if (role.nativeTools.has('research_render_pdf')) {
+          prompts.section({ name: 'sophia-research-pdf', order: PDF_PROMPT.order, text: PDF_PROMPT.text, interpolate: false })
+        }
+      }
     }
   }
 
@@ -358,6 +569,22 @@ export class ControlBridge {
     return { provider, model, reasoningEffort: reasoningEffort ?? null }
   }
 
+  /**
+   * The route a role runs on in this unit: the bridge row's `roleRoutes`, else `default` (the composition's default
+   * model). A create that names a route must name exactly this one; there is no fallback to another route.
+   */
+  private routeFor(role: RolePreset, requested: string | undefined): ExecutionIdentity['route'] {
+    const id = this.settings.roleRoutes[role.id] ?? 'default'
+    if (requested !== undefined && requested !== id) {
+      throw new ProtocolError(`role ${role.id} runs on route ${id} in this runtime unit; the command names ${requested}`)
+    }
+    if (id === 'default') return this.defaultRoute()
+    const route = this.settings.routes[id]
+    if (!route) throw new ProtocolError(`route ${id} is not allowed in this runtime unit`)
+    // The identity records the route only; its ceiling stays the unit's, enforced on every call.
+    return { provider: route.provider, model: route.model, reasoningEffort: route.reasoningEffort }
+  }
+
   private agentOptions(route: ExecutionIdentity['route']): AgentOptions {
     return route.reasoningEffort === null ? { provider: route.provider, model: route.model } : { provider: route.provider, model: route.model, reasoningEffort: brandString<ReasoningEffortId>(route.reasoningEffort) }
   }
@@ -382,13 +609,13 @@ export class ControlBridge {
 
   /**
    * The identity a new attempt records before its native create: this unit,
-   * the role's preset, and the default route. A redelivered create that a
+   * the role's preset, and the role's route. A redelivered create that a
    * restart cut short finds the identity it already recorded.
    */
-  private async createIdentity(attempt: AttemptState, role: RolePreset): Promise<ExecutionIdentity> {
+  private async createIdentity(attempt: AttemptState, role: RolePreset, requestedRoute: string | undefined): Promise<ExecutionIdentity> {
     const recorded = foldLog(this.journal.read(attempt.sessionId)).identity
     if (recorded) return { runtimeUnitId: recorded.runtimeUnitId, preset: recorded.preset, route: recorded.route }
-    const identity: ExecutionIdentity = { runtimeUnitId: this.settings.runtimeUnitId, preset: await this.presetIdentity(role), route: this.defaultRoute() }
+    const identity: ExecutionIdentity = { runtimeUnitId: this.settings.runtimeUnitId, preset: await this.presetIdentity(role), route: this.routeFor(role, requestedRoute) }
     this.journal.append(attempt.sessionId, 'sophia/identity', { ...identity, attemptId: attempt.attemptId, source: 'create', evidence: null })
     return identity
   }
@@ -403,7 +630,7 @@ export class ControlBridge {
    */
   private async resumeIdentity(attempt: AttemptState, role: RolePreset, recorded: ExecutionIdentity | null): Promise<ExecutionIdentity> {
     const preset = await this.presetIdentity(role)
-    if (!recorded) return { runtimeUnitId: this.settings.runtimeUnitId, preset, route: this.defaultRoute() }
+    if (!recorded) return { runtimeUnitId: this.settings.runtimeUnitId, preset, route: this.routeFor(role, undefined) }
     if (recorded.preset.id !== preset.id || recorded.preset.digest !== preset.digest) {
       throw new ProtocolError(`the attempt was created under native preset ${recorded.preset.id} (${recorded.preset.digest}) in runtime unit ${recorded.runtimeUnitId}; this unit defines ${preset.id} as ${preset.digest}. An attempt never resumes under a different composition: it stays held until it is reconstructed`)
     }
@@ -448,6 +675,7 @@ export class ControlBridge {
       unsettled: new Map(),
       unrecovered: null,
       identityMismatch: false,
+      finalizing: false,
     }
     this.attempts.set(attemptId, state)
     this.bySession.set(state.sessionId, state)
@@ -608,8 +836,11 @@ export class ControlBridge {
     }
     const role = roleOf(command.payload.role)
     if (!role) throw new ProtocolError(`create requires payload.role, one of this bundle's role presets; got ${JSON.stringify(command.payload.role)}`)
-    // A role whose native preset this unit cannot compose is refused before any attempt state exists.
-    if (!existing) await this.presetIdentity(role)
+    // A role whose native preset or route this unit cannot compose is refused before any attempt state exists.
+    if (!existing) {
+      await this.presetIdentity(role)
+      this.routeFor(role, command.payload.route)
+    }
     const attempt = existing ?? this.newAttempt(attemptId, authorityEpoch)
     attempt.role ??= role
     const live = existing ? null : this.ctx.agents.get(attempt.sessionId)
@@ -619,7 +850,7 @@ export class ControlBridge {
       this.adopt(attempt, live)
     } else {
       // Recorded before the native create (log-first): the identity is the attempt's from its first step.
-      const identity = await this.createIdentity(attempt, role)
+      const identity = await this.createIdentity(attempt, role, command.payload.route)
       attempt.identity = identity
       try {
         attempt.handle = await this.ctx.agents.create({ sessionId: attempt.sessionId, meta: { cwd: this.settings.workspace, agentPreset: role.id }, agentOptions: this.agentOptions(identity.route), setup: this.setupFor(role) })
@@ -944,27 +1175,112 @@ export class ControlBridge {
   }
 }
 
+/**
+ * Why a model call leaves the attempt's route, or null when it does not. A call that names no effort runs at the
+ * model's default (compaction does), which the route allows; one that names an effort must name the route's. With a
+ * ceiling, a call that asks for more output tokens is refused; one that names none runs at the model entry's
+ * default, which the gate keeps equal to the ceiling.
+ */
+export function offRoute(options: GenerateOptions, route: RouteSpec, ceiling: number | null = null): string | null {
+  const provider = String(options.provider)
+  const model = String(options.model)
+  const effort = options.reasoningEffort === undefined ? null : String(options.reasoningEffort)
+  if (provider !== route.provider || model !== route.model || (effort !== null && effort !== route.reasoningEffort)) {
+    return `this Sophia attempt runs on ${route.provider}/${route.model}/${route.reasoningEffort ?? 'default'}; a model call for ${provider}/${model}/${effort ?? 'default'} is refused`
+  }
+  const asked = options.maxTokens
+  if (ceiling !== null && asked !== undefined && !(Number.isSafeInteger(asked) && asked >= 1 && asked <= ceiling)) {
+    return `this Sophia attempt's route allows at most ${ceiling} output tokens; a model call asking for ${String(asked)} is refused`
+  }
+  return null
+}
+
+/** A model call refused before it reaches the provider. */
+export class RouteRefused extends Error {}
+
+/** The part of dsh's system prompt service the bridge uses: a named section in the agent's own scope. */
+interface PromptSections {
+  section(section: { name: string; order: number; text: string; interpolate?: boolean }): () => void
+}
+
+/** How long the hello waits for a role's preset to load: 100 tries 100 ms apart. */
+const PRESET_WAIT_ATTEMPTS = 100
+const PRESET_WAIT_MS = 100
+
+async function* refuse(reason: string): AsyncGenerator<StreamChunk> {
+  yield* []
+  throw new RouteRefused(reason)
+}
+
+/**
+ * Input tokens a request can count: three ASCII characters a token, above what the tokenizer counts for prose and
+ * code, and every other UTF-16 unit a token of its own, so accented letters, other scripts and emoji, which the
+ * tokenizer packs less densely, are not underestimated (M03-RF-0010).
+ */
+export function estimateInputTokens(text: string): number {
+  const other = text.replace(/[\u0000-\u007f]/g, '').length
+  return Math.ceil((text.length - other) / 3) + other
+}
+
+/**
+ * The most one model call can cost on a priced route: its request's input at the dearest input-side price (uncached,
+ * cache read or cache write, so a cache write never costs more than was reserved) and its whole output ceiling.
+ */
+export function estimateCallUsd(options: GenerateOptions, prices: RoutePrices, ceiling: number): number {
+  const tokens = estimateInputTokens(JSON.stringify([options.system ?? '', options.messages, options.tools ?? []]))
+  const output = typeof options.maxTokens === 'number' ? Math.min(options.maxTokens, ceiling) : ceiling
+  const inputPrice = Math.max(prices.input, prices.cacheRead, prices.cacheWrite)
+  const usd = (tokens * inputPrice + output * prices.output) / 1_000_000
+  return Math.min(Math.max(Number(usd.toFixed(6)), 0.000001), 1000)
+}
+
+/** What one model call cost from the usage it reported (dsh's counts are disjoint). */
+export function costOfUsage(usage: TokenUsage, prices: RoutePrices): number {
+  const usd = (usage.inputTokens * prices.input + (usage.cacheReadTokens ?? 0) * prices.cacheRead + (usage.cacheWriteTokens ?? 0) * prices.cacheWrite + usage.outputTokens * prices.output) / 1_000_000
+  return Math.min(Number(usd.toFixed(6)), 1000)
+}
+
 /** Upper bound of a step's assistant text forwarded to the service (a drafted brief fits well within it). */
 const ASSISTANT_TEXT_LIMIT = 120_000
 
 type AssistantEventData = {
   stream: Parameters<typeof expandAssistantStream>[0]
   message?: { source?: { provider?: unknown; model?: unknown } }
-  usage?: { inputTokens?: unknown; outputTokens?: unknown }
+  usage?: UsageData
   interrupted?: true
 }
+
+type UsageData = { inputTokens?: unknown; outputTokens?: unknown; cacheReadTokens?: unknown; cacheWriteTokens?: unknown }
 
 const count = (value: unknown): number | null => (Number.isSafeInteger(value) && (value as number) >= 0 ? (value as number) : null)
 const label = (value: unknown): string | null => (typeof value === 'string' && value.length > 0 ? value.slice(0, 200) : null)
 
 /**
+ * A model call's usage for the service. dsh's counts are disjoint (input is uncached input only). A cache counter is
+ * added only when the adapter reported one (SMC-M03); `llm-pi-ai` leaves a zero counter out, so absent means zero or
+ * not reported.
+ */
+function usageOf(usage: UsageData | undefined): Record<string, number | null> {
+  const cacheRead = count(usage?.cacheReadTokens)
+  const cacheWrite = count(usage?.cacheWriteTokens)
+  return {
+    inputTokens: count(usage?.inputTokens),
+    outputTokens: count(usage?.outputTokens),
+    ...(cacheRead === null ? {} : { cacheReadTokens: cacheRead }),
+    ...(cacheWrite === null ? {} : { cacheWriteTokens: cacheWrite }),
+  }
+}
+
+/**
  * A bounded, model-free projection of one durable event for the service. An
  * assistant message also names the provider and model that produced it and
  * the usage the adapter reported (null when it reported none), so the
- * service keeps the actual model identity with a captured result.
+ * service keeps the actual model identity with a captured result. A
+ * compaction summary reports its own model call the same way.
  */
 function summarize(event: SessionEvent): unknown {
-  switch (event.type) {
+  // A string switch: `compaction/summary` is compaction-basic's event, outside this bundle's typed event map.
+  switch (event.type as string) {
     case 'user/message': {
       const data = event.data as UserMessage
       return { id: data.id, text: textOf(data.content) }
@@ -980,10 +1296,14 @@ function summarize(event: SessionEvent): unknown {
         truncated: text.length > ASSISTANT_TEXT_LIMIT,
         provider: label(data.message?.source?.provider),
         model: label(data.message?.source?.model),
-        inputTokens: count(data.usage?.inputTokens),
-        outputTokens: count(data.usage?.outputTokens),
+        ...usageOf(data.usage),
         interrupted: data.interrupted === true,
       }
+    }
+    case 'compaction/summary': {
+      // The summary's own model call: who made it and what it cost, never the summary text.
+      const data = event.data as { compactionId?: unknown; provider?: unknown; model?: unknown; usage?: UsageData }
+      return { compactionId: label(data.compactionId), provider: label(data.provider), model: label(data.model), ...usageOf(data.usage) }
     }
     case 'turn/start':
     case 'turn/end':

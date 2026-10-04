@@ -10,7 +10,7 @@
  * frozen profile install rejects any other archive bytes.
  */
 
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { parse } from 'yaml'
@@ -24,9 +24,29 @@ const BUNDLE_DIR = join(REPO_ROOT, 'packages', 'dsh-bundle')
 /** Files copied from config/dsh/profile into a profile directory. */
 export const PROFILE_FILES = ['package.json', 'pnpm-workspace.yaml', 'cordis.patch.yml']
 
-/** @returns {string} the committed profile lock path. */
-export function profileLockPath(unit, platform = platformKey()) {
-  return join(PROFILE_SOURCE_DIR, platform === unit.dsh.artifact_primary_platform ? 'pnpm-lock.yaml' : `pnpm-lock.${platform}.yaml`)
+/**
+ * The committed profile lock. One lock serves every platform: it pins only the bundle archive's integrity, and the
+ * normalized archive is the same everywhere (SMC-M03 CX-0005).
+ * @returns {string} the committed profile lock path.
+ */
+export function profileLockPath() {
+  return join(PROFILE_SOURCE_DIR, 'pnpm-lock.yaml')
+}
+
+/**
+ * Make a gzip archive's bytes independent of the platform that packed it. Its header names the writer's operating
+ * system (byte 9): Node's zlib writes 3 (Unix) on Linux and 19 on macOS around the same deflate stream, so the same
+ * tar packed on each had two hashes (SMC-M03 CX-0005: setting the Mac byte to 3 reproduces the Linux archive
+ * exactly). No checksum covers byte 9 when the header carries no flags, which is checked first.
+ * @param {string} path - the archive, rewritten in place when its byte differs.
+ */
+export function normalizeGzipOs(path) {
+  const bytes = readFileSync(path)
+  if (bytes.length < 18 || bytes[0] !== 0x1f || bytes[1] !== 0x8b || bytes[2] !== 8) throw new Error(`${path} is not a deflate gzip archive`)
+  if (bytes[3] !== 0) throw new Error(`${path} has gzip header flags ${bytes[3]}; only a flagless header is normalized`)
+  if (bytes[9] === 3) return
+  bytes[9] = 3
+  writeFileSync(path, bytes)
 }
 
 /**
@@ -48,6 +68,7 @@ export function buildBundleArchive(unit) {
   rmSync(archive, { force: true })
   runChecked('pnpm', ['--dir', BUNDLE_DIR, 'pack', '--pack-destination', ARTIFACTS_DIR], { cwd: REPO_ROOT })
   if (!existsSync(archive)) throw new Error(`pnpm pack produced no ${archive}`)
+  normalizeGzipOs(archive)
   return archive
 }
 
@@ -100,11 +121,10 @@ export function buildArtifacts(unit) {
     },
     'workspace_lock_sha256': fileDigest(join(REPO_ROOT, 'pnpm-lock.yaml'), 'sha256'),
   }
+  // The runtime tree differs per platform (native prebuilds); the normalized bundle archive does not.
   const bundle = { archive_sha256: fileDigest(archive, 'sha256'), archive_integrity: fileIntegrity(archive), artifact_digest: `sha256:${fileDigest(archive, 'sha256')}` }
-  if (platformKey() === unit.dsh.artifact_primary_platform) {
-    facts['dsh.artifact_digest'] = digest
-    for (const [key, value] of Object.entries(bundle)) facts[`sophia_bundle.${key}`] = value
-  } else facts[`sophia_bundle.archives_by_platform.${platformKey()}`] = bundle
+  if (platformKey() === unit.dsh.artifact_primary_platform) facts['dsh.artifact_digest'] = digest
+  for (const [key, value] of Object.entries(bundle)) facts[`sophia_bundle.${key}`] = value
   return { facts, profileLock: resolveProfileLock(archive), lintFindings }
 }
 

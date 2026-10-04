@@ -8,6 +8,7 @@ import { WRITE_TIMEOUT_MS } from '../../api/client.ts'
 import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
 import { focusLater } from './focus.ts'
+import { handing, type Handed } from './handed.ts'
 import { NOTICE } from './notice-view.ts'
 import {
   afterSent,
@@ -329,7 +330,35 @@ interface Props {
   onBehind: () => void
   /** A way to start pressed in the conversation goes through this composer's send (set here). */
   starter: RefObject<((words: string) => void) | null>
+  /** Words said to Sophia from Home, handed here to go as this composer's own (Welcome.tsx); taken once. */
+  handed: Handed | null
+  onHanded: () => void
 }
+
+/**
+ * Words handed from Home go as the field's would: one at a time, under their own key, kept on their way, and back in
+ * the field if they don't go. While the space can't take them yet (still loading, Sophia unavailable, an erasure to
+ * read first), they wait in the field, said, for the person to send (handed.ts).
+ */
+function useHanded(
+  p: Props,
+  ready: boolean,
+  send: (given?: Draft) => Promise<void>,
+  draft: ReturnType<typeof useDraft>,
+) {
+  const taken = useRef(0)
+  const { handed, onHanded, busy } = p
+  useEffect(() => {
+    const what = handing(handed, taken.current, ready, busy)
+    if (!handed || what === 'none' || what === 'wait') return
+    taken.current = handed.id
+    onHanded()
+    if (what === 'send') void send(draftOf(handed.words))
+    else draft.change(draft.text ? `${draft.text} ${handed.words}` : handed.words, HANDED)
+  })
+}
+
+const HANDED = 'From Home · send it when Sophia is ready'
 
 /**
  * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
@@ -409,6 +438,7 @@ export function PersonalComposer(props: Props) {
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
   const ready = state === 'ready' && !behind
   const send = useSend(account, draft, ready, busy, onSend)
+  useHanded(props, ready, send, draft)
   // A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is.
   useEffect(() => {
     starter.current = (words: string) => void send(draftOf(words))

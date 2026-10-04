@@ -5,6 +5,7 @@ import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
+import type { ByteStore } from './byte-store.ts'
 import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
@@ -14,6 +15,7 @@ import { accessRoutes, GUEST_ROUTES, PUBLIC_ACCESS_ROUTES } from './routes/acces
 import { commandRoutes } from './routes/commands.ts'
 import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
+import { knowledgeRoutes } from './routes/knowledge.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
@@ -21,7 +23,9 @@ import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
 import { roomRoutes } from './routes/rooms.ts'
-import { RUNTIME_ROUTES, runtimeRoutes } from './routes/runtime.ts'
+import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
+import { RUNTIME_ROUTES, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
+import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
 
@@ -34,6 +38,8 @@ declare module 'fastify' {
     actorAnonymous: boolean
     /** On a RUNTIME_ROUTES request only: the runtime capability's hash and transport headers (A04). */
     runtimeCaller: RuntimeCaller | null
+    /** On a RENDERER_ROUTES request only: the render runner capability's hash (A11, 0030). */
+    rendererToken: Buffer | null
   }
 }
 
@@ -57,6 +63,8 @@ export interface AppDeps {
   mailer?: Mailer | null
   /** SHA-256 of the media bridge's capability (amendment A06); without it, /v1/media/* answers 401. */
   mediaBridgeTokenSha256?: Buffer
+  /** The report byte store (SMC-M03, D5); without it, stored bytes answer 503 and inline texts are still read. */
+  byteStore?: ByteStore | null
   /**
    * Who answers in the personal space (amendment A10): the keyless rehearsal in development, the runtime's Companion
    * agent later. Without one, a personal message is refused (503) before anything is kept.
@@ -86,6 +94,22 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.decide_mission_change(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.preview_mission_withdrawal(uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.withdraw_mission_entry(uuid,uuid,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.is_task_kind(text)') IS NOT NULL
+  AND to_regclass('sophia.artifact_renditions') IS NOT NULL
+  AND to_regprocedure('sophia.usage_count(jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.admit_research_task(uuid,text,text,jsonb,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_research_reserve(bytea,text,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_research_submit(bytea,text,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.research_draft_citations(sophia.research_scope,jsonb,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.edit_report_summary(uuid,text,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.research_revoke_source(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.reconcile_research_overrun(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.renderer_claim(bytea)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_research_render(bytea,text,text,jsonb,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.request_research_rendition(uuid,uuid,text,text,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.source_withdrawn(uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.render_gate_failures(jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_announced(uuid,uuid,integer,boolean,integer)') IS NOT NULL
   AND to_regprocedure('sophia.personal_reply_state(text,timestamptz,timestamptz)') IS NOT NULL
   AND to_regprocedure('sophia.personal_fence(bigint)') IS NOT NULL
   AND to_regprocedure('sophia.renew_personal_reply(uuid,uuid)') IS NOT NULL
@@ -144,10 +168,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   conversationRoutes(app, { pool: deps.pool })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
+  researchRoutes(app, deps.pool)
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
+  sourceRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  rendererRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  knowledgeRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   const companion = deps.companion
     ? new CompanionRunner(deps.pool, deps.companion, (err) =>
@@ -186,6 +214,13 @@ function runtimeCallerOf(req: FastifyRequest): RuntimeCaller {
  * exact list too: they take a runtime capability instead of a member token, and nothing else does.
  */
 /** The media bridge's capability, compared by hash in constant time (amendment A06); nothing to compare with refuses. */
+/** A render runner's capability, hashed; the database checks it (0030). */
+function rendererTokenOf(req: FastifyRequest): Buffer {
+  const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
+  if (!token) throw new DomainError('runtime_capability_required', 'Render runner capability required')
+  return runtimeTokenHash(token)
+}
+
 function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): void {
   const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
   if (!token || !expected || !timingSafeEqual(runtimeTokenHash(token), expected)) {
@@ -198,6 +233,7 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
   app.decorateRequest('actorName', null)
   app.decorateRequest('actorAnonymous', false)
   app.decorateRequest('runtimeCaller', null)
+  app.decorateRequest('rendererToken', null)
   app.addHook('onRequest', async (req) => {
     const route = req.routeOptions.url ?? ''
     if (PUBLIC_ROUTES.has(route)) return
@@ -207,6 +243,10 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
     }
     if (MEDIA_ROUTES.has(route)) {
       requireMediaCapability(req, mediaToken)
+      return
+    }
+    if (RENDERER_ROUTES.has(route)) {
+      req.rendererToken = rendererTokenOf(req)
       return
     }
     try {

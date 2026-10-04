@@ -12,6 +12,7 @@
  *   POST {base}/v1/runtime/receipts       <- RuntimeReceiptBatch
  *   POST {base}/v1/runtime/observations   <- RuntimeObservationBatch
  *   POST {base}/v1/runtime/ready          <- RuntimeReady
+ *   POST {base}/v1/runtime/research/{context,reserve,settle,capture,draft,submit,render,render-result}  (SMC-M03, A11)
  *
  * Every reply is validated against the contract before the bridge reads it,
  * and every body is validated before it is sent: a reply that breaks the
@@ -29,6 +30,21 @@ import { describeFailure } from './protocol.js'
 import { wire } from './runtime-wire.generated.js'
 import type { WireValidator } from './runtime-wire.generated.js'
 import type {
+  ResearchCapture,
+  ResearchCaptureRequest,
+  ResearchContextReply,
+  ResearchContextRequest,
+  ResearchDraft,
+  ResearchDraftRequest,
+  ResearchRender,
+  ResearchRenderRequest,
+  ResearchRenderResultRequest,
+  ResearchReservation,
+  ResearchReserveRequest,
+  ResearchSettleRequest,
+  ResearchSettlement,
+  ResearchSubmission,
+  ResearchSubmitRequest,
   RuntimeCommandBatch,
   RuntimeHello,
   RuntimeHelloReply,
@@ -58,10 +74,25 @@ export interface TransportOptions {
   readonly bridgeInstanceId: string
 }
 
-/** Transport failures carry the HTTP status when the service answered. */
+/**
+ * Transport failures carry the HTTP status when the service answered, and the contract error code when its body was
+ * a contract Error (`research_limit_reached`, `invalid_state`, …). The service's message is never kept: it is not
+ * the bridge's to repeat to a model.
+ */
 export class TransportError extends Error {
-  constructor(message: string, readonly status?: number) {
+  constructor(message: string, readonly status?: number, readonly code?: string) {
     super(message)
+  }
+}
+
+/** The contract error code of a failed reply's body, if it carries one. */
+async function errorCodeOf(response: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.json()
+    const code = typeof body === 'object' && body !== null && 'code' in body ? body.code : undefined
+    return typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(code) ? code : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -94,7 +125,8 @@ export class ServiceTransport {
       signal,
     })
     if (!response.ok) {
-      throw new TransportError(`${method} ${path} answered ${response.status}`, response.status)
+      const code = await errorCodeOf(response)
+      throw new TransportError(`${method} ${path} answered ${response.status}${code ? ` ${code}` : ''}`, response.status, code)
     }
     if (response.status === 204) return undefined
     try {
@@ -127,5 +159,51 @@ export class ServiceTransport {
   async ready(state: 'ready' | 'not_ready', reason: string | null, unrecovered: readonly UnrecoveredBinding[] = []): Promise<void> {
     const body = checked('ready report', wire.RuntimeReady, { state, reason, unrecovered })
     await this.request('POST', '/v1/runtime/ready', body)
+  }
+
+  // The research tools' operations (SMC-M03 S4, A11): each request and reply checked against the contract.
+
+  async researchContext(body: ResearchContextRequest, signal?: AbortSignal): Promise<ResearchContextReply> {
+    checked('research context request', wire.ResearchContextRequest, body)
+    return checked('research context', wire.ResearchContextReply, await this.request('POST', '/v1/runtime/research/context', body, signal))
+  }
+
+  /** Never takes a signal: a reservation the service made comes back to be settled, never orphaned by a cancel. */
+  async researchReserve(body: ResearchReserveRequest): Promise<ResearchReservation> {
+    checked('reservation request', wire.ResearchReserveRequest, body)
+    return checked('reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/research/reserve', body))
+  }
+
+  /** Never takes a signal: a call that was paid for is accounted even when its tool is cancelled. */
+  async researchSettle(body: ResearchSettleRequest): Promise<ResearchSettlement> {
+    checked('settlement request', wire.ResearchSettleRequest, body)
+    return checked('settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/research/settle', body))
+  }
+
+  async researchCapture(body: ResearchCaptureRequest, signal?: AbortSignal): Promise<ResearchCapture> {
+    checked('capture request', wire.ResearchCaptureRequest, body)
+    return checked('capture', wire.ResearchCapture, await this.request('POST', '/v1/runtime/research/capture', body, signal))
+  }
+
+  async researchDraft(body: ResearchDraftRequest, signal?: AbortSignal): Promise<ResearchDraft> {
+    checked('draft request', wire.ResearchDraftRequest, body)
+    return checked('draft', wire.ResearchDraft, await this.request('POST', '/v1/runtime/research/draft', body, signal))
+  }
+
+  /** Never takes a signal: ending a task is one transaction that must come back with its outcome. */
+  async researchSubmit(body: ResearchSubmitRequest): Promise<ResearchSubmission> {
+    checked('submit request', wire.ResearchSubmitRequest, body)
+    return checked('submission', wire.ResearchSubmission, await this.request('POST', '/v1/runtime/research/submit', body))
+  }
+
+  /** Print the current draft as the task's PDF and queue it (S5b); the service prints, the request carries no markup. */
+  async researchRender(body: ResearchRenderRequest, signal?: AbortSignal): Promise<ResearchRender> {
+    checked('render request', wire.ResearchRenderRequest, body)
+    return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render', body, signal))
+  }
+
+  async researchRenderResult(body: ResearchRenderResultRequest, signal?: AbortSignal): Promise<ResearchRender> {
+    checked('render result request', wire.ResearchRenderResultRequest, body)
+    return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render-result', body, signal))
   }
 }

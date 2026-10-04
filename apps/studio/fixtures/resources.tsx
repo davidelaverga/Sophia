@@ -33,6 +33,7 @@ import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
 import type { Command } from '../src/features/resources/receipts.ts'
 import type { Resource, Session } from '../src/features/resources/resource.ts'
+import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { plan, secondView } from './work-data.ts'
 import { acted, actOn, carried, commands, nextActivity, withActivity } from './work-live.ts'
 import {
@@ -77,7 +78,21 @@ declare global {
   }
 }
 
-installFixtureApi({ revision: 1, exchange: false, messages: [] })
+installFixtureApi({
+  revision: 1,
+  exchange: false,
+  messages: [],
+  // The room page's report (SMC-M03), at rest: this page reads none of it.
+  reportVersions: 1,
+  reportTitle: TITLE,
+  waiting: false,
+  description: SOPHIAS_DESCRIPTION,
+  versionsFail: false,
+  sourcesHeld: false,
+  textHeld: false,
+  textTampered: false,
+  work: false,
+})
 window.resourcesFixture = { unexpected }
 const nothing = () => undefined
 /** Each session's way to say its last effort request was refused, as its runtime would. */

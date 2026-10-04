@@ -20,7 +20,7 @@ const record = process.argv.includes('--record')
 assertToolchain()
 const unit = loadRuntimeUnit()
 const { facts, profileLock, lintFindings } = buildArtifacts(unit)
-const profileLockFile = profileLockPath(unit)
+const profileLockFile = profileLockPath()
 
 if (lintFindings.length > 0) {
   console.error('patch layers are not the intended configuration:')

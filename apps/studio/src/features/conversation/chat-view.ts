@@ -1,7 +1,20 @@
 // The typed chat's pure rules: how replies fold into turns, what the foot of the chat offers, and what its status
 // line says. React only renders them.
 import type { SophiaPresence } from '@sophia/contracts'
-import type { ChatReply } from '@sophia/contracts/room-chat'
+import type { ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
+import type { CaptionTurn } from './captions.ts'
+
+/**
+ * One count for everything the chat shows, in the order it arrives: typed turns, result cards and captions (CX-0023),
+ * so the three read as one conversation. Each is stamped once, outside any state update (React may run one twice).
+ */
+export interface Arrivals {
+  next: () => number
+}
+export function arrivals(): Arrivals {
+  let count = 0
+  return { next: () => (count += 1) }
+}
 
 export interface ChatTurn {
   id: string
@@ -11,6 +24,8 @@ export interface ChatTurn {
   sequence: number
   state: 'sending' | 'responding' | 'complete' | 'refused' | 'unknown'
   reason: string | null
+  /** Its place in the chat (Arrivals): when it was sent. */
+  at: number
 }
 
 /** Duplicate/out-of-session packets cannot append another reply. No content is written to browser storage. */
@@ -26,6 +41,92 @@ export function receiveChat(turns: readonly ChatTurn[], packet: ChatReply): Chat
       reason: packet.kind === 'refused' ? packet.text : null,
     }
   })
+}
+
+/**
+ * A finished result's card in the chat (SMC-M03 S6), for every member, whether they hear Sophia or read her
+ * (CX-0022): the bridge's notice carries ids and the task's kind, and the words are Studio's own. It sits where it
+ * arrived.
+ */
+export interface ChatNoticeItem {
+  key: string
+  taskId: string
+  taskKind: string
+  resultRevision: number
+  /** Its place in the chat (Arrivals): when its newest revision came. */
+  at: number
+}
+
+const KEPT_NOTICES = 20
+
+/**
+ * A task keeps one notice, its newest revision: the task's record names only its current files (a task read has no
+ * revision), so an older revision's card would open the newer files. A notice delivered again (the bridge sends them
+ * again whenever this page says its mode, CX-0022), or an older revision, changes nothing: the same list comes back,
+ * so nothing renders again and Chat is not marked.
+ */
+export function receiveNotice(notices: ChatNoticeItem[], packet: ChatNotice, at: number): ChatNoticeItem[] {
+  const { taskId, taskKind, resultRevision } = packet
+  const held = notices.find((n) => n.taskId === taskId)
+  if (held && held.resultRevision >= resultRevision) return notices
+  const rest = notices.filter((n) => n.taskId !== taskId)
+  const key = `${taskId}:${String(resultRevision)}`
+  return [...rest.slice(-(KEPT_NOTICES - 1)), { key, taskId, taskKind, resultRevision, at }]
+}
+
+/** The notice's words, by the task's kind: never anything a report, a page or a model wrote. */
+export function noticeTitle(taskKind: string): string {
+  if (taskKind === 'research') return 'Research report ready'
+  if (taskKind === 'draft_brief') return 'Brief ready'
+  return 'Result ready'
+}
+
+interface DeliveredFile {
+  format: 'markdown' | 'pdf'
+  artifactVersionId: string
+}
+
+/**
+ * What a result notice's buttons open and save (M03-RF-0020): Open and Download both take the primary file, the PDF
+ * when there is one; Markdown is offered beside a PDF only. The HTML page (html-report-v1) is printed from the
+ * Markdown, so it is offered whenever there is one, beside a PDF too. Each names its version, so all show the same one.
+ */
+export function noticeActions<T extends DeliveredFile>(
+  outputs: readonly T[],
+): { primary: T | null; markdown: T | null; page: T | null } {
+  const pdf = outputs.find((o) => o.format === 'pdf') ?? null
+  const markdown = outputs.find((o) => o.format === 'markdown') ?? null
+  return { primary: pdf ?? markdown, markdown: pdf ? markdown : null, page: markdown }
+}
+
+/**
+ * What Open (and Markdown) ask the viewer for: the report, the file's own version and its format, always named (the
+ * viewer's own default is the Markdown, M03-RF-0020).
+ */
+export function noticeOpenRequest(
+  artifactId: string,
+  file: DeliveredFile,
+): { artifactId: string; versionId: string; format: DeliveredFile['format'] } {
+  return { artifactId, versionId: file.artifactVersionId, format: file.format }
+}
+
+export type ChatEntryItem =
+  | { type: 'turn'; turn: ChatTurn }
+  | { type: 'notice'; notice: ChatNoticeItem }
+  | { type: 'caption'; caption: CaptionTurn }
+
+/** The chat in the order it arrived: typed turns, result cards and what was said aloud (CX-0023), as one timeline. */
+export function chatTimeline(
+  turns: readonly ChatTurn[],
+  notices: readonly ChatNoticeItem[],
+  captions: readonly CaptionTurn[] = [],
+): ChatEntryItem[] {
+  const entries: Array<{ at: number; entry: ChatEntryItem }> = [
+    ...turns.map((turn) => ({ at: turn.at, entry: { type: 'turn' as const, turn } })),
+    ...notices.map((notice) => ({ at: notice.at, entry: { type: 'notice' as const, notice } })),
+    ...captions.map((caption) => ({ at: caption.at, entry: { type: 'caption' as const, caption } })),
+  ]
+  return entries.toSorted((a, b) => a.at - b.at).map((e) => e.entry)
 }
 
 /** What the foot of the chat offers: its one way in, or the message bar. Never both. */

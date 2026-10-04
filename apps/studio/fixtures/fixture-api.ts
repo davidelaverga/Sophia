@@ -4,6 +4,18 @@
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
 import type { GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
 import { projectEvent, membership, mission, PROJECT, roomToken, snapshot } from './data.ts'
+import {
+  content,
+  editDescription,
+  citedSources,
+  REPORT,
+  reportList,
+  researchTaskAt,
+  TASK,
+  versions,
+  waitingAtTheDoor,
+  type Description,
+} from './report-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -17,6 +29,34 @@ interface Project {
   revision: number
   exchange: boolean
   messages: string[]
+  /** How many versions of the fixture report are published (report-data.ts). */
+  reportVersions: number
+  /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
+  reportTitle: string
+  /** Its first two versions are shaped like the pilot's (`history=pilot`, report-data.ts). */
+  pilot?: boolean
+  /** Someone is waiting at the door (report-data.ts). */
+  waiting: boolean
+  /** The report's description on Knowledge (report-data.ts). */
+  description: Description
+  /**
+   * How reads of the report's versions fail from now on: `unavailable`, as an API that lost its database answers;
+   * `not_found`, as it refuses a report this person may not read; false, they succeed.
+   */
+  versionsFail: false | 'unavailable' | 'not_found'
+  /** Reads of a version's sources wait until the page lets them through (`hold=sources`), as a slow API's do. */
+  sourcesHeld: boolean
+  /** So do reads of a version's text (`hold=text`). */
+  textHeld: boolean
+  /** The research task's result revision (report-data.ts): 1 unless the check revises it. */
+  taskRevision?: 1 | 2
+  /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
+  taskHeld?: boolean
+  /** A version's text arrives as bytes its record does not name (`tamper=text`). */
+  textTampered: boolean
+  /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
+  work: boolean
+  /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
@@ -61,6 +101,16 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
   return new Response(body.pipeThrough(new TextEncoderStream()), { headers: { 'content-type': 'text/event-stream' } })
 }
 
+/**
+ * The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`), and the research
+ * task in its work on the Work page (`place=work`).
+ */
+function snapshotOf(project: Project) {
+  const now = snapshot(project.revision, project.exchange, project.messages, project.goals)
+  const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] } : now
+  return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
+}
+
 /** The project moves one revision, and the event saying so goes to every open stream. */
 export function publish(project: Project): void {
   project.revision += 1
@@ -94,7 +144,7 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   const path = url.pathname
   if (method === 'GET' && path === `${base}/snapshot`) {
     served.push(`snapshot:${project.revision}`)
-    return json(snapshot(project.revision, project.exchange, project.messages, project.goals))
+    return json(snapshotOf(project))
   }
   if (method === 'GET' && path === `${base}/mission`) {
     served.push(`mission:${project.revision}`)
@@ -104,7 +154,37 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  return method === 'POST' ? posted(project, path, init) : null
+  return method === 'POST' ? posted(project, path, init) : answerReport(project, method, url, init)
+}
+
+/**
+ * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
+ * task, its card, and an edit of its description.
+ */
+function answerReport(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const path = url.pathname
+  if (method === 'PATCH') return edited(project, path, init)
+  if (method !== 'GET') return null
+  if (path === '/api/v1/knowledge/reports') {
+    const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
+    const published = versions(project.reportVersions, project.reportTitle, project.pilot)
+    return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
+  }
+  if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
+  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
+  const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
+  const text = source ? content(source, project.textTampered) : null
+  if (text) return textRead(project, text)
+  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
+  return null
+}
+
+/** An edit of the report's description on Knowledge, answered as the API answers it. */
+function edited(project: Project, path: string, init: RequestInit | undefined) {
+  if (path !== `/api/v1/artifacts/${REPORT}/summary`) return null
+  const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
+  project.description = next
+  return reply
 }
 
 /** What the page posts: a room token, or a goal's command. */
@@ -113,6 +193,76 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   return null
+}
+
+/** Reads of the research task the page holds, each waiting to be let through (`window.fixture.releaseTask`). */
+const heldTasks: (() => void)[] = []
+
+/** The research task at its revision now; while the page holds it, a read that answers once let through. */
+function taskRead(project: Project): Response | Promise<Response> {
+  const read = () => json(researchTaskAt(project.taskRevision ?? 1))
+  served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (!project.taskHeld) return read()
+  return new Promise((resolve) => heldTasks.push(() => resolve(read())))
+}
+
+/** Lets the held reads of the task through, and every later one. */
+export function releaseTask(project: Project): void {
+  project.taskHeld = false
+  for (const release of heldTasks.splice(0)) release()
+}
+
+/** The API's error bodies for a failed read of the versions, with their status (packages/domain/src/errors.ts). */
+const VERSIONS_FAILURE = {
+  unavailable: { status: 503, served: 'versions:failed', message: 'Sophia is unavailable', retry: 'safe_read' },
+  not_found: { status: 422, served: 'versions:refused', message: 'Artifact not found', retry: 'never' },
+} as const
+
+/** The report's versions, or a failed read once the page asked for that (`window.fixture.failVersions`). */
+function versionsRead(project: Project): Response {
+  if (project.versionsFail) {
+    const failure = VERSIONS_FAILURE[project.versionsFail]
+    served.push(failure.served)
+    const body = {
+      code: project.versionsFail,
+      message: failure.message,
+      requestId: '00000000-0000-4000-8000-0000000000ba',
+      retry: failure.retry,
+    }
+    return new Response(JSON.stringify(body), { status: failure.status })
+  }
+  served.push(`versions:${String(project.reportVersions)}`)
+  return json(versions(project.reportVersions, project.reportTitle, project.pilot))
+}
+
+/** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
+const heldSources: (() => void)[] = []
+
+/** What a version cites; while the page holds them, a read that answers once let through. */
+function sourcesRead(project: Project): Response | Promise<Response> {
+  if (!project.sourcesHeld) return json(citedSources)
+  return new Promise((resolve) => heldSources.push(() => resolve(json(citedSources))))
+}
+
+/** Lets the held reads of sources through, and every later one. */
+export function releaseSources(project: Project): void {
+  project.sourcesHeld = false
+  for (const release of heldSources.splice(0)) release()
+}
+
+/** Reads of text the page holds, each waiting to be let through (`window.fixture.releaseText`). */
+const heldTexts: (() => void)[] = []
+
+/** A version's text; while the page holds it, a read that answers once let through. */
+function textRead(project: Project, text: unknown): Response | Promise<Response> {
+  if (!project.textHeld) return json(text)
+  return new Promise((resolve) => heldTexts.push(() => resolve(json(text))))
+}
+
+/** Lets the held reads of text through, and every later one. */
+export function releaseText(project: Project): void {
+  project.textHeld = false
+  for (const release of heldTexts.splice(0)) release()
 }
 
 export function installFixtureApi(project: Project): void {

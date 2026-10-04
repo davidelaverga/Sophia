@@ -195,6 +195,27 @@ test('adverse: a bundle that drops the recorded compat pin of the route is rejec
   assert.ok(gate.checks.flatMap((c) => c.findings).some((f) => f.code === 'model_route_invalid' && /compat\.supportsStrictMode/.test(f.message)))
 })
 
+test('adverse: a research route widened to long cache retention, a larger output cap or another role map is rejected (SMC-M03)', () => {
+  const damaged = (replace) => gateOf(variant((profile) => {
+    const file = join(bundleDir(profile), 'cordis.patch.yml')
+    const text = readFileSync(file, 'utf8')
+    for (const [from, to] of replace) {
+      assert.ok(text.includes(from), `the bundle patch contains ${JSON.stringify(from)}`)
+    }
+    writeFileSync(file, replace.reduce((t, [from, to]) => t.replace(from, to), text))
+  }))
+  const findings = (gate) => gate.checks.flatMap((c) => c.findings)
+  const long = damaged([['        defaultMaxTokens: 16000\n', '        defaultMaxTokens: 16000\n        cacheRetention: long\n']])
+  assert.equal(long.dump.status, 0, 'upstream composes a long retention without complaint')
+  assert.ok(findings(long).some((f) => f.code === 'model_routes_invalid' && /cacheRetention "long"/.test(f.message)))
+  const cap = damaged([['            maxTokens: 16000\n', '            maxTokens: 128000\n']])
+  assert.ok(findings(cap).some((f) => f.code === 'model_routes_invalid' && /maxTokens 16000/.test(f.message)))
+  const remap = damaged([['          sophia-research-pdf-v1: research-sol-medium-v1', '          sophia-research-pdf-v1: default']])
+  assert.ok(findings(remap).some((f) => f.code === 'model_routes_invalid' && /maps roles/.test(f.message)))
+  const compaction = damaged([['        thresholdRatio: 0.45\n', '        thresholdRatio: 0.8\n']])
+  assert.ok(findings(compaction).some((f) => f.code === 'compaction_invalid'))
+})
+
 test('adverse: an unknown or broadened native preset fails the gate although it composes cleanly (M02-T02, SMC-M02 G3)', () => {
   const unknown = gateOf(variant((profile) => {
     const file = join(bundleDir(profile), 'cordis.patch.yml')

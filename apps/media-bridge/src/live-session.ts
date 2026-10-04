@@ -4,12 +4,19 @@
 // 25,000 tokens with an 8,000-token sliding window (the SDK takes these as strings); session resumption on
 // every connection, with the latest handle kept by the caller; tools NON_BLOCKING (tools.ts). No Extended
 // Thinking configuration and no `proactivity: false` (3.8 proactivity is not our privacy mechanism).
-// The system instruction is the caller's: the M01 guide's exact bytes (guide.ts), the same on every connection.
+// The system instruction and the tool declarations are the caller's: the guide's exact bytes (guide.ts) and its
+// version's declarations (tools.ts), the same on every connection.
 // The API key stays in this process; it is never logged or sent to a browser.
-import { GoogleGenAI, Modality, type FunctionResponse, type LiveServerMessage, type Session } from '@google/genai'
+import {
+  GoogleGenAI,
+  Modality,
+  type FunctionDeclaration,
+  type FunctionResponse,
+  type LiveServerMessage,
+  type Session,
+} from '@google/genai'
 import { INPUT_MIME, pcmToBase64 } from './audio.ts'
 import { dispatchServerMessage, type LiveHandlers } from './live-messages.ts'
-import { TOOL_DECLARATIONS } from './tools.ts'
 
 /** What the room session needs from a provider connection; tests supply a labelled fake. */
 export interface LiveLink {
@@ -31,6 +38,8 @@ export interface LiveOptions {
   model: string
   /** The exact provider-facing system instruction: the checked M01 guide, never assembled per connection. */
   systemInstruction: string
+  /** The guide version's function declarations (tools.ts), checked against its manifest and the API's surface. */
+  tools: readonly FunctionDeclaration[]
   /** A handle from an earlier connection of the SAME exchange; null opens a fresh session. */
   resumptionHandle: string | null
 }
@@ -66,7 +75,7 @@ export function geminiLive(opts: { baseUrl?: string } = {}): ConnectLive {
         contextWindowCompression: { triggerTokens: '25000', slidingWindow: { targetTokens: '8000' } },
         sessionResumption: options.resumptionHandle ? { handle: options.resumptionHandle } : {},
         systemInstruction: options.systemInstruction,
-        tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+        tools: [{ functionDeclarations: [...options.tools] }],
       },
       callbacks: {
         onmessage: (msg: LiveServerMessage) => dispatchServerMessage(msg, events),

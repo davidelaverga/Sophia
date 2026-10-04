@@ -22,6 +22,12 @@ import {
   validateMissionNotePolicy,
   validateMissionReceipt,
   validateMissionWithdrawalPreview,
+  validateSourceContent,
+  validateArtifactVersionList,
+  validateReportList,
+  validateReportSourceList,
+  validateReportSummary,
+  validateResearchRendition,
   validateNativeTaskDetail,
   validateNativeTaskReceipt,
   validatePersonalEarlierTurns,
@@ -86,6 +92,12 @@ export const parseMissionContext = parser('MissionContext', validateMissionConte
 export const parseMissionReceipt = parser('MissionReceipt', validateMissionReceipt)
 export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissionNotePolicy)
 export const parseMissionWithdrawalPreview = parser('MissionWithdrawalPreview', validateMissionWithdrawalPreview)
+export const parseSourceContent = parser('SourceContent', validateSourceContent)
+export const parseArtifactVersionList = parser('ArtifactVersionList', validateArtifactVersionList)
+export const parseReportList = parser('ReportList', validateReportList)
+export const parseReportSourceList = parser('ReportSourceList', validateReportSourceList)
+export const parseReportSummary = parser('ReportSummary', validateReportSummary)
+export const parseResearchRendition = parser('ResearchRendition', validateResearchRendition)
 export const parsePersonalSpace = parser('PersonalSpace', validatePersonalSpace)
 export const parsePersonalTurnPage = parser('PersonalTurnPage', validatePersonalTurnPage)
 export const parsePersonalEarlierTurns = parser('PersonalEarlierTurns', validatePersonalEarlierTurns)

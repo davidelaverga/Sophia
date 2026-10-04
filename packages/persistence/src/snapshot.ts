@@ -3,6 +3,7 @@ import type { Goal, Resource, Snapshot } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import { readLobby, readUpcomingSessions } from './access.ts'
 import { safeInt } from './bigint.ts'
+import { readCurrentArtifacts } from './artifacts.ts'
 import { readSophia } from './exchange.ts'
 import { readDiscussion, readNativeTasks } from './native-tasks.ts'
 import { onlyRow } from './rows.ts'
@@ -69,6 +70,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
   const sessions = await readUpcomingSessions(c, projectId)
   const discussion = await readDiscussion(c, projectId)
   const work = await readNativeTasks(c, projectId)
+  const artifacts = await readCurrentArtifacts(c, projectId)
   const sophia = await readSophia(c, room.id)
   return {
     projectId: project.id,
@@ -80,7 +82,7 @@ export async function readSnapshot(c: pg.PoolClient, projectId: string): Promise
     goals,
     resources,
     humanActions: [],
-    artifacts: [],
+    artifacts,
     sharedFocus: sharedFocusOf(room),
     room: {
       id: room.id,
@@ -167,16 +169,12 @@ async function readResources(c: pg.PoolClient, projectId: string): Promise<Resou
 
 /** Projections that later goals implement: refuse rather than return a false empty list. */
 async function refuseUnprojectedRecords(c: pg.PoolClient, projectId: string): Promise<void> {
-  const { rows } = await c.query<{ human_actions: boolean; artifacts: boolean }>(
-    `SELECT EXISTS (SELECT 1 FROM sophia.human_actions WHERE project_id = $1) AS human_actions,
-            EXISTS (SELECT 1 FROM sophia.artifact_versions WHERE project_id = $1) AS artifacts`,
+  const { rows } = await c.query<{ human_actions: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM sophia.human_actions WHERE project_id = $1) AS human_actions`,
     [projectId],
   )
   if (rows[0]?.human_actions) {
     throw new DomainError('projection_unavailable', 'HumanAction projection arrives with S1-09')
-  }
-  if (rows[0]?.artifacts) {
-    throw new DomainError('projection_unavailable', 'Artifact projection arrives with S1-07/S1-13')
   }
 }
 

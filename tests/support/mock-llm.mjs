@@ -7,7 +7,12 @@
  * It says nothing about a live provider's behavior.
  */
 
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
+import { join } from 'node:path'
+import { stringify } from 'yaml'
+import { REPO_ROOT } from '../../scripts/lib/common.mjs'
+import { parseCordisYaml } from '../../scripts/lib/patch-lint.mjs'
 
 export async function startMockLlm() {
   const requests = []
@@ -50,7 +55,7 @@ export async function startMockLlm() {
       }
     }
     send({ ...base, choices: [{ index: 0, delta: {}, finish_reason: finish }] })
-    if (body.stream_options?.include_usage) send({ ...base, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })
+    if (body.stream_options?.include_usage) send({ ...base, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, ...step.usage } })
     if (!closed) res.end('data: [DONE]\n\n')
     active -= 1
   })
@@ -59,7 +64,10 @@ export async function startMockLlm() {
   return {
     baseURL: `http://127.0.0.1:${port}/v1`,
     requests,
-    /** Queue replies; each request consumes one (default: a short "ok"). `toolCall` or `toolCalls: [{ id?, name, arguments }]` calls tools. */
+    /**
+     * Queue replies; each request consumes one (default: a short "ok"). `toolCall` or `toolCalls: [{ id?, name, arguments }]`
+     * calls tools; `usage` replaces fields of the reported usage.
+     */
     script: (...steps) => { queue.push(...steps) },
     /** All user-visible text the model has been sent so far. */
     sentText: () => JSON.stringify(requests.map((r) => r.messages)),
@@ -68,8 +76,16 @@ export async function startMockLlm() {
   }
 }
 
-/** A `--patch` overlay routing the runtime's default model to the mock (tests only; never installed). */
+/**
+ * A `--patch` overlay routing every model route of the runtime to the mock (tests and rehearsals only; never
+ * installed): the default model, and each route the bridge row allows (SMC-M03), so a research role rehearses on the
+ * mock and never reaches its real provider. The bridge row is restated whole, with only its routes pointed at the mock.
+ */
 export function mockRouteOverlay(baseURL) {
+  const rows = parseCordisYaml(readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'cordis.patch.yml'), 'utf8'))
+  const bridge = rows.flatMap((row) => row.insert ?? []).find((row) => row.id === 'sophia-control-bridge')?.config
+  if (!bridge) throw new Error('the bundle patch inserts no sophia-control-bridge row')
+  const routes = Object.fromEntries(Object.keys(bridge.routes ?? {}).map((id) => [id, { provider: 'mock', model: 'mock-model', reasoningEffort: null, maxTokens: 4096 }]))
   return `# Test overlay: route Agents to the keyless mock model. Never part of a profile.
 - id: llm-pi-ai
   config:
@@ -87,5 +103,5 @@ export function mockRouteOverlay(baseURL) {
   config:
     provider: mock
     model: mock-model
-`
+${stringify([{ id: 'sophia-control-bridge', config: { ...bridge, routes } }])}`
 }
